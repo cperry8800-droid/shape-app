@@ -449,7 +449,11 @@ const PARTIAL = new Set([
   // plain JS the walk never enters, and 13 more member-facing labels sit in the
   // module-scope BS_STAT_OPTIONS / BS_PROFILE_LINKS array literals it cannot attribute.
   // All 24 are keyed; none of them ever counted here.
-  'Client::BSProfileCustomizer',
+  // It MOVED FILES 2026-11-04 (iosAppBroadsheetClient.jsx → BSProfileCustomizer.jsx) with its
+  // redesign (owner: "new design for these pages"), the two tables with it; the key follows the
+  // file. Still the one literal address, so partStrings does not move; the nine words the new
+  // design added (the preview, the card titles, two aria labels) are keyed in all 13 locales.
+  'BSProfileCustomizer::BSProfileCustomizer',
   // ⚠ BSGoalsContract IS PARTIAL OVER THE SIGNED-OUT DEMO PLAN CARDS, NOT OVER
   // LIVE COPY — 88 tr() calls and exactly four hardcoded strings, all four in the
   // `signedIn ? … : <demo>` else-branch: two fabricated coach credits ("TRAINER ·

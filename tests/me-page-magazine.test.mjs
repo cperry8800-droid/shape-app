@@ -149,47 +149,126 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
   assert.deepEqual(nodes.filter(named('BSTPullQuote')).map((q) => q.props.text), answers, 'each answer is pulled out');
 });
 
-// Owner, 2026-10-24, of the profile editor: "also update design and look of this page". The Wall's look:
-// the teal kicker over an upright title and a heavy rule, each part under a Saira head on a 2px ink rule
-// (its hint at the right), square fields 44 px tall, square actions in the ink outline, the chosen chips
-// in ink, and Save in ink with the paper's text. Nothing rounded, tinted, dashed or gold.
-test('the profile editor in the Wall\'s look, for a member and for a coach', () => {
+// Owner, 2026-11-04, of the profile editor (Customize): "new design for these pages", "keep designs simple
+// … modern, appealing, easy to navigate, not overwhelming, not analog. make them look really alive", the
+// member profile as what "looks better"; then, of the redesigns, "reduce the coloring and simplify UI more".
+// So: a live preview of the profile's head on top, the parts in a few cards in the paper's own colour with
+// a soft lift, plain labels with their hints, rounded 16px fields, and colour only as a signal (Save, a
+// focused field, the facet avatar's tier colour, the accent swatches). No ink rules, no gradient panels.
+const TEAL_SAVE = THEME.isLight ? '#0a7a72' : '#34d6c5';   // bsWsAccent: the page's one colour
+const isoIn = (days) => { const d = new Date(Date.now() + days * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+test('the profile editor: a live preview, the parts in plain cards, colour only as a signal', () => {
+  const CARDS = { member: ['about', 'photos', 'highlights', 'style', 'links'], coach: ['signal', 'about', 'practice', 'photos', 'highlights', 'style', 'links'] };
   for (const coach of [false, true]) {
-    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { prompts: [{ q: 'why', a: 'x' }, { q: 'fuel', a: 'y' }] }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, coach }));
+    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { prompts: [{ q: 'why', a: 'x' }, { q: 'fuel', a: 'y' }] }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, coach, who: { name: 'Quinn Harper', handle: '@quinn' } }));
     const nodes = d.nodes();
     const styled = nodes.filter((n) => n.props && n.props.style);
     const who = coach ? 'coach' : 'member';
-    assert.match(d.text, /Your profile · Editor/);
-    assert.equal(styled.filter((n) => n.props.style.fontStyle === 'italic').length, 0, `${who}: an italic is back`);
-    const round = styled.filter((n) => n.props.style.borderRadius && !(n.props.style.width === 8 && n.props.style.height === 8));
-    assert.deepEqual(round.map((n) => n.type), [], `${who}: a rounded piece (only the rings' legend dots are round)`);
-    assert.equal(styled.filter((n) => /dashed/.test(String(n.props.style.border || ''))).length, 0, `${who}: a dashed gold Add is back`);
-    assert.equal(styled.filter((n) => /gradient/.test(String(n.props.style.background || ''))).length, 0, `${who}: a gradient rule or wash is back`);
-    // The tier's colour stays only where it is the thing shown: the "tier default" swatch and a ring's dot.
-    const swatchOrDot = (n) => n.props.style.width === 36 || n.props.style.width === 8;
-    assert.equal(styled.filter((n) => !swatchOrDot(n) && (n.props.style.color === '#c9a227' || n.props.style.background === '#c9a227')).length, 0, `${who}: the tier's gold is back`);
-    const heads = nodes.filter((n) => n.props && n.props['data-cust-head'] != null);
-    assert.ok(heads.length >= (coach ? 8 : 12), `${who}: the parts lost their heads (${heads.length})`);
-    assert.ok(heads.every((h) => h.props.style.borderBottom === `2px solid ${INK}`));
-    const line = heads.find((h) => /Your line/.test(textOf(h)));
-    assert.deepEqual(line.props.children.map((ch) => ch && textOf({ props: { children: ch.props.children } })), ['Your line', 'one motto'], 'the hint after " · " sits at the right');
-    const fields = nodes.filter((n) => n.type === 'input' || n.type === 'textarea');
-    assert.ok(fields.length > 4);
-    for (const f of fields.filter((n) => n.props.type !== 'file')) {
-      assert.equal(f.props.style.borderRadius, 0, `${who}: a rounded field`);
-      assert.ok(f.props.style.minHeight >= 44, `${who}: a field under 44 px`);
-      assert.equal(f.props.style.background, 'transparent', `${who}: a filled field`);
+    assert.match(d.text, /Customize/);
+    // The live preview: the person's name, and the facet avatar for a member, the round one for a coach.
+    const [preview] = nodes.filter((n) => n.props['data-cust-preview'] != null);
+    assert.ok(preview, `${who}: the live preview is gone`);
+    assert.match(textOf(preview), /Live preview/);
+    assert.match(textOf(preview), /Quinn Harper/);
+    const inPreview = flatten(preview.props.children);
+    assert.equal(inPreview.filter(named('BSFacetAvatar')).length, coach ? 0 : 1, `${who}: the wrong avatar`);
+    assert.equal(inPreview.filter((n) => n.props['data-cust-round-avatar'] != null).length, coach ? 1 : 0, `${who}: the wrong avatar`);
+    assert.equal(inPreview.filter((n) => n.props['data-cust-identity'] != null && n.type === 'button').length, 1, `${who}: the door to name, @handle and photo`);
+    // The parts in a few cards, each in the paper's own colour, never tinted or a gradient.
+    const cards = nodes.filter((n) => n.props['data-cust-card'] != null);
+    assert.deepEqual(cards.map((n) => n.props['data-cust-card']), CARDS[who]);
+    for (const card of [preview, ...cards]) {
+      assert.equal(card.props.style.background, THEME.PAPER, `${who}: a card is tinted`);
+      assert.ok(card.props.style.borderRadius >= 16, `${who}: a card lost its rounding`);
+      assert.match(String(card.props.style.boxShadow), /px/, `${who}: a card lost its lift`);
     }
-    const close = nodes.find((n) => n.props && n.props['data-cust-close'] != null);
+    assert.equal(styled.filter((n) => /gradient/.test(String(n.props.style.background || '')) && n.type !== 'input' && !('pointerEvents' in n.props.style)).length, 0, `${who}: a gradient panel is back`);
+    // No heavy ink rules or ledger capitals.
+    assert.equal(styled.filter((n) => /solid/.test(String(n.props.style.borderBottom || '')) || (n.props.style.height === 3 && n.props.style.background === INK)).length, 0, `${who}: an ink rule is back`);
+    assert.equal(styled.filter((n) => n.props.style.textTransform === 'uppercase').length, 0, `${who}: caps labels are back`);
+    // The tier's colour only where it is the thing shown: the "tier default" swatch and a ring's dot.
+    const swatchOrDot = (n) => n.props.style.width === 44 || n.props.style.width === 8;
+    assert.equal(styled.filter((n) => !swatchOrDot(n) && (n.props.style.color === '#c9a227' || n.props.style.background === '#c9a227')).length, 0, `${who}: the tier's gold is back`);
+    // Every part keeps a plain label, its hint beside it (the social links take their card's title).
+    const heads = nodes.filter((n) => n.props['data-cust-head'] != null);
+    assert.ok(heads.length >= 11, `${who}: the parts lost their heads (${heads.length})`);
+    assert.equal(textOf(cards.find((n) => n.props['data-cust-card'] === 'links')).match(/Social links/g).length, 1, `${who}: the links are labelled twice`);
+    const line = heads.find((h) => /Your line/.test(textOf(h)));
+    assert.deepEqual(line.props.children.filter(Boolean).map((ch) => textOf(ch)), ['Your line', 'one motto'], 'the hint after " · " sits beside the label');
+    // Fields: rounded, 44px and up, 16px words (iOS zooms a smaller field).
+    const fields = nodes.filter((n) => (n.type === 'input' || n.type === 'textarea' || n.type === 'select') && n.props.type !== 'file');
+    assert.ok(fields.length > 8, `${who}: fields went missing`);
+    for (const f of fields) {
+      assert.ok(f.props.style.borderRadius >= 12, `${who}: a square field`);
+      assert.ok(f.props.style.minHeight >= 44, `${who}: a field under 44 px`);
+      assert.ok(f.props.style.fontSize >= 16, `${who}: a field under 16px zooms on iOS`);
+    }
+    const close = nodes.find((n) => n.props['data-cust-close'] != null);
     assert.equal(close.props.style.width, 44);
     assert.equal(close.props.style.height, 44);
-    const save = nodes.find((n) => n.props && n.props['data-cust-save'] != null);
-    assert.equal(save.props.style.background, INK, 'Save is the ink action');
-    assert.equal(save.props.style.color, THEME.PAPER, 'Save\'s text is the paper, not BG');
-    assert.equal(save.props.style.clipPath, undefined, 'the notched corner is back');
-    const chips = nodes.filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined && n.props.style && n.props.style.minHeight === 44);
+    // Save: one pill in the page's one colour, not a slab.
+    const save = nodes.find((n) => n.props['data-cust-save'] != null);
+    assert.equal(save.props.style.background, TEAL_SAVE, 'Save is the one coloured action');
+    assert.equal(save.props.style.borderRadius, 999, 'Save is a pill');
+    assert.ok(save.props.style.minHeight >= 44);
+    assert.match(textOf(save), /Save profile/);
+    // Chips say whether they are chosen; chosen is outlined in the ink, never a colour.
+    const chips = nodes.filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined && n.props.style && n.props.style.minHeight === 44 && n.props.style.borderRadius === 999 && n.props.style.width == null);
     assert.ok(chips.length >= 4, `${who}: the stat and pin chips say whether they are chosen`);
-    for (const ch of chips) assert.equal(ch.props.style.background, ch.props['aria-pressed'] ? INK : 'transparent');
+    for (const ch of chips) {
+      if (ch.props['aria-pressed']) assert.equal(ch.props.style.border, `1.5px solid ${INK}`, `${who}: a chosen chip lost its outline`);
+      else assert.equal(ch.props.style.background, 'transparent', `${who}: an unchosen chip is filled`);
+      assert.doesNotMatch(String(ch.props.style.background), /#c9a227|#0a7a72|#34d6c5/, `${who}: a chip is coloured`);
+    }
+    // Every key is a full 44px target.
+    for (const b of nodes.filter((n) => n.type === 'button' && n.props.style && n.props.style.width != null && n.props.style.width !== '100%')) {
+      assert.ok(b.props.style.width >= 44 && (b.props.style.height == null || b.props.style.height >= 44), `${who}: a key under 44px (${b.props['aria-label']})`);
+    }
+  }
+});
+
+test('the editor\'s preview reads as the profile head, and follows what is typed', () => {
+  const date = isoIn(40);
+  const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { line: 'Strong is a skill.', bio: 'Early lifts, long runs.', startLine: { title: 'My first marathon', date } }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, who: { name: 'Quinn Harper', handle: '@quinn' } }));
+  const preview = () => d.nodes().find((n) => n.props['data-cust-preview'] != null);
+  const text = () => textOf(preview());
+  assert.match(text(), /Training for My first marathon/);
+  assert.match(text(), /days out/, 'the countdown');
+  assert.match(text(), /“Strong is a skill\.”/);
+  assert.match(text(), /Early lifts, long runs\./);
+  assert.doesNotMatch(text(), /Fill in the parts below/, 'the empty-state note shows over a filled profile');
+  const input = (k) => d.nodes().find((n) => n.props['data-cust-field'] === k);
+  input('line').props.onChange({ target: { value: 'One more rep.' } });
+  input('startTitle').props.onChange({ target: { value: 'The Berlin half' } });
+  withSurface(() => d.render());
+  assert.match(text(), /“One more rep\.”/, 'the preview did not follow the line');
+  assert.match(text(), /Training for The Berlin half/, 'the preview did not follow the goal');
+  // A date that is not one shows no countdown in the preview, and says why under the field.
+  input('startDate').props.onChange({ target: { value: '2026-13-40' } });
+  withSurface(() => d.render());
+  assert.doesNotMatch(text(), /days out/);
+  assert.match(d.text, /Enter a real date as YYYY-MM-DD\./);
+  // Empty, it says what it is for.
+  const empty = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, who: { name: 'Quinn Harper' } }));
+  assert.match(textOf(empty.nodes().find((n) => n.props['data-cust-preview'] != null)), /Fill in the parts below/);
+});
+
+test('the editor\'s motion is gentle, and none of it runs under reduced motion', () => {
+  const cardsOf = (d) => d.nodes().filter((n) => n.props['data-cust-card'] != null || n.props['data-cust-preview'] != null);
+  const moving = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
+  assert.ok(cardsOf(moving).every((n) => n.props.className === 'bs-cust-in'), 'the cards rise in');
+  const had = globalThis.matchMedia;
+  globalThis.matchMedia = (q) => ({ matches: /prefers-reduced-motion: reduce/.test(q) });
+  try {
+    const still = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
+    assert.ok(cardsOf(still).every((n) => !n.props.className && !(n.props.style && n.props.style.animationDelay)), 'a card still animates under reduced motion');
+  } finally { if (had === undefined) delete globalThis.matchMedia; else globalThis.matchMedia = had; }
+  // The stylesheet undoes every motion rule under the media query too (a reader who turns it on later).
+  const css = stripComments(readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', 'BSProfileCustomizer.jsx'), 'utf8'));
+  const reduced = css.slice(css.indexOf("'@media (prefers-reduced-motion: reduce) {'"));
+  assert.ok(reduced.length > 40, 'no reduced-motion block');
+  for (const rule of ['.bs-cust-in, .bs-cust-photo { animation: none !important; }', '.bs-cust-press, .bs-cust-field { transition: none !important; }', '.bs-cust-press:active:not(:disabled) { transform: none !important; }']) {
+    assert.ok(reduced.includes(rule), `reduced motion leaves ${rule.split(' {')[0]} moving`);
   }
 });
 
@@ -618,7 +697,8 @@ test('the member profile shows no prompts, and the member\'s editor no longer as
     const asks = /Add prompt/.test(d.text);
     assert.equal(asks, coach, coach ? 'a coach lost their prompts' : 'the member\'s editor still asks for prompts');
   }
-  // What a member already wrote rides through a save.
-  assert.match(src, /const \[prompts, setPrompts\] = useStateBSC\(Array\.isArray\(init\.prompts\) && init\.prompts\.length \? init\.prompts\.slice\(0, 4\)/);
-  assert.match(src, /prompts: prompts\.filter\(\(p\) => p && p\.q && String\(p\.a\)\.trim\(\)\)/);
+  // What a member already wrote rides through a save (the editor's own module since 2026-11-04).
+  const editorSrc = readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', 'BSProfileCustomizer.jsx'), 'utf8');
+  assert.match(editorSrc, /const \[prompts, setPrompts\] = useState\(Array\.isArray\(init\.prompts\) && init\.prompts\.length \? init\.prompts\.slice\(0, 4\)/);
+  assert.match(editorSrc, /prompts: prompts\.filter\(\(p\) => p && p\.q && String\(p\.a\)\.trim\(\)\)/);
 });
