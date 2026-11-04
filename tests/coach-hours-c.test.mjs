@@ -350,7 +350,7 @@ test('a rule row opens to its choices, and a pick saves that one rule', async ()
     const head = row.querySelector('button[aria-expanded]');
     assert.equal(head.getAttribute('aria-expanded'), 'false');
     assert.equal(row.querySelector('[data-hours-rule-value]').textContent, '15 min', 'the value in its pill');
-    assert.equal(row.querySelector('[role="group"]'), null, 'closed, no choices');
+    assert.ok(!row.querySelector('[role="group"]'), 'closed, no choices');
     await m.click(head);
     assert.equal(head.getAttribute('aria-expanded'), 'true');
     const opts = [...row.querySelectorAll('[role="group"] button')];
