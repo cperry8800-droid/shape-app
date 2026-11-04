@@ -1947,7 +1947,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   };
   // Up next's buttons: a 44px target round a 36px pill.
   const upHit = { minHeight: 44, minWidth: 0, display: 'flex', alignItems: 'center', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' };
-  const upPill = { flex: 1, minWidth: 0, height: 32, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 10px', borderRadius: 99, fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden' };
+  const upPill = { flex: 1, minWidth: 0, height: 28, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 10px', borderRadius: 99, fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden' };
   const doneToday = todayBookings.filter((b) => b.state === 'done').length;
   const toScheduleList = Array.isArray(toSchedule) ? toSchedule : [];
   const todoCount = triageRows.length + toScheduleList.length;
@@ -2071,7 +2071,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           condensed on home page with a tad more spacing [from] shape radio"): `dense`. */}
       <BSProDeck dense t={t} role={role} tour="hero-today" title={tr('coach:today.title', { defaultValue: 'Today' })}
         aside={<span style={bsDeckEyebrow(bsDeckTeal(t))}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}>
-        <p style={{ ...bsProLede(deckT), margin: '2px 0 0', fontSize: 12.5, padding: `0 ${t.padX}px` }}>
+        <p style={{ ...bsProLede(deckT), margin: '1px 0 2px', fontSize: 12, padding: `0 ${t.padX}px` }}>
           {headLead ? <b style={{ fontWeight: 600, color: deckT.INK }}>{headLead} </b> : null}{dayRest}
         </p>
         {coachSignedIn && calendarStatus === 'error' && <div style={{ padding: `0 ${t.padX}px` }}><button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={{ ...LINK, color: bsDeckTeal(t) }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>}
@@ -2140,33 +2140,33 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           deck's width (both 10px in from the page) and the deck's own box, colour and all (owner, 2026-11-04, of
           its corner warmed by the heat: "color of this box doesn't match"); the heat stays on the dot, the
           dotted line and Up next's words. The buttons are round and keep 44 to tap. Condensed with the deck (owner, 2026-11-04: "a little
-          more condensed"), then a step smaller again ("reduce the size of these box"): the rail 56px, the countdown
-          19px, the padding a step in, and the buttons 32px pills, each still a 44px target (it reaches 6px past
-          the pill, over the card's padding). */}
+          more condensed"), then smaller again ("reduce the size of these box", "make them all smaller"): the rail
+          50px, the countdown 17px, the name 14.5, the padding a step in, and the buttons 28px pills, each still a
+          44px target (it reaches 8px past the pill, over the card's padding). */}
       {upB && (
         <div style={{ margin: '0 10px' }}>
-          <div aria-hidden data-up-link="" style={{ marginLeft: 27, width: 0, height: 10, borderLeft: `2px dotted ${heat}` }} />
-          <div data-up-next="" style={{ ...bsRaised(t), display: 'grid', gridTemplateColumns: '56px minmax(0, 1fr)' }}>
-            <div data-up-rail="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '8px 4px', borderRight: `1px solid ${t.INK}1f` }}>
+          <div aria-hidden data-up-link="" style={{ marginLeft: 24, width: 0, height: 8, borderLeft: `2px dotted ${heat}` }} />
+          <div data-up-next="" style={{ ...bsRaised(t), display: 'grid', gridTemplateColumns: '50px minmax(0, 1fr)' }}>
+            <div data-up-rail="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '7px 3px', borderRight: `1px solid ${t.INK}1f` }}>
               <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
               {upIn != null && (
                 <div data-up-countdown="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 19, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${Math.floor(upIn / 60)}:${String(upIn % 60).padStart(2, '0')}`}</span>
+                  <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${Math.floor(upIn / 60)}:${String(upIn % 60).padStart(2, '0')}`}</span>
                   <span style={{ fontFamily: BS_DECK_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:today.toGo', { defaultValue: 'to go' })}</span>
                 </div>
               )}
               {/* A booking already under way has no countdown: its start time stands in the rail. */}
               {upIn == null && <span style={{ fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: t.INK70, textAlign: 'center' }}>{fmtAt(upB.time)}</span>}
             </div>
-            <div style={{ minWidth: 0, padding: '8px 12px 8px 11px' }}>
-              <div style={{ fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: heatText }}>
+            <div style={{ minWidth: 0, padding: '7px 11px 8px 10px' }}>
+              <div style={{ fontFamily: BS_DECK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: heatText }}>
                 {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}
               </div>
-              <div style={{ marginTop: 3, fontFamily: BS_PRO_HEAD, fontSize: 15.5, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
-              <div style={{ marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
-              <div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-                <button type="button" data-up-btn="" onClick={upPrimary[1]} style={{ ...upHit, margin: '-6px 0' }}><span style={{ ...upPill, background: t.INK, color: t.PAPER }}>{upPrimary[0]}</span></button>
-                {upIsPerson && <button type="button" data-up-btn="" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ ...upHit, margin: '-6px 0' }}><span style={{ ...upPill, border: `1px solid ${t.INK50}`, color: t.INK }}>{tr('coach:today.message', { defaultValue: 'Message' })}</span></button>}
+              <div style={{ marginTop: 2, fontFamily: BS_PRO_HEAD, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
+              <div style={{ marginTop: 1, fontFamily: t.DISPLAY, fontSize: 11.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
+              <div style={{ marginTop: 5, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
+                <button type="button" data-up-btn="" onClick={upPrimary[1]} style={{ ...upHit, margin: '-8px 0' }}><span style={{ ...upPill, background: t.INK, color: t.PAPER }}>{upPrimary[0]}</span></button>
+                {upIsPerson && <button type="button" data-up-btn="" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ ...upHit, margin: '-8px 0' }}><span style={{ ...upPill, border: `1px solid ${t.INK50}`, color: t.INK }}>{tr('coach:today.message', { defaultValue: 'Message' })}</span></button>}
               </div>
             </div>
           </div>

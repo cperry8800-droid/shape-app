@@ -46,40 +46,39 @@ export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onO
           spacing here"). */}
       <BSFocusHead glyph="◐" top={10} label={label || tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
         meta={unread && !calTargetKnown ? dash : tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: calTarget.toLocaleString() })} />
-      {/* A step smaller (owner, 2026-11-04: "reduce the size of these box"): an 88px ring, what was eaten
-          under it rather than under the macros, so the card is as tall as its three 44px macro rows. */}
-      <section data-eat-fuel="" data-eat-fuel-unread={unread ? '' : undefined} style={{ ...bsEfGlass(t), borderRadius: 18, margin: '8px 10px 0', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 14 }}>
-        <span style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-        <span data-eat-ring="" style={{ position: 'relative', width: 88, height: 88, flex: 'none' }}>
-          <svg width="88" height="88" viewBox="0 0 112 112" aria-hidden="true" style={{ display: 'block', transform: 'rotate(-90deg)' }}>
-            <circle cx="56" cy="56" r={RING_R} fill="none" stroke={bsEfTint(t.ACCENT, '29', t.HAIR)} strokeWidth="10" />
-            <circle data-eat-ring-arc="" cx="56" cy="56" r={RING_R} fill="none" stroke={t.ACCENT} strokeWidth="10" strokeLinecap="round" strokeDasharray={`${(ringPct / 100) * RING_C} ${RING_C}`} />
+      {/* Two steps smaller (owner, 2026-11-04: "reduce the size of these box", then "make them all smaller"): a
+          76px ring, and beside it the three macros side by side, each a 44px door (its name in its colour, what
+          is left of it, a rounded bar), with what was eaten under them. The card is as tall as the ring. */}
+      <section data-eat-fuel="" data-eat-fuel-unread={unread ? '' : undefined} style={{ ...bsEfGlass(t), borderRadius: 16, margin: '8px 10px 0', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span data-eat-ring="" style={{ position: 'relative', width: 76, height: 76, flex: 'none' }}>
+          <svg width="76" height="76" viewBox="0 0 112 112" aria-hidden="true" style={{ display: 'block', transform: 'rotate(-90deg)' }}>
+            <circle cx="56" cy="56" r={RING_R} fill="none" stroke={bsEfTint(t.ACCENT, '29', t.HAIR)} strokeWidth="11" />
+            <circle data-eat-ring-arc="" cx="56" cy="56" r={RING_R} fill="none" stroke={t.ACCENT} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(ringPct / 100) * RING_C} ${RING_C}`} />
           </svg>
           <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 23, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{unread ? dash : calLeft.toLocaleString()}</span>
-            <span style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 10, color: t.INK70 }}>{tr('nutrition:eat.kcalLeftWord', { defaultValue: 'kcal left' })}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 20, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{unread ? dash : calLeft.toLocaleString()}</span>
+            <span style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 9.5, color: t.INK70 }}>{tr('nutrition:eat.kcalLeftWord', { defaultValue: 'kcal left' })}</span>
           </span>
         </span>
-          {unread ? null : <span data-eat-eaten="" style={{ fontFamily: t.BODY, fontSize: 10.5, color: t.INK50, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{tr('nutrition:eat.eatenPct', { defaultValue: '{eaten} eaten · {pct}%', eaten: calNow.toLocaleString(), pct: calPct })}</span>}
-        </span>
-        <span data-eat-macros="" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          {macros.map((m) => {
-            const left = unread ? dash : tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) });
-            const pct = !unread && m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : 0;
-            const of = unread ? `${dash} / ${m.gKnown ? m.g : dash}` : `${m.v} / ${m.g}`;
-            return (
-              <button key={m.k} type="button" onClick={() => !unread && onOpen && onOpen(m.k)} disabled={unread} aria-label={`${m.l} ${left} ${of}`}
-                style={{ minWidth: 0, minHeight: 44, border: 0, background: 'transparent', padding: '4px 0', boxSizing: 'border-box', textAlign: 'left', cursor: unread ? 'default' : 'pointer', font: 'inherit', color: 'inherit' }}>
-                <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: m.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.l}</span>
-                  <span style={{ marginLeft: 'auto', flex: 'none', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{left}</span>
-                </span>
-                <span aria-hidden style={{ display: 'block', marginTop: 5, height: 5, borderRadius: 999, background: bsEfTint(m.c, '33', t.HAIR), overflow: 'hidden' }}>
-                  <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 999, background: m.c }} />
-                </span>
-              </button>
-            );
-          })}
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span data-eat-macros="" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+            {macros.map((m) => {
+              const left = unread ? dash : tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) });
+              const pct = !unread && m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : 0;
+              const of = unread ? `${dash} / ${m.gKnown ? m.g : dash}` : `${m.v} / ${m.g}`;
+              return (
+                <button key={m.k} type="button" onClick={() => !unread && onOpen && onOpen(m.k)} disabled={unread} aria-label={`${m.l} ${left} ${of}`}
+                  style={{ minWidth: 0, minHeight: 44, border: 0, background: 'transparent', padding: '3px 0', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'left', cursor: unread ? 'default' : 'pointer', font: 'inherit', color: 'inherit' }}>
+                  <span style={{ display: 'block', minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: m.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.l}</span>
+                  <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, lineHeight: 1.15, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{left}</span>
+                  <span aria-hidden style={{ display: 'block', marginTop: 4, height: 4, borderRadius: 999, background: bsEfTint(m.c, '33', t.HAIR), overflow: 'hidden' }}>
+                    <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 999, background: m.c }} />
+                  </span>
+                </button>
+              );
+            })}
+          </span>
+          {unread ? null : <span data-eat-eaten="" style={{ fontFamily: t.BODY, fontSize: 10.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{tr('nutrition:eat.eatenPct', { defaultValue: '{eaten} eaten · {pct}%', eaten: calNow.toLocaleString(), pct: calPct })}</span>}
         </span>
       </section>
     </>

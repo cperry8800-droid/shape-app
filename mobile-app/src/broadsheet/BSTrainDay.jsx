@@ -96,14 +96,14 @@ export function BSTrainDay(p) {
         {/* Who wrote the day — honest byline: "Programmed by you" (or the program name · Wn) on self days,
             the real assigning trainer on coach days, and nothing at all when no coach authored it. */}
         {cur.selfAuthored ? (
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}{cur.program && cur.program.week ? ` · ${tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week })}` : ''}</span>
             {p.onEditYours && (
               <button type="button" onClick={p.onEditYours} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, marginBlock: -6, padding: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>
             )}
           </div>
         ) : p.coach ? (
-          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{p.coach} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
+          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{p.coach} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
         ) : null}
         {!isRest ? (
           <BSFocusActions lit color={RUST}

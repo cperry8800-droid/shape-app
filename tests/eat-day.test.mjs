@@ -279,7 +279,7 @@ test('the glow is dark paper\'s, and every target is at least 44px tall on both 
       const spine = m.q('[data-focus-lead="lit"]').querySelector('span[aria-hidden]');
       if (paper === 'dark') {
         assert.match(dot.style.boxShadow, /0 0 16px -2px/);
-        assert.match(log.style.boxShadow, /0 0 22px -6px/);
+        assert.match(log.style.boxShadow, /0 0 18px -6px/);
         assert.match(spine.style.boxShadow, /0 0 14px/);
       } else {
         assert.equal(dot.style.boxShadow, 'none');

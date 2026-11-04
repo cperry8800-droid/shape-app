@@ -202,7 +202,7 @@ test('the glow is dark paper\'s: the picked tile, the burn total, the lead\'s sp
       const total = m.q('[data-train-burn-total]');
       if (name === 'dark') {
         assert.match(picked.style.boxShadow, /0 0 16px -2px/);
-        assert.match(start.style.boxShadow, /0 0 22px -6px/);
+        assert.match(start.style.boxShadow, /0 0 18px -6px/);
         assert.match(spine.style.boxShadow, /0 0 14px/);
         assert.match(total.style.textShadow, /0 0 12px/);
       } else {
