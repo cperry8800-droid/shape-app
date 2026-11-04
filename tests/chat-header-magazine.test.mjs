@@ -90,11 +90,14 @@ test('the Team list is in the magazine look: a masthead, flat faces, teal unread
   assert.match(team, /\{count > 0 && <span style=\{\{ fontFamily: t\.MONO, fontSize: 10, fontWeight: 800, color: magAccent/, 'a bare teal count');
   assert.match(team, /border: 0, borderBottom: isLast \? 0 : `1px solid \$\{t\.HAIR\}`/, 'a hairline between rows, after the border reset');
   assert.doesNotMatch(team, /background: TEAL|teal\} 62%|bsSdPrBreath|bsTierColor/, 'no teal pill, gradient rule, breathing dot or tier gem');
-  // The masthead.
-  assert.match(team, /<header data-bs-team-head="">\s*<h2 style=\{\{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid \$\{t\.INK\}`, fontFamily: bsWsHead\(t\), fontSize: 30/);
+  // The register alone: the big COACHES / FRIENDS head went (owner, 2026-11-04: "get rid of the large
+  // coaches header and Friends header").
+  assert.match(team, /<header data-bs-team-head="">/);
+  assert.doesNotMatch(team, /<header data-bs-team-head="">[\s\S]{0,400}<h2 /, 'no big head over the list');
   assert.match(team, /color: magAccent, padding: 0 \}\}>\{tr\('feed:team\.new'/, 'New in teal');
-  // The Team tab's column sits on the Wall's 12px edge.
-  assert.match(CLIENT, /<div style=\{\{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 16 \}\}>\s*<div inert=\{subHidden\} style=\{bsSubStyle\(16\)\}>/);
+  // The Team tab's column sits on the Wall's 12px edge, the tabs close over the list (owner, 2026-11-04:
+  // "reduce gap here").
+  assert.match(CLIENT, /<div style=\{\{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 6 \}\}>\s*\{\/\*[^]*?\*\/\}\s*<div inert=\{subHidden\} style=\{\{ \.\.\.bsSubStyle\(6\), marginTop: -6 \}\}>/);
 });
 
 // Owner, 2026-10-24: "everything on chat page should match new feed wall design". The page's title, the
@@ -120,10 +123,12 @@ test('a Client or Community post is a square note under a flat face, not a tinte
 test('Channels: the masthead, the magazine\'s teal, the names in the Wall\'s face, still dots, ink buttons', () => {
   const ch = between(CLIENT, '          const tealSig = ', '                {channels && chList.length === 0 && newChannel === null && (');
   assert.match(ch, /const tealSig = magAccent;/);
-  assert.match(ch, /<header data-bs-channels-head="">\s*<h2 style=\{\{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid \$\{t\.INK\}`, fontFamily: bsWsHead\(t\)/);
+  // The register alone: THE CHANNELS head went (owner, 2026-11-04: "remove this channels").
+  assert.match(ch, /<header data-bs-channels-head="">/);
+  assert.doesNotMatch(ch, /<header data-bs-channels-head="">[\s\S]{0,300}<h2 /, 'no big head over the channels');
   assert.match(ch, /fontFamily: bsWsHead\(t\), fontWeight: 500, fontSize: 20[^}]*\}\}>#\{ch\.name\}/);
   assert.doesNotMatch(ch, /bsSdPrBreath|background: TEAL|linear-gradient\(90deg, \$\{t\.INK\}, \$\{tealSig\}/, 'no breathing dot, teal button or gradient rule');
-  assert.match(CLIENT, /<div style=\{\{ padding: '16px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 \}\}>/, 'on the Wall\'s 12px edge');
+  assert.match(CLIENT, /<div style=\{\{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 \}\}>/, 'on the Wall\'s 12px edge, as close under the tabs as Team');
 });
 
 // The thread screen left the magazine look for Nora's sheet's design (owner, 2026-11-01: "also use this

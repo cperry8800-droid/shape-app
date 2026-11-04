@@ -64,7 +64,11 @@ export function BSHomeTeam(props) {
 //   meal      { slot, time, title, onLog } | null             the next meal not logged
 //   mealCoachId                                              the nutritionist who wrote the meal plan
 //   fuel      { left, pct } | null                            food left today, and the share eaten
-export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, mealCoachId = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, tour }) {
+//   today     whether the day is today (owner, 2026-11-04: "the change in weekly date should adjust
+//             activities on home page"); another day picked in This week reads by its date: its session
+//             opened as a preview, its meals in order (dayMeals [{ slot, time, title }]), nothing to log
+//             and no food left
+export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, dayMeals = null, today = true, mealCoachId = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, tour }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const trainers = coaches.filter((c) => c.role !== 'nutritionist');
@@ -112,7 +116,7 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
     try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name || undefined } })); } catch (e) { /* the chat tab is still a tap away */ }
   };
   const nNew = (c) => (c && c.conversationId && unread && unread[`dm:${c.conversationId}`]) || 0;
-  const hasFuel = !!(fuel && fuel.left != null) || !!meal;
+  const hasFuel = !!(fuel && fuel.left != null) || !!meal || !!(dayMeals && dayMeals.length);
   if (!coaches.length && !workout && !hasFuel && !showFindCoach) return null;
 
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' };
@@ -160,13 +164,13 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
           <div style={{ fontFamily: BS_GAUGE_FACE, fontSize: 21, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK }}>{workout.title}</div>
           {workout.meta ? <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{workout.meta}</div> : null}
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: withMessage ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-            <button type="button" data-team-start="" onClick={workout.onStart} style={btn(true)}>{tr('home:lead.workout.cta', { defaultValue: "I'll train today →" })}</button>
+            <button type="button" data-team-start="" onClick={workout.onStart} style={btn(true)}>{today ? tr('home:lead.workout.cta', { defaultValue: "I'll train today →" }) : tr('home:action.preview', { defaultValue: 'Preview →' })}</button>
             {withMessage}
           </div>
         </>
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('home:team.noSession', { defaultValue: 'No session today' })}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{today ? tr('home:team.noSession', { defaultValue: 'No session today' }) : tr('home:team.noSessionOn', { defaultValue: 'No session · {day}', day: dayLabel })}</span>
           {withMessage}
         </div>
       )}
@@ -175,6 +179,17 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   const fuelBody = (note) => (
     <>
       {note ? quote(note) : null}
+      {dayMeals && dayMeals.length ? (
+        <div data-team-day-meals="" style={{ marginTop: note ? 10 : 0, paddingTop: note ? 10 : 0, borderTop: note ? `1px solid ${t.HAIR || t.RULE}` : 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {dayMeals.map((m, i) => (
+            <div key={i} data-team-day-meal="" style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
+              <span style={{ ...mono, flex: 'none', minWidth: 64, color: bsHtRole(t, 'nutritionist').text }}>{m.slot}</span>
+              <span style={{ ...mono, flex: 'none', color: t.INK50 }}>{m.time}</span>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.title}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {(fuel && fuel.left != null) || meal ? (
         <div style={{ marginTop: note ? 10 : 0, paddingTop: note ? 10 : 0, borderTop: note ? `1px solid ${t.HAIR || t.RULE}` : 0, display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           {fuel && fuel.left != null ? (
@@ -193,9 +208,10 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       ) : null}
     </>
   );
-  const fuelButtons = (withMessage) => (meal || withMessage) ? (
-    <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: meal && withMessage ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-      {meal ? <button type="button" data-team-log="" onClick={meal.onLog} style={btn(true)}>{tr('home:team.logSlot', { defaultValue: 'Log {slot} →', slot: meal.slot || '' })}</button> : null}
+  const canLog = !!(meal && meal.onLog);
+  const fuelButtons = (withMessage) => (canLog || withMessage) ? (
+    <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: canLog && withMessage ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
+      {meal && meal.onLog ? <button type="button" data-team-log="" onClick={meal.onLog} style={btn(true)}>{tr('home:team.logSlot', { defaultValue: 'Log {slot} →', slot: meal.slot || '' })}</button> : null}
       {withMessage}
     </div>
   ) : null;
@@ -205,9 +221,9 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
     <section data-bs-home-team="" data-tour={tour || undefined} style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 4 }}>
         <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>
-          {count ? tr('home:team.title', { defaultValue: 'Team' }) : tr('home:team.today', { defaultValue: 'Today' })}<span aria-hidden="true" style={{ color: '#c0533b' }}>.</span>
+          {count ? tr('home:team.title', { defaultValue: 'Team' }) : today ? tr('home:team.today', { defaultValue: 'Today' }) : dayLabel}<span aria-hidden="true" style={{ color: '#c0533b' }}>.</span>
         </h2>
-        <span style={{ ...mono, marginLeft: 'auto', color: t.INK50 }}>{[dayLabel, count ? tr('home:team.coaches', { defaultValue: '{count, plural, one {# coach} other {# coaches}}', count }) : null].filter(Boolean).join(' · ')}</span>
+        <span style={{ ...mono, marginLeft: 'auto', color: t.INK50 }}>{[count || today ? dayLabel : null, count ? tr('home:team.coaches', { defaultValue: '{count, plural, one {# coach} other {# coaches}}', count }) : null].filter(Boolean).join(' · ')}</span>
       </div>
 
       {/* The trainer, with today's call when the session is theirs; a session no paid trainer wrote stands
@@ -218,7 +234,7 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
           <div data-team-coach="trainer" style={{ marginTop: 10 }}>
             {/* Their card holds today's call: their session, or "No session today" when there is none at all;
                 a session someone else wrote stands below, and their card keeps the note and Message. */}
-            {head(trainer, sessionCoach || !workout ? tr('home:focus.todaysCall', { defaultValue: 'Today’s call' }) : (note ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null), sessionCoach ? workout.time : null)}
+            {head(trainer, sessionCoach || !workout ? (today ? tr('home:focus.todaysCall', { defaultValue: 'Today’s call' }) : dayLabel) : (note ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null), sessionCoach ? workout.time : null)}
             {sessionCoach || !workout ? sessionCard(message(trainer), note)
               : note ? <div style={card}>{quote(note)}<div style={{ marginTop: 12 }}>{message(trainer)}</div></div>
                 : <div style={{ marginTop: 8 }}>{message(trainer)}</div>}
@@ -227,7 +243,7 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       })() : null}
       {workout && !sessionCoach ? (
         <div data-team-coach="none-session" style={{ marginTop: trainer ? 16 : 10 }}>
-          {plainHead(tr('home:team.workout', { defaultValue: 'Today’s workout' }), workout.time)}
+          {plainHead(today ? tr('home:team.workout', { defaultValue: 'Today’s workout' }) : tr('home:team.workoutOn', { defaultValue: 'Workout · {day}', day: dayLabel }), workout.time)}
           {sessionCard(null)}
         </div>
       ) : null}
@@ -247,7 +263,7 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       })() : null}
       {hasFuel && (!nutri || fuelOrphan) ? (
         <div data-team-coach="none-fuel" style={{ marginTop: 16 }}>
-          {plainHead(tr('home:team.fuel', { defaultValue: 'Fuel left today' }))}
+          {plainHead(today ? tr('home:team.fuel', { defaultValue: 'Fuel left today' }) : tr('home:team.mealsOn', { defaultValue: 'Meals · {day}', day: dayLabel }))}
           <div data-team-card="fuel" style={card}>{fuelBody(null)}{fuelButtons(null)}</div>
         </div>
       ) : null}

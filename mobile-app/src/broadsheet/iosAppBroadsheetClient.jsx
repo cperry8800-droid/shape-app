@@ -4561,6 +4561,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Once ANY live plan exists every card follows it — a demo workout next to a
   // live day log would claim a session that isn't assigned.
   const selWorkout = liveWeek ? liveWeek.workoutByIdx[selIdx] : bsClientWorkoutForDay(selIdx);
+  // The day picked in This week (owner, 2026-11-04: "the change in weekly date should adjust activities on
+  // home page"): Team follows it, the day's session on the trainer's card and the day's meals on the
+  // nutritionist's. The morning panel, the ticker and Your move stay today's, as coach Today's Up next and
+  // To do stay today's (#2593). Null is today; an index is Monday-first into weekDates, the strip's week.
+  const [pickedDay, setPickedDay] = useStateBSC(null);
+  const pickIdx = pickedDay != null && pickedDay >= 0 && pickedDay < 7 ? pickedDay : todayIdx;
+  const pickToday = pickIdx === todayIdx;
+  const pickWorkout = pickToday ? selWorkout : (liveWeek ? liveWeek.workoutByIdx[pickIdx] : bsClientWorkoutForDay(pickIdx));
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
@@ -4763,9 +4771,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Every meal for the selected day, as full preview records — each renders as
   // its own agenda card (the Day Log list is gone). Live = the assigned meal
   // plan; demo rows only when no plan exists.
-  const selMeals = (() => {
-    if (liveWeek) return liveWeek.mealsByIdx[selIdx] || [];
-    const rows = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
+  const mealsForIdx = (idx) => {
+    if (liveWeek) return liveWeek.mealsByIdx[idx] || [];
+    const rows = (DAY_LOGS[20 + idx] || []).filter((r) => r.tag === 'MEAL');
     return rows.map((row, j) => {
       const sub = row.sub || '';
       const kcal = parseInt(((sub.match(/(\d[\d,]*)\s*kcal/i) || [])[1] || '0').replace(/,/g, ''), 10);
@@ -4776,7 +4784,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       const parts = String(row.title || '').split(/\s*(?:,|\+|&|\/| with | and )\s*/i).map((x) => x.trim()).filter(Boolean);
       const per = parts.length ? Math.round(kcal / parts.length) : kcal;
       return {
-        id: `home-demo-${selIdx}-${j}`, time: row.time || '', tag: row.tag, tagColor: row.tagColor,
+        id: `home-demo-${idx}-${j}`, time: row.time || '', tag: row.tag, tagColor: row.tagColor,
         title: row.title, sub, kcal, p: pp, c: cc, f: ff,
         prep: '10 min', portion: '1 plate', score: 'A',
         hero: `${row.title}.`,
@@ -4784,7 +4792,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         ingredients: parts.map((m2, k2) => ({ n: 'portion', m: m2.charAt(0).toUpperCase() + m2.slice(1), k: `${k2 === parts.length - 1 ? Math.max(0, kcal - per * (parts.length - 1)) : per} kcal` })),
       };
     });
-  })();
+  };
+  const selMeals = mealsForIdx(selIdx);
+  // The picked day's meals, for Team (today's are selMeals).
+  const pickMeals = pickToday ? selMeals : mealsForIdx(pickIdx);
   // Habits for the selected day — live from the user's habits (mirrored into
   // tweaks) when present, demo set otherwise. `done` reflects that specific day.
   const _homeHabitsDec = (typeof window !== 'undefined' && window._bsDecodeHabits) ? window._bsDecodeHabits(tweaks.habits) : [];
@@ -4871,13 +4882,15 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       onUnfiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => { const n = { ...prev }; delete n[id]; return n; }); }} />;
   }
   if (showWorkoutPreview) {
-    return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: selWorkout }); }} onMessage={() => {
+    // `true` is today's session (Your move); a workout is the one Team opened, the picked day's.
+    const shownWorkout = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : selWorkout;
+    return <BSHomeWorkoutPreview workout={shownWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
       setShowWorkoutPreview(false);
       // The trainer who wrote the session (the plan read's coachId), in their own thread; signed in with no
       // such paid trainer, the chats; the signed-out preview's sample coach.
       if (!bsHomeSignedIn) { goChat('Jordan Chen', 'Coach · Hypertrophy'); return; }
-      const c = selWorkout && selWorkout.coachId != null
-        ? planCoaches.find((k) => k.role !== 'nutritionist' && k.providerId != null && String(k.providerId) === String(selWorkout.coachId)) : null;
+      const c = shownWorkout && shownWorkout.coachId != null
+        ? planCoaches.find((k) => k.role !== 'nutritionist' && k.providerId != null && String(k.providerId) === String(shownWorkout.coachId)) : null;
       if (c && c.conversationId) { try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name || undefined } })); return; } catch (e) { /* the chats below */ } }
       goChat(c && c.name ? c.name : null);
     }} />;
@@ -5131,7 +5144,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
           proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
           stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
-          onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()} />
+          onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()}
+              picked={pickedDay} onPick={setPickedDay} />
       </BSHomeDeck>
 
       {/* ── CHECK-INS — up top, right under the week (owner, 2026-10-11: "check-in should be towards the
@@ -5194,14 +5208,26 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null, providerId: b.provider_id ?? null });
           for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null, providerId: b.provider_id ?? null });
         }
+        // Today: today's session and the next meal not logged, with the food left. Another day picked in
+        // This week: that day's session (opened as a preview) and its meals in order, with nothing to log
+        // and no food left, since food is logged today.
+        const pickDate = weekDates[pickIdx];
+        const pw = pickWorkout;
+        const pwTimed = !!(pw && pw.time && pw.time !== '—');
+        const pwMeta = (pw && pw.detail && pw.detail.meta) ? pw.detail.meta.split(' · ').slice(0, 3).join(' · ') : (pw && pw.sub) || '';
+        const dayMeals = pickToday ? null : pickMeals.slice().sort((x, y) => mealMinutes(x) - mealMinutes(y))
+          .map((m) => ({ slot: slotLabel(m), time: fmtAt(mealMinutes(m)), title: m.title }));
         return (
           <BSHomeTeam tour="hero-home" coaches={teamCoaches} notes={notes}
-            dayLabel={`${_dowShort(_now)} ${_now.getDate()}`}
-            workout={selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: _wkTimed ? fmtAt(WORKOUT_AT) : null, onStart: () => setShowWorkoutPreview(true),
+            dayLabel={`${_dowShort(pickDate)} ${pickDate.getDate()}`} today={pickToday}
+            workout={!pickToday ? (pw && pw.title ? { title: pw.title, meta: pwMeta, time: pwTimed ? fmtAt(bsFocusMin(pw.time) ?? 540) : null, onStart: () => setShowWorkoutPreview(pw),
+              coachId: sample ? 'sample-trainer' : (pw.coachId ?? null) } : null)
+              : selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: _wkTimed ? fmtAt(WORKOUT_AT) : null, onStart: () => setShowWorkoutPreview(true),
               // Who wrote it (the plan read's trainer id): Team files it under that trainer. The sample's is Jordan's.
               coachId: sample ? 'sample-trainer' : (selWorkout.coachId ?? null) } : null}
-            meal={nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
-            fuel={fuel}
+            meal={pickToday && nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
+            dayMeals={dayMeals}
+            fuel={pickToday ? fuel : null}
             // Who wrote the meal plan (the plan read's nutritionist id): Team files the meals under them.
             mealCoachId={sample ? 'sample-nutritionist' : ((livePlan && livePlan.meals && livePlan.meals.coachId) ?? null)}
             showFindCoach={!teamCoaches.length && coachesKnown}
@@ -25465,7 +25491,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const n = (rows || []).length;
             return (
               <header data-bs-team-head="">
-                <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</h2>
+                {/* The register alone: the big COACHES / FRIENDS head went (owner, 2026-11-04: "get rid of the large
+                    coaches header and Friends header"); the tab above says which list this is. */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: magAccent, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
                   <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ minHeight: 36, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: magAccent, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
@@ -25574,11 +25601,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
-              <div style={{ padding: '16px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* The masthead, as THE WALL's and the Team list's: the name over a heavy rule, then the register
                     (channels, live, new) on a hairline. */}
+                {/* The register alone: THE CHANNELS head went (owner, 2026-11-04: "remove this channels"). */}
                 <header data-bs-channels-head="">
-                  <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{tr('feed:channels.head', { defaultValue: 'The channels' })}</h2>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${t.HAIR}` }}>
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                       {tr('feed:channels.count', { defaultValue: '{count, plural, one {# channel} other {# channels}}', count: chDisplay.length })}
@@ -25645,8 +25672,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             // On the Wall's 12px edge (owner, 2026-10-24), so the list's rules end where the strip's do.
-            <div style={{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div inert={subHidden} style={bsSubStyle(16)}>
+            // The tabs sit close over the list (owner, 2026-11-04: "reduce gap here").
+            <div style={{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* The row's 44px taps reach 6px up into the gap under the rail, never onto it (lifted here, outside
+                  the sub-row's clip, so no part of a tap is cut off). */}
+              <div inert={subHidden} style={{ ...bsSubStyle(6), marginTop: -6 }}>
               {/* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */}
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
                 {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
