@@ -622,6 +622,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the marketplace directory ("Find your coach.") redesigned, in its own module, BSMarketDirectory.jsx (#2600). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, after the run of redesigns (Goals, Home\'s Team, the coach pages): "and these", "the marketplace"', status: 'done' },
+        { label: '#2600 the top: the standard masthead, ← Back with The classifieds eyebrow on its row, "Find your coach." on one line; the search (a rounded 48px field) and All · Trainers · Nutritionists (a segmented switch) lead. A role\'s filters are one row of chips (category, format for trainers, location), each the native picker under a pill, with Clear filters while one is set; sort sits on the list\'s own head', status: 'done' },
+        { label: '#2600 All: the coach of the week as one raised card in their role\'s tint (face, role · standing · place, two lines of their words, Rating / Clients / Years tiles, zero clients reading "—", the top three offers, See the profile); This week a two-across grid of coach tiles with their cover; What\'s hot a segmented switch over numbered rows; the two Apply doors as tiles', status: 'done' },
+        { label: '#2600 the list (a role, a search or See all): a 72px row per coach, numbered, their photo in their role\'s ring or their initials (also when the photo fails), name, role · credential, place · standing · vetted, the rate over the rating. No new copy', status: 'done' },
+        { label: '#2600 code: the view is BSMarketDirectory.jsx (window globals at call time, its own useShapeTr, imports only React, BSProInstrument and BSDash); every rule stays in iosAppBroadsheetMarketplace.jsx, which hands it each coach through mktDirCard (live-review rating or New, Shape Score standing, the validated photo). MktSectionHead, MktTrackRow, MktRow and MktComboCard went; the studio strip left the directory (the listing keeps it). tests/market-directory-module.test.mjs drives the real screen on its demo coaches', status: 'done' },
+        { label: '#2600 review: Codex clean on 9db9a30. npm test 9,601/9,602 (one skipped) before the rebase onto #2599\'s main; on it, the build and the 93 affected tests pass', status: 'done' },
+        { label: 'OWNER: on a phone, the filter chips at 320pt and the native pickers under them', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the day picked in This week moves Home\'s Team and Eat\'s fuel head to it; a quieter climb; Chat without its big heads; a Shape Score row on every member\'s page (#2599). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "the change in weekly date should adjust activities on home page"; "there should also be a link to shape score page on profiles"; of Chat, "reduce gap here and get rid of the large coaches header and Friends header. and remove this channels"; of the climb, "simplify some of the data on the hill climb/chart. looks like too much and can be a little overwhelming"', status: 'done' },
@@ -633,7 +645,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2599 review: Codex\'s P1 on c45006a (another day\'s preview read Today) fixed in d3b0e53; its P1 on d3b0e53 (a visitor\'s score row opened the viewer\'s score) fixed in 4459f35; its P2s on 758c771 (Eat\'s head from the program\'s day name, not the strip\'s) fixed in 77e558e and on 77e558e (Move session dropped the day) fixed in e8c177d; Codex clean on e8c177d. Merged main\'s #2597 into it', status: 'done' },
         { label: 'Coach profiles have no Shape Score row: they keep their own points link, on their own page only', status: 'pending' },
         { label: 'Eat\'s and Train\'s pages keep their look: the owner\'s "and these pages" may mean a redesign, asked and not answered', status: 'pending' },
-        { label: 'The marketplace ("Find your coach") redesign is the next PR', status: 'pending' },
+        { label: 'The marketplace ("Find your coach") redesign: #2600', status: 'done' },
         { label: 'OWNER: a native speaker reads home team.noSessionOn, workoutOn, mealsOn and nutrition eat.fuelOn in the twelve other locales', status: 'manual' },
       ],
     },
