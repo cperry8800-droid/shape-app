@@ -338,6 +338,64 @@ test('This week: a day a button with five bars, Train · Food · Protein · Step
   assert.match(d.text, /Wk 43 · Oct 19–25/);
 });
 
+// The Shape Steps page lost its only door with Week so far's Steps tile (#2583); the owner, 2026-11-04:
+// "where did shape steps go?", then "yes put it back on this week steps".
+test('Steps under the strip opens the Shape Steps page, in the picked day\'s line and in the key', () => {
+  let steps = 0;
+  const onSteps = () => { steps += 1; };
+  const doors = (d) => d.nodes().filter(fn('BSHdStepsDoor'));
+  // The door drawn: its button (the harness draws one level at a time).
+  const buttonOf = (door) => drive(door.type, door.props).nodes().find((n) => n.type === 'button' && n.props['data-bs-home-steps'] != null);
+  const d = drive(D.BSHomeWeekBarsView, { w: { grid: GRID }, checkinsOn: true, onSteps, onDay: () => {}, onMonth: () => {} });
+  const [door] = doors(d);
+  assert.ok(door, 'Steps is the door');
+  assert.equal(textOf(door), '○ Steps', 'the word keeps its mark and its place');
+  assert.match(d.text, /○ Train · ✓ Food · ○ Protein · ○ Steps · ○ Check-in/, 'the line reads as it did');
+  const btn = buttonOf(door);
+  assert.ok(btn.props.style.minWidth >= 44 && btn.props.style.minHeight >= 44, 'a 44 px target');
+  // Its box reaches no further than the date's → does: 6px up into the gap, 26px down into the padding.
+  assert.equal(btn.props.style.margin, '-6px -6px -26px');
+  assert.equal(btn.props.style.padding, '6px 6px 26px');
+  assert.equal(btn.props.style.color, THEME.ACCENT, 'in the accent, as the date\'s → is');
+  btn.props.onClick();
+  assert.equal(steps, 1);
+  // The mark is hidden from a screen reader; the button reads Steps.
+  const markSpan = [door.props.children].flat().find((c) => c && c.props && c.props['aria-hidden'] === 'true');
+  assert.equal(textOf(markSpan), '○ ');
+  // The line's own box is as tall as the door's reach, so its clip never cuts the target.
+  const line = d.nodes().find((n) => n.props && n.props['data-bs-home-day-line'] !== undefined);
+  assert.equal(line.props.style.margin, '-6px 0 -26px');
+  assert.equal(line.props.style.padding, '6px 0 26px');
+  assert.equal(line.props['aria-hidden'], undefined, 'the line is not hidden, or the door would be');
+  // A narrow line (a small phone, a long language) cuts the words, never the door (Codex P2 on #2601): the
+  // line is a flex row, the door sits in it whole and never shrinks, the words on either side end in "…".
+  assert.equal(line.props.style.display, 'flex');
+  const kids = [line.props.children].flat(4).filter(Boolean);
+  assert.ok(kids.includes(door), 'the door sits inside a piece that clips');
+  assert.equal(btn.props.style.flex, 'none', 'the door shrinks');
+  const pieces = kids.filter((n) => n.type === 'span');
+  assert.deepEqual(pieces.map((n) => textOf(n)), ['○ Train · ✓ Food · ○ Protein · ', ' · ○ Check-in']);
+  for (const p of pieces) { assert.equal(p.props.style.textOverflow, 'ellipsis'); assert.equal(p.props.style.minWidth, 0); assert.equal(p.props.style.whiteSpace, 'pre', 'a piece drops the spaces round its ·'); }
+  // An unread week's key has the door too, reaching 4px up (the key sits 4px under the days).
+  const blank = drive(D.BSHomeWeekBarsView, { w: { grid: null }, onSteps });
+  const [key] = doors(blank);
+  assert.ok(key, 'the key\'s Steps is the door');
+  assert.equal(textOf(key), 'Steps');
+  const keyBtn = buttonOf(key);
+  assert.equal(keyBtn.props.style.margin, '-4px -6px -26px');
+  const keyLine = blank.nodes().find((n) => n.props && n.props['data-bs-home-day-line'] !== undefined);
+  assert.equal(keyLine.props.style.margin, '-4px 0 -26px');
+  keyBtn.props.onClick();
+  assert.equal(steps, 2);
+  // With no door from Home, Steps is a word as before.
+  assert.equal(doors(drive(D.BSHomeWeekBarsView, { w: { grid: GRID }, checkinsOn: true })).length, 0);
+  // Home hands This week the old tile's door: the page once steps have synced, else Integrations.
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  const mount = client.slice(client.indexOf('<BSHomeWeekBars'), client.indexOf('</BSHomeDeck>'));
+  assert.match(mount, /onSteps=\{\(\) => \{\s*if \(stepsToday\.hasData \|\| !stepsToday\.known\) \{ setStepsHistory\(true\); return; \}\s*try \{ window\.dispatchEvent\(new CustomEvent\('shape:openIntegrations'\)\); \} catch \(e\) \{\}\s*\}\}/);
+  assert.match(client, /\{stepsHistory && <BSStepsHistory onClose=\{\(\) => setStepsHistory\(false\)\} \/>\}/, 'the page is still mounted');
+});
+
 test('This week with Check-ins off draws four bars, and an unread week marks no day missed', () => {
   const off = drive(D.BSHomeWeekBarsView, { w: { grid: GRID }, checkinsOn: false });
   assert.ok(days(off).every((b) => barsOf(b).length === 4), 'Check-ins off: no check-in bar');

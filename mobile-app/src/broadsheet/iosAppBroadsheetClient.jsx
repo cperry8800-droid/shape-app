@@ -5156,6 +5156,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
           stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
           onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()}
+          // Steps under the strip is the Shape Steps page's door again (owner, 2026-11-04: "yes put it back
+          // on this week steps"), as Week so far's tile was: the page once steps have synced, else Integrations.
+          // Until the steps read answers, the page (it reads them itself): a member whose steps sync is never
+          // sent to Integrations by a tap in the first second (Codex P2 on #2601).
+          onSteps={() => {
+            if (stepsToday.hasData || !stepsToday.known) { setStepsHistory(true); return; }
+            try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
+          }}
               picked={pickedDay} onPick={setPickedDay} />
       </BSHomeDeck>
 
@@ -15617,7 +15625,6 @@ function bsInjectFollowChipCss() {
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips', children = null }) {
   const tr = useShapeTr();
-  const tFB = useBS();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // 'ledger' = the Terrain "Route Card" treatment (zero-box, line-only heat):
   // one mono stat line, Follow as a heat-tint chip / Message as ink+underline.
@@ -15700,10 +15707,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // reads it, so it must not sit in the temporal dead zone).
   const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
   // ── Coach-look variant (the member profile in the coach profile's look, owner 2026-10-31): the
-  // counts as one quiet line in the clean face, then Follow and Message, Follow filled in the profile's
-  // accent (`c`) with the ink or paper that reads on it. Follow and Message are the member profile's
-  // tiles (BSMemberBento.jsx, owner 2026-11-04: "go with c but dont change the look or design of
-  // followers, following part"), so the counts line is as it was and only the two buttons changed.
+  // counts as one quiet line in the clean face (owner 2026-11-04: "dont change the look or design of
+  // followers, following part"), with Follow and Message as small pills in that same row (below), Follow
+  // filled in the profile's accent (`c`) with the ink or paper that reads on it.
   if (variant === 'coach') {
     const DISPLAY = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
     const onC = bsReadableOn(c);
@@ -15714,6 +15720,17 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     );
     const firstName = String(name || '').trim().split(/\s+/)[0] || name;
     const following = fs === 'following', requested = fs === 'requested';
+    // Follow and Message ride in the counts' own row (owner, 2026-11-04: "also move the [Follow] up to
+    // where followers, following are", then "and make smaller to hit the look of that section of page"):
+    // small pills in the counts' face and size, Follow lit in the profile's colour (quiet once you follow
+    // or asked), Message quiet beside it. Each is a 44px target round a 32px pill. Where the row has no
+    // room after the counts, they wrap under them, still above the bio.
+    const pill = (lit) => ({
+      display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 13px', borderRadius: 99, boxSizing: 'border-box',
+      maxWidth: '100%', whiteSpace: 'nowrap', fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 650, lineHeight: 1,
+      ...(lit ? { background: c, border: `1px solid ${c}`, color: onC } : { background: bsTHexA(INK, 0.07), border: `1px solid ${bsTHexA(INK, 0.14)}`, color: INK }),
+    });
+    const pillBtn = { minHeight: 44, minWidth: 44, maxWidth: '100%', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' };
     return (
       <div data-follow-coach="">
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 16 }}>
@@ -15724,28 +15741,26 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           {isSelf && reqCount > 0 ? (
             <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>
           ) : null}
-        </div>
-        {children}
-        {!isSelf ? (
-          /* Follow is the lit tile and Message a quiet one, side by side and the same height, as Log
-             activity and Edit profile are on your own page; the tiles keep the weights they are written
-             with (BSCleanType), the counts above keep theirs. */
-          <BSCleanType t={tFB}>
-            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
-              <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested}
-                style={{ ...bsMpAction({ t: tFB, INK, c, onC, lit: !(following || requested) }), gridColumn: typeof onMessage === 'function' ? 'auto' : '1 / -1', minHeight: 44, cursor: busy ? 'default' : 'pointer' }}>
-                <BSMpIconBox name={following ? 'check' : requested ? 'clock' : 'plus'} ink={following || requested ? INK : onC} />
-                <span>{following ? tr('profile:follow.following', { defaultValue: 'Following' }) : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}</span>
+          {!isSelf ? (
+            <div data-follow-actions="" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
+              <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested} style={{ ...pillBtn, cursor: busy ? 'default' : 'pointer' }}>
+                <span data-follow-pill="" style={pill(!(following || requested))}>
+                  <BSMpIcon name={following ? 'check' : requested ? 'clock' : 'plus'} size={13} stroke={2.4} />
+                  <span>{following ? tr('profile:follow.following', { defaultValue: 'Following' }) : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}</span>
+                </span>
               </button>
               {typeof onMessage === 'function' ? (
-                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...bsMpAction({ t: tFB, INK, c, onC }), minHeight: 44 }}>
-                  <BSMpIconBox name="chat" ink={INK} />
-                  <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}</span>
+                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...pillBtn, minWidth: 0 }}>
+                  <span data-follow-pill="" style={pill(false)}>
+                    <BSMpIcon name="chat" size={13} stroke={2.2} />
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}</span>
+                  </span>
                 </button>
               ) : null}
             </div>
-          </BSCleanType>
-        ) : null}
+          ) : null}
+        </div>
+        {children}
         {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
       </div>
     );
@@ -19173,11 +19188,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         const ptsLabel = pts != null ? `${Number(pts).toLocaleString(bsDateLocale())} ${tr('score:unit.pts', { defaultValue: 'pts' })}` : null;
         // A sample's tier can arrive in capitals ("PEAK"): the line reads it as a name.
         const tierLabel = String(tierName).charAt(0).toUpperCase() + String(tierName).slice(1).toLowerCase();
-        const metaBits = [
-          tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierLabel }),
+        // The Shape Score row's two lines: the tier, then the points and the streak.
+        const scoreTierWords = tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierLabel });
+        const scoreFigures = [
           ptsLabel,
           Number(streakEff) > 0 ? tr('score:board.streak', { defaultValue: '{n}-day streak', n: streakEff }) : null,
         ].filter(Boolean).join(' · ');
+        const metaBits = [scoreTierWords, scoreFigures].filter(Boolean).join(' · ');
         const whoLine = [handle, city].filter(Boolean).join(' · ');
         const aboutLine = [pronouns, memberAge == null ? '' : `${memberAge}`].filter(Boolean).join(' · ');
         const heroStart = bsProfileStartLine(customEff && customEff.startLine);
@@ -19195,7 +19212,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         const phaseChips = (
           <span data-member-phase="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 1 }}>
             {blockEff ? <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{blockEff}</span> : null}
-            {phaseParts.map((p, i) => <span key={i} style={{ padding: '0 6px', borderRadius: 99, background: bsTHexA(c, tTheme.isLight ? 0.2 : 0.22), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 650, lineHeight: 1.45 }}>{p}</span>)}
+            {/* Quiet ink chips: the tier's colour stays on the rings and the one lit tile (owner, 2026-11-04,
+                of this block: "idk if its the colors or what"). */}
+            {phaseParts.map((p, i) => <span key={i} style={{ padding: '0 6px', borderRadius: 99, background: bsTHexA(INK, tTheme.isLight ? 0.08 : 0.1), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 650, lineHeight: 1.45 }}>{p}</span>)}
           </span>
         );
         // The tier ridge over the cover (owner, 2026-11-03: "this top section should show the tier line
@@ -19283,11 +19302,24 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <h1 data-member-name="" style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.05, color: INK, overflowWrap: 'anywhere' }}>{name}<span style={{ color: c }}>.</span></h1>
                 {whoLine ? <span style={{ fontSize: 13, color: bsTHexA(INK, 0.74), overflowWrap: 'anywhere' }}>{whoLine}</span> : null}
                 {aboutLine ? <span style={{ fontSize: 12, color: bsTHexA(INK, 0.64) }}>{aboutLine}</span> : null}
+                {/* What they are training for, under the name as their status (owner, 2026-11-04: "also move this
+                    somewhere else on client profile"; it sat between the Shape Score row and Log activity): the
+                    goal's words, then its date and the days left on a line of their own. Ink words, the tier's
+                    colour as the rule (8px coloured text did not read on the light papers). */}
+                {heroStartState ? (
+                  <p data-member-start="" style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>
+                    <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
+                    {heroStart.title ? ` ${heroStart.title}` : ''}
+                    <span style={{ display: 'block', marginTop: 3, fontSize: 12, color: bsTHexA(INK, 0.64) }}>
+                      {[startDate, heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })].filter(Boolean).join(' · ')}
+                    </span>
+                  </p>
+                ) : null}
               </div>
               {/* The counts first, right under the photo (owner, 2026-11-04: "move the followers, following row
-                  above the bio just below picture"); the bio, tier line and countdown ride inside the follow
+                  above the bio just below picture"); the bio and the Shape Score row ride inside the follow
                   block, between the counts and a visitor's Follow and Message, so one block keeps the counts
-                  and the Follow that changes them. */}
+                  and the Follow that changes them. The countdown is under the name (above). */}
               <div style={{ marginTop: 6 }}>
                 <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} variant="coach" ownerPhoto={avPhoto} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
                   onMessage={hasMessage && !isSelf ? () => onMsg(person) : null}>
@@ -19299,15 +19331,30 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                       On someone else's page it shows their score and opens nothing: the Score page shows only the
                       reader's own standing, so a tap would put the reader's figures where theirs were (Codex P1 on
                       #2599). */}
+                  {/* It is drawn as the Coached by card is (owner, 2026-11-04, of the Score row, the tiles and the
+                      coach card: "make these sit better together. they each look out of place", "idk if its the
+                      colors or what"): the same quiet tile, a 30px ring on the left (the tier's colour round the
+                      award, as the coach's ring holds their initials), a label then the bold words, the figures
+                      under them, and the same quiet chevron. Log activity stays the one lit tile. */}
                   {metaBits ? (() => {
                     const scoreBody = (
                       <>
-                        <span style={{ flex: 'none', fontFamily: tTheme.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Shape Score</span>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3, color: bsTHexA(INK, 0.78), overflowWrap: 'anywhere' }}>{metaBits}</span>
-                        {isSelf ? <span aria-hidden style={{ flex: 'none', color: c, fontSize: 16, lineHeight: 1 }}>→</span> : null}
+                        <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: c }}>
+                          <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK }}>
+                            <BSMpIcon name="award" size={13} stroke={2.2} />
+                          </span>
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ lineHeight: 1.25, overflowWrap: 'anywhere' }}>
+                            <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>Shape Score</span>{' '}
+                            <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{scoreTierWords}</span>
+                          </span>
+                          {scoreFigures ? <span style={{ marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, lineHeight: 1.3, color: bsTHexA(INK, 0.62), fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{scoreFigures}</span> : null}
+                        </span>
+                        {isSelf ? <span aria-hidden style={{ flex: 'none', color: bsTHexA(INK, 0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
                       </>
                     );
-                    const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '7px 12px 7px 14px', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.14)}`, boxShadow: `inset 3px 0 0 ${c}`, background: bsTHexA(INK, 0.03), textAlign: 'left', color: INK };
+                    const rowStyle = { ...bsMpTile(tTheme, INK), borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: INK };
                     return isSelf ? (
                       <button type="button" data-tour="hero-score" data-member-meta="" data-member-score=""
                         onClick={typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
@@ -19316,15 +19363,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                       <div data-member-meta="" data-member-score="" aria-label={['Shape Score', metaBits].join(': ')} role="group" style={rowStyle}>{scoreBody}</div>
                     );
                   })() : null}
-                  {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
-                      not read on the light papers). */}
-                  {heroStartState ? (
-                    <p data-member-start="" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.4, color: INK }}>
-                      <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
-                      {heroStart.title ? ` ${heroStart.title}` : ''}{startDate ? ` · ${startDate}` : ''}
-                      <span style={{ color: bsTHexA(INK, 0.64) }}>{` · ${heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}`}</span>
-                    </p>
-                  ) : null}
                 </BSFollowBlock>
               </div>
               {/* Your own actions as tiles: Log activity lit in the tier's colour over three fifths, Edit
@@ -19354,7 +19392,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <div data-member-coach="" style={{ marginTop: 10, display: 'flex' }}>
                   {showCoachLink ? (
                     <button type="button" onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })}
-                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px 5px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
+                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px 5px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
                       <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
                         <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 10.5, fontWeight: 700 }}>{coachInitEff}</span>
                       </span>
@@ -30531,11 +30569,14 @@ function useBSStepsToday() {
     return () => { on = false; };
   }, [signedIn]);
   const hasData = signedIn ? !!(steps && steps.ever) : true;
+  // `known`: the read has answered. Until it does (or when it failed) hasData is false for a member whose
+  // steps do sync, so nothing should take that as "never synced" (Codex P2 on #2601).
+  const known = signedIn ? steps !== null : true;
   const todayKnown = signedIn ? !!(steps && steps.today != null) : true;
   const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
   const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
   const hit = todayKnown && val >= TARGET;
-  return { hasData, todayKnown, val, goal: TARGET, pct, hit };
+  return { hasData, known, todayKnown, val, goal: TARGET, pct, hit };
 }
 
 // TODAY nudge — the check-in on Home. `variant` is REQUIRED: an omitted or mistyped one renders

@@ -10,6 +10,7 @@ import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.m
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
+import { bsMpTile, BSMpIcon } from './BSMemberBento.jsx';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
 import { bsKitchenRecipe, bsKitchenGroceryList, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from './kitchenRecipes.js';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
@@ -277,7 +278,7 @@ function useTabEdges(nav, on) {
   return edges;
 }
 
-function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
+function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = null, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
@@ -806,7 +807,44 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{nutri
                 ? tr('profile:nutri.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.', name: first })
                 : tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
-              {isSelf && points != null ? <button type="button" onClick={onOpenScore} style={{ display: 'block', margin: '2px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: ink(0.7), cursor: 'pointer' }}>{tr('profile:trainer.score', { defaultValue: 'Shape Score {points} ›', points: points.toLocaleString(locale) })}</button> : null}
+              {/* The Shape Score row, as on a member's page (owner, 2026-11-04: "Add the Shape Score row to
+                  coach profiles too"; it was a small "Shape Score 3,060 ›" on your own page only): the member
+                  row's tile, a ring in the page's accent round the award, "Shape Score" and the bold tier,
+                  the points under them, in this page's own faces. On your own page it opens the Score page
+                  (the host's onOpenScore, else shape:openScore, which both coach apps answer); on another
+                  coach's it shows their score and opens nothing, since the Score page reads only your own
+                  (as on a member's page, Codex P1 on #2599). A coach with no score (a seeded listing) has
+                  no row. */}
+              {points != null ? (() => {
+                const tierWords = tierName ? tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierName }) : '';
+                const ptsWords = `${points.toLocaleString(locale)} ${tr('score:unit.pts', { defaultValue: 'pts' })}`;
+                const label = ['Shape Score', [tierWords, ptsWords].filter(Boolean).join(' · ')].join(': ');
+                const body = (
+                  <>
+                    <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: ACC }}>
+                      <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${t.PAPER}`, background: t.PAPER2, color: INK }}>
+                        <BSMpIcon name="award" size={13} stroke={2.2} />
+                      </span>
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ lineHeight: 1.25, overflowWrap: 'anywhere' }}>
+                        <span style={{ fontFamily: BODY, fontSize: 11.5, color: ink(0.62) }}>Shape Score</span>
+                        {tierWords ? <>{' '}<span style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 600 }}>{tierWords}</span></> : null}
+                      </span>
+                      <span style={{ marginTop: 1, fontFamily: BODY, fontSize: 11.5, lineHeight: 1.3, color: ink(0.62), fontVariantNumeric: 'tabular-nums' }}>{ptsWords}</span>
+                    </span>
+                    {isSelf ? <span aria-hidden style={{ flex: 'none', color: ink(0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
+                  </>
+                );
+                const rowStyle = { ...bsMpTile(t, INK), borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '12px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: INK };
+                const openScore = () => {
+                  if (typeof onOpenScore === 'function') { onOpenScore(); return; }
+                  try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {}
+                };
+                return isSelf
+                  ? <button type="button" data-coach-score="" onClick={openScore} aria-label={label} style={{ ...rowStyle, cursor: 'pointer' }}>{body}</button>
+                  : <div data-coach-score="" role="group" aria-label={label} style={rowStyle}>{body}</div>;
+              })() : null}
             </>
           )}
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
