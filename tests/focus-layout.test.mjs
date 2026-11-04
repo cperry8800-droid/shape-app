@@ -538,32 +538,58 @@ test('Train opens Burned this week on its own page', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientTrain, { onProfile() {}, goRadio() {}, goMarket() {}, goCalendar() {} });
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
-  const row = d.nodes().find(fn('BSTrainBurn'));
-  assert.equal(typeof row.props.onOpen, 'function', 'the row opens nothing');
-  row.props.onOpen();
+  const day = d.nodes().find(fn('BSTrainDay'));
+  assert.equal(typeof day.props.onBurn, 'function', 'the burn line opens nothing');
+  day.props.onBurn();
   d.render();
   const page = d.nodes().find(fn('BSTrainBurnPage'));
   assert.ok(page, 'the week page did not open');
-  assert.equal(d.nodes().find(fn('BSTrainBurn')), undefined, 'the page stands in for Train');
+  assert.equal(d.nodes().find(fn('BSTrainDay')), undefined, 'the page stands in for Train');
   page.props.onBack();
   d.render();
-  assert.ok(d.nodes().find(fn('BSTrainBurn')), 'Back returns to Train');
+  assert.ok(d.nodes().find(fn('BSTrainDay')), 'Back returns to Train');
 });
 
-test('Train reads in the Focus order: the week, the session, the links', () => {
+// Owner, 2026-11-04, of three designs: "C for train but incorporate this button if you can", then "and
+// then C for next part". BSTrainDay.jsx draws the week, the burn, the session, the program, On deck and the
+// links; the page hands it the day and every door, and Find a trainer stays a bar at the foot.
+test('Train hands the day and its doors to BSTrainDay, and a picked day moves the session', () => {
   delete globalThis.ShapeAuth;
-  const d = drive(BSClientTrain, { onProfile() {}, goRadio() {}, goMarket() {}, goCalendar() {} });
+  let month = 0, radio = 0;
+  const market = [];
+  const d = drive(BSClientTrain, { onProfile() {}, goRadio() { radio += 1; }, goMarket(role) { market.push(role); }, goCalendar() { month += 1; } });
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
   const order = d.nodes();
   const at = (pred) => order.findIndex(pred);
-  const week = at((n) => typeof n.type === 'function' && n.type.name === 'BSWeekStrip');
-  const lead = at((n) => n.props && n.props.tour === 'hero-train');
-  const find = at((n) => typeof n.type === 'function' && n.type.name === 'BSFindCoachBar');
-  const burn = at((n) => typeof n.type === 'function' && n.type.name === 'BSTrainBurn');
-  assert.ok(week >= 0 && lead > week, 'the session sits under the week');
-  // Owner, 2026-10-24: the week's calories burned sit under the week strip, as Eat's Fuel left does.
-  assert.ok(burn > week && burn < lead, 'Burned this week sits between the week and the session');
-  assert.ok(find > lead, 'Find a trainer is a link at the foot, not pinned to the top');
-  assert.ok(String(order[lead].props.title || '').length > 0, 'the session has a title');
+  const day = order[at(fn('BSTrainDay'))];
+  assert.ok(day, 'no BSTrainDay on Train');
+  // Finding a coach is the last of the links, at the foot, not pinned to the top; it opens the trainers.
+  const find = day.props.links[day.props.links.length - 1];
+  assert.equal(find.label, 'Find a coach');
+  find.onOpen();
+  assert.deepEqual(market, ['trainer']);
+  assert.equal(at(fn('BSWeekStrip')), -1, 'the old week strip is gone');
+  assert.equal(at((n) => n.props && n.props.tour === 'hero-train'), -1, 'the old lead is gone (BSTrainDay carries the tour anchor)');
+  assert.equal(day.props.program.length, 7, 'the whole week');
+  assert.ok(String(day.props.head || '').length > 0, 'the session has a title');
+  for (const k of ['onDay', 'onMonth', 'onBurn', 'onStart', 'onSwap', 'onMove', 'onRadio']) assert.equal(typeof day.props[k], 'function', `${k} is not wired`);
+  day.props.onMonth();
+  day.props.onRadio();
+  assert.equal(month, 1, 'Month view opens the calendar');
+  assert.equal(radio, 1, 'the playlist opens Shape Radio');
+  assert.ok(day.props.links.length >= 2 && day.props.links.every((l) => typeof l.onOpen === 'function' && l.label), 'the links come with their doors');
+  // A day in another session than this one: the page's day moves, and the session with it.
+  const before = day.props.head;
+  const other = day.props.program.findIndex((p, i) => i !== day.props.day && (p.headline || p.title) !== before);
+  day.props.onDay(other);
+  d.render();
+  const after = d.nodes().find(fn('BSTrainDay'));
+  assert.equal(after.props.day, other);
+  assert.notEqual(after.props.head, before, 'the session follows the picked day');
+  // Start opens the live session, standing in for the page.
+  after.props.onStart();
+  d.render();
+  assert.equal(d.nodes().find(fn('BSTrainDay')), undefined, 'Start did not open the session');
 });
 
 // Owner, 2026-10-11, on the first build: "check-in should be towards the top". Owner, 2026-10-22, Option A:

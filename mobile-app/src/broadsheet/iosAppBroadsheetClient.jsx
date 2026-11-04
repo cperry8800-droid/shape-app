@@ -82,7 +82,8 @@ import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } f
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
 import { bsMpTealOf, bsMpGlass, bsMpGradText, bsMpGlow, BSMpPaneLabel, BSMpVinyl } from './BSMemberBento.jsx';
 import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
-import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
+import { BSTrainBurnPage } from './BSTrainBurn.jsx';
+import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead, bsWsLed } from './BSWallStory.jsx';
@@ -6424,10 +6425,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     );
   }
 
-  // ── FOCUS (owner, 2026-10-11, off the C · Focus board) — Train in the Focus
-  // order: the week, the session on its own with how long until it starts, its
-  // moves, what is on deck, then links (music, build, open session, find a
-  // trainer). The data is unchanged; only where each thing sits moved.
+  // What the session panel says (BSTrainDay.jsx): when it is, how long until it starts, and its head.
   const _trainIsToday = day === bsWeekdayIdx();
   const _trainNow = new Date();
   const _trainUntil = _trainIsToday && !isRestDay ? bsFocusUntil(bsFocusMin(cur.time), _trainNow.getHours() * 60 + _trainNow.getMinutes()) : null;
@@ -6437,145 +6435,42 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
   const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
 
-  // A section title's one action, in the design's grammar (accent mono caps).
-  const _trainAct = (label, onClick) => (
-    <button type="button" onClick={onClick} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: -6, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{label} →</button>
-  );
+  // The page's links, in order: the coach's music for today (Shape Radio), the full plan, building or
+  // opening a session, then finding a coach (the trainers' marketplace). A member who pays a trainer is not
+  // sent to find one (Codex on #2378).
+  const _trainLinks = [
+    { color: t.ACCENT, glyph: '♪', label: coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' }), tag: tr('session:train.forToday', { defaultValue: 'For today' }), onOpen: goRadio },
+    { color: t.INK70, glyph: '▤', label: tr('session:train.fullPlan', { defaultValue: 'Full plan' }), tag: `${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`, onOpen: goCalendar },
+    ...(bsTrainSignedIn ? [
+      { color: t.ACCENT, glyph: '＋', label: tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' }), onOpen: () => setBuilder({ mode: 'session' }) },
+      { color: t.INK50, glyph: '▷', label: tr('session:train.openSession', { defaultValue: 'Open session' }), onOpen: () => { setOpenSession(true); setSession(true); } },
+    ] : []),
+    ...((!bsTrainSignedIn || trainCoaching === null) ? [{ color: '#c0533b', glyph: '↗', label: tr('home:shortcut.findCoach', { defaultValue: 'Find a coach' }), onOpen: () => goMarket('trainer') }] : []),
+  ];
 
   return (
     <BSPage>
-      <BSPageHeader
-        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
-        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
-        trailing={<BSHeaderTools onProfile={onProfile} />}
-      />
+      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
       <BSCleanType t={t}>
       {resumeBanner}
 
-      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
-
-      <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
-
-      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24); it
-          opens the week day by day. */}
-      <BSTrainBurn onOpen={() => setBurnOpen(true)} />
-
-      {/* The session — on its own, on the move line's rust spine. */}
-      <BSFocusLead tour="hero-train" color={t.RUST}
-        kicker={`${_trainWhen} · ${isRestDay ? tr('session:train.restChip', { defaultValue: 'Rest' }) : tr('home:lead.railHeader', { defaultValue: 'Your move' })}`}
-        kickerRight={`${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })} · ${tr('session:train.dayN', { defaultValue: 'D{n}', n: day + 1 })}`}
-        title={_trainHead}
-        sub={effMoves.length > 0 ? cur.meta : cur.copy}>
-        {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
-          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
-            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>{tr('session:train.coachIntensity', { defaultValue: 'Coach · {label}', label: cur.intensityLabel })}</span>}
-          </div>
-        )}
-        {/* The coach's playlist for this day, as the website card chips it ("♪ name ·
-            meta"). It is a Shape Radio soundtrack, so it opens Radio. A coach-set rest
-            keeps the day's fields but is no session, so it shows no soundtrack. */}
-        {!isRestDay && cur.playlist && cur.playlist.name && (
-          <button type="button" onClick={goRadio} style={{ marginTop: 6, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-            <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, padding: '5px 9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>♪ {cur.playlist.name}{cur.playlist.meta ? ` · ${cur.playlist.meta}` : ''}</span>
-          </button>
-        )}
-        <BSFocusCountdown label={tr('session:train.startsIn', { defaultValue: 'Starts in' })}
-          value={_trainUntil ? (_trainUntil.h > 0 ? tr('session:train.untilHourMin', { defaultValue: '{h}h {m}m', h: _trainUntil.h, m: _trainUntil.m }) : tr('session:train.untilMin', { defaultValue: '{m} min', m: _trainUntil.m })) : null} />
-        {/* Who wrote the day — honest byline: "Programmed by you" (or the program
-            name · Wn) on self days, the real assigning trainer on coach days, and
-            nothing at all when no coach authored it. */}
-        {cur.selfAuthored ? (
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}{cur.program && cur.program.week ? ` · ${tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week })}` : ''}</span>
-            {cur.repeatDow && cur.workoutId && (
-              <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 32, padding: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>
-            )}
-          </div>
-        ) : coachDayName ? (
-          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{coachDayName} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
-        ) : null}
-        {!isRestDay ? (
-          <BSFocusActions color={t.RUST}
-            primary={{ label: `${tr('session:train.startAria', { defaultValue: 'Start session' })} →`, onClick: () => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); } }}
-            secondary={effMoves.length > 0 ? { label: `${tr('session:train.swap', { defaultValue: 'Swap' })} →`, onClick: () => setSwapIdx('pick') } : null} />
-        ) : (
-          <div style={{ marginTop: 14 }}>
-            <span style={{ display: 'inline-block', padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.restChip', { defaultValue: 'Rest' })}</span>
-          </div>
-        )}
-      </BSFocusLead>
-
-      {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
-      {effMoves.length > 0 && (
-        <>
-          <BSFocusTitle kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })}
-            right={_trainAct(tr('session:train.swap', { defaultValue: 'Swap' }), () => setSwapIdx('pick'))} />
-          <div style={{ padding: `10px ${t.padX}px 0` }}>
-            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-              <span>{tr('session:train.col.n', { defaultValue: 'N' })}</span><span>{tr('session:train.col.move', { defaultValue: 'Move' })}</span><span>{tr('session:train.col.scheme', { defaultValue: 'Scheme' })}</span><span style={{ textAlign: 'right' }}>{tr('session:train.col.load', { defaultValue: 'Load' })}</span>
-            </div>
-            {effMoves.map((r, i) => {
-              const swapped = !!moveOverrides[`${day}:${i}`];
-              // Display-only abbreviation ("3 min rest" → "3m", "90s rest" → "90s");
-              // the stored scheme string is untouched (the session parser reads r.s).
-              const sch = String(r.s || '').replace(/(\d+)\s*min rest/g, '$1m').replace(/(\d+)s rest/g, '$1s');
-              return (
-                <button type="button" key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-                  <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>{tr('session:train.swapped', { defaultValue: 'SWAPPED' })}</span>}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{sch}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.l}</span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
-          days after today, so it matches the calendar + home. Tap to jump there. */}
-      <BSFocusTitle kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })}
-        right={_trainAct(tr('session:train.plan', { defaultValue: 'Plan' }), goCalendar)} />
-      <div style={{ padding: `10px ${t.padX}px 0` }}>
-        {[1, 2, 3].map((off) => {
-          const idx = (bsWeekdayIdx() + off) % 7;
-          const p = PROGRAM[idx] || {};
-          const rest = p.tag === 'REST';
-          const dow = bsWeekdayName(idx, 'short');
-          return { idx, m: rest ? tr('session:train.activeRest', { defaultValue: 'Active rest' }) : (p.headline || p.title || '—'), s: `${dow} · ${rest ? tr('session:train.restSub', { defaultValue: 'walk + mobility' }) : (p.meta || '')}`, r: '' };
-        }).map((x, i) => (
-          <button key={i} onClick={() => setDay(x.idx)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{String(i + 1).padStart(2, '0')}</span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 400, lineHeight: 1.2, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{x.s}</div>
-            </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── FOCUS · LINKS — the rest of Train, one row each, as the design board
-          has them: the coach's music for today (Shape Radio), the full plan, then
-          building or opening a session, and finding a trainer. The playlist cards
-          that sat here became the music link (owner, 2026-10-11: Train "match the
-          design"). */}
-      <div style={{ marginTop: t.sectGap + 8 }}>
-        <BSFocusLink color={t.ACCENT} glyph="♪"
-          label={coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' })}
-          tag={tr('session:train.forToday', { defaultValue: 'For today' })} onOpen={goRadio} />
-        <BSFocusLink color={t.INK70} glyph="▤" label={tr('session:train.fullPlan', { defaultValue: 'Full plan' })}
-          tag={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`} onOpen={goCalendar} />
-        {bsTrainSignedIn && (
-          <>
-            <BSFocusLink color={t.ACCENT} glyph="＋" label={tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' })} onOpen={() => setBuilder({ mode: 'session' })} />
-            <BSFocusLink color={t.INK50} glyph="▷" label={tr('session:train.openSession', { defaultValue: 'Open session' })} onOpen={() => { setOpenSession(true); setSession(true); }} />
-          </>
-        )}
-        {/* A member who pays a trainer is not sent to find one (Codex on #2378), as at the page's head. */}
-        {(!bsTrainSignedIn || trainCoaching === null) && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
-      </div>
+      {/* ── THE DAY (owner, 2026-11-04, of three designs: "C for train but incorporate this button if you
+          can", then "and then C for next part"): BSTrainDay.jsx draws the head, the week's burn with the
+          day picker, the coach's adjust, the session as an engine readout with the round ignition Start,
+          the program as a circuit, On deck as a lit timeline and the links, as glass instruments. It reads
+          only what the page hands it; every door is the page's own. Edit · Yours, on a repeating day the
+          member wrote, opens the builder on it with its moves as rows. */}
+      <BSTrainDay
+        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
+        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
+        program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} cur={cur} moves={effMoves}
+        swapped={effMoves.map((_, i) => !!moveOverrides[`${day}:${i}`])} isRest={isRestDay} when={_trainWhen} head={_trainHead}
+        until={_trainUntil} weekN={bsProgramWeek()} coach={coachDayName} onRadio={goRadio} onBurn={() => setBurnOpen(true)}
+        onStart={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }}
+        onSwap={() => setSwapIdx('pick')} onMove={(i) => setSwapIdx(i)}
+        onEditYours={cur.selfAuthored && cur.repeatDow && cur.workoutId ? () => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) }) : null}
+        adjust={<BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />}
+        links={_trainLinks} />
 
       {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
           though"). Signed in, the ones the member's own trainer sent them;

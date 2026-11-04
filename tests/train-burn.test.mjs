@@ -1,6 +1,6 @@
-// Train's Burned this week (owner, 2026-10-24; made a compact card with a line, "smaller, different
-// chart type"), MOUNTED in jsdom with the shipping module: the week's total and daily average from
-// the member's rows, "—" and a way to connect when nothing is
+// Train's Burned this week (owner, 2026-10-24; a glowing line the day picker rides since 2026-11-04,
+// "C for train", BSTrainDay.jsx's BSTrainDayBurn), MOUNTED in jsdom with the shipping modules: the
+// week's total and daily average from the member's rows, "—" and a way to connect when nothing is
 // tracked, a failed read that can be tried again, and the preview's sample week marked as one.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,9 +35,13 @@ W.useBS = () => ({ MONO: 'mono', DISPLAY: 'display', BODY: 'body', PAPER: '#fff'
 const M = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainBurn.jsx'), {
   registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
 });
+// Train draws the week as BSTrainDay.jsx's line; the week page stays BSTrainBurn.jsx's.
+const D = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainDay.jsx'), {
+  registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
+});
 
 const flush = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-async function mount(Comp = M.BSTrainBurn, props = {}) {
+async function mount(Comp = D.BSTrainDayBurn, props = {}) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
@@ -58,10 +62,9 @@ test('signed in: the week’s total, its daily average, and where it came from',
   assert.match(m.text(), /Burned this week/);
   assert.match(m.text(), /1,200kcal/);
   assert.match(m.text(), /1,200\/day · Apple Health/);
-  // The line's points: one per day with a reading (the seven baseline ticks are r 1.2).
-  const points = [...m.host.querySelectorAll('svg circle')].filter((c) => c.getAttribute('r') !== '1.2');
-  assert.equal(points.length, 1, 'a point a day with a reading');
-  assert.equal(m.host.querySelectorAll('svg circle').length, 8, 'and a tick for each of the seven days');
+  // The line's points: one per day with a reading, under it a day for each of the seven.
+  assert.equal(m.host.querySelectorAll('[data-train-burn-point]').length, 1, 'a point a day with a reading');
+  assert.equal(m.host.querySelectorAll('[data-train-day-pick]').length, 7, 'and a day for each of the seven');
   await m.close();
 });
 
@@ -141,30 +144,30 @@ test('a sync or a logged workout reads the week again, keeping the last read mea
   await m.close();
 });
 
-// Owner, 2026-10-24: "i should be able to click on this, also this box doesnt match look of page". The row
-// sits on Train's paper between two rules (no tinted, rounded card), and the whole of it opens the week;
-// Retry and Connect stay their own buttons, outside it.
-test('the row is in Train\'s look and the whole of it opens the week', async () => {
+// Owner, 2026-10-24: "i should be able to click on this". The line's head opens the week day by day;
+// Retry and Connect stay their own buttons, outside it; under the line, a tap on a day picks it (the
+// page moves to it), and the picked day is marked (owner, 2026-11-04: "C for train").
+test('the burn line opens the week, and its days pick the day', async () => {
   signIn();
   W.ShapeBurn = { week: async () => ({ ok: true, snaps: [], acts: [] }) };
   let opened = 0;
-  const m = await mount(M.BSTrainBurn, { onOpen: () => { opened += 1; } });
+  const picked = [];
+  const m = await mount(D.BSTrainDayBurn, { day: 2, onBurn: () => { opened += 1; }, onDay: (i) => picked.push(i) });
   try {
-    const row = m.host.querySelector('[data-train-burn]');
-    assert.equal(row.style.borderRadius, '', 'the row is a rounded card again');
-    assert.equal(row.style.background, '', 'the row is a tinted card again');
-    assert.equal(row.style.borderTop, '1px solid rgb(204, 204, 204)');
-    assert.equal(row.style.borderBottom, '1px solid rgb(204, 204, 204)');
-    const open = row.querySelector('[data-train-burn-open]');
+    const box = m.host.querySelector('[data-train-burn]');
+    const open = box.querySelector('[data-train-burn-open]');
     assert.ok(open && open.tagName === 'BUTTON');
     assert.match(open.textContent, /Burned this week/);
-    assert.ok(open.querySelector('svg'), 'the line is part of the door');
     assert.equal(open.style.minHeight, '44px');
     assert.ok(!open.contains(m.btn(/Connect/)), 'Connect sits inside the door');
     await React.act(async () => { open.click(); });
     assert.equal(opened, 1);
+    const days = [...box.querySelectorAll('[data-train-day-pick]')];
+    assert.deepEqual(days.map((d) => d.getAttribute('aria-pressed')), ['false', 'false', 'true', 'false', 'false', 'false', 'false'], 'the picked day is marked');
+    await React.act(async () => { days[5].click(); });
+    assert.deepEqual(picked, [5]);
   } finally { await m.close(); }
-  // Mounted with nothing to open, the row is no door.
+  // Mounted with nothing to open, the line is no door.
   const n = await mount();
   assert.equal(n.host.querySelector('[data-train-burn-open]').disabled, true);
   await n.close();

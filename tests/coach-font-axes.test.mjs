@@ -82,11 +82,12 @@ test('Train and Eat set their pages in the clean type, under the header, and kee
   const eat = fnBody('BSClientEat');
   assert.match(eat, /const t = useBS\(\);/, "Eat's own t stays the app's: the grocery sheets read it");
   assert.match(eat, /const tClean = useBSClean\(\);/);
-  for (const [name, body, tag] of [['Train', train, '<BSCleanType t={t}>'], ['Eat', eat, '<BSCleanType t={tClean}>']]) {
+  // Train's week is BSTrainDay's (BSTrainDay.jsx, 2026-11-04); Eat keeps the week strip.
+  for (const [name, body, tag, first] of [['Train', train, '<BSCleanType t={t}>', '<BSTrainDay'], ['Eat', eat, '<BSCleanType t={tClean}>', '<BSWeekStrip']]) {
     const page = mainReturn(body);
     const open = page.indexOf(tag);
     const close = page.indexOf('</BSCleanType>');
-    assert.ok(open > page.indexOf('<BSPageHeader') && open < page.indexOf('<BSWeekStrip'), `${name}: the clean area starts under the header`);
+    assert.ok(open > page.indexOf('<BSPageHeader') && open < page.indexOf(first), `${name}: the clean area starts under the header`);
     assert.ok(close > page.indexOf('<BSCoachPlaylists') && close < page.indexOf('<BSFooter'), `${name}: the clean area ends before the footer`);
     assert.ok(page.indexOf('<BSSwapSheet', close) > close, `${name}: the swap sheet sits outside the clean area`);
   }
