@@ -50,6 +50,19 @@ export const BPM_MIN = 100;
 export const BPM_MAX = 160;
 export const BPM_STEP = 0.25;
 
+// ⚠ THE EDGE OF THE RANGE IS NOT A READING. Over a 6s ring the resultant's peak is
+// broad, so a track just outside the range still scores high at the nearest edge,
+// and the sweep's best candidate was that edge: every tempo from 94 to 99.9 read
+// as 100 and every one from 160.25 to 166 as 160, measured on clean trains. The
+// page named a tempo the music does not have, and the Radio page's floor stepped
+// at it, drifting off the beat and snapping back at each search (seen in the app
+// on a 96 BPM track, 2026-11-04). So a best candidate this close to an edge is
+// checked past the edge as well: if anything out there scores higher, the peak is
+// outside the range and the answer is null, the same "—" as any other tempo
+// outside it. A track at exactly 100 or 160 still reads, because past its own
+// peak the score falls.
+export const EDGE_GUARD = 2;
+
 // Confidence. Both floors must clear, and then the halves must agree.
 //   ABS — the resultant vector length itself. 1.0 is a perfect click train, 0 is noise.
 //   REL — the best candidate against the mean across the range, so a signal that
@@ -205,16 +218,18 @@ export function tempoResultant(onsets, period) {
 }
 
 // Sweep the candidate range. Returns the best candidate plus the MEAN score across
-// the whole range, which is what the relative floor is measured against.
+// the whole range, which is what the relative floor is measured against, and
+// `outside`: whether something past the nearer edge outscores the best (EDGE_GUARD).
 export function tempoSearch(onsets, opts) {
   const o = opts || {};
   const lo = o.bpmMin == null ? BPM_MIN : o.bpmMin;
   const hi = o.bpmMax == null ? BPM_MAX : o.bpmMax;
   const step = o.bpmStep == null ? BPM_STEP : o.bpmStep;
-  if (!Array.isArray(onsets) || !onsets.length) return { bpm: null, phase: 0, score: 0, mean: 0 };
+  const guard = o.edgeGuard == null ? EDGE_GUARD : o.edgeGuard;
+  if (!Array.isArray(onsets) || !onsets.length) return { bpm: null, phase: 0, score: 0, mean: 0, outside: false };
 
   const keep = tempoKeep(onsets);
-  if (!keep.length) return { bpm: null, phase: 0, score: 0, mean: 0 };
+  if (!keep.length) return { bpm: null, phase: 0, score: 0, mean: 0, outside: false };
 
   let best = null;
   let sum = 0;
@@ -225,8 +240,24 @@ export function tempoSearch(onsets, opts) {
     n += 1;
     if (!best || r.score > best.score) best = { bpm, phase: r.phase, score: r.score };
   }
-  if (!best || !n) return { bpm: null, phase: 0, score: 0, mean: 0 };
-  return { bpm: best.bpm, phase: best.phase, score: best.score, mean: sum / n };
+  if (!best || !n) return { bpm: null, phase: 0, score: 0, mean: 0, outside: false };
+  // Only a best within the guard of an edge is checked past it, so a tempo inside
+  // the range costs nothing extra. The first step past the edge is skipped: a peak
+  // there is a quarter BPM off the edge, inside the sweep's own resolution, and
+  // under ±15ms of jitter a true 100 or 160 lands there often enough that counting
+  // it took a real edge tempo to "—" (measured: 100 read 18/20 seeds and 160 17/20
+  // with it counted; 20/20 and 19/20 with it skipped).
+  const beyond = (from, to) => {
+    for (let bpm = from; bpm <= to + 1e-9; bpm += step) {
+      if (tempoResultant(keep, 60 / bpm).score > best.score) return true;
+    }
+    return false;
+  };
+  const outside = guard > 0 && (
+    (best.bpm - lo < guard && beyond(lo - guard, lo - 2 * step))
+    || (hi - best.bpm < guard && beyond(hi + 2 * step, hi + guard))
+  );
+  return { bpm: best.bpm, phase: best.phase, score: best.score, mean: sum / n, outside };
 }
 
 // The full gate: search, then the two floors, then split-half agreement.
@@ -253,6 +284,8 @@ export function tempoSettle(samples, opts) {
 
   const full = tempoSearch(onsets, o);
   if (full.bpm == null) return null;
+  // A peak past the edge is a tempo outside the range (EDGE_GUARD).
+  if (full.outside) return null;
 
   const absFloor = o.confAbs == null ? CONF_ABS : o.confAbs;
   const relFloor = o.confRel == null ? CONF_REL : o.confRel;

@@ -622,6 +622,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App and website: the radio tempo reads "—" just outside 100–160 instead of the edge, so the Radio page\'s floor never steps off the beat (#2596). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "on the radio page, the towers moving with the music and the floor stepping on the beat - can you make sure this works"', status: 'done' },
+        { label: '#2596 checked in Chromium with generated tracks through the app\'s own station element and analyser: the towers follow the levels (30 of 32 moved); at 120 BPM the floor starts 7.4 s in and steps every 500 ms toward the viewer, never back; Reduce Motion holds it still; a stopped stream drops the towers and the reading. At 96 BPM the page read 100 and the floor drifted off the music, snapping back each second', status: 'done' },
+        { label: '#2596 radioTempo.mjs EDGE_GUARD: a best candidate within 2 BPM of an edge is checked past it (the first step past skipped), so 94–99.5 and 160.5–166 read null instead of 100 or 160, while 100 and 160 still read (20/20 and 19/20 jitter seeds); Radio.html\'s import hash moved with the module; tests/radio-tempo.test.mjs (two new, one a MUTATION with edgeGuard 0). Review: Codex clean on 6e9fe6e (on open); CI green', status: 'done' },
+        { label: 'Production has no station on the air: radio_station is provider mock with no stream address (now-playing answers simulated), so no member hears anything and the Radio page shows the dashed off-air horizon until Shape\'s station is set up', status: 'pending' },
+        { label: 'OWNER: decide whether the tempo range widens below 100 BPM (hip-hop at 85–99 reads "—" with a still floor; the range is narrow so a track\'s half and double time fall outside it)', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the trainer profile\'s Studio tab is their work: programs, workouts and coaching on background C, with the coach\'s own words (#2592). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of round 3 of the studio: "i like these pages. But need to combine all of these, with a clear list of workouts vs programs vs custom coaching. And allow coach to write a brief descrioption of each of these if coaches chooses to"; of the backgrounds "C"; of the redrawn About me editor "the about me looks good", "the new design i like it"; of the tab "no keep programs studio", "name it studio"', status: 'done' },
