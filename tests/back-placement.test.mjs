@@ -83,6 +83,19 @@ test('no page draws its own Back: every one goes through the shared row', () => 
   assert.deepEqual(found.sort(), ENDS.map(([f, , why]) => `${f} · ${why}`).sort());
 });
 
+test('the pinned bar\'s ← is one button, the chrome\'s, on every pinned bar', () => {
+  // Codex P1 on #2595: Make it yours drew its own copy of BSPage's pinned ← for its own pinned bar.
+  // BSPage's bar and a takeover's (BSPinnedBar) both draw BSPinBackButton; no other file writes its marker.
+  const hits = readdirSync(DIR).filter((f) => f.endsWith('.jsx') && f !== 'iosAppBroadsheet.jsx' && read(f).includes('data-bs-pin-back'));
+  assert.deepEqual(hits, [], 'a pinned ← drawn outside the chrome');
+  const chrome = CHROME.match(/<button\b[^>]*data-bs-pin-back/g) || [];
+  assert.equal(chrome.length, 1, 'one pinned ← in the chrome');
+  assert.match(fnSrc(CHROME, 'BSPinBackButton'), /data-bs-pin-back=""/);
+  assert.match(fnSrc(CHROME, 'BSPage'), /const pinBackButton = \(\) => <BSPinBackButton run=\{runPinBack\} \/>;/, 'BSPage\'s bar draws it');
+  assert.match(fnSrc(CHROME, 'BSPinnedBar'), /<BSPinBackButton run=\{run\} /, 'a takeover\'s pinned bar draws it');
+  assert.match(read('BSMakeItYours.jsx'), /<window\.BSPinnedBar /, 'Make it yours\'s bar is the takeover bar');
+});
+
 test('a page may space what follows the back row, never move the row itself', () => {
   // A caller's style can push the content under the row down (marginBottom) or lift the row over a
   // photo (position, zIndex), never shift it: no margin above or beside it, no padding, no offset.

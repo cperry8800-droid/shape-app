@@ -764,7 +764,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     navSlide(intent === 'next-tab' ? 'l' : 'r');
     setTab(next);
   };
-  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
+  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, goScore, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
   // A notified person's profile closes on any other navigation (BS_NAV_EVENTS), so nothing moves
@@ -801,6 +801,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => navJumpRef.current.goSettings();
     window.addEventListener('shape:openProfile', open);
     return () => window.removeEventListener('shape:openProfile', open);
+  }, []);
+  // A profile's Shape Score row opens the Shape Score page from wherever the profile is (owner, 2026-11-04:
+  // "there should also be a link to shape score page on profiles"), so no host has to thread a prop in.
+  React.useEffect(() => {
+    const open = () => { setShowSettings(false); navJumpRef.current.goScore(); };
+    window.addEventListener('shape:openScore', open);
+    return () => window.removeEventListener('shape:openScore', open);
   }, []);
 
   // The Goal page's "Primary goal · Edit" card (and anywhere else that wants the
@@ -3084,7 +3091,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   );
 }
 
-function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
+function BSHomeWorkoutPreview({ workout = null, day = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
   const rust = t.RUST;
@@ -3101,9 +3108,11 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
     { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
     { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
   ];
-  // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session. Weekday/month
-  // tokens follow the selected UI language (i18n date-locale rule).
-  const _wd = new Date();
+  // "Today · Thu Jun 4 · 5:45 PM" for today's session; another day's (`day`, the day picked in Home's This
+  // week) reads its own date with no Today (Codex P1 on #2599: a Saturday session read "Today · Wed").
+  // Weekday/month tokens follow the selected UI language (i18n date-locale rule).
+  const _wd = day instanceof Date && !isNaN(day) ? day : new Date();
+  const _wdToday = (() => { const n = new Date(); return _wd.getFullYear() === n.getFullYear() && _wd.getMonth() === n.getMonth() && _wd.getDate() === n.getDate(); })();
   const _dateLoc = bsDateLocale();
   const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
@@ -3129,7 +3138,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:when.today', { defaultValue: 'Today' })} · {_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_wdToday ? <>{tr('home:when.today', { defaultValue: 'Today' })} · </> : null}{_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: t.ACCENT }}>.</span></div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
       </div>
@@ -4561,6 +4570,14 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Once ANY live plan exists every card follows it — a demo workout next to a
   // live day log would claim a session that isn't assigned.
   const selWorkout = liveWeek ? liveWeek.workoutByIdx[selIdx] : bsClientWorkoutForDay(selIdx);
+  // The day picked in This week (owner, 2026-11-04: "the change in weekly date should adjust activities on
+  // home page"): Team follows it, the day's session on the trainer's card and the day's meals on the
+  // nutritionist's. The morning panel, the ticker and Your move stay today's, as coach Today's Up next and
+  // To do stay today's (#2593). Null is today; an index is Monday-first into weekDates, the strip's week.
+  const [pickedDay, setPickedDay] = useStateBSC(null);
+  const pickIdx = pickedDay != null && pickedDay >= 0 && pickedDay < 7 ? pickedDay : todayIdx;
+  const pickToday = pickIdx === todayIdx;
+  const pickWorkout = pickToday ? selWorkout : (liveWeek ? liveWeek.workoutByIdx[pickIdx] : bsClientWorkoutForDay(pickIdx));
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
@@ -4763,9 +4780,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Every meal for the selected day, as full preview records — each renders as
   // its own agenda card (the Day Log list is gone). Live = the assigned meal
   // plan; demo rows only when no plan exists.
-  const selMeals = (() => {
-    if (liveWeek) return liveWeek.mealsByIdx[selIdx] || [];
-    const rows = (DAY_LOGS[dataDay] || []).filter((r) => r.tag === 'MEAL');
+  const mealsForIdx = (idx) => {
+    if (liveWeek) return liveWeek.mealsByIdx[idx] || [];
+    const rows = (DAY_LOGS[20 + idx] || []).filter((r) => r.tag === 'MEAL');
     return rows.map((row, j) => {
       const sub = row.sub || '';
       const kcal = parseInt(((sub.match(/(\d[\d,]*)\s*kcal/i) || [])[1] || '0').replace(/,/g, ''), 10);
@@ -4776,7 +4793,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       const parts = String(row.title || '').split(/\s*(?:,|\+|&|\/| with | and )\s*/i).map((x) => x.trim()).filter(Boolean);
       const per = parts.length ? Math.round(kcal / parts.length) : kcal;
       return {
-        id: `home-demo-${selIdx}-${j}`, time: row.time || '', tag: row.tag, tagColor: row.tagColor,
+        id: `home-demo-${idx}-${j}`, time: row.time || '', tag: row.tag, tagColor: row.tagColor,
         title: row.title, sub, kcal, p: pp, c: cc, f: ff,
         prep: '10 min', portion: '1 plate', score: 'A',
         hero: `${row.title}.`,
@@ -4784,7 +4801,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         ingredients: parts.map((m2, k2) => ({ n: 'portion', m: m2.charAt(0).toUpperCase() + m2.slice(1), k: `${k2 === parts.length - 1 ? Math.max(0, kcal - per * (parts.length - 1)) : per} kcal` })),
       };
     });
-  })();
+  };
+  const selMeals = mealsForIdx(selIdx);
+  // The picked day's meals, for Team (today's are selMeals).
+  const pickMeals = pickToday ? selMeals : mealsForIdx(pickIdx);
   // Habits for the selected day — live from the user's habits (mirrored into
   // tweaks) when present, demo set otherwise. `done` reflects that specific day.
   const _homeHabitsDec = (typeof window !== 'undefined' && window._bsDecodeHabits) ? window._bsDecodeHabits(tweaks.habits) : [];
@@ -4871,13 +4891,17 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       onUnfiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => { const n = { ...prev }; delete n[id]; return n; }); }} />;
   }
   if (showWorkoutPreview) {
-    return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: selWorkout }); }} onMessage={() => {
+    // `true` is today's session (Your move); { workout, day } is the one Team opened, the picked day's, with
+    // its date (Codex P1 on #2599).
+    const pv = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : null;
+    const shownWorkout = pv ? pv.workout : selWorkout;
+    return <BSHomeWorkoutPreview workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(pv && pv.day ? pv.day : undefined); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
       setShowWorkoutPreview(false);
       // The trainer who wrote the session (the plan read's coachId), in their own thread; signed in with no
       // such paid trainer, the chats; the signed-out preview's sample coach.
       if (!bsHomeSignedIn) { goChat('Jordan Chen', 'Coach · Hypertrophy'); return; }
-      const c = selWorkout && selWorkout.coachId != null
-        ? planCoaches.find((k) => k.role !== 'nutritionist' && k.providerId != null && String(k.providerId) === String(selWorkout.coachId)) : null;
+      const c = shownWorkout && shownWorkout.coachId != null
+        ? planCoaches.find((k) => k.role !== 'nutritionist' && k.providerId != null && String(k.providerId) === String(shownWorkout.coachId)) : null;
       if (c && c.conversationId) { try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name || undefined } })); return; } catch (e) { /* the chats below */ } }
       goChat(c && c.name ? c.name : null);
     }} />;
@@ -5131,7 +5155,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
           proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
           stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
-          onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()} />
+          onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()}
+              picked={pickedDay} onPick={setPickedDay} />
       </BSHomeDeck>
 
       {/* ── CHECK-INS — up top, right under the week (owner, 2026-10-11: "check-in should be towards the
@@ -5194,14 +5219,26 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null, providerId: b.provider_id ?? null });
           for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null, providerId: b.provider_id ?? null });
         }
+        // Today: today's session and the next meal not logged, with the food left. Another day picked in
+        // This week: that day's session (opened as a preview) and its meals in order, with nothing to log
+        // and no food left, since food is logged today.
+        const pickDate = weekDates[pickIdx];
+        const pw = pickWorkout;
+        const pwTimed = !!(pw && pw.time && pw.time !== '—');
+        const pwMeta = (pw && pw.detail && pw.detail.meta) ? pw.detail.meta.split(' · ').slice(0, 3).join(' · ') : (pw && pw.sub) || '';
+        const dayMeals = pickToday ? null : pickMeals.slice().sort((x, y) => mealMinutes(x) - mealMinutes(y))
+          .map((m) => ({ slot: slotLabel(m), time: fmtAt(mealMinutes(m)), title: m.title }));
         return (
           <BSHomeTeam tour="hero-home" coaches={teamCoaches} notes={notes}
-            dayLabel={`${_dowShort(_now)} ${_now.getDate()}`}
-            workout={selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: _wkTimed ? fmtAt(WORKOUT_AT) : null, onStart: () => setShowWorkoutPreview(true),
+            dayLabel={`${_dowShort(pickDate)} ${pickDate.getDate()}`} today={pickToday}
+            workout={!pickToday ? (pw && pw.title ? { title: pw.title, meta: pwMeta, time: pwTimed ? fmtAt(bsFocusMin(pw.time) ?? 540) : null, onStart: () => setShowWorkoutPreview({ workout: pw, day: pickDate }),
+              coachId: sample ? 'sample-trainer' : (pw.coachId ?? null) } : null)
+              : selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: _wkTimed ? fmtAt(WORKOUT_AT) : null, onStart: () => setShowWorkoutPreview(true),
               // Who wrote it (the plan read's trainer id): Team files it under that trainer. The sample's is Jordan's.
               coachId: sample ? 'sample-trainer' : (selWorkout.coachId ?? null) } : null}
-            meal={nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
-            fuel={fuel}
+            meal={pickToday && nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
+            dayMeals={dayMeals}
+            fuel={pickToday ? fuel : null}
             // Who wrote the meal plan (the plan read's nutritionist id): Team files the meals under them.
             mealCoachId={sample ? 'sample-nutritionist' : ((livePlan && livePlan.meals && livePlan.meals.coachId) ?? null)}
             showFindCoach={!teamCoaches.length && coachesKnown}
@@ -5483,6 +5520,14 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
       </div>
     </div>
   );
+}
+
+// A day of this week (0 = Monday) as BSWeekStrip shows it: the weekday in the reader's language and this
+// week's date ("Fri 6"), for a head that names the day the strip has picked.
+function bsEatStripDay(idx) {
+  const now = new Date();
+  const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(now.getDate() - ((now.getDay() + 6) % 7) + idx);
+  return `${bsWeekdayName(idx, 'short')} ${d.getDate()}`;
 }
 
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
@@ -7986,22 +8031,62 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
 
       {/* Today's board — three pro-authored dishes, one from each of the first
           three courses, different tomorrow. Only on the unfiltered menu, and
-          ABOVE the time tabs, so the list a tab picks starts right under it. */}
-      {board.length > 0 ? (
-        <div style={{ padding: `18px ${t.padX}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('nutrition:kitchen.boardTitle', { defaultValue: "Today's board" })}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{tr('nutrition:kitchen.boardSub', { defaultValue: 'Different tomorrow' })}</div>
-          </div>
-          {board.map((r) => (
-            <button key={bsSkSlug(r.title)} type="button" onClick={() => onOpenRecipe(r)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `2px solid ${t.INK}`, padding: '11px 0 13px', cursor: 'pointer' }}>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>{r.title}</span>
-              {r.blurb ? <span style={{ display: 'block', marginTop: 5, fontSize: 12.5, lineHeight: 1.4, color: t.INK70 }}>{r.blurb}</span> : null}
-              <span style={{ display: 'block', marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{creditOf(r)} · {r.time} · {r.kcal} kcal</span>
+          ABOVE the time tabs, so the list a tab picks starts right under it.
+          ⚠ AS A HERO AND A PAIR (owner, 2026-11-04: "and new recipe design", then of
+          three built in the app "B for menu"): the first pick a large raised card,
+          its course as a chip in its diet's colour, its credit, its title and line,
+          and its minutes and kcal as figures; the other two a pair of smaller cards
+          under it. Each is one button that opens the recipe, as the rows were. */}
+      {board.length > 0 ? (() => {
+        const [hero, ...rest] = board;
+        const dietOf = (r) => BS_SK_DIET_COLOR[r.diet] || teal;
+        const courseChip = (r, c) => {
+          const ci = bsKmCourseIndex(r);
+          if (ci < 0) return null;
+          return <span style={{ display: 'inline-flex', alignItems: 'center', flex: 'none', minHeight: 22, padding: '0 9px', borderRadius: 99, border: `1px solid ${bsTHexA(c, 0.5)}`, color: c, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{COURSE_SHORT[BS_KM_COURSES[ci].key]}</span>;
+        };
+        // The minutes as a figure and its unit ("10 min" → 10, MIN); a time that is not a number stays whole.
+        const tm = String(hero.time || '').match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+        const [mins, unit] = tm ? [tm[1], tm[2]] : [String(hero.time || ''), ''];
+        const hc = dietOf(hero);
+        const figLabel = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 };
+        return (
+          <div data-km-board="" style={{ padding: `18px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('nutrition:kitchen.boardTitle', { defaultValue: "Today's board" })}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{tr('nutrition:kitchen.boardSub', { defaultValue: 'Different tomorrow' })}</div>
+            </div>
+            <button type="button" data-km-hero="" onClick={() => onOpenRecipe(hero)} style={{ ...bsMpGlass(t, t.INK, { radius: 22 }), width: '100%', minHeight: 214, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'stretch', gap: 10, padding: 18, textAlign: 'left', cursor: 'pointer', color: t.INK }}>
+              <span aria-hidden style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 90% at 100% 0%, ${bsTHexA(hc, 0.34)}, transparent 55%), radial-gradient(90% 80% at 0% 100%, ${bsTHexA(teal, 0.16)}, transparent 60%)`, pointerEvents: 'none' }} />
+              <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'auto', minWidth: 0 }}>
+                {courseChip(hero, hc)}
+                <span style={{ marginLeft: 'auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{creditOf(hero)}</span>
+              </span>
+              <span style={{ position: 'relative', display: 'block', fontFamily: t.DISPLAY, fontSize: 27, fontWeight: t.W.display, letterSpacing: '-0.025em', lineHeight: 1.05, color: t.INK }}>{hero.title}</span>
+              {hero.blurb ? <span style={{ position: 'relative', display: 'block', fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>{hero.blurb}</span> : null}
+              <span style={{ position: 'relative', display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 18px', marginTop: 4 }}>
+                <span><span style={{ fontFamily: t.MONO, fontSize: 30, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{mins}</span>{unit ? <span style={figLabel}> {unit}</span> : null}</span>
+                <span><span style={{ fontFamily: t.MONO, fontSize: 30, fontWeight: 700, color: hc, fontVariantNumeric: 'tabular-nums' }}>{hero.kcal}</span><span style={{ ...figLabel, textTransform: 'lowercase' }}> {tr('nutrition:kitchen.rdKcal', { defaultValue: 'Kcal' })}</span></span>
+              </span>
             </button>
-          ))}
-        </div>
-      ) : null}
+            {rest.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 10 }}>
+                {rest.map((r) => {
+                  const dc = dietOf(r);
+                  return (
+                    <button key={bsSkSlug(r.title)} type="button" onClick={() => onOpenRecipe(r)} style={{ ...bsMpGlass(t, t.INK, { radius: 18 }), minHeight: 138, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, padding: 14, textAlign: 'left', cursor: 'pointer', color: t.INK }}>
+                      <span aria-hidden style={{ position: 'absolute', top: -40, right: -40, width: 110, height: 110, borderRadius: 99, background: `radial-gradient(circle, ${bsTHexA(dc, 0.28)}, ${bsTHexA(dc, 0)} 70%)`, pointerEvents: 'none' }} />
+                      <span style={{ position: 'relative' }}>{courseChip(r, dc)}</span>
+                      <span style={{ position: 'relative', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: t.W.display, letterSpacing: '-0.015em', lineHeight: 1.15, color: t.INK }}>{r.title}</span>
+                      <span style={{ position: 'relative', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK50 }}>{r.time} · {r.kcal} kcal</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        );
+      })() : null}
 
       {/* ⚠ THE TIME TABS FILTER IN PLACE; THEY DO NOT JUMP (owner, 2026-10-18:
           "when i click on these filters, dont have it move me down on screen to
@@ -8012,20 +8097,22 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
           Four equal cells, centred: nothing runs off the edge at any width.
           The anchor is the row's own place in the page (pickCourse reads it). */}
       <div ref={tabsAnchorRef} data-km-tabs-anchor="" aria-hidden style={{ height: 10 }} />
-      <div style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, borderBottom: `1px solid ${t.RULE}`, padding: `8px ${t.padX}px` }}>
-        <div role="group" aria-label={tr('nutrition:kitchen.cookingTime', { defaultValue: 'Cooking time' })} style={{ display: 'flex', justifyContent: 'center', gap: 4, maxWidth: 480, margin: '0 auto' }}>
+      <div style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, padding: `8px ${t.padX}px` }}>
+        <div role="group" aria-label={tr('nutrition:kitchen.cookingTime', { defaultValue: 'Cooking time' })} style={{ display: 'flex', justifyContent: 'center', gap: 6, maxWidth: 480, margin: '0 auto' }}>
           {BS_KM_COURSES.map((c, i) => {
             const n = courses[i].rows.length;
             const on = picked === i;
             return (
+              // A pill each (owner, 2026-11-04, option B): the time and its count on one line, the pick in ink.
+              // On a narrow phone the count drops under the time rather than cutting its words.
               <button key={c.key} type="button" aria-pressed={on} disabled={!n} onClick={() => pickCourse(i)} style={{
-                flex: '1 1 0px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                minHeight: 44, padding: '6px 4px', borderRadius: 4, border: 0, cursor: n ? 'pointer' : 'default',
-                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK70 : t.INK30),
-                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15,
+                flex: '1 1 0px', minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: '1px 5px',
+                minHeight: 44, padding: '4px 4px', borderRadius: 99, border: `1px solid ${on ? t.INK : t.RULE}`, cursor: n ? 'pointer' : 'default',
+                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK : t.INK30),
+                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1.2,
               }}>
-                <span>{COURSE_SHORT[c.key]}</span>
-                <span style={{ fontSize: 8.5, fontWeight: 700, opacity: on ? 0.75 : 1, color: on ? t.PAPER : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{COURSE_SHORT[c.key]}</span>
+                <span style={{ flex: 'none', fontSize: 8.5, fontWeight: 700, color: on ? bsTHexA(t.PAPER, 0.7) : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
               </button>
             );
           })}
@@ -14448,7 +14535,11 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
           targets (Adjust plan → Apply) win; each macro opens its own page. */}
       <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')} />
+        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')}
+        // Another day picked in the strip: its own head, not "Fuel left today" over that day's figures. The
+        // day reads as the strip shows it: this week's date and the weekday in the reader's language, not the
+        // plan record's own label (a sample's dates and English initials; Codex P2 on #2599).
+        label={_eatIsToday ? null : tr('nutrition:eat.fuelOn', { defaultValue: 'Fuel · {day}', day: bsEatStripDay(day) })} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}
@@ -19201,15 +19292,30 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} variant="coach" ownerPhoto={avPhoto} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
                   onMessage={hasMessage && !isSelf ? () => onMsg(person) : null}>
                   {bio ? <p data-member-bio="" style={{ margin: '2px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
-                  {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live
-                      there); a host with no way there gets the words alone (Codex P2 on #2546). */}
-                  {isSelf && typeof onOpenScore === 'function' ? (
-                    <button type="button" data-tour="hero-score" data-member-meta="" onClick={onOpenScore} style={{ display: 'block', margin: '8px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: bsTHexA(INK, 0.7), cursor: 'pointer' }}>
-                      {metaBits} <span aria-hidden style={{ color: c }}>›</span>
-                    </button>
-                  ) : (
-                    <p data-member-meta="" style={{ margin: '8px 0 0', fontSize: 12.5, color: bsTHexA(INK, 0.66) }}>{metaBits}</p>
-                  )}
+                  {/* The Shape Score, as a row on every member's page (owner, 2026-11-04: "there should also be a
+                      link to shape score page on profiles"): the tier · points · streak. On your own page it opens
+                      the Shape Score page, through its host where the host has a way (onOpenScore), else through
+                      shape:openScore, which each app's root answers, so it never does nothing (Codex P2 on #2546).
+                      On someone else's page it shows their score and opens nothing: the Score page shows only the
+                      reader's own standing, so a tap would put the reader's figures where theirs were (Codex P1 on
+                      #2599). */}
+                  {metaBits ? (() => {
+                    const scoreBody = (
+                      <>
+                        <span style={{ flex: 'none', fontFamily: tTheme.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Shape Score</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3, color: bsTHexA(INK, 0.78), overflowWrap: 'anywhere' }}>{metaBits}</span>
+                        {isSelf ? <span aria-hidden style={{ flex: 'none', color: c, fontSize: 16, lineHeight: 1 }}>→</span> : null}
+                      </>
+                    );
+                    const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '7px 12px 7px 14px', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.14)}`, boxShadow: `inset 3px 0 0 ${c}`, background: bsTHexA(INK, 0.03), textAlign: 'left', color: INK };
+                    return isSelf ? (
+                      <button type="button" data-tour="hero-score" data-member-meta="" data-member-score=""
+                        onClick={typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
+                        aria-label={['Shape Score', metaBits].join(': ')} style={{ ...rowStyle, cursor: 'pointer' }}>{scoreBody}</button>
+                    ) : (
+                      <div data-member-meta="" data-member-score="" aria-label={['Shape Score', metaBits].join(': ')} role="group" style={rowStyle}>{scoreBody}</div>
+                    );
+                  })() : null}
                   {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
                       not read on the light papers). */}
                   {heroStartState ? (
@@ -25465,7 +25571,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const n = (rows || []).length;
             return (
               <header data-bs-team-head="">
-                <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{label || tr('feed:team.threads', { defaultValue: 'Threads' })}</h2>
+                {/* The register alone: the big COACHES / FRIENDS head went (owner, 2026-11-04: "get rid of the large
+                    coaches header and Friends header"); the tab above says which list this is. */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{tr('feed:team.threadCount', { defaultValue: '{count, plural, one {# thread} other {# threads}}', count: n })}{tot > 0 ? <span> · <span style={{ color: magAccent, fontWeight: 800 }}>{tr('feed:team.newCount', { defaultValue: '{count} new', count: tot })}</span></span> : null}</span>
                   <button onClick={() => { setNewDmOpen(true); setDmQuery(''); }} title={tr('feed:team.startConversation', { defaultValue: 'Start a conversation' })} style={{ minHeight: 36, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: magAccent, padding: 0 }}>{tr('feed:team.new', { defaultValue: '＋ New' })}</button>
@@ -25574,11 +25681,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           if (tab === 'channels') {
             const chLiveCount = chDisplay.filter(c => c.live).length;
             return (
-              <div style={{ padding: '16px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {/* The masthead, as THE WALL's and the Team list's: the name over a heavy rule, then the register
                     (channels, live, new) on a hairline. */}
+                {/* The register alone: THE CHANNELS head went (owner, 2026-11-04: "remove this channels"). */}
                 <header data-bs-channels-head="">
-                  <h2 style={{ margin: 0, padding: '6px 0 8px', borderBottom: `3px solid ${t.INK}`, fontFamily: bsWsHead(t), fontSize: 30, fontWeight: 600, lineHeight: 0.95, letterSpacing: '0.012em', textTransform: 'uppercase', color: t.INK }}>{tr('feed:channels.head', { defaultValue: 'The channels' })}</h2>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '7px 0', borderBottom: `1px solid ${t.HAIR}` }}>
                     <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                       {tr('feed:channels.count', { defaultValue: '{count, plural, one {# channel} other {# channels}}', count: chDisplay.length })}
@@ -25645,8 +25752,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             // On the Wall's 12px edge (owner, 2026-10-24), so the list's rules end where the strip's do.
-            <div style={{ padding: '7px 12px 90px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div inert={subHidden} style={bsSubStyle(16)}>
+            // The tabs sit close over the list (owner, 2026-11-04: "reduce gap here").
+            <div style={{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* The row's 44px taps reach 6px up into the gap under the rail, never onto it (lifted here, outside
+                  the sub-row's clip, so no part of a tap is cut off). */}
+              <div inert={subHidden} style={{ ...bsSubStyle(6), marginTop: -6 }}>
               {/* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */}
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
                 {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}

@@ -455,8 +455,10 @@ const PARTIAL = new Set([
   // station.creditTrainer / station.creditNutritionist. It MOVED FILES 2026-10-25
   // (iosAppBroadsheetClient.jsx → BSGoals.jsx) with the Goals page; the key follows the file.
   'BSGoals::BSGoalsContract',
+  // MktComboCard and MktRow left with the directory's redesign (2026-11-04): its cards and rows are
+  // BSMarketDirectory.jsx's now, fully covered.
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
-  'Marketplace::MktComboCard', 'Marketplace::MktRow', 'Pros::BSProClientPreviewPage',
+  'Pros::BSProClientPreviewPage',
   'Pros::BSProSoundtracks',
   'Pros::ProWeekendPlate', 'Radio::BSNowPlayingMuted', 'Radio::BSRadioScreen',
   'Radio::BSShapeSetsScreen',
@@ -817,7 +819,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // Club Shape as the brand's name (owner, 2026-11-03), a brand noun in BRAND above: the logo's new
   // alt text adds nothing, and the Radio page's two existing "Club Shape" literals (the venue, in
   // Shape Sets) stop counting as copy: 165 -> 163.
-  assert.equal(partStrings, 163, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The marketplace directory's redesign (owner, 2026-11-04: "the marketplace") moved it to its own
+  // module, BSMarketDirectory.jsx, fully covered: its rate reads the locale's "{monthly}/mo"
+  // (coach:rates.rowSubMonthly), so the "/mo" literal MktComboCard and MktRow each printed goes with
+  // them: 163 -> 161.
+  assert.equal(partStrings, 161, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -928,7 +934,8 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   assert.equal(noneStrings, 586, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
-  assert.equal(part.length, 31, 'partial-surface count moved — regenerate PARTIAL and the record');
+  // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.
+  assert.equal(part.length, 29, 'partial-surface count moved — regenerate PARTIAL and the record');
   // BSProfileIdentityHead was deleted with the member profile's old head (2026-10-31): 79 -> 78.
   // Nora's profile moved to BSNoraProfile.jsx, fully covered (2026-11-01): 78 -> 77.
   assert.equal(none.length, 77, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
