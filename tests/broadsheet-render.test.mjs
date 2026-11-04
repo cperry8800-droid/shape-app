@@ -1083,3 +1083,45 @@ test('assign: a ticked meal carries its tick to the client, and the Shape oats t
     delete globalThis.bsAskConfirm;
   }
 });
+
+// A plan in the website builder's document (Nora's meal drafts, every plan made on the website) assigns
+// from the app (owner, 2026-11-04): the week the website's Assign sends, never an empty menu read off
+// outline lines it does not have.
+test('assign: a builder document sends the website\'s week; without the builder core it refuses, sending nothing', async () => {
+  const req = (await import('node:module')).createRequire(import.meta.url);
+  const DashMeals = req('../public/newdesign/dashMealCore.js');
+  const { cleanMealBrief, pickMeals, buildMealDoc } = await import('../src/lib/ai/mealDraft.mjs');
+  const brief = cleanMealBrief({ goalPhase: 'cut', days: 3 });
+  const doc = buildMealDoc(brief, pickMeals(brief), 'mp-9');
+  const sent = [];
+  globalThis.ShapeAssign = { mealPlan: async (body) => { sent.push(body); return { ok: true }; }, clients: async () => [] };
+  globalThis.ShapeCoachPlans = { list: async () => [] };
+  globalThis.ShapeMessages = undefined;
+  globalThis.bsAskConfirm = async () => true;
+  const prevDash = globalThis.DashMeals;
+  const props = {
+    role: 'nutritionist',
+    plan: { id: 'mp-9', name: 'Cut · 3-day rotation', meta: '3-day rotation · 1900 kcal', detail: { mealBuilder: doc } },
+    client: { n: 'Ana Ruiz' },
+    clientUid: '11111111-2222-4333-8444-555555555555',
+    onBack() {}, onDone() {},
+  };
+  try {
+    globalThis.DashMeals = DashMeals;
+    const page = driveAssign(props);
+    await page.click((s) => /Assign & notify/.test(s));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].title, 'Cut · 3-day rotation');
+    assert.equal(sent[0].clientId, props.clientUid);
+    assert.deepEqual(sent[0].days, DashMeals.buildMealAssignment(doc, { scale: 1, groceryEdits: null }).days, 'the website\'s week, meal for meal');
+    assert.ok(sent[0].days.every((d) => d.meals.length > 0), 'never an empty menu');
+    delete globalThis.DashMeals;
+    const bare = driveAssign(props);
+    await bare.click((s) => /Assign & notify/.test(s));
+    assert.equal(sent.length, 1, 'nothing sent without the builder core');
+    assert.match(bare.text(), /Couldn't assign — /, 'the page says it could not (this harness does not fill in the reason)');
+  } finally {
+    delete globalThis.bsAskConfirm;
+    if (prevDash) globalThis.DashMeals = prevDash; else delete globalThis.DashMeals;
+  }
+});

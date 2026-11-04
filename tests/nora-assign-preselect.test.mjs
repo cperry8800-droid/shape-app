@@ -13,7 +13,8 @@ const PROS = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet
 const APP = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
 
 test('1 · the card sends the client with the plan', () => {
-  assert.ok(APP.includes("new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null } })"));
+  // planKind rides along (2026-11-04): a nutritionist's plan opens in the nutritionist shell, never the trainer's.
+  assert.ok(APP.includes("new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null, planKind: open.planKind || null } })"));
 });
 
 test('2 · the trainer shell keeps it on the open request', () => {

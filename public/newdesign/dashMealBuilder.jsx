@@ -561,6 +561,9 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   const persisted = React.useRef(!!template.id && !String(template.id).startsWith("demo-"));
   const idRef = React.useRef(persisted.current ? template.id : crypto.randomUUID());
   const ownerRef = React.useRef(ownerId);
+  // The revision it opened, then the one each save returns: a plan saved elsewhere since (in the app's
+  // editor, or another tab) is refused with the route's words, never written over (Codex on #2594).
+  const revRef = React.useRef(Number(template.detail && template.detail.revision) || 0);
   const latest = React.useRef({name,doc}); latest.current = {name,doc};
   const saved = React.useRef(JSON.stringify({name,doc}));
   const flight = React.useRef(null), active = React.useRef(true);
@@ -576,13 +579,13 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
     flight.current=(async()=>{
       try{
         if(live){
-          const res=await fetch("/api/coach/plans",{method:persisted.current?"PATCH":"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:idRef.current,kind:"meal_plan",name:value.name,expectedOwnerId:ownerRef.current,meta:value.doc.targets.kcal+" kcal · "+dmbPhase(value.doc.goalPhase).label,detail:{...(template.detail||{}),mealBuilder:value.doc}})});
+          const res=await fetch("/api/coach/plans",{method:persisted.current?"PATCH":"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:idRef.current,kind:"meal_plan",name:value.name,expectedOwnerId:ownerRef.current,...(persisted.current?{expectedRevision:revRef.current}:{}),meta:value.doc.targets.kcal+" kcal · "+dmbPhase(value.doc.goalPhase).label,detail:{...(template.detail||{}),mealBuilder:value.doc}})});
           const data=await res.json();
           if(!res.ok || !data.plan?.id)throw Error(data.error || "Save failed. Keep this page open and retry to save your edits.");
-          idRef.current=data.plan.id;persisted.current=true;
+          idRef.current=data.plan.id;persisted.current=true;revRef.current=Number(data.plan.detail&&data.plan.detail.revision)||0;
         } else if(!dmbWriteDraft(idRef.current,value.name,value.doc))throw Error("This browser could not retain your draft. Keep this page open.");
         saved.current=serial;
-        if(active.current){setSaveState("saved");onSaved?.({id:idRef.current,name:value.name,doc:value.doc});}
+        if(active.current){setSaveState("saved");onSaved?.({id:idRef.current,name:value.name,doc:value.doc,revision:revRef.current});}
         return true;
       }catch(e){if(active.current){setSaveState("error");setSaveError(e.message || "Save failed. Retry.");}return false;}
       finally{flight.current=null;}
@@ -937,8 +940,9 @@ function NutritionistPlansPage() {
             assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null}
             customFoods={customFoods}
             onBack={() => { setView(null); setRefresh((n) => n + 1); }}
-            onSaved={({ id, name, doc }) => {
-              setTemplates(prev => [{id,name,detail:{...view.template.detail,mealBuilder:doc}},...(prev||[]).filter(t=>t.id!==id)]);
+            onSaved={({ id, name, doc, revision }) => {
+              // The saved revision rides into the library's copy, so reopening it names the right one.
+              setTemplates(prev => [{id,name,detail:{...view.template.detail,mealBuilder:doc,revision}},...(prev||[]).filter(t=>t.id!==id)]);
             }}
           />
         ) : (

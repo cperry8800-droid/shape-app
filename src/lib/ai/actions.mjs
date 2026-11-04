@@ -23,6 +23,7 @@ import {
 // actions, never the draft core directly).
 export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
 import { cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, draftName as mealDraftName } from './mealDraft.mjs';
+import { cleanNutritionBrief, generatePlanBody, nutritionDraftFrom, nutritionPlanRow, nutritionDraftDiff, NUTRITION_TEMPLATE_NOTICE } from './nutritionDraft.mjs';
 import { planSetupChanges, buildSetupPreview, applySetupCells, stampSetupCells, REFUSED_REASONS, NOTHING_MSG, NOT_ALLOWED_MSG } from './accountSetup.mjs';
 // The chat route offers set_up_account and its note from here (it imports Nora's actions, never the
 // setup core directly), so every harness that maps this module gets them with it.
@@ -521,7 +522,7 @@ export const draftMealPlanAction = {
       afterState: { planId: planId, name: name },
       confirmedPayload: confirmed,
       open: { kind: 'coach_plan', planKind: 'meal_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(planId, clientId) },
-      note: "Every meal and number on the card is from Shape's meal library; say so, and never add a meal or a figure of your own. Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it (the compliance check runs there)."
+      note: "Every meal and number on the card is from Shape's meal library; say so, and never add a meal or a figure of your own. Nothing is saved until they confirm; it is saved unpublished to their meal plans, where they edit it and assign it: on the Plans page of the Shape app, or in the meal builder on the website (the compliance check runs when it is assigned)."
         + (picked.missing.length ? ' No library food fit the ' + picked.missing.join(' and ') + ' after what they left out: say so, and that they can add their own in the builder.' : ''),
     };
   },
@@ -552,6 +553,85 @@ export const draftMealPlanAction = {
     if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone. It has been edited, published or removed in the builder.');
   },
 };
+// draft_nutrition_program → POST /api/ai/generate-plan, then POST /api/coach/plans: a nutritionist's
+// PROGRAM (a line a week, no meals) or DIET (options for each meal, foods to favour and avoid),
+// drafted by the plan builder's own generator and read with the app's own parsers
+// (nutritionDraft.mjs), saved UNPUBLISHED where the app's Plans page lists it (Programs or Diet),
+// for them to edit and assign there. Owner, 2026-11-04: "Nora can't create a nutritionist's
+// 'program' or 'diet' yet, only meal plans … can you fix these and make them possible?". It never
+// assigns to a client.
+export const draftNutritionProgramAction = {
+  name: 'draft_nutrition_program',
+  roles: ['nutritionist', 'dietitian'],
+  // Any account that also holds a nutrition role may draft: it saves to the account's own plans.
+  heldRoles: true,
+  source: 'nora',
+  async buildPreview(ctx, input) {
+    input = input || {};
+    var brief = cleanNutritionBrief(input);
+    if (!brief.kind) throw new Error('Should I draft a program (what to work on each week) or a diet (options for each meal)?');
+    // A client is only ever one they coach; the draft is still saved to their library.
+    var clientId = null;
+    var who = '';
+    if (input.clientId || input.clientName) {
+      await requireOnClient(ctx, input.clientId);
+      clientId = input.clientId;
+      who = input.clientName ? clipText(input.clientName, 60) : 'this client';
+    }
+    // The generator's own answer (its template when there is no model), asked with the coach's
+    // session: the route's coach gate is the authoritative one.
+    // The client's name is taken out of the coach's own words too: none reaches the model.
+    var res = await ctx.call('POST', '/api/ai/generate-plan', generatePlanBody(brief, { clientName: input.clientName }));
+    if (!res.ok) throw new Error((res.data && res.data.error) || "I couldn't draft that just now. Try again in a moment.");
+    var draft = nutritionDraftFrom(brief, res.data);
+    var planId = randomUUID();
+    var row = nutritionPlanRow(brief, draft, planId);
+    var where = brief.kind === 'program' ? 'programs' : 'diets';
+    // ⚠ NEVER PROMISE AN ASSIGN THAT ISN'T THERE (Codex on #2594). A program is weeks, never a client's
+    // Eat tab; a diet guide is assigned only once every day has a menu written (nutritionAssign.mjs).
+    var next = brief.kind === 'program' ? 'to edit and publish there' : 'to edit there, and to assign once each day has a menu';
+    return {
+      summary: (draft.source === 'template' ? 'Template · ' : '') + 'Draft "' + row.name + '"' + (clientId ? ' for ' + who : '') + ' and save it to your ' + where + ' in the Shape app, unpublished, ' + next,
+      diff: nutritionDraftDiff(brief, draft),
+      target: { userId: ctx.actor.id, kind: 'coach_plan', id: planId },
+      beforeState: { planId: planId },
+      afterState: { planId: planId, name: row.name },
+      confirmedPayload: { planId: planId, row: row },
+      // No url: the website's meal builder lists only its own documents, so the app opens it.
+      open: { kind: 'coach_plan', planKind: 'meal_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}) },
+      note: (draft.source === 'template' ? 'This is a TEMPLATE, not an AI draft (' + NUTRITION_TEMPLATE_NOTICE + '): say so. ' : '')
+        + "Every line on the card is the plan builder's; never add a line, a meal or a number of your own. "
+        + (brief.kind === 'program' ? "A program is what to work on each week: it holds no meals, so it is not put on a client's Eat tab. " : '')
+        + (brief.kind === 'program' && draft.weeks !== brief.weeks ? 'The builder drafted ' + draft.weeks + ' weeks, not the ' + brief.weeks + ' asked for: say so. ' : '')
+        + 'Nothing is saved until they confirm; it is saved unpublished to the ' + where + ' on the Plans page of the Shape app, where they edit it and publish it. '
+        + (brief.kind === 'program'
+          ? 'A program is not assigned to a client; never say it can be.'
+          : 'A diet goes on a client\'s Eat tab only once they have written a menu for every day in its editor; until then it is a guide, and say so if they ask to assign it.'),
+    };
+  },
+  async execute(ctx, plan) {
+    var p = plan.confirmedPayload || {};
+    // ⚠ THE ROW IS THE TOKEN'S: saved exactly as the card showed it; the generator is not asked again.
+    var row = p.row || {};
+    var res = await ctx.call('POST', '/api/coach/plans', {
+      id: p.planId, kind: 'meal_plan', name: row.name, meta: row.meta, published: false,
+      expectedOwnerId: ctx.actor.id, detail: row.detail,
+    });
+    if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the draft to your plans.');
+    return { plan: { id: p.planId, name: row.name }, open: { kind: 'coach_plan', planKind: 'meal_plan', planId: p.planId } };
+  },
+  async undo(ctx, plan) {
+    // ⚠ IN-STATEMENT GUARD: only while the row still holds exactly the document this saved,
+    // unpublished. Once the editor has published it or saved an edit, nothing matches and it stays.
+    var detail = ((plan.confirmedPayload || {}).row || {}).detail || {};
+    var res = await ctx.supabase.from('coach_plans').delete()
+      .eq('id', plan.beforeState.planId).eq('owner_id', ctx.actor.id).eq('kind', 'meal_plan').eq('published', false)
+      .contains('detail', detail).containedBy('detail', detail)
+      .select('id');
+    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone. It has been edited, published or removed.');
+  },
+};
+
 // assign_meal_plan → POST /api/nutritionist/meal-plan (nutritionist only). The
 // endpoint archives the prior published plan + publishes the new one; undo
 // archives the new one and republishes the prior (captured at preview).
@@ -1251,4 +1331,4 @@ export const setUpAccountAction = {
 // Registered in rollout order. (The OpenAI tool schemas Nora exposes live with the
 // chat route; these are the executors the scaffold runs.) The memory tools above
 // are deliberately NOT in this list — they're direct, not proposal-drafted.
-export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, draftMealPlanAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction, setUpAccountAction];
+export const NORA_ACTIONS = [logMealAction, setClientGoalAction, assignWorkoutAction, draftWorkoutAction, draftMealPlanAction, draftNutritionProgramAction, assignMealPlanAction, setProgramDetailAction, addReviewNoteAction, rescheduleSessionAction, logWeighInAction, logWaterAction, checkHabitAction, setReminderAction, setUpAccountAction];
