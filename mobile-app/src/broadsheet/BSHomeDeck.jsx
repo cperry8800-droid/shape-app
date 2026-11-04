@@ -130,11 +130,10 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   const next = ms && ms.next ? { m: ms.next.m, name: msName(ms.next.m), weight: `${fmt(ms.next.kg)} ${unit}`, left: tr('home:goal.toGo', { defaultValue: '{amount} {unit} to go', amount: fmt(ms.away), unit }) } : null;
   const nextHead = next ? `${tr('goal:terms.next', { defaultValue: 'Next' })} · ${next.name}` : '';
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, whiteSpace: 'nowrap' };
-  // ⚠ OVER THE ROUTE, STILL THREE THINGS (owner, 2026-11-04: "simplify some of the data on the hill
-  // climb/chart. looks like too much and can be a little overwhelming"): the goal in the member's words,
-  // what is left, and the goal by the flag. The pace, its date, the start and the weight now stay on the
-  // goal page the climb opens; the share and the next milestone are the strip's, once each. The goal's
-  // words over the climb, unless they are its big line already (the words state).
+  // OVER THE SKY, THREE THINGS: the goal in the member's words, what is left, and the goal by the flag, alone
+  // in its corner. The route's own numbers and the band under the hill are below (owner, 2026-11-04: "add more
+  // info on this graph"); the share and the next milestone are the strip's, once each. The goal's words over
+  // the climb, unless they are its big line already (the words state).
   const eyebrow = words && st.kind !== 'words' ? `“${words}”` : '';
   const link = (label) => (
     <button type="button" onClick={(e) => { e.stopPropagation(); if (typeof onOpen === 'function') onOpen(); }}
@@ -168,8 +167,37 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   const aria = st.kind === 'progress'
     ? tr('home:climb.aria', { defaultValue: 'Your goal: {pct}% of the way, {amount} {unit} to go', pct, amount: fmt(read.toGoKg ?? 0), unit })
     : (typeof big === 'string' ? big : '');
-  // The door's name carries the strip too, so a screen reader hears the next milestone as well.
-  const doorName = next ? [aria, nextHead, next.weight, next.left].join(' · ') : aria;
+  // ⚠ THE NUMBERS ON THE ROUTE, A BAND OF FIGURES, AND MORE LIGHT (owner, 2026-11-04: "add more info on this
+  // graph. Make it pop more", then of three designs, "go with A and include these and clean up the flag
+  // section", with option B's band of four figures). For a goal on its way: the start weight at the foot,
+  // each milestone's weight under its tick and the weight now in a chip over the dot; under the hill, Start,
+  // Current, Pace and the date the goal falls at that pace, each only when the read has it (no pace yet, no
+  // placeholder). The flag's corner says the goal alone. The light, every state but loading: a sun behind
+  // the summit, the hill shaded toward its foot, a lit crest; on a goal on its way, a glow under the walked
+  // line and the now dot breathing (still under reduced motion). Every figure is the goal read's own.
+  const live = st.kind !== 'loading';
+  const onWay = st.kind === 'progress' && !!read;
+  const nowP = bsClimbPoint(pct / 100);
+  const summit = bsClimbPoint(1);
+  const signed = (kg) => `${kg < 0 ? '−' : '+'}${fmt(Math.abs(kg))}`;
+  const nowWord = tr('home:climb.nowWord', { defaultValue: 'now' });
+  const band = onWay ? [
+    read.startKg != null ? { k: 'start', label: tr('goal:terms.whenStart', { defaultValue: 'Start' }), value: fmt(read.startKg), c: teal } : null,
+    read.nowKg != null ? { k: 'current', label: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), value: fmt(read.nowKg), c: along(pct / 100) } : null,
+    read.paceKgWk != null ? { k: 'pace', label: tr('goal:cover.statPace', { defaultValue: 'Pace' }), value: tr('home:climb.paceWeek', { defaultValue: '{pace} {unit}/wk', pace: signed(read.paceKgWk), unit }), c: along(0.7) } : null,
+    read.etaIso ? { k: 'eta', label: tr('goal:terms.whenGoal', { defaultValue: 'Goal' }), value: `≈ ${bsHdDate(read.etaIso, { month: 'short', day: 'numeric' })}`, c: gold } : null,
+  ].filter(Boolean) : [];
+  // The weight now over the dot, or under it where the dot is too near the top for the chip to clear the
+  // goal's corner; always inside the box.
+  const chip = onWay && walked && pct < 100 && read.nowKg != null ? (() => {
+    const text = `${fmt(read.nowKg)} ${nowWord}`.toUpperCase();
+    const w = Math.round(text.length * 5.2 + 12);
+    const above = nowP.y - 28 >= 22;
+    return { text, w, x: Math.max(4, Math.min(BS_CLIMB_W - w - 4, nowP.x - w / 2)), y: above ? nowP.y - 28 : nowP.y + 9, above };
+  })() : null;
+  const sv = { fontFamily: BS_DECK_MONO, fontWeight: 700, letterSpacing: '0.08em' };
+  // The door's name carries the strip and the band too, so a screen reader hears them as well.
+  const doorName = [aria, ...(next ? [nextHead, next.weight, next.left] : []), ...band.map((b) => `${b.label} ${b.value}`)].join(' · ');
   const R = 13, RING = 2 * Math.PI * R;
 
   return (
@@ -201,8 +229,25 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
             <stop offset="0" stopColor={teal} />
             <stop offset="1" stopColor={gold} />
           </linearGradient>
+          {/* The sun behind the summit, fading out before the box's edge so it never shows one, and the
+              hill shaded toward its foot. */}
+          <radialGradient id={`${gid}sun`} cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stopColor={gold} stopOpacity={t.isLight ? 0.38 : 0.5} />
+            <stop offset="1" stopColor={gold} stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id={`${gid}sh`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={t.PAPER} stopOpacity="0" />
+            <stop offset="1" stopColor={t.PAPER} stopOpacity={t.isLight ? 0.35 : 0.55} />
+          </linearGradient>
         </defs>
+        {onWay && walked && pct < 100 ? (
+          <style>{`@keyframes ${gid}br{0%,100%{opacity:.18}50%{opacity:.42}}.${gid}br{animation:${gid}br 2.6s ease-in-out infinite}@media (prefers-reduced-motion: reduce){.${gid}br{animation:none}}`}</style>
+        ) : null}
+        {live ? <circle data-climb-sun="" cx={summit.x} cy={summit.y + 4} r={summit.y + 4} fill={`url(#${gid}sun)`} /> : null}
         <polygon data-climb-ridge="" points={bsClimbRidge()} fill={`url(#${gid}rb)`} />
+        {live ? <polygon data-climb-shade="" points={bsClimbRidge()} fill={`url(#${gid}sh)`} /> : null}
+        {live ? <polyline data-climb-crest="" points={bsClimbRidge().split(' ').slice(2, -2).join(' ')} fill="none" stroke={`url(#${gid}p)`} strokeOpacity={t.isLight ? 0.55 : 0.75} strokeWidth="1.1" strokeLinejoin="round" /> : null}
+        {onWay && walked && pct > 0 ? <polyline data-climb-glow="" points={bsClimbPath(0, pct / 100)} fill="none" stroke={`url(#${gid}p)`} strokeOpacity={t.isLight ? 0.18 : 0.3} strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" /> : null}
         <polyline data-climb-ahead="" points={bsClimbPath(walked ? pct / 100 : 0, 1)} fill="none" stroke={`url(#${gid}p)`} strokeOpacity="0.7" strokeWidth="1.6" strokeDasharray="3 4" strokeLinecap="round" />
         {walked && pct > 0 ? <polyline data-climb-walked={pct} points={bsClimbPath(0, pct / 100)} fill="none" stroke={`url(#${gid}p)`} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /> : null}
         {st.kind !== 'loading' ? BS_CLIMB_MILESTONES.map((m, i) => {
@@ -213,6 +258,7 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           return (
             <g key={m} data-climb-milestone={m} data-climb-passed={passed ? '' : undefined}>
               <line x1={p.x} y1={p.y - 5} x2={p.x} y2={p.y + 5} stroke={passed ? along(m / 100) : ha(along(m / 100), 0.6)} strokeWidth="2" />
+              {onWay && ms ? <text data-climb-ms-weight={m} x={p.x} y={p.y + 15} textAnchor="middle" style={{ ...sv, fontSize: 7.5 }} fill={along(m / 100)} fillOpacity={passed ? 1 : 0.75}>{fmt(ms.stops[i].kg)}</text> : null}
             </g>
           );
         }) : null}
@@ -226,8 +272,30 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
             </g>
           );
         })()}
+        {onWay && walked && pct < 100 ? <circle data-climb-breath="" className={`${gid}br`} cx={nowP.x} cy={nowP.y} r="10" fill={along(pct / 100)} opacity="0.3" /> : null}
         {walked && pct < 100 ? (() => { const p = bsClimbPoint(pct / 100); return <circle data-climb-now="" cx={p.x} cy={p.y} r="4.5" fill={along(pct / 100)} stroke={t.PAPER} strokeWidth="2" />; })() : null}
+        {chip ? (
+          <g data-climb-now-chip={chip.above ? 'above' : 'below'}>
+            <line x1={nowP.x} y1={chip.above ? nowP.y - 7 : nowP.y + 6} x2={nowP.x} y2={chip.above ? nowP.y - 13 : nowP.y + 9} stroke={along(pct / 100)} strokeWidth="1" />
+            <rect x={chip.x} y={chip.y} width={chip.w} height="15" rx="7.5" fill={ha(along(pct / 100), t.isLight ? 0.16 : 0.22)} stroke={along(pct / 100)} strokeWidth="0.9" />
+            <text x={chip.x + chip.w / 2} y={chip.y + 10} textAnchor="middle" style={{ ...sv, fontSize: 7.5 }} fill={fg}>{chip.text}</text>
+          </g>
+        ) : null}
+        {onWay && read.startKg != null ? (
+          <text data-climb-start="" x="12" y="148" style={{ ...sv, fontSize: 7.5 }} fill={teal}>{`${tr('goal:terms.whenStart', { defaultValue: 'Start' })} ${fmt(read.startKg)}`.toUpperCase()}</text>
+        ) : null}
       </svg>
+      {band.length ? (
+        // The band under the hill: each figure in a glass slot with an edge in its colour on the run.
+        <div data-climb-band={band.map((b) => b.k).join(' ')} style={{ margin: '6px 14px 0', display: 'grid', gridTemplateColumns: `repeat(${band.length}, minmax(0, 1fr))`, gap: 6 }}>
+          {band.map((b) => (
+            <div key={b.k} data-climb-band-cell={b.k} style={{ minWidth: 0, padding: '6px 8px 7px', borderRadius: 11, background: ink(t.isLight ? 0.045 : 0.07), border: `1px solid ${ink(t.isLight ? 0.08 : 0.1)}`, boxShadow: `inset 0 2px 0 ${ha(b.c, 0.75)}` }}>
+              <div style={{ ...mono, fontSize: 7.5, letterSpacing: '0.12em', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.label}</div>
+              <div data-climb-band-value="" style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: b.value.length > 8 ? 12.5 : 14, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums' }}>{b.value}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* The words over the sky, top left, and the target by the flag, in the goal's gold. */}
       <div style={{ position: 'absolute', left: t.padX, right: t.padX, top: 0, pointerEvents: 'none' }}>
