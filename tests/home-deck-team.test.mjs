@@ -135,6 +135,26 @@ test('the climb with no pace yet says when it will have one, never a dash', () =
   assert.doesNotMatch(d.text, /lb\/wk/);
 }));
 
+// Codex P2 on #2583: a climb with no link of its own is itself a button for the keyboard and switch devices;
+// one with its own link keeps that as the way in, so no button sits inside a button.
+test('the climb is keyboard-operable: a progress climb is a focusable button opened with Enter or Space', () => withPounds(() => {
+  const opened = [];
+  const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
+  const root = climbOf(drive(D.BSHomeClimbView, GOAL_PROPS({ data, onOpen: () => opened.push(1) })));
+  assert.equal(root.props['data-bs-home-climb'], 'progress');
+  assert.equal(root.props.role, 'button');
+  assert.equal(root.props.tabIndex, 0);
+  assert.match(String(root.props['aria-label']), /Your goal: \d+% of the way/, 'named by what it shows');
+  let prevented = 0;
+  for (const key of ['Enter', ' ', 'Tab']) root.props.onKeyDown({ key, preventDefault: () => { prevented += 1; } });
+  assert.equal(opened.length, 2, 'Enter and Space open Your goals; Tab does not');
+  assert.equal(prevented, 2, 'Space does not scroll the page');
+  // Words alone carries its own link: the climb is no button around it.
+  const words = climbOf(drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'race', overall: {}, weighIns: [] }, onOpen: () => {} })));
+  assert.equal(words.props.role, undefined, 'a button around a link');
+  assert.equal(words.props.tabIndex, undefined);
+}));
+
 test('the climb says only what it can: reached, a start with no target, words alone, nothing set, or still reading', () => withPounds(() => {
   const opened = [];
   const onOpen = () => opened.push(1);

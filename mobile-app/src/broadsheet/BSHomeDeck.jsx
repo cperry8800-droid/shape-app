@@ -129,7 +129,14 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
     : (typeof big === 'string' ? big : '');
 
   return (
+    // ⚠ THE CLIMB IS A DOOR FOR EVERY HAND (Codex P2 on #2583): a state with its own link (reached, start
+    // only, words, none) keeps that link as the keyboard's way in; a climb with none (progress) is itself a
+    // button, focusable and opened with Enter or Space, named by what it shows.
     <div data-bs-home-climb={st.kind} data-tour={tour || undefined} onClick={typeof onOpen === 'function' ? onOpen : undefined}
+      {...(typeof onOpen === 'function' && !action ? {
+        role: 'button', tabIndex: 0, 'aria-label': aria || undefined,
+        onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } },
+      } : null)}
       style={{ position: 'relative', margin: '8px 0 0', cursor: typeof onOpen === 'function' ? 'pointer' : 'default' }}>
       <svg role="img" aria-label={aria} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
         <polygon points={bsClimbRidge()} fill={`rgba(${t.inkRGB || '245,240,230'},0.07)`} />
