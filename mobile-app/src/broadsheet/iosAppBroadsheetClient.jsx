@@ -85,7 +85,7 @@ import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './B
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead, bsWsLed } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
@@ -16060,6 +16060,29 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
+// A coach's face on the Wall's online rail: a round photo (or initials) inside a ring of the coach's colour,
+// trainer rust or nutritionist gold, with the same still corner dot as a member's facet when the coach is
+// in a workout or at the stove. A member keeps BSFacetAvatar's faceted shape beside it. A photo that fails
+// to load (an expired or unreachable address) gives way to the initials, as the facet's does (Codex on #2602).
+// `box` is the room it takes in the row: a facet's corners reach past its box, so the circle is drawn a little
+// larger than the box it stands in, and the names under the row stay on one line.
+function BSRailCoachFace({ size = 46, box = 40, ring, dotC, active = false, initial = '', photo }) {
+  const t = useBS();
+  const valid = bsValidPhoto(photo);
+  const [failed, setFailed] = useStateBSC(null);
+  const src = valid && failed !== valid ? valid : null;
+  const inner = size - 6;
+  const dot = Math.max(8, Math.round(size * 0.24));
+  return (
+    <span data-rail-face="coach" aria-hidden style={{ position: 'relative', display: 'inline-block', width: size, height: size, margin: (box - size) / 2, borderRadius: '50%', border: `2px solid ${ring}`, padding: 1, boxSizing: 'border-box' }}>
+      {src
+        ? <img src={src} alt="" onError={() => setFailed(src)} style={{ width: inner, height: inner, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+        : <span style={{ width: inner, height: inner, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(t.INK, 0.08), fontFamily: t.DISPLAY, fontSize: Math.round(size * 0.34), fontWeight: 600, color: t.INK70 }}>{initial || '•'}</span>}
+      {active && <span style={{ position: 'absolute', right: -2, bottom: -2, width: dot, height: dot, borderRadius: '50%', background: dotC, border: `2px solid ${t.PAPER}` }} />}
+    </span>
+  );
+}
+
 function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, label, BG, INK, flat = false, dotC = null }) {
   const tr = useShapeTr();
   // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
@@ -25462,22 +25485,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 match new feed wall design"); tapping it opens the places. */}
             <BSChatPlaceTitle label={placeLabel} open={placesOpen} onOpen={() => setPlacesOpen(true)} buttonRef={placesTitleRef} />
           </div>
-          {/* The feed's viewing lens rides the title row, right-aligned (owner
-              call 2026-07-14) — page-level control, out of the chip stack.
-              flexWrap: on narrow phones (≲375px) the lens drops to its own line
-              under the title instead of squeezing it (CodeRabbit P2).
-              Custom buttons, not bsSubTab (owner call 2026-07-14 evening): bigger/
-              bolder for presence, text hugging the button bottom so the labels
-              sit on the Community title's baseline instead of floating. */}
+          {/* The feed's viewing lens rides the title row (owner call 2026-07-14), a page-level control out of
+              the chip stack; flexWrap drops it under the title on a narrow phone rather than squeezing it.
+              Since the owner's C for the top of the Wall (2026-11-04) it is a pair of lit chips (bsWsLed), the
+              lens shown framed and lettered in the teal, each in a 44px target. */}
           {tab === 'feed' && filter === 'COMMUNITY' && (
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexShrink: 0 }}>
+            <div data-bs-wall-lens="" style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
               {[['universal', tr('feed:lens.universal', { defaultValue: 'Universal' })], ['following', tr('feed:lens.following', { defaultValue: 'Following' })]].map(([k, label]) => {
                 const on = feedMode === k;
                 return (
                   <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
-                    style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-end', minHeight: 38, padding: '8px 0 6px', background: 'transparent', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {label}
-                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: magAccent }} />}
+                    style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer' }}>
+                    <span data-led={on ? 'on' : 'off'} style={{ display: 'inline-block', padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap', ...bsWsLed(t, on) }}>{label}</span>
                   </button>
                 );
               })}
@@ -25494,8 +25513,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {railOn && railPeople.length > 0 && (
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magAccent }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
+            {/* How many are online, in a lit slot (the owner's C, 2026-11-04), its dot glowing on dark paper. */}
+            <span data-bs-rail-count="" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, ...bsWsLed(t, true) }}>
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magAccent, boxShadow: t.isLight ? 'none' : `0 0 8px ${magAccent}` }} />
+              {tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}
+            </span>
             {/* Signed-in AND signed-out (owner call, 2026-08-27): the preview is
                 where this is reachable at all — a signed-in member sees no rail
                 until live presence is non-empty. A demo tap persists to the
@@ -25519,10 +25541,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               return (
                 <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    {/* The faceted shape stays, in the magazine's flat cut (owner, 2026-10-24: "keep the same facet
-                        shape but … go with the new design"): an ink frame, no glow, and a still dot, red in a
-                        workout and amber at the stove. */}
-                    <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />
+                    {/* A member keeps the faceted shape, in the magazine's flat cut (owner, 2026-10-24: "keep the same
+                        facet shape but … go with the new design"): an ink frame, no glow, and a still dot, teal in a
+                        workout and amber at the stove. A coach is a circle in a ring of the coach's colour (owner,
+                        2026-11-04: "keep the facet avatars for clients and circle avatar for coaches"). */}
+                    {p.role === 'trainer' || p.role === 'nutritionist'
+                      ? <BSRailCoachFace size={46} box={40} ring={p.role === 'nutritionist' ? '#a07a2e' : '#c0533b'} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} active={!!(p.activity || p.live)} initial={bsInitials(p.name)} photo={pPhoto} />
+                      : <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />}
                   </div>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.INK70 }}>{p.name.split(' ')[0]}</span>
                 </button>
@@ -32285,57 +32310,68 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
         </div>
       ) : (
         <React.Fragment>
-          {/* The number, then the rung it puts you on. The verdict keeps its words; at risk, it says
-              how far under the rung's floor you are; at the top, that there is no rung above. */}
-          <div style={{ padding: `14px ${t.padX}px 0` }}>
-            <div style={mono(8, bsTHexA(t.INK, 0.5), { letterSpacing: '0.18em' })}>{tr('score:reg.score', { defaultValue: 'Score' })}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 64, fontWeight: 500, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.9, fontVariantNumeric: 'tabular-nums' }}>
-                <BSSdCountUp text={Number(scoreTotal).toLocaleString()} duration={780} />
-              </span>
-              <span style={mono(8.5, bsTHexA(t.INK, 0.5))}>{tr('score:unit.pts', { defaultValue: 'pts' })}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 12 }}>
-              <span aria-hidden style={{ flex: 'none', width: 10, height: 10, borderRadius: 2.5, transform: 'rotate(45deg)', background: heat }} />
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', lineHeight: 1.15 }}>
-                {st.topTier
-                  ? <>{tier}. <span style={{ color: t.INK70 }}>{tr('score:verdict.top', { defaultValue: 'The top of the ladder' })}</span><span style={{ color: heat }}>.</span></>
-                  : <>{tr('score:verdict.climbing', { tier })}<span style={{ color: heat }}>.</span></>}
-              </span>
-            </div>
-            {atRisk && (
-              <div style={mono(8, riskRed, { marginTop: 8, letterSpacing: '0.06em' })}>
-                ⚠ {tr('score:verdict.atRisk', { points: Math.max(0, st.curThr - scoreTotal), tier })}
+          {/* The number and the rung it puts you on, as one raised card (the owner's B, 2026-11-04: "B for
+              shape score"): the score large, the rung as a badge in its colour, the verdict under them in
+              its words (at risk, how far under the rung's floor you are; at the top, that there is no rung
+              above), then, below a hairline, the climb to the next rung as a track of 24 dots, the two
+              rungs' floors at its ends, how far in and how far to go, and what the next rung unlocks. A
+              glow of the rung's colour warms the card's corner. */}
+          {(() => {
+            const frac = atRisk ? 0 : (st.frac || 0);
+            // Floored, so the track never reads full while points remain (Codex on #2602).
+            const lit = Math.floor(frac * 24);
+            return (
+              <div data-score-card="" style={{
+                margin: '12px 10px 0', ...bsMpGlass(t, t.INK, { radius: 22 }), padding: `16px ${t.padX - 4}px`, overflow: 'hidden',
+                backgroundImage: `radial-gradient(110% 70% at 100% 0%, ${bsTHexA(heat, 0.28)}, transparent 60%), ${t.isLight ? 'linear-gradient(160deg, rgba(255,255,255,0.94), rgba(255,255,255,0.66))' : `linear-gradient(160deg, ${bsTHexA(t.INK, 0.095)}, ${bsTHexA(t.INK, 0.03)})`}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={mono(8, bsTHexA(t.INK, 0.5), { letterSpacing: '0.18em' })}>{tr('score:reg.score', { defaultValue: 'Score' })}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 56, fontWeight: 500, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' }}>
+                        <BSSdCountUp text={Number(scoreTotal).toLocaleString()} duration={780} />
+                      </span>
+                      <span style={mono(8.5, bsTHexA(t.INK, 0.5))}>{tr('score:unit.pts', { defaultValue: 'pts' })}</span>
+                    </div>
+                  </div>
+                  <span data-score-tier="" style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 7, marginBottom: 6, padding: '6px 12px', borderRadius: 999, border: `1px solid ${bsTHexA(heat, 0.6)}`, background: bsTHexA(heat, 0.12), fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: tierText, whiteSpace: 'nowrap' }}>
+                    <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, transform: 'rotate(45deg)', background: heat }} />{tier}
+                  </span>
+                </div>
+                <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 500, color: t.INK, letterSpacing: '-0.005em', lineHeight: 1.2 }}>
+                  {st.topTier
+                    ? <>{tier}. <span style={{ color: t.INK70 }}>{tr('score:verdict.top', { defaultValue: 'The top of the ladder' })}</span><span style={{ color: heat }}>.</span></>
+                    : <>{tr('score:verdict.climbing', { tier })}<span style={{ color: heat }}>.</span></>}
+                </div>
+                {atRisk && (
+                  <div style={mono(8, riskRed, { marginTop: 8, letterSpacing: '0.06em' })}>
+                    ⚠ {tr('score:verdict.atRisk', { points: Math.max(0, st.curThr - scoreTotal), tier })}
+                  </div>
+                )}
+                {st.topTier && !atRisk && (
+                  <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{tr('score:verdict.topSub', { defaultValue: 'The highest rank Shape offers.' })}</div>
+                )}
+                {!st.topTier && nextTierRow && (
+                  <div data-score-next="" style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bsTHexA(t.INK, 0.12)}` }}>
+                    <div data-score-track="" aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(24, minmax(0, 1fr))', gap: 3 }}>
+                      {Array.from({ length: 24 }).map((_, i) => <span key={i} data-on={i < lit ? '1' : '0'} style={{ height: 8, borderRadius: 99, background: i < lit ? heat : bsTHexA(t.INK, 0.1) }} />)}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                      <span style={mono(7.5, bsTHexA(t.INK, 0.55), { letterSpacing: '0.12em' })}>{tier} · {st.curThr.toLocaleString()}</span>
+                      <span style={mono(7.5, bsTierText(t, nextTierRow.name), { letterSpacing: '0.12em' })}>{st.nextName} · {st.nextThr.toLocaleString()}</span>
+                    </div>
+                    <div style={{ marginTop: 10, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, color: t.INK }}>
+                      {tr('score:verdict.intoTier', { into: Math.max(0, scoreTotal - st.curThr), toNext: st.toNext, next: st.nextName })}
+                    </div>
+                    <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>
+                      {tr('score:next.unlocks', { next: st.nextName, perk: tr('score:tierPerk.' + String(nextTierRow.name).toLowerCase(), { defaultValue: nextTierRow.perk }), defaultValue: '{next} unlocks: {perk}' })}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {st.topTier && !atRisk && (
-              <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 13, color: t.INK70, lineHeight: 1.4 }}>{tr('score:verdict.topSub', { defaultValue: 'The highest rank Shape offers.' })}</div>
-            )}
-          </div>
-
-          {/* What to do next: how far into the rung, how far to the next, and what that one unlocks. */}
-          {!st.topTier && nextTierRow && (
-            <div style={{ padding: `16px ${t.padX}px 0` }}>
-              {/* The plate's look (a notched corner, the next rung's colour as its spine), drawn here so
-                  the page needs nothing from the chrome module. */}
-              <div style={{ position: 'relative', padding: '14px 16px 13px 18px', background: bsTHexA(t.INK, 0.045), clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-                <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: bsTierColor(nextTierRow.name) }} />
-                <div style={{ fontFamily: t.BODY, fontSize: 15, lineHeight: 1.42, color: t.INK }}>
-                  {tr('score:verdict.intoTier', { into: Math.max(0, scoreTotal - st.curThr), toNext: st.toNext, next: st.nextName })}
-                </div>
-                <div style={{ marginTop: 3, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.4, color: t.INK70 }}>
-                  {tr('score:next.unlocks', { next: st.nextName, perk: tr('score:tierPerk.' + String(nextTierRow.name).toLowerCase(), { defaultValue: nextTierRow.perk }), defaultValue: '{next} unlocks: {perk}' })}
-                </div>
-                <div aria-hidden style={{ position: 'relative', height: 5, borderRadius: 5, marginTop: 12, background: bsTHexA(t.INK, 0.1), overflow: 'hidden' }}>
-                  <div style={{ width: `${Math.round((atRisk ? 0 : st.frac) * 1000) / 10}%`, height: '100%', borderRadius: 5, background: heat }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={mono(7.5, bsTHexA(t.INK, 0.55), { letterSpacing: '0.12em' })}>{tier} · {st.curThr.toLocaleString()}</span>
-                  <span style={mono(7.5, bsTierText(t, nextTierRow.name), { letterSpacing: '0.12em' })}>{st.nextName} · {st.nextThr.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* THE LADDER */}
           <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
@@ -32830,15 +32866,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
   }).filter((sct) => sct.entries.length);
   const no = (n) => tr('store:item.no', { n: String(n).padStart(2, '0'), defaultValue: 'No. {n}' });
   const notEnough = () => setNotice(tr('store:notice.notEnough', { defaultValue: 'Not enough points for that yet — keep earning!' }));
-  const ring = (frac, size, c) => {
-    const r = size / 2 - 4, C = 2 * Math.PI * r;
-    return (
-      <svg aria-hidden width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', inset: 0 }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={bsTHexA(t.INK, 0.1)} strokeWidth="4" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" strokeDasharray={`${C * Math.max(0.001, Math.min(1, frac))} ${C}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      </svg>
-    );
-  };
   // One product's action, the rules unchanged: members only, tier-locked, the merch cart's stepper,
   // or Add / Redeem when the balance covers it and the points still to go when it doesn't.
   const merchAction = (p) => {
@@ -32869,20 +32896,36 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
 
       <div ref={storeRef} style={{ padding: `2px ${t.padX}px 0` }}>
         <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14.5, lineHeight: 1.45, color: t.INK70 }}>{tr('store:page.dek', { defaultValue: 'Everything here is bought with the points you earn training, eating and sleeping well.' })}</p>
-        {/* The balance, ruled: what you have and what it's worth. What it's nearest is the row below
-            (owner, 2026-10-26: "drop the closest box, keep the row"). */}
-        <div style={{ display: 'flex', marginTop: 14, border: `1px solid ${t.INK}` }}>
-          <div style={{ flex: 1, minWidth: 0, padding: '11px 12px' }}>
-            <div style={mono(7.5, bsTHexA(t.INK, 0.55))}>{tr('store:balance.available', { defaultValue: 'Available' })}</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}><BSSdCountUp text={fmtPts(balance)} run={storeSeen} duration={780} /></div>
-            <div style={mono(7.5, bsTHexA(t.INK, 0.5), { marginTop: 5 })}>{tr('store:unit.pts', { defaultValue: 'pts' })}</div>
-          </div>
-          <div style={{ flex: 1, minWidth: 0, padding: '11px 12px', borderLeft: `1px solid ${t.INK}` }}>
-            <div style={mono(7.5, bsTHexA(t.INK, 0.55))}>{tr('store:balance.worth', { defaultValue: 'Worth' })}</div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 500, color: teal, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</div>
-            <div style={mono(7.5, bsTHexA(t.INK, 0.5), { marginTop: 5 })}>{tr('store:balance.rate', { rate: SHAPE_PTS_PER_USD, defaultValue: '{rate} pts = $1' })}</div>
-          </div>
-        </div>
+        {/* The balance as a wallet card (the owner's pick, 2026-11-04: "option C for shape store but use this
+            at top instead of 2 boxes"): what you have, large, with your rung named in its colour, and under
+            a hairline what it's worth at the points rate. A dark card on either paper, warmed toward the
+            rung's colour, with a faint sheen. What it's nearest is the rows below (owner, 2026-10-26: "drop
+            the closest box, keep the row"). */}
+        {(() => {
+          const tierC = bsTierColor(profile.tier);
+          return (
+            <div data-store-wallet="" style={{
+              position: 'relative', marginTop: 16, borderRadius: 22, padding: '18px 18px 16px', overflow: 'hidden',
+              color: t.isLight ? '#f6f1e6' : t.INK,
+              background: t.isLight ? `linear-gradient(135deg, #1d1b18, #2c2823 60%, ${bsTHexA(tierC, 0.55)})` : `linear-gradient(135deg, ${bsTHexA(t.INK, 0.12)}, ${bsTHexA(t.INK, 0.04)} 60%, ${bsTHexA(tierC, 0.35)})`,
+              border: `1px solid ${bsTHexA(tierC, 0.45)}`, boxShadow: `0 22px 40px -24px ${bsTHexA(tierC, 0.9)}, inset 0 1px 0 rgba(255,255,255,0.12)`,
+            }}>
+              <span aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(115deg, transparent 35%, rgba(255,255,255,0.08) 45%, transparent 55%)', pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <span style={mono(8, 'currentColor', { opacity: 0.6, letterSpacing: '0.18em' })}>{tr('store:balance.available', { defaultValue: 'Available' })}</span>
+                {profile.tier ? <span data-store-tier="" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...mono(8, tierC, { letterSpacing: '0.16em' }) }}><span aria-hidden style={{ width: 7, height: 7, borderRadius: 2, transform: 'rotate(45deg)', background: tierC }} />{profile.tier}</span> : null}
+              </div>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 8 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 46, fontWeight: 500, letterSpacing: '-0.03em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}><BSSdCountUp text={fmtPts(balance)} run={storeSeen} duration={780} /></span>
+                <span style={mono(8.5, 'currentColor', { opacity: 0.6 })}>{tr('store:unit.pts', { defaultValue: 'pts' })}</span>
+              </div>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginTop: 14, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.14)' }}>
+                <span style={mono(8, 'currentColor', { opacity: 0.6, letterSpacing: '0.14em' })}>{tr('store:balance.worth', { defaultValue: 'Worth' })} · {tr('store:balance.rate', { rate: SHAPE_PTS_PER_USD, defaultValue: '{rate} pts = $1' })}</span>
+                <span data-store-worth="" style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 500, color: t.isLight ? '#5fe0d0' : teal, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>${(balance / SHAPE_PTS_PER_USD).toFixed(2)}</span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* THE UNLOCKED SHELF — free rewards the ladder earned, above the paid
@@ -32896,18 +32939,37 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
       {cat === 'All' && !affordable && closest.length > 0 && (
         <div style={{ padding: `${t.sectGap}px ${t.padX}px 0` }}>
           <BSTStationHead mag heat={heat} INK={t.INK} label={tr('store:closest.head', { defaultValue: 'Closest to you' })} meta={tr('store:closest.meta', { defaultValue: 'By points to go' })} />
-          <div className="bs-hide-scroll" style={{ display: 'flex', gap: 10, overflowX: 'auto', margin: `0 -${t.padX}px`, padding: `0 ${t.padX}px 2px`, scrollSnapType: 'x proximity' }}>
-            {closest.map(({ p, gap }, i) => (
-              <button key={p.id} type="button" onClick={() => jumpTo(p)} style={{ flex: '0 0 138px', scrollSnapAlign: 'start', textAlign: 'left', padding: 12, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderRadius: 10, background: i === 0 ? bsTHexA(t.INK, 0.045) : 'transparent', cursor: 'pointer', color: t.INK }}>
-                <span style={{ position: 'relative', display: 'grid', placeItems: 'center', width: 60, height: 60 }}>
-                  {ring(balance / p.cost, 60, bsTierColor(profile.tier))}
-                  <BSStoreImg id={p.id} cat={p.cat} size={26} glyphColor={t.INK} />
-                </span>
-                <span style={{ display: 'block', marginTop: 10, minHeight: 34, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.25 }}>{isMerch(p) ? baseName(p) : p.name}</span>
-                <span style={{ display: 'block', ...mono(7.5, bsTierText(t, profile.tier), { marginTop: 6, letterSpacing: '0.08em' }) }}>{tr('store:unit.toGo', { gap, defaultValue: '{gap, number} to go' })}</span>
-              </button>
-            ))}
-          </div>
+          {/* The nearest things as lit rows (the owner's C, 2026-11-04): each in a dark inset slot framed in
+              your rung's colour, its picture, its name, the points to go lit, and a strip of 16 cells for
+              how much of its price your balance covers. A tap jumps to it in the list. */}
+          {(() => {
+            const tierC = bsTierColor(profile.tier);
+            return (
+              <div data-store-closest="" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {closest.map(({ p, gap }) => {
+                  // Floored: everything here is out of reach, so a strip never reads full (Codex on #2602).
+                  const lit = Math.floor(Math.max(0, Math.min(1, balance / p.cost)) * 16);
+                  return (
+                    <button key={p.id} type="button" onClick={() => jumpTo(p)} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 64, padding: '10px 12px', boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', color: t.INK,
+                      borderRadius: 14, background: t.isLight ? bsTHexA(t.INK, 0.05) : 'rgba(0,0,0,0.42)', border: `1px solid ${bsTHexA(tierC, 0.28)}`, boxShadow: t.isLight ? 'inset 0 1px 3px rgba(0,0,0,0.1)' : 'inset 0 1px 4px rgba(0,0,0,0.6)',
+                    }}>
+                      <span style={{ width: 40, height: 40, flex: 'none', display: 'grid', placeItems: 'center', borderRadius: 12, background: bsTHexA(tierC, 0.12) }}><BSStoreImg id={p.id} cat={p.cat} size={22} glyphColor={t.INK} /></span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                          <span data-closest-name="" style={{ flex: 1, minWidth: 0, fontFamily: t.BODY, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isMerch(p) ? baseName(p) : p.name}</span>
+                          <span data-closest-gap="" style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: bsTierText(t, profile.tier), textShadow: t.isLight ? 'none' : `0 0 8px ${bsTHexA(tierC, 0.7)}`, whiteSpace: 'nowrap' }}>{tr('store:unit.toGo', { gap, defaultValue: '{gap, number} to go' })}</span>
+                        </span>
+                        <span data-closest-strip="" aria-hidden style={{ display: 'grid', gridTemplateColumns: 'repeat(16, minmax(0, 1fr))', gap: 2, marginTop: 8 }}>
+                          {Array.from({ length: 16 }).map((_, k) => <span key={k} data-on={k < lit ? '1' : '0'} style={{ height: 7, borderRadius: 1.5, background: k < lit ? tierC : bsTHexA(tierC, 0.12), boxShadow: k < lit && !t.isLight ? `0 0 6px ${bsTHexA(tierC, 0.6)}` : 'none' }} />)}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 

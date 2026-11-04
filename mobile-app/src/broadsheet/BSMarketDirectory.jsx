@@ -114,7 +114,8 @@ function MktDirPrice({ rate, perMonth, size = 17 }) {
   );
 }
 
-// The search: one rounded field, its ⌕ drawn, a 44px × to clear it.
+// The search: one rounded 42px field (smaller since the owner's "make these sections less cluttery and not as
+// large", 2026-11-04), its ⌕ drawn, a 44px × to clear it. The words stay 16px, so iOS never zooms on focus.
 function MktDirSearch({ value, onChange }) {
   const { useBS } = window;
   const t = useBS();
@@ -122,13 +123,13 @@ function MktDirSearch({ value, onChange }) {
   const D = bsDash(t);
   const hint = tr('marketplace:dir.searchPlaceholder', { defaultValue: 'Coaches, plans, playlists…' });
   return (
-    <div data-mkt-search="" style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, padding: '0 2px 0 14px', boxSizing: 'border-box', borderRadius: 14, background: D.track, border: `1px solid ${D.border}` }}>
-      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={t.INK70} strokeWidth="2.2" strokeLinecap="round" style={{ flex: 'none' }}>
+    <div data-mkt-search="" style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 42, padding: '0 2px 0 13px', boxSizing: 'border-box', borderRadius: 12, background: D.track, border: `1px solid ${D.border}` }}>
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.INK70} strokeWidth="2.2" strokeLinecap="round" style={{ flex: 'none' }}>
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="M15.5 15.5 21 21" />
       </svg>
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={hint} aria-label={hint} enterKeyHint="search" autoComplete="off"
-        style={{ flex: 1, minWidth: 0, minHeight: 44, border: 0, outline: 'none', background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, letterSpacing: '-0.005em', padding: 0 }} />
+        style={{ flex: 1, minWidth: 0, minHeight: 40, border: 0, outline: 'none', background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, letterSpacing: '-0.005em', padding: 0 }} />
       {value ? (
         <button type="button" onClick={() => onChange('')} aria-label={tr('marketplace:dir.clearSearch', { defaultValue: 'Clear search' })}
           style={{ flex: 'none', width: 44, height: 44, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK70, fontSize: 20, lineHeight: 1 }}>×</button>
@@ -137,23 +138,23 @@ function MktDirSearch({ value, onChange }) {
   );
 }
 
-// One of a few: the role switch (tabs) and What's hot's kinds (toggles). A 40px track; each key is a
-// 44px target holding a 34px pill, the one shown an ink pill. A long word takes more of the track.
+// One of a few: the role switch (tabs) and What's hot's kinds (toggles). A 34px track; each key is a
+// 44px target holding a 28px pill, the one shown an ink pill. A long word takes more of the track.
 function MktDirSwitch({ options, value, onChange, label, tabs = false }) {
   const { useBS } = window;
   const t = useBS();
   const D = bsDash(t);
   return (
-    <div role={tabs ? 'tablist' : 'group'} aria-label={label} data-mkt-switch={tabs ? 'tabs' : 'group'} style={{ display: 'flex', alignItems: 'center', gap: 2, height: 40, padding: '0 3px', boxSizing: 'border-box', borderRadius: 999, background: D.track }}>
+    <div role={tabs ? 'tablist' : 'group'} aria-label={label} data-mkt-switch={tabs ? 'tabs' : 'group'} style={{ display: 'flex', alignItems: 'center', gap: 2, height: 34, padding: '0 3px', boxSizing: 'border-box', borderRadius: 999, background: D.track }}>
       {options.map(([k, l]) => {
         const on = k === value;
         const state = tabs ? { role: 'tab', 'aria-selected': on } : { 'aria-pressed': on };
         return (
           <button key={k} type="button" {...state} onClick={() => onChange(k)} style={{ flex: '1 1 auto', minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
             <span style={{
-              display: 'block', height: 34, lineHeight: '34px', padding: '0 8px', borderRadius: 999,
+              display: 'block', height: 28, lineHeight: '28px', padding: '0 8px', borderRadius: 999,
               background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK70,
-              fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
+              fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center',
               transition: 'background .18s ease, color .18s ease',
             }}>{l}</span>
@@ -164,7 +165,7 @@ function MktDirSwitch({ options, value, onChange, label, tabs = false }) {
   );
 }
 
-// A filter as a chip: the native picker laid over a 34px pill in a 44px target, so a tap opens the
+// A filter as a chip: the native picker laid over a 30px pill in a 44px target, so a tap opens the
 // phone's own list. The pill reads the choice; a choice other than the first (the "all") is inked.
 function MktDirChip({ value, options, onChange, label = null, glyph = null }) {
   const { useBS } = window;
@@ -175,9 +176,9 @@ function MktDirChip({ value, options, onChange, label = null, glyph = null }) {
   return (
     <span data-mkt-chip={on ? 'on' : 'off'} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', minHeight: 44, maxWidth: '100%' }}>
       <span data-mkt-chip-face="" aria-hidden="true" style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5, height: 34, maxWidth: '100%', boxSizing: 'border-box', padding: '0 10px 0 11px',
+        display: 'inline-flex', alignItems: 'center', gap: 5, height: 30, maxWidth: '100%', boxSizing: 'border-box', padding: '0 9px 0 10px',
         borderRadius: 999, background: on ? t.INK : D.track, color: on ? t.PAPER : t.INK, border: `1px solid ${on ? t.INK : D.border}`,
-        fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+        fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap',
       }}>
         {glyph ? <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700 }}>{glyph}</span> : null}
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown}</span>
@@ -242,8 +243,15 @@ function MktDirScore({ score, label, size = 19 }) {
   );
 }
 
-// The coach of the week: one raised card warmed by their role. A tap anywhere on it opens them, and
-// See the profile is the card's one button (the keyboard's way in).
+// A price as a number to compare by ("$28" → 28); anything that isn't one sorts last.
+const mktDirPriceNum = (x) => { const n = parseFloat(String(x == null ? '' : x).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? n : Infinity; };
+
+// The coach of the week, condensed (owner, 2026-11-04: "this can be more condensed"): one raised card
+// warmed by their role, the face beside the name, role · standing · place and one line of figures (the
+// rating, then clients and years when they have some, never "0+"), one line of their own words, and
+// along the foot what they sell (how many, from the lowest price) beside See the profile. A coach at
+// capacity reads At capacity beside their name, as on the list (Codex on #2602). A tap anywhere on it
+// opens them, and See the profile is the card's one button (the keyboard's way in).
 function MktDirFeature({ feature }) {
   const { useBS } = window;
   const t = useBS();
@@ -252,54 +260,43 @@ function MktDirFeature({ feature }) {
   const role = mktDirRole(t, feature.nutri);
   const meta = [mktDirRoleWord(tr, feature.nutri), feature.tier, feature.loc].filter(Boolean).join(' · ');
   const stats = [
-    ['rating', tr('marketplace:stat.rating', { defaultValue: 'Rating' }), <MktDirScore score={feature.score} label={feature.rating} />],
-    ['clients', tr('marketplace:stat.clients', { defaultValue: 'Clients' }), feature.clients > 0 ? `${feature.clients}+` : '—'],
-    ['years', tr('marketplace:stat.years', { defaultValue: 'Years' }), feature.years > 0 ? String(feature.years) : '—'],
-  ];
-  const mono = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
+    ['rating', <MktDirScore score={feature.score} label={feature.rating} size={13} />],
+    feature.clients > 0 ? ['clients', `${feature.clients}+`, tr('marketplace:stat.clients', { defaultValue: 'Clients' })] : null,
+    feature.years > 0 ? ['years', String(feature.years), tr('marketplace:stat.years', { defaultValue: 'Years' })] : null,
+  ].filter(Boolean);
+  const offers = feature.offers || [];
+  const from = offers.length ? offers.reduce((a, o) => (mktDirPriceNum(o.price) < mktDirPriceNum(a.price) ? o : a), offers[0]).price : null;
+  const mono = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
   return (
-    <section data-mkt-feature="" onClick={feature.onOpen} style={{ ...bsRaised(t, role.mark), padding: '15px 16px 16px', cursor: 'pointer', color: t.INK }}>
-      <div style={{ ...mono, fontSize: 9.5, letterSpacing: '0.16em', color: D.text.teal }}>{tr('marketplace:dir.featureEyebrow', { defaultValue: 'Feature · Coach of the week' })}</div>
-      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <MktDirFace photo={feature.photo} name={feature.name} nutri={feature.nutri} size={64} />
+    <section data-mkt-feature="" onClick={feature.onOpen} style={{ ...bsRaised(t, role.mark), padding: '12px 14px', cursor: 'pointer', color: t.INK }}>
+      <div style={{ ...mono, letterSpacing: '0.16em', color: D.text.teal }}>{tr('marketplace:dir.featureEyebrow', { defaultValue: 'Feature · Coach of the week' })}</div>
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <MktDirFace photo={feature.photo} name={feature.name} nutri={feature.nutri} size={48} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.08, color: t.INK }}>{feature.name}<span aria-hidden="true" style={{ color: role.mark }}>.</span></div>
-          <div style={{ ...mono, marginTop: 5, color: role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
-        </div>
-      </div>
-      {feature.quote ? (
-        <div data-mkt-quote="" style={{ marginTop: 12, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14.5, lineHeight: 1.4, letterSpacing: '-0.005em', color: t.INK70, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>“{feature.quote}”</div>
-      ) : null}
-      <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-        {stats.map(([k, l, v]) => (
-          <div key={k} data-mkt-stat={k} style={{ minWidth: 0, padding: '10px 11px 11px', borderRadius: 14, background: D.track }}>
-            <div style={{ ...mono, color: role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l}</div>
-            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</div>
-          </div>
-        ))}
-      </div>
-      {feature.offers && feature.offers.length ? (
-        <div data-mkt-offers="" style={{ marginTop: 14 }}>
-          <div style={{ ...mono, color: t.INK70 }}>{tr('marketplace:dir.tracklist', { defaultValue: 'Tracklist' })}</div>
-          <div style={{ marginTop: 4 }}>
-            {feature.offers.map((o, i) => (
-              <div key={o.key} data-mkt-offer="" style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 48, borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.name}</div>
-                  <div style={{ ...mono, marginTop: 2, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK70 }}>
-                    {o.monthly ? tr('marketplace:pkg.monthly', { defaultValue: 'Monthly' }) : tr('marketplace:pkg.oneTime', { defaultValue: 'One-time' })} · {tr('marketplace:pkg.included', { defaultValue: '{count} included', count: o.perks })}
-                  </div>
-                </div>
-                <div style={{ flex: 'none', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{o.price}</div>
-              </div>
+          <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>{feature.name}<span aria-hidden="true" style={{ color: role.mark }}>.</span></div>
+          <div style={{ ...mono, marginTop: 4, color: role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
+          {feature.atCapacity ? <div style={{ marginTop: 6 }}><MktDirFull /></div> : null}
+          <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
+            {stats.map(([k, v, l]) => (
+              <span key={k} data-mkt-stat={k} style={{ whiteSpace: 'nowrap' }}>{v}{l ? <span style={{ marginLeft: 4, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</span> : null}</span>
             ))}
           </div>
         </div>
+      </div>
+      {feature.quote ? (
+        <div data-mkt-quote="" style={{ marginTop: 9, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13, lineHeight: 1.35, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>“{feature.quote}”</div>
       ) : null}
-      <button type="button" data-mkt-feature-open="" onClick={(e) => { e.stopPropagation(); feature.onOpen(); }}
-        style={{ marginTop: 12, width: '100%', minHeight: 48, borderRadius: 14, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em' }}>
-        {tr('marketplace:dir.seeProfile', { defaultValue: 'See the profile →' })}
-      </button>
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+        {from ? (
+          <span data-mkt-offers="" style={{ ...mono, flex: 1, minWidth: 0, fontSize: 9, letterSpacing: '0.1em', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {tr('marketplace:dir.tracklist', { defaultValue: 'Tracklist' })} · {offers.length} · <span style={{ fontFamily: t.DISPLAY, fontSize: 14, letterSpacing: 0, textTransform: 'none', color: t.INK }}>{from}</span>+
+          </span>
+        ) : <span style={{ flex: 1 }} />}
+        <button type="button" data-mkt-feature-open="" onClick={(e) => { e.stopPropagation(); feature.onOpen(); }}
+          style={{ flex: 'none', minHeight: 44, padding: '0 16px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, letterSpacing: '-0.005em' }}>
+          {tr('marketplace:dir.seeProfile', { defaultValue: 'See the profile →' })}
+        </button>
+      </div>
     </section>
   );
 }
@@ -320,6 +317,7 @@ function MktDirTile({ card, perMonth }) {
           <MktDirMeta nutri={card.nutri} roleWord={mktDirRoleWord(tr, card.nutri)} parts={[card.tier]} size={12} />
           <MktDirMeta nutri={card.nutri} parts={[card.loc]} size={12} />
         </span>
+        {card.atCapacity ? <span style={{ display: 'block' }}><MktDirFull /></span> : null}
         <span style={{ marginTop: 'auto', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{card.rating}</span>
           <MktDirPrice rate={card.rate} perMonth={perMonth} size={15.5} />
@@ -329,27 +327,89 @@ function MktDirTile({ card, perMonth }) {
   );
 }
 
-// A coach in the list: their place in it, their face, their name over role · credential and then
-// place · standing, and on the right their rate over their rating. One button, 72px at the least.
-function MktDirRow({ card, perMonth, first = false }) {
+// "At capacity" as a small pill: a dark slot, an amber ring for a dot, the words in mono. On the list's
+// cards over the face, and on This week's tiles under the place.
+function MktDirFull({ style = null }) {
   const { useBS } = window;
   const t = useBS();
   const tr = useShapeTr();
-  const vetted = card.verified ? tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' }) : null;
+  const amber = t.AMBER || '#d8a23a';
   return (
-    <button type="button" data-mkt-row="" onClick={card.onOpen} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 72, padding: '12px', boxSizing: 'border-box', border: 0, borderTop: first ? 0 : `1px solid ${t.HAIR}`, background: 'transparent', textAlign: 'left', cursor: 'pointer', color: t.INK }}>
-      {card.n != null ? <span data-mkt-rank="" style={{ flex: 'none', width: 17, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{String(card.n).padStart(2, '0')}</span> : null}
-      <MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={44} />
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.name}</span>
-        <span style={{ display: 'block', marginTop: 3 }}>
-          <MktDirMeta nutri={card.nutri} roleWord={mktDirRoleWord(tr, card.nutri)} parts={[card.cred]} size={12} />
-          <MktDirMeta nutri={card.nutri} parts={[card.loc, card.tier, vetted]} size={12} />
+    <span data-mkt-full="" style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+      background: t.isLight ? '#fbf8f1' : 'rgba(10,9,8,0.85)', border: `1px solid ${bsDashA(amber, 0.7)}`,
+      fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? t.INK : amber,
+      ...style,
+    }}>
+      <span aria-hidden="true" style={{ flex: 'none', width: 7, height: 7, borderRadius: '50%', border: `1.5px solid ${amber}`, boxSizing: 'border-box' }} />
+      {tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' })}
+    </span>
+  );
+}
+
+// A coach in the list as a tall card, two across (the owner's A, 2026-11-04, for trainers and
+// nutritionists alike: "better idea and cooler more immersive look on how to view trainers and
+// nutritionists"): a glow of their role behind a big face, their place in the list in one corner and
+// their Shape Score tier in the other ("make sure their shape score tier is shown"): their rung lit in
+// its colour, or, for a coach who hasn't earned one yet, a dim New (the rung at no points is called
+// Certified, which reads as a credential, so the marketplace names none: mktCoachTier). Along the foot
+// their name, role · credential, place · vetted, and their rating beside their rate. Their listing's
+// cover, when they have one, lies faint behind it. One button; a column, so the face sits at the top
+// (a button centres what it holds). A coach who has turned off new clients reads At capacity on a pill
+// over their dimmed face, so a member knows before they tap (owner, 2026-11-04: "if they are at capacity
+// for new clients … have a little symbol or something that shows that"); their listing offers the
+// waiting list.
+function MktDirRow({ card, perMonth }) {
+  const { useBS } = window;
+  const t = useBS();
+  const tr = useShapeTr();
+  const role = mktDirRole(t, card.nutri);
+  const vetted = card.verified ? tr('marketplace:listing.vetted', { defaultValue: '✓ Vetted' }) : null;
+  const tierC = card.tierColor || role.mark;
+  const ground = t.isLight ? '#fbf8f1' : '#161412';
+  return (
+    <button type="button" data-mkt-row="" data-mkt-press="" onClick={card.onOpen} style={{
+      position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'stretch', minWidth: 0, minHeight: 228, padding: 0, overflow: 'hidden', cursor: 'pointer', textAlign: 'left', color: t.INK,
+      borderRadius: 20, border: `1px solid ${bsDashA(role.mark, 0.35)}`,
+      background: `radial-gradient(120% 80% at 50% 0%, ${bsDashA(role.mark, t.isLight ? 0.2 : 0.32)}, transparent 70%), ${ground}`,
+      boxShadow: t.isLight ? '0 14px 30px -20px rgba(15,14,12,0.4)' : `0 18px 34px -22px ${role.mark}`,
+    }}>
+      {card.cover ? <span aria-hidden="true" data-mkt-cover="" style={{ position: 'absolute', inset: 0, background: `center/cover no-repeat url("${card.cover}")`, opacity: 0.3 }} /> : null}
+      {card.n != null ? <span data-mkt-rank="" style={{ position: 'absolute', top: 11, left: 12, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{String(card.n).padStart(2, '0')}</span> : null}
+      {card.tier ? (
+        <span data-mkt-tier="lit" style={{
+          position: 'absolute', top: 8, right: 8, maxWidth: 'calc(100% - 48px)', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 999,
+          background: t.isLight ? bsDashA(tierC, 0.1) : 'rgba(0,0,0,0.45)', border: `1px solid ${bsDashA(tierC, 0.6)}`,
+          fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+          color: t.isLight ? t.INK : tierC, textShadow: t.isLight ? 'none' : `0 0 8px ${bsDashA(tierC, 0.7)}`,
+        }}>
+          <span aria-hidden="true" style={{ flex: 'none', width: 6, height: 6, borderRadius: 1, transform: 'rotate(45deg)', background: tierC, boxShadow: t.isLight ? 'none' : `0 0 6px ${tierC}` }} />
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.tier}</span>
         </span>
+      ) : (
+        <span data-mkt-tier="none" style={{
+          position: 'absolute', top: 8, right: 8, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 999,
+          background: t.isLight ? bsDashA(t.INK, 0.05) : 'rgba(0,0,0,0.35)', border: `1px solid ${bsDashA(t.INK, 0.18)}`,
+          fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: t.INK70,
+        }}>
+          <span aria-hidden="true" style={{ flex: 'none', width: 6, height: 6, borderRadius: 1, transform: 'rotate(45deg)', border: `1px solid ${t.INK50}`, boxSizing: 'border-box' }} />
+          {tr('marketplace:rating.new', { defaultValue: 'New' })}
+        </span>
+      )}
+      <span style={{ position: 'relative', display: 'flex', justifyContent: 'center', padding: '30px 10px 0' }}>
+        <span style={{ display: 'block', opacity: card.atCapacity ? 0.55 : 1 }}><MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={80} /></span>
+        {card.atCapacity ? <MktDirFull style={{ position: 'absolute', left: '50%', bottom: -9, transform: 'translateX(-50%)' }} /> : null}
       </span>
-      <span style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-        <MktDirPrice rate={card.rate} perMonth={perMonth} size={16} />
-        <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{card.rating}</span>
+      <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '26px 12px 12px', background: `linear-gradient(transparent, ${t.isLight ? 'rgba(251,248,241,0.96)' : 'rgba(10,9,8,0.92)'} 40%)` }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.name}</span>
+        <span style={{ display: 'block', marginTop: 2 }}>
+          <MktDirMeta nutri={card.nutri} roleWord={mktDirRoleWord(tr, card.nutri)} parts={[card.cred]} size={11.5} />
+          <MktDirMeta nutri={card.nutri} parts={[card.loc, vetted]} size={11.5} />
+        </span>
+        <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, marginTop: 7 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{card.rating}</span>
+          <MktDirPrice rate={card.rate} perMonth={perMonth} size={15} />
+        </span>
       </span>
     </button>
   );
@@ -511,8 +571,9 @@ export function BSMarketDirectory({
                 <MktDirChip value={filters.sort} onChange={filters.onSort} options={(filters.sorts || []).map((s) => [s, sortWord(s)])} glyph="↕"
                   label={tr('coach:head.sortBy', { defaultValue: 'Sort: {mode}', mode: sortWord(filters.sort) })} />
               ) : null} />
-            <div style={group}>
-              {list.map((c, i) => <MktDirRow key={c.key} card={c} perMonth={perMonth} first={i === 0} />)}
+            {/* The list as tall cards, two across (the owner's A, 2026-11-04); a miss is one raised card. */}
+            <div data-mkt-cards="" style={list.length ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 } : group}>
+              {list.map((c) => <MktDirRow key={c.key} card={c} perMonth={perMonth} />)}
               {list.length === 0 ? (
                 <div data-mkt-empty="" style={empty}>
                   {tr('marketplace:dir.noMatch', { defaultValue: 'No coaches match that — try a different filter.' })}

@@ -565,6 +565,12 @@ function useMktCoachPoints(coaches) {
 // `owner_id` is nullable (an unclaimed provider row) — so a real trainer with
 // trainers.id = 1 and no owner would print the authored demo standing as their own.
 function bsmIsDemoCoach(c) { return !!c && !c.provider_id && !c.db_id && !c.provider_user_id; }
+// Whether a coach is at capacity by their own listing (their toggle, and the date they said they'd take
+// clients again): at_capacity, and no resume date or one still ahead. The rule src/lib/capacity.ts keeps
+// for the server. The listing page and the directory's cards both read it here.
+function mktRowAtCapacity(c) {
+  return !!(c && c.at_capacity && (!c.capacity_resume_at || new Date(c.capacity_resume_at).getTime() > Date.now()));
+}
 function mktCoachTier(c) {
   const skey = bsmCoachScoreKey(c);
   const pts = skey ? _MKT_POINTS.get(skey) : (bsmIsDemoCoach(c) ? BSM_DEMO_POINTS[c.id] : undefined);
@@ -851,11 +857,15 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // Nº on the listing it opens), null from the feature and the tiles, which aren't numbered.
   const mktDirCard = (c, n = null) => {
     const nutri = getPublicProfileKind(c) === 'nutritionist';
+    const standing = mktCoachTier(c);
     return {
       key: c.id, n, name: c.name, nutri,
-      cred: getPrimaryCredential(c), loc: mktShortLoc(c.loc), tier: mktCoachTier(c).name || null,
+      // The standing's name and its colour (the list's cards light it; none when there is no name).
+      cred: getPrimaryCredential(c), loc: mktShortLoc(c.loc), tier: standing.name || null, tierColor: standing.name ? standing.color : null,
       // The rating as words ("★ 9.6/10", or New) and as the figure behind them (null for New).
       rating: formatCoachRating10(c, tr), score: getCoachRating10(c), rate: c.rate, verified: !!c.verified,
+      // At capacity by their own listing, so a member sees it before they tap (owner, 2026-11-04).
+      atCapacity: mktRowAtCapacity(c),
       photo: mktValidPhoto(coachPhoto(c)), cover: mktListingMedia(c).cover,
       onOpen: () => { setOpenNo(n); setOpen(c); },
     };
@@ -1827,7 +1837,7 @@ function BSCoachDetailPublic({ coach, onBack, no = null, photo = null, goChat = 
   // Waiting room — port of the Signal storefront gate, shown only when the
   // coach is effectively at capacity (mirrors src/lib/capacity.ts).
   const capProviderId = coach.provider_id || coach.db_id || null;
-  const rowAtCapacity = !!(coach.at_capacity && (!coach.capacity_resume_at || new Date(coach.capacity_resume_at).getTime() > Date.now()));
+  const rowAtCapacity = mktRowAtCapacity(coach);
   const freshAtCapacity = availCap && availCap.key === `${saleProviderRole}:${saleProviderId}` ? availCap.at : null;
   const atCapacity = freshAtCapacity == null ? rowAtCapacity : freshAtCapacity;
   const [wl, setWl] = useStateBSM2(null);
