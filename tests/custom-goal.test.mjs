@@ -134,7 +134,7 @@ test('closing the picker closes the field, so it reopens on the list', async () 
   d.click('Edit');
   press(d, ownRow(d));
   assert.ok(ownInput(d));
-  d.click('Close');
+  d.back(); // the picker's ← Back (owner, 2026-11-04: the ✕ and the Close at its foot went)
   assert.equal(radios(d).length, 0);
   d.click('Edit');
   assert.equal(ownInput(d), undefined);

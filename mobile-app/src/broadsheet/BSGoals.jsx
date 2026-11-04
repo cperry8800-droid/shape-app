@@ -810,12 +810,39 @@ export function BSGoalsContract({ overall, data, heat, view, onOpenView, onBack,
   );
 }
 
+// The masthead's tools on a goal sheet, as on every page (owner, 2026-11-04: "mast head needs to be the
+// same as current ones"): ✦ Nora, ⌕ Search and ⚙ Settings, each leaving the sheet first, as Back does.
+function bsGoalSheetTools(leave) {
+  const { BSSearchCorner, BSSettingsCorner, BS_CORNER_GAP } = window;
+  if (!BSSearchCorner && !BSSettingsCorner) return null;
+  const toProfile = () => { leave(); setTimeout(() => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }, 0); };
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP || 8 }}>
+      {BSSearchCorner ? <BSSearchCorner close={leave} /> : null}
+      {BSSettingsCorner ? <BSSettingsCorner onClick={toProfile} /> : null}
+    </span>
+  );
+}
+// A goal sheet's focus and placeholder rules: the field being typed in lights its card's edge.
+const BS_GOAL_SHEET_CSS = (teal, ph) => `[data-goal-sheet] input::placeholder,[data-goal-sheet] textarea::placeholder{color:${ph}}`
+  + `[data-goal-sheet] [data-goal-cell]{transition:box-shadow 140ms ease}`
+  + `[data-goal-sheet] [data-goal-cell]:focus-within{box-shadow:inset 0 0 0 1.5px ${teal}}`
+  + `[data-goal-sheet] [data-goal-field]{outline:none}[data-goal-sheet] [data-goal-field]:focus{outline:1.5px solid ${teal};outline-offset:-1px}`
+  + `[data-goal-sheet] button:focus-visible{outline:2px solid ${teal};outline-offset:2px}`
+  + `@media (prefers-reduced-motion:reduce){[data-goal-sheet] [data-goal-cell]{transition:none}}`;
+
 // Edit sheet for the Overall headline goal (title / target date / start-now-target / why).
+// Redesign (owner, 2026-11-04: "the your goal page needs to have updated design"), in the goals page's
+// own dashboard look: the masthead every page has (the mark, Vol·No and the tools), ← Back with the
+// eyebrow, then the read of the numbers as typed (the cover's ring and verdict, live), the goal and its
+// date in one card, Start / Now / Target as the cover's stat tiles, and the why in its own card.
 function BSOverallEditSheet({ overall, onClose, onSave }) {
-  const { useBS, BSLogo, BS_GOAL_LB_TO_KG, bsGoalDocKg, bsGoalUnitIsLb, bsGoalWeighIns, bsTHexA, BS_MAST_TOP_CSS = 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))' } = window;
+  const { useBS, BSMastRow, BSBackRow, BSPinnedBar, BS_GOAL_LB_TO_KG, bsDateLocale, bsGoalDocKg, bsGoalUnitIsLb, bsGoalWeighIns, BS_MAST_TOP_CSS = 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))' } = window;
   const t = useBS();
   const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const D = bsDash(t);
+  const teal = D.mark.teal;
+  const unit = t.weightUnit;
   // ⚠ THE THREE FIGURES ARE EDITED IN THE MEMBER'S UNIT AND STORED IN KILOGRAMS.
   // This sheet used to carry a FREE-TEXT unit box beside them, which is where
   // the mixed-unit documents came from: a member could type "lbs" here while
@@ -825,10 +852,15 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
     const out = (v) => { const kg = bsGoalDocKg(v, overall); const d = kg == null ? null : t.kgToDisplay(kg); return d == null ? '' : String(Math.round(d * 10) / 10); };
     return { ...overall, start: out(overall.start), now: out(overall.now), target: out(overall.target) };
   });
-  const lbl = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 4 };
-  // Zero-box underline fields — the Open Ledger form grammar (.bs-uline focus →
-  // accent underline via --bs-accent).
-  const field = { width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) };
+  const [pinned, setPinned] = useState(false);
+  const whyRef = React.useRef(null);
+  // The why grows with what is written, so the page scrolls and the field does not.
+  React.useLayoutEffect(() => {
+    const el = whyRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(112, el.scrollHeight)}px`;
+  }, [g.why]);
   // Keep the raw string while editing (so decimals like 76.8 type cleanly);
   // numeric fields are coerced to Number on save (`saveGoal`).
   const saveGoal = () => {
@@ -842,36 +874,104 @@ function BSOverallEditSheet({ overall, onClose, onSave }) {
     const series = bsGoalWeighIns(g).map((x) => (wasLb ? { ...x, kg: Number(x.kg) * BS_GOAL_LB_TO_KG } : x));
     onSave({ ...g, unit: 'kg', start: n(g.start), now: n(g.now), target: n(g.target), ...(series.length ? { weighIns: series } : {}) });
   };
-  const num = (k) => <label style={{ display: 'block' }}><span style={lbl}>{k === 'start' ? tr('goal:overall.fieldStart', { defaultValue: 'Start' }) : k === 'now' ? tr('goal:overall.fieldNow', { defaultValue: 'Now' }) : tr('goal:sheet.fieldTarget', { defaultValue: 'Target' })}</span><input className="bs-uline bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} style={{ ...field, fontVariantNumeric: 'tabular-nums' }} /></label>;
+  // The read, as the cover reads it, of the figures as typed (in the member's unit): its share done, the
+  // verdict with no pace (there is none to project here), and the target with its date.
+  const typed = { start: Number(g.start) || 0, now: Number(g.now) || 0, target: Number(g.target) || 0 };
+  const pct = bsGoalPct(typed);
+  const verdict = bsGoalVerdict({ ...typed, unit, tr });
+  const leadChars = Array.from(String(verdict.lead || ''));
+  const leadDot = /[.。．!?！？]/.test(leadChars[leadChars.length - 1] || '') ? leadChars.pop() : '';
+  const byD = g.by ? new Date(`${g.by}T00:00:00`) : null;
+  const byLabel = byD && !isNaN(byD) ? byD.toLocaleDateString(bsDateLocale ? bsDateLocale() : undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const targetLine = typed.target
+    ? (byLabel ? tr('goal:cover.targetBy', { defaultValue: 'Target {value} by {date}', value: `${g.target} ${unit}`, date: byLabel }) : tr('goal:cover.target', { defaultValue: 'Target {value}', value: `${g.target} ${unit}` }))
+    : null;
+  const ctaInk = t.isLight ? '#fff' : '#04201d';
+  const label = (c, x = null) => ({ display: 'block', fontFamily: t.DISPLAY, fontSize: 10.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase', color: c, ...x });
+  const bare = { width: '100%', boxSizing: 'border-box', margin: 0, padding: 0, border: 0, borderRadius: 0, background: 'transparent', color: t.INK, outline: 'none' };
+  const hair = `1px solid ${D.border}`;
+  // Start, Now and Target as the cover's tiles, each in its own colour (Now is the cover's Current).
+  const tile = (k, l, c) => (
+    <label key={k} data-goal-cell="" style={{ display: 'block', minWidth: 0, padding: '10px 10px 8px', borderRadius: 14, background: D.track, cursor: 'text' }}>
+      <span style={label(D.text[c], { fontSize: 9.5 })}>{l}</span>
+      <span style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 4 }}>
+        <input className="bs-no-spin" type="number" inputMode="decimal" value={g[k] ?? ''} onChange={(e) => setG({ ...g, [k]: e.target.value })} placeholder="—"
+          style={{ ...bare, flex: 1, minWidth: 0, minHeight: 30, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }} />
+        <span style={{ flex: 'none', fontFamily: t.BODY, fontSize: 10.5, color: t.INK50 }}>{unit}</span>
+      </span>
+    </label>
+  );
+  const tools = bsGoalSheetTools(onClose);
   const sheet = (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
-      {/* Title-page header — masthead + hero title (matches the other pages) */}
-      <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
+    <div data-goal-sheet="overall" style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER_BG || t.PAPER, color: t.INK, display: 'flex', flexDirection: 'column', colorScheme: t.isLight ? 'light' : 'dark' }}>
+      <style>{BS_GOAL_SHEET_CSS(teal, bsDashA(t.isLight ? '#0f0e0c' : '#f5f0e6', 0.34))}</style>
+      <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+        <div className="bs-hide-scroll" onScroll={(e) => setPinned(e.currentTarget.scrollTop > 64)} style={{ position: 'absolute', inset: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 24px` }}>
+          {/* The masthead every page has, then ← Back on its own row with the eyebrow. */}
+          {BSMastRow ? <BSMastRow trailing={tools} /> : null}
+          {BSBackRow ? <BSBackRow onBack={onClose} trailing={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('goal:overall.eyebrow', { defaultValue: 'Edit · Goal' })}</span>} /> : null}
+          <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 34, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK }}>{tr('goal:overall.titlePre', { defaultValue: 'Your' })} <span style={{ color: teal }}>{tr('goal:overall.titleAccent', { defaultValue: 'goal.' })}</span></h1>
+
+          {/* The read of what is typed: the ring, the verdict and the target, as the cover shows them. */}
+          <BSDashCard data-goal-sheet-read="" tint={teal} style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {pct != null && (
+                <div role="img" aria-label={`${pct}%`} style={{ flexShrink: 0 }}>
+                  <BSDashRing id="goal-sheet-read" pct={pct / 100} size={72} stroke={8} from={D.mark.teal} to={D.mark.lime}>
+                    <span style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+                  </BSDashRing>
+                </div>
+              )}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>
+                  {leadChars.join('')}{leadDot ? <span style={{ color: teal }}>{leadDot}</span> : null}
+                </div>
+                {targetLine ? <div style={{ marginTop: 4, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.35, color: t.INK70 }}>{targetLine}</div> : null}
+              </div>
+            </div>
+          </BSDashCard>
+
+          {/* The goal and its date, and the unit Settings sets. */}
+          <BSDashCard style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
+            <label data-goal-cell="" style={{ display: 'block', padding: '12px 16px 8px', cursor: 'text' }}>
+              <span style={label(D.text.teal)}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span>
+              <input value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder={tr('goal:overall.titlePlaceholder', { defaultValue: 'e.g. Lean by August' })}
+                style={{ ...bare, minHeight: 36, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.01em' }} />
+            </label>
+            <label data-goal-cell="" style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 54, padding: '0 16px', borderTop: hair, cursor: 'text' }}>
+              <span style={label(t.INK50, { flex: 1, minWidth: 0 })}>{tr('goal:sheet.fieldTargetDate', { defaultValue: 'Target date' })}</span>
+              <input type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })}
+                style={{ ...bare, width: 'auto', flex: 'none', minHeight: 40, textAlign: 'right', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }} />
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 54, padding: '0 16px', borderTop: hair }}>
+              <span style={label(t.INK50, { flex: 1, minWidth: 0 })}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{unit}</span>
+                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:overall.unitFromSettings', { defaultValue: 'Settings · Units' })}</span>
+              </span>
+            </div>
+          </BSDashCard>
+
+          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+            {tile('start', tr('goal:overall.fieldStart', { defaultValue: 'Start' }), 'amber')}
+            {tile('now', tr('goal:overall.fieldNow', { defaultValue: 'Now' }), 'teal')}
+            {tile('target', tr('goal:sheet.fieldTarget', { defaultValue: 'Target' }), 'lime')}
           </div>
-          <button onClick={onClose} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
+
+          <BSDashCard style={{ marginTop: 10, padding: 0, overflow: 'hidden' }}>
+            <label data-goal-cell="" style={{ display: 'block', padding: '12px 16px 6px', cursor: 'text' }}>
+              <span style={label(D.text.violet)}>{tr('goal:terms.whyHead', { defaultValue: 'Your why' })}</span>
+              <textarea ref={whyRef} value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={4}
+                style={{ ...bare, display: 'block', marginTop: 6, minHeight: 112, overflow: 'hidden', resize: 'none', fontFamily: t.BODY, fontSize: 15, lineHeight: 1.5 }} />
+            </label>
+          </BSDashCard>
         </div>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>{tr('goal:overall.eyebrow', { defaultValue: 'Edit · Goal' })}</div>
-        <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 31, letterSpacing: '-0.03em', color: t.INK, margin: '4px 0 0', lineHeight: 1 }}>{tr('goal:overall.titlePre', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:overall.titleAccent', { defaultValue: 'goal.' })}</span></h1>
-        <div style={{ marginTop: 12, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
+        {BSPinnedBar ? <BSPinnedBar shown={pinned} trailing={tools} background={t.PAPER_BG || t.PAPER} run={() => { if (window.bsMarkBack) window.bsMarkBack(); onClose(); }} /> : null}
       </div>
-      {/* Scrollable form — scrollbar hidden */}
-      <div className="bs-hide-scroll" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `18px ${t.padX}px 18px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTitle', { defaultValue: 'Title' })}</span><input className="bs-uline" value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} placeholder={tr('goal:overall.titlePlaceholder', { defaultValue: 'e.g. Lean by August' })} style={field} /></label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-          <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:sheet.fieldTargetDate', { defaultValue: 'Target date' })}</span><input className="bs-uline" type="date" value={g.by || ''} onChange={(e) => setG({ ...g, by: e.target.value })} style={field} /></label>
-          <div><span style={lbl}>{tr('goal:overall.fieldUnit', { defaultValue: 'Unit' })}</span><div style={{ ...field, display: 'flex', alignItems: 'center', minHeight: 34, fontVariantNumeric: 'tabular-nums' }}>{t.weightUnit}</div><div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('goal:overall.unitFromSettings', { defaultValue: 'Settings · Units' })}</div></div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 18 }}>{num('start')}{num('now')}{num('target')}</div>
-        <label style={{ display: 'block' }}><span style={lbl}>{tr('goal:terms.whyHead', { defaultValue: 'Your why' })}</span><textarea className="bs-field bs-hide-scroll" value={g.why || ''} onChange={(e) => setG({ ...g, why: e.target.value })} rows={5} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${bsTHexA(t.INK, 0.15)}`, background: 'transparent', borderRadius: 2, fontFamily: t.DISPLAY, color: t.INK, outline: 'none', resize: 'none', fontSize: 14.5, lineHeight: 1.5, minHeight: 120 }} /></label>
-      </div>
-      {/* Pinned footer — text-action Cancel + clipped solid CTA */}
-      <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, display: 'flex', gap: 12, alignItems: 'center', background: t.PAPER }}>
-        <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: '13px 10px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK }}><span style={{ borderBottom: `2px solid ${bsTHexA(t.INK, 0.35)}`, paddingBottom: 2 }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</span></button>
-        <button onClick={saveGoal} style={{ flex: 1, padding: '14px', borderRadius: 6, clipPath: 'polygon(0 0, calc(100% - 11px) 0, 100% 11px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#fff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:overall.save', { defaultValue: 'Save goal' })}</button>
+      {/* Pinned footer — Cancel, and Save as the cover's one solid action */}
+      <div style={{ flex: '0 0 auto', padding: `12px ${t.padX}px calc(14px + env(safe-area-inset-bottom, 0px))`, borderTop: hair, display: 'flex', gap: 10, alignItems: 'center', background: t.PAPER_BG || t.PAPER }}>
+        <button onClick={onClose} style={{ minHeight: 44, padding: '0 18px', borderRadius: 999, border: 0, background: D.track, color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:sheet.cancel', { defaultValue: 'Cancel' })}</button>
+        <button onClick={saveGoal} style={{ flex: 1, minHeight: 44, borderRadius: 999, border: 0, background: teal, color: ctaInk, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', boxShadow: D.light ? 'none' : `0 0 18px ${bsDashA(teal, 0.35)}` }}>{tr('goal:overall.save', { defaultValue: 'Save goal' })}</button>
       </div>
     </div>
   );
@@ -983,6 +1083,33 @@ export function bsGoalWeekSleep(series, todayIso) {
   return nights.length ? Math.round((nights.reduce((a, b) => a + b, 0) / nights.length) * 10) / 10 : 0;
 }
 
+// Each listed goal's mark on the picker (owner, 2026-11-04: "improve this, needs new layout"): a line
+// glyph in the theme's ink, lit in the teal when picked. Theme-tinted SVG, no emoji. A goal with no mark
+// of its own (one in the member's words) takes the pencil.
+const BS_GOAL_GLYPHS = {
+  fat_loss: ['M3 7l6 6 4-4 8 8', 'M21 11v6h-6'],
+  muscle: ['M6 7v10', 'M18 7v10', 'M3 9.5v5', 'M21 9.5v5', 'M6 12h12'],
+  recomp: ['M7 4 3 8l4 4', 'M3 8h13', 'm17 20 4-4-4-4', 'M21 16H8'],
+  maintain: ['M4 12h16', 'M8 8h8', 'M8 16h8'],
+  strength: ['M2 12h20', 'M5 7h3v10H5z', 'M16 7h3v10h-3z'],
+  endurance: ['M3 12h4l2-6 4 12 2-6h6'],
+  mobility: ['M20 12a8 8 0 1 1-3-6.2', 'M20 4v5h-5'],
+  athletic: ['M13 3 5 14h6l-1 7 8-11h-6l1-7z'],
+  health: ['M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z'],
+  tone: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm6 6 2.5 2.5', 'M15.5 15.5 18 18', 'm6 18 2.5-2.5', 'M15.5 8.5 18 6'],
+  race: ['M5 21V4', 'M5 4h12l-2 4 2 4H5'],
+  postpartum: ['M12 21v-8', 'M12 13c0-4 3-7 7-7 0 4-3 7-7 7z', 'M12 15c0-3-2.5-5.5-6-5.5 0 3 2.5 5.5 6 5.5z'],
+  own: ['M12 20h9', 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'],
+};
+function BSGoalGlyph({ id, color, size = 18 }) {
+  const paths = BS_GOAL_GLYPHS[id] || BS_GOAL_GLYPHS.own;
+  return (
+    <svg aria-hidden width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {paths.map((d, i) => <path key={i} d={d} />)}
+    </svg>
+  );
+}
+
 export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const { useBS, BSPage, BSFooter, BSMeCorner, BS_GOALS_DEFAULT, BS_GOAL_LB_TO_KG, BS_PRIMARY_GOALS, BS_PRIMARY_GOAL_MAX, _bsScrollTopOnMount, bsDateLocale, bsGoalDocKg, bsGoalUnitIsLb, bsGoalWeighIns, bsMyTierColor, bsPrimaryGoalFromText, bsPrimaryGoalIsCustom, bsPrimaryGoalLabel, bsPrimaryGoalToken, bsTHexA, useBSProgram, BS_MAST_TOP_CSS = 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))' } = window;
   const t = useBS();
@@ -1000,6 +1127,7 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const [editHeadline, setEditHeadline] = useState(null); // 'training' | 'nutrition' | null
   const [editPrimary, setEditPrimary] = useState(false); // in-place primary-goal chips
   const [customGoal, setCustomGoal] = useState(null); // the picker's own-words field: null = closed
+  const [primaryPinned, setPrimaryPinned] = useState(false); // the picker's pinned masthead, once it scrolls
   const [logWeigh, setLogWeigh] = useState(false);
   // Cover-page routing (owner pick 2026-08-28, Concept B): 'cover' plus one
   // full-screen page per station. The old five-item anchor index existed only
@@ -1314,7 +1442,7 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   const hHead = hWords.join(' ');
   // A goal in the member's own words may end in its own stop ("Get fit!"); no second one.
   const hStop = /[.!?…]$/.test(hLast) ? '' : '.';
-  const closePrimary = () => { setEditPrimary(false); setCustomGoal(null); };
+  const closePrimary = () => { setEditPrimary(false); setCustomGoal(null); setPrimaryPinned(false); };
   // Saves to client_goals.primaryGoal and mirrors the profile's client_identity.goal so the
   // edit-profile chips agree. `id` is a listed goal's token or the member's own words
   // (bsPrimaryGoalFromText).
@@ -1383,62 +1511,75 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
           always returns here). Saves to client_goals.primaryGoal and mirrors
           the profile's client_identity.goal so the edit-profile chips agree. */}
       {editPrimary && createPortal(
-        <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER, display: 'flex', flexDirection: 'column', '--bs-accent': teal }}>
-          {/* Header — the question and a way out (owner, 2026-10-20: the chip wall
-              read as a puzzle; a list with one check reads at a glance). Its hairline
-              keeps the scrolled list from running up under the two-line hint. */}
-          <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 12px`, borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-              <h1 style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em', color: t.INK, margin: '6px 0 0', lineHeight: 1.05 }}>{tr('goal:primary.titlePre', { defaultValue: 'Your primary' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}</span></h1>
-              <button onClick={closePrimary} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ flexShrink: 0, width: 44, height: 44, marginRight: -10, background: 'transparent', border: 0, color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 17, fontWeight: 800, lineHeight: 1 }}>✕</button>
-            </div>
+        // Redesign (owner, 2026-11-04: "improve this, needs new layout"): the masthead every page has,
+        // ← Back with the eyebrow (the ✕ and the Close at the foot went), then the goals as a grid of
+        // tiles, each with its mark, the picked one lit; the member's own goal a wide tile under them.
+        <div data-goal-sheet="primary" style={{ position: 'absolute', inset: 0, zIndex: 60, background: t.PAPER_BG || t.PAPER, color: t.INK, colorScheme: t.isLight ? 'light' : 'dark' }}>
+          <style>{BS_GOAL_SHEET_CSS(teal, bsDashA(t.isLight ? '#0f0e0c' : '#f5f0e6', 0.34))}</style>
+          <div className="bs-hide-scroll" onScroll={(e) => setPrimaryPinned(e.currentTarget.scrollTop > 64)} style={{ position: 'absolute', inset: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `${BS_MAST_TOP_CSS} ${t.padX}px calc(28px + env(safe-area-inset-bottom, 0px))` }}>
+            {window.BSMastRow && <window.BSMastRow trailing={bsGoalSheetTools(closePrimary)} />}
+            {window.BSBackRow && <window.BSBackRow onBack={closePrimary} trailing={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: D.text.teal }}>{tr('home:goal.eyebrow', { defaultValue: 'Your goal' })}</span>} />}
+            <h1 style={{ margin: '8px 0 0', fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.02, color: t.INK }}>{tr('goal:primary.titlePre', { defaultValue: 'Your primary' })} <span style={{ color: D.mark.teal }}>{tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}</span></h1>
             <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.4, color: t.INK70 }}>{tr('goal:primary.hint', { defaultValue: 'Pick one or write your own · syncs with your profile' })}</div>
-          </div>
-          {/* The list — scrollbar hidden */}
-          <div className="bs-hide-scroll" role="radiogroup" aria-label={tr('goal:primary.titlePre', { defaultValue: 'Your primary' }) + ' ' + tr('goal:primary.titleAccent', { defaultValue: 'goal.' })} style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `12px ${t.padX}px 18px` }}>
-            {/* ⚠ THE ROW'S VALUE IS A TOKEN AND ITS FACE IS A LABEL — see
+            {/* ⚠ THE TILE'S VALUE IS A TOKEN AND ITS FACE IS A LABEL — see
                 BS_PRIMARY_GOALS. `g.id` is what gets written to
                 client_goals.primaryGoal and what the selected-state test below
                 compares; `bsPrimaryGoalLabel` is the only thing a member reads.
                 The profile mirror (client_identity.goal) takes the LABEL, not
                 the token, because get_public_profile serves that field to other
                 members on both surfaces. */}
-            {BS_PRIMARY_GOALS.map((g) => {
-              const on = (data.primaryGoal || '') === g.id;
-              const label = bsPrimaryGoalLabel(g.id, tr);
-              return (
-                <button key={g.id} role="radio" aria-checked={on} onClick={() => setPrimaryGoal(g.id)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '0 2px', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: on ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em' }}>
-                  <span>{label}</span>
-                  <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, border: `1.5px solid ${on ? teal : t.RULE}`, background: on ? teal : 'transparent', color: t.isLight ? '#fff' : '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
-                </button>
-              );
-            })}
+            <div role="radiogroup" aria-label={tr('goal:primary.titlePre', { defaultValue: 'Your primary' }) + ' ' + tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}
+              style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+              {BS_PRIMARY_GOALS.map((g) => {
+                const on = (data.primaryGoal || '') === g.id;
+                const label = bsPrimaryGoalLabel(g.id, tr);
+                return (
+                  <button key={g.id} role="radio" aria-checked={on} data-goal-tile={g.id} onClick={() => setPrimaryGoal(g.id)} style={{
+                    position: 'relative', minWidth: 0, minHeight: 96, padding: 12, boxSizing: 'border-box', borderRadius: 18, cursor: 'pointer', textAlign: 'left',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12,
+                    background: on ? `radial-gradient(120% 140% at 0% 0%, ${bsDashA(D.mark.teal, D.light ? 0.12 : 0.2)}, transparent 62%), ${D.card}` : D.card,
+                    border: on ? `1.5px solid ${D.mark.teal}` : `1px solid ${D.border}`, boxShadow: on && !D.light ? `0 0 18px ${bsDashA(D.mark.teal, 0.18)}` : D.shadow,
+                    color: t.INK, fontFamily: t.DISPLAY,
+                  }}>
+                    <span style={{ fontSize: 15.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.01em', overflowWrap: 'anywhere', order: 2 }}>{label}</span>
+                    <span aria-hidden style={{ order: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                      <span style={{ width: 34, height: 34, borderRadius: 11, display: 'grid', placeItems: 'center', background: on ? bsDashA(D.mark.teal, D.light ? 0.16 : 0.22) : D.track }}>
+                        <BSGoalGlyph id={g.id} color={on ? D.text.teal : t.INK70} />
+                      </span>
+                      {on ? <span style={{ width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d', fontSize: 12, fontWeight: 800 }}>✓</span> : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
             {/* A goal in the member's own words (owner, 2026-10-20: "make sure user can
                 make custom goals"). Checked while the stored goal is none of the listed
                 ones; tapping it opens the field, filled with their words. */}
-            <button role="radio" aria-checked={!!ownGoal} aria-expanded={customGoal != null} onClick={() => setCustomGoal(customGoal != null ? null : ownGoal)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 54, padding: '8px 2px', background: 'transparent', border: 0, borderBottom: customGoal != null ? 0 : `1px solid ${t.HAIR || t.RULE}`, cursor: 'pointer', textAlign: 'left', color: ownGoal ? teal : t.INK, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: ownGoal ? 700 : 500, letterSpacing: '-0.01em' }}>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block' }}>{tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</span>
-                {ownGoal && customGoal == null && <span data-own-goal style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 14, fontWeight: 400, letterSpacing: 0, color: t.INK70, overflowWrap: 'anywhere' }}>{ownGoal}</span>}
-              </span>
-              <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, boxSizing: 'border-box', borderRadius: 99, border: `1.5px solid ${ownGoal ? teal : t.RULE}`, background: ownGoal ? teal : 'transparent', color: t.isLight ? '#fff' : '#04201d', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{ownGoal ? '✓' : ''}</span>
-            </button>
-            {customGoal != null && (
-              <div style={{ padding: '2px 2px 16px', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
-                <input className="bs-uline" autoFocus enterKeyHint="done" value={customGoal} maxLength={BS_PRIMARY_GOAL_MAX}
-                  aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
-                  placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
-                  onChange={(e) => setCustomGoal(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPrimaryGoal(ownGoalNext); } }}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, outline: 'none', '--bs-uline-ink': bsTHexA(t.INK, 0.25) }} />
-                <button onClick={() => setPrimaryGoal(ownGoalNext)} disabled={!ownGoalNext} style={{ marginTop: 12, width: '100%', padding: '14px', borderRadius: 6, border: 0, background: ownGoalNext ? teal : t.RULE, color: ownGoalNext ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ownGoalNext ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
-              </div>
-            )}
+            <div style={{ marginTop: 10, borderRadius: 18, overflow: 'hidden', background: ownGoal ? `radial-gradient(120% 140% at 0% 0%, ${bsDashA(D.mark.teal, D.light ? 0.12 : 0.2)}, transparent 62%), ${D.card}` : D.card, border: ownGoal ? `1.5px solid ${D.mark.teal}` : `1px solid ${D.border}`, boxShadow: D.shadow }}>
+              <button role="radio" aria-checked={!!ownGoal} aria-expanded={customGoal != null} onClick={() => setCustomGoal(customGoal != null ? null : ownGoal)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '10px 12px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK, fontFamily: t.DISPLAY }}>
+                <span style={{ flex: 1, minWidth: 0, order: 2 }}>
+                  <span style={{ display: 'block', fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</span>
+                  {ownGoal && customGoal == null && <span data-own-goal style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 400, color: t.INK70, overflowWrap: 'anywhere' }}>{ownGoal}</span>}
+                </span>
+                <span aria-hidden style={{ order: 1, flexShrink: 0, width: 34, height: 34, borderRadius: 11, display: 'grid', placeItems: 'center', background: ownGoal ? bsDashA(D.mark.teal, D.light ? 0.16 : 0.22) : D.track }}>
+                  <BSGoalGlyph id="own" color={ownGoal ? D.text.teal : t.INK70} />
+                </span>
+                {ownGoal ? <span aria-hidden style={{ order: 3, flexShrink: 0, width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d', fontSize: 12, fontWeight: 800 }}>✓</span> : null}
+              </button>
+              {customGoal != null && (
+                <div style={{ padding: '2px 12px 12px' }}>
+                  <input data-goal-field="" autoFocus enterKeyHint="done" value={customGoal} maxLength={BS_PRIMARY_GOAL_MAX}
+                    aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
+                    placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
+                    onChange={(e) => setCustomGoal(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPrimaryGoal(ownGoalNext); } }}
+                    style={{ width: '100%', boxSizing: 'border-box', minHeight: 46, padding: '0 14px', borderRadius: 12, border: `1px solid ${D.border}`, background: D.track, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK }} />
+                  <button onClick={() => setPrimaryGoal(ownGoalNext)} disabled={!ownGoalNext} style={{ marginTop: 10, width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: ownGoalNext ? D.mark.teal : D.track, color: ownGoalNext ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ownGoalNext ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
+                </div>
+              )}
+            </div>
           </div>
-          {/* Pinned footer */}
-          <div style={{ flex: '0 0 auto', padding: `13px ${t.padX}px calc(16px + env(safe-area-inset-bottom, 0px))`, borderTop: `1px solid ${t.HAIR || t.RULE}`, background: t.PAPER }}>
-            <button onClick={closePrimary} style={{ width: '100%', padding: '14px', borderRadius: 6, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.close', { defaultValue: 'Close' })}</button>
-          </div>
+          {window.BSPinnedBar && <window.BSPinnedBar shown={primaryPinned} trailing={bsGoalSheetTools(closePrimary)} background={t.PAPER_BG || t.PAPER} run={() => { if (window.bsMarkBack) window.bsMarkBack(); closePrimary(); }} />}
         </div>,
         (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
       )}

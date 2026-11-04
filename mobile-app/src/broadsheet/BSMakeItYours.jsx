@@ -1461,7 +1461,6 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   // scrolled 64px away, a bar slides in with ← (the page's Back has gone under it), the mark and Vol·No,
   // and the tools, so they stay in sight down the page (owner, 2026-11-04).
   const [pinned, setPinned] = React.useState(false);
-  const reduced = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const Search = window.BSSearchCorner, Settings = window.BSSettingsCorner;
   const corner = window.BS_HEADER_AVATAR || 34;
   const tools = Search || Settings ? (
@@ -1470,23 +1469,11 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       {Settings ? <Settings size={corner} ink={E.INK} onClick={() => { onClose && onClose(); setTimeout(() => runTool('settings'), 0); }} /> : null}
     </span>
   ) : null;
-  const pinnedBar = (
-    <div data-mine-pinned-mast="" aria-hidden={!pinned} inert={!pinned} style={{
-      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4,
-      padding: `max(calc(12px + env(safe-area-inset-top, 0px)), var(--bs-notch-floor, 0px)) ${gut}px 11px`,
-      background: E.BG, color: E.INK, borderBottom: `1px solid ${ea(0.14)}`,
-      transform: pinned ? 'translateY(0)' : 'translateY(-110%)', opacity: pinned ? 1 : 0, pointerEvents: pinned ? 'auto' : 'none',
-      transition: reduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
-        <button type="button" data-bs-pin-back="" onClick={back} aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
-          width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0, display: 'grid', placeItems: 'center',
-          background: 'transparent', border: 0, cursor: 'pointer', color: E.INK, fontSize: 18, lineHeight: 1,
-        }}><span aria-hidden>←</span></button>
-        <div style={{ flex: 1, minWidth: 0 }}>{window.BSMastRow ? <window.BSMastRow trailing={tools} ink={E.INK} /> : null}</div>
-      </div>
-    </div>
-  );
+  // The chrome's pinned bar for a takeover (BSPinnedBar): ←, the mark and Vol·No, the tools.
+  const pinnedBar = window.BSPinnedBar ? (
+    <window.BSPinnedBar shown={pinned} ink={E.INK} background={E.BG} rule={ea(0.14)} trailing={tools}
+      run={() => { if (window.bsMarkBack) window.bsMarkBack(); back(); }} />
+  ) : null;
   const scroller = (
     <div ref={scrollRef} onScroll={(e) => setPinned(e.currentTarget.scrollTop > 64)} onClickCapture={(e) => { const tg = e.target; tapRef.current = (tg && tg.closest && tg.closest('button, [role="button"], label, input, select')) || tg; }} className="bs-scroll" data-mine-scroll="" style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
       <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) ${gut}px ${unsaved ? 24 : 40}px` }}>

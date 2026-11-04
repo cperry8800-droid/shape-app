@@ -1444,7 +1444,7 @@ test('Make it yours: the masthead carries the tools, and a tool with unsaved cha
     const pill = mine().querySelector('[data-mine-scroll] [data-bs-mast-pill]');
     assert.ok(pill, 'the page\'s masthead row has the tool pill');
     assert.ok(pill.querySelector('[data-nora-corner]') && pill.querySelector('[data-bs-settings-corner]'), '✦ ⌕ and ⚙ in it');
-    const bar = mine().querySelector('[data-mine-pinned-mast]');
+    const bar = mine().querySelector('[data-bs-pinned-bar]');
     assert.ok(bar.querySelector('[data-bs-pin-back]') && bar.querySelector('[data-bs-mast-pill]'), 'the pinned bar: ←, the mark and the tools');
     assert.ok(bar.hasAttribute('inert'), 'out of reach until the page scrolls');
 
