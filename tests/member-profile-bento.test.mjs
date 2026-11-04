@@ -65,9 +65,21 @@ test('on someone else\'s page Follow is the lit tile and Message a quiet one bes
   assert.equal(message.props.style.borderRadius, 14);
   const [grid] = withAttr(d.nodes(), 'data-follow-actions');
   assert.equal(grid.props.style.gridAutoRows, 'minmax(44px, auto)', 'the tiles are not condensed');
-  assert.equal(grid.props.style.gridTemplateColumns, 'repeat(2, minmax(0, 1fr))', 'Follow and Message are not side by side');
+  // Laid out exactly as Log activity and Edit profile are on your own page (owner, 2026-11-04: "make the
+  // follow and message buttons match too"): Follow three fifths, Message the compact tile over two.
+  assert.equal(grid.props.style.gridTemplateColumns, 'minmax(0, 3fr) minmax(0, 2fr)', 'Follow and Message are not laid out as your own tiles');
   assert.equal(grid.props.style.gap, 10, 'Follow and Message lost the room between them');
   assert.equal(toggle.props.style.gridColumn, 'auto');
+  signedOut();
+  const ownNodes = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true }).nodes();
+  const [ownGrid] = withAttr(ownNodes, 'data-member-actions');
+  const [edit] = withAttr(ownNodes, 'data-member-edit');
+  for (const prop of ['gridTemplateColumns', 'gridAutoRows', 'gap', 'marginTop']) assert.deepEqual(grid.props.style[prop], ownGrid.props.style[prop], `the grid's ${prop} is not your own page's`);
+  // (Their colours are each drawn from their own ink: the two renders here have different inks.)
+  for (const prop of ['fontSize', 'fontWeight', 'padding', 'gap', 'borderRadius', 'alignItems', 'overflowWrap']) assert.deepEqual(message.props.style[prop], edit.props.style[prop], `Message's ${prop} is not Edit profile's`);
+  const iconSize = (btn) => [btn.props.children].flat(3).find(named('BSMpIconBox')).props.size;
+  assert.equal(iconSize(message), iconSize(edit), 'Message\'s icon square is not Edit profile\'s');
+  signedInAs('u-me');
   // With no Message, Follow takes the row.
   const alone = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
   assert.equal(withAttr(alone.nodes(), 'data-follow-toggle')[0].props.style.gridColumn, '1 / -1');

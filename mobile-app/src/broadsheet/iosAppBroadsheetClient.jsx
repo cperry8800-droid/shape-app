@@ -15735,19 +15735,20 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
         </div>
         {children}
         {!isSelf ? (
-          /* Follow is the lit tile and Message a quiet one, side by side and the same height, as Log
-             activity and Edit profile are on your own page; the tiles keep the weights they are written
-             with (BSCleanType), the counts above keep theirs. */
+          /* Follow is the lit tile and Message a quiet one, laid out exactly as Log activity and Edit
+             profile are on your own page (owner, 2026-11-04: "make the follow and message buttons match
+             too"): Follow over three fifths, Message the compact tile over two, 44px, 10px apart. The
+             tiles keep the weights they are written with (BSCleanType), the counts above keep theirs. */
           <BSCleanType t={tFB}>
-            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
+            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
               <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested}
                 style={{ ...bsMpAction({ t: tFB, INK, c, onC, lit: !(following || requested) }), gridColumn: typeof onMessage === 'function' ? 'auto' : '1 / -1', minHeight: 44, cursor: busy ? 'default' : 'pointer' }}>
                 <BSMpIconBox name={following ? 'check' : requested ? 'clock' : 'plus'} ink={following || requested ? INK : onC} />
                 <span>{following ? tr('profile:follow.following', { defaultValue: 'Following' }) : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}</span>
               </button>
               {typeof onMessage === 'function' ? (
-                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...bsMpAction({ t: tFB, INK, c, onC }), minHeight: 44 }}>
-                  <BSMpIconBox name="chat" ink={INK} />
+                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...bsMpAction({ t: tFB, INK, c, onC, compact: true }), minHeight: 44 }}>
+                  <BSMpIconBox name="chat" ink={INK} size={20} />
                   <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}</span>
                 </button>
               ) : null}
