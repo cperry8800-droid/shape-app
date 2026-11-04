@@ -56,12 +56,15 @@ test('on someone else\'s page Follow is the lit tile and Message a quiet one bes
   const [message] = withAttr(d.nodes(), 'data-follow-message');
   assert.equal(toggle.props.style.background, '#34d6c5');
   assert.equal(toggle.props.style.backgroundImage, bento.BS_MP_SHEEN, 'the lit tile lost its sheen');
-  assert.equal(toggle.props.style.borderRadius, 22);
+  assert.equal(toggle.props.style.borderRadius, 18);
+  // Condensed (owner, 2026-11-04: "condense these"): the icon beside the words, one row.
+  assert.equal(toggle.props.style.flexDirection, 'row');
   assert.notEqual(message.props.style.background, '#34d6c5', 'Message is lit');
   assert.equal(message.props.style.backgroundImage, undefined, 'Message has the sheen');
   assert.match(message.props.style.border, /^1px solid rgba\(/, 'Message is not the quiet tile');
-  assert.equal(message.props.style.borderRadius, 22);
+  assert.equal(message.props.style.borderRadius, 18);
   const [grid] = withAttr(d.nodes(), 'data-follow-actions');
+  assert.equal(grid.props.style.gridAutoRows, 'minmax(54px, auto)', 'the tiles are not condensed');
   assert.equal(grid.props.style.gridTemplateColumns, 'repeat(2, minmax(0, 1fr))', 'Follow and Message are not side by side');
   assert.equal(toggle.props.style.gridColumn, 'auto');
   // With no Message, Follow takes the row.
@@ -84,13 +87,15 @@ test('on your own page Log activity is the lit tile over two columns, Edit profi
   const [edit] = withAttr(nodes, 'data-member-edit');
   assert.equal(log.props.style.gridColumn, 'span 2');
   assert.equal(log.props.style.backgroundImage, bento.BS_MP_SHEEN);
-  assert.equal(log.props.style.boxShadow.startsWith('0 12px 26px rgba('), true);
+  assert.equal(log.props.style.boxShadow.startsWith('0 10px 22px -6px rgba('), true);
+  assert.equal(grid.props.style.gridAutoRows, 'minmax(54px, auto)', 'the tiles are not condensed');
   assert.equal(edit.props.style.backgroundImage, undefined, 'Edit profile is lit');
   assert.equal(edit.props.style.alignItems, 'center', 'Edit profile is not the narrow tile');
   assert.equal(edit.props.style.overflowWrap, 'anywhere', 'a long word ("Редактировать") runs out of the narrow tile');
   // The coach is a wide tile with the phase as chips, and still opens the coach.
   const [coach] = withAttr(nodes, 'data-member-coach');
-  assert.match(textOf(coach), /^MOCoached byMaya Okafor/);
+  // Condensed: "Coached by" and the name on one line.
+  assert.match(textOf(coach), /^MOCoached by Maya Okafor/);
   assert.equal(withAttr(nodes, 'data-member-phase').length, 1, 'the phase lost its chips');
   // The tiles keep the weights they are written with (inside BSCleanType); the counts sit outside it.
   const contains = (parent, child) => {
@@ -172,6 +177,17 @@ test('the shelf\'s cards: the head split at " · ", the proudest lit, each date 
   const icons = d.nodes().filter(named('BSMpIcon')).map((n) => n.props.name);
   assert.deepEqual(icons, ['trophy', 'award', 'award'], 'the proudest is not the trophy');
   assert.doesNotMatch(d.text, /undefined/, 'a moment with no date drew one');
+  // It fits the page (owner, 2026-11-04: "make items on the shelf fit on page, no side scrolling"):
+  // a grid, three across for three, flat cards two to a row for one, two or four; nothing scrolls.
+  const grid = (k) => withAttr(drive(bento.BSMemberShelfCards, { shelf: Array.from({ length: k }, (_, i) => ({ title: `m${i}`, when: 'Mar 2026' })), head: 'The shelf · Proudest', INK, c: '#c0533b', onC: '#fff', t: { isLight: false } }).nodes(), 'data-member-shelf')[0].props.style;
+  assert.equal(grid(3).gridTemplateColumns, 'repeat(3, minmax(0, 1fr))');
+  assert.equal(grid(4).gridTemplateColumns, 'repeat(2, minmax(0, 1fr))');
+  assert.equal(grid(2).gridTemplateColumns, 'repeat(2, minmax(0, 1fr))');
+  assert.equal(grid(1).gridTemplateColumns, 'repeat(1, minmax(0, 1fr))');
+  for (const k of [1, 2, 3, 4]) {
+    assert.equal(grid(k).display, 'grid');
+    assert.equal(grid(k).overflowX, undefined, `${k} moments scroll sideways`);
+  }
   // A head with no " · " is the head alone.
   const plain = drive(bento.BSMemberShelfCards, { shelf, head: 'Étagère', INK, c: '#c0533b', onC: '#fff', t: { isLight: true } });
   assert.equal(textOf(withAttr(plain.nodes(), 'data-shelf-head')[0]), 'Étagère');

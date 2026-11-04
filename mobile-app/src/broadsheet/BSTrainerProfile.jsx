@@ -663,18 +663,21 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {W.BSLogo ? <W.BSLogo size={16} color="#ffffff" /> : null}
               <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
             </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
-              {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
-              {isSelf ? (
-                <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
-                  style={{ width: corner, height: corner, borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)', color: '#fff', display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                </button>
-              ) : null}
-              {/* A visitor's ⚙ opens their own profile, as BSMeCorner's does; that corner itself draws a
-                  second ✦ ⌕ and in the page's ink, not white over the photo. */}
-              {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
-            </div>
+            {/* The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill). */}
+            {(() => { const Pill = W.BSMastToolPill; const tools = (
+              <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
+                {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
+                {isSelf ? (
+                  <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
+                    style={{ width: corner, height: corner, padding: 0, border: 0, background: 'transparent', color: '#fff', display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
+                    <span style={{ width: 26, height: 26, boxSizing: 'border-box', display: 'grid', placeItems: 'center', borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></span>
+                  </button>
+                ) : null}
+                {/* A visitor's ⚙ opens their own profile, as BSMeCorner's does; that corner itself draws a
+                    second ✦ ⌕ and in the page's ink, not white over the photo. */}
+                {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
+              </div>
+            ); return Pill ? <Pill ink="#ffffff">{tools}</Pill> : tools; })()}
           </div>
           {!meMode && W.BSBackRow ? (
             <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>

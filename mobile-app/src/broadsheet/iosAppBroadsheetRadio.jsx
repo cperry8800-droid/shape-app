@@ -1054,6 +1054,13 @@ function BSPlayGlyph({ playing, size = 16 }) {
 // labelled example signal (`previewSimOn`/`previewBins`), and the bar says Preview; anything else
 // (muted, a refused play, a frame we cannot read) and Reduce Motion draw the bars flat and still.
 // The loop writes a CSS variable on each bar, so a 60 Hz frame never re-renders React.
+// Builds and resumes the station's analyser inside the play tap itself, while iOS still counts it as the
+// listener's gesture, so the level meter can read the stream (Codex P2 on #2585). Called only by a tap
+// that starts sound; a failure leaves the meter flat and the sound as it was.
+function bsRadioWakeMeter() {
+  try { if (window.ShapeRadioLive && typeof window.ShapeRadioLive.analyser === 'function') window.ShapeRadioLive.analyser(); } catch (e) { /* the meter stays flat */ }
+}
+
 function useBSRadioLevel(n, playing, preview) {
   const ref = useRefBR(null);
   useEffectBR(() => {
@@ -1075,7 +1082,9 @@ function useBSRadioLevel(n, playing, preview) {
       raf = window.requestAnimationFrame(frame);
       if (document.hidden) return;
       let b = null;
-      const an = playing && window.ShapeRadioLive?.analyser ? window.ShapeRadioLive.analyser() : null;
+      // Peek, never build: an analyser built here, outside a tap, can strand the stream in a context iOS
+      // keeps suspended (Codex P2 on #2585). The play tap builds it (bsRadioWakeMeter).
+      const an = playing && window.ShapeRadioLive?.peekAnalyser ? window.ShapeRadioLive.peekAnalyser() : null;
       if (an && an.frequencyBinCount) {
         if (!bins || bins.length !== an.frequencyBinCount) bins = new Uint8Array(an.frequencyBinCount);
         an.getByteFrequencyData(bins);
@@ -1169,7 +1178,7 @@ function BSNowPlaying({ onOpen }) {
       <BSRadioLevel n={40} playing={playing} preview={preview} color={`${C.teal}38`} height="78%" gap={2} floor={0.06}
         style={{ position: 'absolute', left: 8, right: 8, bottom: 0, pointerEvents: 'none', WebkitMaskImage: 'linear-gradient(to top, #000 30%, transparent)', maskImage: 'linear-gradient(to top, #000 30%, transparent)' }} />
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, minHeight: 68, padding: '0 4px 0 10px' }}>
-        <button disabled={!act} type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); if (act) act(); }} style={{
+        <button disabled={!act} type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); if (!act) return; if (key !== 'pause') bsRadioWakeMeter(); act(); }} style={{
           position: 'relative', width: 44, height: 44, flexShrink: 0, border: 0, padding: 0, borderRadius: 999,
           background: act ? C.teal : 'transparent', color: act ? C.ground : C.cream60,
           boxShadow: act ? `0 0 18px -4px ${C.teal}` : `inset 0 0 0 1.5px ${C.cream40}`,
@@ -1308,7 +1317,7 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
         {Array.from({ length: 40 }, (_, i) => <span key={i} style={{ flex: 1, height: '100%', borderRadius: 2, background: 'rgba(244,237,224,0.1)' }} />)}
       </span>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, minHeight: 68, padding: '0 10px 0 10px' }}>
-        <button type="button" aria-label={tr('radio:screen.resume', { defaultValue: 'Resume' })} title={tr('radio:screen.resume', { defaultValue: 'Resume' })} onClick={(e) => { e.stopPropagation(); onTurnOn && onTurnOn(); }} style={{
+        <button type="button" aria-label={tr('radio:screen.resume', { defaultValue: 'Resume' })} title={tr('radio:screen.resume', { defaultValue: 'Resume' })} onClick={(e) => { e.stopPropagation(); bsRadioWakeMeter(); onTurnOn && onTurnOn(); }} style={{
           width: 44, height: 44, flexShrink: 0, border: 0, padding: 0, borderRadius: 999, cursor: 'pointer',
           background: 'transparent', color: C.cream, boxShadow: `inset 0 0 0 1.5px ${C.cream40}`, display: 'grid', placeItems: 'center',
         }}><BSPlayGlyph playing={false} size={16} /></button>
@@ -1321,7 +1330,7 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
           {np.byline ? <div style={{ marginTop: 1, fontSize: 12, lineHeight: 1.3, color: C.cream60, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.byline}</div> : null}
         </div>
         {/* Tune in — the sound is off until this tap */}
-        <button type="button" onClick={(e) => { e.stopPropagation(); onTurnOn && onTurnOn(); }} style={{
+        <button type="button" onClick={(e) => { e.stopPropagation(); bsRadioWakeMeter(); onTurnOn && onTurnOn(); }} style={{
           minHeight: 44, padding: '0 15px', flexShrink: 0, borderRadius: 999, cursor: 'pointer',
           background: `${C.teal}1a`, color: C.teal, border: `1.5px solid ${C.teal}`,
           fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
