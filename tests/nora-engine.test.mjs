@@ -387,7 +387,8 @@ function fakeDb(tables = {}, { fail = [] } = {}) {
       const run = () => {
         if (fail.includes(`${st.op}:${table}`)) return { data: null, error: { message: 'x' } };
         if (st.op === 'insert') { rows().push({ ...st.payload }); return { data: null, error: null }; }
-        const hit = rows().filter((r) => st.filters.every((f) => f(r)));
+        let hit = rows().filter((r) => st.filters.every((f) => f(r)));
+        if (st.range) hit = hit.slice(st.range[0], st.range[1] + 1);
         return { data: st.single ? (hit[0] ? { ...hit[0] } : null) : hit.map((r) => ({ ...r })), error: null };
       };
       const chain = {
@@ -399,7 +400,11 @@ function fakeDb(tables = {}, { fail = [] } = {}) {
         gte(c, v) { st.filters.push((r) => String(r[c]) >= String(v)); return chain; },
         lt(c, v) { st.filters.push((r) => String(r[c]) < String(v)); return chain; },
         lte(c, v) { st.filters.push((r) => String(r[c]) <= String(v)); return chain; },
+        neq(c, v) { st.filters.push((r) => r[c] !== v); return chain; },
+        is(c, v) { st.filters.push((r) => (v === null ? r[c] == null : r[c] === v)); return chain; },
+        or() { return chain; },
         order() { return chain; },
+        range(a, b) { st.range = [a, b]; return chain; },
         limit() { return chain; },
         maybeSingle() { st.single = true; return chain; },
         then(res, rej) { return Promise.resolve(run()).then(res, rej); },
@@ -466,8 +471,9 @@ test('the play report: one month, CSV, formulas defused', LIMIT, async () => {
   const r = await playsCsv(db, '2026-10');
   assert.equal(r.count, 1);
   const lines = r.body.trim().split('\r\n');
-  assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Nora set,Rotation block');
-  assert.equal(lines[1], `2026-10-12T18:00:00.000Z,"X, the Band","'=HYPERLINK(""x"")",USRC17607839,"Say ""hi""",,${SET_ID},`);
+  assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Actual total performances,Nora set,Rotation block');
+  // Her set before Shape's own station measured anything (radio.co's): no count, blank.
+  assert.equal(lines[1], `2026-10-12T18:00:00.000Z,"X, the Band","'=HYPERLINK(""x"")",USRC17607839,"Say ""hi""",,,${SET_ID},`);
   assert.equal((await playsCsv(db, 'oct')).status, 400);
 });
 

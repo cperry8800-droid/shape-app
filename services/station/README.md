@@ -31,8 +31,8 @@ GMR, and PRS and PPL for the UK. Nothing plays until they are confirmed on that 
    192 kbps, so 100 people listening around the clock is about 6 TB a month.
 2. **A name.** Add a DNS `A` record, for example `radio.theshapecommunity.com`, pointing at the
    server. Open ports 80 and 443.
-3. **Run the migration** `supabase-migrations/2026-11-03-radio-rotation.sql` on Supabase (after the
-   three in `../nora-engine/README.md`).
+3. **Run the migrations** `supabase-migrations/2026-11-03-radio-rotation.sql`, then
+   `2026-11-03-radio-listens.sql`, on Supabase (after the three in `../nora-engine/README.md`).
 4. **The engine token.** If the Shape project on Vercel has no `NORA_ENGINE_TOKEN` yet, make one
    (`openssl rand -hex 32`), add it there and redeploy.
 5. **On the server**, copy this folder (or clone the repository) and fill in `.env`:
@@ -97,6 +97,22 @@ log them twice.
 - **The territory.** Members outside the US and the UK get no stream: the app and website say
   Shape Radio isn't available in their region yet. The country is the one Vercel measures for each
   connection, so a shared address plays nowhere else either.
+
+## Every performance counted
+
+SoundExchange is paid per performance: one song, any part of it, to one listener. So the station
+tells Shape as each listener joins and as each one leaves (with how long they stayed), and Shape
+keeps each session (`radio_listens`: times only, no account and no address). The monthly report,
+**Admin → Nora's library → Play reports**, lists every song played with its **Actual total
+performances**: the sessions that heard any part of it. Its **totals** add the month's listening
+hours (aggregate tuning hours).
+
+- Every doubt counts as a performance. A song counts from the moment the engine started it to the
+  end of its blend into the next (or its stop), plus the listener's few seconds' delay. A session
+  whose end never reached Shape (a crash, Shape out of reach) counts until the station next
+  starts. The dashboard shows how many are open over 12 hours.
+- The station signs in on these calls with `NORA_ENGINE_TOKEN`, and names each start of itself
+  on them. Shape refuses a call without both.
 
 **Privacy:** the station's server sees each listener's IP address and device, as radio.co did.
 When you switch, the subprocessors page (`public/subprocessors.html`) should name your station's

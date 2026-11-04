@@ -218,9 +218,17 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
         <div className="text-xs text-neutral-500">
           Play reports for SoundExchange:{' '}
           <a className="text-teal-300 hover:text-teal-200" href={`/api/admin/radio/plays?month=${thisMonth}`}>{thisMonth}</a>
-          {' · '}
+          {' ('}
+          <a className="text-teal-300 hover:text-teal-200" href={`/api/admin/radio/plays?month=${thisMonth}&summary=1`}>totals</a>
+          {') · '}
           <a className="text-teal-300 hover:text-teal-200" href={`/api/admin/radio/plays?month=${lastMonth}`}>{lastMonth}</a>
-          {' '}(every song Nora played; the listener counts come from radio.co’s statistics)
+          {' ('}
+          <a className="text-teal-300 hover:text-teal-200" href={`/api/admin/radio/plays?month=${lastMonth}&summary=1`}>totals</a>
+          {')'}
+          <div>
+            Every song played, each with its performances: the listeners who heard any part of it, counted by Shape’s own station.
+            The totals add the month’s listening hours. On radio.co, the listener counts come from radio.co’s statistics, and the column is blank.
+          </div>
         </div>
       </div>
 

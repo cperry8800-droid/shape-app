@@ -56,9 +56,16 @@
              their player as it connected (?ticket=, src/lib/radio/pass.mjs: Shape checked their
              membership and their country first); Icecast asks Shape whether it is good before
              letting them in, falling back to the standby loop or not. Shape answers with the
-             header below to admit; anything else, or no answer at all, refuses. -->
+             header below to admit; anything else, or no answer at all, refuses.
+             ⚠ AND EVERY SESSION IS KEPT (part 4, src/lib/radio/listens.mjs): Icecast tells Shape as
+             each listener leaves, with how long they stayed, for the performances the SoundExchange
+             report counts for every play. Each call signs in as the station (the engine's token),
+             and its address names this start of the station (?boot=, entrypoint.sh). -->
         <authentication type="url">
             <option name="listener_add" value="${LISTENER_AUTH_URL}" />
+            <option name="listener_remove" value="${LISTENER_AUTH_URL}" />
+            <option name="username" value="station" />
+            <option name="password" value="${STATION_TOKEN}" />
             <option name="auth_header" value="icecast-auth-user: 1" />
         </authentication>
         <fallback-mount>/standby</fallback-mount>
