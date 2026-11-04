@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Ø erfasst · 7 T",
   "roster.workouts6w": "{count, plural, one {# Training} other {# Trainings}} in 6 Wo.",
   "roster.avgKcal": "Ø {kcal} kcal",
+  "roster.clientsNeedYou": "{count, plural, one {# Klient braucht dich} other {# Klienten brauchen dich}}",
+  "roster.phaseAria": "Nach Phase filtern",
   "editor.nightBefore": "AM VORABEND VORBEREITEN",
   "editor.nightBeforeShape": "AM VORABEND VORBEREITET · SHAPE-REZEPT",
   "editor.nightBeforeAria": "{name} am Vorabend vorbereiten",

@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Matsakaicin rubutu · kwana 7",
   "roster.workouts6w": "{count, plural, one {Motsa jiki #} other {Motsa jiki #}} a mako 6",
   "roster.avgKcal": "Matsakaici {kcal} kcal",
+  "roster.clientsNeedYou": "{count, plural, one {Abokin ciniki # yana buƙatarka} other {Abokan ciniki # suna buƙatarka}}",
+  "roster.phaseAria": "Tace ta mataki",
   "editor.nightBefore": "A SHIRYA DAREN DA YA GABATA",
   "editor.nightBeforeShape": "ANA SHIRYA SHI DAREN DA YA GABATA · GIRKIN SHAPE",
   "editor.nightBeforeAria": "A shirya {name} daren da ya gabata",

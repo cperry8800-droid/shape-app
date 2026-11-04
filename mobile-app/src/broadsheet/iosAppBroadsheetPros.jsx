@@ -31,7 +31,8 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProClients } from './BSProClients.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -2581,8 +2582,6 @@ function useBSProRoster(role) {
   const matches = loadedFor === `${uid}:${role}`;
   return { clients: signedIn ? (matches ? live || [] : []) : bsDemoRoster(role, t), status: signedIn ? (matches ? status : 'loading') : 'ready', retry: () => setReload(n => n + 1) };
 }
-// Card-based coach roster — header, search, scrollable filter pills (scrollbar
-// hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
 // The coach's corner settings gear — opens Settings (the shells listen for the
 // event). The chrome's BSSettingsCorner, as on every page's corner (owner: "make
 // the settings avatar something different in top right").
@@ -2591,10 +2590,6 @@ function BSProSettingsButton({ size = 38 }) {
   const Gear = typeof window !== 'undefined' ? window.BSSettingsCorner : null;
   return Gear ? <Gear size={size} onClick={open} /> : null;
 }
-// The Client Index — the owner's Clients mockup C (2026-10-25): three tabs (Needs you · On track ·
-// Past), a search field and the phase filters; Needs you groups its clients by how soon (reach out
-// today, this week, new clients), each a row that opens the client, with a Message button for the
-// first group. The parent's state/logic (query/filter/needsYou/roster/counts/onOpen) is unchanged.
 // Stable no-op fallback for the in-view hook, so BSProRosterView can call it
 // UNCONDITIONALLY (rules of hooks) even if the client-bundle kit isn't present.
 function bsUseSdInViewFallback() { return [null, true]; }
@@ -2618,32 +2613,34 @@ function BSProPayRetryMark({ c }) {
   return <span data-pay-retry="" style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:roster.paymentRetrying', { defaultValue: 'Payment retrying' })}</span>;
 }
 
-function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients, allClients = null, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
+// ⚠ THE CLIENTS PAGE (owner, 2026-11-04, of three looks drawn for it: "C for clients"). BSProClients.jsx
+// draws it: who needs you first (their faces and how many, the other two figures under them), the four
+// views, the search with the phase beside it, and every client in one compact list with Message on each.
+// This view works out what it shows (the roster, the views and their counts, the groups and their order,
+// the figures, each row's facts and figure) and owns every door (a client's file, Message, ＋ Add, the
+// views, Clear filters), and hands them over as the model.
+function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients, allClients = null, activeCount, pastCount, totalCount, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBSProClean();
   const tr = useShapeTr();
   const heat = bsProHeat(t, role);
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
-  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
 
   // The client's age, as a string, or null when there is none to show.
-  // ⚠ A STRING, NOT THE NUMBER: every row below composes its meta through
-  // `.filter(Boolean)`, and a bare 0 would be dropped by it — 0 is a real age.
-  // `_age` is absent for demo rows and for anyone the roster read could not
-  // answer for; absence renders as nothing, never as a placeholder or "private".
+  // ⚠ A STRING, NOT THE NUMBER: a row composes its words through `.filter(Boolean)`, and a bare 0 would
+  // be dropped by it — 0 is a real age. `_age` is absent for demo rows and for anyone the roster read
+  // could not answer for; absence renders as nothing, never as a placeholder or "private".
   const ageWord = (c) => (typeof c._age === 'number' ? String(c._age) : null);
 
   const [expanded, setExpanded] = useStateBSP(false);
   const [showAdd, setShowAdd] = useStateBSP(false);
-  // The tab (owner, 2026-10-25, the Clients mockup C): Needs you · On track · Past. `null` opens on
-  // Needs you whenever anyone needs the coach, else on On track. Past is the parent's roster state.
+  // The view: Needs you · On track · Past · All. `null` opens on Needs you whenever anyone needs the
+  // coach, else on On track. Past is the parent's roster state.
   const [view, setView] = useStateBSP(null);
 
-  // ＋ADD opens the real add-client sheet (invite a member with your listing attached, or share the link).
+  // ＋ Add opens the real add-client sheet (invite a member with your listing attached, or share the link).
   const goGrowRoster = () => setShowAdd(true);
   const messageClient = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId || null, n: c.n } } })); } catch (e) {} };
 
-  const SEV_HUE = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' };
-  const sevText = (s) => (t.isLight ? { red: '#9c3b26', amber: '#7a5205', new: '#2c6436' } : { red: '#e98a73', amber: '#e8c06a', new: '#86c995' })[s] || t.INK70;
   const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
   // In PAST mode `clients` holds past records (all sev 'past') — they'd be dropped by
   // both the needs and on-track filters, so route them to their own list instead.
@@ -2652,7 +2649,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');
   const pastRows = pastMode ? rows : [];
   // Every current client in one list (owner, 2026-10-31: "client page should include a tab or
-  // section that shows total current clients"): the tabs split them by what they need, this is all.
+  // section that shows total current clients"): the views split them by what they need, this is all.
   const allRows = pastMode ? [] : rows.filter((r) => r.sig.sev !== 'past');
   const k = needsRows.length;
   const m = onTrackRows.length;
@@ -2665,29 +2662,19 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     { sev: 'amber', label: tr('coach:roster.groupAmber', { defaultValue: 'This week' }) },
     { sev: 'new', label: tr('coach:roster.groupNew', { defaultValue: 'New clients' }) },
   ];
-
-  const tab = (key, label, count, onPick) => {
-    const on = activeView === key;
-    return (
-      // A compact chip, as concept A drew them (owner, 2026-11-03: "the filter options looks much
-      // different"): 34px to see, the button around it 44px to tap.
-      <button key={key} type="button" role="tab" aria-selected={on} onClick={onPick}
-        style={{ flexShrink: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 12px', boxSizing: 'border-box', border: `1px solid ${on ? t.INK : t.INK50}`, borderRadius: 4, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-          {label}{count != null ? <span style={{ color: !on && key === 'needs' && count > 0 ? sevText('red') : 'inherit' }}>&nbsp;{count}</span> : null}
-        </span>
-      </button>
-    );
+  const pickTab = {
+    needs: () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); },
+    track: () => { setView('track'); if (pastMode) setRoster('active'); },
+    past: () => { if (!pastMode) setRoster('past'); },
+    all: () => { setView('all'); if (pastMode) setRoster('active'); },
   };
-  // A client row: the whole row opens the client; marks ride inside it (a payment that is retrying,
-  // a weekend gap, a variable week). A client to reach out to today also gets a Message button.
+
   // ⚠ MORE ABOUT EACH CLIENT (owner, 2026-10-31: "this page needs to have more information on
-  // clients"). A row named the client, what to do and the phase. It now also says what the roster
-  // knows: their program and streak, their workouts in the last six weeks (a trainer) or average
-  // intake (a nutritionist), since when they have been a client, and the coach's own figure (training
-  // adherence, or days logged this week) as a number with a bar. Nothing is made up: a fact the
-  // roster lacks is left out. The live reads hold no program or streak for a coach yet (Codex on
-  // #2532; War Room), so a live row says what they do hold.
+  // clients"). What the roster knows: their program and streak, their workouts in the last six weeks
+  // (a trainer) or average intake (a nutritionist), since when they have been a client, and the coach's
+  // own figure (training adherence, or days logged this week). Nothing is made up: a fact the roster
+  // lacks is left out. The live reads hold no program or streak for a coach yet (Codex on #2532; War
+  // Room), so a live row says what they do hold.
   const rowAdh = (c) => (typeof c.adh === 'number' ? c.adh : (/^\d{1,3}%$/.test(String(c.d || '')) ? Number(String(c.d).slice(0, -1)) : null));
   const rowFacts = (c) => {
     let since = null;
@@ -2711,187 +2698,36 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
       since ? tr('coach:roster.since', { defaultValue: 'Since {date}', date: since }) : null,
     ].filter(Boolean);
   };
-  // The coach's figure as a ten-tick meter over the number (direction A): ink when it holds, amber when it
-  // slips, red under half. The roster reads one figure a client, not their days, so the meter is that figure.
-  const weekFigure = (c) => {
-    const pct = rowAdh(c);
-    if (pct == null || pastMode) return null;
-    const hue = pct >= 75 ? t.INK : pct >= 50 ? SEV_HUE.amber : SEV_HUE.red;
-    return (
-      <span data-roster-week="" style={{ flexShrink: 0, minWidth: 56, textAlign: 'right', paddingRight: 2 }}>
-        <BSProMeter t={t} pct={pct} hue={hue} />
-        <span style={{ display: 'block', marginTop: 5, fontFamily: BS_GAUGE_FACE, fontSize: 18, fontWeight: 400, letterSpacing: '-0.01em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
-        <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{(c.adhSrc || (role === 'nutritionist' ? 'log' : 'train')) === 'log' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })}</span>
-      </span>
-    );
-  };
-  // The deck's figures read the whole current roster, whatever the tab, phase or search shows: who needs
-  // the coach, the average of the coach's own measure (adherence, or days logged) over the clients it is
-  // known for, and how many are active.
+  // A row's marks: a weekend gap (the rust FLAG) and a variable week (a WATCH-tier signal, something to
+  // coach, not a failure; `steady` says nothing, never-shaming).
+  const marks = (c) => [
+    c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged
+      ? { k: 'wknd', tone: 'red', text: tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) }) } : null,
+    c._var && c._var.band === 'variable' ? { k: 'var', tone: 'amber', text: tr('coach:roster.variable', { defaultValue: 'VARIABLE' }) } : null,
+  ].filter(Boolean);
+  // The figures read the whole current roster, whatever the view, phase or search shows: who needs the
+  // coach, the average of the coach's own measure (adherence, or days logged) over the clients it is known
+  // for, and how many are active.
   const deckPool = (allClients || clients).filter((c) => c.active !== false && bsRowSeverity(c, role).sev !== 'past');
   const deckNeed = deckPool.filter((c) => bsProNeedsAttention(bsRowSeverity(c, role))).length;
   const deckMeasure = role === 'nutritionist' ? 'log' : 'train';
   const deckAdh = deckPool.filter((c) => (c.adhSrc || deckMeasure) === deckMeasure).map(rowAdh).filter((v) => v != null);
   const deckAvg = deckAdh.length ? Math.round(deckAdh.reduce((x, y) => x + y, 0) / deckAdh.length) : null;
-  const deckReady = status === 'ready';
-  const clientRow = ({ c, sig }, i, { lead = true, message = false } = {}) => (
-    <div key={`${activeView}-${c.n}-${i}`} data-roster-sev={sig.sev} style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: `1px solid ${t.RULE}`, borderLeft: `3px solid ${sig.sev === 'red' || sig.sev === 'amber' ? SEV_HUE[sig.sev] : 'transparent'}`, background: sig.sev === 'red' ? `${SEV_HUE.red}12` : 'transparent' }}>
-      <button type="button" onClick={() => onOpen(c)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, minHeight: lead ? 66 : 54, padding: lead ? '10px 4px 10px 12px' : '8px 4px 8px 14px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-        {lead
-          ? <BSFacetAvatar size={40} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
-          : <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, background: pastMode ? t.INK70 : SEV_HUE.new }} />}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: lead ? 700 : 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {c.n}{ageWord(c) ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}> · {ageWord(c)}</span> : null}
-          </span>
-          {lead && sig.directive ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{sig.directive}</span> : null}
-          {(() => { const facts = rowFacts(c); return facts.length ? <span data-roster-facts="" style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{facts.join(' · ')}</span> : null; })()}
-          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 3 }}>
-            {(() => { const meta = c.r || (pastMode ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : null); return meta ? <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK70 }}>{meta}</span> : null; })()}
-            {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: sevText('red'), whiteSpace: 'nowrap' }}>{tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) })}</span>
-            )}
-            {/* WATCH-tier signal, deliberately NOT the rust FLAG colour — a variable week-to-week
-                pattern is something to coach, not a failure. `steady` renders nothing (never-shaming). */}
-            {c._var && c._var.band === 'variable' && (
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: sevText('amber'), whiteSpace: 'nowrap' }}>{tr('coach:roster.variable', { defaultValue: 'VARIABLE' })}</span>
-            )}
-            <BSProPayRetryMark c={c} />
-          </span>
-        </span>
-        {weekFigure(c)}
-        {!message && <span aria-hidden style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, lineHeight: 1, color: t.INK70, paddingRight: 6 }}>›</span>}
-      </button>
-      {message && (
-        <button type="button" onClick={() => messageClient(c)} aria-label={tr('coach:roster.messageAria', { defaultValue: 'Message {name}', name: c.n })}
-          style={{ width: 44, height: 44, flexShrink: 0, marginRight: 8, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16v11H9.5L4 20z" /></svg>
-        </button>
-      )}
-    </div>
-  );
-  // A group's rows as a ledger: a 2px ink rule over hairline rows (direction A).
-  const card = (children) => <div data-roster-ledger="" style={bsProLedgerTop(t)}>{children}</div>;
-  const quiet = (label) => (Redact ? <Redact INK={t.INK} label={label} /> : (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-      <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.RULE}` }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
-      <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.RULE}` }} />
-    </div>
-  ));
 
   return (
-    <BSPage>
-      {/* Header — the mast row on the paper, then the deck (direction A): "Clients." with ＋ Add (≥44px) and
-          the roster's three figures. The mast row needs the standard top / t.padX inset (BSPage provides no top
-          padding) so it clears the notch; it stays on the paper, under the status bar's own colours. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
-      <BSProCleanType t={t}>
-      <BSProDeck t={t} role={role} tour="hero-clients" title={tr('coach:nav.clients', { defaultValue: 'Clients' })}
-        aside={<button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(bsDeckTeal(t)) }}>＋ {tr('coach:head.add', { defaultValue: 'Add' })}</button>}>
-        <BSProDeckGauges t={t} items={[
-          { key: 'need', value: deckReady ? String(deckNeed) : '—', label: tr('coach:today.needYou', { defaultValue: 'NEED YOU' }), color: deckReady && deckNeed ? '#f08f76' : undefined },
-          { key: 'avg', value: deckReady && deckAvg != null ? `${deckAvg}%` : '—', label: role === 'nutritionist' ? tr('coach:roster.kpiAvgLogged', { defaultValue: 'Avg logged · 7d' }) : tr('coach:roster.kpiAvgAdherence', { defaultValue: 'Avg adherence' }) },
-          { key: 'active', value: deckReady ? String(Number(activeCount) || 0) : '—', label: tr('coach:ticker.active', { defaultValue: 'ACTIVE' }) },
-        ]} />
-        <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={status} onRetry={onRetry} /></div>
-      </BSProDeck>
-
-      {/* The four tabs — what needs the coach, who is holding, past clients, and every current client:
-          compact chips in concept A's order, the pick in ink. */}
-      <div role="tablist" aria-label={tr('coach:roster.viewAria', { defaultValue: 'Roster view' })} data-roster-view={activeView} className="bs-hide-scroll"
-        style={{ margin: `12px ${t.padX}px 0`, display: 'flex', gap: 6, overflowX: 'auto' }}>
-        {tab('needs', tr('coach:roster.tabNeeds', { defaultValue: 'Needs you' }), pastMode ? null : k, () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); })}
-        {tab('track', tr('coach:roster.tabTrack', { defaultValue: 'On track' }), pastMode ? null : m, () => { setView('track'); if (pastMode) setRoster('active'); })}
-        {tab('past', tr('coach:roster.tabPast', { defaultValue: 'Past' }), pastCount, () => { if (!pastMode) setRoster('past'); })}
-        {tab('all', tr('coach:roster.tabAll', { defaultValue: 'All' }), pastMode ? null : allRows.length, () => { setView('all'); if (pastMode) setRoster('active'); })}
-      </div>
-
-      {/* Search, then the phase filters. */}
-      <label style={{ margin: `6px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
-        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('coach:roster.searchAria', { defaultValue: 'Search clients' })} placeholder={tr('coach:roster.searchPlaceholder', { defaultValue: 'Search {count} clients', count: totalCount })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
-      </label>
-      <div className="bs-hide-scroll" style={{ margin: `6px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto' }}>
-        {filters.map((f) => {
-          const on = filter === f.k;
-          return (
-            <button key={f.k} type="button" aria-pressed={on} onClick={() => setFilter(f.k)} style={{ flexShrink: 0, minWidth: 44, minHeight: 44, padding: '0 10px', border: 0, borderBottom: `2px solid ${on ? heat : 'transparent'}`, borderRadius: 0, background: 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{f.label}</button>
-          );
-        })}
-        {(query || filter !== 'all' || needsYou) && <button type="button" onClick={() => { setQuery(''); setFilter('all'); setNeedsYou(false); }} style={bsProLink(t)}>{tr('coach:roster.clearFilters', { defaultValue: 'Clear filters' })}</button>}
-      </div>
-
-      <div style={{ padding: `0 ${t.padX}px 24px` }}>
-        {/* Filtered-to-empty (an active roster with no matches) — NOT the zero-roster case (below). */}
-        {!pastMode && rows.length === 0 && totalCount > 0 && <div style={{ marginTop: 22 }}>{quiet(tr('coach:roster.noMatching', { defaultValue: 'NO MATCHING CLIENTS' }))}</div>}
-
-        {/* NEEDS YOU — grouped by how soon: reach out today, this week, new clients. */}
-        {activeView === 'needs' && rows.length > 0 && (
-          <>
-            {GROUPS.map(({ sev, label }) => {
-              const group = needsRows.filter((r) => r.sig.sev === sev);
-              if (!group.length) return null;
-              return (
-                <div key={sev} data-roster-group={sev} style={{ marginTop: 20 }}>
-                  <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{label}{bsProCount(t, group.length, sevText(sev))}</h2>
-                  {card(group.map((r, i) => clientRow(r, i, { message: sev === 'red' })))}
-                </div>
-              );
-            })}
-            {k === 0 && <p style={{ margin: '20px 0 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.nobodyNeeds', { defaultValue: 'Nobody needs you right now.' })}</p>}
-            {m > 0 && (
-              <button type="button" onClick={() => setView('track')} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.everyoneElse', { defaultValue: 'Everyone else is on track.' })}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK }}>{tr('coach:roster.seeCount', { defaultValue: 'See {count} →', count: m })}</span>
-              </button>
-            )}
-          </>
-        )}
-
-        {/* ALL — every current client in one card, those who need the coach first. */}
-        {activeView === 'all' && rows.length > 0 && (
-          <div data-roster-group="all" style={{ marginTop: 20 }}>
-            <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{tr('coach:roster.groupAll', { defaultValue: 'Current clients' })}{bsProCount(t, allRows.length, t.INK)}</h2>
-            {allRows.length > 0 ? card(allRows.map((r, i) => clientRow(r, i, { lead: true, message: r.sig.sev === 'red' }))) : null}
-          </div>
-        )}
-
-        {/* ON TRACK — quiet rows in one card, the first eight then the rest on a tap. */}
-        {activeView === 'track' && rows.length > 0 && (
-          <div data-roster-group="track" style={{ marginTop: 20 }}>
-            {onTrackRows.length > 0 ? card(trackShown.map((r, i) => clientRow(r, i, { lead: false }))) : <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.noneOnTrack', { defaultValue: 'Nobody is on track yet. Start with Needs you.' })}</p>}
-            {trackMore > 0 && (
-              <button type="button" onClick={() => setExpanded(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 2px 0', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:roster.moreOnTrack', { defaultValue: '{count} MORE ON TRACK', count: trackMore })}</span>
-                <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.RULE}` }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK }}>{tr('coach:roster.show', { defaultValue: 'SHOW ›' })}</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* PAST — the coach's past clients (the parent's roster is 'past' here). */}
-        {pastMode && status === 'ready' && (
-          <div data-roster-group="past" style={{ marginTop: 20 }}>
-            {pastRows.length > 0 ? card(pastRows.map((r, i) => clientRow(r, i, { lead: false }))) : quiet(tr('coach:roster.noPast', { defaultValue: 'NO PAST CLIENTS' }))}
-          </div>
-        )}
-
-        {/* Signed-in empty roster — redaction line + Grow your roster →. */}
-        {status === 'ready' && totalCount === 0 && (
-          <div style={{ marginTop: 20 }}>
-            {quiet(tr('coach:roster.noClients', { defaultValue: 'NO CLIENTS YET' }))}
-            <button type="button" onClick={goGrowRoster} style={{ display: 'block', margin: '10px auto 0', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK }}>
-              <span style={{ borderBottom: `1.5px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:roster.growRoster', { defaultValue: 'Grow your roster →' })}</span>
-            </button>
-          </div>
-        )}
-      </div>
-      </BSProCleanType>
-      <BSFooter left={footerLeft} right={footerRight} />
-      {showAdd && <BSProAddClientSheet role={role} onClose={() => setShowAdd(false)} />}
-    </BSPage>
+    <BSProClients t={t} model={{
+      role, status, onRetry, pastMode, activeView, pickTab, k, m, pastCount, totalCount,
+      rows, needsRows, onTrackRows, pastRows, allRows, trackShown, trackMore, expandTrack: () => setExpanded(true), groups: GROUPS,
+      deck: { ready: status === 'ready', need: deckNeed, avg: deckAvg, active: Number(activeCount) || 0 },
+      // Who the figures count as needing the coach, most urgent first: their faces at the top.
+      needPool: deckPool.map((c) => ({ c, sig: bsRowSeverity(c, role) })).filter((r) => bsProNeedsAttention(r.sig)).sort((a, b) => a.sig.rank - b.sig.rank),
+      query, setQuery, filter, setFilter, filters, filtered: !!(query || filter !== 'all' || needsYou),
+      clearFilters: () => { setQuery(''); setFilter('all'); setNeedsYou(false); },
+      onOpen, messageClient, goGrowRoster, showAdd, closeAdd: () => setShowAdd(false),
+      rowFacts, rowAdh: (c) => (pastMode ? null : rowAdh(c)), ageWord, marks,
+      weekLabel: (c) => ((c.adhSrc || deckMeasure) === 'log' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })),
+      heat, footerLeft, footerRight,
+    }} kit={{ mastRow: bsProMastRow, PayRetry: BSProPayRetryMark, AddSheet: BSProAddClientSheet }} />
   );
 }
 
@@ -2909,7 +2745,6 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
 function BSProAddClientSheet({ role, onClose }) {
   const t = useBS();
   const tr = useShapeTr();
-  const heat = bsProHeat(t, role);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const [mine, setMine] = useStateBSP(undefined); // undefined = loading · null = no provider row
@@ -3103,84 +2938,152 @@ function BSProAddClientSheet({ role, onClose }) {
       window.__bsToast?.(tr('coach:addClient.shareFailed', { defaultValue: 'Couldn’t share or copy the link — it’s also on your Business page.' }), 'err');
     }
   };
+  // ⚠ THE SHEET IN THE MEMBER PROFILE'S LOOK (owner, 2026-11-04, of this sheet: "this needs update", and of
+  // every redesign: "simple … modern, appealing, easy to navigate, not overwhelming, not analog … really alive").
+  // It was mono capitals, amber-ruled notes and dashed boxes. Now: a friendly head with its icon, the notices
+  // as soft callouts, the member search as a rounded field whose matches are rows with their facet avatar and
+  // an Invite pill, and the three ways to send the link as rounded buttons with their icons. Every state and
+  // door above is unchanged: the listing check and its notice, the search's three answers, invite and Retry
+  // 0% tag, the 0% pitch or its unavailable note, email, text, share or copy, close.
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
+  const L = !!t.isLight;
+  const inkA = (a) => `rgba(${t.inkRGB || (L ? '20,18,15' : '242,237,228')},${a})`;
+  const isNutri = role === 'nutritionist';
+  // The role's colour as words (AA on the paper) and as a lit pill (its fill and the words on it).
+  const heatText = isNutri ? (L ? '#7a5a1e' : '#e3c477') : (L ? '#9c3b26' : '#f09a84');
+  const heatFill = isNutri ? (L ? { bg: '#86641f', fg: '#ffffff' } : { bg: '#d8b25a', fg: '#1f1606' }) : (L ? { bg: '#b8452c', fg: '#ffffff' } : { bg: '#ff8a70', fg: '#2a0d06' });
+  const amber = L ? '#b07810' : '#f2b84b';
+  const tealText = L ? '#07706a' : '#34d6c5';
+  // Light given off: a soft tinted shadow on a light paper, a halo on a dark one (hex colours only).
+  const softGlow = (c) => (L ? `0 8px 18px -10px ${c}` : `0 0 16px ${c}73`);
+  const tile = { borderRadius: 18, background: L ? 'rgba(255,255,255,0.8)' : inkA(0.06), border: `1px solid ${inkA(L ? 0.08 : 0.1)}`, boxShadow: L ? '0 1px 2px rgba(20,18,15,0.05), 0 12px 26px -20px rgba(20,18,15,0.45)' : 'inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 30px -22px rgba(0,0,0,0.9)' };
+  const head = (label) => <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{label}</span>;
+  // A soft callout: a tinted round box with its mark, the words in the clean face at a readable size.
+  const callout = (tone, mark, words, key) => (
+    <div data-add-callout={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 16, background: `${tone}${L ? '14' : '1f'}`, border: `1px solid ${tone}${L ? '33' : '40'}` }}>
+      <span aria-hidden="true" style={{ flex: 'none', minWidth: 26, height: 26, padding: '0 4px', boxSizing: 'border-box', borderRadius: 99, display: 'grid', placeItems: 'center', background: `${tone}${L ? '24' : '33'}`, color: L ? t.INK : tone, fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 800 }}>{mark}</span>
+      <span style={{ flex: 1, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 500, lineHeight: 1.45, color: t.INK }}>{words}</span>
+    </div>
+  );
+  const pill = (fill, extra) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, padding: '0 15px', borderRadius: 99, boxSizing: 'border-box', whiteSpace: 'nowrap', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1, ...(fill ? { background: fill.bg, color: fill.fg, boxShadow: softGlow(fill.bg) } : null), ...(extra || null) });
+  const hit = { minHeight: 44, minWidth: 44, padding: 0, border: 0, background: 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' };
+  const icon = (d, size = 20, sw = 2) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+  const channels = [
+    { key: 'email', label: tr('coach:addClient.emailIt', { defaultValue: 'Email it' }), onTap: emailIt, d: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7l8 6 8-6" /></> },
+    { key: 'text', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt, d: <path d="M4 5h16v11H9.5L4 20z" /> },
+    { key: 'share', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing, d: <><path d="M12 3v12" /><path d="M7.5 7.5L12 3l4.5 4.5" /><path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></> },
+  ];
+  const sheetCss = `
+@keyframes bsadd-up { from { transform: translateY(40px); opacity: 0.6; } }
+@keyframes bsadd-fade { from { opacity: 0; } }
+@keyframes bsadd-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes bsadd-dot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+[data-add-client] button { -webkit-tap-highlight-color: transparent; }
+[data-add-client] button:focus-visible, [data-add-client] input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+[data-add-client] [data-add-press] { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+[data-add-client] [data-add-press]:not(:disabled):active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { [data-add-client], [data-add-client] * { animation: none !important; transition: none !important; } }
+`;
   const sheet = (
-    <div onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: heat }}>{tr('coach:addClient.eyebrow', { defaultValue: 'Grow your roster' })}</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>{tr('coach:addClient.title', { defaultValue: 'Add a client.' })}</div>
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.6 }}>{tr('coach:addClient.blurb', { defaultValue: 'Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.' })}</div>
-        {mine === null && (
-          <div style={{ marginTop: 12, padding: '10px 12px', borderLeft: `3px solid ${t.AMBER || heat}`, background: t.PAPER2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-            {tr('coach:addClient.noListing', { defaultValue: "No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved." })}
+    <div data-add-client="" onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', animation: 'bsadd-fade 220ms ease-out both' }}>
+      <style>{sheetCss}</style>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} data-bs-clean="" className="bs-hide-scroll"
+        style={{ position: 'relative', width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: L ? `linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0) 160px), ${t.PAPER}` : `linear-gradient(180deg, ${inkA(0.07)}, ${inkA(0)} 160px), ${t.PAPER}`, borderTopLeftRadius: 28, borderTopRightRadius: 28, boxShadow: L ? '0 -18px 40px -20px rgba(20,18,15,0.45), inset 0 1px 0 rgba(255,255,255,1)' : '0 -20px 44px -18px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.1)', padding: `10px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, animation: 'bsadd-up 300ms cubic-bezier(.2,.8,.2,1) both' }}>
+        <span aria-hidden="true" style={{ display: 'block', width: 40, height: 5, margin: '0 auto 12px', borderRadius: 99, background: inkA(0.18) }} />
+        {/* The head: its icon, who this is for, the title, and ✕. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <span aria-hidden="true" style={{ flex: 'none', width: 48, height: 48, borderRadius: 16, display: 'grid', placeItems: 'center', background: `linear-gradient(150deg, ${heatFill.bg}, ${L ? '#0a7a72' : '#1fb3a3'})`, color: '#fff', boxShadow: `${softGlow(heatFill.bg)}, inset 0 1px 0 rgba(255,255,255,0.35)` }}>
+            {icon(<><circle cx="10" cy="8" r="3.6" /><path d="M3.5 20c.8-3.6 3.4-5.6 6.5-5.6 1.5 0 2.9.4 4 1.3" /><path d="M18 14v6M15 17h6" /></>, 24, 2.1)}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, color: heatText }}>{tr('coach:addClient.eyebrow', { defaultValue: 'Grow your roster' })}</div>
+            <h2 style={{ margin: '2px 0 0', fontFamily: BS_PRO_HEAD, fontSize: 26, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.1, color: t.INK }}>{tr('coach:addClient.title', { defaultValue: 'Add a client.' })}</h2>
           </div>
-        )}
-        <label style={{ display: 'block', marginTop: 14 }}>
-          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>{tr('coach:addClient.inviteLabel', { defaultValue: 'Invite a member on Shape' })}</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('coach:addClient.searchPlaceholder', { defaultValue: 'Search members by name…' })} autoComplete="off"
-            style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-        </label>
-        {searching && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.searching', { defaultValue: 'Searching…' })}</div>}
-        {/* The refusal/failure notice renders AHEAD of the empty state — reversing
-            these two puts "No members match" on screen for a search that never
-            ran, which is the claim this whole change exists to stop making. */}
-        {!searching && searchState !== 'ok' && (
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>
-            {searchState === 'limited'
-              ? tr('coach:addClient.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
-              : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." })}
-          </div>
-        )}
-        {!searching && searchState === 'ok' && results && results.length === 0 && (
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:addClient.noMembers', { defaultValue: 'No members match — share your listing link instead.' })}</div>
-        )}
-        {!searching && (results || []).map((p) => (
-          <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
-            {FA
-              ? <FA size={34} c={teal} initial={(p.name || 'M').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()} photo={p.avatar || undefined} showRank={false} />
-              : <span style={{ width: 34, height: 34, borderRadius: 10, background: teal, color: '#06110e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{(p.name || 'M').slice(0, 1).toUpperCase()}</span>}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
+          <button type="button" data-add-close="" onClick={onClose} aria-label={tr('coach:common.close', { defaultValue: 'Close' })} style={{ ...hit, marginTop: -4, marginRight: -6, cursor: 'pointer', color: t.INK70 }}>
+            <span style={{ width: 34, height: 34, borderRadius: 99, display: 'grid', placeItems: 'center', background: inkA(0.07), border: `1px solid ${inkA(0.12)}` }}>{icon(<path d="M6 6l12 12M18 6L6 18" />, 15, 2.4)}</span>
+          </button>
+        </div>
+        <p style={{ margin: '12px 0 0', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 500, lineHeight: 1.5, color: t.INK70 }}>{tr('coach:addClient.blurb', { defaultValue: 'Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.' })}</p>
+        {mine === null && <div style={{ marginTop: 12 }}>{callout(amber, '!', tr('coach:addClient.noListing', { defaultValue: "No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved." }), 'noListing')}</div>}
+
+        {/* Invite a member: a rounded search field, then the matches as rows with their facet avatar. */}
+        <section style={{ marginTop: 20 }}>
+          <label style={{ display: 'block' }}>
+            {head(tr('coach:addClient.inviteLabel', { defaultValue: 'Invite a member on Shape' }))}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, minHeight: 50, padding: '0 16px', borderRadius: 99, boxSizing: 'border-box', background: L ? 'rgba(255,255,255,0.85)' : inkA(0.06), border: `1px solid ${inkA(L ? 0.12 : 0.14)}`, boxShadow: L ? 'inset 0 1px 2px rgba(20,18,15,0.06)' : 'inset 0 1px 3px rgba(0,0,0,0.45)', cursor: 'text' }}>
+              <span style={{ color: t.INK50, display: 'inline-flex' }}>{icon(<><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>, 18, 2.2)}</span>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('coach:addClient.searchPlaceholder', { defaultValue: 'Search members by name…' })} autoComplete="off"
+                style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 16, fontWeight: 500, outline: 'none' }} />
+            </span>
+          </label>
+          {searching && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 600, color: t.INK50 }}>
+              <span aria-hidden="true" style={{ display: 'inline-flex', gap: 4 }}>{[0, 1, 2].map((i) => <span key={i} style={{ width: 6, height: 6, borderRadius: 99, background: tealText, animation: `bsadd-dot 1s ease-in-out ${i * 160}ms infinite` }} />)}</span>
+              {tr('coach:common.searching', { defaultValue: 'Searching…' })}
             </div>
-            {invited[inviteKey(p.userId)] === 'ok'
-              ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
-              : invited[inviteKey(p.userId)] === 'noTag'
-                ? <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 12px', background: 'transparent', border: `1px dashed ${t.AMBER || heat}`, color: t.AMBER || heat, cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</button>
-                : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
-          </div>
-        ))}
-        <div style={{ marginTop: 18 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' })}</div>
+          )}
+          {/* The refusal/failure notice renders AHEAD of the empty state — reversing
+              these two puts "No members match" on screen for a search that never
+              ran, which is the claim this whole change exists to stop making. */}
+          {!searching && searchState !== 'ok' && (
+            <div style={{ marginTop: 12 }}>{callout(amber, '!', searchState === 'limited'
+              ? tr('coach:addClient.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
+              : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." }), 'search')}</div>
+          )}
+          {!searching && searchState === 'ok' && results && results.length === 0 && (
+            <div style={{ marginTop: 12 }}>{callout(L ? '#5b5650' : '#b8b1a6', '?', tr('coach:addClient.noMembers', { defaultValue: 'No members match — share your listing link instead.' }), 'none')}</div>
+          )}
+          {!searching && results && results.length > 0 && (
+            <div data-add-results="" style={{ ...tile, marginTop: 12, padding: '2px 12px' }}>
+              {results.map((p, i) => {
+                const st = invited[inviteKey(p.userId)];
+                return (
+                  <div key={p.userId} data-add-member={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 62, padding: '8px 0', borderTop: i ? `1px solid ${inkA(0.08)}` : 0, animation: `bsadd-in 260ms ease-out ${Math.min(i, 6) * 40}ms both` }}>
+                    <span aria-hidden="true" style={{ flex: 'none', display: 'grid' }}>
+                      {FA
+                        ? <FA size={40} c={teal} initial={(p.name || 'M').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()} name={p.name || ''} photo={p.avatar || undefined} showRank={false} />
+                        : <span style={{ width: 40, height: 40, borderRadius: 99, background: teal, color: '#06110e', display: 'grid', placeItems: 'center', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 800 }}>{(p.name || 'M').slice(0, 1).toUpperCase()}</span>}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: BS_PRO_HEAD, fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                      <div style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 500, color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
+                    </div>
+                    {st === 'ok'
+                      ? <span style={pill(null, { background: L ? 'rgba(10,143,135,0.12)' : 'rgba(52,214,197,0.14)', color: tealText })}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
+                      : st === 'noTag'
+                        ? <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(null, { background: 'transparent', border: `1.5px solid ${amber}`, color: L ? '#7a5205' : amber })}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</span></button>
+                        : <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(heatFill)}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</span></button>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Send your link: the 0% pitch (only with a real ref token) or the note that it is unavailable, then
+            email, text and share or copy as three rounded buttons with their icons. */}
+        <section style={{ marginTop: 22 }}>
+          {head(tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' }))}
           {/* The honest pitch — incl. the waitlist qualifier — renders ONLY
               with a REAL ref token. When the token is confirmed unavailable
               (signed out / no listing / pre-migration) the plain URL still
               shares, but the copy says the truth: those links can't attribute,
               so the 0% promise never sits over an untagged link. */}
           {refToken ? (
-            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-              {tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' })}
-            </div>
+            <div style={{ marginTop: 10 }}>{callout(L ? '#0a8f87' : '#34d6c5', '0%', tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' }), 'pitch')}</div>
           ) : linkReady ? (
-            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${t.AMBER || heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-              {tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' })}
-            </div>
+            <div style={{ marginTop: 10 }}>{callout(amber, '!', tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' }), 'noTag')}</div>
           ) : null}
-          {/* Monochrome typographic glyphs only (︎ pins text presentation) —
-              never colored emoji, per the AGENTS.md new-additions rule. */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            {[
-              { key: 'email', glyph: '✉︎', label: tr('coach:addClient.emailIt', { defaultValue: 'Email it' }), onTap: emailIt },
-              { key: 'text', glyph: '✆︎', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt },
-              { key: 'share', glyph: '↗︎', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing },
-            ].map((ch) => (
-              <button key={ch.key} onClick={ch.onTap} disabled={!linkReady} style={{ flex: 1, minHeight: 44, cursor: linkReady ? 'pointer' : 'default', padding: '10px 6px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: linkReady ? 1 : 0.45 }}>
-                {ch.glyph} {ch.label}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+            {channels.map((ch, i) => (
+              <button key={ch.key} type="button" data-add-channel={ch.key} data-add-press="" onClick={ch.onTap} disabled={!linkReady}
+                style={{ ...tile, minWidth: 0, minHeight: 84, padding: '12px 6px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: linkReady ? 'pointer' : 'default', color: t.INK, opacity: linkReady ? 1 : 0.45, animation: `bsadd-in 300ms ease-out ${120 + i * 50}ms both` }}>
+                <span style={{ width: 38, height: 38, borderRadius: 99, display: 'grid', placeItems: 'center', background: L ? 'rgba(10,143,135,0.1)' : 'rgba(52,214,197,0.13)', color: tealText }}>{icon(ch.d, 19)}</span>
+                <span style={{ maxWidth: '100%', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, lineHeight: 1.2, textAlign: 'center', overflowWrap: 'anywhere' }}>{ch.label}</span>
               </button>
             ))}
           </div>
-        </div>
-        <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.close', { defaultValue: 'Close' })}</button>
+        </section>
       </div>
     </div>
   );
@@ -3213,7 +3116,6 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -3239,7 +3141,6 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
       pastCount={pastCount}
       totalCount={COACH_CLIENTS.length}
       allClients={COACH_CLIENTS}
-      newThisMonth={signedIn ? 0 : 3}
       roster={roster}
       setRoster={setRoster}
       query={cQuery}
@@ -7808,7 +7709,6 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} role="nutritionist" />;
   }
@@ -7834,7 +7734,6 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
       pastCount={pastCount}
       totalCount={NUTRI_CLIENTS.length}
       allClients={NUTRI_CLIENTS}
-      newThisMonth={signedIn ? 0 : 3}
       roster={roster}
       setRoster={setRoster}
       query={cQuery}

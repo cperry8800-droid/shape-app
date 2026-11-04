@@ -1,11 +1,12 @@
 // The coach app's Clients page: more about each client, and every current client in one tab.
 //
 // Owner, 2026-10-31: "this page needs to have more information on clients" and "client page should
-// include a tab or section that shows total current clients". A row now also carries what the
-// roster already holds (program, streak, workouts or intake, since when, and the week's figure as a
-// number and a bar), leaving out what it lacks; the tabs gain All, every current client, with their count. The rows
-// are built by the shipping bsRowFromTriage from engine triage rows and drawn by the shipping
-// BSProRosterView, in jsdom (the harness is tests/app-roster-payment-retrying.test.mjs's).
+// include a tab or section that shows total current clients". A row carries what the roster already
+// holds, leaving out what it lacks: a client who needs the coach reads what to do, anyone else their
+// program, streak, workouts or intake and since when; each row the week's figure (the page C, 2026-11-04).
+// The tabs gain All, every current client, with their count. The rows are built by the shipping
+// bsRowFromTriage from engine triage rows and drawn by the shipping BSProRosterView, in jsdom (the harness
+// is tests/app-roster-payment-retrying.test.mjs's).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -84,8 +85,8 @@ const open = async (host, i) => { await React.act(async () => { tabs(host)[i].cl
 test('the tabs end with All, every current client, and its count', async () => {
   const m = await mount(rows());
   try {
-    // Concept A's order (owner, 2026-11-03: "the filter options looks much different"): All comes last.
-    assert.deepEqual(tabs(m.host).map((b) => b.textContent.replace(/\s+/g, ' ').trim()), ['Needs you 1', 'On track 2', 'Past 2', 'All 3']);
+    // All comes last (owner, 2026-11-03), each view's count beside its word.
+    assert.deepEqual(tabs(m.host).map((b) => b.textContent.replace(/\s+/g, ' ').replace(/(\D)(\d)/, '$1 $2').trim()), ['Needs you 1', 'On track 2', 'Past 2', 'All 3']);
     await open(m.host, 3);
     const all = m.host.querySelector('[data-roster-group="all"]');
     assert.ok(all, 'the All list');
@@ -97,7 +98,7 @@ test('the tabs end with All, every current client, and its count', async () => {
   } finally { await m.close(); }
 });
 
-test('a row carries the program, the streak, since when, and the week as a number and a bar', async () => {
+test('a row carries the program, the streak, since when, and the week as a number', async () => {
   const m = await mount(rows());
   try {
     await open(m.host, 3);
@@ -105,13 +106,11 @@ test('a row carries the program, the streak, since when, and the week as a numbe
     assert.equal(ana.querySelector('[data-roster-facts]').textContent, 'Hypertrophy · 12-day streak · Since Feb 2026');
     const week = ana.querySelector('[data-roster-week]');
     assert.ok(week, 'no week figure');
-    assert.match(week.textContent, /^91%Adherence$/);
-    // A ten-tick meter (direction A): 91% fills nine.
-    assert.equal(week.querySelector('[data-meter]').getAttribute('data-meter'), '9');
-    assert.equal([...week.querySelectorAll('[data-meter] > span')].length, 10);
-    // No streak to show, no start date: those facts are left out, not invented.
+    assert.match(week.textContent, /^91% Adherence$/);
+    // A client to reach out to reads what to do (owner, 2026-11-04, of the page C: "the one-line reason"),
+    // with their figure.
     const ben = rowOf(m.host, 'Ben Tal');
-    assert.equal(ben.querySelector('[data-roster-facts]').textContent, 'Cut Block');
+    assert.equal(ben.querySelector('[data-pc-reason]').textContent, 'No logs in 5 days');
     assert.match(ben.querySelector('[data-roster-week]').textContent, /^40%/);
     // Nothing known: no facts line and no figure.
     const cleo = rowOf(m.host, 'Cleo Park');
@@ -136,17 +135,16 @@ test("a nutritionist's figure is days logged in the last week", async () => {
   try {
     await open(m.host, 3);
     const week = rowOf(m.host, 'Ana Reyes').querySelector('[data-roster-week]');
-    assert.match(week.textContent, /^86%Logged · 7d$/, '6 of 7 days');
+    assert.match(week.textContent, /^86% Logged · 7d$/, '6 of 7 days');
   } finally { await m.close(); }
 });
 
-test('the All tab keeps the Message button for whoever needs reaching today (Codex on #2532)', async () => {
+test('every client in All has a Message button (Codex on #2532; owner, 2026-11-04: "every client should have a message icon")', async () => {
   const m = await mount(rows());
   try {
     await open(m.host, 3);
     const all = m.host.querySelector('[data-roster-group="all"]');
-    assert.ok(all.querySelector('[aria-label="Message Ben Tal"]'), 'Ben (red) lost his Message button in All');
-    assert.ok(!all.querySelector('[aria-label="Message Ana Reyes"]'), 'an on-track row got one');
+    for (const n of ['Ben Tal', 'Ana Reyes', 'Cleo Park']) assert.ok(all.querySelector(`[aria-label="Message ${n}"]`), `${n} has no Message button in All`);
   } finally { await m.close(); }
 });
 
@@ -157,7 +155,7 @@ test('a figure that falls back to the other measure is labelled as that measure 
   // A nutritionist's client with no food log but sessions: that is training adherence.
   const n1 = PROS.bsRowFromTriage(triage('green', { id: 'f2', name: 'Gus Oh' }, { trainingAdherence: { pct: 80 } }), 'nutritionist', theme);
   assert.deepEqual([n1.adh, n1.adhSrc], [80, 'train']);
-  for (const [c, role, want] of [[t1, 'trainer', /^71%Logged · 7d$/], [n1, 'nutritionist', /^80%Adherence$/]]) {
+  for (const [c, role, want] of [[t1, 'trainer', /^71% Logged · 7d$/], [n1, 'nutritionist', /^80% Adherence$/]]) {
     const m = await mount([c], { role });
     try {
       await open(m.host, 3);
@@ -182,7 +180,7 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
       await open(m.host, 3);
       const row = rowOf(m.host, 'Hal Ry');
       assert.equal(row.querySelector('[data-roster-facts]').textContent, '14 workouts in 6 wk · Since Mar 2026');
-      assert.match(row.querySelector('[data-roster-week]').textContent, /^90%Adherence$/);
+      assert.match(row.querySelector('[data-roster-week]').textContent, /^90% Adherence$/);
     } finally { await m.close(); }
   }
   {
@@ -191,7 +189,7 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
       await open(m.host, 3);
       const row = rowOf(m.host, 'Ida Vu');
       assert.equal(row.querySelector('[data-roster-facts]').textContent, 'Avg 1,850 kcal · Since Mar 2026');
-      assert.match(row.querySelector('[data-roster-week]').textContent, /^86%Logged · 7d$/);
+      assert.match(row.querySelector('[data-roster-week]').textContent, /^86% Logged · 7d$/);
     } finally { await m.close(); }
   }
   {
@@ -201,7 +199,10 @@ test('a live row says what the live reads hold: workouts in six weeks, or averag
     const m = await mount([fresh]);
     try {
       await open(m.host, 3);
-      assert.equal(rowOf(m.host, 'Jo Bee').querySelector('[data-roster-facts]').textContent, 'Since Mar 2026');
+      // A new client's row reads their next step, and nowhere a count of workouts.
+      const row = rowOf(m.host, 'Jo Bee');
+      assert.ok(row.querySelector('[data-pc-reason]'), 'the next step');
+      assert.doesNotMatch(row.textContent, /workout/);
     } finally { await m.close(); }
   }
 });
@@ -213,7 +214,7 @@ test('a client who logged on all eight dates the rollup counts reads 100%, never
   const m = await mount([c], { role: 'nutritionist' });
   try {
     await open(m.host, 3);
-    assert.match(rowOf(m.host, 'Eve Ng').querySelector('[data-roster-week]').textContent, /^100%Logged · 7d$/);
+    assert.match(rowOf(m.host, 'Eve Ng').querySelector('[data-roster-week]').textContent, /^100% Logged · 7d$/);
   } finally { await m.close(); }
   // The case file holds it the same way.
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');

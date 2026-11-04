@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Registro médio · 7 d",
   "roster.workouts6w": "{count, plural, one {# treino} other {# treinos}} em 6 sem",
   "roster.avgKcal": "Média {kcal} kcal",
+  "roster.clientsNeedYou": "{count, plural, one {# cliente precisa de você} other {# clientes precisam de você}}",
+  "roster.phaseAria": "Filtrar por fase",
   "editor.nightBefore": "PREPARAR NA NOITE ANTERIOR",
   "editor.nightBeforeShape": "PREPARADO NA NOITE ANTERIOR · RECEITA SHAPE",
   "editor.nightBeforeAria": "Preparar {name} na noite anterior",

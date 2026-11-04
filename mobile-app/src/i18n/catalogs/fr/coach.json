@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Saisie moyenne · 7 j",
   "roster.workouts6w": "{count, plural, one {# séance} other {# séances}} en 6 sem.",
   "roster.avgKcal": "Moy. {kcal} kcal",
+  "roster.clientsNeedYou": "{count, plural, one {# client a besoin de vous} other {# clients ont besoin de vous}}",
+  "roster.phaseAria": "Filtrer par phase",
   "editor.nightBefore": "À PRÉPARER LA VEILLE",
   "editor.nightBeforeShape": "PRÉPARÉ LA VEILLE · RECETTE SHAPE",
   "editor.nightBeforeAria": "Préparer {name} la veille",

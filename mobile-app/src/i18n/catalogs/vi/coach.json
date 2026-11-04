@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Ghi TB · 7 ngày",
   "roster.workouts6w": "{count, plural, other {# buổi tập}} trong 6 tuần",
   "roster.avgKcal": "TB {kcal} kcal",
+  "roster.clientsNeedYou": "{count, plural, other {# khách hàng cần bạn}}",
+  "roster.phaseAria": "Lọc theo giai đoạn",
   "editor.nightBefore": "CHUẨN BỊ TỪ TỐI HÔM TRƯỚC",
   "editor.nightBeforeShape": "CHUẨN BỊ TỪ TỐI HÔM TRƯỚC · CÔNG THỨC SHAPE",
   "editor.nightBeforeAria": "Chuẩn bị {name} từ tối hôm trước",

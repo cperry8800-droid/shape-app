@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Середні записи · 7 дн",
   "roster.workouts6w": "{count, plural, one {# тренування} few {# тренування} many {# тренувань} other {# тренування}} за 6 тиж.",
   "roster.avgKcal": "У середньому {kcal} ккал",
+  "roster.clientsNeedYou": "{count, plural, one {# клієнт чекає на вас} few {# клієнти чекають на вас} many {# клієнтів чекають на вас} other {# клієнта чекають на вас}}",
+  "roster.phaseAria": "Фільтр за фазою",
   "editor.nightBefore": "ГОТУВАТИ НАПЕРЕДОДНІ",
   "editor.nightBeforeShape": "ГОТУЄТЬСЯ НАПЕРЕДОДНІ · РЕЦЕПТ SHAPE",
   "editor.nightBeforeAria": "Готувати {name} напередодні",

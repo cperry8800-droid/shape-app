@@ -1504,6 +1504,8 @@
   "roster.kpiAvgLogged": "Avg logged · 7d",
   "roster.workouts6w": "{count, plural, one {# workout} other {# workouts}} in 6 wk",
   "roster.avgKcal": "Avg {kcal} kcal",
+  "roster.clientsNeedYou": "{count, plural, one {# client needs you} other {# clients need you}}",
+  "roster.phaseAria": "Filter by phase",
   "editor.nightBefore": "PREP THE NIGHT BEFORE",
   "editor.nightBeforeShape": "PREPPED THE NIGHT BEFORE · SHAPE RECIPE",
   "editor.nightBeforeAria": "Prep {name} the night before",
