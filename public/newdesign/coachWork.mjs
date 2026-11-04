@@ -690,3 +690,51 @@ export function energySplit(m) {
   for (let i = 0, left = 100 - out[0] - out[1] - out[2]; i < left; i += 1) out[order[i]] += 1;
   return { p: out[0], c: out[1], f: out[2] };
 }
+
+// ── A coach's headline stats (owner, 2026-11-04: "Show them on coach pages") ─────────────────────
+// Up to three of the coach's own numbers under their name, picked in Make it yours and stored by key
+// in profile_custom.heroStats. Each is a figure the coach page already has, so nothing here is new
+// data: the rating and how many reviews, the years they wrote on About me, what their tabs hold
+// (programs, workouts and replays; recipes and plate notes), and the certificates Shape verified. The
+// Shape Score and tier are not among them: the page's own Score row shows those. A member's stat keys
+// (streak, member since, a top lift) are not a coach's, so a doc an older editor wrote with them (the
+// old editors saved Score, tier and streak when nothing was picked) shows none of them here.
+export const BS_COACH_STATS = Object.freeze({
+  trainer: Object.freeze(['rating', 'reviews', 'years', 'programs', 'workouts', 'replays', 'certs']),
+  nutritionist: Object.freeze(['rating', 'reviews', 'years', 'recipes', 'plates', 'certs']),
+});
+const statCount = (v) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
+/**
+ * The coach's figures by stat key, each only when there is one: { rating (out of 10, one decimal),
+ * reviews, years, programs, workouts, replays, recipes, plates, certs }, whole numbers but the rating.
+ * A figure of none (no reviews yet, nothing posted) is absent, never 0.
+ */
+export function bsCoachStatFigures({ reviews = null, years = null, programs = 0, workouts = 0, replays = 0, recipes = 0, plates = 0, certs = 0 } = {}) {
+  const out = {};
+  const count = isObj(reviews) ? statCount(reviews.count) : null;
+  const avg = isObj(reviews) ? Number(reviews.avg) : NaN;
+  if (count && Number.isFinite(avg) && avg > 0) out.rating = Math.round(Math.min(10, avg) * 10) / 10;
+  if (count) out.reviews = count;
+  for (const [k, v] of [['years', years], ['programs', programs], ['workouts', workouts], ['replays', replays], ['recipes', recipes], ['plates', plates], ['certs', certs]]) {
+    const n = statCount(v);
+    if (n) out[k] = n;
+  }
+  return out;
+}
+/** The stat keys a role's page can show, from a stored list: that role's own, in order, each once, three at most. */
+export function bsCoachHeadlineKeys(v, role = 'trainer') {
+  const allowed = BS_COACH_STATS[role === 'nutritionist' ? 'nutritionist' : 'trainer'];
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const k of v.slice(0, 12)) {
+    if (typeof k !== 'string' || !allowed.includes(k) || out.includes(k)) continue;
+    out.push(k);
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+/** The headline stats the page shows: [{ key, value }] for each picked key the coach has a figure for. */
+export function bsCoachHeadline(v, role, figures) {
+  const f = isObj(figures) ? figures : {};
+  return bsCoachHeadlineKeys(v, role).filter((k) => f[k] != null).map((key) => ({ key, value: f[key] }));
+}

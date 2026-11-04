@@ -8,6 +8,8 @@ export {
   BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX,
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX,
   BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
+  BS_PIN_TITLE_MAX, BS_PIN_NOTE_MAX, BS_PIN_METRIC_MAX, BS_SONG_LABEL_MAX, BS_HERO_STATS_MAX, BS_COACH_FILM_MAX_MB,
+  bsSpotifyEmbed, bsProfileSong, bsProfilePinned, bsProfileHeroStats,
   bsCleanText, bsProfileLine, bsProfileWall, bsProfileShelf,
   bsValidStartDate, bsStartLineState, bsProfileStartLine,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsNormalizeProfileCustom,

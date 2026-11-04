@@ -53,7 +53,7 @@ import { BS_MEAL_DAYS_KIND, BS_OWN_PER_DAY, BS_OWN_SLOT_TIME, bsMealDayOf, bsMea
 import { BSPlanMealSheet, BSMorningSwapCard } from './BSPlanDay.jsx';
 import { isShapeWelcome, shapeWelcomeShown } from '../services/shapeWelcome.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsAccountCoachRole, bsChatOwner, BS_COACH_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
-import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileCover, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken } from '../services/profileCustom.mjs';
+import { bsNormalizeProfileCustom, bsProfileWall, bsProfileShelf, bsProfileCover, bsProfileStartLine, bsStartLineState, bsValidStartDate, bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX, BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX, BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken, bsProfileLook } from '../services/profileCustom.mjs';
 import { bsOrchestrate, bsReplanCook, bsCookBlockingHold, BS_COOK_MODE, BS_ORCH, BS_SERIAL_REASON, BS_SERVE_ISSUE, bsProgressPct } from '../services/cookOrchestrator.mjs';
 import { bsTrackLanes, bsTrackLaneStatus, bsTrackWindow, bsCookNowMin, bsCookFinishAt, bsPlanEnd, bsHobOccupancy, bsHobTappable, bsDishColors, bsHeroHue, bsInkOn, BS_HOB_MAX } from '../services/cookBoard.mjs';
 import { bsCkModalSync, bsCkFocusOwner, bsCkGiveBack } from '../services/cookFocus.mjs';
@@ -14664,6 +14664,27 @@ function bsSpotifyEmbed(url) {
 // P3 · coach-flavored prompt suggestions (the prompts render already shows on the
 // Signal profile — this only swaps the picker's suggested questions for coaches).
 const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
+// A member's own colours (owner, 2026-11-04: members get the colours page coaches got, the lit panel).
+// The look is profile_custom.look, { paper, accent, focus } from Shape's papers and accents (the app's
+// makePalette keys), public through get_public_profile like the rest of the doc. Their page paints in it
+// only once they pick a paper: a member who never picked keeps their page exactly as it was.
+// bsMemberTheme: the reader's theme `t`, or the look's (bsLookTheme, the chrome's) when it has a paper.
+function bsMemberTheme(t, look) {
+  if (!look || !look.paper || typeof window === 'undefined' || typeof window.bsLookTheme !== 'function') return t;
+  return window.bsLookTheme(t, look);
+}
+// The look's accent as it reads on the paper it is shown on (makePalette swaps one that would vanish), or
+// null without one: it tints what the old hex accent tinted (the wall, the shelf, the pin). The tier's
+// colour stays on the rings and the one lit tile (owner rule).
+function bsMemberLookAccent(cu, t) {
+  const lk = bsProfileLook(cu && cu.look);
+  if (!lk || !lk.accent) return null;
+  try { if (typeof window !== 'undefined' && typeof window.makePalette === 'function') return window.makePalette({ paperMode: lk.paper || t.paperMode, accentKey: lk.accent }).ACCENT; } catch (e) {}
+  return t.ACCENT || null;
+}
+// What stays in view in a member's cover photo (look.focus): the coach page's top and bottom, and the
+// member page's own middle, which it has always cropped to.
+const BS_MEMBER_FOCUS = { top: 'center 22%', center: 'center 40%', bottom: 'center 80%' };
 // Headline-stat picker options. `key` is what the doc stores and the profile hero
 // resolves against its own `stats` map — the split already exists, so `label` is
 // display-only. `tKey` is the profile key a locale renames it through; `score`
@@ -14751,7 +14772,8 @@ function BSProfileExtras({ custom, c, INK, BG, isSelf, onCustomize, stats, bleed
   const bx = bleed ? { marginLeft: -bleed, marginRight: -bleed } : null;
   const bxCard = bleed ? { ...bx, borderRadius: 0, borderLeft: 0, borderRight: 0 } : null;
   const cu = custom || {};
-  c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : c;
+  // The look's accent where the member chose one, else the hex accent the old picker stored, else the tier's.
+  c = bsMemberLookAccent(cu, tX) || ((cu.accent && /^#/.test(cu.accent)) ? cu.accent : c);
   const embed = bsSpotifyEmbed(cu.song && cu.song.url);
   const prompts = showPrompts && Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === 'object') ? BS_PROFILE_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
@@ -16215,6 +16237,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
     if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' }), 'err'); return; }
     setBusy(true);
+    // The website's Colors panel writes look.accent, and the page tints with it over this hex accent
+    // (bsMemberLookAccent). An accent picked here is the member's latest word, so it clears look.accent and
+    // shows; an accent left as it was leaves the look alone (Codex P2 on #2611).
+    const accentChanged = (accent || '') !== (init.accent || '');
+    const initLook = init.look && typeof init.look === 'object' && !Array.isArray(init.look) ? init.look : null;
+    const lookOut = accentChanged && initLook && initLook.accent ? (({ accent: _gone, ...rest }) => rest)(initLook) : undefined;
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -16223,6 +16251,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
+      ...(lookOut ? { look: lookOut } : {}),
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
@@ -17076,11 +17105,10 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
   const onMsg = hasMessage ? onMessage : () => {};
-  const tTheme = useBS();
+  // The reader's theme. The page is painted in the member's own look when they chose one (tTheme,
+  // below, once their doc is read), else in this.
+  const tReader = useBS();
   const tr = useShapeTr();
-  // Profile surface follows the active paper theme (dark papers ≈ unchanged; a
-  // light paper makes the profile light). Heat = the member's TIER color (`c`).
-  const BG = tTheme.PAPER_BG, INK = tTheme.INK;
   const SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", MONO = "'JetBrains Mono', monospace", SANS = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
   const [live, setLive] = useStateBSC(null);
   const [tab, setTab] = useStateBSC('activity');
@@ -17138,6 +17166,17 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // always sees their REAL doc (empty until they fill it in) — never the demo.
   const demoFill = !signedIn && !person.userId && !custom;
   const customEff = React.useMemo(() => custom || (demoFill ? bsDemoMemberCustom() : null), [custom, demoFill]);
+  // ── The member's own colours (owner, 2026-11-04: members get the colours page coaches got, in the app
+  // and on the website). Once they pick a paper the whole page is in it, their accent with it, and what the
+  // page holds reads it too (the provider round the page, at its return). Your own page reads your own doc,
+  // and the public read's look until that doc is read, as the coach page does; someone else's reads the
+  // public read. With no paper picked the page is the reader's theme, exactly as before: never a default.
+  // Profile surface follows that paper (a light paper makes the profile light). Heat = the member's TIER
+  // color (`c`), on the rings and the one lit tile.
+  const lookDoc = isSelf && !custom ? ((live && live.custom) || customEff) : customEff;
+  const look = bsProfileLook(lookDoc && lookDoc.look) || {};
+  const tTheme = React.useMemo(() => bsMemberTheme(tReader, look), [tReader, look.paper, look.accent]);
+  const BG = tTheme.PAPER_BG, INK = tTheme.INK;
   const points = isSelf
     ? (Number.isFinite(Number(selfScore.total)) ? Number(selfScore.total) : null)
     : (live && Number.isFinite(live.points) ? live.points : null);
@@ -17583,7 +17622,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const nestedMessage = typeof onMessage === 'function' ? onMessage
     : (meId && followProfile && followProfile.userId && followProfile.userId !== meId ? (p) => bsOpenMemberConversation(p, () => setFollowProfile(null)) : null);
   if (followProfile) return <BSPublicProfile person={followProfile} onBack={() => setFollowProfile(null)} onMessage={nestedMessage} />;
-  return (
+  const page = (
     // A page like every other: BSPage's own scroller, so BSPage's condensed
     // masthead pins once this page's own masthead scrolls away (owner,
     // 2026-10-18: "make sure this mast head stays present when i scroll down on
@@ -17656,7 +17695,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           <div data-member-head="" data-tour={meMode ? 'hero-me' : undefined}>
             {/* The cover, with the masthead (and Back) over it in white */}
             <div data-member-cover="" style={{ position: 'relative', height: `calc(${BS_MAST_TOP_CSS} + 190px)`, overflow: 'hidden', background: heroCover ? '#111' : `linear-gradient(135deg, ${bsTHexA(c, 0.5)}, ${tTheme.PAPER2} 72%)` }}>
-              {heroCover ? <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 40%' }} /> : null}
+              {heroCover ? <img src={heroCover} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: BS_MEMBER_FOCUS[look.focus] || BS_MEMBER_FOCUS.center }} /> : null}
               <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)' }} />
               <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
@@ -18202,6 +18241,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
           drew a second one under it on first paint. */}
     </div></BSPage>
   );
+  // The page and all it holds in the member's look: BSContext hands tTheme on, so each useBS() under here
+  // (BSPage, the tabs, the cards, the editor's portal) reads it. Without a look it is the reader's own theme,
+  // handed on unchanged. Always the same wrapper, so a look arriving with the doc repaints, never remounts.
+  const ThemeCtx = typeof window !== 'undefined' ? window.BSContext : null;
+  return ThemeCtx ? <ThemeCtx.Provider value={tTheme}>{page}</ThemeCtx.Provider> : page;
 }
 
 // ── Coach "Signal" public profile (Living Identity direction) ────────────────

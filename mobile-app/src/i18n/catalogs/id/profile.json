@@ -1188,5 +1188,18 @@
   "work.word.5k": "Persiapan 5k",
   "work.word.mobility": "Mobilitas",
   "trainer.replaysSubSessions": "Sesi yang dicatat {name}, set demi set.",
-  "about.photos": "Tempat {name} melatih"
+  "about.photos": "Tempat {name} melatih",
+  "mine.tabSpotlight": "Sorotan",
+  "mine.spotlightTitle": "Sorotanmu",
+  "mine.spotlightSub": "Video perkenalan, angka unggulanmu, satu momen, lagumu, dan ulasan yang kamu sematkan. Semuanya opsional.",
+  "mine.errDemoFilm": "Masuk untuk mengunggah videomu sendiri.",
+  "mine.statsTitle": "Data unggulan",
+  "mine.statsHint": "Maksimal tiga angkamu di bawah namamu, sesuai urutan pilihanmu. Yang belum punya angka tidak ditampilkan.",
+  "mine.statsMax": "{count, plural, other {Maksimal # data unggulan.}} Hapus centang salah satu untuk memilih yang lain.",
+  "mine.statNone": "Belum ada",
+  "mine.errPinTitle": "Beri judul pada momenmu, atau kosongkan.",
+  "mine.winsHint": "Sematkan maksimal tiga ulasan anggotamu. Ulasan itu tampil paling depan di Kata klien pada halamanmu.",
+  "mine.bizName": "Nama praktikmu",
+  "mine.bizHint": "Nama dan tempatnya tampil di bawah namamu; jam buka dan di mana menemukanmu, di Tentang saya.",
+  "mine.errBizName": "Beri nama praktikmu, atau kosongkan kartunya."
 }

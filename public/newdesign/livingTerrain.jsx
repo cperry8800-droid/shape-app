@@ -48,7 +48,8 @@ function TerrainContours({ d, w = 360, h = 300, reduced }) {
 }
 
 // Ridgeline ascent: start → now → target as a climbed path.
-function TerrainRidge({ d }) {
+// `ink`: the page's ink (a member's own paper on the website's profile, livingDesktop.jsx), else the stock.
+function TerrainRidge({ d, ink = LV_INK }) {
   const c = tierOf(d).color;
   const W = 320, H = 132;
   // The "now" dot height tracks the selected aspect's progress when provided, so
@@ -62,7 +63,7 @@ function TerrainRidge({ d }) {
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden="true" style={{ display: "block", overflow: "visible" }}>
       <defs><linearGradient id="tdRidge" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={hexA(c, 0.3)} /><stop offset="100%" stopColor={hexA(c, 0)} /></linearGradient></defs>
       <path d={fill} fill="url(#tdRidge)" />
-      <path d={ridge} fill="none" stroke={hexA(LV_INK, 0.25)} strokeWidth={1.5} strokeDasharray="3 4" />
+      <path d={ridge} fill="none" stroke={hexA(ink, 0.25)} strokeWidth={1.5} strokeDasharray="3 4" />
       {d.arc.map((a, i) => {
         const live = a[2] === "now", target = a[2] === "target";
         return (

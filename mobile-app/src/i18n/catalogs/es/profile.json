@@ -1188,5 +1188,18 @@
   "work.word.5k": "Preparación 5k",
   "work.word.mobility": "Movilidad",
   "trainer.replaysSubSessions": "Las sesiones que registró {name}, serie a serie.",
-  "about.photos": "Dónde entrena {name}"
+  "about.photos": "Dónde entrena {name}",
+  "mine.tabSpotlight": "Escaparate",
+  "mine.spotlightTitle": "Tu escaparate",
+  "mine.spotlightSub": "Un vídeo de presentación, tus cifras destacadas, un momento, tu canción y las reseñas que fijes. Todo opcional.",
+  "mine.errDemoFilm": "Inicia sesión para subir tu propio vídeo.",
+  "mine.statsTitle": "Datos destacados",
+  "mine.statsHint": "Hasta tres de tus cifras bajo tu nombre, en el orden en que las elijas. Las que aún no tengan dato no se muestran.",
+  "mine.statsMax": "{count, plural, one {Hasta # dato destacado.} other {Hasta # datos destacados.}} Desmarca uno para elegir otro.",
+  "mine.statNone": "Aún no",
+  "mine.errPinTitle": "Ponle un titular a tu momento, o bórralo.",
+  "mine.winsHint": "Fija hasta tres reseñas de tus miembros. Encabezan «Lo que dicen sus clientes» en tu página.",
+  "mine.bizName": "Nombre de tu estudio",
+  "mine.bizHint": "Su nombre y lugar aparecen bajo tu nombre; su horario y dónde encontrarte, en Sobre mí.",
+  "mine.errBizName": "Ponle nombre a tu estudio, o borra su tarjeta."
 }

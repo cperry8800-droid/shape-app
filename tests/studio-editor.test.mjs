@@ -105,10 +105,10 @@ const editor = (props = {}) => React.createElement(window.BSProvider, { paperMod
     onClose: () => {}, onSaved: (doc, changed) => { world.onSaved = { doc, changed }; }, ...props }));
 const save = async () => { await click($('[data-save-mine]')); assert.ok(world.saved || world.onSaved, 'saved'); return world.saved ? world.saved.d : world.onSaved.doc; };
 
-test('a trainer\'s third tab is Programs, in Your space\'s place; a nutritionist keeps Your kitchen', async () => {
+test('a trainer\'s third tab is Programs, in Your space\'s place; a nutritionist keeps Your kitchen; both then have Spotlight', async () => {
   reset();
   let m = await mount(editor());
-  assert.deepEqual(tabNames(), ['Colors', 'Wall photo', 'Programs', 'About me']);
+  assert.deepEqual(tabNames(), ['Colors', 'Wall photo', 'Programs', 'Spotlight', 'About me']);
   await openTab('Programs');
   assert.match(m.text(), /Descriptions\.\s?A short line under each thing you sell\. All optional\./);
   assert.deepEqual($$('[data-desc-field]').map((f) => f.getAttribute('data-desc-field')), ['p:plan1', 'p:plan2', 'd:plan1:0', 'd:plan1:2', 'v:post9', 'coaching'],
@@ -132,7 +132,7 @@ test('a trainer\'s third tab is Programs, in Your space\'s place; a nutritionist
   await m.unmount();
 
   m = await mount(editor({ role: 'nutritionist' }));
-  assert.deepEqual(tabNames(), ['Colors', 'Wall photo', 'Your kitchen', 'About me']);
+  assert.deepEqual(tabNames(), ['Colors', 'Wall photo', 'Your kitchen', 'Spotlight', 'About me']);
   await openTab('About me');
   assert.ok($('[data-mine-about]'));
   assert.ok(!$('[data-about-focus]') && !$('[data-about-picks]') && !$('[data-about-preview]'), 'no focus words or picks on a nutritionist\'s About me');
