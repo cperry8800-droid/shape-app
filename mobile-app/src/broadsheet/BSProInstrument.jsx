@@ -26,10 +26,27 @@ function rgbOf(c) {
   return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
 }
 
+// ⚠ GLASS ON A DARK PAPER (owner, 2026-11-04: "i dont love the gray", "very similar color as the rest of
+// page but glassy", "do D1", "apply that to all the boxes that had the grey coloring"). A box that sat on
+// the raised grey (PAPER2) is the page's own colour under a glass sheen: a soft light-to-clear gradient,
+// a lit top edge and a deep shadow, as the website's login card. On a light paper nothing changes.
+export function bsGlassFill(t) {
+  const rgb = t.inkRGB || rgbOf(t.INK) || '242,237,228';
+  return {
+    background: `linear-gradient(180deg, rgba(${rgb},0.075) 0%, rgba(${rgb},0.025) 55%, rgba(${rgb},0.015) 100%), ${t.PAPER}`,
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.09), 0 18px 40px -24px rgba(0,0,0,0.9)',
+  };
+}
+export const bsGlassBorder = (t) => `1px solid rgba(${t.inkRGB || rgbOf(t.INK) || '242,237,228'},0.12)`;
+// The teal edge along a glass box's top, fading at both ends.
+export function BSGlassEdge() {
+  return <span aria-hidden="true" data-glass-edge="" style={{ position: 'absolute', top: -1, left: 28, right: 28, height: 1, background: `linear-gradient(90deg, transparent, ${BS_DECK_TEAL} 30%, ${BS_DECK_TEAL} 70%, transparent)`, opacity: 0.8, pointerEvents: 'none' }} />;
+}
+
 // The deck's theme: dark on every paper. On a light paper it is that paper's ink with the paper as its
-// words; on a dark paper the raised paper (PAPER2) with the paper's own ink.
+// words; on a dark paper the page's own colour, under glass (bsGlassFill), with the paper's own ink.
 export function bsProDeckTheme(t) {
-  const bg = t.isLight ? t.INK : t.PAPER2;
+  const bg = t.isLight ? t.INK : t.PAPER;
   const fg = t.isLight ? t.PAPER : t.INK;
   const rgb = rgbOf(fg) || '245,240,230';
   const a = (x) => `rgba(${rgb},${x})`;
@@ -43,17 +60,20 @@ export function bsProDeckTheme(t) {
 export const bsDeckEyebrow = (color) => ({ fontFamily: BS_DECK_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color, whiteSpace: 'nowrap' });
 
 // The band: the title in Saira light with the role's full stop, an aside on its baseline, what the page
-// puts in it, and a hairline from ink to teal along its foot.
+// puts in it, and a hairline from ink to teal along its foot. A step tighter (owner, 2026-11-04: "condense
+// these boxes slightly"): 12px over and 14px under (16 and 18 before), the title 30px (34), the week's days
+// 54px tall (64), the gauges 28px (32).
 export function BSProDeck({ t, role, title, aside, tour, label, children }) {
   const d = bsProDeckTheme(t);
   const heat = bsProDeckHeat(role);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-pro-deck="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '16px 0 18px', marginTop: 4 }}>
+    <section data-pro-deck="" data-glass={t.isLight ? undefined : ''} aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '12px 0 14px', marginTop: 4, ...(t.isLight ? null : { ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }) }}>
+      {t.isLight ? null : <BSGlassEdge />}
       <div style={{ padding: `0 ${t.padX}px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         {/* The title keeps its width (up to most of the row) and the aside wraps beside it, so a long line
             ("4 published · 40 clients on them") never cuts the title to "Pla…". */}
-        <h1 data-tour={tour} style={{ margin: 0, flexShrink: 0, maxWidth: '72%', fontFamily: BS_GAUGE_FACE, fontSize: 34, fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.05, color: d.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <h1 data-tour={tour} style={{ margin: 0, flexShrink: 0, maxWidth: '72%', fontFamily: BS_GAUGE_FACE, fontSize: 30, fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.05, color: d.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title}<span aria-hidden="true" style={{ color: heat }}>.</span>
         </h1>
         {aside ? <div data-deck-aside="" style={{ flex: '0 1 auto', minWidth: 0, display: 'flex', justifyContent: 'flex-end', textAlign: 'right' }}>{aside}</div> : null}
@@ -72,7 +92,7 @@ export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, c
   const d = bsProDeckTheme(t);
   const heat = bsProDeckHeat(role);
   return (
-    <div data-deck-week="" role="group" aria-label={label} style={{ padding: `12px ${t.padX - 6}px 0` }}>
+    <div data-deck-week="" role="group" aria-label={label} style={{ padding: `6px ${t.padX - 6}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 6px' }}>
         <span style={bsDeckEyebrow(d.INK70)}>{label}</span>
         {onMonth && <button type="button" onClick={onMonth} style={{ minHeight: 40, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(BS_DECK_TEAL) }}>{monthLabel}</button>}
@@ -88,13 +108,13 @@ export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, c
           return (
             <button key={idx} type="button" aria-pressed={on} onClick={() => onSelectDay(day.getDate())}
               aria-label={`${dayWord(day, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${todayAria}` : ''}`}
-              style={{ minWidth: 0, height: 64, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${d.RULE}` : 0, borderRadius: 9, background: on ? d.INK : 'transparent', color: on ? d.PAPER : d.INK, opacity: past && !on ? 0.6 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 0, cursor: 'pointer' }}>
+              style={{ minWidth: 0, height: 54, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${d.RULE}` : 0, borderRadius: 9, background: on ? d.INK : 'transparent', color: on ? d.PAPER : d.INK, opacity: past && !on ? 0.6 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 0, cursor: 'pointer' }}>
               <span style={{ maxWidth: '100%', overflow: 'hidden', fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? d.PAPER : d.INK70, whiteSpace: 'nowrap' }}>{dayWord(day, { weekday: 'short' })}</span>
-              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 19, fontWeight: 400, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{day.getDate()}</span>
-              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 14 }}>
+              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, fontWeight: 400, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{day.getDate()}</span>
+              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 12 }}>
                 {n === 0
                   ? <span style={{ width: 4, height: 2, borderRadius: 1, background: on ? `${d.PAPER}55` : d.RULE }} />
-                  : [6, 10, 14].slice(0, n).map((h, k) => <span key={k} style={{ width: 4, height: h, borderRadius: 1, background: on ? heat : d.INK50 }} />)}
+                  : [5, 8, 12].slice(0, n).map((h, k) => <span key={k} style={{ width: 4, height: h, borderRadius: 1, background: on ? heat : d.INK50 }} />)}
               </span>
             </button>
           );
@@ -111,11 +131,11 @@ export function BSProDeckSegments({ t, done, total, left, right }) {
   const segs = Math.min(12, Math.max(1, total));
   const filled = total > 12 ? Math.round((done / total) * 12) : done;
   return (
-    <div data-deck-segments="" style={{ padding: `14px ${t.padX}px 0` }}>
+    <div data-deck-segments="" style={{ padding: `10px ${t.padX}px 0` }}>
       <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: `repeat(${segs}, minmax(0, 1fr))`, gap: 3 }}>
         {Array.from({ length: segs }).map((_, i) => <span key={i} style={{ height: 6, borderRadius: 1, background: i < filled ? BS_DECK_TEAL : d.RULE }} />)}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 7 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 5 }}>
         <span style={bsDeckEyebrow(d.INK70)}>{left}</span>
         {right ? <span style={bsDeckEyebrow(d.INK70)}>{right}</span> : null}
       </div>
@@ -127,10 +147,10 @@ export function BSProDeckSegments({ t, done, total, left, right }) {
 export function BSProDeckGauges({ t, items }) {
   const d = bsProDeckTheme(t);
   return (
-    <div data-deck-gauges="" style={{ margin: `14px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    <div data-deck-gauges="" style={{ margin: `10px ${t.padX}px 0`, display: 'grid', gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
       {items.map((g, i) => (
         <div key={g.key || i} data-gauge={g.key || ''} style={{ minWidth: 0, padding: i ? '2px 0 0 12px' : '2px 0 0', borderLeft: i ? `1px solid ${d.RULE}` : 0 }}>
-          <span style={{ display: 'block', fontFamily: BS_GAUGE_FACE, fontSize: 32, fontWeight: 300, lineHeight: 1.05, letterSpacing: '-0.02em', color: g.color || d.INK, fontVariantNumeric: 'tabular-nums' }}>{g.value}</span>
+          <span style={{ display: 'block', fontFamily: BS_GAUGE_FACE, fontSize: 28, fontWeight: 300, lineHeight: 1.05, letterSpacing: '-0.02em', color: g.color || d.INK, fontVariantNumeric: 'tabular-nums' }}>{g.value}</span>
           <span style={{ display: 'block', marginTop: 3, ...bsDeckEyebrow(d.INK70), fontSize: 9, letterSpacing: '0.14em', whiteSpace: 'normal', lineHeight: 1.35 }}>{g.label}</span>
         </div>
       ))}
@@ -149,7 +169,7 @@ export function BSProMeter({ t, pct, hue, ticks = 10 }) {
 }
 
 // The plate: a raised paper card with the role's rule down its left and its top-right corner cut.
-export const bsProPlate = (t, heat) => ({ position: 'relative', background: t.PAPER2, borderLeft: `3px solid ${heat}`, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' });
+export const bsProPlate = (t, heat) => ({ position: 'relative', ...(t.isLight ? { background: t.PAPER2 } : bsGlassFill(t)), borderLeft: `3px solid ${heat}`, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' });
 
 // A ledger: a 2px ink rule over hairline rows, each led by its number.
 export const bsProLedgerTop = (t) => ({ borderTop: `2px solid ${t.INK}` });

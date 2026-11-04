@@ -45,7 +45,7 @@ test('From scratch, the search and the tabs are ink and hairlines, not fills of 
 
 test('Most popular is the plate: one block in the role\'s heat, the rest on the raised paper; Enrolled faces are the paper\'s tones', () => {
   const feat = fn('function BSProFeaturedPlan(');
-  assert.match(feat, /data-featured-plan="" onClick=\{onOpen\} style=\{\{ marginTop: 18, display: 'grid', gridTemplateColumns: '72px minmax\(0, 1fr\)', background: t\.PAPER2, clipPath:/);
+  assert.match(feat, /data-featured-plan="" onClick=\{onOpen\} style=\{\{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax\(0, 1fr\)', \.\.\.\(t\.isLight \? \{ background: t\.PAPER2 \} : bsGlassFill\(t\)\), clipPath:/);
   assert.equal((feat.match(/background: heat\b/g) || []).length, 1, 'the length block, and nothing else, in the heat');
   const enr = fn('function bsProEnrolledRow(');
   assert.match(enr, /background: t\.PAPER2, color: t\.INK, border: `2px solid \$\{t\.PAPER\}`/);

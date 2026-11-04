@@ -71,7 +71,7 @@ test('Most popular is the plate: the length on a block, "Most popular", the name
   try {
     const card = m.host.querySelector('[data-featured-plan]');
     assert.equal(card.style.display, 'grid');
-    assert.equal(card.style.gridTemplateColumns, '72px minmax(0, 1fr)');
+    assert.equal(card.style.gridTemplateColumns, '64px minmax(0, 1fr)');
     const [block, body] = card.children;
     assert.equal(nb(block.textContent), '12WK');
     assert.equal(block.style.background, 'rgb(192, 83, 59)', 'the block in the role\'s heat');

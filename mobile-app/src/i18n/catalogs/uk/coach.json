@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "У середньому {kcal} ккал",
   "editor.nightBefore": "ГОТУВАТИ НАПЕРЕДОДНІ",
   "editor.nightBeforeShape": "ГОТУЄТЬСЯ НАПЕРЕДОДНІ · РЕЦЕПТ SHAPE",
-  "editor.nightBeforeAria": "Готувати {name} напередодні"
+  "editor.nightBeforeAria": "Готувати {name} напередодні",
+  "today.dayEmpty": "{day}: нічого не заплановано.",
+  "today.dayDoneOf": "{day}: зроблено {done} з {total, plural, one {# заняття} few {# занять} many {# занять} other {# заняття}}.",
+  "today.dayDoneOfNutri": "{day}: зроблено {done} з {total, plural, one {# консультації} few {# консультацій} many {# консультацій} other {# консультації}}.",
+  "today.dayBooked": "{day}: {total, plural, one {# заняття} few {# заняття} many {# занять} other {# заняття}} в плані.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# консультація} few {# консультації} many {# консультацій} other {# консультації}} в плані.",
+  "today.booked": "У ПЛАНІ"
 }

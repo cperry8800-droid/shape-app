@@ -1,5 +1,5 @@
 import React from 'react';
-import { bsProDeckTheme, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
+import { bsProDeckTheme, bsGlassFill, bsGlassBorder, BSGlassEdge, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
 import { bsHomeGoalRead } from '../services/homeWeek.mjs';
 import { bsHomeClimbState, bsClimbPoint, bsClimbPath, bsClimbRidge, BS_CLIMB_W, BS_CLIMB_H, BS_CLIMB_MILESTONES } from '../services/homeClimb.mjs';
 import { bsCiIso } from './BSCheckinCard.jsx';
@@ -55,7 +55,8 @@ export function BSHomeDeck({ radio = null, children }) {
   const d = { ...base, ACCENT: t.isLight ? bsHdLift(t.ACCENT) : t.ACCENT };
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-bs-home-deck="" style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '2px 0 16px' }}>
+    <section data-bs-home-deck="" data-glass={t.isLight ? undefined : ''} style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '2px 0 16px', ...(t.isLight ? null : { ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }) }}>
+      {t.isLight ? null : <BSGlassEdge />}
       {radio}
       {children}
       <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${BS_DECK_TEAL})`, opacity: 0.9 }} />
