@@ -5522,6 +5522,14 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
   );
 }
 
+// A day of this week (0 = Monday) as BSWeekStrip shows it: the weekday in the reader's language and this
+// week's date ("Fri 6"), for a head that names the day the strip has picked.
+function bsEatStripDay(idx) {
+  const now = new Date();
+  const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(now.getDate() - ((now.getDay() + 6) % 7) + idx);
+  return `${bsWeekdayName(idx, 'short')} ${d.getDate()}`;
+}
+
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -14486,8 +14494,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           targets (Adjust plan → Apply) win; each macro opens its own page. */}
       <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
         macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')}
-        // Another day picked in the strip: its own head, not "Fuel left today" over that day's figures.
-        label={_eatIsToday ? null : tr('nutrition:eat.fuelOn', { defaultValue: 'Fuel · {day}', day: (PROGRAM[day] && PROGRAM[day].d) || bsWeekdayName(day, 'short') })} />
+        // Another day picked in the strip: its own head, not "Fuel left today" over that day's figures. The
+        // day reads as the strip shows it: this week's date and the weekday in the reader's language, not the
+        // plan record's own label (a sample's dates and English initials; Codex P2 on #2599).
+        label={_eatIsToday ? null : tr('nutrition:eat.fuelOn', { defaultValue: 'Fuel · {day}', day: bsEatStripDay(day) })} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}

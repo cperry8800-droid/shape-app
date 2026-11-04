@@ -293,7 +293,13 @@ test('Eat\'s fuel head names the picked day when it is not today', () => {
   assert.equal(head({ label: 'Fuel · Fri 6' }).props.label, 'Fuel · Fri 6');
   assert.equal(head({}).props.label, 'Fuel left today', 'today keeps its words');
   const CLIENT = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(CLIENT, /label=\{_eatIsToday \? null : tr\('nutrition:eat\.fuelOn', \{ defaultValue: 'Fuel · \{day\}', day: \(PROGRAM\[day\] && PROGRAM\[day\]\.d\) \|\| bsWeekdayName\(day, 'short'\) \}\)\} \/>/, 'Eat hands the picked day');
+  assert.match(CLIENT, /label=\{_eatIsToday \? null : tr\('nutrition:eat\.fuelOn', \{ defaultValue: 'Fuel · \{day\}', day: bsEatStripDay\(day\) \}\)\} \/>/, 'Eat hands the picked day');
+  // Codex P2 on #2599: the day as the strip shows it (this week's date, the weekday in the reader's language),
+  // never the plan record's label (a sample's May dates, English initials).
+  const helper = CLIENT.slice(CLIENT.indexOf('function bsEatStripDay('), CLIENT.indexOf('function BSWeekStrip('));
+  assert.match(helper, /d\.setDate\(now\.getDate\(\) - \(\(now\.getDay\(\) \+ 6\) % 7\) \+ idx\);/, 'this week, Monday first, as the strip counts it');
+  assert.match(helper, /return `\$\{bsWeekdayName\(idx, 'short'\)\} \$\{d\.getDate\(\)\}`;/, 'the localized weekday and the date');
+  assert.doesNotMatch(CLIENT.slice(CLIENT.indexOf("tr('nutrition:eat.fuelOn'"), CLIENT.indexOf("tr('nutrition:eat.fuelOn'") + 200), /PROGRAM\[day\]\.d/, 'not the plan record\'s label');
 });
 
 test('Fuel left today puts the three macros side by side, each a door with what is left', () => {
