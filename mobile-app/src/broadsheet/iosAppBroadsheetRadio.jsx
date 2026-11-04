@@ -1457,7 +1457,7 @@ function bsRadioTimeAgo(iso, tr) {
 function bsRadioCorner(ink) {
   const size = (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34;
   const gap = (typeof window !== 'undefined' && window.BS_CORNER_GAP) || 9;
-  return (
+  const tools = (
     <div style={{ display: 'flex', alignItems: 'center', gap }}>
       {(typeof window !== 'undefined' && window.BSSearchCorner)
         ? React.createElement(window.BSSearchCorner, { size, ink, nora: false })
@@ -1467,6 +1467,10 @@ function bsRadioCorner(ink) {
         : null}
     </div>
   );
+  // The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill), read at
+  // call time and drawn in the row's own ink.
+  const Pill = typeof window !== 'undefined' ? window.BSMastToolPill : null;
+  return Pill ? <Pill ink={ink}>{tools}</Pill> : tools;
 }
 
 // ---------------------------------------------------------------------------
@@ -1510,7 +1514,7 @@ const FIELD_STEP = 18;
 const FIELD_DIM = 0.7;
 const FIELD_LIGHT = 0.4;
 
-function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail }) {
+function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail, ground }) {
   const wrapRef = useRefBR(null);
   const cvsRef = useRefBR(null);
   // The detector and every per-frame buffer live in refs: this loop runs at
@@ -1525,8 +1529,8 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
   const simBinsRef = useRefBR(null);
   const smRef = useRefBR(null);     // smoothed band values
   const pkRef = useRefBR(null);     // peak caps
-  const liveRef = useRefBR({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail });
-  liveRef.current = { paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail };
+  const liveRef = useRefBR({ paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail, ground });
+  liveRef.current = { paused, matching, heartBpm, teal, hot, heart, paper, figureRef, preview, onRead, onSignal, onRail, ground };
   // The last tempo handed UP to React, so the loop can tell a change from a
   // repeat. See the guard in the frame body.
   const saidRef = useRefBR(undefined);
@@ -1831,7 +1835,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
       // this page draws instead of a cloud. The alpha and the radius are
       // untouched: the rest is still FIELD_REST_ALPHA, so a field with nothing
       // on the air reads exactly as it did.
-      for (let y = FIELD_STEP / 2; y < H; y += FIELD_STEP) {
+      if (cfg.ground !== 'horizon' || kx > 0) for (let y = FIELD_STEP / 2; y < H; y += FIELD_STEP) {
         for (let x = FIELD_STEP / 2; x < W; x += FIELD_STEP) {
           const v = live ? Math.max(0, Math.min(1, (bins[fieldBin(Math.hypot(x - cx, y - cy), nBins)] || 0) / 255)) : 0;
           ctx.fillStyle = v > FIELD_HOT_V ? cfg.hot : cfg.teal;
@@ -1929,7 +1933,86 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
         const bw = band.w / BANDS;
         const wBar = Math.max(1, bw - BAR_GAP);
         ctx.save();
-        if (live) {
+        if (cfg.ground === 'horizon') {
+          // ⚠ THE HORIZON: THE SAME 32 BANDS, STANDING AS A SKYLINE. Each band is a tower on the
+          // horizon line, its height the band's smoothed level (barHeight), built of stacked tiles, its
+          // top fifth the hot tone and its peak a cap: the bars' rules, in perspective. The floor and
+          // the horizon are the instrument's axis, drawn whatever the air carries; the towers only over a
+          // frame that carries data, and the horizon is dashed when it carries nothing.
+          // ⚠ THE FLOOR MOVES ONLY ON A MEASURED BEAT. Its lines advance one spacing per beat of the
+          // detector's settled grid; with no tempo, nothing on the air or Reduce Motion, it is still.
+          const hy = fig.y + fig.h * 0.64;
+          const floorB = fig.y + fig.h;
+          const towerMax = (hy - fig.y) * 0.94;
+          const vx = band.x + band.w / 2;
+          const beatFrac = (live && read && read.bpm > 0 && !reduced) ? ((((t - read.phase) * read.bpm) / 60) % 1 + 1) % 1 : 0;
+          ctx.strokeStyle = cfg.teal;
+          ctx.lineWidth = 1;
+          for (let j = -14; j <= 14; j += 1) {
+            ctx.globalAlpha = (1 - kx) * 0.16;
+            ctx.beginPath(); ctx.moveTo(vx + j * 3, hy); ctx.lineTo(vx + j * (band.w / 7), floorB); ctx.stroke();
+          }
+          for (let i = 0; i < 9; i += 1) {
+            const u = (i + 1 - beatFrac) / 10;
+            const yl = hy + (floorB - hy) * Math.pow(u, 2.1);
+            ctx.globalAlpha = (1 - kx) * (0.08 + 0.3 * u);
+            ctx.beginPath(); ctx.moveTo(band.x, yl); ctx.lineTo(band.x + band.w, yl); ctx.stroke();
+          }
+          // The glow over the horizon, in six flat steps of the base tone: no gradient in the field (the
+          // retired ink gradient painted over the bars; tests/radio-two-tone.test.mjs).
+          const hazeH = fig.h * 0.22;
+          ctx.fillStyle = cfg.teal;
+          for (let k = 0; k < 6; k += 1) {
+            ctx.globalAlpha = (1 - kx) * 0.022 * (k + 1);
+            ctx.fillRect(band.x, hy - hazeH + (hazeH * k) / 6, band.w, hazeH / 6);
+          }
+          if (!live) {
+            ctx.globalAlpha = (1 - kx) * 0.45;
+            ctx.setLineDash([3, 5]);
+            ctx.beginPath(); ctx.moveTo(band.x, hy + 0.5); ctx.lineTo(band.x + band.w, hy + 0.5); ctx.stroke();
+            ctx.setLineDash([]);
+          } else {
+            const rawH = bandsFromBins(bins, BANDS);
+            if (!smRef.current || smRef.current.length !== BANDS) smRef.current = new Array(BANDS).fill(0);
+            if (!pkRef.current || pkRef.current.length !== BANDS) pkRef.current = new Array(BANDS).fill(0);
+            const smH = smRef.current;
+            const pkH = pkRef.current;
+            const cellW = band.w / BANDS;
+            const towerW = Math.max(2, cellW - 4);
+            const TILE_H = 5;
+            const TILE_GAP = 2;
+            for (let i = 0; i < BANDS; i += 1) {
+              smH[i] = smoothBand(smH[i], rawH[i]);
+              pkH[i] = peakBand(pkH[i], smH[i]);
+              const th = barHeight(smH[i], towerMax);
+              const tx = band.x + i * cellW + 2;
+              const tiles = Math.floor(th / (TILE_H + TILE_GAP));
+              const hotFrom = Math.floor(tiles * (1 - BAR_HOT_FRAC));
+              for (let n = 0; n < tiles; n += 1) {
+                const ty = hy - (n + 1) * (TILE_H + TILE_GAP) + TILE_GAP;
+                ctx.globalAlpha = (1 - kx) * (0.5 + 0.5 * smH[i]);
+                ctx.fillStyle = n >= hotFrom ? cfg.hot : cfg.teal;
+                ctx.fillRect(tx, ty, towerW, TILE_H);
+                // the tower's lit edge, a sliver to the right: the skyline's depth
+                ctx.globalAlpha = (1 - kx) * 0.35;
+                ctx.fillRect(tx + towerW, ty - 1, 1, TILE_H);
+              }
+              // its reflection on the floor — an echo, never a reading, so the base tone
+              ctx.globalAlpha = (1 - kx) * 0.12;
+              ctx.fillStyle = cfg.teal;
+              ctx.fillRect(tx, hy + 2, towerW, th * 0.32);
+              if (capVisible(pkH[i], smH[i], towerMax)) {
+                ctx.globalAlpha = (1 - kx) * 0.7;
+                ctx.fillStyle = cfg.hot;
+                ctx.fillRect(tx, hy - barHeight(pkH[i], towerMax) - 3, towerW, 1.5);
+              }
+            }
+            // The horizon itself, flashing on the beat it carries (the bars' baseline, far away).
+            ctx.globalAlpha = (1 - kx) * (0.3 + 0.6 * kick);
+            ctx.fillStyle = kick > FLOOD_KICK ? cfg.hot : cfg.teal;
+            ctx.fillRect(band.x, hy, band.w, 1);
+          }
+        } else if (live) {
           const raw = bandsFromBins(bins, BANDS);
           if (!smRef.current || smRef.current.length !== BANDS) smRef.current = new Array(BANDS).fill(0);
           if (!pkRef.current || pkRef.current.length !== BANDS) pkRef.current = new Array(BANDS).fill(0);
@@ -2005,7 +2088,7 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
         const counterY = baseY + fig.h * 0.24;
         for (let b = 0; b < 4; b += 1) {
           const on = step4 === b;
-          ctx.globalAlpha = (1 - kx) * (on ? 0.95 : 0.2);
+          ctx.globalAlpha = (cfg.ground === 'horizon' ? 0 : 1 - kx) * (on ? 0.95 : 0.2);
           ctx.fillStyle = on ? cfg.hot : cfg.teal;
           ctx.beginPath();
           // ⚠ CLEAR OF THE REFLECTION, WHICH IS WHY THIS IS A FRACTION OF THE
@@ -2573,35 +2656,43 @@ function BSRadioScreen({ onBack }) {
   // the theme accent: the two rows have to be told apart at a glance.
   const HEART = BS_HEART;
 
-  // Foreground tones — track paper mode. On dark paper we use cream; on light
-  // paper we fall back to the regular ink scale so the radio page reads clean
-  // either way.
+  // Foreground tones — track paper mode. On dark paper we use a cool cream; on light paper we fall back
+  // to the regular ink scale so the radio page reads clean either way.
   const isLight = !!t.isLight;
-  const CREAM   = isLight ? t.INK   : '#f4ede0';
-  const CREAM70 = isLight ? t.INK70 : 'rgba(244,237,224,0.72)';
-  const CREAM50 = isLight ? t.INK50 : 'rgba(244,237,224,0.5)';
-  const CREAM25 = isLight ? t.INK30 : 'rgba(244,237,224,0.25)';
-  const CREAM12 = isLight ? t.RULE  : 'rgba(244,237,224,0.12)';
+  const CREAM   = isLight ? t.INK   : '#eef3f0';
+  const CREAM70 = isLight ? t.INK70 : 'rgba(238,243,240,0.72)';
+  const CREAM50 = isLight ? t.INK50 : 'rgba(238,243,240,0.55)';
+  const CREAM25 = isLight ? t.INK30 : 'rgba(238,243,240,0.25)';
+  const CREAM12 = isLight ? t.RULE  : 'rgba(238,243,240,0.12)';
   const CARD    = isLight ? t.PAPER2 : 'rgba(15,18,18,0.55)';
-  const RULE_DK = isLight ? t.RULE  : 'rgba(244,237,224,0.18)';
+  const RULE_DK = isLight ? t.RULE  : 'rgba(238,243,240,0.18)';
+  // ⚠ E · THE HORIZON — the station as a city at night. A floor of light recedes to a horizon and
+  // the 32 bands stand on it as a skyline of tile towers, teal with hot tops, reflected on the floor
+  // (the field's `ground="horizon"`); the floor steps toward you on the measured beat and is still
+  // otherwise. Under it a glass dashboard of the three readings, the track set extra wide in capitals,
+  // one long key, the votes as one segmented capsule and the channels as lit tabs.
+  const GROUND = isLight ? t.PAPER : '#04070c';
+  const DISP = "'Anybody', 'Schibsted Grotesk', system-ui, sans-serif";
+  const SANS = "'Schibsted Grotesk', system-ui, sans-serif";
+  const HAIR = isLight ? t.RULE : 'rgba(238,243,240,0.12)';
+  const EDGE = isLight ? 'rgba(15,14,12,0.16)' : 'rgba(238,243,240,0.14)';
+  const PANEL = isLight ? 'rgba(15,14,12,0.035)' : 'rgba(238,243,240,0.045)';
+  const READ = { fontFamily: BS_DOTO, fontWeight: 900, fontVariationSettings: "'ROND' 100", letterSpacing: '0.02em' };
+  const LABEL = { fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 };
+  const GLASS = { borderRadius: 14, border: `1px solid ${EDGE}`, background: PANEL, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' };
 
   if (showSets) return <BSShapeSetsScreen onBack={() => setShowSets(false)} />;
 
   return (
     <div className="bs-scroll" style={{
       position: 'absolute', inset: 0, overflow: 'auto',
-      fontFamily: t.DISPLAY,
+      fontFamily: SANS,
       color: CREAM,
       scrollbarWidth: 'none', msOverflowStyle: 'none',
-      backgroundColor: t.PAPER,
+      backgroundColor: GROUND,
     }}>
-      {/* Top fade so the masthead area sits cleanly on the portrait */}
-      <div aria-hidden style={{
-        position: 'sticky', top: 0, height: 0, zIndex: 1,
-      }} />
-
-      {/* HEADER — translucent so portrait shows through */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 11px`, borderBottom: `1px solid ${RULE_DK}`, position: 'relative' }}>
+      {/* THE TOP ROW — the mark and Vol·No at the left, the tools in the masthead's slim pill. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0`, position: 'relative', zIndex: 3 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: window.BS_MAST_ROW_H || 34 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
@@ -2609,43 +2700,16 @@ function BSRadioScreen({ onBack }) {
               {tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}
             </div>
           </div>
-          {/* Canonical trailing corners (owner ruling 2026-08-01), from the one
-              module-scope cluster. ⚠ THIS PAGE IS NOT FIXED-DARK, WHICH THIS
-              COMMENT USED TO CLAIM: the whole palette below derives from
-              `t.isLight`, so on light paper CREAM *is* the theme ink and the
-              `ink` variant is simply the right one either way. (The Sets
-              screen's identical comment IS correct — that screen is
-              literal-palette. Fix the one, leave the other.) */}
           {bsRadioCorner(CREAM)}
         </div>
         {/* Universal back row — own row, flush left, under the mast (2026-07-14; BSBackRow 2026-10-31). */}
         {window.BSBackRow ? <window.BSBackRow onBack={onBack} ink={CREAM} /> : null}
-        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
-          {tr('radio:screen.sectionMusic', { defaultValue: 'Section · Music' })}
-        </div>
-        <div style={{
-          marginTop: 17,
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
-        }}>
-          <BSRadioWordmark width="min(86%, 330px)" style={{ margin: '0 auto' }} />
-        </div>
       </div>
 
-      {/* ⚠ THE HERO IS THE INSTRUMENT, AND EVERYTHING IN IT IS A READING.
-          This block was a listener count nobody counted, a BPM ring beating to a
-          typed-in 132, a CSS-sine EQ next to an idle analyser and a scrubber
-          parked at `0:00 / -0:00`. It is D · The Signal Field now (the owner's
-          pick, 2026-09-14): two states of ONE instrument — the station's live
-          spectrum while you are listening, two pulse rows on one clock while you
-          are matching — over a field of dots whose brightness is the spectrum and
-          whose breath is the MEASURED beat. Anything unmeasured reads "—". */}
-      <div style={{
-        position: 'relative', overflow: 'hidden',
-        borderBottom: `1px solid ${RULE_DK}`,
-        background: 'transparent',
-      }}>
-        {/* Full-bleed soft teal glow — fills the whole screen, no inset frame */}
+      {/* ⚠ THE SKYLINE IS THE INSTRUMENT, AND EVERYTHING IN IT IS A READING. Every tower is a band;
+          the floor moves on a measured beat or not at all; with nothing on the air there is no city,
+          only the floor and a dashed horizon. Anything unmeasured reads "—". */}
+      <div style={{ position: 'relative', overflow: 'hidden', background: 'transparent' }}>
         <div aria-hidden style={{
           position: 'absolute',
           inset: 0,
@@ -2653,163 +2717,52 @@ function BSRadioScreen({ onBack }) {
           background: `radial-gradient(95% 42% at 50% 17%, ${TEAL}12, ${TEAL}05 42%, transparent 62%)`,
           pointerEvents: 'none',
         }} />
-        {/* ⚠ THE PAGE'S GROUND, AND THE ONLY THING ON IT THAT MOVES. The stage
-            light stays as painted atmosphere; the field, the spectrum and the
-            rows are the analyser, drawn per frame, and they draw nothing at all
-            over a frame that carries no data. */}
         <BSRadioSignalField
           paused={r.paused} matching={matching} heartBpm={liveHr}
-          teal={TEAL} hot={HOT} heart={HEART} paper={t.PAPER} figureRef={figureRef}
+          teal={TEAL} hot={HOT} heart={HEART} paper={GROUND} figureRef={figureRef}
           preview={previewSim}
           onRead={setTempoRead} onSignal={setHasSig} onRail={setRailLit}
+          ground="horizon"
         />
         <BSStageLight color={TEAL} opacity={0.06} paused={r.paused} />
 
-        <div style={{ position: 'relative', zIndex: 2, padding: `12px ${t.padX}px 16px` }}>
-          {/* The mode label — which of the instrument's two states you are in. */}
-          <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, color: matching ? HEART : TEAL }}>
-            {matching
-              ? tr('radio:screen.matching', { defaultValue: 'Matching · station × heart' })
-              : tr('radio:screen.listening', { defaultValue: 'Listening · the station' })}
-          </div>
-
-          {/* THE RAIL — on air + the session clock, the signal's own strength,
-              and at the right either the measured tempo (listening) or the lock
-              (matching). ⚠ NO LISTENER COUNT: this read "On Air · 3,472" from
-              `BS_LIVE_STATION.listeners`, a number nobody has counted on a
-              station that is not broadcasting (brief §12, ruling 2). */}
-          <div style={{ marginTop: 11, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-            <div>
-              {/* ⚠ THE BLINKING RED DOT IS THE BROADCAST CLAIM, SO IT GOES WHERE
-                  THE CLAIM DOES. On the preview this rail would otherwise read
-                  "● ON AIR" over bars the page itself generated — and one line
-                  under a label saying the signal is an example, which is worse
-                  than either half alone. The house rule is not "never say it"
-                  but "never claim it unlabelled"; here the honest label REPLACES
-                  the claim rather than sitting beside it. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: previewSim ? TEAL : CREAM50 }}>
-                {!previewSim && <span style={{ width: 5, height: 5, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />}
-                {previewSim
-                  ? tr('radio:rail.preview', { defaultValue: 'Preview' })
-                  : tr('radio:rail.onAir', { defaultValue: 'On Air' })}
-              </div>
-              {/* ⚠ AND THE LABEL IS NOT SET IN THE READING FACE. Doto is this
-                  page's numeral face precisely because "every measured figure
-                  reads like a reading" (the 2026-09-10 type ruling) — so the one
-                  thing on the rail that is NOT a measurement must not wear it.
-                  The session clock keeps it; the example label is mono. */}
-              {previewSim ? (
-                <div style={{ marginTop: 4, maxWidth: 150, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', lineHeight: 1.35, color: CREAM50 }}>
-                  {tr('radio:rail.exampleSignal', { defaultValue: 'Example signal' })}
-                </div>
-              ) : (
-                <div style={{ marginTop: 3, fontFamily: BS_DOTO, fontSize: 15, fontWeight: 900, fontVariationSettings: "'ROND' 100", letterSpacing: '0.02em', color: CREAM }}>
-                  {sessionClock}
-                </div>
-              )}
-            </div>
-            <div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM50 }}>
-                {tr('radio:rail.signal', { defaultValue: 'Signal' })}
-              </div>
-              {/* Five bars off the analyser's own RMS — lit, or not lit. A frame
-                  we cannot read lights none of them rather than claiming silence. */}
-              <div style={{ marginTop: 5, display: 'inline-flex', alignItems: 'flex-end', gap: 3, height: 14 }}>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <span key={i} style={{ width: 4, height: 5 + i * 2.2, borderRadius: 1, background: i < railLit ? TEAL : CREAM25 }} />
-                ))}
-              </div>
-            </div>
-            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-              {matching ? (
-                <React.Fragment>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM50 }}>
-                    {tr('radio:rail.lock', { defaultValue: 'Lock' })}
-                  </div>
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: hrStage === 'synced' ? TEAL : hrStage === 'off' ? CREAM50 : '#e3a544' }}>
-                    {hrStatus}
-                  </div>
-                  {signedDelta != null && (
-                    <div style={{ marginTop: 4, fontFamily: BS_DOTO, fontSize: 13, fontWeight: 900, fontVariationSettings: "'ROND' 100", color: isSynced ? TEAL : '#e3a544' }}>
-{tr('radio:hr.deltaBpm', { delta: gapText(signedDelta), defaultValue: '{delta} BPM' })}
-                    </div>
-                  )}
-                </React.Fragment>
-              ) : (
-                <React.Fragment>
-                  <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700, color: CREAM50 }}>
-                    {tr('radio:rail.station', { defaultValue: 'Station · beat' })}
-                  </div>
-                  <div style={{ marginTop: 3, display: 'inline-flex', alignItems: 'baseline', gap: 5, color: stationBpm == null ? CREAM50 : TEAL }}>
-                    <span style={{ fontFamily: BS_DOTO, fontSize: 17, fontWeight: 900, fontVariationSettings: "'ROND' 100", letterSpacing: '0.02em' }}>
-                      {stationBpm == null ? '—' : Math.round(stationBpm)}
-                    </span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.2em', fontWeight: 700 }}>BPM</span>
-                  </div>
-                </React.Fragment>
-              )}
+        <div style={{ position: 'relative', zIndex: 2, padding: `12px ${t.padX}px 22px` }}>
+          {/* The page's own wordmark, centred, the mode under it (owner, 2026-11-04: "option e is best but
+              can we center shape radio logo"). */}
+          <div data-radio-wordmark="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+            <BSRadioWordmark width="min(76%, 290px)" style={{ margin: '0 auto' }} />
+            <div style={{ ...LABEL, fontSize: 9, marginTop: 10, color: matching ? HEART : TEAL }}>
+              {matching
+                ? tr('radio:screen.matching', { defaultValue: 'Matching · station × heart' })
+                : tr('radio:screen.listening', { defaultValue: 'Listening · the station' })}
             </div>
           </div>
 
-          {/* ⚠ WHY THE PAGE SAYS NOTHING, WHEN IT CAN SAY IT HONESTLY. A stream
-              that sends no `Access-Control-Allow-Origin` hands the analyser
-              all-zero bins forever — the spectrum draws nothing and the tempo
-              reads "—", and without this line that is indistinguishable from a
-              station playing silence. It renders ONLY on `false` (we read the
-              analyser and it carried nothing) and never on `null` (nothing is
-              reading it yet), and never while paused, where an empty analyser is
-              exactly what a paused player should produce.
-              ⚠ AND IT REQUIRES THAT PLAYBACK IS ACTUALLY PERMITTED. Found by
-              driving the page rather than by reading it: playback is gated on a
-              signed-in account (licensing, not product — the provider's own
-              effect pauses for anyone else), so a signed-out visitor's analyser
-              reads all-zero for a reason that has NOTHING to do with the
-              channel. Without this clause the page would blame the broadcaster
-              for our own sign-in gate, which is the same class of false claim
-              the line exists to remove. */}
-          {hasSig === false && !r.paused && bsRadioSignedIn() && (
-            <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, fontWeight: 600 }}>
-              {tr('radio:screen.noSignalData', { defaultValue: 'No signal data from the channel' })}
-            </div>
-          )}
-
-          {/* THE FIGURE — the spectrum, or the two rows. The canvas behind this
-              block measures THIS element and draws inside it, so the baselines
-              follow the layout rather than a literal: a longer mode label, the
-              line above, a larger text setting all move the figure and the
-              drawing with it. */}
-          <div ref={figureRef} style={{ position: 'relative', height: 268, marginTop: 10 }}>
+          {/* THE FIGURE — the skyline and its floor, or the two rows. The canvas measures THIS element. */}
+          <div ref={figureRef} style={{ position: 'relative', height: 258, marginTop: 6 }}>
             {matching && (
               <React.Fragment>
-                {/* Each row's reading at its left end — the station above in
-                    teal, the heart below in rust, the same identity the rows
-                    themselves carry. */}
                 <div style={{ position: 'absolute', left: 0, top: '30%', transform: 'translateY(-50%)' }}>
-                  <div style={{ fontFamily: BS_DOTO, fontSize: 17, fontWeight: 900, fontVariationSettings: "'ROND' 100", color: stationBpm == null ? CREAM50 : TEAL, lineHeight: 1 }}>
+                  <div style={{ ...READ, fontSize: 17, color: stationBpm == null ? CREAM50 : TEAL, lineHeight: 1 }}>
                     {stationBpm == null ? '—' : Math.round(stationBpm)}
                   </div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: stationBpm == null ? CREAM50 : `${TEAL}bf` }}>
+                  <div style={{ ...LABEL, marginTop: 4, fontSize: 7.5, color: stationBpm == null ? CREAM50 : `${TEAL}bf` }}>
                     {tr('radio:rail.station', { defaultValue: 'Station · beat' })}
                   </div>
                 </div>
                 <div style={{ position: 'absolute', left: 0, top: '72%', transform: 'translateY(-50%)' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                    {/* The monochrome heart glyph the house rule allows — never
-                        an emoji — beside the reading it belongs to. */}
                     {liveHr != null && <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: isSynced ? TEAL : HEART }}>♡</span>}
-                    <span style={{ fontFamily: BS_DOTO, fontSize: 17, fontWeight: 900, fontVariationSettings: "'ROND' 100", color: liveHr == null ? CREAM50 : (isSynced ? TEAL : HEART), lineHeight: 1 }}>
+                    <span style={{ ...READ, fontSize: 17, color: liveHr == null ? CREAM50 : (isSynced ? TEAL : HEART), lineHeight: 1 }}>
                       {liveHr == null ? '——' : Math.round(liveHr)}
                     </span>
                   </div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: liveHr == null ? CREAM50 : `${HEART}cc` }}>
+                  <div style={{ ...LABEL, marginTop: 4, fontSize: 7.5, color: liveHr == null ? CREAM50 : `${HEART}cc` }}>
                     {tr('radio:rail.you', { defaultValue: 'You · heart' })}
                   </div>
                 </div>
-                {/* ⚠ NO STRAP → NO NUMBER, AND THE ROW SAYS WHY. The shipped page
-                    invented 114 BPM for a member with nothing on their chest and
-                    then eased that invention into "sync". */}
                 {liveHr == null && (
-                  <div style={{ position: 'absolute', left: 0, right: 0, top: '84%', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, color: CREAM50 }}>
+                  <div style={{ ...LABEL, position: 'absolute', left: 0, right: 0, top: '84%', color: CREAM50 }}>
                     {tr('radio:hr.noPulse', { defaultValue: 'No pulse · connect a monitor' })}
                   </div>
                 )}
@@ -2817,23 +2770,93 @@ function BSRadioScreen({ onBack }) {
             )}
           </div>
 
-          {/* NOW — the track is the hero while listening, and steps back while
-              matching so the rows have the room. */}
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 4, height: 11, background: TEAL, display: 'inline-block' }} />
+          {/* THE DASHBOARD — three glass cells: on air and the session clock (or the preview, in its
+              place), the signal's own strength, and the measured tempo or the lock. */}
+          <div style={{ marginTop: 4, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+            <div style={{ ...GLASS, padding: '9px 10px', minWidth: 0 }}>
+              <div style={{ ...LABEL, display: 'flex', alignItems: 'center', gap: 6, color: previewSim ? TEAL : CREAM50 }}>
+                {!previewSim && <span style={{ width: 6, height: 6, borderRadius: 3, flexShrink: 0, background: '#ff5b4a', boxShadow: '0 0 6px #ff5b4a', animation: 'bs-blink 1.2s ease-in-out infinite' }} />}
+                {previewSim
+                  ? tr('radio:rail.preview', { defaultValue: 'Preview' })
+                  : tr('radio:rail.onAir', { defaultValue: 'On Air' })}
+              </div>
+              {!previewSim && (
+                <div style={{ ...READ, marginTop: 6, fontSize: 19, color: CREAM, lineHeight: 1 }}>
+                  {sessionClock}
+                </div>
+              )}
+            </div>
+            <div style={{ ...GLASS, padding: '9px 10px', minWidth: 0 }}>
+              <div style={{ ...LABEL, color: CREAM50 }}>
+                {tr('radio:rail.signal', { defaultValue: 'Signal' })}
+              </div>
+              {/* Five bars off the analyser's own RMS — lit, or not lit. */}
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'flex-end', gap: 3, height: 19 }}>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <span key={i} style={{ flex: 1, maxWidth: 7, height: `${36 + i * 16}%`, borderRadius: 1.5, background: i < railLit ? TEAL : CREAM25, boxShadow: i < railLit ? `0 0 6px ${TEAL}aa` : 'none' }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ ...GLASS, padding: '9px 10px', minWidth: 0 }}>
+              {matching ? (
+                <React.Fragment>
+                  <div style={{ ...LABEL, color: CREAM50 }}>
+                    {tr('radio:rail.lock', { defaultValue: 'Lock' })}
+                  </div>
+                  <div style={{ ...LABEL, marginTop: 5, color: hrStage === 'synced' ? TEAL : hrStage === 'off' ? CREAM50 : '#e3a544' }}>
+                    {hrStatus}
+                  </div>
+                  {signedDelta != null && (
+                    <div style={{ ...READ, marginTop: 4, fontSize: 13, color: isSynced ? TEAL : '#e3a544' }}>
+                      {tr('radio:hr.deltaBpm', { delta: gapText(signedDelta), defaultValue: '{delta} BPM' })}
+                    </div>
+                  )}
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  <div style={{ ...LABEL, color: CREAM50, lineHeight: 1.3 }}>
+                    {tr('radio:rail.station', { defaultValue: 'Station · beat' })}
+                  </div>
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 5, color: stationBpm == null ? CREAM50 : TEAL, lineHeight: 1 }}>
+                    <span style={{ ...READ, fontSize: 19 }}>
+                      {stationBpm == null ? '—' : Math.round(stationBpm)}
+                    </span>
+                    <span style={{ ...LABEL, fontSize: 7.5 }}>BPM</span>
+                  </div>
+                </React.Fragment>
+              )}
+            </div>
+          </div>
+
+          {/* ⚠ THE PREVIEW SAYS SO UNDER THE DASHBOARD — and not in the reading face: it is not a measurement. */}
+          {previewSim && (
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', lineHeight: 1.35, color: HOT }}>
+              {tr('radio:rail.exampleSignal', { defaultValue: 'Example signal' })}
+            </div>
+          )}
+
+          {/* The no-signal line: on `false` only, never while paused, and only where playback is permitted. */}
+          {hasSig === false && !r.paused && bsRadioSignedIn() && (
+            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: CREAM50, fontWeight: 600 }}>
+              {tr('radio:screen.noSignalData', { defaultValue: 'No signal data from the channel' })}
+            </div>
+          )}
+
+          {/* NOW — the track set extra wide, in capitals. */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ ...LABEL, fontSize: 8.5, letterSpacing: '0.24em', color: TEAL }}>
               {tr('radio:screen.nowPlaying', { defaultValue: 'Now Playing' })}
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: matching ? 24 : 32, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.0, color: CREAM }}>
+            <div style={{ marginTop: 7, fontFamily: DISP, fontVariationSettings: "'wdth' 150", fontSize: matching ? 20 : 25, fontWeight: 700, letterSpacing: '0.01em', lineHeight: 1.08, textTransform: 'uppercase', color: CREAM }}>
               {np.title}
             </div>
-            <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: CREAM70, fontWeight: 600 }}>
+            <div style={{ marginTop: 6, fontFamily: SANS, fontSize: 13.5, lineHeight: 1.35, color: CREAM70 }}>
               {np.byline}
             </div>
           </div>
 
-          {/* Transport — the key reads the MEASURED state (bsRadioTransportKey),
-              so it and the rail's clock can never disagree about the stream. */}
+          {/* THE KEY — one long capsule off the MEASURED key: the glyph in its own lit disc at the left,
+              the word beside it. Never a slider: the stream has no position. */}
           {(() => {
             const signedIn = bsRadioSignedIn();
             const key = bsRadioTransportKey({ signedIn, playing: r.playingSince != null, paused: r.paused });
@@ -2841,79 +2864,66 @@ function BSRadioScreen({ onBack }) {
               : key === 'resume' ? () => r.setPaused(false)
                 : key === 'tune' ? () => r.retryPlay()
                   : null;
-            const label = key === 'pause' ? `❚❚  ${tr('radio:screen.pause', { defaultValue: 'Pause' })}`
-              : key === 'resume' ? `▶  ${tr('radio:screen.resume', { defaultValue: 'Resume' })}`
-                : `▶  ${tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}`;
+            const label = key === 'pause' ? tr('radio:screen.pause', { defaultValue: 'Pause' })
+              : key === 'resume' ? tr('radio:screen.resume', { defaultValue: 'Resume' })
+                : tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' });
+            const canReact = bsRadioSignedIn();
             return (
               <>
-                <div style={{ marginTop: 14, display: 'flex', alignItems: 'stretch', gap: 8 }}>
-                  {/* The deck in the Wall's look (owner, 2026-10-24: "also fix the look of this"): square keys,
-                      the one to take in ink with the paper's text, the rest an outline. */}
-                  <button disabled={!act} onClick={() => { if (act) act(); }} style={{ borderRadius: 0,
-                    flex: 1, minHeight: 44, padding: '10px', background: act ? CREAM : 'transparent', color: act ? (isLight ? t.PAPER : '#050707') : CREAM50,
-                    border: act ? 0 : `1px solid ${CREAM25}`, cursor: act ? 'pointer' : 'default',
-                    fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 800,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  }}>
-                    {label}
-                  </button>
-                  {/* No ■ Stop beside it: the station has no off, and Pause is
-                      the member's whole say (owner, 2026-10-18). */}
-                </div>
-                {/* ⚠ SIGNED OUT, THE DECK SAYS WHY IT IS OFF. Playback is
-                    licensing-gated (bsRadioSignedIn), so the key above is
-                    disabled — and a disabled key with nothing beside it is a
-                    dead control. This is the social row's own nudge, one row up,
-                    which is what the brief's §7 calls for on the signed-out row. */}
+                <button disabled={!act} onClick={() => { if (act) act(); }} style={{ marginTop: 16, width: '100%', minHeight: 56, borderRadius: 999,
+                  padding: '6px 18px 6px 6px', cursor: act ? 'pointer' : 'default',
+                  border: `1px solid ${act ? `${TEAL}99` : EDGE}`,
+                  background: act ? `linear-gradient(90deg, ${TEAL}33, ${TEAL}0d 70%)` : PANEL,
+                  boxShadow: act && !isLight ? `0 0 26px -12px ${TEAL}` : 'none',
+                  color: act ? CREAM : CREAM50,
+                  display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left',
+                }}>
+                  <span style={{ width: 44, height: 44, borderRadius: 999, flex: 'none', display: 'grid', placeItems: 'center',
+                    background: act ? TEAL : 'transparent', color: act ? (isLight ? '#ffffff' : '#04110f') : CREAM50,
+                    boxShadow: act ? `0 0 16px -2px ${TEAL}` : `inset 0 0 0 1.5px ${CREAM25}` }}>
+                    <BSPlayGlyph playing={key === 'pause'} size={16} />
+                  </span>
+                  <span style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>{label}</span>
+                </button>
+                {/* No ■ Stop beside it: the station has no off, and Pause is the member's whole say. */}
                 {!signedIn && (
-                  <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM50, textAlign: 'center' }}>
+                  <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>
                     {tr('radio:screen.signInToListen', { defaultValue: 'Sign in to listen' })}
                   </div>
                 )}
-              </>
-            );
-          })()}
-
-          {/* Song social — shared like/dislike + a comments door. Renders ONLY on
-              a real track (honest-absent on a placeholder). Counts are public;
-              voting/commenting is signed-in only (an inline nudge, never a dead tap). */}
-          {screenKey && (() => {
-            const canReact = bsRadioSignedIn();
-            return (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {[
-                    { key: 'up', glyph: '+', count: screenSocial.up, label: tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) },
-                    { key: 'down', glyph: '−', count: screenSocial.down, label: tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' }) },
-                  ].map(item => {
-                    const active = screenSocial.myVote === item.key;
-                    return (
-                      <button key={item.key} aria-label={item.label} disabled={!canReact}
-                        onClick={() => r.voteSong(screenTrack, item.key)}
-                        style={{ flex: 1, minHeight: 44, borderRadius: 0, cursor: canReact ? 'pointer' : 'default',
-                          border: `1px solid ${active ? CREAM : CREAM25}`, background: 'transparent', boxShadow: active ? `inset 0 -2px 0 ${TEAL}` : 'none',
-                          color: active ? CREAM : CREAM70, fontFamily: t.MONO, fontWeight: 800,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 17 }}>{item.glyph}</span>
-                        <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{item.count}</span>
-                      </button>
-                    );
-                  })}
-                  <button onClick={() => setCommentsOpen(true)} aria-label={tr('radio:social.openComments', { defaultValue: 'Comments' })}
-                    style={{ flex: 1, minHeight: 44, borderRadius: 0, cursor: 'pointer',
-                      border: `1px solid ${CREAM25}`, background: 'transparent', color: CREAM70,
-                      fontFamily: t.MONO, fontWeight: 800, fontSize: 11, letterSpacing: '0.08em',
-                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                    <span style={{ fontSize: 15 }}>❝</span>
-                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{screenSocial.commentCount || 0}</span>
-                  </button>
-                </div>
-                {!canReact && (
+                {/* The votes and the comments door, as one segmented capsule. */}
+                {screenKey && (
+                  <div style={{ marginTop: 12, display: 'flex', borderRadius: 999, border: `1px solid ${EDGE}`, background: PANEL, overflow: 'hidden' }}>
+                    {[
+                      { key: 'up', glyph: '＋', count: screenSocial.up, label: tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) },
+                      { key: 'down', glyph: '−', count: screenSocial.down, label: tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' }) },
+                    ].map(item => {
+                      const on = screenSocial.myVote === item.key;
+                      return (
+                        <button key={item.key} aria-label={item.label} aria-pressed={on} disabled={!canReact}
+                          onClick={() => r.voteSong(screenTrack, item.key)}
+                          style={{ flex: 1, minHeight: 46, border: 0, borderRight: `1px solid ${EDGE}`, borderRadius: 0, cursor: canReact ? 'pointer' : 'default',
+                            background: on ? `${TEAL}26` : 'transparent', color: on ? TEAL : CREAM, fontFamily: t.MONO, fontWeight: 800,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 15, lineHeight: 1 }}>{item.glyph}</span>
+                          <span style={{ ...READ, fontSize: 15 }}>{item.count}</span>
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => setCommentsOpen(true)} aria-label={tr('radio:social.openComments', { defaultValue: 'Comments' })}
+                      style={{ flex: 1, minHeight: 46, border: 0, borderRadius: 0, cursor: 'pointer', background: 'transparent', color: CREAM, fontFamily: t.MONO, fontWeight: 800,
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 14, lineHeight: 1 }}>❝</span>
+                      <span style={{ ...READ, fontSize: 15 }}>{screenSocial.commentCount || 0}</span>
+                    </button>
+                  </div>
+                )}
+                {screenKey && !canReact && (
                   <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM50, textAlign: 'center' }}>
                     {tr('radio:social.signInToReact', { defaultValue: 'Sign in to react & comment' })}
                   </div>
                 )}
-              </div>
+              </>
             );
           })()}
 
@@ -2926,12 +2936,24 @@ function BSRadioScreen({ onBack }) {
             />
           )}
 
-          {/* THE ONE WIDE KEY — the whole heart-rate sync card collapsed into the
-              single control it always was. Its three surfaces (this key, the lock
-              word and the gap) say three different things, which is the rule
-              `tests/radio-hr-sync-labels.test.mjs` exists to keep. */}
-          <button onClick={toggleMatch} style={{ borderRadius: 0, minHeight: 44, marginTop: 12, width: '100%',
-            border: `1px solid ${hrStage === 'synced' ? TEAL : matching ? '#e3a544' : CREAM25}`,
+          {/* THE TABS — the channels as lit tabs over a hairline, a CHANNEL row, never a track list. */}
+          <div style={{ marginTop: 16, display: 'flex', borderBottom: `1px solid ${HAIR}` }}>
+            {[
+              { key: 'live', on: true, label: tr('radio:strip.live', { defaultValue: 'Live' }), go: () => r.setChannel('live') },
+              { key: 'sets', on: false, label: tr('radio:strip.sets', { defaultValue: 'Shape Sets' }), go: () => setShowSets(true) },
+              { key: 'nora', on: noraOn, label: tr('radio:strip.nora', { defaultValue: 'Nora' }), go: toggleNora },
+            ].map(s => (
+              <button key={s.key} aria-pressed={s.on} onClick={s.go} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 6px', border: 0, borderRadius: 0, cursor: 'pointer', background: 'transparent',
+                boxShadow: s.on ? `inset 0 -2px 0 ${TEAL}, 0 8px 16px -12px ${TEAL}` : 'none',
+                color: s.on ? CREAM : CREAM50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* THE ONE WIDE KEY — the heart-rate sync. */}
+          <button onClick={toggleMatch} style={{ borderRadius: 999, minHeight: 44, marginTop: 12, width: '100%',
+            border: `1px solid ${hrStage === 'synced' ? TEAL : matching ? '#e3a544' : EDGE}`,
             background: hrStage === 'synced' ? TEAL : matching ? '#e3a544' : 'transparent',
             color: hrStage === 'synced' || matching ? '#050707' : CREAM,
             padding: '13px', cursor: 'pointer',
@@ -2939,34 +2961,19 @@ function BSRadioScreen({ onBack }) {
             fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 800,
           }}>
             <span style={{ fontSize: 11 }}>{matching ? '◉' : '↕'}</span>
-{hrStage === 'off' ? tr('radio:hr.connectMonitor', { defaultValue: 'Connect monitor' }) : matching ? tr('radio:hr.matchingBeat', { defaultValue: 'Matching beat' }) : tr('radio:hr.matchMyBpm', { defaultValue: 'Match my BPM' })}
+            {hrStage === 'off' ? tr('radio:hr.connectMonitor', { defaultValue: 'Connect monitor' }) : matching ? tr('radio:hr.matchingBeat', { defaultValue: 'Matching beat' }) : tr('radio:hr.matchMyBpm', { defaultValue: 'Match my BPM' })}
           </button>
           {matching && (
-            <button onClick={listenOnly} style={{ display: 'block', margin: '9px auto 0', background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 10px', color: CREAM50, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
+            <button onClick={listenOnly} style={{ display: 'block', margin: '9px auto 0', background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 10px', minHeight: 44, color: CREAM50, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 700 }}>
               {tr('radio:hr.listenOnly', { defaultValue: '× Listen only' })}
             </button>
           )}
-
-          {/* THE STRIP — a CHANNEL row, never a track list. Channels may be
-              chosen; tracks never (prohibition 4 in this module's own header). */}
-          <div style={{ marginTop: 16, display: 'flex', gap: 22, borderTop: `2px solid ${CREAM}`, paddingTop: 4 }}>
-            {[
-              { key: 'live', on: true, label: tr('radio:strip.live', { defaultValue: 'Live' }), go: () => r.setChannel('live') },
-              { key: 'sets', on: false, label: tr('radio:strip.sets', { defaultValue: 'Shape Sets' }), go: () => setShowSets(true) },
-              { key: 'nora', on: noraOn, label: tr('radio:strip.nora', { defaultValue: 'Nora' }), go: toggleNora },
-            ].map(s => (
-              <button key={s.key} aria-pressed={s.on} onClick={s.go} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, display: 'flex', alignItems: 'stretch' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', boxShadow: s.on ? `inset 0 -2px 0 ${TEAL}` : 'none', color: s.on ? CREAM : CREAM50,
-                  fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{s.label}</span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
       {/* Below-fold panel — tracks paper mode. Carries the page's bottom padding so
           its background fills all the way down (no color step / "border" above the nav). */}
-      <div style={{ background: isLight ? t.PAPER : 'rgba(5,7,7,0.92)', paddingBottom: 80 + 28 }}>
+      <div style={{ background: GROUND, borderTop: `1px solid ${HAIR}`, paddingBottom: 80 + 28 }}>
 
         {/* ── NORA WATCH (preview) ──────────────────────────────────────────── */}
         <DarkSection title="Nora" meta={tr('radio:nora.djPreview', { defaultValue: 'DJ preview' })} cream={CREAM} cream50={CREAM50} rule={RULE_DK} t={t} />
