@@ -290,6 +290,9 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     // status so the event sheet can write real completes/reschedules through
     // /api/sessions/manage instead of toasting.
     sessionId: ev.sessionId || null,
+    // The booking's real start instant (/api/calendar sends it on every session): the sheet's Mark
+    // complete waits for it to have passed (Codex P2 on #2607: dropped here, a started session read "Done").
+    scheduledAt: typeof ev.scheduledAt === 'string' && ev.scheduledAt ? ev.scheduledAt : null,
     status: ev.status || null,
     reschedulable: ev.reschedulable !== false,
     // false: another coach's booking with this client, shown in a shared client's calendar only.

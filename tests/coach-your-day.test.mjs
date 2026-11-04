@@ -106,3 +106,11 @@ test('a session in Your day opens its own details, not the month calendar', () =
   const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
   assert.match(CAL, /Object\.assign\(window, \{[^}]*BSEventSheet, bsMapServerCalEvent: _bsMapServerCalEvent \}\);/);
 });
+
+test('the calendar\'s mapper keeps a booking\'s start instant, so a started session offers Mark complete', () => {
+  // Codex P2 on #2607: _bsMapServerCalEvent dropped `scheduledAt`, and BSEventSheet's Mark complete waits for it.
+  const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
+  const mapper = CAL.slice(CAL.indexOf('function _bsMapServerCalEvent('), CAL.indexOf('\n}\n', CAL.indexOf('function _bsMapServerCalEvent(')));
+  assert.match(mapper, /scheduledAt: typeof ev\.scheduledAt === 'string' && ev\.scheduledAt \? ev\.scheduledAt : null,/);
+  assert.match(CAL, /const sessionStarted = Number\.isFinite\(Date\.parse\(event\.scheduledAt\)\)/);
+});
