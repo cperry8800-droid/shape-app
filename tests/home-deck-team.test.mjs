@@ -475,6 +475,15 @@ test("today's session goes on the card of the trainer who wrote it, and the memb
   }
 });
 
+// Codex P2 on #2583: a meal logged from Team counts in its food left: the meal logger hands its write to
+// onLogged, and Home reads the day again once it lands (and a moment later, as Home's other loggers do).
+test("a meal logged from Team is counted in Team's food left once it is written", () => {
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  const flow = client.slice(client.indexOf('function BSLogMealFlow('), client.indexOf('function BSLogMealFlow(') + 40000);
+  assert.match(flow, /write = r;[\s\S]{0,400}onLogged\(write\);/, 'the logger hands its write to onLogged');
+  assert.match(client, /onLogged=\{\(write\) => \{\s+if \(loggingMealId\) setMealLogged\(\(prev\) => \(\{ \.\.\.prev, \[loggingMealId\]: true \}\)\);[\s\S]{0,300}if \(write && typeof write\.then === 'function'\) write\.then\(\(\) => refreshAnalytics\(\), \(\) => \{\}\);\s+setTimeout\(refreshAnalytics, 700\);/);
+});
+
 // Codex P2 on #2583: a member who pays two nutritionists sees the day's meals under the one who wrote the plan.
 test("the day's meals go on the card of the nutritionist who wrote the plan, with their Message", () => {
   const NIA = { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null };

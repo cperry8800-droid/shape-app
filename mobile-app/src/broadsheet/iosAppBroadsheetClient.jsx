@@ -3718,15 +3718,19 @@ function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = n
     // accumulating write; no-ops when signed out. The +10 Shape Score award
     // ({awarded, points}) rides back on the resolved value; show it only when
     // actually granted (first meal-log of the day), never on an already-earned day.
+    // The write rides to onLogged, so a screen showing the day's food can read it again once it lands
+    // (Home's Team fuel, Codex P2 on #2583).
+    let write = null;
     try {
       const r = window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F });
       if (r && typeof r.then === 'function') {
+        write = r;
         r.then((d) => (d && d.awardPromise) || null)
          .then((a) => { if (a && a.awarded) setAward(a); })
          .catch(() => {});
       }
     } catch (e) {}
-    onLogged();
+    onLogged(write);
     setLogged(true);
   };
   const primaryBtn = { width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' };
@@ -4872,7 +4876,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSHomeWorkoutPreview workout={selWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: selWorkout }); }} onMessage={() => { setShowWorkoutPreview(false); goChat('Jordan Chen', 'Coach · Hypertrophy'); }} />;
   }
   if (showLogMeal) {
-    return <BSLogMealFlow meal={mealToLog} daySoFar={{ cal: liveCal, protein: (ticker && typeof ticker.protein_g === 'number' ? ticker.protein_g : null) }} dayTargets={{ cal: (ticker && typeof ticker.cal_target === 'number') ? ticker.cal_target : null, protein: (ticker && typeof ticker.protein_target === 'number') ? ticker.protein_target : null }} signedIn={bsHomeSignedIn} onClose={() => { setShowLogMeal(false); setMealToLog(null); }} onLogged={() => { if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true })); }} />;
+    return <BSLogMealFlow meal={mealToLog} daySoFar={{ cal: liveCal, protein: (ticker && typeof ticker.protein_g === 'number' ? ticker.protein_g : null) }} dayTargets={{ cal: (ticker && typeof ticker.cal_target === 'number') ? ticker.cal_target : null, protein: (ticker && typeof ticker.protein_target === 'number') ? ticker.protein_target : null }} signedIn={bsHomeSignedIn} onClose={() => { setShowLogMeal(false); setMealToLog(null); }} onLogged={(write) => {
+      if (loggingMealId) setMealLogged((prev) => ({ ...prev, [loggingMealId]: true }));
+      // The day's food is read again once the meal is written, so Team's food left and its bar count it
+      // (Codex P2 on #2583); and once more a moment later, as the other loggers on Home do.
+      if (write && typeof write.then === 'function') write.then(() => refreshAnalytics(), () => {});
+      setTimeout(refreshAnalytics, 700);
+    }} />;
   }
   if (habitsPage) {
     return <BSHabitsPage tweaks={tweaks} setTweak={setTweak} accent={t.GREEN} onBack={() => setHabitsPage(false)} onOpenScore={() => { setHabitsPage(false); goScore?.(); }} />;
