@@ -16237,6 +16237,12 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
     // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
     if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' }), 'err'); return; }
     setBusy(true);
+    // The website's Colors panel writes look.accent, and the page tints with it over this hex accent
+    // (bsMemberLookAccent). An accent picked here is the member's latest word, so it clears look.accent and
+    // shows; an accent left as it was leaves the look alone (Codex P2 on #2611).
+    const accentChanged = (accent || '') !== (init.accent || '');
+    const initLook = init.look && typeof init.look === 'object' && !Array.isArray(init.look) ? init.look : null;
+    const lookOut = accentChanged && initLook && initLook.accent ? (({ accent: _gone, ...rest }) => rest)(initLook) : undefined;
     const doc = {
       ...init,
       bio: bio.trim(),
@@ -16245,6 +16251,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
       accent: accent || null,
+      ...(lookOut ? { look: lookOut } : {}),
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
