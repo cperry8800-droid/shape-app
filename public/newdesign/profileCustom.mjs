@@ -568,6 +568,104 @@ export function bsProfileKitchen(v, ownerUid) {
   return { plate, rules, staples, recipes };
 }
 
+// ── The Studio tab (owner, 2026-11-04: round 3 of the studio, "C", "the about me looks good", "name it
+// studio"): what the coach says about the work they sell. All optional, all public through
+// get_public_profile, so each is rebuilt here and again where it is drawn.
+//
+//   focus         up to 4 words under the coach's name: a preset (a TOKEN, drawn in the reader's
+//                 language) or the coach's own words. [{ id } | { w }]
+//   picks         up to 2 workouts the coach would start a member on, by key: a program's day
+//                 ('d:<plan id>:<day>') or a posted video ('v:<post key>').
+//   descriptions  one line, up to 140 characters, per thing they sell, by key: a program
+//                 ('p:<plan id>'), a program's day, a video, or 'coaching'.
+//   programFor    who a program is for, by plan id: a preset TOKEN or the coach's own words.
+//
+// ⚠ A PRESET IS STORED AS ITS TOKEN, never its label, for the reason the pin kinds are (below): a
+// label would freeze the language the coach picked it in into a doc other members read.
+export const BS_FOCUS_MAX = 4;
+export const BS_FOCUS_WORD_MAX = 24;
+export const BS_FOCUS_PRESETS = ['strength', 'conditioning', 'beginners', 'hypertrophy', 'cut', 'return', '5k', 'mobility'];
+export const BS_PICKS_MAX = 2;
+export const BS_DESC_MAX = 140;
+// Every line the editor offers is kept (Codex P2 on #2592): a line for each program, each of its days
+// and each video the Studio reads, and one for coaching, so coachWork.mjs's BS_WORK_PROGRAMS_MAX ×
+// (1 + BS_WORK_DAYS_MAX) + BS_WORK_VIDEOS_MAX + 1 (tests/coach-studio-model.test.mjs holds the two
+// together). At 140 characters a line that is under 30 KB of words, in the doc the coach writes.
+export const BS_DESCS_MAX = 12 * (1 + 14) + 12 + 1;
+export const BS_FOR_WORDS_MAX = 40;
+export const BS_FOR_PRESETS = ['new', 'lifting'];
+const BS_FOR_MAX = 24;
+const BS_WORK_ID = '[A-Za-z0-9_-]{1,64}';
+const BS_PICK_KEY = new RegExp(`^(?:d:${BS_WORK_ID}:\\d{1,2}|v:[A-Za-z0-9_.:-]{1,96})$`);
+const BS_DESC_KEY = new RegExp(`^(?:p:${BS_WORK_ID}|d:${BS_WORK_ID}:\\d{1,2}|v:[A-Za-z0-9_.:-]{1,96}|coaching)$`);
+const BS_PLAN_KEY = new RegExp(`^${BS_WORK_ID}$`);
+const bsIsObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+
+// A preset { id } or the coach's own words { w }; null for anything else.
+function bsTokenOrWords(v, presets, max) {
+  if (!bsIsObj(v)) return null;
+  if (typeof v.id === 'string' && presets.includes(v.id)) return { id: v.id };
+  const w = bsCleanText(v.w, max);
+  return w ? { w } : null;
+}
+
+export function bsProfileFocus(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const f of v.slice(0, BS_FOCUS_MAX * 4)) {
+    const item = bsTokenOrWords(f, BS_FOCUS_PRESETS, BS_FOCUS_WORD_MAX);
+    if (!item) continue;
+    const k = item.id ? `id:${item.id}` : `w:${item.w.toLowerCase()}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(item);
+    if (out.length >= BS_FOCUS_MAX) break;
+  }
+  return out;
+}
+
+export function bsProfilePicks(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const k of v.slice(0, BS_PICKS_MAX * 4)) {
+    if (typeof k !== 'string' || !BS_PICK_KEY.test(k) || out.includes(k)) continue;
+    out.push(k);
+    if (out.length >= BS_PICKS_MAX) break;
+  }
+  return out;
+}
+
+// Null when there is nothing to keep, so an empty doc key drops.
+export function bsProfileDescriptions(v) {
+  if (!bsIsObj(v)) return null;
+  const out = {};
+  let n = 0;
+  for (const [k, text] of Object.entries(v).slice(0, BS_DESCS_MAX * 4)) {
+    if (!BS_DESC_KEY.test(k)) continue;
+    // One line: a line break the coach typed or pasted reads as a space.
+    const line = bsCleanText(typeof text === 'string' ? text.replace(/\s+/g, ' ') : text, BS_DESC_MAX);
+    if (!line) continue;
+    out[k] = line;
+    if (++n >= BS_DESCS_MAX) break;
+  }
+  return n ? out : null;
+}
+
+export function bsProfileProgramFor(v) {
+  if (!bsIsObj(v)) return null;
+  const out = {};
+  let n = 0;
+  for (const [k, f] of Object.entries(v).slice(0, BS_FOR_MAX * 4)) {
+    if (!BS_PLAN_KEY.test(k)) continue;
+    const item = bsTokenOrWords(f, BS_FOR_PRESETS, BS_FOR_WORDS_MAX);
+    if (!item) continue;
+    out[k] = item;
+    if (++n >= BS_FOR_MAX) break;
+  }
+  return n ? out : null;
+}
+
 // The trusted save wrapper's core: normalize THIS WAVE's keys on a copy of the
 // doc, dropping a key entirely when it's empty/invalid (never an empty-string
 // tombstone), and passing EVERY other key through byte-identical (AC 9). Junk
@@ -603,6 +701,11 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   // The coach's choice to show their socials in the profile's head too: kept only as true.
   if ('headLinks' in base) { if (base.headLinks === true) base.headLinks = true; else delete base.headLinks; }
   if ('prompts' in base) { const prompts = bsProfilePrompts(base.prompts); if (prompts.length) base.prompts = prompts; else delete base.prompts; }
+  // The Studio tab's words (above): kept only in their own shapes, and dropped when empty.
+  if ('focus' in base) { const focus = bsProfileFocus(base.focus); if (focus.length) base.focus = focus; else delete base.focus; }
+  if ('picks' in base) { const picks = bsProfilePicks(base.picks); if (picks.length) base.picks = picks; else delete base.picks; }
+  if ('descriptions' in base) { const d = bsProfileDescriptions(base.descriptions); if (d) base.descriptions = d; else delete base.descriptions; }
+  if ('programFor' in base) { const f = bsProfileProgramFor(base.programFor); if (f) base.programFor = f; else delete base.programFor; }
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {

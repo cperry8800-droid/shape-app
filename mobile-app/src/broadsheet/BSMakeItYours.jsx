@@ -1,41 +1,49 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  BS_LOOK_PAPERS, BS_LOOK_ACCENTS, BS_STUDIO_ITEMS_MAX, BS_STUDIO_STATIONS_MAX, BS_STUDIO_WHERE_MAX, BS_STUDIO_LABEL_MAX,
-  BS_STATION_TITLE_MAX, BS_STATION_NOTE_MAX, BS_STATION_PINS_MAX, bsProfileLook, bsProfileStudio, bsProfileCover, bsNormalizeProfileCustom,
+  BS_LOOK_PAPERS, BS_LOOK_ACCENTS, bsProfileLook, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
   BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_COACH_PROMPTS,
   BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, BS_ABOUT_YEAR_MIN, bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsPromptLabel, bsPromptToken,
+  BS_FOCUS_MAX, BS_FOCUS_WORD_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_FOR_WORDS_MAX, BS_FOR_PRESETS,
+  bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
 } from '../services/profileCustom.mjs';
+import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
-import {
-  STUDIO_KIT, STUDIO_GROUPS, STUDIO_COACH_KINDS, KITCHEN_GROUPS, KITCHEN_COACH_KINDS, STUDIO_WORDS, BS_STUDIO_W, BS_STUDIO_H,
-  bsStudioTypesIn, bsStudioRoom, bsStudioSvg, bsStudioSpot, bsStudioDrawOrder, bsStudioFromTemplate, BS_STUDIO_OWN_SIZES,
-} from '../services/studioKit.mjs';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
-// Owner, 2026-10-27 (the R7 canvas): three tabs over a live preview of the profile's top.
+// Owner, 2026-10-27 (the R7 canvas), then 2026-11-04 (the Studio tab as the coach's work): four tabs.
+// Colors and Wall photo sit under a live preview of the profile's top.
 //
 //   Colors       Shape's own papers and accents (the app's makePalette, nothing custom), with a
 //                few starting looks, and a check that the accent reads on the paper.
 //   Wall photo   the big photo behind the avatar: one of the coach's listing photos or their own
 //                upload, and which part stays in view.
-//   Your space   the studio plan: a starting layout per kind of space, then pieces to add, move,
-//                turn, copy and remove. A piece made a station gets a number members tap, and
-//                the coach's own title and note for it.
-//   Your kitchen (a nutritionist's, in place of Your space) in the page's three parts (its layout,
-//                added 2026-10-30, went the next day: owner, "i dont think this concept makes sense
-//                for nutritionist profiles"): up to six recipes of their own (written or pasted, with a photo, their
-//                note, the numbers, the ingredients and the method, in the order they put them),
-//                the plate they teach and their portion rules, and their staples.
+//   Programs     (a trainer's) one optional line, up to 140 characters, under each thing they sell:
+//                each program, each workout (a program's day or a posted video) and the coaching
+//                offer, with what members see when it is left blank; and who each program is for.
+//                What they sell comes in as `work`, read by the profile.
+//   Your kitchen (a nutritionist's, in place of Programs) the page's three parts: up to six recipes
+//                of their own (written or pasted, with a photo, their note, the numbers, the
+//                ingredients and the method, in the order they put them), the plate they teach and
+//                their portion rules, and their staples.
+//   About me     for a trainer, first what members read under their name: a preview, up to four
+//                focus words (a preset, stored as its token, or their own) and up to two workouts
+//                they would start a member on (their picks); then, for every coach, the story, the
+//                details, accolades and education, the questions members ask, and their socials.
 //
-// What it writes: whichever of `look`, `studio`, `kitchen` and `cover` the coach changed here, in the
-// profile_custom doc, merged onto the doc as it is at save time (re-read for this account, so a
-// key saved elsewhere since this opened is kept; no read, no save), through the same normalizer
-// every surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc
-// as read, never on defaults.
+// The floor plan a trainer drew (Your space, gone 2026-11-04: "too confusing for people") and a
+// nutritionist's kitchen layout (gone 2026-10-31) are no longer edited here; a `studio` saved before
+// rides through every save as stored, as any key this editor did not change.
+//
+// What it writes: whichever of `look`, `cover`, `kitchen`, `about`, `prompts`, `links`, `headLinks`,
+// `focus`, `picks`, `descriptions` and `programFor` the coach changed here, in the profile_custom
+// doc, merged onto the doc as it is at save time (re-read for this account, so a key saved
+// elsewhere since this opened is kept; no read, no save), through the same normalizer every
+// surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc as read,
+// never on defaults.
 //
 // In the signed-out demo (`demo`), Save changes the page on screen and nothing else: no read, no
 // write, and the wall photo is one of the demo's own (`photos`); an upload asks to sign in.
@@ -79,10 +87,6 @@ const paletteOf = (paper, accent) => {
 const RAW_ACCENT = { blue: ['#1c4ed8', '#5b8df9'], amber: ['#c8881a', '#e3a544'], rust: ['#a8331b', '#e06547'], green: ['#2f6b3a', '#5fb16e'], teal: ['#0a8f87', '#34d6c5'], violet: ['#6d3fc4', '#a78bfa'], rose: ['#b8285f', '#f2749f'], white: ['#ffffff', '#ffffff'], black: ['#000000', '#000000'] };
 const PRESETS = [['shape', 'dark', 'teal'], ['bone', 'bone', 'rust'], ['blueprint', 'blueprint', 'amber'], ['oxblood', 'oxblood', 'amber'], ['forest', 'forest', 'green'], ['plum', 'plum', 'violet'], ['manila', 'manila', 'black']];
 const FOCUS_POS = { top: 'center 22%', center: 'center 50%', bottom: 'center 80%' };
-// The kinds' names are the profile's (profile:trainer.kind*), except blank: on the profile it reads
-// "Their space", here it is the choice to start from nothing.
-const KIND_KEYS = { private: ['trainer.kindPrivate', 'Private studio'], garage: ['trainer.kindGarage', 'Garage gym'], gym: ['trainer.kindGym', 'Full gym'], pilates: ['trainer.kindPilates', 'Pilates studio'], boxing: ['trainer.kindBoxing', 'Boxing gym'], outdoor: ['trainer.kindOutdoor', 'Outdoors'], kitchen: ['trainer.kindKitchen', 'Kitchen'], blank: ['mine.kindBlank', 'Start blank'] };
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const signedInUid = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; } };
 const sameJson = (a, b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
 
@@ -109,14 +113,14 @@ const smallBtn = { minHeight: 40, padding: '0 12px', borderRadius: 10, border: `
 
 // ── The preview: the top of the profile, painted in the look being picked ──────────────────
 // Its tabs work (owner, 2026-10-31: "these dont work", of The studio and Replays): each shows what
-// that part of the page holds, and the studio or the kitchen opens its own editor. The card says it is
+// that part of the page holds, and the Studio opens Programs, the kitchen its own editor. The card says it is
 // a preview, so the buttons drawn on it read as the page's, not as controls here.
 function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
   const P = paletteOf(look.paper, look.accent);
   const ACC = P.ACCENT;
   const ink = (n) => `rgba(${P.inkRGB},${n})`;
   const [pv, setPv] = React.useState(0);
-  const tabLabels = [words.day, nutri ? (words.kitchen || tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: who.first })) : tr('profile:trainer.tabStudio', { defaultValue: 'The studio' }), nutri ? tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }) : tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })];
+  const tabLabels = [words.day, nutri ? (words.kitchen || tr('profile:nutri.kitchenName', { defaultValue: "{name}'s kitchen", name: who.first })) : tr('profile:trainer.tabStudio', { defaultValue: 'Studio' }), nutri ? tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }) : tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })];
   const note = (text, editKey, editLabel) => (
     <div data-mine-preview-panel={pv} style={{ marginTop: 10, minHeight: 40, padding: '8px 10px', border: `1px solid ${ink(0.16)}`, display: 'flex', alignItems: 'center', gap: 10 }}>
       <span style={{ flex: 1, fontSize: 12.5, lineHeight: 1.35, color: ink(0.78) }}>{text}</span>
@@ -148,7 +152,7 @@ function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
         </div>
         {pv === 1 ? (nutri
           ? note(tr('profile:mine.previewKitchen', { defaultValue: 'Your kitchen, recipes, plate and staples show here.' }), 'kitchen', tr('profile:mine.previewEditKitchen', { defaultValue: 'Edit your kitchen' }))
-          : note(tr('profile:mine.previewSpace', { defaultValue: 'Your space shows here, as you draw it.' }), 'space', tr('profile:mine.previewEditSpace', { defaultValue: 'Edit your space' })))
+          : note(tr('profile:mine.previewStudio', { defaultValue: 'Your programs, workouts and coaching show here, with the lines you write for them.' }), 'programs', tr('profile:mine.previewEditStudio', { defaultValue: 'Write them' })))
         : pv === 2 ? (nutri
           ? note(tr('profile:mine.previewPlates', { defaultValue: 'The meals you share with clients show here, by day.' }))
           : note(tr('profile:mine.previewReplays', { defaultValue: 'Replays, workouts and programs you publish show here.' })))
@@ -163,6 +167,22 @@ function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
     </div>
   );
 }
+
+// A ruled field (owner, 2026-11-04, the Studio round's editor): a 1px rule, a kicker in capitals with
+// what sits on its right, then the field. Programs and About me's focus and picks use it.
+const KICK = { fontFamily: MONO, fontSize: 9.5, fontWeight: 500, lineHeight: 1.3, letterSpacing: '0.13em', textTransform: 'uppercase', color: ea(0.55), whiteSpace: 'nowrap' };
+function Ruled({ kicker, sub = null, right = null, children, ...rest }) {
+  return (
+    <div {...rest} style={{ marginTop: 18, paddingTop: 11, borderTop: `1px solid ${ea(0.2)}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ ...KICK, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}><b style={{ fontWeight: 700, color: E.INK }}>{kicker}</b>{sub ? <> · {sub}</> : null}</span>
+        {right != null ? <span style={{ ...KICK, flex: 'none' }}>{right}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+const hintStyle = { margin: '6px 0 0', fontSize: 12.5, lineHeight: 1.4, color: ea(0.66) };
 
 // ── Colors ──────────────────────────────────────────────────────────────────────────────────
 function ColorsTab({ tr, look, setLook }) {
@@ -251,306 +271,6 @@ function WallTab({ tr, look, setLook, wall, setWall, choices, uploading, onUploa
       <Seg label={tr('profile:mine.keepInView', { defaultValue: 'Keep in view' })} value={look.focus || 'center'} onChange={(k) => setLook({ ...look, focus: k })}
         options={[['top', tr('profile:mine.focusTop', { defaultValue: 'Top' })], ['center', tr('profile:mine.focusCenter', { defaultValue: 'Center' })], ['bottom', tr('profile:mine.focusBottom', { defaultValue: 'Bottom' })]]} />
       <p style={{ margin: '12px 0 0', fontSize: 13, lineHeight: 1.45, color: ea(0.62) }}>{tr('profile:mine.wallHint', { defaultValue: 'Wide photos work best. Your listing photos show here too.' })}</p>
-    </div>
-  );
-}
-
-// ── Your space ──────────────────────────────────────────────────────────────────────────────
-// A station's programs (owner, 2026-10-29, the studio showing the coach's workouts by machine:
-// "Both", the moves' own equipment and the coach's pins). Their published programs, up to
-// BS_STATION_PINS_MAX pinned; members see them on the station.
-function PinPicker({ tr, programs, pins: stored, onChange }) {
-  const [msg, setMsg] = React.useState(null);
-  // A pin to a program no longer published is never shown to members, so it neither counts against
-  // the limit nor survives the next change here (Codex on #2508: a full station stayed full).
-  const pins = stored.filter((id) => programs.some((pr) => pr.id === id));
-  return (
-    <div data-pins="" style={{ marginTop: 10 }}>
-      <span style={{ display: 'block', fontSize: 13, color: ea(0.66) }}>{tr('profile:mine.pinsTitle', { defaultValue: 'Programs you run here' })}</span>
-      {programs.length ? (
-        <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {programs.map((pr) => {
-            const on = pins.includes(pr.id);
-            return (
-              <button key={pr.id} type="button" data-pin={pr.id} aria-pressed={on} onClick={() => {
-                setMsg(null);
-                if (on) { onChange(pins.filter((x) => x !== pr.id)); return; }
-                if (pins.length >= BS_STATION_PINS_MAX) { setMsg(tr('profile:mine.pinsMax', { defaultValue: 'Up to {count} programs on a station.', count: BS_STATION_PINS_MAX })); return; }
-                onChange([...pins, pr.id]);
-              }} style={{ minHeight: 38, padding: '0 12px', borderRadius: 999, border: `1px solid ${on ? E.ED : ea(0.22)}`, background: on ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>{on ? '✓ ' : ''}{pr.name}</button>
-            );
-          })}
-        </div>
-      ) : <span style={{ display: 'block', marginTop: 4, fontSize: 12.5, color: ea(0.55) }}>{tr('profile:mine.pinsNone', { defaultValue: 'Publish a program to pin it here.' })}</span>}
-      {msg ? <p role="alert" style={{ margin: '6px 0 0', fontSize: 13, color: E.WARN }}>{msg}</p> : null}
-    </div>
-  );
-}
-
-// `kitchen`: a nutritionist's kitchen layout, the same editor with the kitchen's kinds and pieces and
-// no program pins.
-function SpaceTab({ tr, look, studio, setStudio, sel, setSel, programs = [], kitchen = false }) {
-  const KINDS = kitchen ? KITCHEN_COACH_KINDS : STUDIO_COACH_KINDS;
-  const GROUPS = kitchen ? KITCHEN_GROUPS : STUDIO_GROUPS;
-  const zoneGroup = kitchen ? 'kitchen' : 'studio';
-  const P = paletteOf(look.paper, look.accent);
-  const ACC = P.ACCENT;
-  const ink = (n) => `rgba(${P.inkRGB},${n})`;
-  const word = (k) => tr('profile:studio.word.' + k, { defaultValue: STUDIO_WORDS[k] || k });
-  const kitName = (type) => tr('profile:studio.kit.' + type, { defaultValue: (STUDIO_KIT[type] || [type])[0] });
-  const kindName = (k) => tr('profile:' + KIND_KEYS[k][0], { defaultValue: KIND_KEYS[k][1] });
-  // ⚠ A KITCHEN STAYS A KITCHEN (Codex on #2516). "Start blank" empties it but stores kind
-  // `kitchen`, never `blank`, which is the trainer's generic 480-unit room and reads "Their space"
-  // on the profile. So the kind a button stores and the kind it shows as lit are kept apart: a
-  // kitchen's "Start blank" is never the lit one.
-  const kindOf = (k) => (kitchen && k === 'blank' ? 'kitchen' : k);
-  const isOn = (k) => kindOf(k) === studio.kind && items.length > 0 && !(kitchen && k === 'blank');
-  const doorName = (k) => (k === 'entrance' ? tr('profile:trainer.doorEntrance', { defaultValue: 'Entrance' }) : k === 'garage' ? tr('profile:trainer.doorGarage', { defaultValue: 'Garage door' }) : tr('profile:trainer.doorDoor', { defaultValue: 'Door' }));
-  const items = studio.items;
-  const stations = items.filter((p) => p.st).length;
-  const [ask, setAsk] = React.useState(null); // a kind waiting on "replace your pieces?"
-  const [group, setGroup] = React.useState(GROUPS[0][0]);
-  const [msg, setMsg] = React.useState(null);
-  // A piece of the coach's own being named: { name, size } (owner, 2026-10-31: "coaches should be able
-  // to add custom additional eqipment or kitchen stations"). It drops in like any piece, named by its
-  // label, which the page draws under it and its station sheet takes.
-  const [own, setOwn] = React.useState(null);
-  const svgRef = React.useRef(null);
-  const drag = React.useRef(null);
-
-  const update = (i, patch) => setStudio({ ...studio, items: items.map((p, k) => (k === i ? { ...p, ...patch } : p)) });
-  const fit = (p) => { const w = clamp(Math.round(p.w), 4, BS_STUDIO_W), h = clamp(Math.round(p.h), 4, BS_STUDIO_H); return { ...p, w, h, x: clamp(Math.round(p.x), 0, BS_STUDIO_W - w), y: clamp(Math.round(p.y), 0, BS_STUDIO_H - h) }; };
-  const pickKind = (k) => {
-    if (isOn(k)) return;
-    if (items.length) { setAsk(k); return; }
-    setStudio({ ...studio, kind: kindOf(k), items: bsStudioFromTemplate(k, word) });
-    setSel(null);
-  };
-  const add = (type) => {
-    setMsg(null);
-    if (items.length >= BS_STUDIO_ITEMS_MAX) { setMsg(tr('profile:mine.tooMany', { defaultValue: 'Your space holds {count} pieces at most.', count: BS_STUDIO_ITEMS_MAX })); return; }
-    const [, , w, h] = STUDIO_KIT[type];
-    const [rx, ry, rw, rh] = bsStudioRoom(studio.kind).room;
-    // Dropped in the middle of the room, nudged down a little for each piece already there.
-    const n = items.length % 8;
-    const p = fit({ t: type, x: rx + rw / 2 - w / 2 + n * 6, y: ry + rh / 2 - h / 2 + n * 6, w, h });
-    setStudio({ ...studio, items: [...items, p] });
-    setSel(items.length);
-  };
-  const addOwn = () => {
-    setMsg(null);
-    const name = String((own && own.name) || '').trim().slice(0, BS_STUDIO_LABEL_MAX);
-    if (!name) { setMsg(tr('profile:mine.ownNeedName', { defaultValue: 'Give it a name first.' })); return; }
-    if (items.length >= BS_STUDIO_ITEMS_MAX) { setMsg(tr('profile:mine.tooMany', { defaultValue: 'Your space holds {count} pieces at most.', count: BS_STUDIO_ITEMS_MAX })); return; }
-    const [, , w, h] = BS_STUDIO_OWN_SIZES.find(([k]) => k === own.size) || BS_STUDIO_OWN_SIZES[1];
-    const [rx, ry, rw, rh] = bsStudioRoom(studio.kind).room;
-    const n = items.length % 8;
-    const p = fit({ t: 'custom', x: rx + rw / 2 - w / 2 + n * 6, y: ry + rh / 2 - h / 2 + n * 6, w, h, label: name });
-    setStudio({ ...studio, items: [...items, p] });
-    setSel(items.length);
-    setOwn(null);
-  };
-  // ⚠ A DRAG IS SMOOTH (owner, 2026-10-31: "this drag and drop is glitchy"). It was a re-render of the
-  // whole editor on every pointer move, the labels selected as text under the finger, and a sideways
-  // drag that the app's swipe-back took for a Back. Now: one move per frame (the newest pointer
-  // place), no selection or callout on the plan, the plan opted out of the swipe (data-bs-noswipe),
-  // and a touch that starts on a piece holds the page still (a touch on the floor still scrolls).
-  const studioRef = React.useRef(studio);
-  studioRef.current = studio;
-  const frame = React.useRef(0);
-  const applyDrag = () => {
-    frame.current = 0;
-    const d = drag.current;
-    const cur = studioRef.current;
-    const p = d && cur.items[d.i];
-    if (!p || d.cx == null) return;
-    const next = fit({ ...p, x: d.px + (d.cx - d.x0) * d.scale, y: d.py + (d.cy - d.y0) * d.scale });
-    if (next.x === p.x && next.y === p.y) return;
-    setStudio({ ...cur, items: cur.items.map((q, k) => (k === d.i ? next : q)) });
-  };
-  const onDown = (e, i) => {
-    setSel(i); setMsg(null);
-    const svg = svgRef.current;
-    if (!svg) return;
-    const r = svg.getBoundingClientRect();
-    drag.current = { i, x0: e.clientX, y0: e.clientY, cx: null, cy: null, px: items[i].x, py: items[i].y, scale: BS_STUDIO_W / (r.width || BS_STUDIO_W) };
-    try { svg.setPointerCapture(e.pointerId); } catch (err) {}
-  };
-  const onMove = (e) => {
-    const d = drag.current;
-    if (!d) return;
-    d.cx = e.clientX; d.cy = e.clientY;
-    if (!frame.current) frame.current = (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f) => setTimeout(f, 16))(applyDrag);
-  };
-  const onUp = () => {
-    if (frame.current) { (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout)(frame.current); applyDrag(); }
-    drag.current = null;
-  };
-  React.useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return undefined;
-    const hold = (e) => { if (e.target && e.target.closest && e.target.closest('[data-piece]')) e.preventDefault(); };
-    svg.addEventListener('touchstart', hold, { passive: false });
-    return () => svg.removeEventListener('touchstart', hold);
-  }, [items.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => () => { if (frame.current) (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout)(frame.current); }, []);
-  const room = bsStudioRoom(studio.kind);
-  const [rx, ry, rw, rh, style, radius] = room.room;
-  const stationNo = (i) => items.slice(0, i + 1).filter((p) => p.st).length;
-  const cur = sel != null ? items[sel] : null;
-
-  return (
-    <div>
-      <Eyebrow>{kitchen ? tr('profile:mine.kitchenStart', { defaultValue: 'Start from' }) : tr('profile:mine.whereCoach', { defaultValue: 'Where do you coach?' })}</Eyebrow>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {KINDS.map((k) => {
-          const on = isOn(k);
-          return <button key={k} type="button" data-kind={k} aria-pressed={on} onClick={() => pickKind(k)}
-            style={{ minHeight: 38, padding: '0 12px', borderRadius: 999, border: `1px solid ${on ? E.ED : ea(0.22)}`, background: on ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>{kindName(k)}</button>;
-        })}
-      </div>
-      {ask ? (
-        <div role="alertdialog" style={{ marginTop: 10, padding: 12, borderRadius: 12, background: E.BG3 }}>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45 }}>{tr('profile:mine.replaceAsk', { defaultValue: 'Start over from the {kind} layout? It replaces the pieces you have.', kind: kindName(ask) })}</p>
-          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => { setStudio({ ...studio, kind: kindOf(ask), items: bsStudioFromTemplate(ask, word) }); setSel(null); setAsk(null); }} style={{ ...smallBtn, background: E.ED, color: E.ON_ED, border: 0 }}>{tr('profile:mine.replace', { defaultValue: 'Start over' })}</button>
-            <button type="button" onClick={() => { setStudio({ ...studio, kind: kindOf(ask) }); setAsk(null); }} style={smallBtn}>{tr('profile:mine.keepPieces', { defaultValue: 'Keep my pieces' })}</button>
-            <button type="button" onClick={() => setAsk(null)} style={{ ...smallBtn, border: 0, color: ea(0.7) }}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
-          </div>
-        </div>
-      ) : null}
-      <label style={{ display: 'block', marginTop: 12 }}>
-        <span style={{ display: 'block', fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: ea(0.6), marginBottom: 6 }}>{tr('profile:mine.nameIt', { defaultValue: 'Name it' })}</span>
-        <input value={studio.where} maxLength={BS_STUDIO_WHERE_MAX} onChange={(e) => setStudio({ ...studio, where: e.target.value })} placeholder={kitchen ? tr('profile:mine.kitchenNamePh', { defaultValue: 'The test kitchen, East Austin' }) : tr('profile:mine.namePh', { defaultValue: 'Okafor Strength, Fishtown' })} style={field} />
-      </label>
-
-      {items.length ? (
-        <>
-          <p style={{ margin: '14px 0 8px', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.planHint', { defaultValue: 'Drag a piece to move it, or tap it to turn, copy or remove it. Make it a station to give it a number members can tap.' })}</p>
-          <div data-bs-noswipe="" style={{ position: 'relative', width: '100%', aspectRatio: `${BS_STUDIO_W} / ${BS_STUDIO_H}`, borderRadius: 12, overflow: 'hidden', background: P.PAPER2,
-            userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
-            <svg ref={svgRef} data-studio-plan="" viewBox={`0 0 ${BS_STUDIO_W} ${BS_STUDIO_H}`} width="100%" height="100%" style={{ position: 'absolute', inset: 0, display: 'block', userSelect: 'none', WebkitUserSelect: 'none' }}
-              onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onLostPointerCapture={onUp}
-              onPointerDown={(e) => { if (e.target === e.currentTarget) setSel(null); }}>
-              <rect x={rx} y={ry} width={rw} height={rh} rx={radius} fill="none" stroke={ink(0.26)} strokeWidth="1.5" strokeDasharray={style === 'dashed' ? '5 5' : undefined} pointerEvents="none" />
-              {room.doors.map(([x, y, w, h, key, lx, ly], i) => (
-                <g key={'d' + i} pointerEvents="none"><rect x={x} y={y} width={w} height={h} fill={P.PAPER2} /><text x={lx} y={ly + 9} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)}>{doorName(key)}</text></g>
-              ))}
-              {bsStudioDrawOrder(items).map((i) => {
-                const p = items[i], on = i === sel;
-                return (
-                  <g key={i} data-piece="" role="button" tabIndex={0} aria-label={p.st ? `${stationNo(i)}. ${p.st.title || kitName(p.t)}` : (p.tag || p.label || kitName(p.t))} aria-pressed={on}
-                    onPointerDown={(e) => { e.stopPropagation(); onDown(e, i); }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSel(i); } }}
-                    style={{ cursor: 'grab', touchAction: 'none', outline: 'none' }}>
-                    <image href={bsStudioSvg(p.t, p.w, p.h, { ink: P.inkRGB, light: P.isLight, accent: p.st ? ACC : null })} x={p.x} y={p.y} width={p.w} height={p.h} />
-                    <rect x={p.x} y={p.y} width={p.w} height={p.h} fill="transparent" stroke={on ? E.ED : 'none'} strokeWidth="2" strokeDasharray={on ? '4 3' : undefined} rx="3" />
-                    {p.tag ? <text x={p.x + 9} y={p.y + 17} fontFamily="Inter, system-ui, sans-serif" fontSize="11" fontWeight="600" fill={ink(0.72)} pointerEvents="none">{p.tag}</text> : null}
-                    {p.label ? <text x={p.x} y={p.y + p.h + 12} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)} pointerEvents="none">{p.label}</text> : null}
-                  </g>
-                );
-              })}
-              {items.map((p, i) => {
-                if (!p.st) return null;
-                const [sx, sy] = bsStudioSpot(p);
-                return <g key={'n' + i} pointerEvents="none"><circle cx={sx} cy={sy} r="11" fill={ACC} /><text x={sx} y={sy + 4} textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="11" fontWeight="700" fill={onColor(ACC)}>{stationNo(i)}</text></g>;
-              })}
-            </svg>
-          </div>
-        </>
-      ) : (
-        <p style={{ margin: '14px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ea(0.66) }}>{kitchen
-          ? tr('profile:mine.kitchenEmpty', { defaultValue: 'Pick Kitchen above to start from a layout, or add pieces below.' })
-          : tr('profile:mine.spaceEmpty', { defaultValue: 'Pick the kind of space above to start from a layout, or add pieces below.' })}</p>
-      )}
-
-      {cur ? (
-        <div data-piece-panel="" style={{ marginTop: 12, padding: 14, borderRadius: 12, background: E.BG3 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <span style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 600 }}>{cur.t === 'custom' ? (cur.label || kitName(cur.t)) : kitName(cur.t)}</span>
-            <button type="button" onClick={() => setSel(null)} style={{ ...smallBtn, background: E.INK, color: E.BG, border: 0 }}>{tr('profile:mine.done', { defaultValue: 'Done' })}</button>
-          </div>
-          <label style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!cur.st} onChange={(e) => {
-              setMsg(null);
-              if (e.target.checked) {
-                if (stations >= BS_STUDIO_STATIONS_MAX) { setMsg(tr('profile:mine.tooManyStations', { defaultValue: 'Up to {count} stations.', count: BS_STUDIO_STATIONS_MAX })); return; }
-                update(sel, { st: { title: cur.label || cur.tag || kitName(cur.t), note: '' } });
-              } else { const { st, ...rest } = cur; setStudio({ ...studio, items: items.map((p, k) => (k === sel ? rest : p)) }); }
-            }} style={{ width: 20, height: 20, accentColor: E.ED }} />
-            <span style={{ fontSize: 14.5 }}>{tr('profile:mine.station', { defaultValue: 'Station' })}<span style={{ display: 'block', fontSize: 12.5, color: ea(0.6) }}>{tr('profile:mine.stationSub', { defaultValue: 'A number members tap to read what you do here.' })}</span></span>
-          </label>
-          {cur.st ? (
-            <>
-              <input value={cur.st.title} maxLength={BS_STATION_TITLE_MAX} onChange={(e) => update(sel, { st: { ...cur.st, title: e.target.value } })} aria-label={tr('profile:mine.stationTitle', { defaultValue: 'What you call it' })} placeholder={tr('profile:mine.stationTitle', { defaultValue: 'What you call it' })} style={{ ...field, marginTop: 8 }} />
-              <textarea value={cur.st.note} maxLength={BS_STATION_NOTE_MAX} rows={3} onChange={(e) => update(sel, { st: { ...cur.st, note: e.target.value } })} aria-label={tr('profile:mine.stationNote', { defaultValue: 'What you do here' })} placeholder={kitchen ? tr('profile:mine.spotNotePh', { defaultValue: 'What you make here, and how a client can do the same.' }) : tr('profile:mine.stationNotePh', { defaultValue: 'What you do here, and what a client gets from it.' })} style={{ ...field, marginTop: 8, padding: '10px 12px', minHeight: 84, resize: 'vertical', lineHeight: 1.45 }} />
-              {kitchen ? null : <PinPicker tr={tr} programs={programs} pins={Array.isArray(cur.st.pins) ? cur.st.pins : []} onChange={(pins) => { const { pins: was, ...st } = cur.st; update(sel, { st: pins.length ? { ...st, pins } : st }); }} />}
-            </>
-          ) : null}
-          <input value={cur.t === 'zone' ? (cur.tag || '') : (cur.label || '')} maxLength={BS_STUDIO_LABEL_MAX} onChange={(e) => update(sel, cur.t === 'zone' ? { tag: e.target.value } : { label: e.target.value })}
-            aria-label={tr('profile:mine.labelOnPlan', { defaultValue: 'Name on the plan' })} placeholder={tr('profile:mine.labelOnPlan', { defaultValue: 'Name on the plan' })} style={{ ...field, marginTop: 8 }} />
-          <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {[['←', -6, 0, 'moveLeft', 'Move left'], ['↑', 0, -6, 'moveUp', 'Move up'], ['↓', 0, 6, 'moveDown', 'Move down'], ['→', 6, 0, 'moveRight', 'Move right']].map(([g, dx, dy, k, d]) => (
-              <button key={k} type="button" aria-label={tr('profile:mine.' + k, { defaultValue: d })} onClick={() => update(sel, fit({ ...cur, x: cur.x + dx, y: cur.y + dy }))} style={{ ...smallBtn, width: 44, padding: 0 }}>{g}</button>
-            ))}
-            <button type="button" onClick={() => { const cx = cur.x + cur.w / 2, cy = cur.y + cur.h / 2; const { spot, ...rest } = cur; update(sel, fit({ ...rest, w: cur.h, h: cur.w, x: cx - cur.h / 2, y: cy - cur.w / 2 })); }} style={smallBtn}>{tr('profile:mine.turn', { defaultValue: 'Turn' })}</button>
-            <button type="button" onClick={() => {
-              if (items.length >= BS_STUDIO_ITEMS_MAX) { setMsg(tr('profile:mine.tooMany', { defaultValue: 'Your space holds {count} pieces at most.', count: BS_STUDIO_ITEMS_MAX })); return; }
-              const { st, ...rest } = cur;
-              setStudio({ ...studio, items: [...items, fit({ ...rest, x: cur.x + 12, y: cur.y + 12 })] }); setSel(items.length);
-            }} style={smallBtn}>{tr('profile:mine.copy', { defaultValue: 'Copy' })}</button>
-            <button type="button" onClick={() => { setStudio({ ...studio, items: items.filter((p, k) => k !== sel) }); setSel(null); }} style={{ ...smallBtn, color: E.ERR, borderColor: hexA(E.ERR, 0.5) }}>{tr('profile:mine.remove', { defaultValue: 'Remove' })}</button>
-          </div>
-        </div>
-      ) : null}
-      {msg && !own ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
-
-      <Eyebrow right={tr('profile:mine.tapToDrop', { defaultValue: 'Tap to drop it in' })}>{tr('profile:mine.addWhat', { defaultValue: 'Add what you have' })}</Eyebrow>
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
-        {GROUPS.map(([slug, en]) => (
-          <button key={slug} type="button" aria-pressed={slug === group} onClick={() => setGroup(slug)}
-            style={{ flex: 'none', minHeight: 36, padding: '0 12px', borderRadius: 999, border: `1px solid ${slug === group ? E.INK : ea(0.2)}`, background: slug === group ? E.INK : 'transparent', color: slug === group ? E.BG : E.INK, fontSize: 13, cursor: 'pointer' }}>{tr('profile:studio.group.' + slug, { defaultValue: en })}</button>
-        ))}
-      </div>
-      {own ? (
-        <div data-own-piece="" style={{ marginTop: 10, padding: 14, borderRadius: 12, background: E.BG3 }}>
-          <label style={{ display: 'block' }}>
-            <span style={{ display: 'block', fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: ea(0.6), marginBottom: 6 }}>{tr('profile:mine.ownName', { defaultValue: 'What is it?' })}</span>
-            <input autoFocus value={own.name} maxLength={BS_STUDIO_LABEL_MAX} onChange={(e) => setOwn({ ...own, name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOwn(); } }}
-              placeholder={kitchen ? tr('profile:mine.ownPhKitchen', { defaultValue: 'Dehydrator' }) : tr('profile:mine.ownPh', { defaultValue: 'Sandbag wall' })} style={field} />
-          </label>
-          <div role="group" aria-label={tr('profile:mine.ownSize', { defaultValue: 'Size' })} style={{ marginTop: 10, display: 'flex', gap: 6 }}>
-            {BS_STUDIO_OWN_SIZES.map(([k, en]) => (
-              <button key={k} type="button" data-own-size={k} aria-pressed={own.size === k} onClick={() => setOwn({ ...own, size: k })}
-                style={{ flex: 1, minHeight: 40, borderRadius: 999, border: `1px solid ${own.size === k ? E.ED : ea(0.22)}`, background: own.size === k ? hexA(E.ED, 0.14) : 'transparent', color: E.INK, fontSize: 13.5, cursor: 'pointer' }}>
-                {tr('profile:mine.size' + k.toUpperCase(), { defaultValue: en })}
-              </button>
-            ))}
-          </div>
-          {msg ? <p role="alert" style={{ margin: '10px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
-          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-            <button type="button" data-own-add="" onClick={addOwn} style={{ ...smallBtn, flex: 1, background: E.ED, color: E.ON_ED, border: 0 }}>{tr('profile:mine.ownAddIt', { defaultValue: 'Add it' })}</button>
-            <button type="button" onClick={() => { setOwn(null); setMsg(null); }} style={{ ...smallBtn, border: 0, color: ea(0.7) }}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
-          </div>
-        </div>
-      ) : null}
-      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-        {bsStudioTypesIn(group).filter((t) => t !== 'zone' && t !== 'custom').concat(group === zoneGroup ? ['zone'] : []).map((type) => {
-          const [, , w, h] = STUDIO_KIT[type];
-          const s = Math.min(54 / w, 40 / h, 1.4);
-          return (
-            <button key={type} type="button" data-kit={type} onClick={() => add(type)}
-              style={{ minHeight: 84, padding: '8px 4px', borderRadius: 10, border: `1px solid ${ea(0.14)}`, background: E.BG2, color: E.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: 'pointer', fontSize: 11.5, lineHeight: 1.2, textAlign: 'center' }}>
-              <span style={{ height: 44, display: 'grid', placeItems: 'center' }}><img src={bsStudioSvg(type, w, h, { line: true })} alt="" style={{ width: Math.max(8, w * s), height: Math.max(8, h * s) }} /></span>
-              {kitName(type)}
-            </button>
-          );
-        })}
-        <button type="button" data-kit="custom" aria-pressed={!!own} onClick={() => { setMsg(null); setOwn(own ? null : { name: '', size: 'm' }); }}
-          style={{ minHeight: 84, padding: '8px 4px', borderRadius: 10, border: `1px dashed ${own ? E.ED : ea(0.3)}`, background: 'transparent', color: E.INK, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-          <span style={{ height: 44, display: 'grid', placeItems: 'center' }}><img src={bsStudioSvg('custom', 40, 32, { line: true })} alt="" style={{ width: 40, height: 32 }} /></span>
-          {tr('profile:mine.ownAdd', { defaultValue: 'Your own' })}
-        </button>
-      </div>
     </div>
   );
 }
@@ -914,18 +634,307 @@ function AboutList({ kind, tr, rows, setRows, titlePh, detailPh, addLabel }) {
   );
 }
 
-function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, headLinks = false, setHeadLinks = () => {} }) {
+// ── The Studio's words (owner, 2026-11-04): what a trainer says about the work they sell ────────
+// `work` is the profile's, read when the editor opens: { programs: [{ id, name, note }], workouts:
+// [{ key, kind: 'day'|'video', title, facts }], coaching: { blurb } | null, specialty }. The keys these
+// write are profile_custom's (profileCustom.mjs): focus, picks, descriptions and programFor.
+export const bsStudioWorkIn = (work) => ({
+  programs: (work && Array.isArray(work.programs) ? work.programs : []).filter((p) => p && p.id != null && p.id !== ''),
+  workouts: (work && Array.isArray(work.workouts) ? work.workouts : []).filter((x) => x && typeof x.key === 'string' && x.key),
+  coaching: work && work.coaching && typeof work.coaching === 'object' ? work.coaching : null,
+  specialty: work && typeof work.specialty === 'string' ? work.specialty.trim() : '',
+});
+// Own words being written are kept in the list as they are typed, so nothing waits unsaved in a box;
+// a blank entry is never counted, shown or saved (the normalizer drops it too).
+const isBlankWord = (f) => !f || (!f.id && !String(f.w || '').trim());
+
+function TickBox({ on }) {
+  return <span aria-hidden style={{ flex: 'none', width: 18, height: 18, borderRadius: 4, display: 'grid', placeItems: 'center', boxSizing: 'border-box',
+    boxShadow: on ? 'none' : `inset 0 0 0 1.5px ${ea(0.35)}`, background: on ? E.BG : 'transparent', color: on ? E.INK : 'transparent', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>;
+}
+const focusTile = (on, off) => ({ minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', border: 0, borderRadius: 6,
+  boxShadow: on ? 'none' : `inset 0 0 0 1px ${ea(off ? 0.12 : 0.24)}`, background: on ? E.INK : 'transparent', color: on ? E.BG : off ? ea(0.45) : E.INK,
+  fontFamily: BODY, fontSize: 14, fontWeight: on ? 600 : 500, lineHeight: 1.2, textAlign: 'left', cursor: 'pointer' });
+const tileText = { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+// Focus: up to four words under the coach's name, an even grid of presets (each stored as its token,
+// drawn in the reader's language) and the coach's own words, the last tile.
+function FocusField({ tr, focus, setFocus, specialty }) {
+  const [typing, setTyping] = React.useState(false); // the last entry is the coach's own words, being written
+  const [msg, setMsg] = React.useState(null);
+  const kept = focus.filter((f) => !isBlankWord(f));
+  const say = (f) => bsFocusWordLabel(tr, f);
+  const full = () => setMsg(tr('profile:mine.focusMax', { defaultValue: '{count, plural, one {Up to # focus word.} other {Up to # focus words.}} Untick one to pick another.', count: BS_FOCUS_MAX }));
+  // The list with the words being written put away: blank words go, words that name a preset become
+  // the preset (so it reads in every language), and a word already there goes.
+  const settle = (list) => {
+    const out = [];
+    for (const f of list) {
+      if (isBlankWord(f)) continue;
+      let g = f;
+      if (!f.id) {
+        const w = String(f.w).trim();
+        const preset = BS_FOCUS_PRESETS.find((id) => say({ id }).toLowerCase() === w.toLowerCase());
+        g = preset ? { id: preset } : { w };
+      }
+      if (out.some((x) => (g.id ? x.id === g.id : !x.id && x.w.toLowerCase() === g.w.toLowerCase()))) continue;
+      out.push(g);
+    }
+    return out;
+  };
+  // Every other tap here puts the words being written away first.
+  const base = () => { if (typing) setTyping(false); return typing ? settle(focus) : focus; };
+  const togglePreset = (id) => {
+    setMsg(null);
+    const list = base();
+    if (list.some((f) => f.id === id)) { setFocus(list.filter((f) => f.id !== id)); return; }
+    if (list.filter((f) => !isBlankWord(f)).length >= BS_FOCUS_MAX) { if (list !== focus) setFocus(list); full(); return; }
+    setFocus([...list, { id }]);
+  };
+  const dropWords = (w) => { setMsg(null); setFocus(base().filter((f) => f.id || String(f.w || '').trim().toLowerCase() !== w.toLowerCase())); };
+  const openWords = () => {
+    setMsg(null);
+    if (typing) return;
+    const list = settle(focus);
+    if (list.length >= BS_FOCUS_MAX) { if (list.length !== focus.length) setFocus(list); full(); return; }
+    setFocus([...list, { w: '' }]);
+    setTyping(true);
+  };
+  const typeWords = (v) => setFocus((prev) => prev.map((f, i) => (i === prev.length - 1 ? { w: v } : f)));
+  const doneWords = () => { setTyping(false); setFocus((prev) => settle(prev)); };
+  const own = focus.map((f, i) => ({ f, i })).filter(({ f, i }) => !f.id && !isBlankWord(f) && !(typing && i === focus.length - 1));
+  const atMax = kept.length >= BS_FOCUS_MAX;
+  const writing = typing && focus.length && !focus[focus.length - 1].id ? focus[focus.length - 1] : null;
+  return (
+    <Ruled data-about-focus="" kicker={tr('profile:mine.focusTitle', { defaultValue: 'Focus' })} right={tr('profile:mine.countOf', { defaultValue: '{count} of {max}', count: kept.length, max: BS_FOCUS_MAX })}>
+      <div style={{ marginTop: 9, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+        {BS_FOCUS_PRESETS.map((id) => {
+          const on = focus.some((f) => f.id === id);
+          return (
+            <button key={id} type="button" data-focus={id} aria-pressed={on} onClick={() => togglePreset(id)} style={focusTile(on, !on && atMax)}>
+              <TickBox on={on} /><span style={tileText}>{say({ id })}</span>
+            </button>
+          );
+        })}
+        {own.map(({ f }) => (
+          <button key={'w:' + f.w} type="button" data-focus-words={f.w} aria-pressed onClick={() => dropWords(String(f.w).trim())} style={focusTile(true, false)}>
+            <TickBox on /><span style={tileText}>{String(f.w).trim()}</span>
+          </button>
+        ))}
+        {writing ? (
+          <div data-focus-own="" style={{ gridColumn: '1 / -1', display: 'flex', gap: 6 }}>
+            <input autoFocus value={writing.w || ''} maxLength={BS_FOCUS_WORD_MAX} onChange={(e) => typeWords(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doneWords(); } }}
+              aria-label={tr('profile:mine.focusOwn', { defaultValue: 'Your own words' })} placeholder={tr('profile:mine.focusOwnPh', { defaultValue: 'Kettlebells' })} style={{ ...field, flex: 1, minWidth: 0, fontSize: 16 }} />
+            <button type="button" data-focus-own-done="" onClick={doneWords} style={{ ...smallBtn, minHeight: 44, background: E.INK, color: E.BG, border: 0 }}>{tr('profile:mine.done', { defaultValue: 'Done' })}</button>
+          </div>
+        ) : (
+          <button type="button" data-focus-add="" onClick={openWords}
+            style={{ ...focusTile(false, atMax), boxShadow: 'none', border: `1px dashed ${ea(atMax ? 0.16 : 0.32)}`, color: atMax ? ea(0.45) : ea(0.78) }}>
+            <span aria-hidden style={{ flex: 'none', width: 18, textAlign: 'center', fontSize: 16, lineHeight: 1 }}>＋</span>
+            <span style={tileText}>{tr('profile:mine.focusOwn', { defaultValue: 'Your own words' })}</span>
+          </button>
+        )}
+      </div>
+      {msg ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: E.WARN }}>{msg}</p> : null}
+      <p data-focus-hint="" style={hintStyle}>{specialty
+        ? tr('profile:mine.focusHint', { defaultValue: 'None picked shows your listing’s “{specialty}”.', specialty })
+        : tr('profile:mine.focusHintNone', { defaultValue: 'None picked shows nothing under your name.' })}</p>
+    </Ruled>
+  );
+}
+
+// Your picks: up to two workouts the coach would start a member on, in two numbered slots. A pick of a
+// workout no longer on the page is never shown to members, so it neither fills a slot here nor survives
+// the next change (as a station's pins).
+function PicksField({ tr, picks, setPicks, workouts }) {
+  const [choosing, setChoosing] = React.useState(null); // the slot whose workout is being chosen
+  const byKey = new Map(workouts.map((x) => [x.key, x]));
+  const shown = picks.filter((k) => byKey.has(k)).slice(0, BS_PICKS_MAX);
+  const choose = (slot, key) => {
+    const next = shown.slice();
+    if (key == null) next.splice(slot, 1); else if (slot < next.length) next[slot] = key; else next.push(key);
+    setPicks(next);
+    setChoosing(null);
+  };
+  const no = (i) => String(i + 1).padStart(2, '0');
+  const row = { display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr) auto', columnGap: 10, alignItems: 'center', minHeight: 56, borderBottom: `1px solid ${ea(0.14)}` };
+  const title = { display: 'block', fontFamily: BODY, fontSize: 15, fontWeight: 600, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+  const line = { display: 'block', marginTop: 1, fontSize: 12.5, lineHeight: 1.35, color: ea(0.66) };
+  const num = { fontFamily: MONO, fontSize: 11, color: ea(0.5), fontVariantNumeric: 'tabular-nums' };
+  return (
+    <Ruled data-about-picks="" kicker={tr('profile:mine.picksTitle', { defaultValue: 'Your picks' })} right={tr('profile:mine.countOf', { defaultValue: '{count} of {max}', count: shown.length, max: BS_PICKS_MAX })}>
+      <div style={{ marginTop: 9, borderTop: `1px solid ${ea(0.14)}` }}>
+        {Array.from({ length: BS_PICKS_MAX }, (_, slot) => {
+          const x = shown[slot] ? byKey.get(shown[slot]) : null;
+          return (
+            <div key={slot} data-pick-slot={slot + 1}>
+              {x ? (
+                <div style={row}>
+                  <span style={num}>{no(slot)}</span>
+                  <span style={{ minWidth: 0 }}><b data-pick-title="" style={title}>{x.title}</b>{x.facts ? <span style={line}>{x.facts}</span> : null}</span>
+                  <button type="button" data-pick-change="" aria-expanded={choosing === slot} onClick={() => setChoosing(choosing === slot ? null : slot)}
+                    style={{ minHeight: 44, padding: '0 2px 0 12px', border: 0, background: 'transparent', color: E.INK, fontFamily: BODY, fontSize: 13.5, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: ea(0.35), cursor: 'pointer' }}>
+                    {tr('profile:mine.pickChange', { defaultValue: 'Change' })}
+                  </button>
+                </div>
+              ) : (
+                <button type="button" data-pick-add="" aria-expanded={choosing === slot} onClick={() => setChoosing(choosing === slot ? null : slot)}
+                  style={{ ...row, width: '100%', padding: 0, borderTop: 0, borderLeft: 0, borderRight: 0, background: 'transparent', color: E.INK, textAlign: 'left', cursor: 'pointer' }}>
+                  <span style={num}>{no(slot)}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ ...title, fontWeight: 500, color: ea(0.82) }}>{tr('profile:mine.pickAdd', { defaultValue: 'Add a workout' })}</span>
+                    <span style={line}>{tr('profile:mine.pickAddHint', { defaultValue: 'Or tap ☆ on any workout in Programs.' })}</span>
+                  </span>
+                  <span aria-hidden style={{ width: 32, height: 32, marginRight: 2, borderRadius: 6, border: `1px dashed ${ea(0.32)}`, display: 'grid', placeItems: 'center', boxSizing: 'border-box', fontSize: 17, lineHeight: 1, color: ea(0.75) }}>＋</span>
+                </button>
+              )}
+              {choosing === slot ? (
+                <div data-pick-chooser="" style={{ padding: '4px 0 10px 40px', borderBottom: `1px solid ${ea(0.14)}` }}>
+                  {workouts.length ? workouts.map((w) => {
+                    const cur = shown[slot] === w.key;
+                    const taken = !cur && shown.includes(w.key);
+                    return (
+                      <button key={w.key} type="button" data-pick-option={w.key} aria-pressed={cur} disabled={taken} onClick={() => choose(slot, w.key)}
+                        style={{ width: '100%', minHeight: 48, padding: '6px 0', border: 0, borderTop: `1px solid ${ea(0.08)}`, background: 'transparent', color: taken ? ea(0.45) : E.INK, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: taken ? 'default' : 'pointer' }}>
+                        <span style={{ flex: 1, minWidth: 0 }}><span style={title}>{w.title}</span>{w.facts ? <span style={line}>{w.facts}</span> : null}</span>
+                        <span style={{ flex: 'none', fontSize: 12.5, color: cur ? E.ED : ea(0.55) }}>{cur ? '✓' : taken ? tr('profile:mine.pickTaken', { defaultValue: 'Picked' }) : ''}</span>
+                      </button>
+                    );
+                  }) : <p style={{ ...hintStyle, margin: '8px 0 0' }}>{tr('profile:mine.picksNone', { defaultValue: 'Publish a program or post a workout video, then pick it here.' })}</p>}
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {x ? <button type="button" data-pick-remove="" onClick={() => choose(slot, null)} style={{ ...smallBtn, minHeight: 44 }}>{tr('profile:mine.pickRemove', { defaultValue: 'Remove this pick' })}</button> : null}
+                    <button type="button" onClick={() => setChoosing(null)} style={{ ...smallBtn, minHeight: 44, border: 0, color: ea(0.7) }}>{tr('profile:mine.cancel', { defaultValue: 'Cancel' })}</button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </Ruled>
+  );
+}
+
+// ── Programs (a trainer's): a line under each thing they sell, and who each program is for ──────
+// One line: the box grows with what is written, and a line break typed or pasted reads as a space.
+function DescArea({ value, onChange, label, placeholder, ...rest }) {
+  const ref = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(64, el.scrollHeight + 2)}px`;
+  }, [value]);
+  return (
+    <textarea ref={ref} {...rest} value={value} maxLength={BS_DESC_MAX} rows={2} onChange={(e) => onChange(e.target.value.replace(/\s*\r?\n\s*/g, ' '))} aria-label={label} placeholder={placeholder}
+      style={{ ...field, display: 'block', marginTop: 8, minHeight: 64, padding: '10px 12px', fontSize: 16, lineHeight: 1.4, resize: 'none', overflow: 'hidden' }} />
+  );
+}
+// Who a program is for: a preset (stored as its token) or the coach's own words, one at a time.
+function ForChips({ tr, value, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  const words = value && !value.id ? String(value.w || '') : '';
+  const chip = (on, dashed = false) => ({ minHeight: 44, padding: '0 13px', border: dashed ? `1px dashed ${ea(0.32)}` : 0, borderRadius: 6,
+    boxShadow: on || dashed ? 'none' : `inset 0 0 0 1px ${ea(0.24)}`, background: on ? E.INK : 'transparent', color: on ? E.BG : dashed ? ea(0.78) : E.INK,
+    fontFamily: BODY, fontSize: 14, fontWeight: 600, lineHeight: 1.2, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' });
+  // Closing the box keeps the words written, or none.
+  const close = () => { setOpen(false); if (value && !value.id) onChange(words.trim() ? { w: words.trim() } : null); };
+  return (
+    <div>
+      <div style={{ marginTop: 7, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {BS_FOR_PRESETS.map((id) => {
+          const on = !!(value && value.id === id);
+          return <button key={id} type="button" data-for={id} aria-pressed={on} onClick={() => { setOpen(false); onChange(on ? null : { id }); }} style={chip(on)}>{on ? '✓ ' : ''}{bsStudioForLabel(tr, { id })}</button>;
+        })}
+        {open ? null : words.trim()
+          ? <button type="button" data-for-words="" aria-pressed onClick={() => setOpen(true)} style={chip(true)}>✓ {words.trim()}</button>
+          : <button type="button" data-for-own="" onClick={() => setOpen(true)} style={chip(false, true)}>＋ {tr('profile:mine.forOwn', { defaultValue: 'Your words' })}</button>}
+      </div>
+      {open ? (
+        <div data-for-own-row="" style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+          <input autoFocus value={words} maxLength={BS_FOR_WORDS_MAX} onChange={(e) => onChange({ w: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); close(); } }}
+            aria-label={tr('profile:mine.forOwnLabel', { defaultValue: 'Who it’s for, in your words' })} placeholder={tr('profile:mine.forOwnPh', { defaultValue: 'Runners coming back from injury' })} style={{ ...field, flex: 1, minWidth: 0, fontSize: 16 }} />
+          <button type="button" data-for-own-done="" onClick={close} style={{ ...smallBtn, minHeight: 44, background: E.INK, color: E.BG, border: 0 }}>{tr('profile:mine.done', { defaultValue: 'Done' })}</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ProgramsTab({ tr, work, first, descs, setDescs, programFor, setProgramFor }) {
+  const setDesc = (k, v) => setDescs((d) => ({ ...d, [k]: v }));
+  const setFor = (id, v) => setProgramFor((m) => { const next = { ...m }; if (v) next[id] = v; else delete next[id]; return next; });
+  const optional = tr('profile:mine.optional', { defaultValue: 'Optional' });
+  const blank = (fallback) => (fallback
+    ? tr('profile:mine.descBlank', { defaultValue: 'Leave blank to show “{fallback}”.', fallback })
+    : tr('profile:mine.descBlankNone', { defaultValue: 'Leave blank to show nothing more.' }));
+  const item = (k, kicker, sub, title, hint, placeholder, extra = null) => (
+    <Ruled key={k} data-desc-field={k} kicker={kicker} sub={sub} right={optional}>
+      <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span style={{ minWidth: 0, fontFamily: BODY, fontSize: 15.5, fontWeight: 600, lineHeight: 1.3 }}>{title}</span>
+        <span data-desc-count="" style={{ flex: 'none', fontFamily: MONO, fontSize: 11, color: ea(0.66), fontVariantNumeric: 'tabular-nums' }}>{`${(descs[k] || '').length}/${BS_DESC_MAX}`}</span>
+      </div>
+      <DescArea data-desc={k} value={descs[k] || ''} onChange={(v) => setDesc(k, v)} label={tr('profile:mine.descLabel', { defaultValue: 'A line about {name}', name: title })} placeholder={placeholder} />
+      <p style={hintStyle}>{hint}</p>
+      {extra}
+    </Ruled>
+  );
+  const { programs, workouts, coaching } = work;
+  if (!programs.length && !workouts.length && !coaching) {
+    return <p data-desc-empty="" style={{ margin: '18px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.descNone', { defaultValue: 'Nothing to describe yet. Publish a program, post a workout video or offer monthly coaching, and write its line here.' })}</p>;
+  }
+  return (
+    <div data-mine-programs="">
+      {programs.map((p) => {
+        const id = String(p.id);
+        return item('p:' + id, tr('profile:mine.kickProgram', { defaultValue: 'Program' }), null, p.name, blank(p.note),
+          tr('profile:mine.descProgramPh', { defaultValue: 'What it is, and who gets the most from it.' }),
+          <div data-program-for={id}>
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+              <span style={{ ...KICK, fontWeight: 700, color: E.INK }}>{tr('profile:mine.forTitle', { defaultValue: 'Who it’s for' })}</span>
+              <span style={KICK}>{optional}</span>
+            </div>
+            <ForChips tr={tr} value={programFor[id] || null} onChange={(v) => setFor(id, v)} />
+          </div>);
+      })}
+      {workouts.map((x) => item(x.key, x.kind === 'video' ? tr('profile:mine.kickVideo', { defaultValue: 'Video' }) : tr('profile:mine.kickWorkout', { defaultValue: 'Workout' }), null, x.title, blank(x.facts),
+        tr('profile:mine.descWorkoutPh', { defaultValue: 'What it works, and how it should feel.' })))}
+      {coaching ? item('coaching', tr('profile:mine.kickCoaching', { defaultValue: 'Coaching' }), tr('profile:mine.kickMonthly', { defaultValue: 'Monthly' }),
+        tr('profile:mine.coachingWith', { defaultValue: 'Coaching with {name}', name: first }),
+        coaching.blurb ? blank(coaching.blurb) : tr('profile:mine.descCoachingBlank', { defaultValue: 'Leave blank to show only what’s included.' }),
+        tr('profile:mine.descCoachingPh', { defaultValue: 'Who it suits, and what a month with you is like.' })) : null}
+    </div>
+  );
+}
+
+// `studioWords` (a trainer's About me only): { focus, setFocus, picks, setPicks, work, name } for the focus
+// words and picks at its top.
+function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, headLinks = false, setHeadLinks = () => {}, studioWords: studio = null }) {
   const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
   const howLabel = { online: tr('profile:mine.howOnline', { defaultValue: 'Online' }), in_person: tr('profile:mine.howInPerson', { defaultValue: 'In person' }), both: tr('profile:mine.howBoth', { defaultValue: 'Both' }) };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
   const unused = BS_COACH_PROMPTS.find((o) => !prompts.some((p) => bsPromptToken(p.q) === o.id));
   const hair = `1px solid ${ABOUT_HAIR}`;
   const storyShare = Math.min(1, about.story.length / BS_ABOUT_STORY_MAX);
+  // What members read under the name: the focus words, else the listing's specialty.
+  const focusSaid = studio ? studio.focus.filter((f) => !isBlankWord(f)).map((f) => bsFocusWordLabel(tr, f)).filter(Boolean) : [];
+  const underName = focusSaid.length ? focusSaid.join(' · ') : studio ? studio.work.specialty : '';
   return (
     <div data-mine-about="">
       <style>{ABOUT_CSS}</style>
+      {studio ? (
+        <>
+          <div data-about-preview="" style={{ marginTop: 14, padding: '10px 14px 12px', borderRadius: 10, background: E.BG2, border: `1px solid ${ea(0.14)}` }}>
+            <span style={KICK}>{tr('profile:mine.onYourPage', { defaultValue: 'On your page' })}</span>
+            <div style={{ marginTop: 5, fontFamily: DISPLAY, fontWeight: 600, fontSize: 19, lineHeight: 1.15, overflowWrap: 'anywhere' }}>{studio.name}<span style={{ color: E.ED }}>.</span></div>
+            {underName ? <div data-about-preview-focus="" style={{ marginTop: 3, fontSize: 13.5, lineHeight: 1.4, color: focusSaid.length ? ea(0.8) : ea(0.5) }}>{underName}</div> : null}
+          </div>
+          <FocusField tr={tr} focus={studio.focus} setFocus={studio.setFocus} specialty={studio.work.specialty} />
+          <PicksField tr={tr} picks={studio.picks} setPicks={studio.setPicks} workouts={studio.work.workouts} />
+        </>
+      ) : null}
 
-      <AboutHead first n={1} title={tr('profile:mine.story', { defaultValue: 'Your story' })} />
+      <AboutHead first={!studio} n={1} title={tr('profile:mine.story', { defaultValue: 'Your story' })} />
       <div data-about-cell="" style={ABOUT_CARD}>
         <GrowText data-about-story="" value={about.story} maxLength={BS_ABOUT_STORY_MAX} rows={5} minHeight={140} onChange={(e) => set('story', e.target.value)}
           aria-label={tr('profile:mine.story', { defaultValue: 'Your story' })}
@@ -1245,15 +1254,17 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
 }
 
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
-export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], programs = [], onClose, onSaved, onSettings = null }) {
+export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], work = null, onClose, onSaved, onSettings = null }) {
   const tr = useShapeTr();
   // The app's gutter, so the masthead and ← Back sit where they sit on every page (owner,
   // 2026-10-31); the chrome's hook is on window before any page renders.
   const theme = (window.useBS || (() => null))();
   const gut = (theme && theme.padX) || 22;
   const nutri = role === 'nutritionist';
-  // The third tab: a trainer's space, a nutritionist's kitchen.
-  const third = nutri ? 'kitchen' : 'space';
+  // The third tab: a trainer's programs (once their space), a nutritionist's kitchen.
+  const third = nutri ? 'kitchen' : 'programs';
+  // What a trainer sells, as their page lists it: what the Programs tab and About me's picks describe.
+  const wk = bsStudioWorkIn(work);
   // The account the editor is for (the one its `initial` doc was read for, else the one signed in
   // when it opened): the only one it reads for or saves to.
   const [owner] = React.useState(() => ownerUid || signedInUid());
@@ -1263,7 +1274,6 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   // changed here. The profile opens it only once their doc is read (Codex P1 on #2484).
   const [seed] = React.useState(() => {
     const look = bsProfileLook(initial && initial.look) || {};
-    const st = bsProfileStudio(initial && initial.studio);
     const cover = initial && initial.cover ? coverOf(initial.cover.image) : null;
     const kt = bsProfileKitchen(initial && initial.kitchen, owner);
     const ab = bsProfileAbout(initial && initial.about) || {};
@@ -1275,34 +1285,39 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       prompts: bsProfilePrompts(initial && initial.prompts).map((p) => ({ q: bsPromptToken(p.q), a: p.a })),
       links: { ...(bsProfileLinks(initial && initial.links) || {}) },
       headLinks: !!(initial && initial.headLinks === true),
+      // The Studio's words (a trainer's): the focus words and picks as stored, each description and
+      // who-it's-for by its key.
+      focus: bsProfileFocus(initial && initial.focus),
+      picks: bsProfilePicks(initial && initial.picks),
+      descs: { ...(bsProfileDescriptions(initial && initial.descriptions) || {}) },
+      programFor: { ...(bsProfileProgramFor(initial && initial.programFor) || {}) },
       // A nutritionist starts amber (Shape's nutritionist gold), as their page does.
       look: { paper: look.paper || 'dark', accent: look.accent || (nutri ? 'amber' : 'teal'), focus: look.focus || 'center' }, wall: cover ? cover.image : null,
-      // A nutritionist's empty plan is a kitchen, so a piece added before any layout is picked
-      // saves as one (Codex on #2516).
-      studio: st || { kind: nutri ? 'kitchen' : 'blank', where: '', items: [] },
       kitchen: kt
         ? { plate: kt.plate, rules: kt.rules.slice(), staples: kt.staples.map((x) => ({ ...x })), recipes: JSON.parse(JSON.stringify(kt.recipes)) }
         : { plate: null, rules: [], staples: [], recipes: [] },
     };
   });
-  const [tab, setTab] = React.useState(['colors', 'wall', third, 'about'].includes(startTab) ? startTab : 'colors');
+  // A trainer's Programs took Your space's place, so a way in that still asks for the space opens it.
+  const startAt = !nutri && startTab === 'space' ? 'programs' : startTab;
+  const [tab, setTab] = React.useState(['colors', 'wall', third, 'about'].includes(startAt) ? startAt : 'colors');
   const [look, setLook] = React.useState(seed.look);
   const [wall, setWall] = React.useState(seed.wall);
-  const [studio, setStudio] = React.useState(seed.studio);
   const [kitchen, setKitchen] = React.useState(seed.kitchen);
   const [about, setAbout] = React.useState(seed.about);
   const [prompts, setPrompts] = React.useState(seed.prompts);
   const [links, setLinks] = React.useState(seed.links);
   const [headLinks, setHeadLinks] = React.useState(seed.headLinks);
-  const [sel, setSel] = React.useState(null);
+  const [focus, setFocus] = React.useState(seed.focus);
+  const [picks, setPicks] = React.useState(seed.picks);
+  const [descs, setDescs] = React.useState(seed.descs);
+  const [programFor, setProgramFor] = React.useState(seed.programFor);
   const [uploading, setUploading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState(null);
   const [leaving, setLeaving] = React.useState(false);
   const lookChanged = !sameJson(look, seed.look);
   const wallChanged = wall !== seed.wall;
-  // A trainer's floor, or a nutritionist's kitchen layout: both ride in `studio`.
-  const studioChanged = !sameJson(bsProfileStudio(studio), bsProfileStudio(seed.studio)) || studio.where !== seed.studio.where;
   const kitchenChanged = nutri && !sameJson(bsProfileKitchen(kitchen, owner), bsProfileKitchen(seed.kitchen, owner));
   // The About's three keys, each compared as the doc would keep it.
   const trimmedLinks = Object.fromEntries(BS_PROFILE_LINK_KEYS.map((k) => [k, String(links[k] || '').trim()]).filter(([, v]) => v));
@@ -1317,7 +1332,15 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [recipeDraft, setRecipeDraft] = React.useState(null);
   const recipeOpen = !!recipeDraft;
   const headLinksChanged = headLinks !== seed.headLinks;
-  const dirty = lookChanged || wallChanged || studioChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged || headLinksChanged;
+  // The Studio's four keys, each compared as the doc would keep it (the maps in key order, so an edit
+  // put back reads as no change).
+  const byKey = (o) => (o ? Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : null);
+  const focusChanged = !sameJson(bsProfileFocus(focus), bsProfileFocus(seed.focus));
+  const picksChanged = !sameJson(bsProfilePicks(picks), bsProfilePicks(seed.picks));
+  const descriptionsChanged = !sameJson(byKey(bsProfileDescriptions(descs)), byKey(bsProfileDescriptions(seed.descs)));
+  const programForChanged = !sameJson(byKey(bsProfileProgramFor(programFor)), byKey(bsProfileProgramFor(seed.programFor)));
+  const dirty = lookChanged || wallChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged || headLinksChanged
+    || focusChanged || picksChanged || descriptionsChanged || programForChanged;
   const first = who.first || bsCoachFirstName(who.name);
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -1357,10 +1380,10 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
 
   // The doc with what was changed here put on it. Each key is written only when it was changed
   // here, so one changed elsewhere since this opened is kept; the wall photo only as coverOf keeps it.
+  // A floor plan saved before (`studio`) is never edited here, so it is always the doc's own.
   const withChanges = (base) => {
     const doc = { ...base };
     if (lookChanged) doc.look = { paper: look.paper, accent: look.accent, focus: look.focus };
-    if (studioChanged) doc.studio = { kind: studio.kind, where: studio.where.trim(), items: studio.items };
     // An emptied kitchen drops the key (the normalizer keeps none with nothing in it).
     if (kitchenChanged) doc.kitchen = { plate: kitchen.plate, rules: kitchen.rules, staples: kitchen.staples, recipes: kitchen.recipes };
     // An emptied About, set of questions or socials drops its key (the normalizer keeps none empty).
@@ -1368,6 +1391,11 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (promptsChanged) doc.prompts = prompts.map((p) => ({ q: bsPromptToken(p.q), a: p.a }));
     if (linksChanged) doc.links = trimmedLinks;
     if (headLinksChanged) { if (headLinks) doc.headLinks = true; else delete doc.headLinks; }
+    // The Studio's words, as the coach left them (the normalizer cleans each, and drops an emptied one).
+    if (focusChanged) doc.focus = focus.filter((f) => !isBlankWord(f));
+    if (picksChanged) doc.picks = picks;
+    if (descriptionsChanged) doc.descriptions = descs;
+    if (programForChanged) doc.programFor = programFor;
     if (wallChanged) {
       const cover = wall ? coverOf(wall) : null;
       if (cover) doc.cover = cover; else delete doc.cover;
@@ -1386,7 +1414,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
     // The demo also says which keys were changed here, so its page keeps only those over its own
     // sample (whose station names follow the language; Codex P2 on #2486).
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged }); thenTool(); return; }
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged,
+      focus: focusChanged, picks: picksChanged, descriptions: descriptionsChanged, programFor: programForChanged }); thenTool(); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -1435,9 +1464,11 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const head = {
     colors: [tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }), tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })],
     wall: [tr('profile:mine.wallTitle', { defaultValue: 'Your wall photo' }), tr('profile:mine.wallSub', { defaultValue: 'The big photo behind your avatar. Your gym, your platform, your view.' })],
-    space: [tr('profile:mine.spaceTitle', { defaultValue: 'Your space' }), tr('profile:mine.spaceSub', { defaultValue: 'Draw where you coach: a studio, a garage, a full gym or a park.' })],
+    programs: [tr('profile:mine.programsTitle', { defaultValue: 'Descriptions' }), tr('profile:mine.programsSub', { defaultValue: 'A short line under each thing you sell. All optional.' })],
     kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your recipes, the plate you teach and your staples.' })],
-    about: [tr('profile:mine.aboutTitle', { defaultValue: 'About me' }), tr('profile:mine.aboutSub', { defaultValue: 'Your story, how you coach, the questions members ask, and where to find you.' })],
+    about: [tr('profile:mine.aboutTitle', { defaultValue: 'About me' }), nutri
+      ? tr('profile:mine.aboutSub', { defaultValue: 'Your story, how you coach, the questions members ask, and where to find you.' })
+      : tr('profile:mine.aboutSubTrainer', { defaultValue: 'What members read under your name, your picks, your story and where to find you.' })],
   }[tab];
 
   const host = typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
@@ -1482,17 +1513,18 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {window.BSBackRow ? <window.BSBackRow onBack={back} ink={E.INK}
           trailing={<span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>} /> : null}
         <div style={{ marginTop: 8 }}>
-          <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={(k) => { setTab(k); setSel(null); }}
-            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['space', tr('profile:mine.tabSpace', { defaultValue: 'Your space' })], ['about', tr('profile:mine.tabAbout', { defaultValue: 'About me' })]]} />
+          <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={setTab}
+            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['programs', tr('profile:mine.tabPrograms', { defaultValue: 'Programs' })], ['about', tr('profile:mine.tabAbout', { defaultValue: 'About me' })]]} />
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
-        {tab !== 'space' && tab !== 'kitchen' && tab !== 'about' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={(k) => { setTab(k); setSel(null); }} /> : null}
+        {tab === 'colors' || tab === 'wall' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={setTab} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
-        {tab === 'space' ? <SpaceTab tr={tr} look={look} studio={studio} setStudio={setStudio} sel={sel} setSel={setSel} programs={programs} /> : null}
+        {tab === 'programs' ? <ProgramsTab tr={tr} work={wk} first={first} descs={descs} setDescs={setDescs} programFor={programFor} setProgramFor={setProgramFor} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
-        {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} headLinks={headLinks} setHeadLinks={setHeadLinks} /> : null}
+        {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} headLinks={headLinks} setHeadLinks={setHeadLinks}
+          studioWords={nutri ? null : { focus, setFocus, picks, setPicks, work: wk, name: who.name || first }} /> : null}
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (

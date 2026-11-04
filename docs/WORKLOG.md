@@ -83,7 +83,7 @@ or past 12 KB.
 - **Other modules:** `iosAppBroadsheetPros.jsx` (coach apps), `iosAppBroadsheet.jsx` (chrome:
   `BSPage`, `BSFooter`, `BSPlate`, `BSSwapSheet`), `iosAppBroadsheetRadio.jsx`,
   `services/shapeBackend.js` (Supabase data layer). Coach profiles: `BSTrainerProfile.jsx`
-  (editor `BSMakeItYours.jsx`; studio and replays in `coachWork.mjs`; a nutritionist's
+  (editor `BSMakeItYours.jsx`; Studio `BSCoachStudio.jsx` on `coachWork.mjs`; a nutritionist's
   kitchen is `studio` kind `kitchen`; samples in `trainerDemo` and the like). `coachWork`,
   `studioKit`, `planPreview`, `planOutline`, `coachPronoun` and the demos live in
   `public/newdesign/` (the website uses them); `mobile-app/src/services/` only re-exports.

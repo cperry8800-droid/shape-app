@@ -74,6 +74,27 @@ test('a run reads as a story: the route is its picture, three figures under it, 
   assert.ok(!nodes.find((n) => n.props && n.props['data-bs-wall-story-rule'] != null), 'the last story ends without a rule');
 });
 
+// Owner, 2026-11-04: "lets apply the same thing to the activity feed as well, maybe every other post gets the
+// glassy look", "a slightly thinker border in between activity posts. apply these changes to profile activity
+// feeds as well".
+test('every other post is glass, the rule between posts outside it and 2px, on the Wall and both profile feeds', () => {
+  const a = demo('Drew Oyelaran');
+  const plain = drive(Card, { a, ctx: ctx(), isLast: false, pagePad: 0, variant: 'magazine' }).nodes();
+  assert.ok(!plain.find((n) => n.props && n.props['data-feed-glass'] != null), 'a post not asked for glass is plain');
+  const glassy = drive(Card, { a, ctx: ctx(), isLast: false, pagePad: 0, variant: 'magazine', glass: true }).nodes();
+  const box = glassy.find((n) => n.props && n.props['data-feed-glass'] != null);
+  assert.ok(box, 'the glass post has no glass');
+  assert.match(String(box.props.style.background), /linear-gradient\(180deg/, 'the glass sheen');
+  assert.equal(box.props.style.borderRadius, 14);
+  const rule = glassy.find((n) => n.props && n.props['data-bs-wall-story-rule'] != null);
+  assert.equal(rule.props.style.height, 2, 'the rule between posts is 2px');
+  const inside = (root, target) => root === target || [].concat(root.props && root.props.children).filter((c) => c && c.props).some((c) => inside(c, target));
+  assert.ok(!inside(box, rule), 'the rule sits inside the glass');
+  // The three feeds pass it on every other card.
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.equal((src.match(/variant="magazine" glass=\{i % 2 === 1\} \/>/g) || []).length, 3, 'the Wall, the member profile and the coach profile');
+});
+
 test('a real post\'s figures rank its full stats, not the card\'s first three (Codex P2 on #2431)', () => {
   const a = { real: true, kind: 'workout', typeLabel: 'Run', who: 'Ana Lee', role: 'Client', ago: '1h', title: 'Tempo', postId: 'p9', kudos: 0,
     statsRow: [['Distance', '10 km'], ['Calories', '600'], ['Elevation', '80 m']],

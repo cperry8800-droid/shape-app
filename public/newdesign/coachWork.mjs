@@ -18,6 +18,8 @@ import { bsPlanPreview, bsProgramLine } from './planPreview.mjs';
 
 export const BS_WORK_PROGRAMS_MAX = 12;
 export const BS_WORK_VIDEOS_MAX = 12;
+// A program's days read for the Studio (its first week's): each a workout the coach can describe.
+export const BS_WORK_DAYS_MAX = 14;
 export const BS_WORK_MOVES_MAX = 60;
 const PLAN_SCAN = 40;
 const ROW_SCAN = 120;
@@ -128,6 +130,136 @@ export function bsWorkoutVideos(cards) {
     if (out.length >= BS_WORK_VIDEOS_MAX) break;
   }
   return out;
+}
+
+// ── The Studio tab: programs, workouts, coaching ─────────────────────────────────────────────
+// Owner, 2026-11-04 (round 3 of the studio, then "C" and "name it studio"): the Studio tab is the
+// coach's work in three kinds, in this order, each its own section with a count: programs (bought
+// once), workouts (one session each: every program's day and every posted video) and coaching (by
+// the month). A coach may write one line about any of them (profile_custom.descriptions, cleaned in
+// profileCustom.mjs); left blank, a program reads its own note and coaching its offer's blurb, and a
+// workout its facts. A workout's focus is worked out from its moves' muscles.
+
+// A muscle's part of the body, as the exercise catalog names muscles.
+const BODY_PART = [
+  ['core', /\b(core|abs?|abdominals?|obliques?|trunk)\b/],
+  ['full', /\bfull.?body\b|\btotal.?body\b/],
+  ['upper', /\b(chest|pecs?|back|lats?|traps?|shoulders?|delts?|rear delts?|biceps?|triceps?|arms?|forearms?|grip|upper back|rhomboids?)\b/],
+  ['lower', /\b(quads?|quadriceps|hamstrings?|glutes?|calves|calf|hips?|adductors?|abductors?|posterior chain|legs?)\b/],
+];
+export const BS_WORK_FOCI = ['upper', 'lower', 'full', 'core'];
+const partOf = (muscle) => {
+  const m = clean(muscle, 40).toLowerCase();
+  if (!m) return null;
+  for (const [part, re] of BODY_PART) if (re.test(m)) return part;
+  return null;
+};
+
+/**
+ * A session's focus from its moves' muscles: 'full' when full-body moves lead or the upper and lower
+ * body share it, else the part most of its moves work ('core' only when nothing else is worked), or
+ * null when no move names a muscle.
+ */
+export function bsWorkFocus(moves) {
+  const n = { upper: 0, lower: 0, full: 0, core: 0 };
+  let named = 0;
+  for (const mv of (Array.isArray(moves) ? moves.slice(0, 40) : [])) {
+    const part = partOf(isObj(mv) ? mv.muscle : null);
+    if (!part) continue;
+    n[part] += 1;
+    named += 1;
+  }
+  if (!named) return null;
+  const body = n.upper + n.lower + n.full;
+  if (!body) return 'core';
+  if (n.full * 2 >= body) return 'full';
+  if (n.upper && n.lower && Math.min(n.upper, n.lower) * 3 >= body) return 'full';
+  return n.upper >= n.lower ? 'upper' : 'lower';
+}
+
+// A program's days, as its preview lists them, with each day's moves and their muscles: the first
+// week's days in the order the preview has them (bsPlanPreview's own filter), keyed by their place.
+const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+function programDaysOf(pr) {
+  const units = isObj(pr.preview) && Array.isArray(pr.preview.units) ? pr.preview.units : [];
+  const kind = isObj(pr.preview) ? pr.preview.kind : null;
+  if (!(kind === 'program' || kind === 'split' || kind === 'session')) return [];
+  const detail = isObj(pr.plan) && isObj(pr.plan.detail) ? pr.plan.detail : {};
+  const blocks = Array.isArray(detail.blocks) ? detail.blocks.slice(0, ROW_SCAN) : [];
+  const days = Array.isArray(detail.firstWeek)
+    ? detail.firstWeek.slice(0, BS_WORK_DAYS_MAX).filter((d) => isObj(d) && Number.isInteger(d.week) && Number.isInteger(d.day)) : [];
+  const movesOf = (d) => blocks.filter((b) => isObj(b) && b.week === d.week && b.day === d.day && typeof b.name === 'string')
+    .map((b) => ({ name: clean(b.name, 80), ...(typeof b.muscle === 'string' && clean(b.muscle, 40) ? { muscle: clean(b.muscle, 40) } : {}) }))
+    .filter((m) => m.name);
+  // A program of one day previews as a single session (bsPlanPreview), its day still in `firstWeek`:
+  // that day is its one workout, labelled as a program's day is (Codex P2 on #2592).
+  if (kind === 'session') {
+    if (days.length !== 1) return [];
+    const d = days[0];
+    const moves = movesOf(d);
+    const total = Number.isInteger(d.moves) && d.moves >= 0 ? Math.min(d.moves, 999) : moves.length;
+    const label = Number.isInteger(d.weekday) && d.weekday >= 0 && d.weekday < 7 ? DAY_LABELS[d.weekday] : `DAY ${d.day + 1}`;
+    return [{ i: 0, label, title: clean(d.dayName, 80), moves: moves.slice(0, 20), more: Math.max(0, total - Math.min(moves.length, 20)) }];
+  }
+  const out = [];
+  units.slice(0, BS_WORK_DAYS_MAX).forEach((u, i) => {
+    if (!isObj(u) || u.locked || u.rest) return;
+    const d = days[i] || null;
+    const moves = d ? movesOf(d) : (Array.isArray(u.moves) ? u.moves.map((m) => ({ name: clean(m, 80) })).filter((m) => m.name) : []);
+    out.push({ i, label: clean(u.label, 12), title: clean(u.title, 80), moves: moves.slice(0, 20), more: Math.max(0, (Number(u.more) || 0) + (moves.length > 20 ? moves.length - 20 : 0)) });
+  });
+  return out;
+}
+
+/**
+ * The Studio tab's model from the profile's own reads: `programs` (bsCoachPrograms, or a sample's),
+ * `videos` (bsWorkoutVideos), the listing's monthly price and offer, and the coach's doc's words
+ * (`descriptions`, `programFor`, `picks`, already cleaned). Returns
+ *   programs  [{ key, id, name, price, paid, weeks, perWeek, desc, forWho, pr }]
+ *   workouts  [{ key, kind: 'day'|'video', label, title, moves, more, focus, program, desc, pick, video, ago, pr }]
+ *             the coach's picks first, in their order, then each program's days, then the videos
+ *   foci      [[focus, count]] for the foci some workout has, in BS_WORK_FOCI's order
+ *   coaching  { price, includes, desc } when the listing sells coaching by the month, else null
+ */
+export function bsStudioModel({ programs, videos, monthly, offer, descriptions, programFor, picks } = {}) {
+  const words = isObj(descriptions) ? descriptions : {};
+  const fors = isObj(programFor) ? programFor : {};
+  const desc = (k) => (typeof words[k] === 'string' ? clean(words[k], 140) : '');
+  const progs = [];
+  const days = [];
+  for (const pr of (Array.isArray(programs) ? programs.slice(0, BS_WORK_PROGRAMS_MAX) : [])) {
+    if (!isObj(pr) || pr.id == null || !pr.name) continue;
+    const id = String(pr.id);
+    const note = isObj(pr.preview) && typeof pr.preview.note === 'string' ? clean(pr.preview.note, 140) : '';
+    const f = fors[id];
+    progs.push({
+      key: `p:${id}`, id, name: pr.name, price: pr.price || null, paid: !!pr.paid, weeks: pr.weeks || null, perWeek: pr.perWeek || null,
+      desc: desc(`p:${id}`) || note,
+      forWho: isObj(f) && (typeof f.id === 'string' || typeof f.w === 'string') ? (f.id ? { id: f.id } : { w: clean(f.w, 40) }) : null,
+      pr,
+    });
+    for (const d of programDaysOf(pr)) {
+      days.push({ key: `d:${id}:${d.i}`, kind: 'day', label: d.label, title: d.title || d.label, moves: d.moves, more: d.more, focus: bsWorkFocus(d.moves),
+        program: { id, name: pr.name }, desc: desc(`d:${id}:${d.i}`), pr });
+    }
+  }
+  const vids = [];
+  for (const v of (Array.isArray(videos) ? videos.slice(0, BS_WORK_VIDEOS_MAX) : [])) {
+    if (!isObj(v) || !v.key || !v.video) continue;
+    const key = `v:${String(v.key).slice(0, 96)}`;
+    vids.push({ key, kind: 'video', label: '', title: v.title || '', moves: [], more: 0, focus: null, program: null, desc: desc(key), video: v.video, ago: v.ago || '', pr: null, v });
+  }
+  const all = [...days, ...vids];
+  const picked = (Array.isArray(picks) ? picks : []).map((k) => all.find((w) => w.key === k)).filter(Boolean).slice(0, 2);
+  const pickedKeys = new Set(picked.map((w) => w.key));
+  const workouts = [...picked.map((w) => ({ ...w, pick: true })), ...all.filter((w) => !pickedKeys.has(w.key)).map((w) => ({ ...w, pick: false }))];
+  const foci = BS_WORK_FOCI.map((f) => [f, workouts.filter((w) => w.focus === f).length]).filter(([, n]) => n > 0);
+  const price = Number(monthly);
+  const includes = isObj(offer) && Array.isArray(offer.includes) ? offer.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 8) : [];
+  const coaching = Number.isFinite(price) && price > 0
+    ? { price, includes, desc: desc('coaching') || (isObj(offer) && typeof offer.blurb === 'string' ? clean(offer.blurb, 600) : '') }
+    : null;
+  return { programs: progs, workouts, foci, coaching };
 }
 
 // ── Which moves happen on which piece ─────────────────────────────────────────────────────────

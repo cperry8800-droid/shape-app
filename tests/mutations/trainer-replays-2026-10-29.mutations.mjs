@@ -1,17 +1,19 @@
 // Mutation spec for the trainer profile's work (2026-10-29: programs and workout videos in Replays,
-// each machine's workouts on the studio, station pins): coachWork.mjs, the pins in the profile doc,
-// the page, the editor, the samples and the composer's starting type. The tests named below must
-// notice every one. Run from the repo root:
+// each machine's workouts on the studio, station pins; 2026-11-04: the app's Studio tab as the coach's
+// programs, workouts and coaching with their own lines, the floor plan and its pins now the website's
+// only): coachWork.mjs, the profile doc's keys, the page, the Studio tab, the editor, the samples and
+// the composer's starting type. The tests named below must notice every one. Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/trainer-replays-2026-10-29.mutations.mjs --fail-on-skipped
 const WORK = 'public/newdesign/coachWork.mjs'; // canonical since #2560
 const DOC = 'public/newdesign/profileCustom.mjs';
 const PAGE = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const EDIT = 'mobile-app/src/broadsheet/BSMakeItYours.jsx';
+const STUDIO = 'mobile-app/src/broadsheet/BSCoachStudio.jsx';
 const DEMO = 'public/newdesign/trainerDemo.mjs'; // canonical since #2560
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
 export default {
-  test: 'node --test tests/coach-work.test.mjs tests/trainer-profile.test.mjs tests/profile-custom.test.mjs',
+  test: 'node --test tests/coach-work.test.mjs tests/coach-studio-model.test.mjs tests/trainer-profile.test.mjs tests/studio-editor.test.mjs tests/profile-custom.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── programs ──
@@ -71,8 +73,6 @@ export default {
       find: "    if (W.bsRequireAccount && !W.bsRequireAccount(tr('profile:trainer.buyAsk', { defaultValue: 'buy a program' }))) return;\n", replace: "" },
     { name: 'page: the checkout is never opened', file: PAGE,
       find: "      if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);", replace: "" },
-    { name: 'page: no Replays tab for programs alone', file: PAGE,
-      find: "...(isSelf || replays.length || workouts.length || programs.length ? [['replays'", replace: "...(isSelf || replays.length ? [['replays'" },
     { name: 'page: the coach is offered Buy on their own program', file: PAGE,
       find: "        {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>", replace: "        {false ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>" },
     { name: 'page: Buy · Free goes to the paid checkout', file: PAGE,
@@ -82,40 +82,36 @@ export default {
     { name: 'page: Buy on a sample', file: PAGE,
       find: "          : pr.sample ? <button type=\"button\" onClick={onWork}", replace: "          : false ? <button type=\"button\" onClick={onWork}" },
     { name: 'page: the program\'s video is not played', file: PAGE,
-      find: "      {pr.video ? <div data-program-video=\"\" style={{ margin: '4px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>", replace: "      {false ? <div data-program-video=\"\" style={{ margin: '4px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>" },
+      find: "      {pr.video ? <div data-program-video=\"\" style={{ margin: '10px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>", replace: "      {false ? <div data-program-video=\"\" style={{ margin: '10px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>" },
     { name: 'page: a workout\'s video is not played', file: PAGE,
       find: "      {video ? <div data-replay-video=\"\"", replace: "      {false ? <div data-replay-video=\"\"" },
     { name: 'page: a workout with no sets has a stepper', file: PAGE,
       find: "      {rows.length ? <div style={{ margin: '12px 18px 0', display: 'flex', gap: 8 }}>", replace: "      {true ? <div style={{ margin: '12px 18px 0', display: 'flex', gap: 8 }}>" },
     { name: 'page: the names-only line is not said', file: PAGE,
-      find: "      {p.namesOnly ? <p style={{ margin: '10px 18px 0'", replace: "      {false ? <p style={{ margin: '10px 18px 0'" },
-    { name: 'page: no floor the program uses', file: PAGE,
-      find: "      {where.length ? (\n        <div data-program-where=\"\"", replace: "      {false ? (\n        <div data-program-where=\"\"" },
-    { name: 'page: a zone is a tappable piece', file: PAGE,
-      find: "return work[i] && work[i].count && p.t !== 'zone' ? { i, p, n: null, count: work[i].count } : null;", replace: "return work[i] && work[i].count ? { i, p, n: null, count: work[i].count } : null;" },
-    { name: 'page: every piece of a kind is its own row', file: PAGE,
-      find: "      const key = `${p.t}|${p.label || ''}`;", replace: "      const key = `${p.t}|${p.label || ''}|${i}`;" },
-    { name: 'page: the pinned programs are not shown', file: PAGE,
-      find: "      {pinned.length ? (\n        <div data-pinned=\"\"", replace: "      {false ? (\n        <div data-pinned=\"\"" },
-    { name: 'page: the moves done on a piece are not shown', file: PAGE,
-      find: "      {held.length ? (\n        <div data-piece-moves=\"\"", replace: "      {false ? (\n        <div data-piece-moves=\"\"" },
-    { name: 'page: a pinned program is listed again under done here', file: PAGE,
-      find: "work.programs.filter((x) => byId.has(x.id) && !pinnedIds.has(x.id))", replace: "work.programs.filter((x) => byId.has(x.id))" },
-    { name: 'page: a pinned program\'s row drops its moves', file: PAGE,
-      find: "progRow(pr, movesOf.get(pr.id) || null, 'pin-' + pr.id)", replace: "progRow(pr, null, 'pin-' + pr.id)" },
-    { name: 'page: Post a workout video opens a note', file: PAGE,
-      find: "onClick={() => onLog('video')}", replace: "onClick={() => onLog()}" },
-    { name: 'page: the editor gets no programs to pin', file: PAGE,
-      find: "      programs={programs.map((pr) => ({ id: pr.id, name: pr.name }))}\n", replace: "" },
+      find: "      {p.namesOnly ? <p style={{ margin: '12px 18px 0'", replace: "      {false ? <p style={{ margin: '12px 18px 0'" },
     { name: 'page: the initials are the name\'s first two letters', file: PAGE,
       find: ": String(name).split(/\\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();", replace: ": String(name).slice(0, 2).toUpperCase();" },
+    // ── the Studio (owner, 2026-11-04: the coach's work in three kinds, each with their own line) ──
+    { name: 'studio: the picks are not put first', file: WORK,
+      find: "  const workouts = [...picked.map((w) => ({ ...w, pick: true })), ...all.filter((w) => !pickedKeys.has(w.key)).map((w) => ({ ...w, pick: false }))];",
+      replace: "  const workouts = all.map((w) => ({ ...w, pick: pickedKeys.has(w.key) }));" },
+    { name: 'studio: a program with no line of the coach\'s shows nothing, not its own note', file: WORK,
+      find: "      desc: desc(`p:${id}`) || note,", replace: "      desc: desc(`p:${id}`)," },
+    { name: 'studio: coaching shown with no monthly price', file: WORK,
+      find: "  const coaching = Number.isFinite(price) && price > 0\n", replace: "  const coaching = true\n" },
+    { name: 'studio: the focus filter does not filter', file: STUDIO,
+      find: "  const shown = focusNow === 'all' ? works : works.filter((w) => w.focus === focusNow);", replace: "  const shown = works;" },
+    { name: 'page: no Studio tab for the work alone', file: PAGE,
+      find: "    ...(isSelf || hasStudioWork ? [['studio'", replace: "    ...(isSelf ? [['studio'" },
+    { name: 'doc: five focus words', file: DOC,
+      find: "export const BS_FOCUS_MAX = 4;", replace: "export const BS_FOCUS_MAX = 5;" },
+    { name: 'doc: a preset that is not one is kept', file: DOC,
+      find: "  if (typeof v.id === 'string' && presets.includes(v.id)) return { id: v.id };", replace: "  if (typeof v.id === 'string') return { id: v.id };" },
     // ── the editor ──
-    { name: 'editor: a fourth pin', file: EDIT,
-      find: "                if (pins.length >= BS_STATION_PINS_MAX) {", replace: "                if (false) {" },
-    { name: 'editor: a pin to an unpublished program fills the station', file: EDIT,
-      find: "  const pins = stored.filter((id) => programs.some((pr) => pr.id === id));", replace: "  const pins = stored;" },
-    { name: 'editor: a pin cannot be taken off', file: EDIT,
-      find: "                if (on) { onChange(pins.filter((x) => x !== pr.id)); return; }", replace: "                if (on) return;" },
+    { name: 'editor: a focus preset is stored as its label', file: EDIT,
+      find: "    setFocus([...list, { id }]);", replace: "    setFocus([...list, { w: say({ id }) }]);" },
+    { name: 'editor: a description not changed here is written', file: EDIT,
+      find: "    if (descriptionsChanged) doc.descriptions = descs;", replace: "    doc.descriptions = descs;" },
     // ── the samples ──
     { name: 'samples: a sample program is for sale', file: DEMO,
       find: "  return bsCoachPrograms(plans).map((p) => ({ ...p, sample: true }));", replace: "  return bsCoachPrograms(plans);" },

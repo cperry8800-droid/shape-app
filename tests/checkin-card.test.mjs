@@ -419,7 +419,8 @@ test('the morning panel holds the card over water, with a hairline between them'
     const panel = host.querySelector('[data-bs-morning]');
     assert.ok(panel, 'no morning panel');
     assert.equal(panel.tagName, 'SECTION');
-    assert.equal(panel.style.borderRadius, '14px', 'the panel lost its rounded corners');
+    // Round and raised as every box on Home (owner, 2026-11-04: "this doesnt go together now").
+    assert.equal(panel.style.borderRadius, '20px', 'the panel lost its rounded corners');
     assert.equal(panel.style.clipPath, '', 'the notched corner came back');
     const card = panel.querySelector('[data-bs-checkin-card]');
     const water = panel.querySelector('[data-bs-water]');

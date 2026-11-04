@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Matsakaici {kcal} kcal",
   "editor.nightBefore": "A SHIRYA DAREN DA YA GABATA",
   "editor.nightBeforeShape": "ANA SHIRYA SHI DAREN DA YA GABATA · GIRKIN SHAPE",
-  "editor.nightBeforeAria": "A shirya {name} daren da ya gabata"
+  "editor.nightBeforeAria": "A shirya {name} daren da ya gabata",
+  "today.dayEmpty": "{day}: ba a tsara komai ba.",
+  "today.dayDoneOf": "{day}: an gama {done} daga cikin {total, plural, one {zama #} other {zama #}}.",
+  "today.dayDoneOfNutri": "{day}: an gama {done} daga cikin {total, plural, one {shawara #} other {shawarwari #}}.",
+  "today.dayBooked": "{day}: an tsara {total, plural, one {zama #} other {zama #}}.",
+  "today.dayBookedNutri": "{day}: an tsara {total, plural, one {shawara #} other {shawarwari #}}.",
+  "today.booked": "AN TSARA"
 }

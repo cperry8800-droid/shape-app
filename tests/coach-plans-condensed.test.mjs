@@ -71,7 +71,7 @@ test('Most popular is the plate: the length on a block, "Most popular", the name
   try {
     const card = m.host.querySelector('[data-featured-plan]');
     assert.equal(card.style.display, 'grid');
-    assert.equal(card.style.gridTemplateColumns, '72px minmax(0, 1fr)');
+    assert.equal(card.style.gridTemplateColumns, '64px minmax(0, 1fr)');
     const [block, body] = card.children;
     assert.equal(nb(block.textContent), '12WK');
     assert.equal(block.style.background, 'rgb(192, 83, 59)', 'the block in the role\'s heat');
@@ -118,7 +118,10 @@ test('the deck holds From scratch alone: no Nora line (she drafts from the masth
     const scratch = m.host.querySelector('[data-create="scratch"]');
     assert.ok(parseFloat(scratch.style.minHeight) >= 44, scratch.style.minHeight);
     assert.equal(scratch.textContent, '＋ From scratch');
-    assert.equal(deck.PAPER, '#111', 'the deck is the paper\'s ink on a light paper');
+    // The deck is glass in the paper's own colour (owner, 2026-11-04: "make sure the glassy look matches the
+    // print color"), so on a light paper it is that paper with its own ink.
+    assert.equal(deck.PAPER, '#fff', 'the deck is the paper\'s own colour');
+    assert.equal(deck.INK, '#111', 'with the paper\'s own ink');
     scratch.click();
     assert.deepEqual(calls, ['scratch']);
   } finally { await m.close(); }
