@@ -97,6 +97,10 @@ test('⚠ the door: only the station\'s own mount, with a good ticket, on a list
   assert.equal(leavingListener(leave({ mount: `/live?ticket=${spent}` }), { key: KEY }).ok, true, 'a ticket run out since still left');
   assert.deepEqual(leavingListener(leave({ mount: `/live?ticket=${ticket.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'))}` }), { key: KEY }), { ok: false, reason: 'signature' });
   assert.deepEqual(leavingListener(leave({ mount: `/live?pass=${encodeURIComponent(pass)}` }), { key: KEY }), { ok: false, reason: 'malformed' }, 'a member\'s pass is no ticket');
+  // Icecast's documentation names only the mount on a leave (2.4.4 sends the ticket too, measured):
+  // a bare /live is the station's own word, signed in; anything else on the address is a ticket.
+  assert.deepEqual(leavingListener(leave({ mount: '/live' }), { key: KEY }), { ok: true, client: 42, durationSec: 7200 }, 'a bare /live leaves');
+  assert.deepEqual(leavingListener(leave({ mount: '/live?from=elsewhere' }), { key: KEY }), { ok: false, reason: 'malformed' }, 'an address with no ticket on it');
   assert.deepEqual(leavingListener(leave({ mount: `/standby?ticket=${ticket}` }), { key: KEY }), { ok: false, reason: 'mount' });
   assert.deepEqual(leavingListener(leave({ action: 'listener_add' }), { key: KEY }), { ok: false, reason: 'action' });
   assert.deepEqual(leavingListener(leave({ duration: '-1' }), { key: KEY }), { ok: false, reason: 'numbers' });

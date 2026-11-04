@@ -166,8 +166,8 @@ export function checkListener(form, { now, key }) {
  * The station's word that a listener left (Icecast's url auth, `listener_remove`), with Icecast's
  * number for the connection and how long it lasted. ⚠ THE TICKET HAS RUN OUT SINCE, MOST LIKELY: it
  * was checked at the door two minutes at most after it was made, and an expired ticket ends no
- * stream, so a listener who stayed on still left, and is still counted. The ticket must still be
- * one Shape signed, for the station's own mount.
+ * stream, so a listener who stayed on still left, and is still counted. The ticket, when the word
+ * carries one, must still be one Shape signed, for the station's own mount.
  * @param {URLSearchParams} form
  * @returns {{ok: true, client: number, durationSec: number} | {ok: false, reason: string}}
  */
@@ -176,8 +176,14 @@ export function leavingListener(form, { key }) {
   let u;
   try { u = new URL(String(form.get('mount') || ''), 'http://station'); } catch { return { ok: false, reason: 'mount' }; }
   if (u.pathname !== STATION_MOUNT) return { ok: false, reason: 'mount' };
-  const signed = signedTicket(u.searchParams.get(TICKET_PARAM), key);
-  if (!signed.ok) return signed;
+  // Icecast 2.4.4 (the station's) sends the address the listener asked for, ticket and all: measured,
+  // and run end to end in tests/radio-station-e2e.test.mjs. Its documentation names only the mount,
+  // so a bare /live is taken too: the station's own sign-in vouches for it, and Icecast tells of a
+  // leave only for a listener its door let in. Anything on the address must be a ticket Shape signed.
+  if (u.search) {
+    const signed = signedTicket(u.searchParams.get(TICKET_PARAM), key);
+    if (!signed.ok) return signed;
+  }
   const client = String(form.get('client') || ''), duration = String(form.get('duration') || '');
   if (!/^\d{1,15}$/.test(client) || !/^\d{1,9}$/.test(duration)) return { ok: false, reason: 'numbers' };
   return { ok: true, client: Number(client), durationSec: Number(duration) };
