@@ -278,6 +278,14 @@ test('Focus: a typed figure is the set\'s, Log set starts the rest, +30 sec and 
   assert.equal(labelled(s.v().nodes(), 'Set 1 Reps').props.value, '4', 'a logged set\'s figure is corrected in place');
 });
 
+test('Focus: a slot the member clears reads "—", not the coach\'s target, so what shows is what saves (Codex P2 on #2610)', () => {
+  const s = session('focus');
+  s.type('Set 1 Load', '');
+  const cleared = labelled(s.v().nodes(), 'Set 1 Load');
+  assert.equal(cleared.props.value, '');
+  assert.equal(cleared.props.placeholder, '—', 'a cleared slot shows the target again');
+});
+
 test('Focus: a set further down the card is logged from its own ✓, with what was typed into it', () => {
   const s = session('focus');
   s.type('Set 2 Load', '245 lb');

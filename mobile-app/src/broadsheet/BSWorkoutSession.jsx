@@ -122,7 +122,9 @@ export function BSWorkoutSession({ session: S }) {
         const ri = S.setInputs[key] || {};
         const pre = S.prefill(mv, i) || {};
         const cell = (f) => {
-          const target = f === 'load' ? (pre.load || '') : f === 'reps' ? (pre.reps || '') : '';
+          // The coach's target shows only in a slot the member has not touched: one they cleared reads "—", so
+          // what shows is what saves (Codex P2 on #2610).
+          const target = ri[f] !== undefined ? '' : f === 'load' ? (pre.load || '') : f === 'reps' ? (pre.reps || '') : '';
           return (
             <input key={f} value={ri[f] ?? ''} onChange={(e) => S.updateSetInput(i, f, e.target.value, mIdx)} placeholder={target || '—'} inputMode="decimal"
               aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(f) })} aria-describedby={labelledBy || undefined} data-focus-field={f}
