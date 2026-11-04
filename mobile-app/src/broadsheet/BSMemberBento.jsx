@@ -65,17 +65,17 @@ export const BS_MP_SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rg
 // activity): smaller words that may wrap, hyphenated in a long language.
 export function bsMpAction({ t, INK, c, onC, lit = false, compact = false }) {
   const base = {
-    minWidth: 0, padding: compact ? '8px 10px' : '8px 12px', borderRadius: 18, display: 'flex', flexDirection: 'row',
-    justifyContent: 'flex-start', alignItems: 'center', gap: compact ? 8 : 10, textAlign: 'left',
-    fontFamily: BS_CLEAN_HEAD, fontSize: compact ? 13 : 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.15,
+    minWidth: 0, padding: compact ? '6px 10px' : '6px 12px', borderRadius: 14, display: 'flex', flexDirection: 'row',
+    justifyContent: 'flex-start', alignItems: 'center', gap: compact ? 6 : 8, textAlign: 'left',
+    fontFamily: BS_CLEAN_HEAD, fontSize: compact ? 13 : 15, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.15,
     overflowWrap: 'anywhere', hyphens: 'auto', cursor: 'pointer', boxSizing: 'border-box',
   };
   return lit
-    ? { ...base, border: 0, background: c, backgroundImage: BS_MP_SHEEN, boxShadow: `0 10px 22px -6px ${hexA(c, 0.42)}`, color: onC }
-    : { ...base, ...bsMpTile(t, INK), borderRadius: 18, color: INK };
+    ? { ...base, border: 0, background: c, backgroundImage: BS_MP_SHEEN, boxShadow: `0 6px 14px -6px ${hexA(c, 0.42)}`, color: onC }
+    : { ...base, ...bsMpTile(t, INK), borderRadius: 14, color: INK };
 }
 // The action tile's icon square, tinted from the words' own colour.
-export function BSMpIconBox({ name, ink, size = 30 }) {
+export function BSMpIconBox({ name, ink, size = 24 }) {
   return (
     <span aria-hidden="true" style={{ width: size, height: size, borderRadius: Math.round(size / 3), flex: 'none', display: 'grid', placeItems: 'center', background: hexA(ink, 0.12) }}>
       <BSMpIcon name={name} size={Math.round(size * 0.5)} stroke={2.3} />

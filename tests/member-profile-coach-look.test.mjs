@@ -74,7 +74,7 @@ test('the coach look\'s counts, then Follow and Message for someone else, nothin
   assert.equal(toggle.props.style.background, '#34d6c5');
   assert.equal(toggle.props.style.color, '#0f0e0c', 'Follow\'s words in the ink that reads on teal');
   assert.equal(textOf(message).trim(), 'Message Priya', 'Message says whom, by first name');
-  for (const b of [toggle, message]) assert.equal(b.props.style.minHeight, 46);
+  for (const b of [toggle, message]) assert.equal(b.props.style.minHeight, 44);
   // No handler, no Message: never a button that does nothing.
   const quiet = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
   assert.equal(withAttr(quiet.nodes(), 'data-follow-message').length, 0);
