@@ -58,7 +58,7 @@ export function BSHomeDeck({ radio = null, children }) {
     <section data-bs-home-deck="" style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '2px 0 16px' }}>
       {radio}
       {children}
-      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${BS_DECK_TEAL})`, opacity: 0.9 }} />
+      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${BS_DECK_TEAL})`, opacity: 0.9, pointerEvents: 'none' }} />
     </section>
   );
   return Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;
@@ -275,14 +275,16 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
   return (
     // Condensed (owner, 2026-11-04: "the week calendar can be condensed a little to create more space"): the
     // head's Month keeps its 44px tap without standing the row 44px tall, the days 52px (from 64), the bars
-    // 11px (from 14).
-    <section data-bs-home-week-bars="" aria-label={tr('home:section.thisWeek', { defaultValue: 'This week' })} style={{ padding: `8px ${t.padX - 6}px 0` }}>
+    // 11px (from 14). ⚠ NO TAP BOX OVERLAPS ANOTHER (Codex P2 on #2593): Month reaches 12px up into the
+    // head's padding and 6px down into the 6px gap over the days, never onto a day; the picked day's →
+    // reaches 6px up into the gap over its line and 26px down into this section's 10px and the deck's 16px.
+    <section data-bs-home-week-bars="" aria-label={tr('home:section.thisWeek', { defaultValue: 'This week' })} style={{ padding: `8px ${t.padX - 6}px ${10}px` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '0 6px' }}>
         <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK, whiteSpace: 'nowrap' }}>
           {tr('home:section.thisWeek', { defaultValue: 'This week' })}<span aria-hidden="true" style={{ color: '#e0654b' }}>.</span>
         </h2>
         {isoWeek ? <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {span}</span> : null}
-        {onMonth ? <button type="button" onClick={onMonth} style={{ minHeight: 44, margin: '-12px 0 -12px auto', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
+        {onMonth ? <button type="button" onClick={onMonth} style={{ minHeight: 44, margin: '-12px 0 -6px auto', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 6 }}>
         {(week.length ? week : Array.from({ length: 7 }, () => null)).map((iso, i) => {
@@ -308,10 +310,10 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
       {/* The picked day's line: its date as the door to the calendar, then each bar's name marked as it went
           (✓ hit, × missed, ○ to come, – rest day). An unread week keeps the key. */}
       {pickIso ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 0 0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginTop: 6, padding: '0 0 0 6px', height: 12, ...mono, fontSize: 8, lineHeight: '12px', letterSpacing: '0.12em', color: t.INK50 }}>
           <button type="button" data-bs-home-open-day={pickIso} onClick={() => openDay(pickIso)}
             aria-label={fmtDay(pickIso, { weekday: 'long', month: 'long', day: 'numeric' })}
-            style={{ flex: 'none', minHeight: 44, margin: '-12px 0', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 8.5, letterSpacing: '0.12em', color: t.ACCENT, whiteSpace: 'nowrap' }}>
+            style={{ flex: 'none', minHeight: 44, margin: '-6px 0 -26px', padding: '6px 0 0', border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', ...mono, fontSize: 8.5, lineHeight: '12px', letterSpacing: '0.12em', color: t.ACCENT, whiteSpace: 'nowrap' }}>
             {fmtDay(pickIso, { weekday: 'short' })} {dayOf(pickIso).getDate()} →
           </button>
           <span aria-hidden="true" style={{ minWidth: 0, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

@@ -23,13 +23,20 @@ test('the goal climb sits 22px under the radio box, clear of its foot', () => {
 
 test('the week is condensed: 52px days, 11px bars, the head\'s Month a 44px tap that does not stand the row tall', () => {
   const week = between(DECK, 'export function BSHomeWeekBarsView(', '\n}\n');
-  assert.match(week, /padding: `8px \$\{t\.padX - 6\}px 0`/);
+  assert.match(week, /padding: `8px \$\{t\.padX - 6\}px \$\{10\}px`/);
   assert.match(week, /minHeight: 52, padding: '4px 0 5px'/);
   assert.match(week, /fontSize: 17, lineHeight: 1\.05/);
   assert.match(week, /gap: 1\.5, height: 11 \}/);
   // Month keeps its 44px tap target, pulled into the head's line by negative margins (no marginLeft beside
   // the shorthand, which React warns about).
-  assert.match(week, /style=\{\{ minHeight: 44, margin: '-12px 0 -12px auto', padding: 0,/);
+  assert.match(week, /style=\{\{ minHeight: 44, margin: '-12px 0 -6px auto', padding: 0,/);
+  // ⚠ No tap box overlaps another (Codex P2 on #2593). Month hangs 6px under the head's line and the days
+  // start 6px under it; the picked day's → hangs 6px above its line, which starts 6px under the days, and
+  // 26px below its 12px line, into the section's 10px and the deck's 16px.
+  assert.match(week, /gridTemplateColumns: 'repeat\(7, minmax\(0, 1fr\)\)', gap: 3, marginTop: 6 \}/);
+  assert.match(week, /marginTop: 6, padding: '0 0 0 6px', height: 12,/);
+  assert.match(week, /minHeight: 44, margin: '-6px 0 -26px', padding: '6px 0 0'/);
+  assert.match(DECK, /padding: '2px 0 16px'/, 'the deck\'s foot the → reaches into');
   const bar = between(DECK, 'function BSHdBar(', '\n}\n');
   assert.match(bar, /data-bar="hit" style=\{\{ \.\.\.base, height: 11,/);
   assert.match(bar, /data-bar="ahead" style=\{\{ \.\.\.base, height: 11,/);
