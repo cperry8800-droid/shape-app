@@ -57,7 +57,8 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   const [status, setStatus] = React.useState(''); // '' | saving | saved | error
   const [err, setErr] = React.useState('');
   // Targets are typed as text and read on blur, so a half-typed "18" never becomes the day's target.
-  const [targetText, setTargetText] = React.useState(() => ({ ...(start ? start.targets : {}) }));
+  // A kept draft's targets still being typed come back as typed.
+  const [targetText, setTargetText] = React.useState(() => ({ ...(start ? start.targets : {}), ...(kept && kept.targets ? kept.targets : {}) }));
 
   const MastRow = window.BSMastRow;
   const BackRow = window.BSBackRow;
@@ -67,18 +68,11 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   // ⚠ What is on screen now, read when a save comes back (Codex on #2594). An edit made while the save
   // was in flight is not what was saved, so it stays unsaved: Back still asks, and Assign saves it
   // first. An edit never clears a save in flight either, so a second Save can't start beside it.
-  const onScreen = React.useRef({ doc, name });
-  onScreen.current = { doc, name };
+  const onScreen = React.useRef({ doc, name, targets: targetText });
+  onScreen.current = { doc, name, targets: targetText };
   const keepSaving = (s) => (s === 'saving' ? s : '');
   const change = (next) => { if (next !== doc) { setDoc(next); setDirty(true); setStatus(keepSaving); } };
   const dropDraft = () => { if (draftKey) { try { window.localStorage.removeItem(draftKey); } catch (e) { /* storage unavailable */ } } setStored(false); };
-  // Kept while unsaved, and only for the account that opened it.
-  React.useEffect(() => {
-    if (!draftKey || !dirty || !doc) return;
-    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== ownerId) return;
-    try { window.localStorage.setItem(draftKey, JSON.stringify({ name, doc, revision: revRef.current })); setStored(true); }
-    catch (e) { setStored(false); }
-  }, [draftKey, dirty, doc, name]);
   // "Leave without saving" is the coach's word to drop it.
   const askLeave = async () => {
     const ok = !window.bsAskConfirm || !!(await window.bsAskConfirm({
@@ -93,6 +87,14 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   // straight after typing must not drop it.
   const typing = !!doc && Object.keys(targetText).some((k) => String(targetText[k] == null ? '' : targetText[k]) !== String(doc.targets[k] == null ? '' : doc.targets[k]));
   const unsaved = dirty || typing;
+  // Kept while unsaved, a target being typed included, and only for the account that opened it.
+  const keepDraft = (snap) => {
+    if (!draftKey || !snap.doc) return;
+    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== ownerId) return;
+    try { window.localStorage.setItem(draftKey, JSON.stringify({ name: snap.name, doc: snap.doc, targets: snap.targets, revision: revRef.current })); setStored(true); }
+    catch (e) { setStored(false); }
+  };
+  React.useEffect(() => { if (unsaved) keepDraft({ name, doc, targets: targetText }); }, [draftKey, unsaved, doc, name, targetText]);
   const close = async () => {
     if (unsaved && !(await askLeave())) return;
     onClose();
@@ -140,7 +142,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     Object.keys(targetText).forEach((k) => { toSave = setTarget(toSave, k, targetText[k]); });
     if (toSave !== doc) setDoc(toSave);
     setTargetText({ ...toSave.targets });
-    const sent = { doc: toSave, name };
+    const sent = { doc: toSave, name, targets: JSON.stringify({ ...toSave.targets }) };
     // An emptied name is saved as the plan's own, and the field shows it again: never "Saved" over a
     // blank the plan doesn't have (Codex on #2594).
     const savedName = name.trim() || plan.name;
@@ -153,13 +155,17 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
         // The route merges `detail` over the stored one, so only the document is replaced.
         meta: mealPlanMeta(M, toSave), detail: { mealBuilder: toSave },
       });
-      const unchanged = onScreen.current.doc === sent.doc && onScreen.current.name === sent.name;
+      const now = onScreen.current;
+      const unchanged = now.doc === sent.doc && now.name === sent.name && JSON.stringify(now.targets) === sent.targets;
       const nextRev = Number(row && row.detail && row.detail.revision);
       if (Number.isFinite(nextRev) && nextRev > 0) revRef.current = nextRev;
       if (unchanged) { setDirty(false); dropDraft(); if (name !== savedName) setName(savedName); }
+      // Edits made while it was in flight stay kept, now on the revision this save made (Codex on #2594).
+      else keepDraft(now);
       setStatus(unchanged ? 'saved' : '');
       onSaved(row);
-      return row;
+      // The row only when it is what is on screen: Assign never sends a menu older than the one shown.
+      return unchanged ? row : null;
     } catch (e) {
       setStatus('error'); setErr(String((e && e.message) || tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' })));
       return null;

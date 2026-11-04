@@ -113,12 +113,21 @@ export function mealDraftKey(uid, planId) {
   return `shape.coach.meal-draft.v1:${encodeURIComponent(uid || 'preview')}:${encodeURIComponent(planId || '')}`;
 }
 
-/** A kept draft read back: { name, doc, revision }, or null when there is none or it is not one. */
+const DRAFT_TARGETS = ['kcal', 'p', 'c', 'f'];
+/**
+ * A kept draft read back: { name, doc, revision, targets? }, or null when there is none or it is not
+ * one. `targets` is the text of targets still being typed, as the boxes hold it (digits, four at most).
+ */
 export function readMealDraft(raw) {
   try {
     const d = JSON.parse(raw);
     if (!d || typeof d !== 'object' || typeof d.name !== 'string') return null;
     const doc = mealBuilderDoc({ mealBuilder: d.doc });
-    return doc ? { name: d.name, doc, revision: Number(d.revision) || 0 } : null;
+    if (!doc) return null;
+    const typed = d.targets && typeof d.targets === 'object' && !Array.isArray(d.targets)
+      ? Object.entries(d.targets).filter(([k, v]) => DRAFT_TARGETS.includes(k) && (typeof v === 'string' || typeof v === 'number'))
+        .map(([k, v]) => [k, String(v).replace(/[^\d]/g, '').slice(0, 4)])
+      : [];
+    return { name: d.name, doc, revision: Number(d.revision) || 0, ...(typed.length ? { targets: Object.fromEntries(typed) } : {}) };
   } catch (e) { return null; }
 }

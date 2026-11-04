@@ -389,11 +389,71 @@ test('the editor: an unsaved draft is kept on this device and comes back when th
   } finally { await m.close(); delete W.ShapeAuth; delete W.ShapeCoachPlans; W.localStorage.clear(); }
 });
 
+test('the editor: Assign during a save that an edit overtakes waits, then sends the newer menu (Codex on #2594)', async () => {
+  const calls = [];
+  let finish;
+  W.ShapeCoachPlans = { update: (body) => { calls.push(body); return new Promise((resolve) => { finish = () => resolve({ id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }); }); } };
+  const assigned = [];
+  const m = await mount({ plan: PLAN, onClose: () => {}, onAssign: (row) => assigned.push(row) });
+  try {
+    const a = NORA.days[0].slots[0].id, b = NORA.days[0].slots[1].id;
+    await m.click(m.q(`[data-meal-remove="${a}"]`));
+    await m.click(m.q('[data-meal-assign]'));
+    await m.click(m.q(`[data-meal-remove="${b}"]`));
+    await React.act(async () => { finish(); await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(assigned.length, 0, 'not on to Assign with a menu older than the one shown');
+    assert.match(m.text(), /Unsaved changes/);
+    await m.click(m.q('[data-meal-assign]'));
+    await React.act(async () => { finish(); await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(assigned.length, 1);
+    assert.ok(!assigned[0].detail.mealBuilder.days[0].slots.some((x) => x.id === b), 'the menu shown, saved, is the one assigned');
+  } finally { await m.close(); delete W.ShapeCoachPlans; }
+});
+
+test('the editor: an edit made during a save is kept on the revision that save made; a target being typed is kept too (Codex on #2594)', async () => {
+  const { mealDraftKey } = await import('../mobile-app/src/services/mealBuilderEdit.mjs');
+  const { mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
+  W.localStorage.clear();
+  W.ShapeAuth = { getCachedState: () => ({ user: { id: 'nutri-1' } }) };
+  const key = mealDraftKey('nutri-1', 'plan-1');
+  let finish;
+  const calls = [];
+  W.ShapeCoachPlans = { update: (body) => { calls.push(body); return new Promise((resolve) => { finish = () => resolve({ id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail, revision: 7 } }); }); } };
+  const plan6 = { ...PLAN, detail: { ...PLAN.detail, revision: 6 } };
+  let m = await mount({ plan: plan6, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    const a = NORA.days[0].slots[0].id, b = NORA.days[0].slots[1].id;
+    await m.click(m.q(`[data-meal-remove="${a}"]`));
+    await m.click(m.q('[data-meal-save]'));
+    await m.click(m.q(`[data-meal-remove="${b}"]`));
+    await React.act(async () => { finish(); await new Promise((r) => setTimeout(r, 0)); });
+    const kept = JSON.parse(W.localStorage.getItem(key));
+    assert.equal(kept.revision, 7, 'the revision its own save made, so the next save is not refused');
+    assert.ok(!kept.doc.days[0].slots.some((x) => x.id === b), 'with the edit made during it');
+    // A target typed, not yet read, and the app closed: it comes back as typed.
+    await m.type(m.q('[data-meal-target="p"]'), '177');
+    assert.equal(JSON.parse(W.localStorage.getItem(key)).targets.p, '177');
+  } finally { await m.close(); }
+  m = await mount({ plan: plan6, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    assert.equal(m.q('[data-meal-target="p"]').value, '177', 'the typed target, restored');
+    W.bsAskConfirm = async () => false;
+    assert.equal(await mayLeave(W), false, 'still unsaved work');
+    await m.click(m.q('[data-meal-save]'));
+    await React.act(async () => { finish(); await new Promise((r) => setTimeout(r, 0)); });
+    const last = calls[calls.length - 1];
+    assert.equal(last.expectedRevision, 7);
+    assert.equal(last.detail.mealBuilder.targets.p, 177, 'and saved');
+    assert.equal(W.localStorage.getItem(key), null);
+  } finally { await m.close(); delete W.bsAskConfirm; delete W.ShapeAuth; delete W.ShapeCoachPlans; W.localStorage.clear(); }
+});
+
 test('a kept draft is read back only when it is one', async () => {
   const { readMealDraft, mealDraftKey } = await import('../mobile-app/src/services/mealBuilderEdit.mjs');
   assert.deepEqual(readMealDraft(JSON.stringify({ name: 'A', doc: NORA, revision: 2 })), { name: 'A', doc: NORA, revision: 2 });
   for (const bad of [null, '', '{', JSON.stringify({ doc: NORA }), JSON.stringify({ name: 'A', doc: { days: [] } }), JSON.stringify({ name: 'A' })]) assert.equal(readMealDraft(bad), null, String(bad));
   assert.equal(readMealDraft(JSON.stringify({ name: 'A', doc: NORA })).revision, 0);
+  assert.deepEqual(readMealDraft(JSON.stringify({ name: 'A', doc: NORA, targets: { p: '177', kcal: 2050, x: '9', c: ['1'], f: '12ab345' } })).targets, { p: '177', kcal: '2050', f: '1234' }, 'only the targets, as the boxes hold them');
   assert.notEqual(mealDraftKey('a', 'p'), mealDraftKey('b', 'p'), 'per account');
   assert.notEqual(mealDraftKey('a', 'p'), mealDraftKey('a', 'q'), 'per plan');
 });
