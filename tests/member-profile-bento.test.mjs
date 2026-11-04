@@ -68,6 +68,8 @@ test('on someone else\'s page Follow and Message are small pills on their own li
   assert.ok(row, 'Follow and Message left the counts\' block');
   assert.equal([row.props.children].flat(3).filter((n) => n && n.props && n.props['data-follow-count'] !== undefined).length, 3, 'the block lost its counts');
   assert.equal(actions.props.style.flexBasis, '100%', 'Follow and Message can sit beside the counts again');
+  // Their 44px targets start below the counts' 44px targets, never over them (Codex P2 on ca2a65a).
+  assert.ok(!(Number(actions.props.style.marginTop) < 0), 'the actions are pulled up over the counts\' targets');
   const kids = [row.props.children].flat(3).filter(Boolean);
   assert.ok(kids.indexOf(actions) > kids.findLastIndex((n) => n.props && n.props['data-follow-count'] !== undefined), 'Follow and Message are not after the counts');
   // Small: 32px pills in the counts' face, each a 44px target.

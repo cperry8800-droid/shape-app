@@ -14131,7 +14131,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
             <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>
           ) : null}
           {!isSelf ? (
-            <div data-follow-actions="" style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%', marginTop: -6 }}>
+            <div data-follow-actions="" style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
               <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested} style={{ ...pillBtn, cursor: busy ? 'default' : 'pointer' }}>
                 <span data-follow-pill="" style={pill(!(following || requested))}>
                   <BSMpIcon name={following ? 'check' : requested ? 'clock' : 'plus'} size={13} stroke={2.4} />
