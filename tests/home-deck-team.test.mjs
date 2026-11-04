@@ -363,10 +363,19 @@ test('Steps under the strip opens the Shape Steps page, in the picked day\'s lin
   const markSpan = [door.props.children].flat().find((c) => c && c.props && c.props['aria-hidden'] === 'true');
   assert.equal(textOf(markSpan), '○ ');
   // The line's own box is as tall as the door's reach, so its clip never cuts the target.
-  const line = d.nodes().find((n) => n.type === 'span' && n.props.style && n.props.style.textOverflow === 'ellipsis' && /Steps/.test(textOf(n)));
+  const line = d.nodes().find((n) => n.props && n.props['data-bs-home-day-line'] !== undefined);
   assert.equal(line.props.style.margin, '-6px 0 -26px');
   assert.equal(line.props.style.padding, '6px 0 26px');
   assert.equal(line.props['aria-hidden'], undefined, 'the line is not hidden, or the door would be');
+  // A narrow line (a small phone, a long language) cuts the words, never the door (Codex P2 on #2601): the
+  // line is a flex row, the door sits in it whole and never shrinks, the words on either side end in "…".
+  assert.equal(line.props.style.display, 'flex');
+  const kids = [line.props.children].flat(4).filter(Boolean);
+  assert.ok(kids.includes(door), 'the door sits inside a piece that clips');
+  assert.equal(btn.props.style.flex, 'none', 'the door shrinks');
+  const pieces = kids.filter((n) => n.type === 'span');
+  assert.deepEqual(pieces.map((n) => textOf(n)), ['○ Train · ✓ Food · ○ Protein · ', ' · ○ Check-in']);
+  for (const p of pieces) { assert.equal(p.props.style.textOverflow, 'ellipsis'); assert.equal(p.props.style.minWidth, 0); assert.equal(p.props.style.whiteSpace, 'pre', 'a piece drops the spaces round its ·'); }
   // An unread week's key has the door too, reaching 4px up (the key sits 4px under the days).
   const blank = drive(D.BSHomeWeekBarsView, { w: { grid: null }, onSteps });
   const [key] = doors(blank);
@@ -374,7 +383,7 @@ test('Steps under the strip opens the Shape Steps page, in the picked day\'s lin
   assert.equal(textOf(key), 'Steps');
   const keyBtn = buttonOf(key);
   assert.equal(keyBtn.props.style.margin, '-4px -6px -26px');
-  const keyLine = blank.nodes().find((n) => n.type === 'span' && n.props.style && n.props.style.textOverflow === 'ellipsis' && /Steps/.test(textOf(n)));
+  const keyLine = blank.nodes().find((n) => n.props && n.props['data-bs-home-day-line'] !== undefined);
   assert.equal(keyLine.props.style.margin, '-4px 0 -26px');
   keyBtn.props.onClick();
   assert.equal(steps, 2);

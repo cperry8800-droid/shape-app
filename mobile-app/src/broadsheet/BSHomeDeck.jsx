@@ -219,11 +219,13 @@ function BSHdBar({ state, on }) {
 // went with that block (#2583). The word keeps its place in the line, in the accent as the date's → is.
 // Its 44px box reaches `up` px into the gap over the line and 26px down into this section's 10px and the
 // deck's 16px, as the date's does; the line's own box is as tall, so its clip never cuts the target.
+// It never shrinks: where the line runs out of room (a narrow phone, a long language) the words around it
+// end in "…" and the door stays whole (Codex P2 on #2601).
 function BSHdStepsDoor({ onSteps, up, children }) {
   const t = window.useBS();
   return (
     <button type="button" data-bs-home-steps="" onClick={onSteps}
-      style={{ display: 'inline-block', verticalAlign: 'top', boxSizing: 'border-box', minWidth: 44, minHeight: 44, margin: `-${up}px -6px -26px`, padding: `${up}px 6px 26px`, border: 0, background: 'transparent', cursor: 'pointer', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', lineHeight: '12px', textAlign: 'center', color: t.ACCENT }}>
+      style={{ display: 'inline-block', flex: 'none', verticalAlign: 'top', boxSizing: 'border-box', minWidth: 44, minHeight: 44, margin: `-${up}px -6px -26px`, padding: `${up}px 6px 26px`, border: 0, background: 'transparent', cursor: 'pointer', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', lineHeight: '12px', whiteSpace: 'nowrap', textAlign: 'center', color: t.ACCENT }}>
       {children}
     </button>
   );
@@ -278,17 +280,23 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth, onSte
   const mark = { hit: '✓', miss: '×', ahead: '○', rest: '–' };
   // The line's words, each bar's mark and name; Steps is the door to the Shape Steps page when Home gives
   // one. The words stay hidden from a screen reader (each day's button says them); the door reads its name.
-  const nameLine = (markOf, up) => rows.map((k, j) => {
-    const m = markOf(k);
-    return (
-      <React.Fragment key={k}>
-        {j ? <span aria-hidden="true"> · </span> : null}
-        {k === 'steps' && typeof onSteps === 'function'
-          ? <BSHdStepsDoor onSteps={onSteps} up={up}>{m ? <span aria-hidden="true">{`${m} `}</span> : null}{names[k]}</BSHdStepsDoor>
-          : <span aria-hidden="true">{`${m ? `${m} ` : ''}${names[k]}`}</span>}
-      </React.Fragment>
-    );
-  });
+  // The words are pieces of a flex line: the words before Steps, the door, the words after. The words
+  // shrink and end in "…" (white space kept, so " · " keeps its spaces at a piece's edge); the door never
+  // does, so a narrow line cuts words, never the one way to the Shape Steps page (Codex P2 on #2601).
+  const piece = { minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'pre' };
+  const nameLine = (markOf, up) => {
+    const said = rows.map((k) => { const m = markOf(k); return `${m ? `${m} ` : ''}${names[k]}`; });
+    const at = typeof onSteps === 'function' ? rows.indexOf('steps') : -1;
+    if (at < 0) return <span aria-hidden="true" style={piece}>{said.join(' · ')}</span>;
+    const before = said.slice(0, at).join(' · ');
+    const after = said.slice(at + 1).join(' · ');
+    const m = markOf('steps');
+    return [
+      before ? <span key="before" aria-hidden="true" style={piece}>{`${before} · `}</span> : null,
+      <BSHdStepsDoor key="steps" onSteps={onSteps} up={up}>{m ? <span aria-hidden="true">{`${m} `}</span> : null}{names.steps}</BSHdStepsDoor>,
+      after ? <span key="after" aria-hidden="true" style={piece}>{` · ${after}`}</span> : null,
+    ];
+  };
   return (
     // Condensed (owner, 2026-11-04: "the week calendar can be condensed a little to create more space"): the
     // head's Month keeps its 44px tap without standing the row 44px tall, the days 52px (from 64), the bars
@@ -333,14 +341,14 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth, onSte
             style={{ flex: 'none', minHeight: 44, margin: '-6px 0 -26px', padding: '6px 0 0', border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', ...mono, fontSize: 8.5, lineHeight: '12px', letterSpacing: '0.12em', color: t.ACCENT, whiteSpace: 'nowrap' }}>
             {fmtDay(pickIso, { weekday: 'short' })} {dayOf(pickIso).getDate()} →
           </button>
-          <span style={{ minWidth: 0, margin: '-6px 0 -26px', padding: '6px 0 26px', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span data-bs-home-day-line="" style={{ minWidth: 0, display: 'flex', alignItems: 'flex-start', margin: '-6px 0 -26px', padding: '6px 0 26px', color: t.INK70, overflow: 'hidden' }}>
             {nameLine((k) => { const st = g[k] ? g[k][pickIdx] : null; return st && mark[st] ? mark[st] : ''; }, 6)}
           </span>
         </div>
       ) : (
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginTop: 4, padding: '0 6px', ...mono, fontSize: 8, lineHeight: '12px', letterSpacing: '0.12em', color: t.INK50 }}>
           <span aria-hidden="true">{tr('home:week.barsKey', { defaultValue: 'Each day' })}</span>
-          <span style={{ minWidth: 0, margin: '-4px 0 -26px', padding: '4px 0 26px', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nameLine(() => '', 4)}</span>
+          <span data-bs-home-day-line="" style={{ minWidth: 0, display: 'flex', alignItems: 'flex-start', margin: '-4px 0 -26px', padding: '4px 0 26px', color: t.INK70, overflow: 'hidden' }}>{nameLine(() => '', 4)}</span>
         </div>
       )}
     </section>
