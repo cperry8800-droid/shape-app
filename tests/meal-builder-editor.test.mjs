@@ -246,6 +246,41 @@ test('the editor: Save names the revision it opened, the saved one after a save;
   } finally { await React.act(async () => root.unmount()); host.remove(); delete W.ShapeCoachPlans; }
 });
 
+test('the editor: an edit made while a save is in flight stays unsaved; a second Save waits (Codex on #2594)', async () => {
+  const calls = [];
+  let finish;
+  W.ShapeCoachPlans = { update: (body) => { calls.push(body); return new Promise((resolve) => { finish = () => resolve({ id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }); }); } };
+  const asked = [];
+  W.bsAskConfirm = async (o) => { asked.push(o); return false; };
+  const closed = [];
+  const m = await mount({ plan: PLAN, onClose: () => closed.push(1) });
+  try {
+    const first = NORA.days[0].slots[0].id, second = NORA.days[0].slots[1].id;
+    await m.click(m.q(`[data-meal-remove="${first}"]`));
+    await m.click(m.q('[data-meal-save]'));
+    assert.equal(calls.length, 1, 'the save is in flight');
+    // Another edit while it is: it is not what was sent.
+    await m.click(m.q(`[data-meal-remove="${second}"]`));
+    await m.click(m.q('[data-meal-save]'));
+    assert.equal(calls.length, 1, 'no second save beside the first');
+    assert.ok(calls[0].detail.mealBuilder.days[0].slots.some((x) => x.id === second), 'the first save holds the meal still on it');
+    await React.act(async () => { finish(); await new Promise((r) => setTimeout(r, 0)); });
+    assert.doesNotMatch(m.text(), /Saved/, 'not called saved: the second edit is not');
+    await m.click(m.q('[data-back]'));
+    assert.equal(asked.length, 1, 'Back still asks');
+    assert.equal(closed.length, 0, 'and stays when told to');
+    // Saved again, it is saved.
+    await m.click(m.q('[data-meal-save]'));
+    assert.equal(calls.length, 2);
+    assert.ok(!calls[1].detail.mealBuilder.days[0].slots.some((x) => x.id === second), 'the second edit, saved');
+    await React.act(async () => { finish(); await new Promise((r) => setTimeout(r, 0)); });
+    assert.match(m.text(), /Saved/);
+    await m.click(m.q('[data-back]'));
+    assert.equal(asked.length, 1, 'nothing left to ask about');
+    assert.equal(closed.length, 1);
+  } finally { await m.close(); delete W.ShapeCoachPlans; delete W.bsAskConfirm; }
+});
+
 test('the editor: Assign hands on the saved plan, saving first when there are changes; a failed save stays and says so', async () => {
   const calls = [];
   const assigned = [];

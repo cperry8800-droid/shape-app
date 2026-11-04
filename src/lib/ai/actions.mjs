@@ -580,14 +580,18 @@ export const draftNutritionProgramAction = {
     }
     // The generator's own answer (its template when there is no model), asked with the coach's
     // session: the route's coach gate is the authoritative one.
-    var res = await ctx.call('POST', '/api/ai/generate-plan', generatePlanBody(brief));
+    // The client's name is taken out of the coach's own words too: none reaches the model.
+    var res = await ctx.call('POST', '/api/ai/generate-plan', generatePlanBody(brief, { clientName: input.clientName }));
     if (!res.ok) throw new Error((res.data && res.data.error) || "I couldn't draft that just now. Try again in a moment.");
     var draft = nutritionDraftFrom(brief, res.data);
     var planId = randomUUID();
     var row = nutritionPlanRow(brief, draft, planId);
     var where = brief.kind === 'program' ? 'programs' : 'diets';
+    // ⚠ NEVER PROMISE AN ASSIGN THAT ISN'T THERE (Codex on #2594). A program is weeks, never a client's
+    // Eat tab; a diet guide is assigned only once every day has a menu written (nutritionAssign.mjs).
+    var next = brief.kind === 'program' ? 'to edit and publish there' : 'to edit there, and to assign once each day has a menu';
     return {
-      summary: (draft.source === 'template' ? 'Template · ' : '') + 'Draft "' + row.name + '"' + (clientId ? ' for ' + who : '') + ' and save it to your ' + where + ' in the Shape app, unpublished, to edit and assign there',
+      summary: (draft.source === 'template' ? 'Template · ' : '') + 'Draft "' + row.name + '"' + (clientId ? ' for ' + who : '') + ' and save it to your ' + where + ' in the Shape app, unpublished, ' + next,
       diff: nutritionDraftDiff(brief, draft),
       target: { userId: ctx.actor.id, kind: 'coach_plan', id: planId },
       beforeState: { planId: planId },
@@ -599,7 +603,10 @@ export const draftNutritionProgramAction = {
         + "Every line on the card is the plan builder's; never add a line, a meal or a number of your own. "
         + (brief.kind === 'program' ? "A program is what to work on each week: it holds no meals, so it is not put on a client's Eat tab. " : '')
         + (brief.kind === 'program' && draft.weeks !== brief.weeks ? 'The builder drafted ' + draft.weeks + ' weeks, not the ' + brief.weeks + ' asked for: say so. ' : '')
-        + 'Nothing is saved until they confirm; it is saved unpublished to the ' + where + ' on the Plans page of the Shape app, where they edit it and publish or assign it.',
+        + 'Nothing is saved until they confirm; it is saved unpublished to the ' + where + ' on the Plans page of the Shape app, where they edit it and publish it. '
+        + (brief.kind === 'program'
+          ? 'A program is not assigned to a client; never say it can be.'
+          : 'A diet goes on a client\'s Eat tab only once they have written a menu for every day in its editor; until then it is a guide, and say so if they ask to assign it.'),
     };
   },
   async execute(ctx, plan) {

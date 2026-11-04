@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  cleanNutritionBrief, generatePlanBody, nutritionDraftFrom, nutritionPlanRow, nutritionDraftDiff, TEMPLATE_LINES, NUTRITION_TEMPLATE_NOTICE, GOALS, DIETS,
+  cleanNutritionBrief, generatePlanBody, nutritionDraftFrom, nutritionPlanRow, nutritionDraftDiff, withoutClientName, TEMPLATE_LINES, NUTRITION_TEMPLATE_NOTICE, GOALS, DIETS,
 } from '../src/lib/ai/nutritionDraft.mjs';
 import { createRegistry, proposeChange, confirmChange, undoChange, inMemoryAudit, verifyToken } from '../src/lib/ai/proposals.mjs';
 import { NORA_ACTIONS } from '../src/lib/ai/actions.mjs';
@@ -148,7 +148,9 @@ test('draft_nutrition_program · the preview only asks the generator; confirm sa
   assert.equal(p.ok, true, p.message);
   assert.deepEqual(ctx._calls.map((c) => [c.method, c.path]), [['POST', '/api/ai/generate-plan']], 'the generator, and nothing written');
   assert.equal(ctx._calls[0].body.client, '', 'no client\'s name to the model');
-  assert.equal(p.preview.summary, 'Draft "Habit reset" for Priya and save it to your programs in the Shape app, unpublished, to edit and assign there');
+  // A program is published, never assigned: the card promises no Assign (Codex on #2594).
+  assert.equal(p.preview.summary, 'Draft "Habit reset" for Priya and save it to your programs in the Shape app, unpublished, to edit and publish there');
+  assert.match(p.preview.note, /A program is not assigned to a client; never say it can be\./);
   const plan = verifyToken(p.token, SECRET);
   const { planId, row } = plan.confirmedPayload;
   assert.deepEqual(p.preview.open, { kind: 'coach_plan', planKind: 'meal_plan', planId, clientId: 'client-4' }, 'the app opens it; no website link');
@@ -183,7 +185,8 @@ test('draft_nutrition_program · a template says so; no kind, a client not their
   const reg = registry();
   const t = await proposeChange({ registry: reg, action: 'draft_nutrition_program', input: { kind: 'diet', request: 'a cut diet', goal: 'Cut' }, actor, ctx: ctxFor(db(), { generated: DIET }), secret: SECRET });
   assert.equal(t.ok, true, t.message);
-  assert.match(t.preview.summary, /^Template · Draft "Cut diet" and save it to your diets in the Shape app/);
+  assert.match(t.preview.summary, /^Template · Draft "Cut diet" and save it to your diets in the Shape app, unpublished, to edit there, and to assign once each day has a menu$/);
+  assert.match(t.preview.note, /only once they have written a menu for every day in its editor; until then it is a guide/);
   assert.match(t.preview.note, /This is a TEMPLATE, not an AI draft/);
   assert.equal(verifyToken(t.token, SECRET).confirmedPayload.row.detail.buildType, 'diet', 'listed under Diet');
 
@@ -221,4 +224,24 @@ test('the chat route offers it to nutrition roles beside draft_meal_plan, says w
   assert.match(R, /const WRITE_TOOLS = new Set\(\[[^\]]*'draft_nutrition_program'/);
   assert.match(R, /if \(name === 'draft_nutrition_program'\) \{\n\s*const budget = await countBudget\(actor\.supabase, actor\.user\.id, 'draft_program'\);/, 'counted against AI drafting, before the preview');
   assert.match(read('src/lib/ai/noraStatus.mjs'), /draft_nutrition_program: 'draft',/);
+});
+
+test('no client\'s name reaches the model, in the coach\'s own words either (Codex on #2594)', async () => {
+  assert.equal(withoutClientName('a reset for Priya', 'Priya'), 'a reset for the client');
+  assert.equal(withoutClientName('Priya Shah wants fish; Shah hates beans', 'Priya Shah'), 'the client wants fish; the client hates beans', 'the whole name, then each part');
+  assert.equal(withoutClientName("for priya's cut", 'Priya'), "for the client's cut", 'whatever its case, a possessive too');
+  assert.equal(withoutClientName('Zoë needs a diet', 'Zoë'), 'the client needs a diet', 'a name with an accent');
+  assert.equal(withoutClientName('a priyanka-style plan', 'Priya'), 'a priyanka-style plan', 'a word that only starts with it stays');
+  assert.equal(withoutClientName('a plan for J.R.', 'J.R.'), 'a plan for the client', 'a name with dots is matched as written');
+  assert.equal(withoutClientName('a plan', ''), 'a plan');
+  assert.equal(generatePlanBody(cleanNutritionBrief({ kind: 'diet', request: 'keto for Priya' }), { clientName: 'Priya' }).preferences, 'keto for the client');
+  // End to end: the generator's body holds no name, the card still says who it is for.
+  const reg = registry();
+  const ctx = ctxFor(db());
+  const p = await proposeChange({ registry: reg, action: 'draft_nutrition_program', input: { kind: 'program', request: 'a 3-week reset for Priya Shah', weeks: 3, clientId: 'client-4', clientName: 'Priya Shah' }, actor, ctx, secret: SECRET });
+  assert.equal(p.ok, true, p.message);
+  const body = ctx._calls.find((c) => c.path === '/api/ai/generate-plan').body;
+  assert.equal(body.preferences, 'a 3-week reset for the client');
+  assert.doesNotMatch(JSON.stringify(body), /Priya|Shah/);
+  assert.match(p.preview.summary, / for Priya Shah /);
 });

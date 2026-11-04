@@ -56,7 +56,13 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   const Page = window.BSPage || React.Fragment;
   const pad = `${window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px))'} ${t.padX || 22}px 40px`;
 
-  const change = (next) => { if (next !== doc) { setDoc(next); setDirty(true); setStatus(''); } };
+  // ⚠ What is on screen now, read when a save comes back (Codex on #2594). An edit made while the save
+  // was in flight is not what was saved, so it stays unsaved: Back still asks, and Assign saves it
+  // first. An edit never clears a save in flight either, so a second Save can't start beside it.
+  const onScreen = React.useRef({ doc, name });
+  onScreen.current = { doc, name };
+  const keepSaving = (s) => (s === 'saving' ? s : '');
+  const change = (next) => { if (next !== doc) { setDoc(next); setDirty(true); setStatus(keepSaving); } };
   const close = async () => {
     if (dirty && window.bsAskConfirm && !(await window.bsAskConfirm({
       title: tr('coach:mealEditor.leaveTitle', { defaultValue: 'Leave without saving?' }),
@@ -100,6 +106,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     if (status === 'saving') return null;
     if (!window.ShapeCoachPlans?.update) { setStatus('error'); setErr(tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' })); return null; }
     setStatus('saving'); setErr('');
+    const sent = { doc, name };
     try {
       const row = await window.ShapeCoachPlans.update({
         id: plan.id, name: name.trim() || plan.name, ...(ownerId ? { expectedOwnerId: ownerId } : {}),
@@ -109,7 +116,9 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
         // The route merges `detail` over the stored one, so only the document is replaced.
         meta: mealPlanMeta(M, doc), detail: { mealBuilder: doc },
       });
-      setDirty(false); setStatus('saved');
+      const unchanged = onScreen.current.doc === sent.doc && onScreen.current.name === sent.name;
+      if (unchanged) setDirty(false);
+      setStatus(unchanged ? 'saved' : '');
       onSaved(row);
       return row;
     } catch (e) {
@@ -185,7 +194,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
       <section data-meal-builder-editor="" style={{ padding: pad, color: t.INK }}>
         {head(<span role="status" style={overline(t)}>{statusText || tr('coach:mealEditor.eyebrow', { defaultValue: 'Meal plan' })}</span>)}
         <BSCleanType t={t}>
-          <input type="text" value={name} onChange={(e) => { setName(e.target.value); setDirty(true); setStatus(''); }} maxLength={160} aria-label={tr('coach:mealEditor.nameAria', { defaultValue: 'Plan name' })}
+          <input type="text" value={name} onChange={(e) => { setName(e.target.value); setDirty(true); setStatus(keepSaving); }} maxLength={160} aria-label={tr('coach:mealEditor.nameAria', { defaultValue: 'Plan name' })}
             style={{ ...field(t), marginTop: 10, minHeight: 52, padding: '0 2px', border: 0, borderBottom: `1px solid ${t.RULE}`, borderRadius: 0, fontFamily: BS_CLEAN_HEAD, fontSize: 26, fontWeight: 600, letterSpacing: '-0.03em' }} />
 
           <div style={{ marginTop: 18, ...overline(t) }}>{tr('coach:mealEditor.targets', { defaultValue: 'Daily targets' })}</div>

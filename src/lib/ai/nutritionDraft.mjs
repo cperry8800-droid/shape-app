@@ -63,17 +63,32 @@ export function cleanNutritionBrief(input) {
   };
 }
 
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/**
+ * The coach's words with the client's name taken out ("a reset for Priya" → "a reset for the
+ * client"): the whole name, then each part of it, wherever it stands as a word (Codex on #2594).
+ */
+export function withoutClientName(text, clientName) {
+  let out = String(text == null ? '' : text);
+  const full = String(clientName == null ? '' : clientName).trim().replace(/\s+/g, ' ');
+  if (!full) return out;
+  const parts = [full, ...full.split(' ')].filter((w, i, a) => w.length >= 2 && a.indexOf(w) === i);
+  for (const w of parts) out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(w)}(?![\\p{L}\\p{N}])`, 'giu'), 'the client');
+  return out;
+}
+
 /** The body the plan builder's generator takes (the fields the app's ✦ AI draft sends). */
-export function generatePlanBody(brief) {
+export function generatePlanBody(brief, { clientName = '' } = {}) {
   return {
     kind: MODE[brief.kind],
     goal: brief.goal,
-    // No client's name goes to the model, as from the app's builder.
+    // No client's name goes to the model, as from the app's builder: not as `client`, and not in
+    // the coach's own words either.
     client: '',
     level: brief.diet,
     duration: brief.kind === 'program' ? `${brief.weeks} weeks` : '7 days',
     calories: brief.kcal ? String(brief.kcal) : '',
-    preferences: brief.request,
+    preferences: withoutClientName(brief.request, clientName),
     protein: '',
   };
 }
