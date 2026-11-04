@@ -89,9 +89,14 @@ test('the pane ends where it should, so the root keeps its own furniture', () =>
   // the first round.
   const span = paneSpan('customize');
   const pane = src.slice(span[0], span[1]);
+  // The root's furniture is BSSettingsRoot.jsx's since the lit panel (owner, 2026-11-04), drawn at one
+  // site outside every pane.
+  const rootSrc = readFileSync(new URL('../mobile-app/src/broadsheet/BSSettingsRoot.jsx', import.meta.url), 'utf8');
   for (const [what, key] of [['the hub cards', 'settings:more.sectionsMeta'], ['sign out', 'settings:action.signOut']]) {
     assert.ok(!pane.includes(quoted(key)), `${what} ended up inside the Customize pane — the root's fragment never reopened`);
+    assert.ok(rootSrc.includes(quoted(key)), `${what} is no longer on the root`);
   }
+  assert.ok(!pane.includes('<BSSettingsRoot'), 'the root is drawn inside the Customize pane');
 });
 
 test('the door exists for both roles and routes to the pane', () => {

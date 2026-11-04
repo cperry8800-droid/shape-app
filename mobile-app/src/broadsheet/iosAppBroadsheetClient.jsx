@@ -66,6 +66,7 @@ import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
+import { BSSettingsRoot } from './BSSettingsRoot.jsx';
 import { BSGroceryBuilder } from './BSGroceryBuilder.jsx';
 import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
@@ -36730,65 +36731,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </div>
   );
 
-  // A mono label over a rule, opening a group of rows on the root (Quick switches, the
-  // sections, Also).
-  const RootLabel = ({ children, heavy }) => (
-    <div style={{ paddingBottom: 8, borderBottom: `${heavy ? 2 : 1}px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{children}</div>
-  );
-
-  // An Also row: More, About (with the build number as `value`) and Account actions.
-  const HubCard = ({ title, summary, value, onClick, last }) => (
-    <button onClick={onClick} style={{
-      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-      padding: '13px 0', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`,
-      background: 'transparent', color: t.INK,
-    }}>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{title}</span>
-        {summary ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
-      </span>
-      {value ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{value}</span> : null}
-      <span aria-hidden="true" style={{ flexShrink: 0, color: t.INK50, fontSize: 17, fontFamily: t.DISPLAY, lineHeight: 1 }}>→</span>
-    </button>
-  );
-
-  // A quick switch: the whole row is the control, the pill on its right shows the state.
-  // The row is 50px tall, past the house floor (WCAG 2.5.8 AA at 24px).
-  const QuickSwitch = ({ label, on, value, onToggle }) => (
-    <button onClick={onToggle} aria-pressed={on} style={{
-      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      padding: '13px 0', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', color: t.INK,
-    }}>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.15 }}>{label}</span>
-        <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK70 }}>{value}</span>
-      </span>
-      <span aria-hidden="true" style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, padding: 3, boxSizing: 'border-box', background: on ? sTeal : bsTHexA(t.INK, 0.18), display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start', transition: 'background 140ms ease' }}>
-        <span style={{ width: 20, height: 20, borderRadius: 999, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', display: 'block' }} />
-      </span>
-    </button>
-  );
-
-  // A door, as a line of the index: its number, its name, and what is behind it. The
-  // summary states what is behind the door, so a member can read their setting without
-  // opening it.
-  const PassportTile = ({ n, title, summary, onClick }) => (
-    <button onClick={onClick} style={{
-      width: '100%', display: 'flex', alignItems: 'flex-start', gap: 14,
-      padding: '15px 0 14px', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', color: t.INK,
-    }}>
-      <span style={{ width: 22, flexShrink: 0, paddingTop: 5, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: sTealInk, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{title}</span>
-        {summary ? <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>{summary}</span> : null}
-      </span>
-      <span aria-hidden="true" style={{ flexShrink: 0, paddingTop: 3, fontFamily: t.DISPLAY, fontSize: 20, color: t.INK50, lineHeight: 1 }}>→</span>
-    </button>
-  );
-
   // The Edit profile page's Cancel · Save: rounded, Save filled teal. `tall` is the 44px
   // row, the review's comfortable-row height, above the 24px floor.
   const PassportBtn = ({ label, onClick, fill, tall, grow = true }) => (
@@ -36799,16 +36741,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       color: fill ? sOnTeal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
       letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     }}>{label}</button>
-  );
-
-  // The byline's two actions, Edit profile and Public profile, as underlined links. The
-  // negative margin keeps the line where it was while the hit area grows to 30px.
-  const PassportLink = ({ label, onClick, strong, out }) => (
-    <button onClick={onClick} style={{
-      padding: '7px 0', margin: '-7px 0', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK,
-      fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 4,
-      textDecorationThickness: 2, textDecorationColor: strong ? sTeal : t.RULE, whiteSpace: 'nowrap',
-    }}>{label}{out ? <span aria-hidden="true"> ↗</span> : null}</button>
   );
 
   // ⚠ `onBack` IS WHERE THE ROW RETURNS TO, AND IT DEFAULTS TO THE SETTINGS ROOT. The
@@ -37394,6 +37326,94 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions' },
   ];
 
+  // ── THE ROOT ── (owner, 2026-11-04: "option C for settings page"). BSSettingsRoot.jsx lays it out; the
+  // words, the readings and the writers are composed here, beside the state they read.
+  // Who you are: the identity line under the member's name.
+  const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const hasSub = !!(plan && plan.active === true);
+  const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
+  // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
+  // their role; only a member reads a membership state. Composed from the SAME
+  // keys the plan card uses, so the line and the card agree.
+  // ⚠ AND `plan === null` IS "WE HAVE NOT READ IT", NOT "INACTIVE" — the two
+  // are different claims and this state's own declaration says so in as many
+  // words ("null until loaded; { active:false } when there's no active
+  // subscription"). `/api/stripe/subscription` is a fetch whose non-ok arm
+  // sets nothing and whose .catch swallows, so null is the state during EVERY
+  // load and permanently after a failure: a paying member would have read
+  // "MEMBERSHIP INACTIVE" under their own name on every open, and indefinitely
+  // on a bad network. Signed-OUT is the one case null still settles, because
+  // you cannot hold a subscription without an account — that reading is a fact
+  // about the session, not about the unread plan.
+  const planKnown = plan != null;
+  const statusLine = isCoachRole
+    ? (tweaks.role === 'dietitian' ? tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachRole === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
+    : !signedIn
+      ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
+      : hasSub
+        ? (renews && !isNaN(renews.getTime())
+            ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+            : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
+        : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
+  // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
+  // AGAIN. With no account username and no saved handle, the initializer
+  // SYNTHESIZES one from the display name — and bsMyName() falls back to the
+  // email local-part — so a legacy account's card would present `@chris.perry`
+  // as this member's public handle when they never claimed it and it may
+  // belong to somebody else. A value you can overwrite inside an edit form is
+  // not a claim; the first line of your own settings is.
+  const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
+  // ── QUICK SWITCHES ── the two things members actually flip, on the
+  // root instead of two taps down. Each one is a REAL stored setting and
+  // writes through `setPref`, the module's one writer, so the mirror, the
+  // live re-render and the presence broadcast all still happen — a bare
+  // write here would have been a switch that looks like it worked.
+  // ⚠ ONLINE IS `onlineVisible`, NOT `onlineRail`, AND THE TWO ARE
+  // OPPOSITE CLAIMS. `onlineRail` is the member's own view of Community's
+  // online row — its own description says "Hiding it changes only your
+  // view — it never changes whether others can see you online". A switch
+  // labelled Online wired to that would tell a member they were hidden
+  // while they were still visible to everyone. `onlineVisible` is the one
+  // that means what the label says.
+  // ⚠ AND THERE IS NO THIRD. The concept board's third cell read
+  // "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
+  // else the board implied and the app does not store is not built.
+  // ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
+  // (owner, 2026-10-18); its sound is the speaker on the radio bar.
+  const rootSwitches = [
+    { k: 'online', label: tr('settings:quick.online', { defaultValue: 'Online' }), on: prefs.onlineVisible !== 'Off',
+      value: prefs.onlineVisible !== 'Off' ? tr('settings:quick.visible', { defaultValue: 'Visible' }) : tr('settings:quick.hidden', { defaultValue: 'Hidden' }),
+      onToggle: () => setPref('onlineVisible', prefs.onlineVisible !== 'Off' ? 'Off' : 'On') },
+    { k: 'checkins', label: tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' }), on: prefs.dailyCheckin !== 'Off',
+      value: prefs.dailyCheckin !== 'Off' ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' }),
+      onToggle: () => setPref('dailyCheckin', prefs.dailyCheckin !== 'Off' ? 'Off' : 'On') },
+  ];
+  // PREVIEW AS: signed-out demo only, to browse each account type's demo data without an account.
+  // PROFILE MODE: only for people with more than one account, listing just the roles they created so
+  // they can switch between them. Both choose through setTweak('role').
+  const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }) };
+  const rootActiveRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
+  const rootModes = [
+    ...(!signedIn ? [{
+      key: 'preview',
+      title: tr('settings:preview.title', { defaultValue: 'Preview as' }),
+      meta: tr('settings:preview.demoData', { defaultValue: 'Demo data' }),
+      label: tr('settings:preview.profileType', { defaultValue: 'Profile type' }),
+      opts: [['client', ROLE_LABELS.client], ['trainer', ROLE_LABELS.trainer], ['nutritionist', ROLE_LABELS.nutritionist]],
+      value: tweaks.role || 'client',
+      hint: tr('settings:preview.hint', { defaultValue: "Browse each account type's demo data — no sign-up needed." }),
+    }] : []),
+    ...(hasMultipleAccounts ? [{
+      key: 'mode',
+      title: tr('settings:profileMode.title', { defaultValue: 'Profile mode' }),
+      meta: tr('settings:profileMode.viewMeta', { role: ROLE_LABELS[rootActiveRole] || ROLE_LABELS.client, defaultValue: '{role} view' }),
+      label: tr('settings:profileMode.active', { defaultValue: 'Active profile' }),
+      opts: accountRoles.map((key) => [key, ROLE_LABELS[key] || key]),
+      value: rootActiveRole,
+      hint: '',
+    }] : []),
+  ];
+
   return (
     <BSPage tabBarHeight={0}>
       <div ref={paneTopRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
@@ -37749,181 +37769,36 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })()}
       </>)}
 
-      {/* ── SETTINGS PAGE ── */}
-      {!detail && !editing && (<>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <BSBackRow onBack={onBack} label={tr('settings:head.back', { defaultValue: 'Back' })} />
-      </div>
-      <SettingsTitle title={tr('settings:head.title', { defaultValue: 'Settings' })} />
-
-      {/* ── THE IDENTITY CARD ── who you are, first: the Passport's whole argument.
-          The page used to open on an "ACCOUNT / Settings." masthead and three chips,
-          with the member's own name nowhere on it. The corner EDIT link moved here
-          too, onto a button that says what it edits. */}
-      {(() => {
-        const acc = bsMyTierColor();
-        const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-        const hasSub = !!(plan && plan.active === true);
-        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
-        // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
-        // their role; only a member reads a membership state. Composed from the SAME
-        // keys the plan card uses, so the line and the card agree.
-        // ⚠ AND `plan === null` IS "WE HAVE NOT READ IT", NOT "INACTIVE" — the two
-        // are different claims and this state's own declaration says so in as many
-        // words ("null until loaded; { active:false } when there's no active
-        // subscription"). `/api/stripe/subscription` is a fetch whose non-ok arm
-        // sets nothing and whose .catch swallows, so null is the state during EVERY
-        // load and permanently after a failure: a paying member would have read
-        // "MEMBERSHIP INACTIVE" under their own name on every open, and indefinitely
-        // on a bad network. Signed-OUT is the one case null still settles, because
-        // you cannot hold a subscription without an account — that reading is a fact
-        // about the session, not about the unread plan.
-        const planKnown = plan != null;
-        const statusLine = isCoachRole
-          ? (tweaks.role === 'dietitian' ? tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachRole === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
-          : !signedIn
-            ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
-            : hasSub
-              ? (renews && !isNaN(renews.getTime())
-                  ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
-                  : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
-              : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
-        // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
-        // AGAIN. With no account username and no saved handle, the initializer
-        // SYNTHESIZES one from the display name — and bsMyName() falls back to the
-        // email local-part — so a legacy account's card would present `@chris.perry`
-        // as this member's public handle when they never claimed it and it may
-        // belong to somebody else. A value you can overwrite inside an edit form is
-        // not a claim; the first line of your own settings is.
-        const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
-        return (
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '18px 0', borderBottom: `1px solid ${t.HAIR}` }}>
-              <BSFacetAvatar size={56} c={acc} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} BG={t.PAPER} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{identity.name}</div>
-                {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div> : null}
-                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span aria-hidden="true" style={{ flexShrink: 0, width: 7, height: 7, borderRadius: 999, background: settingsTierC, display: 'inline-block' }} />
-                  {/* ⚠ ITS OWN KEY, NOT `edit.tierColor` WITH THE WORD "color" STRIPPED.
-                      A `.replace(/ color$/, '')` is right in English and wrong in the
-                      other twelve: German's "Stufenfarbe" has no trailing " color" to
-                      cut, so the line would have read "Tempo Stufenfarbe · Mitglied".
-                      Each locale's value is built from its OWN word for a tier. */}
-                  {tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' })}{statusLine ? ' \u00b7 ' + statusLine : ''}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', marginTop: 10 }}>
-                  <PassportLink label={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onClick={startEdit} strong />
-                  <PassportLink label={tr('settings:more.publicProfile', { defaultValue: 'Public profile' })} onClick={() => setShowPublicProfile(true)} out />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* The quick switches. The edit form used to swap in here, under the root's own
-          ← Back; it is its own page above now. */}
-      <div style={{ padding: `22px ${t.padX}px 6px` }}>
-          <div>
-            {/* ── QUICK SWITCHES ── the two things members actually flip, on the
-                root instead of two taps down. Each one is a REAL stored setting and
-                writes through `setPref`, the module's one writer, so the mirror, the
-                live re-render and the presence broadcast all still happen — a bare
-                write here would have been a switch that looks like it worked.
-                ⚠ ONLINE IS `onlineVisible`, NOT `onlineRail`, AND THE TWO ARE
-                OPPOSITE CLAIMS. `onlineRail` is the member's own view of Community's
-                online row — its own description says "Hiding it changes only your
-                view — it never changes whether others can see you online". A switch
-                labelled Online wired to that would tell a member they were hidden
-                while they were still visible to everyone. `onlineVisible` is the one
-                that means what the label says.
-                ⚠ AND THERE IS NO THIRD. The concept board's third cell read
-                "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
-                else the board implied and the app does not store is not built.
-                ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
-                (owner, 2026-10-18); its sound is the speaker on the radio bar. */}
-            <RootLabel>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</RootLabel>
-            <div>
-              <QuickSwitch
-                label={tr('settings:quick.online', { defaultValue: 'Online' })}
-                on={prefs.onlineVisible !== 'Off'}
-                value={prefs.onlineVisible !== 'Off' ? tr('settings:quick.visible', { defaultValue: 'Visible' }) : tr('settings:quick.hidden', { defaultValue: 'Hidden' })}
-                onToggle={() => setPref('onlineVisible', prefs.onlineVisible !== 'Off' ? 'Off' : 'On')} />
-              <QuickSwitch
-                label={tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' })}
-                on={prefs.dailyCheckin !== 'Off'}
-                value={prefs.dailyCheckin !== 'Off' ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}
-                onToggle={() => setPref('dailyCheckin', prefs.dailyCheckin !== 'Off' ? 'Off' : 'On')} />
-            </div>
-          </div>
-      </div>
-
-      {/* PREVIEW AS — signed-out demo only: switch profile type to browse each
-          account type's demo data without an account. (Signed-in multi-role
-          accounts use Profile mode below.) */}
-      {!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) && (
-        <>
-          <SectionHead title={tr('settings:preview.title', { defaultValue: 'Preview as' })} meta={tr('settings:preview.demoData', { defaultValue: 'Demo data' })} />
-          <div style={{ padding: `14px ${t.padX}px 18px` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-              {tr('settings:preview.profileType', { defaultValue: 'Profile type' })}
-            </div>
-            <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
-              {[['client', tr('settings:preview.roleClient', { defaultValue: 'Client' })], ['trainer', tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' })], ['nutritionist', tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' })]].map(([key, label]) => {
-                const on = (tweaks.role || 'client') === key;
-                return (
-                  <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: 999,
-                    flex: 1, minHeight: 32, padding: '8px 9px', cursor: 'pointer', border: 0,
-                    background: on ? sTealInk : 'transparent',
-                    color: on ? sOnTeal : t.INK70,
-                    fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                  }}>{label}</button>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
-              {tr('settings:preview.hint', { defaultValue: "Browse each account type's demo data — no sign-up needed." })}
-            </div>
-          </div>
-        </>
+      {/* ── SETTINGS PAGE ── the root, a lit panel (owner, 2026-11-04: "option C for settings page"),
+          drawn by BSSettingsRoot.jsx from what is composed above: who you are, the quick switches and
+          their writer, Preview as / Profile mode, the doors and Also. Hidden while a pane or the Edit
+          profile page is open, and it alone carries the shell's ← Back (onBack closes Settings). */}
+      {!detail && !editing && (
+        <BSSettingsRoot
+          onBack={onBack}
+          identity={{
+            name: identity.name,
+            sub,
+            initial: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name),
+            photo: (identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null),
+            ring: bsMyTierColor(),
+            tierColor: settingsTierC,
+            // ⚠ ITS OWN KEY, NOT `edit.tierColor` WITH THE WORD "color" STRIPPED: German's "Stufenfarbe"
+            // has no trailing " color" to cut. Each locale's value is built from its OWN word for a tier.
+            tierLine: tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' }),
+            statusLine,
+          }}
+          onEdit={startEdit}
+          onPublicProfile={() => setShowPublicProfile(true)}
+          switches={rootSwitches}
+          modes={rootModes}
+          onPickRole={(key) => setTweak('role', key)}
+          tiles={passportTiles}
+          also={alsoRows}
+          onOpen={(d) => setDetail(d)}
+          onLogout={onLogout}
+        />
       )}
-
-      {/* PROFILE MODE — only for people with more than one account; lists just
-          the roles they actually created so they can switch between them. */}
-      {hasMultipleAccounts && (() => {
-        const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }) };
-        const activeRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
-        return (
-          <>
-            <SectionHead
-              title={tr('settings:profileMode.title', { defaultValue: 'Profile mode' })}
-              meta={tr('settings:profileMode.viewMeta', { role: ROLE_LABELS[activeRole] || ROLE_LABELS.client, defaultValue: '{role} view' })}
-            />
-            <div style={{ padding: `14px ${t.padX}px 18px` }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-                {tr('settings:profileMode.active', { defaultValue: 'Active profile' })}
-              </div>
-              <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
-                {accountRoles.map(key => {
-                  const on = activeRole === key;
-                  return (
-                    <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: 999,
-                      flex: 1, minHeight: 32, padding: '8px 9px', cursor: 'pointer', border: 0,
-                      background: on ? sTealInk : 'transparent',
-                      color: on ? sOnTeal : t.INK70,
-                      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                    }}>{ROLE_LABELS[key] || key}</button>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        );
-      })()}
-
-      </>)}
 
       {/* ── CUSTOMIZE ── every cosmetic control the root used to carry, behind one
           door. Owner, 2026-09-14: the Passport root is identity first and cosmetics
@@ -38290,35 +38165,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })}
       </div>
 
-      </>)}
-
-      {!detail && !editing && (<>
-      {/* ── THE DOORS ── a numbered index of the sections, then the three Also rows.
-          ⚠ THE HEADING IS NO LONGER "More · 12 sections". The 2026-09-14 review's
-          sharpest measurement was that the whole settings tree lived under a word
-          meaning "the rest", one of whose twelve cards was itself called More. The
-          grid is the settings; More is one row in Also, where it belongs. */}
-      <div style={{ padding: `30px ${t.padX}px 0` }}>
-        <RootLabel heavy>{tr('settings:more.sectionsMeta', { n: passportTiles.length, defaultValue: '{n} sections' })}</RootLabel>
-        {passportTiles.map((c, i) => (
-          <PassportTile key={c.detail} n={String(i + 1).padStart(2, '0')} title={c.title} summary={c.summary} onClick={() => setDetail(c.detail)} />
-        ))}
-      </div>
-
-      <div style={{ padding: `30px ${t.padX}px 10px` }}>
-        <RootLabel>{tr('settings:passport.also', { defaultValue: 'Also' })}</RootLabel>
-        {alsoRows.map((c, i) => (
-          <HubCard key={c.detail} title={c.title} summary={c.summary} value={c.value} last={i === alsoRows.length - 1} onClick={() => setDetail(c.detail)} />
-        ))}
-      </div>
-
-      {/* Sign out — ink over an ink rule, with breathing room before the footer. */}
-      <div style={{ padding: `28px ${t.padX}px 32px` }}>
-        <button onClick={onLogout} style={{
-          width: '100%', padding: '14px 0 4px', background: 'transparent', color: t.INK, border: 0, borderTop: `2px solid ${t.INK}`, cursor: 'pointer', textAlign: 'left',
-          fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-        }}>{tr('settings:action.signOut', { defaultValue: 'Sign out' })}</button>
-      </div>
       </>)}
 
       <BSRadioPrompt />
