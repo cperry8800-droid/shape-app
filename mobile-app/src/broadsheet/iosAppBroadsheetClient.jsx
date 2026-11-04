@@ -14108,11 +14108,12 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     );
     const firstName = String(name || '').trim().split(/\s+/)[0] || name;
     const following = fs === 'following', requested = fs === 'requested';
-    // Follow and Message ride in the counts' own row (owner, 2026-11-04: "also move the [Follow] up to
-    // where followers, following are", then "and make smaller to hit the look of that section of page"):
-    // small pills in the counts' face and size, Follow lit in the profile's colour (quiet once you follow
-    // or asked), Message quiet beside it. Each is a 44px target round a 32px pill. Where the row has no
-    // room after the counts, they wrap under them, still above the bio.
+    // Follow and Message sit on their own line right under the counts (owner, 2026-11-04: "also move the
+    // [Follow] up to where followers, following are", "and make smaller to hit the look of that section of
+    // page", then "make sure the message and follow buttons are below the followers/following", "dont make
+    // this boxes big, small"): small pills in the counts' face and size, Follow lit in the profile's colour
+    // (quiet once you follow or asked), Message quiet beside it, each its words' width. Each is a 44px
+    // target round a 32px pill, above the bio.
     const pill = (lit) => ({
       display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 13px', borderRadius: 99, boxSizing: 'border-box',
       maxWidth: '100%', whiteSpace: 'nowrap', fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 650, lineHeight: 1,
@@ -14130,7 +14131,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
             <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>
           ) : null}
           {!isSelf ? (
-            <div data-follow-actions="" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
+            <div data-follow-actions="" style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%', marginTop: -6 }}>
               <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested} style={{ ...pillBtn, cursor: busy ? 'default' : 'pointer' }}>
                 <span data-follow-pill="" style={pill(!(following || requested))}>
                   <BSMpIcon name={following ? 'check' : requested ? 'clock' : 'plus'} size={13} stroke={2.4} />
@@ -17697,17 +17698,19 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               </div>
             </div>
 
-            {/* The avatar over the cover's edge, and who they are */}
+            {/* The avatar over the cover's edge, and who they are. A member's is the facet (owner, 2026-11-04,
+                of this head with a round photo: "make sure you have the facet avatar"): the gem in their tier's
+                colour, their photo or initials in its window, set on a diamond of the paper so it stands off the
+                cover as the round photo's paper ring did. A coach's stays round (BSTrainerProfile). */}
             <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
               <div style={{ position: 'absolute', left: gutter, top: -58, width: 108, height: 108 }}>
+                <span aria-hidden data-member-avatar-mat="" style={{ position: 'absolute', left: 54 - 47, top: 54 - 47, width: 94, height: 94, transform: 'rotate(45deg)', borderRadius: '27%', background: tTheme.PAPER_BG || BG, boxShadow: '0 10px 24px -10px rgba(0,0,0,0.55)' }} />
                 <button type="button" data-member-avatar="" disabled={!canPickPhoto} onClick={() => { if (canPickPhoto && fileRef && fileRef.current) fileRef.current.click(); }}
                   aria-label={canPickPhoto ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
-                  style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${tTheme.PAPER_BG || BG}`, background: tTheme.PAPER2, overflow: 'hidden', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
-                  {(avPhoto || (isSelf && bsMyPhoto()))
-                    ? <img src={avPhoto || bsMyPhoto()} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} />
-                    : <span data-initials="" style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{bsInitials(name)}</span>}
+                  style={{ position: 'relative', width: 108, height: 108, padding: 0, border: 0, background: 'transparent', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
+                  <BSFacetAvatar size={80} c={c} name={name} initial={bsInitials(name)} photo={avPhoto || (isSelf ? bsMyPhoto() : null) || undefined} showRank={false} online={false} />
                 </button>
-                {(isSelf ? bsAmLive() : bsIsUserOnline(person.userId)) ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${tTheme.PAPER_BG || BG}`, boxSizing: 'border-box' }} /> : null}
+                {(isSelf ? bsAmLive() : bsIsUserOnline(person.userId)) ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 14, bottom: 14, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${tTheme.PAPER_BG || BG}`, boxSizing: 'border-box' }} /> : null}
               </div>
               <div style={{ marginLeft: 120, paddingTop: 8, minHeight: 58, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <h1 data-member-name="" style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.05, color: INK, overflowWrap: 'anywhere' }}>{name}<span style={{ color: c }}>.</span></h1>

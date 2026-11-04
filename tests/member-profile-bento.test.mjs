@@ -49,7 +49,7 @@ test('the counts line is as it was: three words on one line, no tiles', () => {
   }
 });
 
-test('on someone else\'s page Follow and Message are small pills in the counts\' row: Follow lit, Message quiet', () => {
+test('on someone else\'s page Follow and Message are small pills on their own line under the counts: Follow lit, Message quiet', () => {
   // Owner, 2026-11-04: "also move the [Follow] up to where followers, following are", "and make smaller to
   // hit the look of that section of page", then of Message, "same thing for the message box".
   signedInAs('u-me');
@@ -60,11 +60,16 @@ test('on someone else\'s page Follow and Message are small pills in the counts\'
   const pillOf = (btn) => [btn.props.children].flat(3).find((n) => n && n.props && n.props['data-follow-pill'] !== undefined);
   const fp = pillOf(toggle);
   const mp = pillOf(message);
-  // In the counts' row: the actions sit in the row that holds the three counts.
+  // Under the counts, on a line of their own (owner, 2026-11-04: "make sure the message and follow buttons
+  // are below the followers/following", "dont make this boxes big, small"): the actions close the counts'
+  // block and take its full width, so they always wrap under the three counts.
   const [actions] = withAttr(nodes, 'data-follow-actions');
   const row = nodes.find((n) => n && n.props && [n.props.children].flat(3).includes(actions));
-  assert.ok(row, 'Follow and Message left the counts\' row');
-  assert.equal([row.props.children].flat(3).filter((n) => n && n.props && n.props['data-follow-count'] !== undefined).length, 3, 'the row lost its counts');
+  assert.ok(row, 'Follow and Message left the counts\' block');
+  assert.equal([row.props.children].flat(3).filter((n) => n && n.props && n.props['data-follow-count'] !== undefined).length, 3, 'the block lost its counts');
+  assert.equal(actions.props.style.flexBasis, '100%', 'Follow and Message can sit beside the counts again');
+  const kids = [row.props.children].flat(3).filter(Boolean);
+  assert.ok(kids.indexOf(actions) > kids.findLastIndex((n) => n.props && n.props['data-follow-count'] !== undefined), 'Follow and Message are not after the counts');
   // Small: 32px pills in the counts' face, each a 44px target.
   const [cnt] = withAttr(nodes, 'data-follow-count');
   for (const p of [fp, mp]) {
