@@ -65,6 +65,9 @@ export function bsLibraryPreviewItems(list) {
   });
 }
 
+// A colour at an alpha, for the slot's glow (the client's bsTHexA, copied: this module never imports it).
+const bsLibA = (hex, a) => { const h = String(hex || '#888888').replace('#', ''); const s2 = h.length === 3 ? h.split('').map((x) => x + x).join('') : h; const n = parseInt(s2, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; };
+
 // How many items a saved list holds: its items when it carries them, else its stored count. The built-in
 // lists carry items and no count, so the card read "NaN items".
 function bsGroceryLibCount(l) {
@@ -124,10 +127,11 @@ export function BSGroceryLibrary({ onLoad = () => {}, recipeLists = [], onCreate
 
       <BSCleanType t={tc}>
 
-      {/* New list */}
+      {/* New list: a capsule lit in teal (owner, 2026-11-04, of three Library designs, "C for library"). */}
       <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button onClick={onCreate} style={{ width: '100%', minHeight: 46, borderRadius: 10,
-          padding: '12px 14px', background: t.INK, color: t.PAPER, border: 0, cursor: 'pointer',
+        <button onClick={onCreate} style={{ width: '100%', minHeight: 46, borderRadius: 99,
+          padding: '12px 14px', background: bsLibA(teal, 0.06), color: teal, border: `1.5px solid ${teal}`, cursor: 'pointer',
+          boxShadow: t.isLight ? 'none' : `0 0 18px -8px ${teal}, inset 0 0 12px -6px ${teal}`,
           fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
         }}>{tr('nutrition:grocery.lib.newList', { defaultValue: '＋ New grocery list' })}</button>
       </div>
@@ -167,13 +171,18 @@ export function BSGroceryLibrary({ onLoad = () => {}, recipeLists = [], onCreate
             <span aria-hidden style={{ flex: 1, borderBottom: `1px dashed ${t.RULE}` }} />
           </div>
         )}
-        {/* A compact index (owner, 2026-10-24, of the Library: "improve design and look of this library
-            page", then option C of three): the item count in a tile, the name and what it holds, and a
-            chevron. A tap opens the list: its kind and uses, its items, and its actions. */}
+        {/* The index as a scoreboard (owner, 2026-11-04, of three designs, "C for library"): each list's
+            item count lit in a dark slot in its kind's colour, the kind again as an edge, what it holds
+            between lit dots, and how often it was used. A tap opens the list: its kind and uses, its
+            items, and its actions. */}
         {filtered.map((l) => {
           const color = l.kind === 'mealplan' ? gold : l.kind === 'custom' ? t.INK70 : (l.kind === 'recipe' || l.kind === 'template') ? t.AMBER : teal;
           // The tile's figure takes the list's kind colour where the kind has one; a member's own list is ink.
           const figure = l.kind === 'custom' ? t.INK : color;
+          // The slot, the edge and the dots glow in the kind's colour; a member's own list glows teal.
+          const glow = l.kind === 'mealplan' ? gold : (l.kind === 'recipe' || l.kind === 'template') ? t.AMBER : teal;
+          const parts = String(l.preview || '').split('·').map(x => x.trim()).filter(Boolean);
+          const uses = Number.isFinite(Number(l.usedCount)) && l.usedCount != null ? Number(l.usedCount) : null;
           const open = openList === l.id;
           const previewItems = l.items || bsLibraryPreviewItems(l);
           const itemCount = bsGroceryLibCount(l);
@@ -195,14 +204,15 @@ export function BSGroceryLibrary({ onLoad = () => {}, recipeLists = [], onCreate
             border: primary ? 0 : `1px solid ${t.RULE}`,
           });
           return (
-            <div key={l.id} style={{ borderBottom: `1px solid ${t.HAIR}` }}>
+            <div key={l.id} style={{ position: 'relative', borderBottom: `1px solid ${t.HAIR}` }}>
+              <span aria-hidden style={{ position: 'absolute', left: 0, top: 14, height: 48, width: 3, borderRadius: 2, background: glow, boxShadow: t.isLight ? 'none' : `0 0 10px ${bsLibA(glow, 0.8)}` }} />
               <button type="button" aria-expanded={open} onClick={() => setOpenList(open ? null : l.id)} style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0',
+                width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0 12px 14px',
                 background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK,
               }}>
-                <span style={{ width: 52, height: 52, flex: 'none', borderRadius: 12, background: t.PAPER2 || t.PAPER, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: 58, height: 52, flex: 'none', borderRadius: 10, boxSizing: 'border-box', background: t.isLight ? bsLibA(t.INK, 0.06) : 'rgba(0,0,0,0.5)', boxShadow: t.isLight ? 'inset 0 1px 3px rgba(0,0,0,0.12)' : 'inset 0 1px 4px rgba(0,0,0,0.55)', border: `1px solid ${bsLibA(glow, 0.3)}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                   {countBefore ? countWord(countBefore, false) : null}
-                  <span style={{ fontFamily: tc.DISPLAY, fontSize: countFigure.length > 3 ? 15 : 19, fontWeight: 500, lineHeight: 1, color: figure, fontVariantNumeric: 'tabular-nums' }}>{countFigure}</span>
+                  <span style={{ fontFamily: t.MONO, fontSize: countFigure.length > 3 ? 15 : 21, fontWeight: 700, lineHeight: 1, letterSpacing: '0.04em', color: l.kind === 'custom' && t.isLight ? t.INK : glow, textShadow: t.isLight ? 'none' : `0 0 10px ${bsLibA(glow, 0.75)}`, fontVariantNumeric: 'tabular-nums' }}>{countFigure}</span>
                   {countAfter ? countWord(countAfter, true) : null}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>
@@ -211,12 +221,23 @@ export function BSGroceryLibrary({ onLoad = () => {}, recipeLists = [], onCreate
                       makes it visible to the inventory walk for the first time — a
                       string written into a saved list is a string the measurement
                       cannot see, which is the BSWeekStrip blind spot in reverse. */}
-                  <span style={{ display: 'block', marginTop: 2, fontFamily: tc.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.preview || tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 4, overflow: 'hidden', whiteSpace: 'nowrap', fontFamily: tc.BODY, fontSize: 12.5, color: t.INK50 }}>
+                    {parts.length ? parts.map((x, i) => (
+                      <React.Fragment key={i}>
+                        {/* The separator is the record's own " · ", lit, so the row still reads "Bananas · Eggs" aloud. */}
+                        {i ? <span style={{ flex: 'none', color: glow, fontWeight: 800, textShadow: t.isLight ? 'none' : `0 0 6px ${glow}` }}>{' · '}</span> : null}
+                        <span style={{ flex: 'none' }}>{x}</span>
+                      </React.Fragment>
+                    )) : tr('nutrition:grocery.lib.emptyList', { defaultValue: 'Empty list' })}
+                  </span>
                 </span>
-                <span aria-hidden style={{ flex: 'none', width: 20, textAlign: 'center', fontSize: 20, lineHeight: 1, color: t.INK50, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+                <span style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  {uses != null ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('nutrition:grocery.lib.uses', { defaultValue: `${uses} use${uses === 1 ? '' : 's'}`, count: uses })}</span> : null}
+                  <span aria-hidden style={{ width: 20, textAlign: 'center', fontSize: 20, lineHeight: 1, color: t.INK50, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>›</span>
+                </span>
               </button>
               {open && (
-                <div style={{ padding: '0 0 14px 64px' }}>
+                <div style={{ padding: '0 0 14px 84px' }}>
                   {/* What kind of list and how often it is used, one line that wraps as words. */}
                   <div style={{ fontFamily: tc.BODY, fontSize: 12.5, lineHeight: 1.4, color: t.INK50 }}>
                     <span style={{ color }}>{bsGroceryListEyebrow(l, tr)}</span>

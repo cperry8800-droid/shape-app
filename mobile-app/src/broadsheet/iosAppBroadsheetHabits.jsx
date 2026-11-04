@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { hpWeek, hpMonth, hpStep, hpPeriodStart, hpCanGoBack, hpCanGoForward, hpWindowStart, hpLocalYmd } from './habitProgress.mjs';
+import { bsMpGlass } from './BSMemberBento.jsx';
 // ─── HABIT TRACKER ──────────────────────────────────────────
 // A user-curated list of "Do daily" / "Don't do" items with optional
 // reminder times. Renders on Client + Trainer + Nutritionist home.
@@ -361,15 +362,67 @@ function BSHabitOptionsSheet({ habit, accent, reminder, watchers = null, onPick,
 // One habit as one big button (owner, 2026-10-24, look C): tap anywhere on it to tick it, and a
 // kept habit fills solid with its colour. ⋯ beside it opens the options (reminder, sharing,
 // delete), so the row carries one action and one way to the rest.
-function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, watchers = null, onShareChange = null }) {
+// ─── TODAY: THE DIAL AND THE GLASS ROWS ─────────────────────────────────────────────────────────
+// Owner, 2026-11-04: "new design ideas for habits page", then of three built in the app "go with A":
+// today's points in a ring of one segment per habit (lit as it is kept), the two add keys beside it,
+// and every habit a glass row carrying this week, Monday first, as Progress counts it.
+const _bsHA = (hex, a) => { const h = String(hex || '#888888').replace('#', ''); const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h; const n = parseInt(s, 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; };
+
+// This week, a pip a day: kept filled, today still open dashed in the habit's colour, a miss dim, and a
+// day before the habit (or still ahead) an outline. The states are habitProgress.mjs's (hpStatus).
+function _BSHabitWeekPips({ cells, c, t }) {
+  if (!Array.isArray(cells)) return null;
+  return (
+    <span aria-hidden="true" data-habit-week="" style={{ display: 'inline-flex', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+      {cells.map((s, i) => (
+        <span key={i} data-day={s} style={{ width: 5, height: 12, borderRadius: 2, boxSizing: 'border-box',
+          background: s === 'kept' ? c : s === 'missed' ? _bsHA(t.INK, 0.12) : 'transparent',
+          border: s === 'open' ? `1.5px dashed ${c}` : (s === 'kept' || s === 'missed') ? 0 : `1px dashed ${_bsHA(t.INK, 0.2)}` }} />
+      ))}
+    </span>
+  );
+}
+
+// The ring: a segment per habit in the list's order (to-dos, then to-don'ts), lit and haloed once kept
+// today, faint while open. The points sit in its middle. Its size gives way on a narrow phone.
+function _BSHabitDial({ habits, today, teal, t, earned, possibleLabel }) {
+  const n = Math.max(1, habits.length);
+  const r = 50, cx = 60, cy = 60, gapDeg = n > 1 ? 5 : 0;
+  const pt = (deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const arc = (i) => {
+    const a0 = i * 360 / n + gapDeg / 2, a1 = (i + 1) * 360 / n - gapDeg / 2;
+    const [x0, y0] = pt(a0), [x1, y1] = pt(a1);
+    return `M ${x0} ${y0} A ${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+  };
+  return (
+    <span style={{ position: 'relative', width: 'clamp(96px, 30vw, 118px)', aspectRatio: '1 / 1', flexShrink: 0, display: 'block' }}>
+      <svg width="100%" height="100%" viewBox="0 0 120 120" aria-hidden="true" style={{ display: 'block' }}>
+        {habits.map((h, i) => {
+          const c = h.type === 'avoid' ? t.RUST : teal;
+          const kept = (h.history || []).includes(today);
+          const seg = (width, op) => (n > 1
+            ? <path d={arc(i)} fill="none" stroke={c} strokeOpacity={op} strokeWidth={width} />
+            : <circle cx={cx} cy={cy} r={r} fill="none" stroke={c} strokeOpacity={op} strokeWidth={width} />);
+          return <g key={h.id} data-dial-seg={kept ? 'kept' : 'open'}>{kept ? seg(18, 0.2) : null}{seg(9, kept ? 1 : 0.22)}</g>;
+        })}
+      </svg>
+      <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+        <span style={{ fontFamily: t.DISPLAY, fontSize: 32, fontWeight: 700, letterSpacing: '-0.04em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>+{earned}</span>
+        {/* A space the column drops on screen, so it reads "+3 of 9 pts today", not "+3of". */}
+        {' '}
+        <span style={{ marginTop: 3, maxWidth: '62%', fontFamily: t.DISPLAY, fontSize: 10.5, fontWeight: 500, lineHeight: 1.2, color: t.INK70 }}>{possibleLabel}</span>
+      </span>
+    </span>
+  );
+}
+
+function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderChange, watchers = null, onShareChange = null, week = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const done = (habit.history || []).includes(_bsHabitsToday());
   const isAvoid = habit.type === 'avoid';
   const c = accent;
   const onC = isAvoid ? '#2b0d07' : '#04201d';
-  const ink = done ? onC : t.INK;
-  const soft = done ? onC : t.INK70;
   const [sheet, setSheet] = React.useState(null); // 'options' | 'reminder' | 'share'
   const run = _bsStreakFromHistory(habit.history || []);
   const time = _bsReminderTime(reminder);
@@ -379,25 +432,32 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
     : isAvoid
       ? tr('habits:row.clean', { defaultValue: '{count, plural, one {# day clean} other {# days clean}}', count: run })
       : tr('habits:row.run', { defaultValue: '{count, plural, one {#-day run} other {#-day run}}', count: run });
+  const keptWord = isAvoid ? tr('habits:row.stayedClean', { defaultValue: '✓ Stayed clean' }) : tr('habits:row.kept', { defaultValue: '✓ Kept' });
+  // A kept habit lights its pane in its own colour (a tint and a halo) rather than flooding it, so its
+  // words stay in ink on either paper.
+  const lit = done ? { backgroundImage: `linear-gradient(160deg, ${_bsHA(c, 0.26)}, ${_bsHA(c, 0.07)})`, border: `1px solid ${_bsHA(c, 0.6)}`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.08), 0 0 26px -12px ${c}` } : null;
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', minHeight: 68, borderRadius: 12, boxSizing: 'border-box', border: `1.5px solid ${done ? c : `${c}8c`}`, background: done ? c : 'transparent', transition: 'background 180ms ease, border-color 180ms ease' }}>
-      <button onClick={() => onToggle(habit.id)} aria-pressed={done} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 14, padding: '10px 4px 10px 12px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: ink }}>
-        <span aria-hidden style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box', display: 'grid', placeItems: 'center', background: done ? 'rgba(0,0,0,0.14)' : 'transparent', border: done ? 0 : `2px solid ${c}` }}>
-          {done && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={onC} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
+    <div data-habit-row={done ? 'kept' : 'open'} style={{ ...bsMpGlass(t, t.INK, { radius: 16 }), display: 'flex', alignItems: 'stretch', minHeight: 60, transition: 'border-color 180ms ease, box-shadow 180ms ease', ...lit }}>
+      <button onClick={() => onToggle(habit.id)} aria-pressed={done} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: '9px 4px 9px 12px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+        <span aria-hidden style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, boxSizing: 'border-box', display: 'grid', placeItems: 'center', background: done ? c : 'transparent', border: done ? 0 : `2px solid ${_bsHA(c, 0.85)}`, boxShadow: done ? `0 0 14px ${_bsHA(c, 0.55)}` : 'none' }}>
+          {done && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={onC} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
         </span>
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.2, color: ink }}>{habit.name}</span>
-          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 8px', marginTop: 4, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: soft }}>
-            {habit.domain === 'work' && <span style={{ color: done ? onC : t.BLUE }}>{tr('habits:row.workTag', { defaultValue: 'Work · ' })}</span>}
-            <span style={{ color: done ? onC : isAvoid ? t.RUST : soft }}>{done ? `${isAvoid ? tr('habits:row.stayedClean', { defaultValue: '✓ Stayed clean' }) : tr('habits:row.kept', { defaultValue: '✓ Kept' })} · ` : ''}{runText}</span>
+          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.2, color: t.INK }}>{habit.name}</span>
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 8px', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
+            {habit.domain === 'work' && <span style={{ color: t.BLUE }}>{tr('habits:row.workTag', { defaultValue: 'Work · ' })}</span>}
+            <span style={{ color: done ? c : isAvoid ? t.RUST : t.INK70 }}>{done ? `${keptWord} · ` : ''}{runText}</span>
             {!done && time && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{_bsBellIcon(true, c)}{time}</span>}
-            {!done && shared > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{_bsPeopleIcon(soft)}{shared}</span>}
+            {!done && shared > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{_bsPeopleIcon(t.INK70)}{shared}</span>}
           </span>
         </span>
-        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: soft }}>+{_bsHabitPts(habit)}</span>
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, color: done ? c : t.INK70 }}>+{_bsHabitPts(habit)}</span>
+          <_BSHabitWeekPips cells={week} c={c} t={t} />
+        </span>
       </button>
       <button onClick={() => setSheet('options')} aria-label={tr('habits:row.options', { defaultValue: 'Options for {name}', name: habit.name })} style={{ width: 44, flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill={soft} aria-hidden="true"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill={t.INK70} aria-hidden="true"><circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" /></svg>
       </button>
       {sheet === 'options' && <BSHabitOptionsSheet habit={habit} accent={c} reminder={reminder} watchers={watchers} onPick={setSheet} onRemove={onRemove} onClose={() => setSheet(null)} />}
       {sheet === 'reminder' && <BSHabitReminderSheet habit={habit} reminder={reminder} accent={c} onClose={() => setSheet(null)} onSaved={onReminderChange} />}
@@ -406,7 +466,8 @@ function BSHabitRow({ habit, accent, onToggle, onRemove, reminder, onReminderCha
   );
 }
 
-// Today: the points banked against the points on offer, then every habit as a button.
+// Today: the dial (the points banked against the points on offer) beside the two add keys, then every
+// habit as a button.
 function BSHabitToday({ habits, onToggle, onRemove, onAdd, reminders, onReminderChange, watch = null, onShareChange = null }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -417,40 +478,51 @@ function BSHabitToday({ habits, onToggle, onRemove, onAdd, reminders, onReminder
   const earned = habits.filter(h => (h.history || []).includes(today)).reduce((s, h) => s + _bsHabitPts(h), 0);
   const possible = habits.reduce((s, h) => s + _bsHabitPts(h), 0);
   const left = habits.length - doneCount;
-  const addBtn = (type) => (
-    <button onClick={() => onAdd(type)} style={{ flex: 1, minHeight: 48, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600 }}>
-      <span style={{ color: type === 'avoid' ? t.RUST : teal, marginRight: 4 }}>＋</span>{type === 'avoid' ? tr('habits:today.addToDont', { defaultValue: 'Add a to-don’t' }) : tr('habits:today.addToDo', { defaultValue: 'Add a to-do' })}
+  // This week's day-by-day state for each habit, Monday first, from the reckoning Progress uses. A habit
+  // with no day it was made (kept on this device alone) counts from its first tick, as Progress does.
+  const weekCells = React.useMemo(() => {
+    try {
+      const known = habits.map(h => (h.createdOn ? h : { ...h, createdOn: (h.history && h.history[0]) || today }));
+      const w = hpWeek(known, { anchor: today, today, firstDay: 1, windowStart: hpWindowStart(today) });
+      const m = {};
+      w.perHabit.forEach(r => { m[r.habit.id] = r.cells; });
+      return m;
+    } catch (e) { return {}; }
+  }, [habits, today]);
+  const tone = (type) => (type === 'avoid' ? t.RUST : teal);
+  const addKey = (type) => (
+    <button onClick={() => onAdd(type)} style={{ ...bsMpGlass(t, t.INK, { radius: 99 }), minHeight: 44, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap' }}>
+      <span aria-hidden style={{ color: tone(type), fontSize: 15, lineHeight: 1 }}>＋</span>{type === 'avoid' ? tr('habits:today.addToDont', { defaultValue: 'Add a to-don’t' }) : tr('habits:today.addToDo', { defaultValue: 'Add a to-do' })}
     </button>
   );
-  return (
-    <div style={{ padding: `6px ${t.padX}px 0` }}>
-      {habits.length === 0 ? (
+  if (habits.length === 0) {
+    return (
+      <div style={{ padding: `6px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.025em', lineHeight: 1.3, color: t.INK }}>
           {tr('habits:score.emptyLead', { defaultValue: 'Add a habit —' })} <span style={{ fontStyle: 'italic', color: teal }}>{tr('habits:score.emptyEmph', { defaultValue: 'daily points live here.' })}</span>
         </div>
-      ) : (
-        <React.Fragment>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ fontFamily: t.DISPLAY, color: t.INK }}>
-              <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>+{earned}</span>{' '}
-              <span style={{ fontSize: 17, fontWeight: 500, color: t.INK70 }}>{tr('habits:today.ofPossible', { defaultValue: '{possible, plural, one {of # pt today} other {of # pts today}}', possible })}</span>
-            </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: left ? t.INK : teal }}>
-              {left ? tr('habits:today.toGo', { defaultValue: '{count} to go', count: left }) : tr('habits:today.allDone', { defaultValue: '✓ All done' })}
-            </span>
-          </div>
-          <div role="progressbar" aria-label={tr('habits:today.progress', { defaultValue: 'Habits done today' })} aria-valuemin={0} aria-valuemax={habits.length} aria-valuenow={doneCount} style={{ height: 10, borderRadius: 5, background: t.HAIR, marginTop: 10, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${habits.length ? (doneCount / habits.length) * 100 : 0}%`, borderRadius: 5, background: teal, transition: 'width 240ms ease' }} />
-          </div>
-          <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('habits:today.hint', { defaultValue: 'Tap a habit to tick it' })}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {ordered.map(h => (
-              <BSHabitRow key={h.id} habit={h} accent={h.type === 'avoid' ? t.RUST : teal} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} watchers={watch ? (watch[h.id] || []) : null} onShareChange={onShareChange} />
-            ))}
-          </div>
-        </React.Fragment>
-      )}
-      <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>{addBtn('do')}{addBtn('avoid')}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>{addKey('do')}{addKey('avoid')}</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ padding: `8px ${t.padX}px 0` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div role="progressbar" aria-label={tr('habits:today.progress', { defaultValue: 'Habits done today' })} aria-valuemin={0} aria-valuemax={habits.length} aria-valuenow={doneCount}>
+          <_BSHabitDial habits={ordered} today={today} teal={teal} t={t} earned={earned} possibleLabel={tr('habits:today.ofPossible', { defaultValue: '{possible, plural, one {of # pt today} other {of # pts today}}', possible })} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: left ? t.INK : teal }}>
+            {left ? tr('habits:today.toGo', { defaultValue: '{count} to go', count: left }) : tr('habits:today.allDone', { defaultValue: '✓ All done' })}
+          </span>
+          {addKey('do')}{addKey('avoid')}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 18 }}>
+        {ordered.map(h => (
+          <BSHabitRow key={h.id} habit={h} week={weekCells[h.id]} accent={tone(h.type)} onToggle={onToggle} onRemove={onRemove} reminder={reminders && reminders[h.id]} onReminderChange={onReminderChange} watchers={watch ? (watch[h.id] || []) : null} onShareChange={onShareChange} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -615,8 +687,12 @@ function BSHabitProgress({ habits, archived = [] }) {
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={dir < 0 ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} /></svg>
     </button>
   );
+  // Week and Month: two quiet words, the lit one in ink over the accent's rule, each a 44px tap (owner,
+  // 2026-11-04, option A; the calendar's view words are the same).
   const segBtn = (m, label) => (
-    <button onClick={() => pick(m)} aria-pressed={mode === m} style={{ minHeight: 38, border: 0, borderRadius: 6, cursor: 'pointer', background: mode === m ? t.INK : 'transparent', color: mode === m ? t.PAPER : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{label}</button>
+    <button onClick={() => pick(m)} aria-pressed={mode === m} style={{ minHeight: 44, border: 0, padding: 0, background: 'transparent', cursor: 'pointer', color: mode === m ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
+      <span style={{ display: 'inline-block', paddingBottom: 4, borderBottom: `2px solid ${mode === m ? teal : 'transparent'}` }}>{label}</span>
+    </button>
   );
   const fmtAvg = (n) => new Intl.NumberFormat(habitsLocale(), { maximumFractionDigits: 1, minimumFractionDigits: 1 }).format(n);
   let compare = null;
@@ -638,7 +714,7 @@ function BSHabitProgress({ habits, archived = [] }) {
             {week ? tr('habits:progress.yourWeek', { defaultValue: 'Your week' }) : tr('habits:progress.yourMonth', { defaultValue: 'Your month' })}<span style={{ color: teal }}>.</span>
           </div>
         </div>
-        <div role="group" aria-label={tr('habits:progress.period', { defaultValue: 'Chart period' })} style={{ width: 150, flexShrink: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', padding: 3, border: `1px solid ${t.RULE}`, borderRadius: 9, background: t.PAPER2 }}>
+        <div role="group" aria-label={tr('habits:progress.period', { defaultValue: 'Chart period' })} style={{ flexShrink: 0, display: 'flex', gap: 16 }}>
           {segBtn('week', tr('habits:progress.week', { defaultValue: 'Week' }))}
           {segBtn('month', tr('habits:progress.month', { defaultValue: 'Month' }))}
         </div>
