@@ -620,7 +620,7 @@ test('the plan read names the coach the member pays, their thread and their week
   assert.equal(body.training.hasPlan, false);
   assert.deepEqual(body.training.coaching, {
     name: 'Tom Trainer', conversationId: 'conv-t',
-    coaches: [{ providerId: 7, name: 'Tom Trainer', conversationId: 'conv-t' }],
+    coaches: [{ providerId: 7, name: 'Tom Trainer', conversationId: 'conv-t', photo: null }],
     weekOne: { count: 4, startsOn: '2026-10-20', setBy: 'Tom Trainer' },
   });
   assert.equal(body.meals.coaching, null, 'no nutritionist: null, a known none');
@@ -665,13 +665,77 @@ test('the plan read names every coach of a role, and credits each workout to the
   assert.deepEqual(body.training.coaching, {
     name: 'Tom Trainer', conversationId: 'conv-7',
     coaches: [
-      { providerId: 7, name: 'Tom Trainer', conversationId: 'conv-7' },
-      { providerId: 8, name: 'Sam Strong', conversationId: 'conv-8' },
+      { providerId: 7, name: 'Tom Trainer', conversationId: 'conv-7', photo: null },
+      { providerId: 8, name: 'Sam Strong', conversationId: 'conv-8', photo: null },
     ],
     weekOne: { count: 5, startsOn: '2026-10-20', setBy: 'Sam Strong' },
   }, 'both trainers, the earliest first, each with their own thread; the shared target names who set it');
   const byTitle = Object.fromEntries(body.training.workouts.map((w) => [w.title, w.coach]));
   assert.deepEqual(byTitle, { Lower: 'Tom Trainer', Conditioning: 'Sam Strong', 'My own': null });
+  // And by id, so Home files each session under the trainer who wrote it (Codex P2 on #2583).
+  assert.deepEqual(Object.fromEntries(body.training.workouts.map((w) => [w.title, w.coachId])), { Lower: 7, Conditioning: 8, 'My own': null });
+  assert.equal(body.meals.coachId, null, 'no meal plan, no nutritionist to file it under');
+  // A meal plan carries its nutritionist's id, so Home files the day's meals under the one who wrote it.
+  const withMenu = { ...tables, client_meal_plans: [{ id: 'mp1', client_id: U, status: 'published', title: 'Cut', week_start: '2026-10-19', nutritionist_id: 4, created_at: ago(1), payload: { days: [] } }],
+    nutritionists: [{ id: 4, name: 'Nia Noor' }] };
+  const meals = (await (await load(fakeSupabase({ tables: withMenu }))).GET(new Request('https://x/api/client/plan'))).body.meals;
+  assert.deepEqual([meals.coach, meals.coachId], ['Nia Noor', 4]);
+});
+
+// The member Home's Team cards show each coach's face (owner, 2026-11-03: "once signed in to real account,
+// and coaches are selected, they should appear"): the listing's portrait, else the coach's profile photo,
+// the two the marketplace shows; the portrait through the marketplace's own gate, the photo as the picker wrote
+// it (a raster data URL), and a failed avatar read leaves the plan whole.
+test("the plan read carries each paid coach's face: the listing portrait, else their profile photo", async () => {
+  const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  // A coach writes listing_media themselves, so the marketplace's gate decides (Codex P1 on #2583): an image
+  // in their own folder of our coach-media bucket.
+  const OWN = (owner) => `https://zznufekgjngecelwxndw.supabase.co/storage/v1/object/public/coach-media/${owner}/portrait.jpg`;
+  const load = async (db) => loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
+      ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  const tables = {
+    // A session by a trainer no longer paid (10): their name is read for the session, their face never is.
+    client_workouts: [{ id: 'w10', client_id: U, status: 'published', title: 'Old block', trainer_id: 10, scheduled_date: null, created_at: ago(1), payload: {} }],
+    client_meal_plans: [], client_programs: [],
+    subscriptions: [
+      { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: ago(3) },
+      { client_id: U, provider_role: 'trainer', provider_id: 8, status: 'active', created_at: ago(2) },
+      { client_id: U, provider_role: 'trainer', provider_id: 9, status: 'active', created_at: ago(1.5) },
+      { client_id: U, provider_role: 'nutritionist', provider_id: 3, status: 'active', created_at: ago(2) },
+    ],
+    trainers: [
+      { id: 7, name: 'Tom Trainer', owner_id: 'o7', listing_media: { portrait: OWN('o7') } },
+      { id: 8, name: 'Sam Strong', owner_id: 'o8', listing_media: { portrait: 'https://pixel.example/track.gif' } },
+      { id: 9, name: 'Pat Planted', owner_id: 'o9', listing_media: { portrait: OWN('o7') } },
+      { id: 10, name: 'Former Coach', owner_id: 'o10', listing_media: null },
+    ],
+    nutritionists: [{ id: 3, name: 'Nia Nutrition', owner_id: 'o3', listing_media: null }],
+    conversations: [],
+  };
+  // The profile photo is get_public_profile's avatar, as the marketplace reads it (Codex P2 on #2583): the
+  // picker's JPEG as a data URL. A URL there is no face (a coach writes that field), nor is an SVG.
+  const JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==';
+  const AVATAR = { o8: JPEG, o9: 'https://pixel.example/track.gif', o3: 'data:image/svg+xml;base64,PHN2Zz4=' };
+  const rpcs = { get_public_profile: ({ p_user_id }) => [{ user_id: p_user_id, avatar: AVATAR[p_user_id] ?? null }] };
+  const db = fakeSupabase({ tables, rpcs });
+  const { body } = await (await load(db)).GET(new Request('https://x/api/client/plan'));
+  assert.deepEqual(body.training.coaching.coaches.map((c) => c.photo), [OWN('o7'), JPEG, null],
+    "the portrait in the coach's own folder; a portrait anywhere else (a tracking pixel, another coach's file) is no portrait, so the profile photo or nothing");
+  assert.equal(body.meals.coaching.coaches[0].photo, null, 'a photo that is not a raster image is no photo: the card keeps the initials');
+  const asked = db._calls.filter((c) => c.rpc === 'get_public_profile');
+  assert.deepEqual(asked.map((c) => c.args.p_user_id).sort(), ['o3', 'o8', 'o9'], 'one read per paid coach without a portrait; a coach with a portrait, or one no longer paid, costs none');
+  assert.equal(db._calls.filter((c) => c.rpc === 'get_display_names').length, 0, 'profiles.avatar_url is not the photo the marketplace shows');
+  // A failed avatar read is a face missing, never the plan: the coaches and their names stand.
+  const failed = (await (await load(fakeSupabase({ tables, rpcs, fail: ['rpc:get_public_profile'] }))).GET(new Request('https://x/api/client/plan'))).body;
+  assert.deepEqual(failed.training.coaching.coaches.map((c) => [c.name, c.photo]), [['Tom Trainer', OWN('o7')], ['Sam Strong', null], ['Pat Planted', null]]);
+  const thrown = (await (await load({ ...fakeSupabase({ tables }), rpc: async () => { throw new Error('offline'); } })).GET(new Request('https://x/api/client/plan'))).body;
+  assert.equal(thrown.meals.coaching.coaches[0].name, 'Nia Nutrition', 'a thrown avatar read lost the plan');
 });
 
 test('the member app and the website say the coach is preparing the plan, and ask adherence only of a plan', () => {
@@ -713,7 +777,7 @@ test('the app names every coach of a role: the preparing card, the setup board, 
   assert.match(client, /name: board\.setByName \|\| \(trainersMany \? null : trainer\) \|\|/);
   // Home's weekly notes: one per coach, not one per role, each signed with its coach's name or the
   // role alone, never a demo byline (Fable on this PR); the feed reads the names.
-  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push\(\{ role: 'trainer', text: b\.text, who: b\.provider_name \|\| null \}\);/);
+  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push\(\{ role: 'trainer', text: b\.text, who: b\.provider_name \|\| null, providerId: b\.provider_id \?\? null \}\);/);
   assert.ok(!/who: b\.provider_name \|\| '(Jordan Chen|Dr\. Maya Patel)'/.test(client));
   const backend = read('mobile-app/src/services/shapeBackend.js');
   assert.match(backend, /banners: banners\.map\(\(b\) => \(\{ \.\.\.b, provider_name: \(b\.provider_role === 'nutritionist' \? nutriNames : trainerNames\)\.get\(String\(b\.provider_id\)\) \|\| null \}\)\),/);

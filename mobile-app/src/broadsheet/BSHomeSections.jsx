@@ -1,28 +1,23 @@
 import React from 'react';
-import { BSFocusTitle, BSFocusLink } from './BSFocus.jsx';
 import { bsCiDay, bsCiAnswered, bsCiIso, BS_CI_SAVED } from './BSCheckinCard.jsx';
-import { bsHomeWeekSoFar, bsHwPct, bsHomeGoalRead, bsHwRedate, bsHomeNextSession, bsHwDaysBetween, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwTrainedDaysOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek, bsHwWeekGrid, bsHwShift } from '../services/homeWeek.mjs';
-import { bsWsAccent } from './bsMagazine.mjs';
+import { bsHomeWeekSoFar, bsHomeNextSession, bsHwRedate, bsHwWeekDays as bsHomeWeekSoFarDays, bsHwTrainedOf, bsHwTrainedDaysOf, bsHwSeriesOf, bsHwGoalData, bsHwOfWeek, bsHwWeekGrid, bsHwShift } from '../services/homeWeek.mjs';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 
 // Home's goal reads its documents again when Nora's account setup (or its Undo) changes them.
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BS_HOME_GOAL_KINDS = ['client_goals', 'client_identity'];
-// ─── HOME, PART 2: YOUR GOAL · WEEK SO FAR · FROM YOUR COACHES ─────────────────────────────────────
-// Owner, 2026-10-22: "The home page is repetitive of the train and eat pages." Off the mockup the owner
-// approved, Home says what only Home can, under Today's call:
-//   · Your goal: the goal in the member's words and, for a weight goal or a weight target, where the
-//     weigh-ins stand: now, the target, the line of the last weeks, the pace and when it lands;
-//   · Week so far: Monday to today, against the plan: sessions, days with food logged, protein,
-//     steps and the mornings checked in, as a square a day (owner, 2026-10-25, of three mockups:
-//     "go with B");
-//   · From your coaches: their notes, a message door to each coach they pay (with what is unread)
-//     and their next booked session.
-// Home hands in what it already holds (the plan's sessions and coaches, the targets, the doors);
-// each section reads the rest itself. The figures are services/homeWeek.mjs's.
+// ─── HOME'S READS, THE MORNING PANEL'S HABITS, AND THE SHORTCUTS ──────────────────────────────────
+// The member Home the owner chose (2026-11-03, the Home preview) draws its goal, its week and its
+// coaches elsewhere: the climb and the week's bars in BSHomeDeck.jsx, Team in BSHomeTeam.jsx. This file
+// keeps the reads they share:
+//   · useBSHomeGoalData: the goal document, its words and the weigh-ins (or the preview's sample);
+//   · useBSHomeWeek: the week so far against the plan, a square a day (services/homeWeek.mjs's);
+//   · useBSHomeUnread and useBSHomeNextSession: what is unread from each coach, and the next session;
+// and the two Home rows that are not a section of their own: Daily habits in the morning panel, and
+// the Shortcuts list.
 //
 // ⚠ THE GOAL'S OWN HELPERS STAY IN THE CLIENT MODULE (tests read them from its text), so Home hands
-// them in (`docKg`, `isWeightGoal`, `goalWords`) and this file never imports back into it.
+// them in (`docKg`, `isWeightGoal`, `goalWords`) and no Home module imports back into it.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP (see BSLeaderboard.jsx).
 
@@ -41,61 +36,14 @@ function useShapeTr() {
   };
 }
 
-function bsHsLocale() {
-  return (typeof window !== 'undefined' && (window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.())) || undefined;
-}
-
-function bsHsDate(iso, opts) {
-  const [y, m, d] = String(iso || '').split('-').map(Number);
-  const dt = new Date(y, (m || 1) - 1, d || 1);
-  if (Number.isNaN(dt.getTime())) return '';
-  try { return dt.toLocaleDateString(bsHsLocale(), opts); } catch (e) { return dt.toDateString(); }
-}
-
-const bsHsGold = (t) => (t.isLight ? '#a07a2e' : '#c9a14a');
-const bsHsTeal = (t) => (t.isLight ? '#0a8f87' : '#34d6c5');
-
 function bsHsSignedIn() {
   return !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-}
-
-// A small accent action on a section title's right side ("Edit →").
-function BSHsAction({ label, onClick, color }) {
-  const t = window.useBS();
-  return (
-    <button type="button" onClick={onClick} style={{ flexShrink: 0, minHeight: 44, marginBottom: -6, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', color: color || t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{label}</button>
-  );
-}
-
-// ── YOUR GOAL ────────────────────────────────────────────────────────────────────────────────────
-
-// The weigh-ins as a line: oldest left, newest right, the newest dotted.
-function BSHsTrend({ points, color, label }) {
-  const t = window.useBS();
-  if (!Array.isArray(points) || points.length < 2) return null;
-  const day = (iso) => { const [y, m, d] = iso.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
-  const xs = points.map((p) => day(p.d));
-  const ys = points.map((p) => p.kg);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  const lo = Math.min(...ys), hi = Math.max(...ys);
-  const W = 300, H = 36, pad = 4;
-  const sx = (x) => (x1 === x0 ? W / 2 : pad + ((x - x0) / (x1 - x0)) * (W - pad * 2));
-  const sy = (y) => (hi === lo ? H / 2 : pad + ((hi - y) / (hi - lo)) * (H - pad * 2));
-  const pts = points.map((p, i) => `${sx(xs[i]).toFixed(1)},${sy(ys[i]).toFixed(1)}`).join(' ');
-  const last = points.length - 1;
-  return (
-    <svg role="img" aria-label={label} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} style={{ display: 'block', marginTop: 10 }}>
-      <line x1="0" y1={H - 0.5} x2={W} y2={H - 0.5} stroke={t.HAIR} strokeWidth="1" vectorEffect="non-scaling-stroke" />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={sx(xs[last])} cy={sy(ys[last])} r="3.5" fill={color} />
-    </svg>
-  );
 }
 
 // The goal document, its words and the weigh-ins: read signed in, or the preview's sample (`demo`,
 // the client module's BS_GOALS_DEFAULT) moved to end today. null while it reads, and after a goal
 // read that failed.
-function useBSHomeGoalData(demo) {
+export function useBSHomeGoalData(demo) {
   const signedIn = bsHsSignedIn();
   const [data, setData] = useState(() => (signedIn ? null : {
     primary: (demo && demo.primaryGoal) || '',
@@ -118,99 +66,6 @@ function useBSHomeGoalData(demo) {
     return () => { on = false; };
   }, [signedIn, goalsRev]);
   return data;
-}
-
-export function BSHomeGoal({ demo = null, ...view }) {
-  const data = useBSHomeGoalData(demo);
-  return data ? <BSHomeGoalView data={data} {...view} /> : null;
-}
-
-// The section itself, off `data` ({ primary, overall, weighIns }): the tests draw it directly.
-// Sized down a step (owner, 2026-10-23: "make this a little smaller"): the figure 42, the line 36 px
-// tall, the three figures under it 18.
-export function BSHomeGoalView({ data, docKg, isWeightGoal, goalWords, onOpen, tour, todayIso = bsCiIso(new Date()) }) {
-  const t = window.useBS();
-  const tr = useShapeTr();
-  const gold = bsHsGold(t);
-  const overall = data.overall || {};
-  // The document's figures are in its own unit; the weigh-ins are kilograms (bsGoalDocKg's rule).
-  const toKg = (v) => (typeof docKg === 'function' ? docKg(v, overall) : null);
-  const read = bsHomeGoalRead({ weighIns: data.weighIns, startKg: toKg(overall.start), targetKg: toKg(overall.target), todayIso });
-  const words = String(overall.title || '').trim() || (typeof goalWords === 'function' ? goalWords(data.primary) : '') || '';
-  const weightGoal = (typeof isWeightGoal === 'function' ? isWeightGoal(data.primary) : true) || read.targetKg != null;
-  const hasRead = weightGoal && read.nowKg != null;
-  const unit = (t.unitPrefs && t.unitPrefs.weight) || 'kg';
-  const disp = (kg) => (typeof t.kgToDisplay === 'function' ? t.kgToDisplay(kg) : kg);
-  const fmt = (kg, digits = 1) => {
-    const v = disp(kg);
-    try { return Number(v).toLocaleString(bsHsLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }); } catch (e) { return Number(v).toFixed(digits); }
-  };
-  const signed = (kg) => `${kg < 0 ? '−' : kg > 0 ? '+' : ''}${fmt(Math.abs(kg))}`;
-  const mono = { fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 };
-  const link = (label) => <BSHsAction label={label} onClick={onOpen} />;
-  const since = hasRead && read.sinceIso ? tr('home:goal.since', { defaultValue: 'Since {date}', date: bsHsDate(read.sinceIso, { month: 'short', day: 'numeric' }) }) : null;
-  const weeks = hasRead && read.sinceIso ? Math.max(1, Math.round(bsHwDaysBetween(read.sinceIso, todayIso) / 7)) : null;
-
-  return (
-    <section data-bs-home-goal="" data-tour={tour || undefined}>
-      <BSFocusTitle kicker={since} title={tr('home:goal.title', { defaultValue: 'Your goal' })} color={gold}
-        right={<BSHsAction label={tr('home:goal.edit', { defaultValue: 'Edit →' })} onClick={onOpen} />} />
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        {words ? (
-          <p style={{ margin: 0, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15.5, lineHeight: 1.35, color: t.INK85 || t.INK }}>&ldquo;{words}&rdquo;</p>
-        ) : null}
-        {!words && !hasRead ? (
-          <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{tr('home:goal.empty', { defaultValue: 'Set a goal to follow it here.' })}</p>
-        ) : null}
-        {hasRead ? (
-          <>
-            <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: 300, fontSize: 34, lineHeight: 0.9, letterSpacing: '-0.04em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{fmt(read.nowKg)}</span>
-                <span style={{ ...mono, fontSize: 9.5 }}>{tr('home:goal.now', { defaultValue: '{unit} now', unit })}</span>
-              </div>
-              {read.targetKg != null ? (
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ ...mono, fontWeight: 800, letterSpacing: '0.16em' }}>{tr('home:goal.target', { defaultValue: 'Goal' })}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 16, color: gold, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmt(read.targetKg)} {unit}</div>
-                </div>
-              ) : null}
-            </div>
-            <BSHsTrend points={read.trend} color={gold}
-              label={tr('home:goal.trendAria', { defaultValue: 'Weigh-ins from {from} to {to} {unit}', from: fmt(read.trend[0] ? read.trend[0].kg : read.nowKg), to: fmt(read.nowKg), unit })} />
-            {read.pct != null ? (
-              <div aria-hidden style={{ marginTop: 10, height: 3, background: t.HAIR }}>
-                <div style={{ width: `${read.pct}%`, height: 3, background: gold }} />
-              </div>
-            ) : null}
-            <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${t.HAIR}`, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{signed(read.changeKg)}</div>
-                <div style={{ ...mono, marginTop: 2 }}>{tr('home:goal.inWeeks', { defaultValue: '{unit} in {n, plural, one {# week} other {# weeks}}', unit, n: weeks })}</div>
-              </div>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.paceKgWk != null ? signed(read.paceKgWk) : '—'}</div>
-                <div style={{ ...mono, marginTop: 2 }}>{tr('home:goal.aWeek', { defaultValue: '{unit} a week lately', unit })}</div>
-              </div>
-              <div>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, color: read.reached ? gold : t.INK, fontVariantNumeric: 'tabular-nums' }}>{read.reached ? '✓' : read.toGoKg != null ? fmt(read.toGoKg) : '—'}</div>
-                <div style={{ ...mono, marginTop: 2 }}>{read.reached ? tr('home:goal.reached', { defaultValue: 'Goal reached' }) : tr('home:goal.left', { defaultValue: '{unit} to go', unit })}</div>
-              </div>
-            </div>
-          </>
-        ) : null}
-        <div style={{ marginTop: hasRead ? 6 : 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ fontFamily: t.BODY, fontSize: 13, color: t.INK70 }}>
-            {hasRead && read.etaIso ? tr('home:goal.eta', { defaultValue: 'At this rate, around {date}', date: bsHsDate(read.etaIso, { month: 'short', day: 'numeric', year: 'numeric' }) })
-              : weightGoal && !hasRead && (words || read.targetKg != null) ? tr('home:goal.noWeighIns', { defaultValue: 'No weigh-ins yet.' }) : ''}
-          </span>
-          {!words && !hasRead && read.targetKg == null ? link(tr('home:goal.set', { defaultValue: 'Set your goal →' }))
-            : weightGoal ? link(tr('home:goal.weighIn', { defaultValue: 'Weigh in →' }))
-              : link(tr('home:goal.open', { defaultValue: 'Your goal →' }))}
-        </div>
-      </div>
-    </section>
-  );
 }
 
 // ── WEEK SO FAR ──────────────────────────────────────────────────────────────────────────────────
@@ -244,7 +99,9 @@ function bsHsDemoWeek(todayIso) {
   };
 }
 
-export function BSHomeWeekSoFar({ sessionsPlanned = null, plannedDays = null, planRead = false, proteinTarget = null, stepGoal = null, ...view }) {
+// The week's reads (bsHomeWeekSoFar's shape, or the preview's sample), for Week so far and for the
+// Home deck's day bars, which draw the same five rows a day (owner, 2026-11-03, the Home preview).
+export function useBSHomeWeek({ sessionsPlanned = null, plannedDays = null, planRead = false, proteinTarget = null, stepGoal = null } = {}) {
   const signedIn = bsHsSignedIn();
   // The week the reads are for: Home left open across Sunday into Monday reads the new week, and each
   // read is kept with its Monday and used only in that week (bsHwOfWeek), so last week's figures
@@ -281,122 +138,12 @@ export function BSHomeWeekSoFar({ sessionsPlanned = null, plannedDays = null, pl
       trainedDays: trained && trained.monday === monday ? trained.days : null, plannedDays, planRead,
     })
     : bsHsDemoWeek(todayIso);
-  return <BSHomeWeekView w={w} {...view} />;
-}
-
-// One day's square in a row's colour: filled for a day it was hit, an outline for one missed, a dash
-// for a rest day, a dashed outline for today until it is hit and the days still to come, and a dot
-// for one nothing could read.
-function BSHsWeekCell({ state, color }) {
-  const t = window.useBS();
-  const box = { width: 16, height: 16, boxSizing: 'border-box' };
-  const mark = state === 'hit' ? <span style={{ ...box, background: color }} />
-    : state === 'miss' ? <span style={{ ...box, boxShadow: `inset 0 0 0 1.5px ${t.RULE}` }} />
-      : state === 'rest' ? <span style={{ width: 8, height: 2, background: t.RULE }} />
-        : state === 'ahead' ? <span style={{ ...box, border: `1px dashed ${t.RULE}` }} />
-          : <span style={{ width: 4, height: 4, background: t.RULE }} />;
-  return <span data-cell={state || 'unknown'} style={{ display: 'grid', placeItems: 'center', minWidth: 0 }}>{mark}</span>;
-}
-
-// The section itself, off `w` (bsHomeWeekSoFar's shape): the tests draw it directly. A row a figure,
-// each a door to where it lives: its name, a square a day Monday to Sunday (w.grid), and the week's
-// figure at the right.
-export function BSHomeWeekView({ w, checkinsOn = true, onTrain, onEat, onProgress, onSteps, onMornings }) {
-  const t = window.useBS();
-  const tr = useShapeTr();
-  const teal = bsHsTeal(t);
-  const accent = bsWsAccent(t);
-  const locale = bsHsLocale();
-  const num = (n) => (n == null ? '—' : Number(n).toLocaleString(locale));
-  const g = w.grid || null;
-  const rows = [
-    { key: 'sessions', label: tr('home:week.sessions', { defaultValue: 'Sessions' }), value: num(w.sessions.done), of: w.sessions.planned && w.sessions.done != null ? w.sessions.planned : null,
-      note: w.sessions.planned ? tr('home:week.ofN', { defaultValue: 'of {n}', n: w.sessions.planned }) : tr('home:week.thisWeek', { defaultValue: 'this week' }),
-      color: t.RUST, cells: g && g.sessions, onOpen: onTrain },
-    { key: 'food', label: tr('home:week.food', { defaultValue: 'Food logged' }), value: num(w.daysLogged), of: w.daysLogged != null ? w.days : null,
-      note: tr('home:week.ofDays', { defaultValue: 'of {n, plural, one {# day} other {# days}}', n: w.days }),
-      color: teal, cells: g && g.food, onOpen: onEat },
-    { key: 'protein', label: tr('home:week.gridProtein', { defaultValue: 'Protein' }), value: num(w.protein.avg), unit: w.protein.avg != null ? 'g' : null,
-      note: w.protein.target ? tr('home:week.ofG', { defaultValue: 'of {n} g', n: num(w.protein.target) }) : '',
-      color: t.RUST, cells: g && g.protein, onOpen: onProgress },
-    { key: 'steps', label: tr('home:week.gridSteps', { defaultValue: 'Steps' }), value: num(w.steps.avg),
-      note: w.steps.goal ? tr('home:week.ofN', { defaultValue: 'of {n}', n: num(w.steps.goal) }) : '',
-      color: teal, cells: g && g.steps, onOpen: onSteps },
-    ...(checkinsOn ? [{ key: 'mornings', label: tr('home:week.mornings', { defaultValue: 'Check-ins' }), value: num(w.mornings), of: w.mornings != null ? w.days : null,
-      note: tr('home:week.ofN', { defaultValue: 'of {n}', n: w.days }),
-      color: t.BLUE || teal, cells: g && g.mornings, onOpen: onMornings }] : []),
-  ];
-  const cols = '84px repeat(7, minmax(0, 1fr)) 62px';
-  const mono = { fontFamily: t.MONO, textTransform: 'uppercase' };
-  let narrow = null;
-  try { narrow = new Intl.DateTimeFormat(locale, { weekday: 'narrow' }); } catch (e) { narrow = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' }); }
-  const dayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
-  const anyRest = !!(g && g.sessions && g.sessions.includes('rest'));
-  // The key's words, which also name each day's square for a screen reader (Codex P2 on #2449: the
-  // squares, the day letters and the key are hidden from it, so a row's label says them day by day).
-  const word = {
-    hit: tr('home:week.keyHit', { defaultValue: 'hit' }),
-    miss: tr('home:week.keyMissed', { defaultValue: 'missed' }),
-    ahead: tr('home:week.keyAhead', { defaultValue: 'to come' }),
-    rest: tr('home:week.keyRest', { defaultValue: 'rest day' }),
-  };
-  let long = null;
-  try { long = new Intl.DateTimeFormat(locale, { weekday: 'long' }); } catch (e) { long = new Intl.DateTimeFormat(undefined, { weekday: 'long' }); }
-  // A day nothing could read is left out, never named "missed".
-  const spoken = (cells) => (g && cells ? g.week.map((d, i) => (cells[i] ? tr('home:week.dayState', { defaultValue: '{day}: {state}', day: long.format(dayOf(d)), state: word[cells[i]] }) : null)).filter(Boolean) : []);
-  const rules = [
-    w.protein.target ? tr('home:week.ruleProtein', { defaultValue: 'a protein day reaches {n} g', n: num(w.protein.target) }) : null,
-    w.steps.goal ? tr('home:week.ruleSteps', { defaultValue: 'a steps day reaches {n}', n: num(w.steps.goal) }) : null,
-  ].filter(Boolean);
-  const key = (style, text) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
-      <span aria-hidden style={{ display: 'inline-block', width: 9, height: 9, boxSizing: 'border-box', ...style }} />{text}
-    </span>
-  );
-  return (
-    <section data-bs-home-week="" style={{ padding: `${t.sectGap + 6}px ${t.padX}px 0` }}>
-      <div data-bs-home-week-head="" style={{ display: 'flex', alignItems: 'baseline', gap: 10, paddingBottom: 6, borderBottom: `2px solid ${t.INK}` }}>
-        <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: t.HEAD ? 700 : 600, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>{tr('home:week.title', { defaultValue: 'Week so far' })}</h2>
-        <span style={{ ...mono, marginLeft: 'auto', fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:week.gridMeta', { defaultValue: 'A square a day' })}</span>
-      </div>
-      {g ? (
-        <div aria-hidden style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', padding: '10px 0 4px' }}>
-          <span />
-          {g.week.map((d, i) => (
-            <span key={d} style={{ ...mono, textAlign: 'center', fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: i === g.today ? t.INK : t.INK50 }}>
-              <span style={{ paddingBottom: 2, boxShadow: i === g.today ? `inset 0 -2px 0 ${accent}` : 'none' }}>{narrow.format(dayOf(d))}</span>
-            </span>
-          ))}
-          <span />
-        </div>
-      ) : null}
-      {rows.map((r) => (
-        <button key={r.key} type="button" data-bs-home-week-row={r.key} onClick={typeof r.onOpen === 'function' ? r.onOpen : undefined} disabled={typeof r.onOpen !== 'function'}
-          aria-label={`${r.label}: ${r.value}${r.unit || ''}${r.note ? ` ${r.note}` : ''}${spoken(r.cells).length ? `. ${spoken(r.cells).join(', ')}` : ''}`}
-          style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', width: '100%', minHeight: 44, padding: '6px 0', border: 0, borderBottom: `1px solid ${t.HAIR}`, borderRadius: 0, background: 'transparent', cursor: typeof r.onOpen === 'function' ? 'pointer' : 'default', font: 'inherit', color: 'inherit', textAlign: 'left' }}>
-          <span style={{ ...mono, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', lineHeight: 1.3, color: t.INK70, overflowWrap: 'anywhere' }}>{r.label}</span>
-          {(r.cells || Array.from({ length: 7 }, () => null)).map((c, i) => <BSHsWeekCell key={i} state={c} color={r.color} />)}
-          <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{r.value}</span>
-            {r.unit ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>{r.unit}</span> : null}
-            {r.of != null ? <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50 }}>/{num(r.of)}</span> : null}
-          </span>
-        </button>
-      ))}
-      <div aria-hidden style={{ ...mono, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 14, rowGap: 6, marginTop: 10, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50, textTransform: 'none' }}>
-        {key({ background: t.INK }, word.hit)}
-        {key({ boxShadow: `inset 0 0 0 1.5px ${t.RULE}` }, word.miss)}
-        {key({ border: `1px dashed ${t.RULE}` }, word.ahead)}
-        {anyRest ? key({ height: 2, width: 8, background: t.RULE }, word.rest) : null}
-      </div>
-      {rules.length ? <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{rules.join(' · ')}</div> : null}
-    </section>
-  );
+  return w;
 }
 
 // ── FROM YOUR COACHES ────────────────────────────────────────────────────────────────────────────
 
-function useBSHomeUnread(ids) {
+export function useBSHomeUnread(ids) {
   const [map, setMap] = useState(() => ({ ...(window.ShapeUnread?.all?.() || {}) }));
   const key = ids.join(',');
   useEffect(() => {
@@ -409,10 +156,9 @@ function useBSHomeUnread(ids) {
   return map;
 }
 
-// `notes` are the coaches' weekly notes ({ role, text, who }), `coaches` the ones the member pays
-// ({ role, name, conversationId, providerId }; a name that couldn't be read is null), both Home's.
-// Nothing to say → nothing drawn.
-export function BSHomeCoaches({ notes = [], coaches = [], onCalendar, onCoaches }) {
+// The member's next session with a coach they pay, or null (bsHomeNextSession's), read once there is
+// a coach: Home's Team says it.
+export function useBSHomeNextSession(coaches) {
   const signedIn = bsHsSignedIn();
   const [sessions, setSessions] = useState(null);
   // Sessions are booked with a coach, so a member with none is not asked.
@@ -424,61 +170,96 @@ export function BSHomeCoaches({ notes = [], coaches = [], onCalendar, onCoaches 
     return () => { on = false; };
   }, [signedIn, coached]);
   // Matched against the coaches on each draw, so a change of coach needs no second read.
-  const next = coached ? bsHomeNextSession(sessions, coaches) : null;
-  const unread = useBSHomeUnread(coaches.map((c) => c.conversationId).filter(Boolean));
-  return <BSHomeCoachesView notes={notes} coaches={coaches} next={next} unread={unread} onCalendar={onCalendar} onCoaches={onCoaches} />;
+  return coached ? bsHomeNextSession(sessions, coaches) : null;
 }
 
-// The section itself: the notes, the coaches, the next session (bsHomeNextSession's) and the unread
-// counts by thread ('dm:<id>'). The tests draw it directly. `onCoaches` opens Chat on the coaches'
-// threads: a coach whose thread is not set up yet (the plan read's conversationId is null) has none
-// to open, and opening by name would land on another coach's (Codex P2 on #2424).
-export function BSHomeCoachesView({ notes = [], coaches = [], next = null, unread = {}, onCalendar, onCoaches }) {
+// ── DAILY HABITS, IN THE MORNING PANEL ───────────────────────────────────────────────────────────
+// Owner, 2026-11-03, of the morning panel: "add daily habits in here instead of at bottom". A row under
+// water: "Daily habits", how many are done today, and the first three as ticks to check off where they
+// are, through the store the Habits page uses (window._bsUseServerHabits), so a tick here is the
+// page's tick. The rest open on the page; the title opens it too. The signed-out preview shows the
+// sample's habits, and a tick asks for an account (the store's own gate).
+const BS_HS_HABIT_TICKS = 3;
+function useBSHomeHabitsFallback() { return { habits: [], status: 'ready', toggle: () => {} }; }
+export function BSHomeHabitsRow({ tweaks = {}, setTweak = () => {}, onOpen, tour, onTicked }) {
+  const useHabits = (typeof window !== 'undefined' && window._bsUseServerHabits) || useBSHomeHabitsFallback;
+  const store = useHabits(tweaks, setTweak);
+  // A tick may earn points: the score on Home reads itself again once the tick is written (onTicked).
+  const toggle = (id) => {
+    const r = store.toggle(id);
+    if (typeof onTicked === 'function') Promise.resolve(r).then(() => onTicked(), () => {});
+  };
+  return <BSHomeHabitsRowView habits={store.habits} ready={store.status === 'ready'} onToggle={toggle} onOpen={onOpen} tour={tour} />;
+}
+
+export function BSHomeHabitsRowView({ habits = [], ready = true, onToggle, onOpen, tour, todayIso = bsCiIso(new Date()) }) {
   const t = window.useBS();
   const tr = useShapeTr();
-  if (!notes.length && !coaches.length && !next) return null;
-  const gold = bsHsGold(t);
-  const roleWord = (role) => (role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' }));
-  const openThread = (c) => {
-    if (!c.conversationId) { if (typeof onCoaches === 'function') onCoaches(); return; }
-    try { window.dispatchEvent(new window.CustomEvent('shape:openConversation', { detail: { conversationId: c.conversationId, name: c.name || undefined } })); } catch (e) { /* the chat tab is still a tap away */ }
+  const signedIn = bsHsSignedIn();
+  const demo = !signedIn && !habits.length ? ((typeof window !== 'undefined' && window._BS_HABIT_DEMO_ROWS) || []) : null;
+  const today = Math.max(0, bsHomeWeekSoFarDays(todayIso).length - 1); // 0 = Monday, as the sample's pattern
+  const list = demo
+    ? demo.map((h) => ({ id: h.id, name: h.name, type: h.type, done: (h.pattern || [])[today] === 1 }))
+    : habits.map((h) => ({ id: h.id, name: h.name, type: h.type, done: (h.history || []).includes(todayIso) }));
+  const done = list.filter((h) => h.done).length;
+  const ticks = list.slice(0, BS_HS_HABIT_TICKS);
+  const more = list.length - ticks.length;
+  const open = () => { if (typeof onOpen === 'function') onOpen(); };
+  // A tick's label: the habit's last word ("Drink 3 glasses of water" → water), and for a habit to
+  // avoid, "No" with it (smoking → No smoking). The tick's own name is the whole habit.
+  const short = (h) => {
+    const words = String(h.name || '').split(/\s+/).filter((w) => /\p{L}/u.test(w));
+    const last = words[words.length - 1] || '';
+    return h.type === 'avoid' ? tr('home:habits.avoidShort', { defaultValue: 'No {what}', what: last }) : last;
   };
-  const when = next ? (() => {
-    try { return new Date(next.at).toLocaleString(bsHsLocale(), { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return new Date(next.at).toString(); }
-  })() : '';
   return (
-    <section data-bs-home-coaches="">
-      <BSFocusTitle kicker={tr('home:coaches.kicker', { defaultValue: 'Your coaches' })} title={tr('home:coaches.title', { defaultValue: 'From your coaches' })} color={gold} />
-      {notes.length ? (
-        <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {notes.map((n, i) => (
-            <div key={i} style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 500, color: t.INK70, lineHeight: 1.45, letterSpacing: '-0.01em' }}>
-              &ldquo;{n.text}&rdquo;
-              <span style={{ display: 'block', marginTop: 4, fontStyle: 'normal', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>
-                — {n.who ? `${n.who} · ` : ''}{roleWord(n.role)}
-              </span>
-            </div>
-          ))}
-        </div>
+    <div data-bs-home-habits="" data-tour={tour || undefined} style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.HAIR}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" onClick={open} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650 }}>{tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}</span>
+        <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>
+          {!ready ? '—' : list.length ? tr('home:focus.habitsDone', { defaultValue: '{done} of {total} done', done, total: list.length }) : tr('home:focus.habitsFirst', { defaultValue: 'Add your first' })}
+        </span>
+      </button>
+      {ready ? ticks.map((h) => (
+        <button key={h.id} type="button" data-habit-tick={h.done ? 'done' : 'open'} aria-pressed={h.done}
+          aria-label={h.name} onClick={() => { if (typeof onToggle === 'function') onToggle(h.id); }}
+          style={{ minWidth: 46, minHeight: 44, flexShrink: 0, padding: '3px 5px 2px', boxSizing: 'border-box', borderRadius: 4, border: `1px solid ${h.done ? t.INK : t.INK50}`, background: h.done ? t.INK : 'transparent', color: h.done ? t.PAPER : t.INK, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+          <span aria-hidden="true" style={{ fontSize: 13, lineHeight: 1 }}>✓</span>
+          {/* The box grows to its word ("No smoking" is not "NO SMOKI…"), up to a cap a long language still fits. */}
+          <span style={{ maxWidth: 64, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 6.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{short(h)}</span>
+        </button>
+      )) : null}
+      {ready && more > 0 ? (
+        <button type="button" onClick={open} aria-label={tr('home:habits.more', { defaultValue: '{count, plural, one {# more habit} other {# more habits}}', count: more })}
+          style={{ minWidth: 44, minHeight: 44, flexShrink: 0, padding: '0 4px', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70 }}>+{more}</button>
       ) : null}
-      <div style={{ marginTop: 10 }}>
-        {coaches.map((c) => {
-          const n = (c.conversationId && unread && unread[`dm:${c.conversationId}`]) || 0;
-          return (
-            <BSFocusLink key={`${c.role}:${c.providerId ?? c.name}`} color={gold} glyph="✎"
-              label={c.name ? tr('home:coaches.message', { defaultValue: 'Message {name}', name: c.name })
-                : c.role === 'nutritionist' ? tr('home:coaches.messageNutritionist', { defaultValue: 'Message your nutritionist' })
-                  : tr('home:coaches.messageTrainer', { defaultValue: 'Message your trainer' })}
-              tag={n > 0 ? tr('home:coaches.unread', { defaultValue: '{n} new', n }) : roleWord(c.role)}
-              onOpen={() => openThread(c)} />
-          );
-        })}
-        {next ? (
-          <BSFocusLink color={gold} glyph="◷" label={tr('home:coaches.nextSession', { defaultValue: 'Next session' })}
-            tag={`${when} · ${next.providerName || roleWord(next.providerRole)}`}
-            onOpen={() => { if (typeof onCalendar === 'function') onCalendar(new Date(next.at)); }} />
-        ) : null}
-      </div>
+      {ready && !list.length ? <span aria-hidden="true" style={{ color: t.INK50, fontSize: 20 }}>›</span> : null}
+    </div>
+  );
+}
+
+// ── SHORTCUTS, AS A LIST ─────────────────────────────────────────────────────────────────────────
+// The Home preview's Shortcuts (owner, 2026-11-03): a numbered list under a 2px ink rule, each row a
+// door with its name over one line, and a chevron. No figures.
+export function BSHomeShortcutList({ title, rows = [] }) {
+  const t = window.useBS();
+  if (!rows.length) return null;
+  return (
+    <section data-bs-home-shortcuts="" style={{ padding: `${t.sectGap || 22}px ${t.padX}px 0` }}>
+      <h2 style={{ margin: 0, paddingBottom: 8, borderBottom: `2px solid ${t.INK}`, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>
+        {title}<span aria-hidden="true" style={{ color: '#c0533b' }}>.</span>
+      </h2>
+      {rows.map((r, i) => (
+        <button key={r.key} type="button" data-home-shortcut={r.key} data-tour={r.tour || undefined} onClick={r.onOpen}
+          style={{ width: '100%', minHeight: 56, display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+          <span aria-hidden="true" style={{ width: 22, flexShrink: 0, fontFamily: t.MONO, fontSize: 10.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{String(i + 1).padStart(2, '0')}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650 }}>{r.label}</span>
+            {r.sub ? <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{r.sub}</span> : null}
+          </span>
+          <span aria-hidden="true" style={{ color: t.INK50, fontSize: 20 }}>›</span>
+        </button>
+      ))}
     </section>
   );
 }

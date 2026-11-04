@@ -257,9 +257,9 @@ function BSWaterDay({ dayIso }) {
 
   // ⚠ IN THE MORNING PANEL (owner, 2026-10-22, Option A: the card and the water row "look analog and
   // outdated"). The line draws no box of its own: BSMorningPanel (BSCheckinCard.jsx) holds it with the
-  // check-in card, or alone when Check-ins is off. A drop tile, Water and the day's total, the day as
-  // glasses against a target (one pip a glass of + Glass's size, at most 12), then + Glass as a round
-  // button (owner, 2026-10-23, of the board's water row: "add the updated water to home page"). Apple
+  // check-in card, or alone when Check-ins is off. Water and the day's total, the day as glasses against
+  // a target (one pip a glass of + Glass's size, at most 12), then + Glass as the panel's outline square
+  // (owner, 2026-10-23: "add the updated water to home page"; 2026-11-03, the Home preview). Apple
   // Health's share and Set a daily target are small lines under it.
   // ⚠ THE PIPS FILL A GLASS AT A TIME, TARGET OR NOT (owner, 2026-10-24: "the water here is supposed to
   // show little bars that fill up each time you add a glass"). Without a target the member set they
@@ -277,10 +277,7 @@ function BSWaterDay({ dayIso }) {
   return (
     <>
       <div data-bs-water="" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, background: `${sky}1f`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={sky} strokeWidth="1.9" strokeLinejoin="round"><path d="M12 3c3.6 4.3 6 7.7 6 10.6A6 6 0 0 1 6 13.6C6 10.7 8.4 7.3 12 3z" /></svg>
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* The total and the glasses share one wrapping row: the glasses sit beside the total and
               drop under it when a narrow phone, large text or a long language leaves no room, so they
               never squeeze Water or + Glass (Codex P2 on #2426). */}
@@ -300,18 +297,16 @@ function BSWaterDay({ dayIso }) {
               </span>
             ) : null}
           </span>
-          {/* The round you see is 38 px (owner, 2026-10-24: "make these smaller"); the tap stays 44,
-              its margin giving the row back the 6 px. */}
+          {/* + Glass is the morning panel's square (owner, 2026-11-03, the Home preview): a 44 px outline
+              box, the check-in's ✓ beside it in ink. */}
           <button type="button" data-bs-water-add="" aria-label={tr('home:checkin.addGlass', { defaultValue: '+ Glass' })} onClick={addWater} disabled={!water}
-            style={{ flex: 'none', width: 44, height: 44, minHeight: 44, margin: -3, padding: 0, border: 0, borderRadius: 999, background: 'transparent', color: t.isLight ? '#fff' : t.PAPER, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span aria-hidden data-bs-water-add-dot="" style={{ width: 38, height: 38, borderRadius: 999, background: onSky, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: t.isLight ? '0 8px 16px -10px rgba(26,111,156,0.9)' : 'none' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-            </span>
+            style={{ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, boxSizing: 'border-box', border: `1px solid ${t.INK50}`, borderRadius: 6, background: 'transparent', color: t.INK, cursor: water ? 'pointer' : 'default', opacity: water ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg aria-hidden data-bs-water-add-glyph="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
           </button>
         </div>
-        {share ? <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK50, paddingLeft: 40 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(share) })}</div> : null}
+        {share ? <div style={{ fontFamily: t.BODY, fontSize: 11.5, color: t.INK50 }}>{tr('home:checkin.waterFromHealth', { defaultValue: 'Includes {amount} from Apple Health', amount: litres(share) })}</div> : null}
         {signedIn && known && !target ? (
-          <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 32, margin: '-2px 0 -6px 40px', padding: '4px 0', border: 0, background: 'transparent', color: sky, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
+          <button type="button" onClick={openPick} style={{ alignSelf: 'flex-start', minHeight: 32, margin: '-2px 0 -6px', padding: '4px 0', border: 0, background: 'transparent', color: sky, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600 }}>{tr('home:water.setTarget', { defaultValue: 'Set a daily target' })}<span aria-hidden> ›</span></button>
         ) : null}
         {errLine('water')}{errLine('unconfirmed')}
       </div>

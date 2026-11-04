@@ -11,6 +11,8 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
+import { clientLocalDay } from '@/lib/local-day';
+import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
 import { bsGoalKind } from '../../../../../mobile-app/src/services/prefOptions.mjs';
 
 export const runtime = 'nodejs';
@@ -45,8 +47,35 @@ export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
 
+  // The member's own day and clock (Codex P2s on #2583). `?date=` is their local YYYY-MM-DD, the day
+  // the check-in and meal writers date a snapshot by; without it the day is the server's UTC day, as
+  // /api/client/progress does. `?tz=` is their zone, and a session's or activity's start is read in it,
+  // so "today" and the week agree with the snapshots; without a known zone its UTC date is read.
+  const params = new URL(request.url).searchParams;
+  // Only a real calendar day: one shaped right but impossible (2026-99-99, 2026-02-30) is the UTC
+  // day too, never a RangeError in the week's arithmetic (Codex P2 on #2583).
+  const today = (() => {
+    const asked = clientLocalDay(params.get('date'));
+    const d = new Date(`${asked}T12:00:00Z`);
+    return Number.isFinite(d.getTime()) && isoDateUTC(d) === asked ? asked : isoDateUTC(new Date());
+  })();
+  const zone = normalizeZone(params.get('tz'));
+  const dayOf = (startedAt: unknown) => {
+    const t = startedAt ? Date.parse(String(startedAt)) : NaN;
+    if (!Number.isFinite(t)) return null;
+    return zone ? (wallClockInZone(t, zone)?.date ?? null) : new Date(t).toISOString().slice(0, 10);
+  };
+  // A day `n` days before the member's day, shifted at noon UTC by whole days (local-day.ts's rule).
+  const dayBefore = (n: number) => { const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - n); return isoDateUTC(d); };
+
   const since14 = isoDateUTC(daysAgo(13));
-  const weekStart = daysAgo(6);
+  // The week's points count from the first minute of its first day on the member's clock (midnight in
+  // their zone; 01:00 where a clock change skips midnight), as the week's days do; UTC without a zone.
+  const weekStart = (() => {
+    const [y, mo, d] = dayBefore(6).split('-').map(Number);
+    const local = zone ? [0, 1].map((h) => instantInZone(y, mo, d, h, 0, zone)).find(Number.isFinite) : undefined;
+    return new Date(local ?? Date.UTC(y, mo - 1, d));
+  })();
 
   const [snapsRes, sessionsRes, ledgerRes, nutriGoalRes, trainGoalRes] = await Promise.all([
     supabase
@@ -106,13 +135,13 @@ export async function GET(request: Request) {
 
   // 7-day sparklines: each cell = normalized value in [0..1].
   const last7Dates: string[] = [];
-  for (let i = 6; i >= 0; i--) last7Dates.push(isoDateUTC(daysAgo(i)));
+  for (let i = 6; i >= 0; i--) last7Dates.push(dayBefore(i));
 
-  // Workout days in the last 7 (binary).
+  // Workout days in the last 7 (binary), each on the member's own day.
   const workoutDays = new Set<string>();
   for (const s of sessions) {
-    const dt = s.started_at ? new Date(String(s.started_at)) : null;
-    if (dt) workoutDays.add(isoDateUTC(dt));
+    const d = dayOf(s.started_at);
+    if (d) workoutDays.add(d);
   }
   const workoutTrend = last7Dates.map(d => (workoutDays.has(d) ? 1 : 0.15));
   const workoutsThisWeek = last7Dates.reduce((a, d) => a + (workoutDays.has(d) ? 1 : 0), 0);
@@ -161,8 +190,11 @@ export async function GET(request: Request) {
     }
     return null;
   };
-  const todaySnap = snaps[snaps.length - 1] || null;
-  const yest = snaps[snaps.length - 2] || null;
+  // Today's row is the member's own day's row, never the newest row: with nothing logged yet today,
+  // the newest is yesterday's, and Home read its calories as "Fuel left today" (Codex P2 on #2583).
+  const todayIdx = snaps.findIndex((s) => s.snapshot_date === today);
+  const todaySnap = todayIdx >= 0 ? snaps[todayIdx] : null;
+  const yest = todayIdx > 0 ? snaps[todayIdx - 1] : null;
   // Goal-derived targets. Calorie target shifts with goal; protein target
   // scales with body weight (≈1g/lb, nudged by goal), falling back to 150g.
   const latestWeight = latestOf((s) => (s.weight_lb != null ? Number(s.weight_lb) : null));
@@ -172,8 +204,7 @@ export async function GET(request: Request) {
     : 150;
 
   // Today's training, from the activities log (real miles / minutes / type).
-  const todayIso = isoDateUTC(daysAgo(0));
-  const todaysActivities = (activities || []).filter((a) => (a.started_at || '').slice(0, 10) === todayIso);
+  const todaysActivities = (activities || []).filter((a) => dayOf(a.started_at) === today);
   const trainedToday = todaysActivities.length > 0 || (todaySnap?.workout_minutes != null && Number(todaySnap.workout_minutes) > 0);
   const todayDistanceKm = todaysActivities.reduce((sum, a) => sum + (a.distance_km != null ? Number(a.distance_km) : 0), 0);
   const todayActivityMin = todaysActivities.reduce((sum, a) => sum + (a.duration_min != null ? Number(a.duration_min) : 0), 0)

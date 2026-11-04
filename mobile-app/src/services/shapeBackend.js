@@ -5963,7 +5963,9 @@ window.ShapeLeaderboard = { get: getLeaderboard, member: getMemberBoard, coach: 
 // Reads share the metrics cache — the ticker and the Progress hub consume the
 // SAME response now, so they can never disagree within a session.
 async function getAnalytics() {
-  return cachedClientJson('/api/client/analytics');
+  // The member's own day and zone, so today's figures are today's row and today's activities (as
+  // getClientProgress sends the day).
+  return cachedClientJson(`/api/client/analytics?date=${_localDate()}&tz=${encodeURIComponent(deviceZone() || '')}`);
 }
 async function getProgress() {
   return cachedClientJson('/api/client/progress');
@@ -8151,7 +8153,7 @@ window.ShapeProfiles = { getPublicProfile, getUserPoints, getUserAvatars, getCoa
 // one edge for part of every day. The day is in the URL, so the cache key turns over at local
 // midnight with it.
 async function getClientProgress() { return cachedClientJson(`/api/client/progress?date=${_localDate()}`).then((d) => (d && d.ok ? d : null)); }
-async function getClientAnalytics() { return cachedClientJson('/api/client/analytics').then((d) => (d && d.has_data ? d : null)); }
+async function getClientAnalytics() { return cachedClientJson(`/api/client/analytics?date=${_localDate()}&tz=${encodeURIComponent(deviceZone() || '')}`).then((d) => (d && d.has_data ? d : null)); }
 async function getClientTrain() { return cachedClientJson('/api/client/train').then((d) => (d && d.ok ? d : null)); }
 async function getClientNutrition() { return cachedClientJson('/api/client/nutrition').then((d) => (d && d.ok ? d : null)); }
 async function getClientHabits() { return cachedClientJson('/api/client/habits'); }

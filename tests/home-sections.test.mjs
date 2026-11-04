@@ -1,34 +1,15 @@
 // tests/home-sections.test.mjs
 //
-// HOME, PART 2 (owner, 2026-10-22, off the Home mockup). Home says what only Home can: Your goal,
-// Week so far and From your coaches. Two layers, each through the shipping code:
-//   · the reads (services/homeWeek.mjs): the week's days, the week so far, the goal's weight read,
-//     the next session and the coaches;
-//   · the sections (broadsheet/BSHomeSections.jsx), drawn from known data through their views.
+// HOME'S READS (services/homeWeek.mjs), through the shipping code: the week's days, the week so far and
+// its squares, the goal's weight read, the next session, the coaches the member pays and their notes.
+// The sections that draw them (the climb, the week's bars, Team, the habits row) are
+// tests/home-deck-team.test.mjs's.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { drive, SHIM, ROOT, THEME } from './helpers/broadsheet-mount.mjs';
-import { loadRealModule } from './helpers/load-real-module.mjs';
-import { IntlMessageFormat } from 'intl-messageformat';
+import { ROOT } from './helpers/broadsheet-mount.mjs';
 import * as H from '../mobile-app/src/services/homeWeek.mjs';
-
-// The app's translator with no catalog: each string is its English default, formatted as ICU.
-globalThis.ShapeI18n = { t: (key, opts = {}) => new IntlMessageFormat(String(opts.defaultValue ?? key), 'en').format(opts) };
-
-const S = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSHomeSections.jsx'), {
-  registry: new Map([['react', { ...SHIM, useContext: (c) => c._currentValue }], ['react-dom', { createPortal: (n) => n }]]),
-});
-
-const LB = 0.45359237;
-// The harness theme with the real kilogram → pound display the app's imperial theme has.
-const withPounds = (fn) => {
-  const prev = globalThis.useBS;
-  globalThis.useBS = () => new Proxy(THEME, { get: (t, k) => (k === 'kgToDisplay' ? (kg) => kg / LB : t[k]) });
-  try { return fn(); } finally { globalThis.useBS = prev; }
-};
-const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
 
 // ── The reads ────────────────────────────────────────────────────────────────
 
@@ -240,24 +221,24 @@ test('the weekly notes are the paid coaches\' alone', () => {
   assert.deepEqual(H.bsHomePaidBanners(banners, coaches).map((b) => b.id), ['a', 'c']);
   assert.deepEqual(H.bsHomePaidBanners(banners, []), [], 'no coach paid, no note');
   assert.deepEqual(H.bsHomePaidBanners(null, coaches), []);
-  // Home draws its notes through it, and a timed coach item carries its minutes onto the line, so
-  // Today's call can count down to it.
+  // Home's Team draws its notes through it (Today's call and the day's line left Home, 2026-11-03).
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const banners = bsHomePaidBanners\(coachFeed\.banners, planCoaches\);/);
-  assert.match(client, /key: `coach-\$\{it\.id\}`,\n\s+time: p\.time \|\| '',\n(\s+\/\/.*\n)*\s+_min: bsHomeTimeMinutes\(p\.time\),/);
-  assert.match(client, /const nextStop = todayDirective\.engine \? lineRows\.find\(\(r\) => typeof r\._min === 'number' && r\._min > bsNowMin && !r\.done\) : null;/);
 });
 
 test('the coaches are the ones the plan read says the member pays, trainers first', () => {
   const plan = {
-    meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 }] } },
-    training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 }, { name: null, conversationId: 'c-x', providerId: 9 }, { name: null }] } },
+    meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3, photo: 'data:image/jpeg;base64,/9j/4AAQ' }, { name: 'Lee Vector', conversationId: 'c-l', providerId: 4, photo: 'data:image/svg+xml;base64,PHN2Zz4=' }] } },
+    training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j', providerId: 7, photo: 'https://cdn.example/j.jpg' }, { name: null, conversationId: 'c-x', providerId: 9, photo: 'javascript:alert(1)' }, { name: null }] } },
   };
   assert.deepEqual(H.bsHomeCoachesOf(plan), [
-    { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7 },
+    // The face on the Team card: the plan read's photo, a listing portrait (https) or the profile photo the
+    // picker wrote (a raster data URL); anything else is no photo.
+    { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7, photo: 'https://cdn.example/j.jpg' },
     // Paid, but the listing's name couldn't be read: still a coach (Codex P2 on #2424).
-    { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9 },
-    { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 },
+    { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9, photo: null },
+    { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3, photo: 'data:image/jpeg;base64,/9j/4AAQ' },
+    { role: 'nutritionist', name: 'Lee Vector', conversationId: 'c-l', providerId: 4, photo: null },
   ]);
   assert.deepEqual(H.bsHomeCoachesOf({ training: { coaching: null }, meals: {} }), [], 'no coach, or a read that failed');
   assert.deepEqual(H.bsHomeCoachesOf(null), []);
@@ -273,128 +254,13 @@ test('"no coach" is known only when the read named coaching for both disciplines
   assert.equal(H.bsHomeCoachesKnown(null), false, 'ShapePlan.get resolves null when it fails');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /if \(on && bsHomeCoachesKnown\(p\)\) setCoachesKnown\(true\);/);
-  assert.match(client, /const findCoach = !planCoaches\.length && \(!bsHomeSignedIn \|\| coachesKnown\);/);
+  // Team's Find a coach: signed in it waits for the read; the signed-out preview shows the sample's two
+  // coaches (owner, 2026-11-03: "the preview of app should show a potential real life account").
+  assert.match(client, /const teamCoaches = sample\n\s+\? \[\{ role: 'trainer', name: 'Jordan Chen'[^\n]*\n\s+: planCoaches;/);
+  assert.match(client, /showFindCoach=\{!teamCoaches\.length && coachesKnown\}/);
 });
 
-// ── The sections ─────────────────────────────────────────────────────────────
-
-const GOAL_PROPS = (over = {}) => ({
-  docKg: (v, o) => (v == null || v === '' ? null : (/^lb/i.test(String((o && o.unit) || 'kg')) ? Number(v) * LB : Number(v))),
-  isWeightGoal: (id) => ['fat_loss', 'muscle', ''].includes(id || ''),
-  goalWords: (id) => ({ fat_loss: 'Lose fat', race: 'Run a race' })[id] || id,
-  todayIso: '2026-10-22',
-  ...over,
-});
-
-test('Your goal: the words, where the weigh-ins stand in the member\'s units, the line, and when it lands', () => withPounds(() => {
-  const opened = [];
-  const data = { primary: 'fat_loss', overall: { title: 'Lean, and quick on the bike again', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
-  const d = drive(S.BSHomeGoalView, GOAL_PROPS({ data, tour: 'hero-goal', onOpen: () => opened.push(1) }));
-  const text = d.text;
-  assert.match(text, /“Lean, and quick on the bike again”/, 'the goal in the member\'s own words');
-  assert.match(text, /171\.1/, '77.6 kg reads in pounds');
-  assert.match(text, /165\.3 lb/, 'the target');
-  assert.match(text, /−5\.3/, 'the change since the start, in pounds');
-  assert.match(text, /−0\.8/, 'the pace in pounds a week');
-  assert.match(text, /5\.7/, 'what is left');
-  assert.match(text, /At this rate, around/);
-  const title = d.nodes().find(fn('BSFocusTitle'));
-  assert.equal(title.props.title, 'Your goal');
-  assert.match(title.props.kicker, /^Since /);
-  const line = d.nodes().find(fn('BSHsTrend'));
-  assert.equal(line.props.points.length, 6, 'the line is the last 56 days of weigh-ins');
-  assert.match(line.props.label, /^Weigh-ins from 176\.4 to 171\.1 lb$/, 'and is labelled');
-  assert.equal(d.nodes()[0].props['data-tour'], 'hero-goal', 'the tour\'s goal step anchors here');
-  // Another step smaller (owner, 2026-10-24: "make these smaller"): the figure 34, the three under it 16.
-  const now = d.nodes().find((n) => n.type === 'span' && n.props.children === '171.1');
-  assert.equal(now.props.style.fontSize, 34);
-  // The goal beside the figure is 16 too; it reads as a number and its unit, the three as one string.
-  const figs = d.nodes().filter((n) => n.type === 'div' && n.props.style && n.props.style.fontVariantNumeric === 'tabular-nums' && n.props.style.fontSize === 16 && typeof n.props.children === 'string');
-  assert.equal(figs.length, 3);
-  const weighIn = d.nodes().find((n) => fn('BSHsAction')(n) && n.props.label === 'Weigh in →');
-  weighIn.props.onClick();
-  assert.equal(opened.length, 1, 'Weigh in opens the goal page');
-}));
-
-test('Your goal says only what it can: words alone, no weigh-ins yet, or nothing set', () => withPounds(() => {
-  // A goal that is not about weight, with no weight target: its words, and the door to it.
-  const race = drive(S.BSHomeGoalView, GOAL_PROPS({ data: { primary: 'race', overall: {}, weighIns: LOSING } }));
-  assert.match(race.text, /“Run a race”/);
-  assert.doesNotMatch(race.text, /171\.1|lb now/, 'no weight read on a race goal');
-  assert.ok(race.nodes().some((n) => fn('BSHsAction')(n) && n.props.label === 'Your goal →'));
-  // The same goal with a weight target set reads the weigh-ins again.
-  const raceLb = drive(S.BSHomeGoalView, GOAL_PROPS({ data: { primary: 'race', overall: { unit: 'lb', target: 165 }, weighIns: LOSING } }));
-  assert.match(raceLb.text, /171\.1/);
-  assert.match(raceLb.text, /165\.0 lb/, 'a pound target reads back as typed');
-  // A weight goal before the first weigh-in.
-  const fresh = drive(S.BSHomeGoalView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: {}, weighIns: [] } }));
-  assert.match(fresh.text, /“Lose fat”/);
-  assert.match(fresh.text, /No weigh-ins yet\./);
-  // Nothing set at all.
-  const none = drive(S.BSHomeGoalView, GOAL_PROPS({ data: { primary: '', overall: {}, weighIns: [] } }));
-  assert.match(none.text, /Set a goal/);
-  assert.ok(none.nodes().some((n) => fn('BSHsAction')(n) && n.props.label === 'Set your goal →'), 'nothing set: the door sets one');
-  // No goal yet but weigh-ins logged: it reads as a weight goal, as on the Goal page.
-  const weighed = drive(S.BSHomeGoalView, GOAL_PROPS({ data: { primary: '', overall: {}, weighIns: LOSING } }));
-  assert.match(weighed.text, /171\.1/);
-  assert.ok(weighed.nodes().some((n) => fn('BSHsAction')(n) && n.props.label === 'Weigh in →'));
-}));
-
-// Owner, 2026-10-25, of the three Week so far mockups: "go with B". A row a figure, each a door to where
-// it lives: its name, a square a day Monday to Sunday, and the week's figure at the right.
-const GRID = {
-  week: ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'],
-  today: 3,
-  sessions: ['hit', 'rest', 'miss', 'ahead', 'ahead', 'ahead', 'ahead'],
-  food: ['hit', 'hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead'],
-  protein: ['hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead', 'ahead'],
-  steps: ['miss', 'hit', 'miss', 'ahead', 'ahead', 'ahead', 'ahead'],
-  mornings: ['hit', 'miss', 'hit', 'ahead', 'ahead', 'ahead', 'ahead'],
-};
-test('Week so far: a row a figure with a square a day, each row opening where it lives, and no check-ins row with Check-ins off', () => {
-  const doors = [];
-  const door = (k) => () => doors.push(k);
-  const w = { days: 4, sessions: { done: 2, planned: 4 }, daysLogged: 3, protein: { avg: 121, target: 140 }, steps: { avg: 6980, goal: 8000 }, mornings: 3, grid: GRID };
-  const props = { w, onTrain: door('train'), onEat: door('eat'), onProgress: door('progress'), onSteps: door('steps'), onMornings: door('mornings') };
-  const d = drive(S.BSHomeWeekView, { ...props, checkinsOn: true });
-  const rows = d.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']);
-  assert.deepEqual(rows.map((r) => r.props['data-bs-home-week-row']), ['sessions', 'food', 'protein', 'steps', 'mornings']);
-  // Each row names itself, its figure and each day's square for a screen reader (Codex P2 on #2449: the
-  // squares, the day letters and the key are hidden from it).
-  const ahead = 'Thursday: to come, Friday: to come, Saturday: to come, Sunday: to come';
-  assert.deepEqual(rows.map((r) => r.props['aria-label']), [
-    `Sessions: 2 of 4. Monday: hit, Tuesday: rest day, Wednesday: missed, ${ahead}`,
-    'Food logged: 3 of 4 days. Monday: hit, Tuesday: hit, Wednesday: missed, Thursday: hit, Friday: to come, Saturday: to come, Sunday: to come',
-    `Protein: 121g of 140 g. Monday: hit, Tuesday: missed, Wednesday: hit, ${ahead}`,
-    `Steps: 6,980 of 8,000. Monday: missed, Tuesday: hit, Wednesday: missed, ${ahead}`,
-    `Check-ins: 3 of 4. Monday: hit, Tuesday: missed, Wednesday: hit, ${ahead}`,
-  ]);
-  assert.ok(rows.every((r) => r.props.style.minHeight === 44 && !r.props.style.borderRadius), 'a row is a square 44 px door');
-  // The squares are the grid's, a row's in its own colour.
-  const cells = (r) => (Array.isArray(r.props.children) ? r.props.children.flat() : []).filter(fn('BSHsWeekCell'));
-  assert.deepEqual(cells(rows[0]).map((c) => c.props.state), GRID.sessions);
-  assert.deepEqual(cells(rows[3]).map((c) => c.props.state), GRID.steps);
-  assert.equal(cells(rows[0])[0].props.color, THEME.RUST);
-  rows.forEach((r) => r.props.onClick());
-  assert.deepEqual(doors, ['train', 'eat', 'progress', 'steps', 'mornings']);
-  // The head: the magazine's, over a 2px ink rule; the days' letters, today's underlined.
-  const head = d.nodes().find((n) => n.props && n.props['data-bs-home-week-head'] != null);
-  assert.match(head.props.style.borderBottom, /^2px solid /);
-  assert.match(d.text, /Week so far/);
-  assert.match(d.text, /A square a day/);
-  // The key, with a rest day because the sessions row has one, and the targets' rule.
-  assert.match(d.text, /hit.*missed.*to come.*rest day/);
-  assert.match(d.text, /a protein day reaches 140 g · a steps day reaches 8,000/);
-  const off = drive(S.BSHomeWeekView, { ...props, checkinsOn: false });
-  assert.equal(off.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']).length, 4, 'Check-ins off: no mornings row');
-  // Nothing read: a dash, never a zero, a dot for each square; no plan: "this week", no "/n".
-  const unknown = drive(S.BSHomeWeekView, { ...props, w: { days: 4, sessions: { done: null, planned: null }, daysLogged: null, protein: { avg: null, target: null }, steps: { avg: null, goal: 8000 }, mornings: null, grid: null } });
-  const u = unknown.nodes().filter((n) => n.type === 'button' && n.props['data-bs-home-week-row']);
-  assert.deepEqual(u.map((r) => r.props['aria-label']), ['Sessions: — this week', 'Food logged: — of 4 days', 'Protein: —', 'Steps: — of 8,000', 'Check-ins: — of 4']);
-  assert.ok(cells(u[0]).every((c) => c.props.state == null), 'an unread week marks no square missed');
-  assert.doesNotMatch(unknown.text, /\/4/, 'no "/4" after a dash');
-  assert.doesNotMatch(unknown.text, /rest day/);
-});
+// ── The week's squares ───────────────────────────────────────────────────────
 
 // The squares, through the model: hit, missed (a session only on a day the plan set one), a rest day,
 // today until it is hit and the days ahead, and nothing said when nothing was read.
@@ -457,94 +323,14 @@ test('the days trained and the plan\'s days come off their reads, and a failed r
   assert.match(client, /plannedDays=\{bsHomeSessionsPlannedDays\(livePlan\)\} planRead=\{planRead\}/);
 });
 
-// The signed-out preview's sample is one week, and its counts are its own squares' hits so far.
-test('the preview\'s sample week: the counts beside the squares are its own hits so far', () => {
-  delete globalThis.ShapeAuth;
-  const d = drive(S.BSHomeWeekSoFar, {});
-  const view = d.nodes().find(fn('BSHomeWeekView'));
-  const w = view.props.w;
-  assert.ok(w.grid, 'the sample draws no squares');
-  const hits = (k) => w.grid[k].filter((x) => x === 'hit').length;
-  assert.equal(w.sessions.done, hits('sessions'));
-  assert.equal(w.daysLogged, hits('food'));
-  assert.equal(w.mornings, hits('mornings'));
-  assert.equal(w.sessions.planned, 4);
-  assert.ok(w.grid.sessions.every((x, i) => x !== 'miss' || [0, 2, 3, 5].includes(i)), 'a sample session is missed only on a planned day');
-});
-
-test('From your coaches: their notes, a message door to each with what is unread, and the next session', () => {
-  assert.equal(drive(S.BSHomeCoachesView, {}).nodes().length, 0, 'nothing to say draws nothing');
-  const sent = [];
-  const listen = (e) => sent.push(e.detail);
-  globalThis.addEventListener?.('shape:openConversation', listen);
-  const days = [];
-  const next = { at: Date.parse('2026-10-24T13:00:00Z'), providerName: 'Jordan Chen', providerRole: 'trainer' };
-  const d = drive(S.BSHomeCoachesView, {
-    notes: [{ role: 'trainer', text: 'Keep every lift while the weight comes off.', who: 'Jordan Chen' }],
-    coaches: [{ role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j' }, { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m' }],
-    unread: { 'dm:c-m': 2 },
-    next,
-    onCalendar: (day) => days.push(day),
-  });
-  assert.match(d.text, /“Keep every lift while the weight comes off\.”/);
-  assert.match(d.text, /— Jordan Chen · Trainer/);
-  const links = d.nodes().filter(fn('BSFocusLink'));
-  assert.deepEqual(links.map((l) => [l.props.label, l.props.tag.replace(/,.*·/, ' ·')]), [
-    ['Message Jordan Chen', 'Trainer'],
-    ['Message Dr. Maya Patel', '2 new'],
-    ['Next session', 'Sat · Jordan Chen'],
-  ]);
-  links[1].props.onOpen();
-  links[2].props.onOpen();
-  assert.equal(days.length, 1);
-  assert.equal(days[0].getTime(), next.at, 'the calendar opens on the session\'s day');
-  if (globalThis.addEventListener) {
-    assert.deepEqual(sent, [{ conversationId: 'c-m', name: 'Dr. Maya Patel' }], 'the message door opens that coach\'s thread');
-    globalThis.removeEventListener('shape:openConversation', listen);
-  }
-});
-
-test('a coach whose thread is not set up yet opens the coaches\' threads, never another coach\'s (Codex P2 on #2424)', () => {
-  const sent = [];
-  const listen = (e) => sent.push(e.detail);
-  globalThis.addEventListener?.('shape:openConversation', listen);
-  let coachesOpened = 0;
-  const d = drive(S.BSHomeCoachesView, { coaches: [{ role: 'trainer', name: 'Jordan Chen', conversationId: null }], onCoaches: () => { coachesOpened += 1; } });
-  const row = d.nodes().find(fn('BSFocusLink'));
-  assert.equal(row.props.label, 'Message Jordan Chen');
-  row.props.onOpen();
-  assert.equal(coachesOpened, 1);
-  assert.deepEqual(sent, [], 'no event with no thread to open');
-  globalThis.removeEventListener?.('shape:openConversation', listen);
-});
-
-test('a paid coach whose name could not be read is offered by role (Codex P2 on #2424)', () => {
-  const sent = [];
-  const listen = (e) => sent.push(e.detail);
-  globalThis.addEventListener?.('shape:openConversation', listen);
-  const d = drive(S.BSHomeCoachesView, { coaches: [
-    { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9 },
-    { role: 'nutritionist', name: null, conversationId: null, providerId: 3 },
-    { role: 'trainer', name: null, conversationId: 'c-y', providerId: 10 },
-  ], onCoaches: () => {} });
-  const links = d.nodes().filter(fn('BSFocusLink'));
-  assert.deepEqual(links.map((l) => l.props.label), ['Message your trainer', 'Message your nutritionist', 'Message your trainer']);
-  assert.equal(new Set(links.map((l) => l.key)).size, 3, 'two nameless trainers keep their own rows');
-  links[0].props.onOpen();
-  if (globalThis.addEventListener) {
-    assert.deepEqual(sent, [{ conversationId: 'c-x', name: undefined }], 'their thread opens, with no name to show');
-    globalThis.removeEventListener('shape:openConversation', listen);
-  }
-});
-
-test('Week so far uses a read only in the week it was read for (Codex P2s on #2424)', () => {
+test('the week\'s reads are used only in the week they were read for (Codex P2s on #2424)', () => {
   const series = { kcal: [] };
   assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: series }, '2026-10-19'), series);
   assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: 3 }, '2026-10-19'), 3);
   assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: 0 }, '2026-10-19'), 0, 'a real zero stays');
   assert.equal(H.bsHwOfWeek({ monday: '2026-10-19', v: series }, '2026-10-26'), null, 'last week\'s read on a new Monday is unknown');
   assert.equal(H.bsHwOfWeek(null, '2026-10-26'), null, 'nothing read yet');
-  // Both of the section's reads go through it.
+  // Both of useBSHomeWeek's reads go through it (Home's week bars draw off it).
   const src = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSHomeSections.jsx'), 'utf8');
   assert.match(src, /setSeries\(\{ monday, v: bsHwSeriesOf\(p\) \}\)/);
   assert.match(src, /setTrained\(\{ monday, v: bsHwTrainedOf\(p\), days: bsHwTrainedDaysOf\(p\) \}\)/);
@@ -552,4 +338,29 @@ test('Week so far uses a read only in the week it was read for (Codex P2s on #24
   assert.match(src, /const weekSeries = bsHwOfWeek\(series, monday\);/);
   assert.match(src, /series: weekSeries, workoutsDone: bsHwOfWeek\(trained, monday\),/);
   assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);
+});
+
+test("the ticker: signed out the preview; signed in only the member's own figures, never a sample beside a real one (#2583)", () => {
+  const all = [{ label: 'PTS', value: '1,240', live: true }, { label: 'CAL', value: '1568/2100', live: false }, { label: 'HAB', value: '2/3', live: true }, { label: 'SLP', value: '7H24M', live: false }];
+  const out = [all[2], all[0], all[1], all[3]];
+  // Signed out: the preview, in the member's order; everything hidden still reads as the preview.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: false }), out);
+  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: false }), all);
+  // Signed in: only the live ones, in their order: a habit and the score, never the sample calories or sleep.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true }).map((i) => i.label), ['HAB', 'PTS']);
+  // A new account whose score is all there is: the score alone (Codex P2 on #2583).
+  assert.deepEqual(H.bsHomeTickerShown([all[0], all[1]], all, { signedIn: true }).map((i) => i.label), ['PTS']);
+  // Nothing live, or everything hidden: no ticker, never the hidden ones back.
+  assert.deepEqual(H.bsHomeTickerShown([all[1], all[3]], all, { signedIn: true }), []);
+  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: true }), []);
+  // Home's ticker marks each entry live from its own read, and the score in the reader's number format.
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /return bsHomeTickerShown\(out, all, \{ signedIn: bsHomeSignedIn \}\);/);
+  assert.match(client, /\{ label: 'PTS', live: true, value: homeScore\.total\.toLocaleString\(bsCkLocale\(\)\)/);
+  for (const [k, live] of [['CAL', "tk.cal != null"], ['PRO', "tk.protein_g != null"], ['HAB', '!!tkHab'], ['SLP', 'tk.sleep_hours != null'], ['HRV', 'tk.hrv_ms != null'], ['RHR', 'tk.resting_hr != null'], ['WGT', 'tk.weight_lb != null']]) {
+    assert.ok(client.includes(`{ label: '${k}', live: ${live},`), `${k} says when it is the member's own`);
+  }
+  assert.doesNotMatch(client, /toLocaleString\('en-US'\)/, 'the score in English digits everywhere');
+  // The score is one of Settings' ticker entries, so it can be moved or hidden like the rest.
+  assert.match(client, /const BS_TICKER_METRICS = \[[\s\S]{0,200}\{ key: 'PTS', name: 'Shape Score' \},/);
 });

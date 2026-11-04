@@ -132,13 +132,15 @@ test('the line is one row in the morning panel: a pip a glass beside the total, 
     const add = line.querySelector('[data-bs-water-add]');
     assert.equal(add.style.minHeight, '44px', "+ Glass's tap shrank");
     assert.equal(add.style.width, '44px');
-    assert.equal(add.style.borderRadius, '999px', '+ Glass is round');
-    assert.equal(add.getAttribute('aria-label'), '+ Glass', 'the round button still says what it does');
-    // The round you see is a step smaller than the tap (owner, 2026-10-24: "make these smaller").
-    const dot = add.querySelector('[data-bs-water-add-dot]');
-    assert.equal(dot.style.width, '38px');
-    assert.equal(dot.style.borderRadius, '999px');
-    assert.equal(add.style.margin, '-3px', 'the row lays the button out at the round\'s size');
+    // The morning panel's square (owner, 2026-11-03, the Home preview): an outline box, the check-in's
+    // ✓ beside it in ink, so the panel's controls are one shape.
+    assert.equal(add.style.height, '44px');
+    assert.equal(add.style.borderRadius, '6px', '+ Glass is not the panel\'s square');
+    assert.match(add.style.border, /^1px solid/, '+ Glass lost its outline');
+    assert.equal(add.style.background, 'transparent', '+ Glass is filled: only the check-in\'s ✓ is ink');
+    assert.equal(add.getAttribute('aria-label'), '+ Glass', 'the square still says what it does');
+    assert.ok(add.querySelector('[data-bs-water-add-glyph]'), 'the square lost its ＋');
+    assert.ok(!line.querySelector('svg path[d^="M12 3c3.6"]'), 'the drop tile came back: the rows have no tiles');
   } finally { m.unmount(); }
   // No target: the pips count the day's glasses, the next one empty, and fill one a tap (owner,
   // 2026-10-24: "the water here is supposed to show little bars that fill up each time you add a

@@ -547,63 +547,77 @@ test('Train reads in the Focus order: the week, the session, the links', () => {
   assert.ok(String(order[lead].props.title || '').length > 0, 'the session has a title');
 });
 
-// Owner, 2026-10-11, on the first build: "check-in should be towards the top". Owner, 2026-10-22, off
-// the Home mockup: Your line and At a glance left Home (Eat and Train carry the day), and Home says
-// what only it can: Today's call, Your goal, Week so far and From your coaches, then the links.
-// Owner, 2026-10-22, Option A: the check-in card and water share one morning panel on Home.
-test('Home holds the check-in card and water in one morning panel', () => {
+// Owner, 2026-10-11, on the first build: "check-in should be towards the top". Owner, 2026-10-22, Option A:
+// the check-in card and water share one morning panel on Home; owner, 2026-11-03: "add daily habits in
+// here instead of at bottom".
+test('Home holds the check-in card, water and the daily habits in one morning panel', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
   const panels = d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSMorningPanel');
   assert.equal(panels.length, 1, 'one panel');
   const kids = [].concat(panels[0].props.children).filter(Boolean);
-  assert.deepEqual(kids.map((k) => k.type.name), ['BSTodayNudge', 'BSWaterLine'], 'the card, then water');
+  assert.deepEqual(kids.map((k) => k.type.name), ['BSTodayNudge', 'BSWaterLine', 'BSHomeHabitsRow'], 'the card, then water, then the habits');
   assert.equal(kids[0].props.variant, 'bulletin');
+  assert.equal(kids[2].props.tour, 'hero-habits', "the tour's habits step anchors on the panel's habits");
+  assert.equal(typeof kids[2].props.onOpen, 'function', 'the habits row opens the Habits page');
 });
 
-test('Home reads in the Focus order: check-in, today\'s call, your goal, week so far, coaches, then the links', () => {
+// Owner, 2026-11-03, the Home the owner chose: "C on top, M3 below, but use this design at the top, and
+// move shape radio box above the graph", "the chart should just be goal progress", "move check in to above
+// in your corner", "change 'in your corner' to 'team'", "remove your crew", and Today's call off Home
+// ("remove this", "and replace with just this", "so you dont have them twice").
+test('Home reads: the deck (Shape Radio, the climb, the week), the morning panel, Team, then the shortcuts', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientHome, { onProfile() {}, goCalendar() {}, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
   const order = d.nodes();
   const at = (pred) => order.findIndex(pred);
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  const deck = at(fn('BSHomeDeck'));
+  const climb = at(fn('BSHomeClimb'));
+  const week = at(fn('BSHomeWeekBars'));
   const checkin = at((n) => fn('BSTodayNudge')(n) && n.props.variant === 'bulletin');
-  const call = at((n) => fn('BSFocusHead')(n) && n.props.label === 'Today\u2019s call');
-  const lead = at((n) => n.props && n.props.tour === 'hero-home');
-  const goal = at(fn('BSHomeGoal'));
-  const week = at(fn('BSHomeWeekSoFar'));
-  const coaches = at(fn('BSHomeCoaches'));
-  const habits = at((n) => n.props && n.props.tour === 'hero-habits');
-  assert.ok(lead >= 0, 'no lead (today always has one, the done state included)');
-  assert.ok(checkin >= 0 && checkin < call && call < lead, 'the check-in sits at the top, above Today\'s call');
-  assert.ok(goal > lead && week > goal && coaches > week && habits > coaches, 'goal, week so far, coaches, then the links');
-  assert.equal(order[goal].props.tour, 'hero-goal', 'the tour\'s goal step anchors on the goal section');
-  assert.equal(typeof order[goal].props.onOpen, 'function');
-  assert.equal(order.filter((n) => n.props && n.props.tour === 'hero-goal').length, 1, 'one goal anchor: the Goal link is gone');
-  assert.equal(at(fn('BSFocusLine')), -1, 'Your line is gone from Home');
-  assert.equal(at((n) => fn('BSFocusTitle')(n) && n.props.title === 'At a glance'), -1, 'At a glance is gone');
-  assert.doesNotMatch(d.text, /Kcal left|Protein to go|Next stop/);
-  assert.equal(typeof order[habits].props.onOpen, 'function');
-  assert.doesNotMatch(d.text, /Today's slate/, 'the old slate head is gone');
+  const team = at(fn('BSHomeTeam'));
+  const shortcuts = at(fn('BSHomeShortcutList'));
+  assert.ok(deck >= 0, 'no deck');
+  // Shape Radio is a window global the shallow drive does not load, so its place is read from the source.
+  assert.match(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8'), /<BSHomeDeck radio=\{<BSNowPlaying onOpen=\{goRadio\} \/>\}>/, "Shape Radio is not the deck's first line");
+  assert.ok(climb > deck && week > climb, 'the climb, then the week, in the deck');
+  assert.ok(checkin > week && team > checkin && shortcuts > team, 'the morning panel, then Team, then the shortcuts');
+  assert.equal(order[climb].props.tour, 'hero-goal', "the tour's goal step anchors on the climb");
+  assert.equal(typeof order[climb].props.onOpen, 'function', 'the climb opens Your goals');
+  assert.equal(order.filter((n) => n.props && n.props.tour === 'hero-goal').length, 1, 'one goal anchor');
+  assert.equal(order[team].props.tour, 'hero-home', "the tour's Home step anchors on Team");
+  for (const gone of ['BSHomeGoal', 'BSHomeWeekSoFar', 'BSHomeCoaches', 'BSFocusLine', 'BSHomeWallBulletin']) {
+    assert.equal(at(fn(gone)), -1, `${gone} is still on Home`);
+  }
+  assert.equal(at((n) => fn('BSFocusHead')(n) && n.props.label === 'Today\u2019s call'), -1, "Today's call is on Home twice: Team's trainer card carries it");
+  assert.doesNotMatch(d.text, /Your crew/, 'Your crew lives on the Wall');
+  assert.doesNotMatch(d.text, /Kcal left|Protein to go|Next stop|Today's slate/);
+  // The signed-out preview is a member's account: the sample's two coaches, their faces and her note.
+  const sample = order[team].props;
+  assert.deepEqual(sample.coaches.map((c) => [c.role, c.name]), [['trainer', 'Jordan Chen'], ['nutritionist', 'Dr. Maya Patel']]);
+  assert.ok(sample.coaches.every((c) => /\/faces\/coach-[a-z]+\.jpg$/.test(c.photo)), 'a sample coach without their face');
+  assert.equal(sample.showFindCoach, false, 'Find a coach beside two coaches');
+  assert.ok(sample.notes.some((n) => n.role === 'nutritionist' && n.who === 'Dr. Maya Patel'), "the sample's note");
 });
 
 // A day in Home's week opens the calendar on that day, where its plan is; Home itself stays on today.
-test("a day tapped in Home's week opens the calendar on that day", () => {
+test("a day tapped in Home's week opens the calendar on that day, and Month opens the month", () => {
   delete globalThis.ShapeAuth;
   const opened = [];
   const d = drive(BSClientHome, { onProfile() {}, goCalendar(day) { opened.push(day); }, goRadio() {}, goTrain() {}, goEat() {}, goMarket() {}, goScore() {}, goChat() {}, goIntegrations() {}, tweaks: {}, setTweak() {} });
-  const days = d.nodes().filter((n) => n.type === 'button' && /, (today|\w+ \d+)/.test(String(n.props['aria-label'] || '')) && n.props.style && n.props.style.minHeight === 44 && n.props.style.flexDirection === 'column');
-  assert.equal(days.length, 7, 'the week has seven days');
-  const lead = () => d.nodes().find((n) => n.props && n.props.tour === 'hero-home');
-  assert.ok(lead(), 'today has a lead');
-  const today = new Date();
-  const other = days.find((b) => !/today/.test(b.props['aria-label']));
-  other.props.onClick();
+  const bars = () => d.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSHomeWeekBars');
+  const team = () => d.nodes().find((n) => n.props && n.props.tour === 'hero-home');
+  assert.ok(bars(), 'no week on Home');
+  const day = new Date(2026, 8, 9);
+  bars().props.onDay(day);
   d.render();
   assert.equal(opened.length, 1);
-  assert.ok(opened[0] instanceof Date, 'the calendar is handed the day');
-  assert.notEqual(opened[0].toDateString(), today.toDateString(), 'the tapped day, not today');
-  assert.ok(lead(), 'Home stays on today: the lead is still there');
+  assert.equal(opened[0], day, 'the calendar is handed the tapped day');
+  assert.ok(team(), 'Home stays on today: Team is still there');
+  bars().props.onMonth();
+  assert.equal(opened.length, 2);
+  assert.equal(opened[1], undefined, 'Month opens the calendar on today');
 });
 
 // The calendar the tap lands on, mounted for real: signed in, it opens on the day it is handed; with no

@@ -315,13 +315,27 @@ export function bsHomeCoachesKnown(plan) {
     && Object.prototype.hasOwnProperty.call(plan.meals, 'coaching'));
 }
 
+// What Home's ticker shows. Signed out it is the preview's numbers. Signed in it is only what is the
+// member's own (each entry says whether it is `live`), in their order and without what they hid: the
+// score alone for a new account (Codex P2 on #2583), never a sample figure beside a real one, and nothing
+// at all when nothing is live or they hid everything. `out` is `all` in the member's order with their
+// hidden entries taken out.
+export function bsHomeTickerShown(out, all, { signedIn } = {}) {
+  const shown = Array.isArray(out) ? out : [];
+  if (signedIn) return shown.filter((i) => i && i.live === true);
+  return shown.length ? shown : (Array.isArray(all) ? all : []);
+}
+
 export function bsHomeCoachesOf(plan) {
   const out = [];
   const add = (part, role) => {
     const c = plan && plan[part] && plan[part].coaching;
     const list = c && Array.isArray(c.coaches) ? c.coaches : [];
     for (const k of list) {
-      if (k && (k.name || k.providerId != null)) out.push({ role, name: k.name ? String(k.name) : null, conversationId: k.conversationId || null, providerId: k.providerId ?? null });
+      // `photo`: the listing's portrait (https, through the marketplace's gate) or the coach's profile photo
+      // (the picker's JPEG as a data URL), when the plan read found one; anything else is no photo.
+      const photo = k && typeof k.photo === 'string' && /^(?:https:\/\/|data:image\/(?:jpeg|png|webp);base64,)/.test(k.photo) ? k.photo : null;
+      if (k && (k.name || k.providerId != null)) out.push({ role, name: k.name ? String(k.name) : null, conversationId: k.conversationId || null, providerId: k.providerId ?? null, photo });
     }
   };
   add('training', 'trainer');

@@ -567,8 +567,9 @@ test('the app station sits on Home for a signed-in member, after the check-ins, 
   // mean anything: a missing one reads -1 and the order check below would pass on nothing.
   assert.ok(home.indexOf('<BSTodayNudge variant="row"') > 0, 'the Check-ins-off row is gone from Home');
   assert.ok(home.indexOf('<BSMemberSetupStation') > home.indexOf('<BSTodayNudge variant="row"'), 'under the check-ins');
-  assert.ok(home.indexOf('FOCUS · TODAY\'S CALL') > 0, 'the lead\'s marker is gone from Home');
-  assert.ok(home.indexOf('<BSMemberSetupStation') < home.indexOf('FOCUS · TODAY\'S CALL'), 'above Today\'s call (was the next stop)');
+  // Today's call came off Home into Team's trainer card (owner, 2026-11-03): the station sits above Team.
+  assert.ok(home.indexOf('<BSHomeTeam tour="hero-home"') > 0, 'Team is gone from Home');
+  assert.ok(home.indexOf('<BSMemberSetupStation') < home.indexOf('<BSHomeTeam tour="hero-home"'), 'above Team');
   const backend = read('mobile-app/src/services/shapeBackend.js');
   assert.match(backend, /fetch\(`\$\{apiBaseUrl \|\| ''\}\/api\/client\/onboarding`, \{ credentials: 'same-origin', headers: sessionsAuthHeaders\(\) \}\)/, 'Bearer in the installed app');
   assert.match(backend, /window\.ShapeMemberSetup = \{ get: getMemberSetup, setWeekOne: setMemberWeekOne \};/);
