@@ -1952,10 +1952,14 @@ function BSRadioSignalField({ paused, matching, heartBpm, teal, hot, heart, pape
             ctx.globalAlpha = (1 - kx) * 0.16;
             ctx.beginPath(); ctx.moveTo(vx + j * 3, hy); ctx.lineTo(vx + j * (band.w / 7), floorB); ctx.stroke();
           }
-          for (let i = 0; i < 9; i += 1) {
-            const u = (i + 1 - beatFrac) / 10;
+          // Each line rides one spacing toward you per beat (u rises with the beat's fraction), so the
+          // nearest one reaches the floor's edge as the next rises out of the horizon, with no snap at
+          // the wrap (Codex P2 on #2589: subtracting the fraction ran the floor backward, then jumped).
+          for (let i = 0; i < 10; i += 1) {
+            const u = (i + beatFrac) / 10;
             const yl = hy + (floorB - hy) * Math.pow(u, 2.1);
-            ctx.globalAlpha = (1 - kx) * (0.08 + 0.3 * u);
+            // fading out over its last tenth, so the line leaving at the floor's edge never pops
+            ctx.globalAlpha = (1 - kx) * (0.08 + 0.3 * u) * Math.min(1, (1 - u) * 10);
             ctx.beginPath(); ctx.moveTo(band.x, yl); ctx.lineTo(band.x + band.w, yl); ctx.stroke();
           }
           // The glow over the horizon, in six flat steps of the base tone: no gradient in the field (the

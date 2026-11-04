@@ -38,6 +38,9 @@ test('the skyline is a reading: towers only over a signal, the floor still witho
   const horizon = between(field, "if (cfg.ground === 'horizon') {", '} else if (live) {');
   // The floor steps one spacing per measured beat; no tempo, no air or Reduce Motion, it holds still.
   assert.match(horizon, /const beatFrac = \(live && read && read\.bpm > 0 && !reduced\) \?/);
+  // ...and the lines travel toward the viewer: u rises with the beat's fraction (Codex P2 on #2589).
+  assert.match(horizon, /for \(let i = 0; i < 10; i \+= 1\) \{\s*\n\s*const u = \(i \+ beatFrac\) \/ 10;/);
+  assert.doesNotMatch(horizon, /- beatFrac/, 'the floor runs back toward the horizon');
   // Nothing on the air: a dashed horizon and no city.
   assert.match(horizon, /if \(!live\) \{[\s\S]*?ctx\.setLineDash\(\[3, 5\]\);/);
   // The towers are the bands' smoothed levels, the top fifth the hot tone, the peak a cap.
