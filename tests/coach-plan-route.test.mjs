@@ -79,13 +79,16 @@ test('the leave guard: one held at a time, asked before a tab tap or a jump, let
   const { holdLeave, mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
   const w = {};
   assert.equal(await mayLeave(w), true, 'none held: go');
-  const releaseA = holdLeave(w, async () => false);
-  assert.equal(await mayLeave(w), false);
-  const releaseB = holdLeave(w, async () => true);
-  releaseA();
-  assert.equal(await mayLeave(w), true, 'an older screen\'s release leaves the newer guard');
-  releaseB();
+  const releaseA = holdLeave(w, async () => true);
   assert.equal(await mayLeave(w), true);
+  // A newer screen holds its own guard, one that says stay: the older screen letting go of its guard
+  // must not drop the newer one (the mutation round on 1366ae8 found the old check could not tell).
+  const releaseB = holdLeave(w, async () => false);
+  assert.equal(await mayLeave(w), false);
+  releaseA();
+  assert.equal(await mayLeave(w), false, 'an older screen\'s release leaves the newer guard');
+  releaseB();
+  assert.equal(await mayLeave(w), true, 'its own release drops it');
   holdLeave(w, async () => { throw new Error('dialog failed'); });
   assert.equal(await mayLeave(w), false, 'a guard that fails keeps the work');
   holdLeave(w, async () => 'yes');
