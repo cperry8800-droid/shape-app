@@ -18077,7 +18077,12 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Live sigil rings for your own coach profile (habits / client workouts / own activity).
   React.useEffect(() => { let on = true; if (isSelf && window.ShapeCoachRings?.get) { window.ShapeCoachRings.get().then((d) => { if (on && d) setRingLive(d); }).catch(() => {}); } return () => { on = false; }; }, [isSelf]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
-  const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
+  // Customize's live preview is the page as a member who does not follow the coach sees it (Codex P2 on #2615):
+  // the owner's sign-in unlocks their own fields and posts, so the gate and the posts are a stranger's.
+  const asVisitor = !!previewCustom;
+  const isPrivate = !!(live && (asVisitor
+    ? (live.is_public === false || live.visibility === 'friends' || live.visibility === 'private')
+    : (live.can_view === false || (live.can_view == null && live.is_public === false))));
   // Signed-in own profile zeroes its demo sub-data (rings/disciplines/offerings/
   // certs/lifts/philosophy). Viewing OTHER coaches keeps the illustrative
   // fallback; signed-out preview is unchanged.
@@ -18254,7 +18259,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // client's profile shows — not the curated Tip/Win notes it used to render.
   const coachDemoFeed = (signedIn || sigFeedAuthorId || coachShared.length) ? [] : bsDemoCoachActivity(name, isNutri, baseTier);
   const coachFeedEff = [
-    ...(coachPosts || []).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
+    ...(coachPosts || []).filter((p) => !asVisitor || bsPostSeenByStranger(p)).map((p) => bsProfileCardFromPost(p, ownerRole)).filter(Boolean),
     ...coachShared,
     ...coachDemoFeed,
   ];

@@ -12,6 +12,7 @@ const TRAINER = readFileSync(new URL('../mobile-app/src/broadsheet/BSTrainerProf
 const BACKEND = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 
 const terrain = CLIENT.slice(CLIENT.indexOf('function BSTerrainProfile({'), CLIENT.indexOf('\nfunction ', CLIENT.indexOf('function BSTerrainProfile({') + 20));
+const signal = CLIENT.slice(CLIENT.indexOf('function BSSignalCoachProfile({'), CLIENT.indexOf('\nfunction ', CLIENT.indexOf('function BSSignalCoachProfile({') + 20));
 
 test('a mapped post\'s privacy label is read, and only public, profile and community posts are a stranger\'s', () => {
   // Codex P2 on #2615 (b2c9058): communityPostFromRow's label (Public, Community…) is what a post carries, and a
@@ -41,6 +42,13 @@ test('the member page, previewed, gates a private or friends-only profile and sh
   assert.match(terrain, /\(photoPosts \|\| \[\]\)\.filter\(\(p\) => !asVisitor \|\| bsPostSeenByStranger\(p\)\)/);
   // The owner's own logged activities are theirs: not in a stranger's view.
   assert.match(terrain, /if \(isSelf && !asVisitor && realFeed && realFeed\.length\)/);
+});
+
+test('the Signal coach page, previewed from a coach\'s Customize, gates and filters as the member page does', () => {
+  // Codex P2 on #2615 (59c0e25): Customize's coach branch draws BSSignalCoachProfile.
+  assert.match(signal, /const asVisitor = !!previewCustom;/);
+  assert.match(signal, /asVisitor\n\s*\? \(live\.is_public === false \|\| live\.visibility === 'friends' \|\| live\.visibility === 'private'\)/);
+  assert.match(signal, /\(coachPosts \|\| \[\]\)\.filter\(\(p\) => !asVisitor \|\| bsPostSeenByStranger\(p\)\)\.map\(/);
 });
 
 test('the coach page, previewed from Make it yours, shows only the posts a stranger sees', () => {
