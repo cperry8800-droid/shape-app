@@ -211,6 +211,12 @@ test('inside the session player the load label is only ever displayed', async ()
   const ast = parse(src, { sourceType: 'module', plugins: ['jsx'], errorRecovery: false });
   const player = ast.program.body.find((n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === 'BSSession');
   assert.ok(player, 'BSSession is gone — this guard is reading nothing');
+  // The player's drawing lives in BSWorkoutSession.jsx since the owner's B (2026-11-04), so the view is
+  // swept too: what BSSession hands it may be displayed there and nowhere else.
+  const viewSrc = readFileSync(fileURLToPath(new URL('../mobile-app/src/broadsheet/BSWorkoutSession.jsx', import.meta.url)), 'utf8');
+  const viewAst = parse(viewSrc, { sourceType: 'module', plugins: ['jsx'], errorRecovery: false });
+  const view = viewAst.program.body.find((n) => n.type === 'ExportNamedDeclaration' && n.declaration && n.declaration.id && n.declaration.id.name === 'BSWorkoutSession');
+  assert.ok(view, 'BSWorkoutSession is gone — the view sweep is reading nothing');
   const reads = [], offenders = [];
   // "Displayed" is decided by the NEAREST boundary, not by any JSX somewhere above:
   // ⚠ the first version let everything under a JSX tree count, so a `.map` callback
@@ -234,6 +240,7 @@ test('inside the session player the load label is only ever displayed', async ()
     for (const k of Object.keys(n)) if (k !== 'loc' && !/Comments$/.test(k)) walk(n[k], here);
   };
   walk(player.body, false);
+  walk(view.declaration.body, false);
   assert.ok(reads.length >= 2, 'found no reads of the label at all — the sweep has stopped matching');
   assert.deepEqual(offenders, [], 'the display label feeds an input, a comparison or a calculation here — route it through bsLoadPrefill');
 });

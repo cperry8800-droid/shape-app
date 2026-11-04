@@ -178,6 +178,9 @@ test('the paywall feature family is fully authored, not partially', () => {
 // them into this assertion would make a guard about raw-key rendering fail for
 // strings that render perfectly.
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+// The live session's three views moved into their own module with every word they draw (the owner's B,
+// 2026-11-04); BSSession keeps the finish step and the chooser. One player, two files: both are walked.
+const SESSION_VIEW = 'mobile-app/src/broadsheet/BSWorkoutSession.jsx';
 
 function bareKeys(node, out) {
   if (!node || typeof node !== 'object') return;
@@ -207,6 +210,7 @@ function bareKeys(node, out) {
 test('every no-defaultValue key in the client module resolves in en', () => {
   const out = new Set();
   bareKeys(parse(CLIENT), out);
+  bareKeys(parse(SESSION_VIEW), out);
 
   const missing = [];
   for (const key of [...out].sort()) {
@@ -229,7 +233,8 @@ test('the session player authors no key it does not read', () => {
   // from BSSplash. Computed families are pinned by their literal prefix.
   const out = new Set();
   bareKeys(parse(CLIENT), out);
-  const src = fs.readFileSync(CLIENT, 'utf8');
+  bareKeys(parse(SESSION_VIEW), out);
+  const src = fs.readFileSync(CLIENT, 'utf8') + fs.readFileSync(SESSION_VIEW, 'utf8');
   const prefixes = [...src.matchAll(/tr\('session:(player\.[a-zA-Z.]*)' \+/g)].map((m) => m[1]);
   assert.ok(prefixes.length >= 1, 'the computed vibe family stopped being seen');
 

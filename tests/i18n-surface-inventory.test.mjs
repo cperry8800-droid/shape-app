@@ -401,7 +401,10 @@ const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientLibrary', 'Client::BSLibraryDetail',
   'Client::BSClientFeed', 'Client::BSClientTrain',
-  'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
+  'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
+  // The workout detail page moved files 2026-11-04 (iosAppBroadsheetClient.jsx → BSWorkoutDetail.jsx)
+  // with its redesign; the key follows the file. Its two literals are the library's Save words.
+  'BSWorkoutDetail::BSWorkoutDetail',
   'Client::BSPostCommentsSheet',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists',
   'Client::BSShapeKitchenRecipe',
@@ -843,7 +846,15 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // them: 163 -> 161.
   // The filed stamp (BSMealLogged) left UNCOVERED for PARTIAL with the meal logger's redesign
   // (2026-11-04), keeping the three pieces of its no-macros state in English: 161 -> 164.
-  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The workout detail page in the glass look (owner, 2026-11-04: "B for all of them") moved to its own
+  // module, BSWorkoutDetail.jsx, and is still PARTIAL: it draws its own Save key now, so the library's
+  // two literal words ("♡ Save" / "✓ Saved", BSSaveButton's, which stays UNCOVERED for its other
+  // doors) count here (+2). The four it printed in place (the note's "Jordan Chen · Trainer · notes"
+  // and the playlist card's kicker, title and meta) are the page's fixed sample copy, and moved with the
+  // sample day into module-scope constants this walk cannot attribute (the BSWeekStrip blind spot): they
+  // are still on the page and still English, on a live day too, as before (-4). With the filed stamp's
+  // +3 above: 164 -> 162.
+  assert.equal(partStrings, 162, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had

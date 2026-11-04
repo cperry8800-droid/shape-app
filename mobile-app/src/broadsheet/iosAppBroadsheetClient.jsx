@@ -72,6 +72,8 @@ import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
+import { BSWorkoutSession } from './BSWorkoutSession.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
@@ -3094,113 +3096,8 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   );
 }
 
-function BSHomeWorkoutPreview({ workout = null, day = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const rust = t.RUST;
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const detail = workout && workout.detail;
-  const wkTitle = (workout && workout.title) || 'Upper Pull — Peak';
-  const wkMeta = (detail && detail.meta) || '52 min · 6 moves · RPE 8 · ~420 kcal';
-  const wkNote = (detail && detail.note) || 'Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.';
-  const moves = (detail && detail.moves) || [
-    { name: 'Pull-up',        scheme: '4 × 6-8 · 3 min rest', cue: 'Dead hang. Chest to bar.',      load: '42 lb', up: true },
-    { name: 'Barbell row',    scheme: '4 × 8 · 2 min rest',   cue: 'Hinge 45°, pull to sternum.',   load: '155 lb' },
-    { name: 'Chest-sup. row', scheme: '3 × 10 · 90s rest',    cue: 'Pause 1s at peak contraction.', load: '60 lb' },
-    { name: 'Face pull',      scheme: '3 × 15 · 60s rest',    cue: 'External rotation at the top.', load: '35 lb' },
-    { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
-    { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
-  ];
-  // "Today · Thu Jun 4 · 5:45 PM" for today's session; another day's (`day`, the day picked in Home's This
-  // week) reads its own date with no Today (Codex P1 on #2599: a Saturday session read "Today · Wed").
-  // Weekday/month tokens follow the selected UI language (i18n date-locale rule).
-  const _wd = day instanceof Date && !isNaN(day) ? day : new Date();
-  const _wdToday = (() => { const n = new Date(); return _wd.getFullYear() === n.getFullYear() && _wd.getMonth() === n.getMonth() && _wd.getDate() === n.getDate(); })();
-  const _dateLoc = bsDateLocale();
-  const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
-  const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
-  const wkTimeLabel = (() => {
-    const [h, m] = String((workout && workout.time) || '09:00').split(':').map(Number);
-    if (Number.isNaN(h)) return '9:00 AM';
-    const ap = h >= 12 ? 'PM' : 'AM';
-    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
-  })();
-  const [reminded, setReminded] = useStateBSC(false);
-  const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
-  const footBtn = { flex: 1, padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
-  return (
-    <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 2px` }}>
-        <BSBackRow onBack={onBack} trailing={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>{tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })}</span>
-          <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>{tr('home:action.message', { defaultValue: 'Message' })}</button>
-        </span>} />
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_wdToday ? <>{tr('home:when.today', { defaultValue: 'Today' })} · </> : null}{_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: t.ACCENT }}>.</span></div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
-      </div>
-
-      <div style={{padding:'0 '+t.padX+'px'}}><ShapeVideoPlayer value={workout?.programVideo} title={tr('coach:video.programIntro',{defaultValue:'Program introduction'})}/><ShapeVideoPlayer value={workout?.video} title={tr('coach:video.workoutWalkthrough',{defaultValue:'Workout walkthrough'})}/></div>
-
-      {/* Coach note — Wire press credit (rust = trainer role) */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ borderLeft: `3px solid ${rust}`, padding: '3px 0 3px 11px' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK, lineHeight: 1.5, letterSpacing: '-0.01em' }}>“{wkNote}”</div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan Chen · Trainer · notes</div>
-        </div>
-      </div>
-
-      {/* Moves — the plan ledger */}
-      <BSOLHead heat={t.ACCENT} label={tr('home:workoutPreview.plan', { defaultValue: 'Plan' })} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:workoutPreview.moves', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: moves.length })}</span>} />
-      <div style={{ padding: `2px ${t.padX}px 0` }}>
-        {moves.map((m, i) => (
-          <div key={m.name} style={{ padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-              <span style={{ flexShrink: 0, width: 20, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-              <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</span>
-              <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uText(m.load) || ''}{m.load && m.up ? ' +' : ''}</span>
-            </div>
-            <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
-            {m.cue && <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em' }}>“{m.cue}”</div>}
-          </div>
-        ))}
-      </div>
-
-      {/* Quick actions — above the soundtrack */}
-      <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', gap: 10 }}>
-        <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
-        <button onClick={onMove} style={footBtn}>{tr('home:workoutPreview.moveSession', { defaultValue: 'Move session' })}</button>
-        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: teal } : {}) }}>{reminded ? tr('home:workoutPreview.reminderSet', { defaultValue: '✓ Reminder set' }) : tr('home:workoutPreview.remindMe', { defaultValue: 'Remind me' })}</button>
-      </div>
-
-      {/* Pre-workout playlist — tap the play button to open it in Spotify before training */}
-      <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>{tr('home:workoutPreview.soundtrack', { defaultValue: 'Soundtrack' })}</BSEyebrow>
-        <div style={{ marginTop: 2, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('home:workoutPreview.preWorkout', { defaultValue: 'Pre-workout' })}</div>
-        <BSPlaylistCard kicker="Jordan Chen · Your coach" title="Pull heavy." meta="52m · 95-138 BPM · 14 tracks" color="#1db954" spotifyUrl="https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" tracks={[
-          { a: 'Iron Count', b: 'Tariq Osei', len: '3:38' },
-          { a: 'Chalk & Steel', b: 'Sable', len: '4:02' },
-          { a: 'Top Set', b: 'Linnea Aho', len: '3:21' },
-          { a: 'Overhand', b: 'Samyuel', len: '3:54' },
-          { a: 'Lat Spread', b: 'Mara Vance', len: '4:16' },
-          { a: 'Last Rep', b: 'Shape Radio', len: '3:45' },
-        ]} />
-      </div>
-
-      <div style={{ padding: `16px ${t.padX}px 14px` }}>
-        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('home:workoutPreview.begin', { defaultValue: 'Begin session →' })}</button>
-      </div>
-      <BSFooter right={tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })} />
-    </BSPage>
-  );
-}
+// ─── THE WORKOUT DETAIL PAGE ─── moved to BSWorkoutDetail.jsx (2026-11-04), when the owner's B redrew it
+// ("B for all of them"). Home's I'll train today and Team's session open it, and the Library's saved workout.
 
 // Retro-tighten past auto-posts when a Settings change makes the member's
 // share level STRICTER (Share off, or profile → more private). Loosening never
@@ -3903,7 +3800,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // its date (Codex P1 on #2599).
     const pv = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : null;
     const shownWorkout = pv ? pv.workout : selWorkout;
-    return <BSHomeWorkoutPreview workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(pv && pv.day ? pv.day : undefined); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
+    return <BSWorkoutDetail workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(pv && pv.day ? pv.day : undefined); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
       setShowWorkoutPreview(false);
       // The trainer who wrote the session (the plan read's coachId), in their own thread; signed in with no
       // such paid trainer, the chats; the signed-out preview's sample coach.
@@ -19834,7 +19731,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewWorkout) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSHomeWorkoutPreview workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
+      <BSWorkoutDetail workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
     </div>
   );
 
@@ -32023,6 +31920,8 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
 
 Object.assign(window, {
   BSClientApp,
+  // The workout detail page's save, its library and its pre-workout playlist (BSWorkoutDetail.jsx).
+  useBSLibrary, bsLibToggle, BSPlaylistCard,
   // The Send to a member sheet, for the coach apps' grocery lists (iosAppBroadsheetPros.jsx).
   BSPostSendSheet,
   // The client_settings write lane, exposed so OTHER modules that write that
@@ -32530,7 +32429,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     return () => clearInterval(id);
   }, [hrmOn, hrNow, setLogs]);
   const heat = (!bsSdReduced() && effort) ? BS_EFFORT_RAMP[effort.zone] : (t.isLight ? '#0a8f87' : '#34d6c5');
-  const heatTrans = { transition: 'color 1.2s ease, border-color 1.2s ease, background-color 1.2s ease' };
   const _bsStrength = useBSStrength();
 
   React.useEffect(() => {
@@ -32883,16 +32781,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // an unauthored move now renders NOTHING rather than the old "Move with
   // intent." filler — absence is honest, invented coaching is not.
   const cue = (move && move.cue) || '';
-  // ONE translated label per set field, read by all three sites that name a
-  // field: the band's visible eyebrow, the band input's aria, and the table
-  // input's aria. The table's aria used to interpolate the RAW INTERNAL KEY
-  // ('load'/'reps'/'rpe'), so a screen reader announced the code's field name.
-  // RPE stays literal — a term of art, exactly as the table header carries it.
-  // `reps` reads the SHIPPED column key rather than a second key holding the same
-  // word in all 13 — the duplicate-key trap cut 1 already paid for. `load` needs
-  // its own: the band deliberately reads LOAD where the table header reads WEIGHT,
-  // because a band value can carry its unit ("165 lb").
-  const fieldLabel = (f) => (f === 'rpe' ? 'RPE' : tr(f === 'load' ? 'session:player.fieldLoad' : 'session:player.colReps'));
   const activeIdx = (() => { if (activeSetKey?.startsWith(`${moveIdx}-`) && !completed[activeSetKey]) return Number(activeSetKey.split('-')[1]); for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
@@ -33089,316 +32977,67 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     </BSPage>
   );
 
-  return (
-    <BSPage noSwipe>
-      {/* ═══ THE BAND — live numbers only; the paper ledger below the seam
-          carries the work. Scan-line + segments are decorative (aria-hidden). */}
-      <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px`, overflow: 'hidden' }}>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
-        {/* End · overall workout time (owner add — wall clock since start) */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>{tr('session:player.pause')}</button>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: bandHeat, ...heatTrans }}>
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: bandHeat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(bandHeat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
-            {tr('session:player.elapsed')} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
-          </span>
-        </div>
-        <div style={{ position: 'relative', margin: '8px 0', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-          <span style={{ ...bandEyebrow, color: bandHeat, fontSize: 11 }}>{tr('session:player.view.' + view)}</span>
-          <button ref={viewControlRef} onClick={() => setViewChooser(true)} style={{ minHeight: 44, background: 'transparent', border: 0, color: BAND.cream, cursor: 'pointer', textDecoration: 'underline' }}>{tr('session:player.view.change')}</button>
-        </div>
-        {viewWarning && <p role="alert" style={{ position: 'relative', color: '#e8a33c' }}>{tr('session:player.view.storage')}</p>}
-        <BSWorkoutCoachCue identity={identity} />
-        {/* Session line — real figures only */}
-        <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || tr('session:player.liveSession')}</span>
-          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>{tr('session:player.bandCounts', { ex: moveIdx + 1, exTotal: moves.length, done: doneSets, total: totalSets })}</span>
-        </div>
-        {/* Segment strip — one per exercise; lit = done, outlined = now */}
-        <div aria-hidden style={{ position: 'relative', marginTop: 9, display: 'flex', gap: 4 }}>
-          {moves.map((_, i) => (
-            <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: moveAllDone(i) ? bandHeat : BAND.hair, boxShadow: moveAllDone(i) ? `0 0 8px ${bsTHexA(bandHeat, 0.55)}` : 'none', outline: i === moveIdx ? `1px solid ${bsTHexA(bandHeat, 0.7)}` : 'none', outlineOffset: 1, ...heatTrans }} />
-          ))}
-        </div>
-        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('session:player.view.progress', { pct: Math.round(pct * 100) })}</div>
-        {/* Exercise title (+ open-session rename) + the trainer form clip */}
-        <div style={{ position: 'relative', marginTop: 14 }}>
-          {openMode ? (
-            <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder={tr('session:player.namePlaceholder')} style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05, background: 'transparent', border: 0, borderBottom: `1px solid ${BAND.hair}`, outline: 'none', padding: '2px 0 8px' }} />
-          ) : (
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>{move.m}</div>
-          )}
-          {clip && (
-            <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ {tr('session:player.formClip')}</button>
-          )}
-        </div>
-        {draftWarning && <p role="alert" style={{ position: 'relative', fontSize: 13, color: '#e8a33c' }}>{draftWarning}</p>}
-        {logStatus && <p role="status" style={{ position: 'relative', fontSize: 13, color: BAND.cream }}>{logStatus}</p>}
-        {view === 'focus' && <div style={{ position: 'relative', marginTop: 12, fontFamily: t.MONO, fontSize: 12, lineHeight: 1.5, color: BAND.dim }}>
-          {move.s || `${move.sets} × ${move.reps || '—'}`}{move.rpe ? ` · ${tr('session:player.view.targetRpe', { rpe: move.rpe })}` : ''}
-          {cue && <p style={{ fontFamily: t.DISPLAY, fontSize: 15, color: BAND.cream, margin: '8px 0 0' }}>{cue}</p>}
-        </div>}
-        {activeRunning && <p style={{ position: 'relative', fontFamily: t.MONO, color: bandHeat }}>{tr('session:player.setLive', { n: activeIdx + 1 })} · {fmt(activeSetSeconds)}</p>}
-        {view === 'guided' && activeIdx != null && <div style={{ position: 'relative', marginTop: 18, borderTop: `1px solid ${BAND.hair}`, paddingTop: 14 }}>
-          <div style={{ ...bandEyebrow, color: bandHeat }}>{tr(guidePrepare ? 'session:player.view.prepare' : 'session:player.view.perform')}</div>
-          <p style={{ color: BAND.cream, fontSize: 15, lineHeight: 1.5 }}>{guidePrepare ? (cue || tr('session:player.view.prepareHelp')) : tr('session:player.view.performHelp')}</p>
-          <p style={{ fontFamily: t.MONO, color: BAND.dim, fontSize: 12 }}>{bsSetPrefill(move, activeIdx).reps || '—'} · {bsSetPrefill(move, activeIdx).load || '—'}{move.rpe ? ` · ${tr('session:player.view.targetRpe', { rpe: move.rpe })}` : ''}{move.restSeconds != null ? ` · ${tr('session:player.view.rest')} ${fmt(move.restSeconds)}` : ''}</p>
-        </div>}
-        {/* Current-set readout — the big figures ARE the inputs */}
-        {view !== 'log' && (activeIdx != null ? (
-          <div style={{ position: 'relative', marginTop: 14 }}>
-            <div style={{ ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr(activeRunning ? 'session:player.setLive' : 'session:player.setUp', { n: String(activeIdx + 1).padStart(2, '0') })}</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 8 }}>
-              {/* Load values can carry their unit ("165 lb" — the athlete's own
-                  text), so the label reads LOAD (not LB) and the size leaves
-                  room for the unit token without clipping. */}
-              {['load', 'reps', 'rpe'].map((field) => (
-                <div key={field} style={{ flex: 1, minWidth: 0 }}>
-                  <input value={(setInputs[activeKey] && setInputs[activeKey][field]) ?? ''} onChange={(e) => updateSetInput(activeIdx, field, e.target.value)} placeholder="—" inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: activeIdx + 1, field: fieldLabel(field) })}
-                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: `1.5px solid ${bsTHexA(bandHeat, 0.6)}`, background: 'transparent', color: bandHeat, textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, padding: '0 0 6px', fontFamily: t.MONO, fontSize: 21, fontWeight: 800, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderRadius: 0, ...heatTrans }} />
-                  <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{fieldLabel(field)}</div>
-                </div>
-              ))}
-
-            </div>
+  // Trainer form-clip player — a dark portal sheet over the session (the card's ▶ How-to chip opens
+  // it; renders only when the plan move actually carries a coach clip).
+  const clipSheet = clipOpen && clip ? (() => {
+    const sheet = (
+      <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
+            <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
           </div>
-        ) : (
-          <div style={{ position: 'relative', marginTop: 14, ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr('session:player.allSetsLogged')}</div>
-        ))}
-        {/* Rest — countdown + a bar that FILLS as the rest runs (owner add) */}
-        {restEnd && restLeft > 0 && (
-          <div style={{ position: 'relative', marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ ...bandEyebrow, color: BAND.dim }}>{tr('session:player.restAfter', { n: restAfterSet })}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 24, fontWeight: 800, color: bandHeat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, lineHeight: 1, ...heatTrans }}>{fmt(restLeft)}<span style={{ fontSize: 9, color: BAND.dim35, textShadow: 'none' }}> / {fmt(restTotal)}</span></span>
-            </div>
-            <div aria-hidden style={{ marginTop: 9, height: 4, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 2, background: bandHeat, boxShadow: `0 0 10px ${bsTHexA(bandHeat, 0.6)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - restLeft / restTotal)) * 100)}%`, transition: bsSdReduced() ? 'none' : 'width 1s linear, background-color 1.2s ease' }} />
-            </div>
-            <div style={{ marginTop: 4, display: 'flex', gap: 16, alignItems: 'center' }}>
-              <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>{tr('session:player.plus30')}</button>
-              {hrmOn && hrNow ? <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{tr('session:player.hrComeDown', { bpm: hrNow })}</span> : null}
-              <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: bandHeat, ...heatTrans }}>{tr('session:player.skipRest')}</button>
-            </div>
-          </div>
-        )}
-        <div style={{ position: 'relative', marginTop: 15, borderTop: `1px solid ${BAND.hair}`, paddingTop: 12, color: BAND.cream }}>
-          {hrNow != null ? <span style={{ fontFamily: t.MONO, color: bandHeat }}>{bsFeedIcon('heart', 12, true)} {tr('session:player.view.hrReading', { bpm: hrNow })} · {tr('session:player.view.hrLive')}</span> : <>
-            <span style={{ fontSize: 12, color: BAND.dim }}>{tr(hrmOn ? 'session:player.view.hrWaiting' : hrSamplesRef.current.length ? 'session:player.view.hrLost' : 'session:player.view.hrAbsent')}</span>
-            <button onClick={connectHrm} disabled={hrConnecting || hrmOn} style={{ minHeight: 44, display: 'block', border: 0, padding: 0, background: 'transparent', color: bandHeat, cursor: 'pointer' }}>{tr(hrConnecting ? 'session:player.view.hrConnecting' : 'session:player.connectHr')}</button>
-          </>}
-          <div style={{ marginTop: 5, fontSize: 11, color: BAND.dim }}>{tr('session:player.view.hrHelp')}</div>
+          <ShapeVideoPlayer key={clip.url} value={clip.url} title={tr('coach:video.namedDemo',{defaultValue:'{name} demonstration',name:move.m})} expanded/>
+          <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
         </div>
       </div>
-      {/* The seam — the ONE band/paper boundary (Cockpit/Split signature) */}
-      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
+    );
+    const target = typeof document !== 'undefined' && document.getElementById('bs-phone-surface');
+    return target ? createPortal(sheet, target) : sheet;
+  })() : null;
 
-      <details key={view} open={view === 'log'} style={{ color: t.INK }}>
-        <summary style={{ padding: `18px ${t.padX}px`, minHeight: 44, boxSizing: 'border-box', cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, borderBottom: `1px solid ${t.RULE}` }}>{tr('session:player.view.details')}</summary>
-        <div style={{ padding: `0 ${t.padX}px`, background: BAND.bg }}>
-        <div style={{ position: 'relative', marginTop: 12, display: 'flex', gap: 8 }}>
-          {[false, true].map(timed => <button key={String(timed)} aria-pressed={timedMode === timed} onClick={() => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); }} style={{ minHeight: 44, flex: 1, background: timedMode === timed ? BAND.hair : 'transparent', color: BAND.cream, border: `1px solid ${BAND.hair}`, borderRadius: 5, cursor: 'pointer' }}>{timed ? tr('session:player.timedSets') : tr('session:player.quickLog')}</button>)}
-        </div>
+  // The one action's words: the rest's skip, Ready for this set in Guided's prepare step, Start set in
+  // timed mode, else Log set; Next exercise / Finish workout once this move's sets are all logged.
+  const primaryLabel = activeIdx == null
+    ? tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')
+    : restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
+      // "· N reps" only for a count; any other value as written, with no unit word (bsLogSetLabel).
+      ? (() => {
+          const lbl = bsLogSetLabel(bsSetPrefill(move, activeIdx).reps);
+          return lbl.kind === 'count' ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: lbl.reps })
+            : lbl.kind === 'value' ? tr('session:player.logSetCtaValue', { n: activeIdx + 1, value: lbl.value })
+              : tr('session:player.logSetCta', { n: activeIdx + 1 });
+        })()
+      : tr('session:player.startSetCta', { n: activeIdx + 1 });
+  const nextOrFinish = () => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } else openCompletion(); };
 
-        </div>
-      {/* ═══ THE LEDGER (paper) — cue · last · suggestion · plates · sets */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        {!openMode && !!cue && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
-        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('session:player.targetLoad', { load: move.l })}</div>}
-      </div>
-
-      {/* Suggested next load (e1RM progression nudge) — dot-leader row */}
-      {_bsSug && (
-        <div style={{ padding: `10px ${t.padX}px 0` }}>
-          <button onClick={_bsFillSuggestion} aria-label={tr('session:player.useSuggestedAria', { load: _bsSug.load, unit: _bsSug.unit })}
-            style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
-            <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${_bsSug.load} ${_bsSug.unit}`}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
-              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>{tr('session:player.use')}</span>
-            </span>
-            <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{_bsSug.rationale}</span>
-          </button>
-        </div>
-      )}
-
-      {/* Plate math — unboxed line (gym plate colors are semantic, kept) */}
-      {identity.loadUnit === 'lb' && perSide && (
-        <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:player.perSide', { load: activeLoad })}</span>
-          {plates.length ? plates.map((p, i) => (
-            <span key={i} style={{ padding: '3px 8px', borderRadius: 3, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10, fontWeight: 800 }}>{p}</span>
-          )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{tr('session:player.barOnly')}</span>}
-        </div>
-      )}
-
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        {move.tempo && <p style={{ color: t.INK70 }}>{tr('session:player.tempo')} · {move.tempo}</p>}
-        {bsGroupKey(move) && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {bsGroupKey(move)}</p>}
-        {activeIdx != null && <button onClick={() => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || ''))} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', textAlign: 'left' }}>{tr('session:player.applyRemaining')}</button>}
-      </div>
-
-      {/* Set table */}
-      <div style={{ padding: `18px ${t.padX}px 0` }}>
-        {/* ⚠ THE SET-TABLE COLUMNS WERE SIZED TO ENGLISH — the same magic number the
-            wire form's 84px label column was, measured the same way. JetBrains Mono
-            advances 0.6em, so at 9px with 0.16em tracking a character costs ~6.84px:
-            the old `26px` first column held 3.8 characters and the `30px` last held
-            4.4. English never revealed it (`Set` 3, `Done` 4). Translated it breaks
-            immediately — ru/uk «Подход»/«Підхід» are 6 (41.0px) and id "Selesai" is 7
-            (47.9px), all from the coach console's own shipped headers. Widened to
-            48px (~7 chars) and 56px (~8) — the measured longest plus a character of
-            slack. The three `1fr` input columns give up the difference and still hold
-            the widest header (ha "Maimaici", 8 ch / 54.7px) at every density.
-            ⚠ The coach live-watch console renders the IDENTICAL grid off the same
-            `coach:live.col*` values, so it carried this overflow already; widened
-            there too, first column only — its last column is an empty spacer. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          <span>{tr('session:player.colSet')}</span><span>{tr('session:player.colWeight')}</span><span>{tr('session:player.colReps')}</span><span>RPE</span><span style={{ textAlign: 'right' }}>{tr('session:player.colDone')}</span>
-        </div>
-        {(view === 'log' ? moves.map((rowMove, rowMoveIdx) => ({ rowMove, rowMoveIdx })) : [{ rowMove: move, rowMoveIdx: moveIdx }]).map(({ rowMove, rowMoveIdx }) => (
-          <section key={rowMoveIdx} aria-labelledby={`bs-log-move-${rowMoveIdx}`} style={{ marginBottom: 16 }}>
-            <button id={`bs-log-move-${rowMoveIdx}`} onClick={() => { setMoveIdx(rowMoveIdx); setGuideStep('prepare'); }} style={{ width: '100%', textAlign: 'left', minHeight: 44, background: 'transparent', border: 0, borderTop: `1px solid ${t.RULE}`, color: t.INK, padding: '12px 0', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18 }}>{rowMove.m || tr('session:player.namePlaceholder')}</button>
-            {view === 'log' && <p style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, margin: '0 0 8px' }}>{rowMove.s || `${rowMove.sets} × ${rowMove.reps || '—'}`}{rowMove.l ? ` · ${rowMove.l}` : ''}</p>}
-        {Array.from({ length: rowMove.sets }).map((_, i) => {
-          const k = `${rowMoveIdx}-${i}`;
-          const done = completed[k];
-          const isActive = rowMoveIdx === moveIdx && i === activeIdx;
-          const ri = setInputs[k] || { reps: '', load: bsSetPrefill(rowMove, i).load, rpe: '' };
-          // Every row stays tap-to-edit in place (Cockpit/Split spec: full set
-          // editing — done, active, pending alike share state with the band's
-          // readout). The dotted underlines died with the redesign: pending =
-          // hairline, active = solid heat, done = bare dimmed figures.
-          const cell = (field, ph) => (
-            // Logged sets stay editable in place (a mis-entered load/reps/RPE
-            // corrects without delete-and-relog — updateSetInput patches the
-            // captured log row); they read dimmed, not locked.
-            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value, rowMoveIdx)} placeholder={ph} inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(field) })} aria-describedby={`bs-log-move-${rowMoveIdx}`}
-              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
-          );
-          return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, alignItems: 'center', padding: '5px 0', borderLeft: isActive ? `3px solid ${heat}` : '3px solid transparent', marginLeft: -9, paddingLeft: 6, ...heatTrans }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? heat : t.INK50, fontVariantNumeric: 'tabular-nums', ...heatTrans }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              {cell('load', identity.loadUnit)}
-              {cell('reps', '—')}
-              {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i, rowMoveIdx); }} disabled={!!done} aria-label={tr(done ? 'session:player.setDoneAria' : timedMode && activeSetKey !== k ? 'session:player.startSetCta' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 44, height: 44, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>{timedMode && !done && activeSetKey !== k ? '▶' : '✓'}</button>
-            </div>
-          );
-        })}
-          </section>
-        ))}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={addSet} aria-label={tr('session:player.addSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addSet')}</button>
-          {/* Remove targets the current pending set (else the last set, confirm-
-              gated when logged) — spec's full-set-editing contract; hidden at
-              one set (an exercise never drops to zero). */}
-          {move.sets > 1 && <button onClick={() => removeSet(activeIdx != null ? activeIdx : move.sets - 1)} aria-label={tr('session:player.removeSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.removeSet')}</button>}
-          {openMode && <button onClick={addMove} aria-label={tr('session:player.addMoveAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addMove')}</button>}
-        </div>
-        {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
-      </div>
-
-      </details>
-
-      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
-        {activeIdx != null ? (
-          <button onClick={primarySetAction} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
-              // "· N reps" only for a count; any other value as written, with no unit word (bsLogSetLabel).
-              ? (() => {
-                  const lbl = bsLogSetLabel(bsSetPrefill(move, activeIdx).reps);
-                  return lbl.kind === 'count' ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: lbl.reps })
-                    : lbl.kind === 'value' ? tr('session:player.logSetCtaValue', { n: activeIdx + 1, value: lbl.value })
-                      : tr('session:player.logSetCta', { n: activeIdx + 1 });
-                })()
-              : tr('session:player.startSetCta', { n: activeIdx + 1 })}
-          </button>
-        ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')}
-          </button>
-        )}
-      </div>); const surface = typeof document !== 'undefined' && document.getElementById('bs-phone-surface'); return surface ? createPortal(action, surface) : action; })()}
-
-      {/* Prev / next — text-actions (the bordered boxes died with the spec) */}
-      <div style={{ padding: `6px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => { setMoveIdx(Math.max(0, moveIdx - 1)); setGuideStep('prepare'); }} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{tr('session:player.previous')}</button>
-        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>{tr('session:player.nextNamed', { move: moves[moveIdx + 1].m })}</span> : tr('session:player.lastExercise')}</button>
-      </div>
-
-      {/* Queue */}
-      <div style={{ padding: `26px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>{tr('session:player.upNext')}</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('session:player.queue')}</div>
-      </div>
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        {moves.map((mv, i) => {
-          const mDone = Array.from({ length: mv.sets }).every((_, si) => completed[`${i}-${si}`]);
-          const isCurrent = i === moveIdx;
-          return (
-            <button key={i} onClick={() => { setMoveIdx(i); setGuideStep('prepare'); }} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${heat}` : '3px solid transparent', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'baseline', padding: '13px 0 13px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1, ...heatTrans }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? heat : t.INK50, ...heatTrans }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{mv.m}{isCurrent && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: heat, marginLeft: 8, ...heatTrans }}>{tr('session:player.now')}</span>}</div>
-                {/* ⚠ THE AUTHORED SCHEME, NOT A FABRICATED REST. This rendered
-                    `{sets} × {reps} · 90s rest` — re-deriving from the parsed
-                    numbers and then appending a rest interval nobody wrote, so a
-                    move authored "3 × 10 · 3 min rest" read 90s in the queue.
-                    `mv.s` IS the coach's line; the parsed pair is the fallback
-                    for outline-delivered days that ship no scheme at all. */}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{mv.s && mv.s !== '—' ? mv.s : `${mv.sets} × ${mv.reps}`}</div>
-              </div>
-              {mv.l && <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{mv.l}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ⚠ THE FABRICATED LIVE-COACH CREDIT IS GONE, AND IT COULD NOT BE FIXED IN
-          PLACE. This rendered a rust role-spined press credit reading
-          "Jordan · live · coaching · 2 min" under the current move's cue —
-          UNCONDITIONALLY, with no signed-in gate and no coach check. BSSession
-          receives only { moves, onBack, title }: there is no coach prop, so
-          there was never a path to a real name. A member with no coach at all
-          read a named trainer coaching them live two minutes ago, and a member
-          WITH a coach read the wrong name — while the quoted line was not a live
-          message but the move's authored form cue, which the ledger above
-          already shows in its proper place.
-          This repo's own rule (#1947): a role-spined credit IS the claim "a
-          coach authored this", so it may only exist on real evidence. There is
-          none here, so the block is deleted rather than gated — restoring it
-          means passing a real coach into the player first. */}
-
-      {/* End workout early — routes to the SAME completion step, so finishing
-          early is still asked for an effort rating rather than saving blind. */}
-      <div style={{ padding: `18px ${t.padX}px 150px` }}>
-        <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{tr('session:player.endEarly')}</button>
-        <button onClick={discardWorkout} style={{ minHeight: 44, width: '100%', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', marginTop: 12 }}>{tr('session:player.discard')}</button>
-      </div>
-
-      {/* Trainer form-clip player — a dark portal sheet over the session (the
-          band's ▶ How-to chip opens it; renders only when the plan move
-          actually carries a coach clip). */}
-      {clipOpen && clip && (() => {
-        const sheet = (
-          <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
-                <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
-              </div>
-              <ShapeVideoPlayer key={clip.url} value={clip.url} title={tr('coach:video.namedDemo',{defaultValue:'{name} demonstration',name:move.m})} expanded/>
-              <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
-            </div>
-          </div>
-        );
-        const target = typeof document !== 'undefined' && document.getElementById('bs-phone-surface');
-        return target ? createPortal(sheet, target) : sheet;
-      })()}
-    </BSPage>
-  );
+  // ═══ THE THREE VIEWS — Focus, Workout log, Guided coach (BSWorkoutSession.jsx) ═══
+  // The owner's B (2026-11-04: "B for all of them", "the training ones i mean"): a raised card for
+  // what is now, glass for the rest. The view only draws; every value and handler below is this
+  // component's, so a view change, a pause or a recovery keeps the workout exactly as it was.
+  return <BSWorkoutSession session={{
+    view, openChooser: () => setViewChooser(true), viewControlRef, viewWarning,
+    title, moves, move, moveIdx, openMode, cue, clip, clipSheet,
+    goMove: (i) => { setMoveIdx(i); setGuideStep('prepare'); },
+    coachCue: <BSWorkoutCoachCue identity={identity} />,
+    renameMove, openClip: () => setClipOpen(true), draftWarning, logStatus,
+    // An open session names its moves as it goes; the list offers the swap library's names.
+    moveNames: openMode ? (() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => k.replace(/\b\w/g, (c) => c.toUpperCase())); } catch (e) { return []; } })() : [],
+    doneSets, totalSets, pct, moveAllDone,
+    activeIdx, activeKey, activeRunning, activeSetKey, activeSetSeconds, guidePrepare,
+    setInputs, updateSetInput, completed, logSet, addSet, addMove,
+    // Remove targets the current pending set (else the last set, confirm-gated when logged).
+    removeCurrentSet: () => removeSet(activeIdx != null ? activeIdx : move.sets - 1),
+    applyRemaining: () => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || '')),
+    prefill: bsSetPrefill, superset: bsGroupKey(move),
+    restEnd, restLeft, restTotal, restAfterSet, skipRest: () => setRestEnd(null),
+    addRest30: () => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); },
+    hrmOn, hrNow, hrHadSamples: hrSamplesRef.current.length > 0, connectHrm, hrConnecting, heartIcon: bsFeedIcon('heart', 12, true),
+    timedMode, setTimed: (timed) => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); },
+    sug: _bsSug, fillSug: _bsFillSuggestion, perSide, plates, plateColor, activeLoad, loadUnit: identity.loadUnit,
+    primaryLabel, primaryAction: activeIdx != null ? primarySetAction : nextOrFinish,
+    openCompletion, endWorkout, discardWorkout, elapsedSec, fmt, heat,
+  }} />;
 }
 
 // ═══════════════════════════════════════════════════════════

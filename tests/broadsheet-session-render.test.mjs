@@ -285,7 +285,11 @@ function harness({ elapsedMinutes = 0, failSaves = 0, draft = null, sessionProps
     ...sessionProps, draft,
   };
   let tree;
-  const renderOnce = () => { CTX.idx = 0; tree = SHIM_MOD.BSSession(props); return tree; };
+  // BSSession decides and BSWorkoutSession.jsx draws (the owner's B, 2026-11-04): the player hands the view
+  // its state and handlers as one element, so the walk draws that element in the same render, after
+  // BSSession's own hooks, to reach the controls. The chooser and the finish step are BSSession's own.
+  const drawView = (el) => (el && typeof el.type === 'function' && el.type.name === 'BSWorkoutSession' ? el.type(el.props) : el);
+  const renderOnce = () => { CTX.idx = 0; tree = drawView(SHIM_MOD.BSSession(props)); return tree; };
 
   // `now` and `elapsedStart` are BOTH eager `useStateBSC(Date.now())` reads, in
   // that order, and the shim keeps only the first render's values (the ticking
