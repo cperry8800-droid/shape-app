@@ -622,6 +622,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Tune the program, the Boost sheet, coach Clients C with Add a client, the Wall top B with Chat\'s switch D, Programs B with the draft composer and Assign (#2612). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of each page built in the app: Clients "C for clients" and "add a client looks good" (a message icon on every client); Programs "B for programs just reduce size of this button"; the composer "clean up filters, make them smaller, and alow for custom focuses to be used"; Assign "reduce size of header and the boxes on page"; the Wall "go with B", smaller online cards, and of the switch "last option"; Boost and Tune "update to design"', status: 'done' },
+        { label: '#2612 new modules: BSProAdjust.jsx (Tune), BSLiveBoost.jsx (Boost), BSProClients.jsx (Clients C, drawing only), BSWallTop.jsx (the Wall top), BSProCatalog.jsx and BSProDraftComposer.jsx (Programs B, the composer with ＋ Custom focus or goal, sent to Nora as goal); the Add a client sheet redrawn; Assign compact; /api/ai/generate-plan caps goal at 80', status: 'done' },
+        { label: '#2612 review: Codex P2 (a plan\'s kcal or RPE dropped beside its stats) fixed in 4fc4600. CI on 4fc4600 failed search-rate-limit, which pinned the roster\'s old !searching literal; the redrawn sheet keeps the gate, and the pin takes either form (9e22b8b). CI green on 9e22b8b', status: 'done' },
+        { label: 'The owner asked for a raised, lit, almost-3D look on these pages, then stopped that work ("stop", "just apply what i said here for now"); they ship as approved', status: 'pending' },
+        { label: 'Clients rows: a client who needs you shows their reason in place of program, streak and since-when; the AI draft title wraps at 320px', status: 'pending' },
+        { label: 'OWNER: on a phone, coach Clients (Message on a row, Add a client), Programs and Plans, the AI draft with a custom focus, Assign, Tune, the Wall top with the place switch, and a Boost', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the member profile\'s facet avatar, Follow and Message on their own line under the counts; coach Home\'s sessions open their details (#2607). No migration',
       items: [
         { label: 'Owner, 2026-11-04: of the member profile head, "make sure you have the facet avatar"; of Follow and Message, "make sure the message and follow buttons are below the followers/following", "dont make this boxes big, small"; of coach Home\'s Your day, "when i click on the activity here on home page it should take be to details regarding that activity, no month calendar"', status: 'done' },
