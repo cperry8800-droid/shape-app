@@ -92,15 +92,15 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
     const v = disp(kg);
     try { return Number(v).toLocaleString(bsHdLocale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }); } catch (e) { return Number(v).toFixed(digits); }
   };
-  const signed = (kg) => `${kg < 0 ? '−' : kg > 0 ? '+' : ''}${fmt(Math.abs(kg))}`;
   const pct = st.pct || 0;
   const walked = st.kind === 'progress' || st.kind === 'reached';
-  const pos = (p) => { const pt = bsClimbPoint(p); return { left: `${(pt.x / BS_CLIMB_W) * 100}%`, top: `${(pt.y / BS_CLIMB_H) * 100}%` }; };
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, whiteSpace: 'nowrap' };
-  // Since when, only with a weight on show; and the goal's words over the climb, unless they are its
-  // big line already (the words state).
-  const since = read && read.sinceIso && (st.kind === 'progress' || st.kind === 'reached' || st.kind === 'start') ? tr('home:goal.since', { defaultValue: 'Since {date}', date: bsHdDate(read.sinceIso, { month: 'short', day: 'numeric' }) }) : null;
-  const eyebrow = [words && st.kind !== 'words' ? `“${words}”` : null, since].filter(Boolean).join(' · ');
+  // ⚠ THE CLIMB SAYS THREE THINGS (owner, 2026-11-04: "simplify some of the data on the hill climb/chart.
+  // looks like too much and can be a little overwhelming"): the goal in the member's words, what is left,
+  // and the goal by the flag; the route shows how far. The pace, its date, the start, the weight now and the
+  // milestones' shares went; they are on the goal page the climb opens. The goal's words over the climb,
+  // unless they are its big line already (the words state).
+  const eyebrow = words && st.kind !== 'words' ? `“${words}”` : '';
   const link = (label) => (
     <button type="button" onClick={(e) => { e.stopPropagation(); if (typeof onOpen === 'function') onOpen(); }}
       style={{ minHeight: 44, padding: 0, marginTop: 2, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9.5, color: teal }}>{label}</button>
@@ -110,8 +110,6 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   if (st.kind === 'progress') {
     big = fmt(read.toGoKg ?? 0);
     unitWord = tr('home:goal.left', { defaultValue: '{unit} to go', unit });
-    line = st.early ? tr('home:climb.paceSoon', { defaultValue: 'Pace after a week of weigh-ins' })
-      : [tr('home:climb.paceWeek', { defaultValue: '{pace} {unit}/wk', pace: signed(read.paceKgWk), unit }), read.etaIso ? bsHdDate(read.etaIso, { month: 'short', day: 'numeric', year: 'numeric' }) : null].filter(Boolean).join(' · ');
   } else if (st.kind === 'reached') {
     big = `${tr('home:goal.reached', { defaultValue: 'Goal reached' })} ✓`;
     action = link(tr('home:climb.nextOne', { defaultValue: 'Set the next one →' }));
@@ -160,19 +158,10 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
         {st.kind !== 'loading' ? BS_CLIMB_MILESTONES.map((m) => {
           const p = bsClimbPoint(m / 100);
           const passed = walked && pct >= m;
-          // The share with a ✓ once passed (the Home preview, owner 2026-11-03), on a climb with a number
-          // only. The route rises to the right, so a label sits off it on the sky side (up and left) or the
-          // ground side (down and right): 25% and 75% above, 50% below, clear of the pace line. The dot's
-          // own "now" label sits down and right too, so 50% stands aside while the dot is near it.
-          const below = m === 50;
-          const show = walked && !(below && Math.abs(pct - m) < 9);
+          // A tick at each quarter, in the teal once passed; their shares went with the rest of the numbers.
           return (
             <g key={m} data-climb-milestone={m} data-climb-passed={passed ? '' : undefined}>
               <line x1={p.x} y1={p.y - 5} x2={p.x} y2={p.y + 5} stroke={passed ? teal : faint} strokeWidth="1.4" />
-              {show ? (
-                <text x={below ? p.x + 5 : p.x - 5} y={below ? p.y + 14 : p.y - 6} textAnchor={below ? 'start' : 'end'} fill={passed ? teal : faint}
-                  style={{ fontFamily: BS_DECK_MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em' }}>{passed ? `${m}% ✓` : `${m}%`}</text>
-              ) : null}
             </g>
           );
         }) : null}
@@ -204,12 +193,6 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
       {st.kind === 'progress' && read.targetKg != null ? (
         <div style={{ position: 'absolute', right: t.padX, top: 0, ...mono, color: fg }}>{tr('home:goal.target', { defaultValue: 'Goal' })} {fmt(read.targetKg)}</div>
       ) : null}
-      {walked && pct < 100 ? (
-        <span style={{ position: 'absolute', ...pos(pct / 100), transform: 'translate(10px, 6px)', ...mono, fontSize: 8.5, pointerEvents: 'none' }}>{fmt(read.nowKg)} {tr('home:climb.nowWord', { defaultValue: 'now' })}</span>
-      ) : null}
-      {walked && read.sinceIso && read.startKg != null ? (
-        <span style={{ position: 'absolute', left: 6, bottom: 2, ...mono, fontSize: 8, pointerEvents: 'none' }}>{bsHdDate(read.sinceIso, { month: 'short', day: 'numeric' })} · {fmt(read.startKg)}</span>
-      ) : null}
     </div>
   );
 }
@@ -231,12 +214,14 @@ function BSHdBar({ state, on }) {
   return <span data-bar="unknown" style={{ ...base, height: 2, width: 2, background: rule }} />;
 }
 
-export function BSHomeWeekBars({ checkinsOn = true, onDay, onMonth, ...reads }) {
+export function BSHomeWeekBars({ checkinsOn = true, onDay, onMonth, picked, onPick, ...reads }) {
   const w = useBSHomeWeek(reads);
-  return <BSHomeWeekBarsView w={w} checkinsOn={checkinsOn} onDay={onDay} onMonth={onMonth} />;
+  return <BSHomeWeekBarsView w={w} checkinsOn={checkinsOn} onDay={onDay} onMonth={onMonth} picked={picked} onPick={onPick} />;
 }
 
-export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
+// `picked` / `onPick`: the day picked, when Home holds it (so Team below follows it); with no onPick the
+// strip keeps its own.
+export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth, picked: pickedProp = null, onPick = null }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const g = (w && w.grid) || null;
@@ -268,7 +253,10 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
   // A tap picks a day in place; the picked day's line under the strip says how it went, and a second tap
   // (or its →) opens the calendar on it (owner, 2026-11-04: "when i click on any day on week view for
   // client home page it immediatly takes me to month calendar"). Today is picked until another is.
-  const [picked, setPicked] = React.useState(null);
+  const [pickedOwn, setPickedOwn] = React.useState(null);
+  const held = typeof onPick === 'function';
+  const picked = held ? pickedProp : pickedOwn;
+  const setPicked = (i) => { if (held) onPick(i); else setPickedOwn(i); };
   const pickIdx = g ? (picked != null && picked >= 0 && picked < week.length ? picked : g.today) : null;
   const pickIso = pickIdx != null ? week[pickIdx] : null;
   const openDay = (iso) => { if (iso && typeof onDay === 'function') onDay(dayOf(iso)); };

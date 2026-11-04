@@ -97,6 +97,8 @@ export const BS_NAV_EVENTS = Object.freeze([
   'shape:openSearch', 'shape:openNora', 'shape:openCycle', 'shape:openIntegrations', 'shape:openProSettings',
   'shape:cookWith', 'shape:mealPrep', 'shape:startWorkout', 'shape:openCoachPlan', 'shape:proSoundtracks',
   'shape:proMessageCoach', 'shape:proMessageClient', 'shape:proAvailability', 'shape:startTour',
+  // A profile's Shape Score row (owner, 2026-11-04) opens the Score page from wherever the profile is.
+  'shape:openScore',
 ]);
 /** Whether a navigation event closes a notified person's profile: all but the person route itself. */
 export function bsClosesPerson(e) {

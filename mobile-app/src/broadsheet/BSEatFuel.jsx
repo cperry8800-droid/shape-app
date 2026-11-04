@@ -32,7 +32,9 @@ const bsEfTint = (c, alpha, fallback) => (/^#[0-9a-f]{6}$/i.test(String(c || '')
 // and what is left read "—", not 0; a target reads only when Eat has one from elsewhere (a coach's
 // Adjust: `calTargetKnown`, and a macro's `gKnown`, which keep a coach's 0 g; Codex P2 on #2453), and the
 // tiles open nothing, since their pages would show the same zeros.
-export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onOpen, unread = false, calTargetKnown = false }) {
+// `label`: the head's words; Eat hands the picked day's ("Fuel · Fri 6") when it is not today (owner, 2026-11-04:
+// "the change in weekly date should adjust activities"), so the head never says today over another day.
+export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onOpen, unread = false, calTargetKnown = false, label = null }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const dash = '—';
@@ -40,7 +42,7 @@ export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onO
     <>
       {/* Right under the week strip, so a tighter gap than a section's (owner, 2026-10-23: "reduce the
           spacing here"). */}
-      <BSFocusHead glyph="◐" top={10} label={tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
+      <BSFocusHead glyph="◐" top={10} label={label || tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
         meta={unread && !calTargetKnown ? dash : tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: calTarget.toLocaleString() })} />
       <section data-eat-fuel="" data-eat-fuel-unread={unread ? '' : undefined} style={{ margin: `8px ${t.padX}px 0`, padding: '14px 14px 12px', borderRadius: 16, background: t.PAPER2 || t.PAPER, border: t.isLight ? 0 : `1px solid ${t.HAIR}`, boxShadow: t.isLight ? '0 10px 24px -18px rgba(15,14,12,0.45)' : 'none' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

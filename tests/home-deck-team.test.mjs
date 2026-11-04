@@ -97,7 +97,9 @@ test('the climb\'s route runs from the foot to the flag, the same every time', (
   assert.deepEqual(C.BS_CLIMB_MILESTONES, [25, 50, 75]);
 });
 
-test('the climb: the goal in the member\'s words, what is left in their units, the pace and the date, and the walked line', () => withPounds(() => {
+// Owner, 2026-11-04: "simplify some of the data on the hill climb/chart. looks like too much and can be a
+// little overwhelming". The climb says three things; the route shows how far.
+test('the climb: the goal in the member\'s words, what is left in their units, the goal by the flag, and the walked line', () => withPounds(() => {
   const opened = [];
   const data = { primary: 'fat_loss', overall: { title: 'Lean, and quick on the bike again', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data, tour: 'hero-goal', onOpen: () => opened.push(1) }));
@@ -105,12 +107,11 @@ test('the climb: the goal in the member\'s words, what is left in their units, t
   assert.equal(root.props['data-bs-home-climb'], 'progress');
   assert.equal(root.props['data-tour'], 'hero-goal', 'the tour\'s goal step anchors on the climb');
   const text = d.text;
-  assert.match(text, /“Lean, and quick on the bike again” · Since Aug 27/, 'the goal in the member\'s own words, since the first weigh-in');
+  assert.match(text, /“Lean, and quick on the bike again”/, 'the goal in the member\'s own words');
   assert.match(text, /5\.7lb to go/, '2.6 kg left reads in pounds');
-  assert.match(text, /−0\.8 lb\/wk · Dec 12, 2026/, 'the pace in pounds a week and when it lands, with the year');
   assert.match(text, /Goal 165\.3/, 'the target by the flag');
-  assert.match(text, /171\.1 now/, 'where the latest weigh-in stands on the route');
-  assert.match(text, /Aug 27 · 176\.4/, 'the start at the foot');
+  // What went: the date it started, the pace and its date, the weight now, the start, the milestones' shares.
+  assert.doesNotMatch(text, /Since|lb\/wk|Dec 12|171\.1|176\.4|Aug 27|%/, 'nothing else on the climb');
   const svg = d.nodes().find((n) => n.type === 'svg');
   assert.equal(svg.props.role, 'img');
   assert.equal(svg.props['aria-label'], 'Your goal: 48% of the way, 5.7 lb to go');
@@ -130,12 +131,13 @@ test('the climb: the goal in the member\'s words, what is left in their units, t
   assert.equal(climbLinks(d).length, 0, 'a goal on its way needs no link');
 }));
 
-test('the climb with no pace yet says when it will have one, never a dash', () => withPounds(() => {
+test('the climb early on: what is left and the goal, no pace and no placeholder for one', () => withPounds(() => {
   const data = { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 75 }, weighIns: [{ d: '2026-10-19', kg: 80 }, { d: '2026-10-22', kg: 79 }] };
   const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
   assert.equal(climbOf(d).props['data-bs-home-climb'], 'progress');
-  assert.match(d.text, /Pace after a week of weigh-ins/);
-  assert.doesNotMatch(d.text, /lb\/wk/);
+  assert.match(d.text, /lb to go/);
+  assert.doesNotMatch(d.text, /Pace after a week of weigh-ins|lb\/wk/);
+  assert.ok(!d.nodes().some((n) => n.props && n.props['data-climb-pace'] != null), 'no pace line');
 }));
 
 // Codex P2 on #2583: a climb with no link of its own is itself a button for the keyboard and switch devices;
@@ -726,7 +728,7 @@ test("Home re-reads the score after what earns points, messages the session's ow
   assert.match(client, /<BSHomeHabitsRow tour="hero-habits"[^\n]*onTicked=\{bsScoreDirty\} \/>/, 'a habit ticked on Home');
   assert.match(sections, /Promise\.resolve\(r\)\.then\(\(\) => onTicked\(\), \(\) => \{\}\);/);
   // The preview's Message: the session's own trainer's thread, never the sample coach for a signed-in member.
-  assert.match(client, /if \(!bsHomeSignedIn\) \{ goChat\('Jordan Chen', 'Coach · Hypertrophy'\); return; \}\s+const c = selWorkout && selWorkout\.coachId != null/);
+  assert.match(client, /if \(!bsHomeSignedIn\) \{ goChat\('Jordan Chen', 'Coach · Hypertrophy'\); return; \}\s+const c = shownWorkout && shownWorkout\.coachId != null/);
   assert.doesNotMatch(client, /onMessage=\{\(\) => \{ setShowWorkoutPreview\(false\); goChat\('Jordan Chen'/);
   // Home's week is Train's (bsSlotWeek): a session dated in another week is never today's.
   assert.match(client, /const wSlots = bsSlotWeek\(\(plan\.training && plan\.training\.workouts\) \|\| \[\], monday\);/);
@@ -735,4 +737,70 @@ test("Home re-reads the score after what earns points, messages the session's ow
   assert.match(client, /time: _wkTimed \? fmtAt\(WORKOUT_AT\) : null/);
   // The signed-out sample's note, in the reader's language.
   assert.match(client, /text: tr\('home:team\.sampleNote', \{ defaultValue: 'Five plates\./);
+});
+
+// ── The picked day (owner, 2026-11-04: "the change in weekly date should adjust activities on home page") ──
+
+test('This week: held by Home, a tap hands Home the day and the strip shows the day Home picked', () => {
+  const picks = [];
+  const d = drive(D.BSHomeWeekBarsView, { w: { grid: GRID }, checkinsOn: true, picked: 4, onPick: (i) => picks.push(i), onDay: () => {}, onMonth: () => {} });
+  const list = days(d);
+  assert.equal(list[4].props['aria-pressed'], true, 'the day Home holds is the picked one');
+  assert.equal(list[3].props['aria-pressed'], false, 'today is not, while another is held');
+  assert.match(d.text, /Fri 23 →/, 'its line names it');
+  list[1].props.onClick();
+  assert.deepEqual(picks, [1], 'a tap hands Home the day');
+  d.render();
+  assert.equal(days(d)[4].props['aria-pressed'], true, 'and the strip waits for Home to move it');
+  // Held with nothing picked yet: today.
+  const t0 = drive(D.BSHomeWeekBarsView, { w: { grid: GRID }, checkinsOn: true, picked: null, onPick: () => {}, onDay: () => {}, onMonth: () => {} });
+  assert.equal(days(t0)[3].props['aria-pressed'], true);
+});
+
+test('Team on another day: its date, its session as a preview, its meals in order, nothing to log and no food left', () => {
+  const started = [];
+  const d = drive(T.BSHomeTeamView, TEAM({
+    today: false, dayLabel: 'Sat 12', meal: null, fuel: null,
+    workout: { ...TEAM().workout, title: 'Long run', time: '8:00 AM', onStart: () => started.push(1) },
+    dayMeals: [{ slot: 'Breakfast', time: '7:00 AM', title: 'Oats + whey' }, { slot: 'Lunch', time: '12:40 PM', title: 'Chicken bowl' }],
+  }));
+  assert.match(d.text, /Sat 12 · 2 coaches/);
+  const trainer = textOf(coachBlock(d, 'trainer'));
+  assert.match(trainer, /Trainer · Sat 12/, 'the day, not Today’s call');
+  assert.doesNotMatch(d.text, /Today’s call/);
+  assert.match(trainer, /Long run/);
+  const start = d.nodes().find((n) => n.type === 'button' && n.props['data-team-start'] != null);
+  assert.equal(textOf(start), 'Preview →', 'a preview, not I’ll train today');
+  start.props.onClick();
+  assert.equal(started.length, 1);
+  const meals = d.nodes().filter((n) => n.props && n.props['data-team-day-meal'] != null).map((n) => textOf(n));
+  assert.deepEqual(meals, ['Breakfast7:00 AMOats + whey', 'Lunch12:40 PMChicken bowl'], 'the day’s meals, in order');
+  assert.ok(!d.nodes().some((n) => n.props && n.props['data-team-log'] != null), 'nothing to log on another day');
+  assert.ok(!d.nodes().some((n) => n.props && n.props['data-team-fuel'] != null), 'no food left on another day');
+  assert.doesNotMatch(d.text, /kcal left|Fuel left today/);
+});
+
+test('Team on another day with no coach and no session: the date heads it, and the day says so', () => {
+  const d = drive(T.BSHomeTeamView, TEAM({ coaches: [], notes: [], today: false, dayLabel: 'Sun 13', workout: null, meal: null, fuel: null,
+    dayMeals: [{ slot: 'Dinner', time: '7:00 PM', title: 'Salmon' }], showFindCoach: true, onFindCoach: () => {} }));
+  assert.match(d.text, /^Sun 13\./, 'the day in place of Today');
+  assert.doesNotMatch(d.text, /^Today/);
+  assert.match(d.text, /Meals · Sun 13/);
+  assert.doesNotMatch(d.text, /Fuel left today/);
+  const withSession = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN], notes: [], today: false, dayLabel: 'Sun 13', workout: null, meal: null, fuel: null }));
+  assert.match(withSession.text, /No session · Sun 13/);
+  const orphan = drive(T.BSHomeTeamView, TEAM({ coaches: [], notes: [], today: false, dayLabel: 'Sun 13', workout: { ...TEAM().workout, coachId: null }, meal: null, fuel: null }));
+  assert.match(orphan.text, /Workout · Sun 13/);
+});
+
+test('Home holds the picked day: the strip hands it up, and Team reads that day\'s session and meals', () => {
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /const \[pickedDay, setPickedDay\] = useStateBSC\(null\);/);
+  assert.match(client, /picked=\{pickedDay\} onPick=\{setPickedDay\} \/>/, 'the strip is Home’s');
+  assert.match(client, /const pickWorkout = pickToday \? selWorkout : \(liveWeek \? liveWeek\.workoutByIdx\[pickIdx\] : bsClientWorkoutForDay\(pickIdx\)\);/);
+  assert.match(client, /const pickMeals = pickToday \? selMeals : mealsForIdx\(pickIdx\);/);
+  assert.match(client, /dayLabel=\{`\$\{_dowShort\(pickDate\)\} \$\{pickDate\.getDate\(\)\}`\} today=\{pickToday\}/, 'Team’s date is the picked one');
+  assert.match(client, /fuel=\{pickToday \? fuel : null\}/, 'the food left is today’s alone');
+  // The morning panel stays today's: Your move reads selIdx, which is today.
+  assert.match(client, /const selIdx = todayIdx;/);
 });

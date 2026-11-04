@@ -379,6 +379,7 @@
   "eat.allSetTag": "Đã đủ",
   "eat.eatenPct": "đã ăn {eaten} · {pct}%",
   "eat.fuelLeft": "Năng lượng còn lại hôm nay",
+  "eat.fuelOn": "Năng lượng · {day}",
   "eat.gramsLeft": "còn {g} g",
   "eat.macro.gramsOver": "dư {g} g",
   "eat.macro.ofTarget": "{v} / {g} g · {pct}%",

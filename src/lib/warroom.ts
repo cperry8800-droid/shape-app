@@ -622,6 +622,22 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the day picked in This week moves Home\'s Team and Eat\'s fuel head to it; a quieter climb; Chat without its big heads; a Shape Score row on every member\'s page (#2599). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "the change in weekly date should adjust activities on home page"; "there should also be a link to shape score page on profiles"; of Chat, "reduce gap here and get rid of the large coaches header and Friends header. and remove this channels"; of the climb, "simplify some of the data on the hill climb/chart. looks like too much and can be a little overwhelming"', status: 'done' },
+        { label: '#2599 Home: This week\'s strip is held by Home, and Team follows the picked day: its session (Preview → opens the workout preview for that day, which reads that day, no "Today", and Move session opens the calendar on it), its meals as rows, and no Next meal, Log or fuel off today. The morning panel and Your move stay today\'s. New copy home team.noSessionOn, workoutOn, mealsOn', status: 'done' },
+        { label: '#2599 the climb says three things: the goal in the member\'s words, what is left, and the goal by the flag; the route, the dot and a tick at each quarter show how far. The start date, the pace and its date, the weight now, the start and the milestones\' percentages went (the goal page it opens has them)', status: 'done' },
+        { label: '#2599 Chat: the thread\'s and the channels\' big heads (COACHES, FRIENDS, THE CHANNELS) went and the gap under the tabs closed', status: 'done' },
+        { label: '#2599 Shape Score: on a member\'s own Me page the score row opens the Shape Score page (shape:openScore, which the member and both coach roots listen for, closing settings first and kept in BS_NAV_EVENTS); on another member\'s page it shows their score and opens nothing', status: 'done' },
+        { label: '#2599 Eat: off today the fuel head names the strip\'s day (nutrition eat.fuelOn, "Fuel · Fri 6"); Train and the rest of Eat already followed the picked day', status: 'done' },
+        { label: '#2599 review: Codex\'s P1 on c45006a (another day\'s preview read Today) fixed in d3b0e53; its P1 on d3b0e53 (a visitor\'s score row opened the viewer\'s score) fixed in 4459f35; its P2s on 758c771 (Eat\'s head from the program\'s day name, not the strip\'s) fixed in 77e558e and on 77e558e (Move session dropped the day) fixed in e8c177d; Codex clean on e8c177d. Merged main\'s #2597 into it', status: 'done' },
+        { label: 'Coach profiles have no Shape Score row: they keep their own points link, on their own page only', status: 'pending' },
+        { label: 'Eat\'s and Train\'s pages keep their look: the owner\'s "and these pages" may mean a redesign, asked and not answered', status: 'pending' },
+        { label: 'The marketplace ("Find your coach") redesign is the next PR', status: 'pending' },
+        { label: 'OWNER: a native speaker reads home team.noSessionOn, workoutOn, mealsOn and nutrition eat.fuelOn in the twelve other locales', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Habits as option A, the Library as option C, Recipes as option B, coach Today\'s Up next as a timeline, Shape Radio on its own line on Home (#2598). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of three designs each built in the app: Habits "go with A", the Library "C for library", Recipes ("and new recipe design") "B for menu", and of coach Today\'s deck and Up next ("make these 2 sections flow and look better together", "same here" for the nutritionist) "this one"', status: 'done' },

@@ -344,22 +344,47 @@ test('the Following count is a noun, not Follow\'s state', () => {
   }
 });
 
-test('your tier line opens the Shape Score page where the host can, and is words alone where it cannot', () => {
-  // Codex P2 on #2546: Settings → Public profile handed BSPublicProfile no onOpenScore, so the line was a
-  // button that did nothing. Settings now opens the score page from it; with no way there it is a line.
+test('the Shape Score row: on your page it opens the Score page (through the host, else shape:openScore); on another\'s it shows their score and opens nothing', () => {
+  // Owner, 2026-11-04: "there should also be a link to shape score page on profiles". Codex P2 on #2546 held
+  // that a tier line which opens nothing must not be a button; every app root now answers shape:openScore,
+  // so the row always opens the Score page.
   signedOut();
   let opened = 0;
   const me = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true, onOpenScore() { opened += 1; } });
-  const [btn] = withAttr(me.nodes(), 'data-member-meta');
+  const [btn] = withAttr(me.nodes(), 'data-member-score');
   assert.equal(btn.type, 'button');
+  assert.equal(btn.props['data-tour'], 'hero-score');
+  assert.match(btn.props['aria-label'], /^Shape Score: /);
   btn.props.onClick();
-  assert.equal(opened, 1);
-  const bare = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true });
-  const [line] = withAttr(bare.nodes(), 'data-member-meta');
-  assert.equal(line.type, 'p', 'a tier line that opens nothing is still a button');
+  assert.equal(opened, 1, 'your own page through its host');
+  // Your page with no host way there, and a visitor's page: the app-wide event.
+  const sent = [];
+  const prev = globalThis.window.dispatchEvent;
+  globalThis.window.dispatchEvent = (e) => { if (e && e.type) sent.push(e.type); return true; };
+  try {
+    const bare = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true });
+    const [own] = withAttr(bare.nodes(), 'data-member-score');
+    assert.equal(own.type, 'button');
+    own.props.onClick();
+    // Codex P1 on #2599: the Score page shows only the reader's own standing, so another member's row opens
+    // nothing rather than put the reader's figures where theirs were.
+    const visit = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: false });
+    const [theirs] = withAttr(visit.nodes(), 'data-member-score');
+    assert.equal(theirs.type, 'div', 'a visitor\'s page shows the row, not a door');
+    assert.equal(theirs.props.onClick, undefined);
+    assert.match(theirs.props['aria-label'], /^Shape Score: /);
+    assert.equal(theirs.props['data-tour'], undefined, 'the tour anchors on your own page only');
+    assert.doesNotMatch(textOf(theirs), /→/, 'no arrow where nothing opens');
+  } finally { globalThis.window.dispatchEvent = prev; }
+  assert.deepEqual(sent, ['shape:openScore'], 'only your own page fires it');
+  // Every app root answers it: the member app and both coach apps.
+  assert.match(CLIENT, /window\.addEventListener\('shape:openScore', open\);/);
+  assert.match(CLIENT, /const open = \(\) => \{ setShowSettings\(false\); navJumpRef\.current\.goScore\(\); \};/);
+  const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
+  assert.equal(PROS.split("window.addEventListener('shape:openScore', onScore);").length - 1, 2, 'the trainer and the nutritionist apps');
   const sig = CLIENT.split('\n').find((l) => l.startsWith('function BSPublicProfile('));
-  assert.ok(sig && sig.includes('onOpenScore = null'), 'BSPublicProfile defaults to a score link that does nothing');
-  assert.match(CLIENT, /onEdit=\{\(\) => \{ setShowPublicProfile\(false\); startEdit\(\); \}\} onOpenScore=\{\(\) => setShowScore\(true\)\} \/>/, 'Settings → Public profile opens no score page');
+  assert.ok(sig && sig.includes('onOpenScore = null'), 'BSPublicProfile defaults to no host way, so the event carries it');
+  assert.match(CLIENT, /onEdit=\{\(\) => \{ setShowPublicProfile\(false\); startEdit\(\); \}\} onOpenScore=\{\(\) => setShowScore\(true\)\} \/>/, 'Settings → Public profile opens its own score page');
 });
 
 test('Edit profile opens the host\'s editor when it hands one, else the profile\'s', () => {

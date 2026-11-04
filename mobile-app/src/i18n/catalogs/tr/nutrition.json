@@ -379,6 +379,7 @@
   "eat.allSetTag": "Her şey tamam",
   "eat.eatenPct": "{eaten} yenildi · %{pct}",
   "eat.fuelLeft": "Bugün kalan yakıt",
+  "eat.fuelOn": "Yakıt · {day}",
   "eat.gramsLeft": "{g} g kaldı",
   "eat.macro.gramsOver": "{g} g fazla",
   "eat.macro.ofTarget": "{v} / {g} g · %{pct}",
