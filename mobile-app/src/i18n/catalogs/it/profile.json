@@ -1188,5 +1188,18 @@
   "work.word.5k": "Preparazione 5k",
   "work.word.mobility": "Mobilità",
   "trainer.replaysSubSessions": "Le sessioni che {name} ha registrato, serie per serie.",
-  "about.photos": "Dove allena {name}"
+  "about.photos": "Dove allena {name}",
+  "mine.tabSpotlight": "Vetrina",
+  "mine.spotlightTitle": "La tua vetrina",
+  "mine.spotlightSub": "Un video di presentazione, i tuoi numeri in evidenza, un momento, il tuo brano e le recensioni che fissi. Tutto facoltativo.",
+  "mine.errDemoFilm": "Accedi per caricare un tuo video.",
+  "mine.statsTitle": "Dati in evidenza",
+  "mine.statsHint": "Fino a tre dei tuoi numeri sotto il tuo nome, nell’ordine in cui li scegli. Quelli senza ancora un dato non compaiono.",
+  "mine.statsMax": "{count, plural, one {Fino a # dato in evidenza.} other {Fino a # dati in evidenza.}} Togline uno per sceglierne un altro.",
+  "mine.statNone": "Non ancora",
+  "mine.errPinTitle": "Dai un titolo al tuo momento, oppure cancellalo.",
+  "mine.winsHint": "Fissa fino a tre recensioni dei tuoi membri. Aprono «Cosa dicono i clienti» sulla tua pagina.",
+  "mine.bizName": "Nome del tuo studio",
+  "mine.bizHint": "Nome e luogo compaiono sotto il tuo nome; gli orari e dove trovarti, in Su di me.",
+  "mine.errBizName": "Dai un nome al tuo studio, oppure svuota la scheda."
 }

@@ -1188,5 +1188,18 @@
   "work.word.5k": "Preparação para 5k",
   "work.word.mobility": "Mobilidade",
   "trainer.replaysSubSessions": "As sessões que {name} registrou, série por série.",
-  "about.photos": "Onde {name} treina"
+  "about.photos": "Onde {name} treina",
+  "mine.tabSpotlight": "Vitrine",
+  "mine.spotlightTitle": "Sua vitrine",
+  "mine.spotlightSub": "Um vídeo de apresentação, seus números principais, um momento em destaque, sua música e as avaliações que você fixar. Tudo opcional.",
+  "mine.errDemoFilm": "Entre para enviar seu próprio vídeo.",
+  "mine.statsTitle": "Dados de destaque",
+  "mine.statsHint": "Até três dos seus números abaixo do seu nome, na ordem em que você escolher. Os que ainda não têm valor não aparecem.",
+  "mine.statsMax": "{count, plural, one {Até # dado de destaque.} other {Até # dados de destaque.}} Desmarque um para escolher outro.",
+  "mine.statNone": "Ainda não",
+  "mine.errPinTitle": "Dê um título ao seu destaque, ou apague-o.",
+  "mine.winsHint": "Fixe até três avaliações dos seus membros. Elas abrem “O que os clientes dizem” na sua página.",
+  "mine.bizName": "Nome do seu estúdio",
+  "mine.bizHint": "O nome e o lugar aparecem abaixo do seu nome; o horário e onde te encontrar, em Sobre mim.",
+  "mine.errBizName": "Dê um nome ao seu estúdio, ou apague o cartão."
 }

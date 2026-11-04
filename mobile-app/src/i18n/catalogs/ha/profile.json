@@ -1188,5 +1188,18 @@
   "work.word.5k": "Shirin gudun 5k",
   "work.word.mobility": "Sassauci",
   "trainer.replaysSubSessions": "Zaman horo da {name} ya rubuta, saiti bayan saiti.",
-  "about.photos": "Inda {name} ke koyarwa"
+  "about.photos": "Inda {name} ke koyarwa",
+  "mine.tabSpotlight": "Fitattu",
+  "mine.spotlightTitle": "Abubuwanka fitattu",
+  "mine.spotlightSub": "Bidiyon gabatarwa, manyan alkaluman ka, abin alfahari, waƙarka da sharhohin da ka liƙa. Duk na zaɓi ne.",
+  "mine.errDemoFilm": "Shiga don ɗora bidiyonka.",
+  "mine.statsTitle": "Manyan alkaluma",
+  "mine.statsHint": "Har alkaluman ka uku ƙarƙashin sunanka, bisa tsarin da ka zaɓa. Wanda babu adadi tukuna ba zai bayyana ba.",
+  "mine.statsMax": "{count, plural, one {Har zuwa babban alkalami #.} other {Har zuwa manyan alkaluma #.}} Cire alamar ɗaya don zaɓar wani.",
+  "mine.statNone": "Babu tukuna",
+  "mine.errPinTitle": "Ba abin alfaharinka kanun labari, ko ka share shi.",
+  "mine.winsHint": "Liƙa har sharhohi uku na mambobinka. Su ne za su fara a “Abin da abokan ciniki ke cewa” a shafinka.",
+  "mine.bizName": "Sunan wurin aikinka",
+  "mine.bizHint": "Sunansa da wurinsa za su bayyana ƙarƙashin sunanka; lokutan aikinsa da inda za a same ka, a Game da ni.",
+  "mine.errBizName": "Ba wurin aikinka suna, ko ka share katinsa."
 }

@@ -18,6 +18,7 @@ export {
   STUDIO_KIT, STUDIO_WORDS, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H,
 } from './studioKit.mjs';
 export { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit } from './coachWork.mjs';
+export { BS_COACH_STATS, bsCoachStatFigures, bsCoachHeadline } from './coachWork.mjs';
 export { bsCoachPronoun, bsCoachFirstName } from './coachPronoun.mjs';
 export { bsTrainerDemo, bsTrainerSampleOf } from './trainerDemo.mjs';
 export { bsNutritionistDemo, bsNutritionistSampleOf } from './nutritionistDemo.mjs';
@@ -26,6 +27,8 @@ export {
   bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, bsProfileBizCard, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS,
   bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
 } from './profileCustom.mjs';
+// The coach's spotlight (owner, 2026-11-04): the intro film, the pinned highlight, the profile song.
+export { bsProfileFilm, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel } from './profileCustom.mjs';
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
