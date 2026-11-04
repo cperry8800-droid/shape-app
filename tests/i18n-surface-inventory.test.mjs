@@ -452,8 +452,8 @@ const PARTIAL = new Set([
   // It MOVED FILES 2026-11-04 (iosAppBroadsheetClient.jsx → BSProfileCustomizer.jsx) with its
   // redesign (owner: "new design for these pages"), the two tables with it; the key follows the
   // file. Still the one literal address, so partStrings does not move; the words the new design
-  // added (the preview, the areas' names, the hub rows' summaries, the discard prompt, a caption's
-  // aria label) are keyed in all 13 locales, and its colours are the shared look panel
+  // added (the preview, the areas' names, the hub tiles' summaries and Set / Add, the discard prompt,
+  // a caption's aria label) are keyed in all 13 locales, and its colours are the shared look panel
   // (BSLookPicker), which carries its own words.
   'BSProfileCustomizer::BSProfileCustomizer',
   // ⚠ BSGoalsContract IS PARTIAL OVER THE SIGNED-OUT DEMO PLAN CARDS, NOT OVER

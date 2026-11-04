@@ -367,6 +367,8 @@
   "editor.sum.shelf": "На полке: {count}",
   "editor.sum.song": "Песня задана",
   "editor.sum.stats": "{count, plural, one {# главная цифра} few {# главные цифры} many {# главных цифр} other {# главной цифры}}",
+  "editor.status.add": "Добавить",
+  "editor.status.set": "Готово",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Тренировка",
   "pin.kind.meal": "Приём пищи",

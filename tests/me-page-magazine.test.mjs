@@ -159,7 +159,10 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
 // fields in one plain card, its own Save. Colour only as a signal: Save, a focused field, the facet avatar.
 const TEAL_SAVE = THEME.isLight ? '#0a7a72' : '#34d6c5';   // bsWsAccent: the page's one colour
 const isoIn = (days) => { const d = new Date(Date.now() + days * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const ROWS = { member: ['about', 'photos', 'highlights', 'colors', 'song', 'links'], coach: ['signal', 'about', 'practice', 'photos', 'highlights', 'colors', 'song', 'links'] };
+// The hub's tiles in order: the half tiles in pairs, then the two wide ones (Colors, Profile song).
+const ROWS = { member: ['about', 'photos', 'highlights', 'links', 'colors', 'song'], coach: ['signal', 'about', 'practice', 'photos', 'highlights', 'links', 'colors', 'song'] };
+// A raised plate (bsRaised): lit from the top over the paper's own colour, with an inset top highlight.
+const isRaised = (style) => /linear-gradient/.test(String(style.background)) && String(style.background).endsWith(THEME.PAPER) && /inset 0 1px 0/.test(String(style.boxShadow));
 const openEditor = (props = {}) => withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, ...props }));
 const rowNode = (d, key) => d.nodes().find((n) => n.props['data-cust-row'] === key);
 const openRow = (d, key) => { const row = rowNode(d, key); assert.ok(row, `no ${key} row`); row.props.onClick(); withSurface(() => d.render()); };
@@ -187,7 +190,10 @@ function editorWorld({ base, read = 'ok', confirm = null }) {
   return world;
 }
 
-test('Customize opens on a hub: a compact live preview, then one row per area saying what is set there', () => {
+// Owner, 2026-11-04, of the hub: "popping out, almost 3d look", "and a better layout". The preview is the
+// hero, a raised plate with the lit edge; the areas are raised tiles in two columns (Colors and Profile song
+// wide), each with a lit icon well and a lit "Set" or a dim "Add"; the details door a quiet glass row.
+test('Customize opens on a hub: the profile as the hero plate, then a raised tile per area saying what is set there', () => {
   for (const coach of [false, true]) {
     const who = coach ? 'coach' : 'member';
     const d = openEditor({ coach, who: { name: 'Quinn Harper', handle: '@quinn' } });
@@ -218,15 +224,24 @@ test('Customize opens on a hub: a compact live preview, then one row per area sa
     const kids = flatten(section.props.children).filter((n) => n.type === 'button');
     assert.equal(kids[kids.length - 1].props['data-cust-identity'], '', `${who}: the Settings row is not last`);
     assert.match(textOf(kids[kids.length - 1]), /Name, @handle, photo & details/);
-    // Cards in the paper's own colour with a soft lift; no tint, gradient, ink rule or ledger capitals.
-    for (const card of [preview, section]) {
-      assert.equal(card.props.style.background, THEME.PAPER, `${who}: a card is tinted`);
-      assert.ok(card.props.style.borderRadius >= 16, `${who}: a card lost its rounding`);
-      assert.match(String(card.props.style.boxShadow), /px/, `${who}: a card lost its lift`);
+    // The hero and every tile are raised plates; the hero carries the lit edge; the details row is glass.
+    assert.ok(isRaised(preview.props.style), `${who}: the hero is not a raised plate`);
+    assert.equal(inPreview.filter(named('BSGlassEdge')).length, 1, `${who}: the hero has no lit edge`);
+    for (const r of rows) assert.ok(isRaised(r.props.style), `${who}: the ${r.props['data-cust-row']} tile is not raised`);
+    assert.deepEqual(rows.filter((r) => r.props.style.gridColumn === '1 / -1').map((r) => r.props['data-cust-row']), ['colors', 'song'], `${who}: the wide tiles`);
+    assert.equal(rows.filter((r) => r.props.style.gridColumn !== '1 / -1').length % 2, 0, `${who}: the half tiles leave a gap in the grid`);
+    // Each area's status: a lit "Set" or a dim "Add" (nothing is set on an empty profile); Your Signal
+    // only explains, so it has none.
+    for (const r of rows) {
+      const st = flatten(r.props.children).find((n) => n.props && n.props['data-cust-status'] != null);
+      if (r.props['data-cust-row'] === 'signal') { assert.equal(st, undefined); continue; }
+      assert.equal(st.props['data-cust-status'], 'add', `${who}: ${r.props['data-cust-row']} reads as set`);
+      assert.equal(textOf(st), 'Add');
+      assert.doesNotMatch(String(st.props.style.border), new RegExp(TEAL_SAVE), `${who}: a dim status is lit`);
     }
-    assert.equal(styled.filter((n) => /gradient/.test(String(n.props.style.background || ''))).length, 0, `${who}: a gradient panel is back`);
+    // No ink rule, and no capitals but the small lit tags.
     assert.equal(styled.filter((n) => /solid/.test(String(n.props.style.borderBottom || ''))).length, 0, `${who}: an ink rule is back`);
-    assert.equal(styled.filter((n) => n.props.style.textTransform === 'uppercase').length, 0, `${who}: caps labels are back`);
+    assert.equal(styled.filter((n) => n.props.style.textTransform === 'uppercase' && n.props['data-cust-tag'] == null).length, 0, `${who}: caps labels are back`);
     // No field on the hub: every field lives on its area's page.
     assert.equal(nodes.filter((n) => n.type === 'input' || n.type === 'textarea').length, 0, `${who}: a field on the hub`);
     const close = nodes.find((n) => n.props['data-cust-close'] != null);
@@ -254,10 +269,20 @@ test('each row opens its area\'s own page: the shared Back and title, its fields
         assert.equal(header.props.title, name, `${who}: ${key}'s title is not its row's name`);
         assert.equal(header.props.noCorner, true);
         const cards = d.nodes().filter((n) => n.props['data-cust-card'] != null);
-        assert.deepEqual(cards.map((n) => n.props['data-cust-card']), [key], `${who}: ${key} is not one card`);
-        assert.equal(cards[0].props.style.background, THEME.PAPER, `${who}: ${key}'s card is tinted`);
-        // Fields: rounded, 44px and up, 16px words (iOS zooms a smaller field).
-        for (const f of d.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea' || n.type === 'select') && n.props.type !== 'file')) {
+        assert.deepEqual(cards.map((n) => n.props['data-cust-card']), [key], `${who}: ${key} is not one page body`);
+        // Its groups on raised plates, the first with the lit edge (Colors brings the look panel's own plates).
+        const plates = d.nodes().filter((n) => n.props['data-cust-plate'] != null);
+        if (key === 'colors') {
+          assert.equal(plates.length, 0, `${who}: the look panel is plated twice`);
+          assert.equal(d.nodes().filter(named('BSLookPicker')).length, 1);
+        } else {
+          assert.ok(plates.length >= 1, `${who}: ${key} has no raised plate`);
+          for (const p of plates) assert.ok(isRaised(p.props.style), `${who}: a group on ${key} is not raised`);
+          assert.equal(flatten(plates[0].props.children).filter(named('BSGlassEdge')).length, 1, `${who}: ${key}'s first plate has no lit edge`);
+        }
+        // Fields: inset wells (the inset shadow), rounded, 44px and up, 16px words (iOS zooms a smaller field).
+        for (const f of d.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea' || n.type === 'select') && n.props.type !== 'file' && n.props.className === 'bs-cust-field')) {
+          assert.match(String(f.props.style.boxShadow), /^inset /, `${who}: a field on ${key} is not an inset well`);
           assert.ok(f.props.style.borderRadius >= 12, `${who}: a square field on ${key}`);
           assert.ok(f.props.style.minHeight >= 44, `${who}: a field under 44 px on ${key}`);
           assert.ok(f.props.style.fontSize >= 16, `${who}: a field under 16px on ${key}`);
@@ -265,20 +290,21 @@ test('each row opens its area\'s own page: the shared Back and title, its fields
         for (const b of d.nodes().filter((n) => n.type === 'button' && n.props.style && n.props.style.width != null && n.props.style.width !== '100%')) {
           assert.ok(b.props.style.width >= 44 && (b.props.style.height == null || b.props.style.height >= 44), `${who}: a key under 44px on ${key}`);
         }
-        // Its own Save (none on Your Signal, which only explains): the one coloured pill, off until
-        // something on the page changes.
+        // Its own Save (none on Your Signal, which only explains): the one glowing primary, off (and
+        // unlit) until something on the page changes.
         const save = saveOf(d);
         if (key === 'signal') assert.equal(save, undefined, 'Your Signal has nothing to save');
         else {
           assert.equal(save.props.style.background, TEAL_SAVE, `${who}: ${key}'s Save is not the page's one colour`);
-          assert.equal(save.props.style.borderRadius, 999);
+          assert.equal(save.props.style.borderRadius, 16);
           assert.ok(save.props.style.minHeight >= 44);
           assert.equal(save.props.disabled, true, `${who}: ${key}'s Save is on with nothing changed`);
+          assert.equal(save.props.style.boxShadow, 'none', `${who}: ${key}'s Save glows with nothing to save`);
         }
         // Back from an unchanged page goes straight to the hub, asking nothing.
         await goBack(d);
         assert.equal(areaOf(d), null, `${who}: Back from ${key} stayed`);
-        assert.deepEqual(world.asks, [], `${who}: Back from an unchanged ${key} asked`);
+        assert.equal(d.nodes().filter((n) => n.props['data-cust-discard'] != null).length, 0, `${who}: Back from an unchanged ${key} asked`);
       } finally { world.restore(); }
     }
   }
@@ -304,6 +330,7 @@ test('an area\'s Save reads the doc again and writes only that area\'s fields ov
     openRow(d, 'about');
     typeIn(d, 'bio', 'New bio');
     assert.equal(saveOf(d).props.disabled, false, 'Save stays off after a change');
+    assert.match(String(saveOf(d).props.style.boxShadow), /0 12px 28px -12px/, 'the primary does not glow once there is something to save');
     await pressSave(d);
     assert.deepEqual(world.reads, [['profile_custom', { expectedUserId: 'u-me' }]], 'the doc was not read again, bound to the account');
     assert.equal(world.writes.length, 1);
@@ -344,42 +371,43 @@ test('an area\'s Save reads the doc again and writes only that area\'s fields ov
   }
 });
 
-test('Back with changes not saved asks once: Keep editing stays, Discard puts the saved doc back', async () => {
-  // Keep editing.
-  let world = editorWorld({ base: { bio: 'Old' }, confirm: false });
+test('Back with changes not saved asks once on a raised sheet: Keep editing stays, Discard puts the saved doc back', async () => {
+  const sheetOf = (d) => d.nodes().find((n) => n.props['data-cust-discard'] != null);
+  const press = (d, attr) => { d.nodes().find((n) => n.props[attr] != null).props.onClick({ stopPropagation() {} }); withSurface(() => d.render()); };
+  const world = editorWorld({ base: { bio: 'Old' } });
   try {
     const d = openEditor({ initial: { bio: 'Old' }, ...world.props });
     openRow(d, 'about');
     typeIn(d, 'bio', 'Draft');
     await goBack(d);
-    assert.equal(world.asks.length, 1, 'Back did not ask once');
-    assert.equal(world.asks[0].confirmLabel, 'Discard');
-    assert.equal(world.asks[0].cancelLabel, 'Keep editing');
-    assert.match(world.asks[0].title, /Discard your changes\?/);
+    // The sheet: raised, with the lit edge, the question, Keep editing and Discard; the page stays under it.
+    const sheet = sheetOf(d);
+    assert.ok(sheet, 'Back with changes did not ask');
+    const dialog = flatten(sheet.props.children).find((n) => n.props && n.props.role === 'alertdialog');
+    assert.ok(isRaised(dialog.props.style), 'the sheet is not raised');
+    assert.equal(flatten(dialog.props.children).filter(named('BSGlassEdge')).length, 1);
+    assert.match(textOf(dialog), /Discard your changes\?/);
+    assert.match(textOf(dialog), /Keep editing/);
+    assert.equal(areaOf(d), 'about', 'the page went before the answer');
+    // Keep editing: the sheet goes, the draft stays.
+    press(d, 'data-cust-keep');
+    assert.equal(sheetOf(d), undefined, 'Keep editing left the sheet up');
     assert.equal(areaOf(d), 'about', 'Keep editing left the page');
     assert.equal(fieldOf(d, 'bio').props.value, 'Draft', 'Keep editing lost the draft');
-  } finally { world.restore(); }
-  // Discard.
-  world = editorWorld({ base: { bio: 'Old' }, confirm: true });
-  try {
-    const d = openEditor({ initial: { bio: 'Old' }, ...world.props });
-    openRow(d, 'about');
-    typeIn(d, 'bio', 'Draft');
+    // A tap outside the sheet keeps editing too.
     await goBack(d);
-    assert.equal(world.asks.length, 1);
+    sheetOf(d).props.onClick();
+    withSurface(() => d.render());
+    assert.equal(sheetOf(d), undefined);
+    assert.equal(fieldOf(d, 'bio').props.value, 'Draft');
+    // Discard: back to the hub, and the saved doc is what the page shows again; nothing is written.
+    await goBack(d);
+    press(d, 'data-cust-discard-confirm');
+    assert.equal(sheetOf(d), undefined);
     assert.equal(areaOf(d), null, 'Discard stayed on the page');
     openRow(d, 'about');
     assert.equal(fieldOf(d, 'bio').props.value, 'Old', 'Discard kept the draft');
     assert.equal(world.writes.length, 0, 'Discard wrote');
-  } finally { world.restore(); }
-  // With no prompt to ask through, a changed page never drops its changes silently.
-  world = editorWorld({ base: { bio: 'Old' }, confirm: 'none' });
-  try {
-    const d = openEditor({ initial: { bio: 'Old' }, ...world.props });
-    openRow(d, 'about');
-    typeIn(d, 'bio', 'Draft');
-    await goBack(d);
-    assert.equal(areaOf(d), 'about', 'a changed page was left with no way to ask');
   } finally { world.restore(); }
 });
 
@@ -502,7 +530,7 @@ test('the editor\'s motion is gentle, and none of it runs under reduced motion',
   const css = stripComments(readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', 'BSProfileCustomizer.jsx'), 'utf8'));
   const reduced = css.slice(css.indexOf("'@media (prefers-reduced-motion: reduce) {'"));
   assert.ok(reduced.length > 40, 'no reduced-motion block');
-  for (const rule of ['.bs-cust-in, .bs-cust-photo { animation: none !important; }', '.bs-cust-press, .bs-cust-field { transition: none !important; }', '.bs-cust-press:active:not(:disabled) { transform: none !important; }', '.bs-cust-row { transition: none !important; }']) {
+  for (const rule of ['.bs-cust-in, .bs-cust-photo { animation: none !important; }', '.bs-cust-press, .bs-cust-field { transition: none !important; }', '.bs-cust-press:active:not(:disabled) { transform: none !important; }', '.bs-cust-row, .bs-cust-primary { transition: none !important; }', '.bs-cust-row:active, .bs-cust-primary:active:not(:disabled) { transform: none !important; }']) {
     assert.ok(reduced.includes(rule), `reduced motion leaves ${rule.split(' {')[0]} moving`);
   }
 });

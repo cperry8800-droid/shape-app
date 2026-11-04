@@ -367,6 +367,8 @@
   "editor.sum.shelf": "На полиці: {count}",
   "editor.sum.song": "Пісню задано",
   "editor.sum.stats": "{count, plural, one {# головна цифра} few {# головні цифри} many {# головних цифр} other {# головної цифри}}",
+  "editor.status.add": "Додати",
+  "editor.status.set": "Готово",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Тренування",
   "pin.kind.meal": "Прийом їжі",

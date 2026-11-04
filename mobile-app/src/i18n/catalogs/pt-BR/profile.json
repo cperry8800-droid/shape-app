@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} na prateleira",
   "editor.sum.song": "Música definida",
   "editor.sum.stats": "{count, plural, one {# dado de destaque} other {# dados de destaque}}",
+  "editor.status.add": "Adicionar",
+  "editor.status.set": "Pronto",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Treino",
   "pin.kind.meal": "Refeição",

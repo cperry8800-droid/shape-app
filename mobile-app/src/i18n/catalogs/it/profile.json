@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} sulla mensola",
   "editor.sum.song": "Brano impostato",
   "editor.sum.stats": "{count, plural, one {# dato in evidenza} other {# dati in evidenza}}",
+  "editor.status.add": "Aggiungi",
+  "editor.status.set": "Fatto",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Allenamento",
   "pin.kind.meal": "Pasto",

@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} di rak",
   "editor.sum.song": "Lagu sudah dipilih",
   "editor.sum.stats": "{count, plural, other {# data unggulan}}",
+  "editor.status.add": "Tambah",
+  "editor.status.set": "Siap",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Latihan",
   "pin.kind.meal": "Makan",

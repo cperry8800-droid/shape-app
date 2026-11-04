@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} for di shelf",
   "editor.sum.song": "Song don set",
   "editor.sum.stats": "{count, plural, one {# headline number} other {# headline numbers}}",
+  "editor.status.add": "Add am",
+  "editor.status.set": "Don set",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Workout",
   "pin.kind.meal": "Food",

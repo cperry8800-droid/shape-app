@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} im Regal",
   "editor.sum.song": "Song steht",
   "editor.sum.stats": "{count, plural, one {# Kennzahl} other {# Kennzahlen}}",
+  "editor.status.add": "Hinzufügen",
+  "editor.status.set": "Steht",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Workout",
   "pin.kind.meal": "Mahlzeit",

@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} a kanti",
   "editor.sum.song": "An saka waƙa",
   "editor.sum.stats": "{count, plural, one {babban alkalami #} other {manyan alkaluma #}}",
+  "editor.status.add": "Ƙara",
+  "editor.status.set": "An saita",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Motsa jiki",
   "pin.kind.meal": "Abinci",

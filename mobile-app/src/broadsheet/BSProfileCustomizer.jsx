@@ -1,9 +1,10 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType, useBSClean } from './bsCleanType.jsx';
-import { BSMpIcon } from './BSMemberBento.jsx';
-import { BSLookPicker, bsLookWords, hexA, onColor } from './BSLookPicker.jsx';
-import { bsWsAccent } from './bsMagazine.mjs';
+import { BSMpIcon, bsMpGlass } from './BSMemberBento.jsx';
+import { BSLookPicker, bsLookWords, paletteOf, hexA, onColor } from './BSLookPicker.jsx';
+import { bsRaised, BSGlassEdge } from './BSProInstrument.jsx';
+import { bsWsAccent, bsWsLed } from './bsMagazine.mjs';
 import {
   bsNormalizeProfileCustom, bsStartLineState, bsValidStartDate, bsProfileLook, BS_LOOK_PAPERS, BS_LOOK_ACCENTS,
   BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX,
@@ -20,18 +21,20 @@ import {
 // on the profile you can choose to customize which then brings you to individual page for those
 // customizations instead of listing everyone on one, requires less scrolling").
 //
-//   · THE HUB, what Customize opens to: a compact live preview of the profile's head (the facet avatar
-//     for a member, the round photo for a coach; the name, the countdown or a coach's line, the bio),
-//     then one card of rows, one per area of the profile, each with a line saying what is set there, and
-//     last the door to the name, @handle and photo (Settings).
+//   · In the other session's lit, raised language (owner: "popping out, almost 3d look", "and a better
+//     layout"): raised plates (bsRaised) with a lit top edge (BSGlassEdge), lit slots (bsWsLed), fields
+//     as inset wells, one glowing primary. Colour lives in the lit edges and slots, the facet avatar's
+//     tier colour, the one primary and an error.
+//   · THE HUB, what Customize opens to: the profile as it will look (cover, the facet avatar for a
+//     member or the round photo for a coach, the name, the countdown or a coach's line, the bio) as the
+//     hero plate; then the areas as a 2-column grid of raised tiles, each with a lit icon well, its name,
+//     what is set there and a lit "Set" or a dim "Add"; Colors and Profile song as wide tiles (Colors
+//     showing the look as lit swatches), which also closes the grid with no gap; last, the door to the
+//     name, @handle and photo (Settings) as a quiet glass row. A pressed tile sinks.
 //   · AN AREA'S PAGE: a BSPage with the shared Back under the masthead (BSDetailHeader), so a swipe right
-//     goes back as ← does; the area's fields in one card; its own Save at the foot. Leaving it with
-//     changes not saved asks once (Discard / Keep editing).
-//   · Cards in the paper's own colour with a soft lift, plain labels with their hints, rounded 16px
-//     fields, the photos as rounded tiles. Colour only as a signal: Save, a focused field, the facet
-//     avatar's tier colour, an error. The profile's colours are picked in the shared look panel
-//     (BSLookPicker, Make it yours' Colors page), which draws its own chrome.
-//   · Motion is a short rise as the cards come in and a press on a tap, all of it off under
+//     goes back as ← does; its fields grouped on raised plates; its own Save at the foot, the one glowing
+//     primary. Leaving it with changes not saved asks once, on a raised sheet (Discard / Keep editing).
+//   · Motion is a short rise as the plates come in and a sink on a press, all of it off under
 //     prefers-reduced-motion.
 //
 // ⚠ AN AREA'S SAVE READS THE DOC AGAIN AND WRITES ONLY THAT AREA'S FIELDS (areaFields), as Make it yours
@@ -183,14 +186,17 @@ function bsCustCss() {
   s.textContent = [
     '.bs-cust-field { transition: border-color 160ms ease, box-shadow 160ms ease; }',
     '.bs-cust-field::placeholder { color: var(--cust-ph); opacity: 1; }',
-    '.bs-cust-field:focus { border-color: var(--cust-teal) !important; box-shadow: 0 0 0 3px var(--cust-ring) !important; }',
+    '.bs-cust-field:focus { border-color: var(--cust-teal) !important; box-shadow: var(--cust-well), 0 0 16px -6px var(--cust-glow) !important; }',
     '.bs-cust-cap::placeholder { color: rgba(255,255,255,0.8); opacity: 1; }',
     '.bs-cust-cap:focus { box-shadow: inset 0 -3px 0 var(--cust-teal); }',
     '.bs-cust-btn:focus-visible { outline: 2px solid var(--cust-teal); outline-offset: 2px; }',
     '.bs-cust-press { transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }',
-    '.bs-cust-press:active:not(:disabled) { transform: scale(0.97); }',
-    '.bs-cust-row { transition: background-color 160ms ease; }',
-    '.bs-cust-row:active { background-color: var(--cust-press) !important; }',
+    '.bs-cust-press:active:not(:disabled) { transform: translateY(1px); }',
+    // A tile sinks a hair under the finger; the one glowing primary sinks and its glow tightens.
+    '.bs-cust-row { transition: transform 140ms ease, filter 140ms ease; }',
+    '.bs-cust-row:active { transform: translateY(1px); filter: brightness(0.97); }',
+    '.bs-cust-primary { transition: transform 140ms ease, box-shadow 140ms ease; }',
+    '.bs-cust-primary:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 6px 16px -10px var(--cust-glow) !important; }',
     '@keyframes bsCustIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }',
     '.bs-cust-in { animation: bsCustIn 340ms cubic-bezier(.2,.7,.2,1) both; }',
     '@keyframes bsCustFade { from { opacity: 0; } to { opacity: 1; } }',
@@ -199,7 +205,8 @@ function bsCustCss() {
     '  .bs-cust-in, .bs-cust-photo { animation: none !important; }',
     '  .bs-cust-press, .bs-cust-field { transition: none !important; }',
     '  .bs-cust-press:active:not(:disabled) { transform: none !important; }',
-    '  .bs-cust-row { transition: none !important; }',
+    '  .bs-cust-row, .bs-cust-primary { transition: none !important; }',
+    '  .bs-cust-row:active, .bs-cust-primary:active:not(:disabled) { transform: none !important; }',
     '}',
   ].join('\n');
   document.head.appendChild(s);
@@ -225,7 +232,6 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const gutter = (tTheme && tTheme.padX) || 22;
   const light = !!tTheme.isLight;
   const PAPER = tTheme.PAPER || '#0f0e0c';
-  const PAPER2 = tTheme.PAPER2 || PAPER;
   // The one colour of the page: Save and a focused field (the magazine's teal, readable on either paper).
   const TEAL = bsWsAccent(tTheme);
   const onTeal = onColor(TEAL);
@@ -461,53 +467,49 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     setSavedOnce(true);
     setArea(null);
   };
-  // Back from an area (its ←, or a swipe right): with changes not saved, it asks once; Keep editing
-  // stays, Discard puts the form back to the saved doc.
-  const leaveArea = async () => {
-    if (areaDirty(area)) {
-      const ask = window.bsAskConfirm;
-      const discard = typeof ask === 'function' ? await ask({
-        eyebrow: tr('profile:editor.leave.eyebrow', { defaultValue: 'Unsaved changes' }),
-        title: tr('profile:editor.leave.title', { defaultValue: 'Discard your changes?' }),
-        message: tr('profile:editor.leave.message', { defaultValue: "You haven't saved the changes on this page." }),
-        confirmLabel: tr('profile:editor.leave.discard', { defaultValue: 'Discard' }),
-        cancelLabel: tr('profile:editor.leave.keep', { defaultValue: 'Keep editing' }),
-      }) : false;
-      if (!discard) return false;
-      setForm(formOf(saved));
-    }
+  // Back from an area (its ←, or a swipe right): with changes not saved, it asks once, on the editor's own
+  // raised sheet; Keep editing (or a tap outside it) stays, Discard puts the form back to the saved doc.
+  const [asking, setAsking] = useState(false);
+  const leaveArea = () => {
+    if (areaDirty(area)) { setAsking(true); return false; }
     setArea(null);
     return true;
   };
+  const keepEditing = () => setAsking(false);
+  const discardChanges = () => { setAsking(false); setForm(formOf(saved)); setArea(null); };
   const openArea = (key) => { setForm(formOf(saved)); setArea(key); };
   // Closing the editor hands the profile the doc as saved, once an area has saved; else nothing changed.
   const closeEditor = () => (savedOnce ? onSave(saved) : onClose());
 
-  // ── The look ──
-  // A card: the paper's own colour (its raised tone on a dark paper, where a shadow cannot show), a
-  // hairline and a soft lift. Never tinted.
-  const cardBg = light ? PAPER : PAPER2;
-  const lift = light
-    ? `0 1px 2px ${ink(0.05)}, 0 16px 34px -24px ${ink(0.34)}`
-    : 'inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 38px -26px rgba(0,0,0,0.9)';
-  const cardS = { background: cardBg, borderRadius: 24, border: `1px solid ${ink(light ? 0.07 : 0.08)}`, boxShadow: lift, padding: '22px 16px 24px', marginBottom: 18, boxSizing: 'border-box', minWidth: 0 };
+  // ── The look: the lit, raised language of the other session's pages (owner, 2026-11-04: "popping
+  // out, almost 3d look") ──
+  // Page paper → raised plate (bsRaised, its lit top edge BSGlassEdge) → glass pane (bsMpGlass) → inset
+  // well → lit slot (bsWsLed). Colour lives in the lit edges, the lit slots and the one glowing primary.
+  const PLATE_PAD = '18px 16px 20px';
+  const plate = (glow) => bsRaised(tTheme, glow || null);
+  const led = (on) => bsWsLed(tTheme, on);
+  const glowOf = (col = TEAL) => `0 0 16px -6px ${hexA(col, 0.85)}`;
+  // An inset well: a dark inset on a dark paper, a faint ink wash on a light one.
+  const wellBg = light ? ink(0.045) : 'rgba(0,0,0,0.45)';
+  const wellIn = light ? 'inset 0 1px 2px rgba(0,0,0,0.08)' : 'inset 0 1px 3px rgba(0,0,0,0.6)';
+  // The one glowing primary: a filled teal, its words readable on it, a deep coloured shadow.
+  const primaryGlow = (col) => `0 12px 28px -12px ${hexA(col, 0.85)}, inset 0 1px 0 rgba(255,255,255,0.35)`;
   const labelS = { fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, lineHeight: 1.3, color: INK };
   // Quiet words at 60% of the ink: 4.5:1 and up on every paper at 13px.
   const hintS = { fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.3, color: ink(0.6) };
   const noteS = { margin: '8px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.45, color: ink(0.6) };
-  // Fields: rounded, a whisper of the ink as their ground, 16px words (iOS zooms a smaller field).
-  const field = { width: '100%', boxSizing: 'border-box', minHeight: 48, padding: '12px 14px', borderRadius: 16, border: `1px solid ${ink(light ? 0.14 : 0.16)}`, background: ink(light ? 0.025 : 0.045), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 16, lineHeight: 1.35, outline: 'none', WebkitAppearance: 'none', appearance: 'none' };
+  // Fields: inset wells, their edge lit with a soft glow when focused; 16px words (iOS zooms a smaller field).
+  const field = { width: '100%', boxSizing: 'border-box', minHeight: 48, padding: '12px 14px', borderRadius: 14, border: `1px solid ${ink(0.12)}`, background: wellBg, boxShadow: wellIn, color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 16, lineHeight: 1.35, outline: 'none', WebkitAppearance: 'none', appearance: 'none' };
   const stack = (gap) => ({ display: 'flex', flexDirection: 'column', gap });
-  // A quiet action: words on a whisper of the ink, a pill.
-  const ghost = { minHeight: 44, padding: '0 16px', borderRadius: 999, border: 0, background: ink(light ? 0.055 : 0.08), color: INK, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'flex-start' };
-  // A chip: chosen is outlined in the ink over a whisper of it, with a tick; else a hairline pill.
-  const chipOn = ink(light ? 0.07 : 0.1);
-  const chip = (on) => ({ minHeight: 44, padding: on ? '0 15px 0 13px' : '0 16px', borderRadius: 999, cursor: 'pointer', border: on ? `1.5px solid ${INK}` : `1px solid ${ink(0.16)}`, background: on ? chipOn : 'transparent', color: on ? INK : ink(0.74), fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: on ? 650 : 550, display: 'inline-flex', alignItems: 'center', gap: 6, boxSizing: 'border-box' });
+  // A quiet action: an unlit slot.
+  const ghost = { ...led(false), minHeight: 44, padding: '0 16px', borderRadius: 12, color: INK, textShadow: 'none', cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, alignSelf: 'flex-start', boxSizing: 'border-box' };
+  // A chip: a slot, lit (its edge, and a soft glow on a dark paper) when chosen, with a tick.
+  const chip = (on) => ({ ...led(on), minHeight: 44, padding: on ? '0 15px 0 12px' : '0 16px', borderRadius: 12, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: on ? 650 : 550, display: 'inline-flex', alignItems: 'center', gap: 6, boxSizing: 'border-box', ...(on && !light ? { boxShadow: `${wellIn}, ${glowOf()}` } : null) });
   // The round × on a row, a full 44px key.
   const xKey = { width: 44, height: 44, flex: 'none', padding: 0, border: 0, borderRadius: 999, background: 'transparent', color: ink(0.6), cursor: 'pointer', display: 'grid', placeItems: 'center' };
-  // An empty slot to fill: a dashed outline and a plus, nothing tinted.
-  const slot = { borderRadius: 18, border: `1.5px dashed ${ink(light ? 0.22 : 0.26)}`, background: 'transparent', color: ink(0.78), cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxSizing: 'border-box' };
-  const plusDot = <span aria-hidden="true" style={{ width: 36, height: 36, flex: 'none', borderRadius: 999, background: ink(light ? 0.06 : 0.09), color: INK, display: 'grid', placeItems: 'center' }}><BSMpIcon name="plus" size={17} stroke={2.2} /></span>;
+  // An empty slot to fill: an inset well with a lit plus.
+  const slot = { borderRadius: 16, border: `1px solid ${ink(0.12)}`, background: wellBg, boxShadow: wellIn, color: ink(0.82), cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxSizing: 'border-box' };
+  const plusDot = <span aria-hidden="true" style={{ ...led(true), width: 36, height: 36, flex: 'none', borderRadius: 999, display: 'grid', placeItems: 'center', ...(light ? null : { boxShadow: `${wellIn}, ${glowOf()}` }) }}><BSMpIcon name="plus" size={17} stroke={2.2} /></span>;
   const enter = (i) => (motion ? { className: 'bs-cust-in', style: { animationDelay: `${40 + i * 45}ms` } } : { className: undefined, style: null });
 
   // A part's head: its name as the field's label, its hint beside it (wrapping under it when narrow).
@@ -626,7 +628,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const coverPart = (
     <div key="cover">
       {head(tr('profile:editor.cover.label', { defaultValue: 'Cover image' }))}
-      <div data-cust-cover="" style={{ position: 'relative', height: coverUrl ? 140 : 88, borderRadius: 18, overflow: 'hidden', boxSizing: 'border-box', background: coverUrl ? '#111' : 'transparent', border: coverUrl ? 0 : `1.5px dashed ${ink(light ? 0.22 : 0.26)}`, boxShadow: coverUrl && light ? `0 10px 22px -14px ${ink(0.45)}` : 'none' }}>
+      <div data-cust-cover="" style={{ position: 'relative', height: coverUrl ? 140 : 88, borderRadius: 18, overflow: 'hidden', boxSizing: 'border-box', background: coverUrl ? '#111' : wellBg, border: coverUrl ? 0 : `1px solid ${ink(0.12)}`, boxShadow: coverUrl ? (light ? `0 10px 22px -14px ${ink(0.45)}` : '0 12px 24px -14px rgba(0,0,0,0.9)') : wellIn }}>
         {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
         <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: 'none' }} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 10 }}>
@@ -793,29 +795,32 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     </div>
   ) : null;
 
-  // ── The areas, for each role: their row's name and icon, and their page's parts ──
-  // To add an area: build its parts above, add it here and to ROWS, and give areaFields() the keys its
-  // Save writes (a key no area writes is left as the doc has it).
+  // ── The areas, for each role: their tile's name and icon, and their page's parts ──
+  // To add an area: build its parts above, add it here and to TILES, and give areaFields() the keys its
+  // Save writes (a key no area writes is left as the doc has it). `wide` spans the hub's two columns;
+  // `bare` draws its parts without plates (the look panel brings its own).
   const AREAS = {
     signal: { name: signalHead[0], icon: 'pulse', parts: [signalPart] },
     about: { name: tr('profile:editor.group.about', { defaultValue: 'About you' }), icon: 'chat', parts: coach ? [bioPart, linePart, promptsPart] : [bioPart, startPart] },
     practice: { name: tr('profile:editor.group.practice', { defaultValue: 'Your practice' }), icon: 'briefcase', parts: [bizPart, winsPart] },
     photos: { name: tr('profile:editor.group.photos', { defaultValue: 'Photos & film' }), icon: 'image', parts: coach ? [coverPart, filmPart] : [wallPart, coverPart, filmPart] },
     highlights: { name: tr('profile:editor.group.highlights', { defaultValue: 'Highlights' }), icon: 'trophy', parts: coach ? [pinPart, statsPart] : [shelfPart, pinPart, statsPart] },
-    colors: { name: tr('profile:mine.tabColors', { defaultValue: 'Colors' }), icon: 'palette', parts: [lookPart] },
-    song: { name: songHead[0], icon: 'note', parts: [songPart] },
     links: { name: tr('profile:editor.links.label', { defaultValue: 'Social links' }), icon: 'link', parts: [linksPart] },
+    colors: { name: tr('profile:mine.tabColors', { defaultValue: 'Colors' }), icon: 'palette', parts: [lookPart], wide: true, bare: true },
+    song: { name: songHead[0], icon: 'note', parts: [songPart], wide: true },
   };
-  const ROWS = coach ? ['signal', 'about', 'practice', 'photos', 'highlights', 'colors', 'song', 'links'] : ['about', 'photos', 'highlights', 'colors', 'song', 'links'];
+  // The hub's order: the half tiles in pairs, then the two wide ones, so the grid closes with no gap.
+  const TILES = coach ? ['signal', 'about', 'practice', 'photos', 'highlights', 'links', 'colors', 'song'] : ['about', 'photos', 'highlights', 'links', 'colors', 'song'];
 
-  // What is set in each area, as its row says it: from the doc as saved, never from a draft.
-  const orNone = (parts) => parts.filter(Boolean).join(' · ') || tr('profile:editor.sum.empty', { defaultValue: 'Not set yet' });
+  // What is set in each area, as its tile says it: from the doc as saved, never from a draft.
+  const EMPTY = tr('profile:editor.sum.empty', { defaultValue: 'Not set yet' });
+  const orNone = (parts) => parts.filter(Boolean).join(' · ') || EMPTY;
   const savedStart = bsStartLineState(base.startDate, new Date());
   const savedPrompts = base.prompts.filter((p) => p && p.q && String(p.a || '').trim()).length;
   const savedLinks = BS_PROFILE_LINKS.filter((l) => String(base.links[l.key] || '').trim()).length;
-  // The saved look's words (its missing half read as the app's own, as the panel shows it).
-  const savedLook = bsProfileLook(saved.look) ? { paper: initLook.paper || seedPaper, accent: initLook.accent || seedAccent } : null;
-  const lookWords = savedLook ? bsLookWords(tr, savedLook) : null;
+  // The look the profile shows now: the saved one, its missing half the app's own (as the panel reads it).
+  const shownLook = { paper: initLook.paper || seedPaper, accent: initLook.accent || seedAccent };
+  const lookWords = bsLookWords(tr, shownLook);
   const SUMMARY = {
     signal: signalHead[1],
     about: orNone([
@@ -838,12 +843,13 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       base.pinTitle.trim() ? tr('profile:editor.sum.pinned', { defaultValue: 'Highlight pinned' }) : '',
       Array.isArray(saved.heroStats) && saved.heroStats.length ? tr('profile:editor.sum.stats', { count: Math.min(3, saved.heroStats.length), defaultValue: '{count, plural, one {# headline stat} other {# headline stats}}' }) : '',
     ]),
-    colors: lookWords ? [lookWords.paperName(savedLook.paper), lookWords.accentName(savedLook.accent)].join(' · ') : orNone([]),
-    song: base.songUrl.trim() ? (base.songLabel.trim() || tr('profile:editor.sum.song', { defaultValue: 'Song set' })) : orNone([]),
-    links: savedLinks ? tr('profile:editor.sum.links', { count: savedLinks, defaultValue: '{count, plural, one {# link} other {# links}}' }) : orNone([]),
+    colors: bsProfileLook(saved.look) ? [lookWords.paperName(shownLook.paper), lookWords.accentName(shownLook.accent)].join(' · ') : EMPTY,
+    song: base.songUrl.trim() ? (base.songLabel.trim() || tr('profile:editor.sum.song', { defaultValue: 'Song set' })) : EMPTY,
+    links: savedLinks ? tr('profile:editor.sum.links', { count: savedLinks, defaultValue: '{count, plural, one {# link} other {# links}}' }) : EMPTY,
   };
+  const isSet = (k) => k !== 'signal' && SUMMARY[k] !== EMPTY;
 
-  // ── The hub's live preview: the profile's head as it reads now (the doc as saved) ──
+  // ── The hub's hero: the profile as it will look (the doc as saved), on a raised plate with a lit edge ──
   const name = (who && who.name) || (W.bsMyName ? W.bsMyName() : '') || '';
   const handle = (who && who.handle) || '';
   const photo = validPhoto((who && who.photo) || (W.bsMyPhoto ? W.bsMyPhoto() : null));
@@ -862,84 +868,130 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const coverNow = base.coverUrl;
   const previewEmpty = !lineNow && !bioNow && !(startTitleNow && savedStart) && !bizNow;
   const avatar = !coach && FacetAvatar
-    ? <FacetAvatar size={50} c={c} initial={initials} name={name} photo={photo} showRank={false} BG={cardBg} INK={INK} />
+    ? <FacetAvatar size={54} c={c} initial={initials} name={name} photo={photo} showRank={false} BG={PAPER} INK={INK} />
     : (
-      <span data-cust-round-avatar="" aria-hidden="true" style={{ width: 52, height: 52, flex: 'none', borderRadius: 999, overflow: 'hidden', display: 'grid', placeItems: 'center', background: tTheme.PAPER3 || ink(0.08), boxShadow: `0 0 0 3px ${cardBg}, 0 0 0 4px ${ink(0.14)}` }}>
-        {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 19, fontWeight: 700, color: ink(0.8) }}>{initials}</span>}
+      <span data-cust-round-avatar="" aria-hidden="true" style={{ width: 58, height: 58, flex: 'none', borderRadius: 999, overflow: 'hidden', display: 'grid', placeItems: 'center', background: tTheme.PAPER3 || ink(0.08), boxShadow: `0 0 0 3px ${PAPER}, 0 0 0 4px ${ink(0.14)}, 0 8px 18px -8px rgba(0,0,0,0.5)` }}>
+        {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, color: ink(0.8) }}>{initials}</span>}
       </span>
     );
+  // A small lit tag ("LIVE PREVIEW", "UNSAVED CHANGES"): one of the few words that may stay in capitals.
+  const tag = (text, on = true) => <span data-cust-tag="" style={{ ...led(on), display: 'inline-block', padding: '4px 9px', borderRadius: 8, fontFamily: BS_CLEAN_SANS, fontSize: 10.5, fontWeight: 750, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{text}</span>;
+  const previewLabel = tr('profile:editor.preview.label', { defaultValue: 'Live preview' });
   const pe = enter(0);
   const preview = (
-    <section data-cust-preview="" aria-label={tr('profile:editor.preview.label', { defaultValue: 'Live preview' })} className={pe.className}
-      style={{ ...cardS, ...(pe.style || null), padding: 0, overflow: 'hidden' }}>
-      {coverNow ? <div aria-hidden="true" style={{ height: 72, background: `#111 center/cover no-repeat url("${coverNow}")` }} /> : null}
-      <div style={{ padding: '14px 16px 16px' }}>
-        <div style={{ ...hintS, fontSize: 12.5, fontWeight: 600, marginBottom: 12 }}>{tr('profile:editor.preview.label', { defaultValue: 'Live preview' })}</div>
+    <section data-cust-preview="" aria-label={previewLabel} className={pe.className} style={{ ...plate(), ...(pe.style || null), marginBottom: 14 }}>
+      <BSGlassEdge t={tTheme} />
+      {coverNow ? <div aria-hidden="true" style={{ height: 92, background: `#111 center/cover no-repeat url("${coverNow}")`, boxShadow: 'inset 0 -24px 30px -20px rgba(0,0,0,0.45)' }} /> : null}
+      <div style={{ padding: '16px 16px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <span style={{ flex: 'none', display: 'grid', placeItems: 'center', width: 54, height: 54 }}>{avatar}</span>
+          <span style={{ flex: 'none', display: 'grid', placeItems: 'center', width: 62, height: 62 }}>{avatar}</span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div data-cust-preview-name="" style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 19, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.15, color: INK, overflowWrap: 'anywhere' }}>{name || initials}</div>
-            {handle || bizNow ? <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, color: ink(0.6), overflowWrap: 'anywhere' }}>{[handle, bizNow].filter(Boolean).join(' · ')}</div> : null}
+            <div data-cust-preview-name="" style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.12, color: INK, overflowWrap: 'anywhere' }}>{name || initials}</div>
+            {handle || bizNow ? <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, color: ink(0.62), overflowWrap: 'anywhere' }}>{[handle, bizNow].filter(Boolean).join(' · ')}</div> : null}
           </div>
+          <span style={{ flex: 'none', alignSelf: 'flex-start' }}>{tag(previewLabel)}</span>
         </div>
         {!coach && startTitleNow && savedStart ? (
-          <p data-cust-preview-start="" style={{ margin: '12px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14.5, lineHeight: 1.4, color: INK, overflowWrap: 'anywhere' }}>
+          <p data-cust-preview-start="" style={{ margin: '14px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14.5, lineHeight: 1.4, color: INK, overflowWrap: 'anywhere' }}>
             <span style={{ fontWeight: 650 }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
             {` ${startTitleNow}`}
-            <span style={{ display: 'block', marginTop: 2, fontSize: 13, color: ink(0.6), fontVariantNumeric: 'tabular-nums' }}>{[startWhen, startDays].filter(Boolean).join(' · ')}</span>
+            <span style={{ display: 'block', marginTop: 2, fontSize: 13, color: ink(0.62), fontVariantNumeric: 'tabular-nums' }}>{[startWhen, startDays].filter(Boolean).join(' · ')}</span>
           </p>
         ) : null}
-        {lineNow ? <p data-cust-preview-line="" style={{ margin: '10px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 15.5, fontWeight: 600, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>“{lineNow}”</p> : null}
+        {lineNow ? <p data-cust-preview-line="" style={{ margin: '12px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 15.5, fontWeight: 650, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>“{lineNow}”</p> : null}
         {bioNow ? <p data-cust-preview-bio="" style={{ margin: '8px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14, lineHeight: 1.5, color: ink(0.78), whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{bioNow}</p> : null}
         {previewEmpty ? <p style={{ ...noteS, marginTop: 12, fontSize: 14 }}>{tr('profile:editor.preview.empty', { defaultValue: 'Fill in the parts below. Your profile takes shape here as you type.' })}</p> : null}
       </div>
     </section>
   );
-  // A row of the hub: the area's icon, its name, what is set there, and a chevron; a 64px target.
-  const rowS = (i) => ({ width: '100%', minHeight: 64, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px 10px 14px', border: 0, borderTop: i ? `1px solid ${ink(light ? 0.08 : 0.09)}` : 0, background: 'transparent', color: INK, textAlign: 'left', cursor: 'pointer', boxSizing: 'border-box' });
-  const rowIcon = (icon) => <span aria-hidden="true" style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: ink(light ? 0.05 : 0.08), color: ink(0.82), display: 'grid', placeItems: 'center' }}>{custIcon(icon)}</span>;
-  const rowChevron = <span aria-hidden="true" style={{ width: 28, flex: 'none', display: 'grid', placeItems: 'center', color: ink(0.5) }}><BSMpIcon name="chevron" size={18} stroke={2.2} /></span>;
+
+  // ── The hub's tiles: each area a raised tile with a lit icon well, its name, what is set there, and a
+  // lit "Set" or a dim "Add"; Colors shows the look as lit swatches. A tile sinks a hair when pressed. ──
+  const iconWell = (k, on) => (
+    <span aria-hidden="true" style={{ ...led(on), width: 40, height: 40, flex: 'none', borderRadius: 12, display: 'grid', placeItems: 'center', boxSizing: 'border-box', color: on ? TEAL : ink(0.72), ...(on && !light ? { boxShadow: `${wellIn}, ${glowOf()}`, filter: `drop-shadow(0 0 3px ${hexA(TEAL, 0.6)})` } : null) }}>{custIcon(AREAS[k] ? AREAS[k].icon : k, 19)}</span>
+  );
+  const status = (on) => (
+    <span data-cust-status={on ? 'set' : 'add'} style={{ ...led(on), flex: 'none', padding: '4px 9px', borderRadius: 8, fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 700, lineHeight: 1.3, whiteSpace: 'nowrap', boxSizing: 'border-box', ...(on && !light ? { boxShadow: `${wellIn}, ${glowOf()}` } : null) }}>
+      {on ? tr('profile:editor.status.set', { defaultValue: 'Set' }) : tr('profile:editor.status.add', { defaultValue: 'Add' })}
+    </span>
+  );
+  const tileName = (k) => <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 650, lineHeight: 1.2, color: INK, overflowWrap: 'anywhere' }}>{AREAS[k].name}</span>;
+  const tileSummary = (k) => <span data-cust-summary="" style={{ display: 'block', marginTop: 3, fontFamily: BS_CLEAN_SANS, fontSize: 13, lineHeight: 1.3, color: ink(0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{SUMMARY[k]}</span>;
+  // The look as the profile wears it: its paper as a little page, its accent as a lamp.
+  const lookPage = paletteOf(shownLook.paper, shownLook.accent);
+  const lookSwatches = (
+    <span aria-hidden="true" data-cust-swatches="" style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ ...led(isSet('colors')), width: 38, height: 38, padding: 3, borderRadius: 11, boxSizing: 'border-box' }}>
+        <span style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, width: '100%', height: '100%', padding: '0 6px', boxSizing: 'border-box', borderRadius: 8, background: lookPage.PAPER_BG }}>
+          <span style={{ display: 'block', height: 3, width: '80%', borderRadius: 3, background: lookPage.INK, opacity: 0.85 }} />
+          <span style={{ display: 'block', height: 3, width: '55%', borderRadius: 3, background: lookPage.ACCENT }} />
+        </span>
+      </span>
+      <span style={{ ...led(isSet('colors')), width: 30, height: 30, borderRadius: 999, display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
+        <span style={{ width: 16, height: 16, borderRadius: 999, background: lookWords.accentCol(shownLook.accent), boxShadow: light ? 'inset 0 1px 2px rgba(0,0,0,0.25)' : `0 0 10px ${hexA(lookWords.accentCol(shownLook.accent), 0.8)}` }} />
+      </span>
+    </span>
+  );
+  const tileS = { ...plate(), width: '100%', margin: 0, cursor: 'pointer', color: INK, textAlign: 'left', boxSizing: 'border-box' };
+  const tile = (k) => {
+    const on = isSet(k);
+    if (AREAS[k].wide) {
+      return (
+        <button key={k} type="button" data-cust-row={k} className="bs-cust-btn bs-cust-row" onClick={() => openArea(k)}
+          style={{ ...tileS, gridColumn: '1 / -1', minHeight: 76, padding: '14px 14px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {iconWell(k, on)}
+          <span style={{ flex: 1, minWidth: 0 }}>{tileName(k)}{tileSummary(k)}</span>
+          {k === 'colors' ? lookSwatches : null}
+          {status(on)}
+        </button>
+      );
+    }
+    return (
+      <button key={k} type="button" data-cust-row={k} className="bs-cust-btn bs-cust-row" onClick={() => openArea(k)}
+        style={{ ...tileS, minHeight: 118, padding: '14px 14px 15px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12 }}>
+        <span style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+          {iconWell(k, on || k === 'signal')}
+          {k === 'signal' ? null : status(on)}
+        </span>
+        <span style={{ minWidth: 0 }}>{tileName(k)}{tileSummary(k)}</span>
+      </button>
+    );
+  };
   const re = enter(1);
   const rows = (
-    <section data-cust-rows="" className={re.className} style={{ ...cardS, ...(re.style || null), padding: '4px 0', overflow: 'hidden' }}>
-      {ROWS.map((k, i) => (
-        <button key={k} type="button" data-cust-row={k} className="bs-cust-btn bs-cust-row" onClick={() => openArea(k)} style={rowS(i)}>
-          {rowIcon(AREAS[k].icon)}
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 650, lineHeight: 1.25, color: INK }}>{AREAS[k].name}</span>
-            <span data-cust-summary="" style={{ display: 'block', marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, lineHeight: 1.3, color: ink(0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{SUMMARY[k]}</span>
-          </span>
-          {rowChevron}
-        </button>
-      ))}
+    <section data-cust-rows="" className={re.className} style={{ ...(re.style || null) }}>
+      <div data-cust-grid="" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+        {TILES.map(tile)}
+      </div>
       {/* Identity fields (name · @handle · photo · pronouns · goal · link) live in the
-          Settings editor — the door is the list's last row, so this page stays the one
-          hub for everything the public profile shows. */}
-      <button type="button" data-cust-identity="" className="bs-cust-btn bs-cust-row" onClick={() => { closeEditor(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={rowS(1)}>
-        {rowIcon('user')}
+          Settings editor — the door is a quiet glass row at the foot, so this page stays
+          the one hub for everything the public profile shows. */}
+      <button type="button" data-cust-identity="" className="bs-cust-btn bs-cust-row" onClick={() => { closeEditor(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }}
+        style={{ ...bsMpGlass(tTheme, INK, { radius: 18 }), width: '100%', minHeight: 60, marginTop: 14, padding: '10px 8px 10px 14px', display: 'flex', alignItems: 'center', gap: 12, color: INK, textAlign: 'left', cursor: 'pointer' }}>
+        <span aria-hidden="true" style={{ ...led(false), width: 36, height: 36, flex: 'none', borderRadius: 11, display: 'grid', placeItems: 'center', color: ink(0.72) }}>{custIcon('user', 17)}</span>
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 650, lineHeight: 1.25, color: INK }}>{tr('profile:editor.identity.title', { defaultValue: 'Name, @handle, photo & details' })}</span>
-          <span style={{ display: 'block', marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, lineHeight: 1.3, color: ink(0.62) }}>{tr('profile:editor.identity.sub', { defaultValue: 'Pronouns · goal · link — edit in Settings' })}</span>
+          <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, lineHeight: 1.25, color: INK }}>{tr('profile:editor.identity.title', { defaultValue: 'Name, @handle, photo & details' })}</span>
+          <span style={{ display: 'block', marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13, lineHeight: 1.3, color: ink(0.62) }}>{tr('profile:editor.identity.sub', { defaultValue: 'Pronouns · goal · link — edit in Settings' })}</span>
         </span>
-        {rowChevron}
+        <span aria-hidden="true" style={{ width: 28, flex: 'none', display: 'grid', placeItems: 'center', color: ink(0.5) }}><BSMpIcon name="chevron" size={18} stroke={2.2} /></span>
       </button>
     </section>
   );
   const hub = (
-    <div style={{ padding: `0 ${gutter}px calc(28px + env(safe-area-inset-bottom, 0px))`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
+    <div data-cust-hub="" style={{ padding: `0 ${gutter}px calc(28px + env(safe-area-inset-bottom, 0px))`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
       {/* Masthead row at the standard inset — the editor's title and close sit
           BELOW it (every page opens on the same row). */}
       <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
         {BSMastRow && <BSMastRow trailing={null} />}
       </div>
       <BSCleanType t={tClean}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 0 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0 16px' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: BS_CLEAN_SANS, fontSize: 14, fontWeight: 600, color: ink(0.6) }}>{splitHead(tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' }))[0]}</div>
             <h1 id="bs-cust-title" style={{ margin: '2px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 32, fontWeight: 750, letterSpacing: '-0.025em', lineHeight: 1.05, color: INK }}>{tr('profile:editor.title', { defaultValue: 'Customize' })}</h1>
           </div>
           <button type="button" data-cust-close="" className="bs-cust-btn bs-cust-press" onClick={closeEditor} aria-label={tr('profile:editor.closeAria', { defaultValue: 'Close' })}
-            style={{ width: 44, height: 44, flex: 'none', padding: 0, borderRadius: 999, border: `1px solid ${ink(light ? 0.08 : 0.1)}`, background: cardBg, boxShadow: lift, color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+            style={{ ...plate(), width: 44, height: 44, flex: 'none', padding: 0, borderRadius: 999, color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
             <BSMpIcon name="close" size={18} stroke={2.2} />
           </button>
         </div>
@@ -949,28 +1001,34 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     </div>
   );
 
-  // ── An area's page: the shared Back and title, its fields in one card, its own Save ──
+  // ── An area's page: the shared Back and title, its fields grouped on raised plates, its own Save ──
   const saveBar = (
-    // Save floats at the foot as one pill, over a fade into the paper (PAPER, the solid colour: BG is
-    // a gradient on Steel). Its edges track the density gutter.
+    // Save floats at the foot as the one glowing primary, over a fade into the paper (PAPER, the solid
+    // colour: BG is a gradient on Steel). Its edges track the density gutter.
     <div style={{ position: 'sticky', bottom: 0, zIndex: 2, marginLeft: -gutter, marginRight: -gutter, marginTop: 4, padding: `22px ${gutter}px calc(12px + env(safe-area-inset-bottom, 0px))`, background: `linear-gradient(180deg, ${hexA(PAPER, 0)} 0%, ${hexA(PAPER, 0.92)} 38%, ${PAPER} 100%)`, pointerEvents: 'none' }}>
-      <button type="button" data-cust-save="" className="bs-cust-btn bs-cust-press" onClick={() => saveArea(area)} disabled={!dirty || busy || uploading}
-        style={{ pointerEvents: 'auto', width: '100%', minHeight: 54, borderRadius: 999, border: 0, background: TEAL, color: onTeal, cursor: (busy || uploading) ? 'wait' : dirty ? 'pointer' : 'default', opacity: dirty ? (uploading ? 0.7 : 1) : 0.45, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: dirty ? (light ? `0 12px 24px -14px ${ink(0.5)}` : '0 12px 26px -12px rgba(0,0,0,0.9)') : 'none' }}>
+      <button type="button" data-cust-save="" className="bs-cust-btn bs-cust-primary" onClick={() => saveArea(area)} disabled={!dirty || busy || uploading}
+        style={{ pointerEvents: 'auto', width: '100%', minHeight: 54, borderRadius: 16, border: 0, background: TEAL, color: onTeal, cursor: (busy || uploading) ? 'wait' : dirty ? 'pointer' : 'default', opacity: dirty ? (uploading ? 0.7 : 1) : 0.45, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: dirty ? primaryGlow(TEAL) : 'none' }}>
         {busy ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : <><BSMpIcon name="check" size={18} stroke={2.6} />{tr('profile:editor.save', { defaultValue: 'Save profile' })}</>}
       </button>
     </div>
   );
   const ae = enter(0);
   // The header is the chrome's own (outside the clean type), so an area's title and Back read as every
-  // other detail page's do.
+  // other detail page's do. Each group sits on its own raised plate, the first with the lit edge.
+  const areaParts = area && AREAS[area] ? AREAS[area].parts.filter(Boolean) : [];
   const areaBody = area && AREAS[area] ? (
     <div data-cust-area={area}>
       {DetailHeader ? <DetailHeader onBack={leaveArea} title={AREAS[area].name} noCorner /> : null}
       <BSCleanType t={tClean}>
         <div style={{ padding: `8px ${gutter}px 0`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
-          <section data-cust-card={area} className={ae.className} style={{ ...cardS, ...(ae.style || null) }}>
-            <div style={stack(28)}>{AREAS[area].parts}</div>
-          </section>
+          <div data-cust-card={area} className={ae.className} style={{ ...(ae.style || null), display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {AREAS[area].bare ? areaParts : areaParts.map((p, i) => (
+              <section key={i} data-cust-plate="" style={{ ...plate(), padding: PLATE_PAD }}>
+                {i === 0 ? <BSGlassEdge t={tTheme} /> : null}
+                {p}
+              </section>
+            ))}
+          </div>
           {area === 'signal' ? <div style={{ height: 24 }} /> : saveBar}
         </div>
       </BSCleanType>
@@ -979,14 +1037,35 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   // The area's page is a BSPage (its own scroller under the masthead, its Back registered for the swipe);
   // no tab bar sits under the editor, so it keeps no room for one.
   const areaPage = areaBody ? (Page ? <Page tabBarHeight={0}>{areaBody}</Page> : <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflowY: 'auto' }}>{areaBody}</div>) : null;
+  // Leaving with changes not saved: the editor's own raised sheet, over a dim of the page.
+  const DANGER = '#b3412b';
+  const discardSheet = asking ? (
+    <div data-cust-discard="" onClick={keepEditing} style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'rgba(8,7,6,0.55)', display: 'flex', alignItems: 'flex-end', padding: `0 ${Math.max(10, gutter - 8)}px calc(12px + env(safe-area-inset-bottom, 0px))`, boxSizing: 'border-box' }}>
+      <BSCleanType t={tClean}>
+        <div role="alertdialog" aria-modal="true" aria-labelledby="bs-cust-leave-title" aria-describedby="bs-cust-leave-msg" onClick={(e) => e.stopPropagation()} className={motion ? 'bs-cust-in' : undefined}
+          style={{ ...plate(), width: '100%', borderRadius: 24, padding: '20px 18px 18px' }}>
+          <BSGlassEdge t={tTheme} />
+          {tag(tr('profile:editor.leave.eyebrow', { defaultValue: 'Unsaved changes' }))}
+          <div id="bs-cust-leave-title" style={{ marginTop: 12, fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2, color: INK }}>{tr('profile:editor.leave.title', { defaultValue: 'Discard your changes?' })}</div>
+          <p id="bs-cust-leave-msg" style={{ ...noteS, marginTop: 6, fontSize: 14.5 }}>{tr('profile:editor.leave.message', { defaultValue: "You haven't saved the changes on this page." })}</p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+            <button type="button" data-cust-keep="" className="bs-cust-btn bs-cust-press" onClick={keepEditing} style={{ ...ghost, flex: 1, minWidth: 0, minHeight: 50, alignSelf: 'stretch' }}>{tr('profile:editor.leave.keep', { defaultValue: 'Keep editing' })}</button>
+            <button type="button" data-cust-discard-confirm="" className="bs-cust-btn bs-cust-primary" onClick={discardChanges}
+              style={{ flex: 1, minWidth: 0, minHeight: 50, borderRadius: 12, border: 0, background: DANGER, color: onColor(DANGER), cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15.5, fontWeight: 700, boxShadow: primaryGlow(DANGER) }}>{tr('profile:editor.leave.discard', { defaultValue: 'Discard' })}</button>
+          </div>
+        </div>
+      </BSCleanType>
+    </div>
+  ) : null;
 
   return createPortal(
     // Full-page takeover — the customizer owns the screen. The hub scrolls here; an area's page is a
     // BSPage, which scrolls itself.
     <div data-cust-root="" className={areaPage ? undefined : 'bs-scroll'} role="dialog" aria-modal="true"
       {...(areaPage ? { 'aria-label': AREAS[area].name } : { 'aria-labelledby': 'bs-cust-title' })}
-      style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: areaPage ? 'hidden' : 'auto', overflowX: 'hidden', '--cust-teal': TEAL, '--cust-ring': hexA(TEAL, 0.24), '--cust-ph': ink(0.42), '--cust-press': ink(light ? 0.05 : 0.07) }}>
+      style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: areaPage ? 'hidden' : 'auto', overflowX: 'hidden', '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85), '--cust-well': wellIn, '--cust-ph': ink(0.42) }}>
       {areaPage || hub}
+      {discardSheet}
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   );

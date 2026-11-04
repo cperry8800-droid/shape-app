@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} trên kệ",
   "editor.sum.song": "Đã có bài hát",
   "editor.sum.stats": "{count, plural, other {# số liệu nổi bật}}",
+  "editor.status.add": "Thêm",
+  "editor.status.set": "Xong",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Buổi tập",
   "pin.kind.meal": "Bữa ăn",

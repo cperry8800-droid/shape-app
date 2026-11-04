@@ -367,6 +367,8 @@
   "editor.sum.shelf": "{count} sur l’étagère",
   "editor.sum.song": "Musique ajoutée",
   "editor.sum.stats": "{count, plural, one {# chiffre en tête} other {# chiffres en tête}}",
+  "editor.status.add": "Ajouter",
+  "editor.status.set": "Fait",
   "pin.kind.pr": "PR",
   "pin.kind.workout": "Séance",
   "pin.kind.meal": "Repas",
