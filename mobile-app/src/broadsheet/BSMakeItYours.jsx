@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  BS_LOOK_PAPERS, BS_LOOK_ACCENTS, bsProfileLook, bsProfileCover, bsNormalizeProfileCustom,
+  bsProfileLook, bsProfileCover, bsNormalizeProfileCustom,
   BS_KITCHEN_RULES_MAX, BS_KITCHEN_RULE_MAX, BS_KITCHEN_STAPLES_MAX, BS_STAPLE_MAX, BS_KITCHEN_RECIPES_MAX, BS_RECIPE_TITLE_MAX, BS_RECIPE_NOTE_MAX,
   BS_RECIPE_INGS_MAX, BS_RECIPE_ING_MAX, BS_RECIPE_QTY_MAX, BS_RECIPE_STEPS_MAX, BS_RECIPE_STEP_MAX, BS_RECIPE_NUMS, bsKitchenRecipeItem, bsProfileKitchen, bsCleanText,
   BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_PROFILE_LINK_KEYS, BS_LINK_MAX, BS_PROMPTS_MAX, BS_PROMPT_A_MAX, BS_COACH_PROMPTS,
@@ -12,6 +12,7 @@ import {
 import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
+import { BSLookPicker, BSLookBezel, bsLookPreviewTag, paletteOf, onColor, hexA } from './BSLookPicker.jsx';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
 // Owner, 2026-10-27 (the R7 canvas), then 2026-11-04 (the Studio tab as the coach's work): four tabs.
@@ -73,19 +74,7 @@ const DISPLAY = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif"
 const BODY = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif";
 const RING = `0 0 0 2px ${E.BG}, 0 0 0 4px ${E.ED}`;
 
-const rgbOf = (hex) => { const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return null; const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-const lum = (hex) => { const c = rgbOf(hex); if (!c) return 0; const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const contrast = (x, y) => { const a = lum(x), b = lum(y); return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
-const onColor = (hex) => (lum(hex) > 0.36 ? '#0b0d0c' : '#ffffff');
-const hexA = (hex, a) => { const c = rgbOf(hex); return c ? `rgba(${c.join(',')},${a})` : hex; };
-// The palette a look paints: the app's own makePalette, so the preview is exactly the page.
-const paletteOf = (paper, accent) => {
-  try { if (window.makePalette) return window.makePalette({ paperMode: paper, accentKey: accent }); } catch (e) {}
-  return { PAPER: '#0f0e0c', PAPER2: '#181612', PAPER_BG: '#0f0e0c', INK: '#f5f0e6', inkRGB: '245,240,230', isLight: false, ACCENT: '#34d6c5' };
-};
-// The accent before makePalette's fallback, to say when it swapped a vanishing accent.
-const RAW_ACCENT = { blue: ['#1c4ed8', '#5b8df9'], amber: ['#c8881a', '#e3a544'], rust: ['#a8331b', '#e06547'], green: ['#2f6b3a', '#5fb16e'], teal: ['#0a8f87', '#34d6c5'], violet: ['#6d3fc4', '#a78bfa'], rose: ['#b8285f', '#f2749f'], white: ['#ffffff', '#ffffff'], black: ['#000000', '#000000'] };
-const PRESETS = [['shape', 'dark', 'teal'], ['bone', 'bone', 'rust'], ['blueprint', 'blueprint', 'amber'], ['oxblood', 'oxblood', 'amber'], ['forest', 'forest', 'green'], ['plum', 'plum', 'violet'], ['manila', 'manila', 'black']];
+// The palette helpers (paletteOf, hexA, onColor and the rest) are BSLookPicker.jsx's, which the Colors page draws.
 const FOCUS_POS = { top: 'center 22%', center: 'center 50%', bottom: 'center 80%' };
 const signedInUid = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; } };
 const sameJson = (a, b) => JSON.stringify(a == null ? null : a) === JSON.stringify(b == null ? null : b);
@@ -115,7 +104,8 @@ const smallBtn = { minHeight: 40, padding: '0 12px', borderRadius: 10, border: `
 // Its tabs work (owner, 2026-10-31: "these dont work", of The studio and Replays): each shows what
 // that part of the page holds, and the Studio opens Programs, the kitchen its own editor. The card says it is
 // a preview, so the buttons drawn on it read as the page's, not as controls here.
-function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
+// `lit`: on the Colors page, the card sits in the lit panel's raised bezel with a lit PREVIEW tag.
+function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null, lit = false }) {
   const P = paletteOf(look.paper, look.accent);
   const ACC = P.ACCENT;
   const ink = (n) => `rgba(${P.inkRGB},${n})`;
@@ -127,11 +117,11 @@ function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
       {editKey && onEdit ? <button type="button" onClick={() => onEdit(editKey)} style={{ flex: 'none', minHeight: 32, padding: '0 2px', border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>{editLabel} →</button> : null}
     </div>
   );
-  return (
-    <div data-mine-preview="" style={{ marginTop: 14, borderRadius: 16, overflow: 'hidden', background: P.PAPER_BG, color: P.INK, border: `1px solid ${ea(0.14)}` }}>
+  const card = (
+    <div data-mine-preview="" style={{ marginTop: lit ? 0 : 14, borderRadius: lit ? 13 : 16, overflow: 'hidden', background: P.PAPER_BG, color: P.INK, border: `1px solid ${ea(0.14)}` }}>
       <div style={{ position: 'relative', height: 92, background: wall ? '#111' : `linear-gradient(135deg, ${hexA(ACC, 0.42)}, ${P.PAPER2} 70%)` }}>
         {wall ? <img src={wall} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS_POS[look.focus] || FOCUS_POS.center }} /> : null}
-        <span style={{ position: 'absolute', top: 8, right: 8, padding: '4px 7px', borderRadius: 4, background: 'rgba(0,0,0,0.55)', color: '#fff', fontFamily: MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('profile:mine.previewLabel', { defaultValue: 'Preview' })}</span>
+        <span data-mine-preview-tag={lit ? 'lit' : ''} style={{ position: 'absolute', top: 8, right: 8, fontFamily: MONO, fontSize: 8.5, textTransform: 'uppercase', ...(lit ? bsLookPreviewTag() : { padding: '4px 7px', borderRadius: 4, background: 'rgba(0,0,0,0.55)', color: '#fff', fontWeight: 700, letterSpacing: '0.16em' }) }}>{tr('profile:mine.previewLabel', { defaultValue: 'Preview' })}</span>
       </div>
       <div style={{ position: 'relative', padding: '0 14px 14px' }}>
         <div style={{ position: 'absolute', left: 14, top: -30, width: 60, height: 60, borderRadius: 99, border: `3px solid ${P.PAPER}`, background: P.PAPER2, overflow: 'hidden', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
@@ -166,6 +156,8 @@ function Preview({ tr, look, wall, who, words, nutri = false, onEdit = null }) {
       </div>
     </div>
   );
+  // On the Colors page the card is the panel's screen, in a raised bezel (BSLookPicker's).
+  return lit ? <BSLookBezel style={{ marginTop: 14 }}>{card}</BSLookBezel> : card;
 }
 
 // A ruled field (owner, 2026-11-04, the Studio round's editor): a 1px rule, a kicker in capitals with
@@ -185,60 +177,10 @@ function Ruled({ kicker, sub = null, right = null, children, ...rest }) {
 const hintStyle = { margin: '6px 0 0', fontSize: 12.5, lineHeight: 1.4, color: ea(0.66) };
 
 // ── Colors ──────────────────────────────────────────────────────────────────────────────────
+// The Colors page: the lit panel the owner picked (2026-11-04: "update profile edit settings page", then
+// "B for colors"), BSLookPicker.jsx.
 function ColorsTab({ tr, look, setLook }) {
-  const paperName = (k) => tr('settings:paper.' + k, { defaultValue: k.charAt(0).toUpperCase() + k.slice(1) });
-  const accentName = (k) => tr('settings:accent.' + k, { defaultValue: k.charAt(0).toUpperCase() + k.slice(1) });
-  const P = paletteOf(look.paper, look.accent);
-  const raw = (RAW_ACCENT[look.accent] || RAW_ACCENT.teal)[P.isLight ? 0 : 1];
-  const cr = contrast(P.ACCENT, P.PAPER);
-  const check = raw.toLowerCase() !== String(P.ACCENT).toLowerCase()
-    ? { ok: false, text: tr('profile:mine.checkSwapped', { defaultValue: '{accent} would vanish on {paper}, so your buttons use {fallback}.', accent: accentName(look.accent), paper: paperName(look.paper), fallback: P.ACCENT === '#000000' ? accentName('black') : accentName('white') }) }
-    : cr >= 3
-      ? { ok: true, text: tr('profile:mine.checkOk', { defaultValue: 'Buttons and text read clearly on {paper}.', paper: paperName(look.paper) }) }
-      : { ok: false, text: tr('profile:mine.checkFaint', { defaultValue: '{accent} is faint on {paper}. Try a darker accent.', accent: accentName(look.accent), paper: paperName(look.paper) }) };
-  return (
-    <div>
-      <Eyebrow>{tr('profile:mine.startFrom', { defaultValue: 'Start from a Shape look' })}</Eyebrow>
-      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, margin: '0 -2px' }}>
-        {PRESETS.map(([key, pa, ac]) => {
-          const on = pa === look.paper && ac === look.accent, Q = paletteOf(pa, ac);
-          return (
-            <button key={key} type="button" aria-pressed={on} onClick={() => setLook({ ...look, paper: pa, accent: ac })}
-              style={{ flex: 'none', width: 74, padding: 0, border: 0, background: 'transparent', color: on ? E.INK : ea(0.65), cursor: 'pointer', fontSize: 11.5, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 70, height: 46, borderRadius: 10, background: Q.PAPER_BG, border: `1px solid ${ea(0.14)}`, boxShadow: on ? RING : 'none', display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: 6, boxSizing: 'border-box' }}>
-                <span style={{ width: 22, height: 8, borderRadius: 99, background: Q.ACCENT }} />
-              </span>
-              {key === 'shape' ? 'Shape' : paperName(pa)}
-            </button>
-          );
-        })}
-      </div>
-      <Eyebrow right={paperName(look.paper)}>{tr('profile:mine.paper', { defaultValue: 'Paper' })}</Eyebrow>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8 }}>
-        {BS_LOOK_PAPERS.map((k) => {
-          const Q = paletteOf(k, look.accent), on = k === look.paper;
-          return (
-            <button key={k} type="button" data-paper={k} aria-pressed={on} aria-label={paperName(k)} onClick={() => setLook({ ...look, paper: k })}
-              style={{ aspectRatio: '1 / 1', minHeight: 44, padding: 0, borderRadius: 10, border: `1px solid ${ea(0.16)}`, background: Q.PAPER_BG, color: Q.INK, boxShadow: on ? RING : 'none', position: 'relative', cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 600, fontSize: 14 }}>
-              Aa<span style={{ position: 'absolute', right: 5, bottom: 5, width: 7, height: 7, borderRadius: 99, background: Q.ACCENT }} />
-            </button>
-          );
-        })}
-      </div>
-      <Eyebrow right={accentName(look.accent)}>{tr('profile:mine.accent', { defaultValue: 'Accent' })}</Eyebrow>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-        {BS_LOOK_ACCENTS.map((k) => {
-          const on = k === look.accent, col = (RAW_ACCENT[k] || RAW_ACCENT.teal)[P.isLight ? 0 : 1];
-          return <button key={k} type="button" data-accent={k} aria-pressed={on} aria-label={accentName(k)} onClick={() => setLook({ ...look, accent: k })}
-            style={{ width: 44, height: 44, borderRadius: 99, border: `1px solid ${ea(0.25)}`, background: col, boxShadow: on ? RING : 'none', cursor: 'pointer' }} />;
-        })}
-      </div>
-      <p role="status" style={{ margin: '14px 0 0', display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13.5, lineHeight: 1.45, color: ea(0.8) }}>
-        <span aria-hidden style={{ flex: 'none', width: 20, height: 20, borderRadius: 99, display: 'grid', placeItems: 'center', background: check.ok ? E.ED : E.WARN, color: E.BG, fontSize: 12, fontWeight: 700 }}>{check.ok ? '✓' : '!'}</span>
-        {check.text}
-      </p>
-    </div>
-  );
+  return <BSLookPicker tr={tr} look={look} setLook={setLook} />;
 }
 
 // ── Wall photo ──────────────────────────────────────────────────────────────────────────────
@@ -1518,7 +1460,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
-        {tab === 'colors' || tab === 'wall' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={setTab} /> : null}
+        {tab === 'colors' || tab === 'wall' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={setTab} lit={tab === 'colors'} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'programs' ? <ProgramsTab tr={tr} work={wk} first={first} descs={descs} setDescs={setDescs} programFor={programFor} setProgramFor={setProgramFor} /> : null}
