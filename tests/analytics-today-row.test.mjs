@@ -22,11 +22,13 @@ const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 let snapRows = [];
 let activityRows = [];
 let sessionRows = [];
+let ledgerRows = [];
+const gteCalls = [];
 const stubClient = {
   from: (table) => {
-    const rows = table === 'daily_health_snapshot' ? snapRows : table === 'activities' ? activityRows : table === 'workout_sessions' ? sessionRows : [];
+    const rows = table === 'daily_health_snapshot' ? snapRows : table === 'activities' ? activityRows : table === 'workout_sessions' ? sessionRows : table === 'score_ledger' ? ledgerRows : [];
     const q = {
-      select: () => q, eq: () => q, neq: () => q, in: () => q, gte: () => q, lte: () => q, lt: () => q, gt: () => q,
+      select: () => q, eq: () => q, neq: () => q, in: () => q, gte: (col, val) => { gteCalls.push({ table, col, val }); return q; }, lte: () => q, lt: () => q, gt: () => q,
       order: () => q, limit: () => q, not: () => q, is: () => q, or: () => q, filter: () => q,
       maybeSingle: async () => ({ data: null, error: null }),
       then: (res, rej) => Promise.resolve({ data: rows, error: null }).then(res, rej),
@@ -153,6 +155,23 @@ test("the week is the member's last seven days, each session on its own day (Cod
     assert.equal(res.workouts_this_week, 2);
     assert.equal(res.protein_hits_this_week, 1, "today's row is the week's last day");
   } finally { sessionRows = []; }
+});
+
+test("the week's points count from midnight of its first day on the member's clock", async () => {
+  const since = async (date, tz) => {
+    gteCalls.length = 0;
+    snapRows = [];
+    const q = [`date=${date}`, tz ? `tz=${encodeURIComponent(tz)}` : null].filter(Boolean).join('&');
+    await ROUTE.GET(new Request(`https://shape.test/api/client/analytics?${q}`));
+    return gteCalls.find((c) => c.table === 'score_ledger' && c.col === 'earned_at').val;
+  };
+  // Nov 3's week starts Oct 28: midnight in New York (EDT) is 04:00Z, in Tokyo 15:00Z the day before.
+  assert.equal(await since('2026-11-03', 'America/New_York'), '2026-10-28T04:00:00.000Z');
+  assert.equal(await since('2026-11-03', 'Asia/Tokyo'), '2026-10-27T15:00:00.000Z');
+  // No zone: the first day's UTC midnight.
+  assert.equal(await since('2026-11-03', null), '2026-10-28T00:00:00.000Z');
+  // A zone whose clock skips midnight (Santiago, 2026-09-06 00:00 → 01:00): its 01:00.
+  assert.equal(await since('2026-09-12', 'America/Santiago'), '2026-09-06T04:00:00.000Z');
 });
 
 test("the app's readers send the member's local day and zone", () => {

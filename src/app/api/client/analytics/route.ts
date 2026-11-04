@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 import { clientLocalDay } from '@/lib/local-day';
-import { normalizeZone, wallClockInZone } from '@/lib/time';
+import { instantInZone, normalizeZone, wallClockInZone } from '@/lib/time';
 import { bsGoalKind } from '../../../../../mobile-app/src/services/prefOptions.mjs';
 
 export const runtime = 'nodejs';
@@ -69,7 +69,13 @@ export async function GET(request: Request) {
   const dayBefore = (n: number) => { const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - n); return isoDateUTC(d); };
 
   const since14 = isoDateUTC(daysAgo(13));
-  const weekStart = daysAgo(6);
+  // The week's points count from the first minute of its first day on the member's clock (midnight in
+  // their zone; 01:00 where a clock change skips midnight), as the week's days do; UTC without a zone.
+  const weekStart = (() => {
+    const [y, mo, d] = dayBefore(6).split('-').map(Number);
+    const local = zone ? [0, 1].map((h) => instantInZone(y, mo, d, h, 0, zone)).find(Number.isFinite) : undefined;
+    return new Date(local ?? Date.UTC(y, mo - 1, d));
+  })();
 
   const [snapsRes, sessionsRes, ledgerRes, nutriGoalRes, trainGoalRes] = await Promise.all([
     supabase
