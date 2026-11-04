@@ -239,23 +239,35 @@ test('the climb says only what it can: reached, a start with no target, a target
   }
 }));
 
-test('the deck hands its own theme to what it holds: the radio first, then the climb and the week', () => {
+test('Shape Radio stands above the deck on its own line; the deck hands its own theme to the climb and the week', () => {
+  // Owner, 2026-11-04: "take the shape radio box out of the new climb box above it so its on its own line".
   const seen = [];
   const prevCtx = globalThis.BSContext;
   globalThis.BSContext = { Provider: function Provider() {} };
   try {
     const d = drive(D.BSHomeDeck, { radio: { type: 'div', key: 'radio', props: { 'data-radio': '' } }, children: [{ type: 'div', key: 'climb', props: { 'data-climb': '' } }] });
-    const provider = d.nodes()[0];
-    assert.equal(provider.type, globalThis.BSContext.Provider, 'the band provides its theme');
+    const nodes = d.nodes();
+    const radioAt = nodes.findIndex((n) => n.props && n.props['data-radio'] != null);
+    const providerAt = nodes.findIndex((n) => n.type === globalThis.BSContext.Provider);
+    assert.ok(radioAt >= 0 && providerAt > radioAt, 'Shape Radio is drawn first, before the deck');
+    // Its own line, its edges on the deck's: the box's own 8px and 2px more.
+    const line = nodes.find((n) => n.props && n.props['data-bs-home-radio'] != null);
+    assert.equal(line.props.style.margin, '0 2px');
+    const provider = nodes[providerAt];
     seen.push(provider.props.value);
-    const band = d.nodes().find((n) => n.props && n.props['data-bs-home-deck'] != null);
-    // The glass's teal edge is drawn first; of what the band holds, Shape Radio sits first.
-    const kids = [].concat(band.props.children).filter(Boolean).filter((k) => !(typeof k.type === 'function' && k.type.name === 'BSGlassEdge'));
-    assert.ok(kids[0].props['data-radio'] != null, 'Shape Radio sits first, above the climb (owner, 2026-11-03)');
+    const band = nodes.find((n) => n.props && n.props['data-bs-home-deck'] != null);
+    assert.equal(band.props.style.margin, '10px 10px 0', 'the deck sits 10px under the radio, 10px in from the page');
+    // The glass's teal edge is drawn first; the band holds the climb, and no longer the radio.
+    const kids = [].concat(band.props.children).flat().filter(Boolean).filter((k) => !(typeof k.type === 'function' && k.type.name === 'BSGlassEdge'));
+    assert.ok(kids[0].props['data-climb'] != null, 'the climb leads the deck');
+    assert.ok(!kids.some((k) => k.props && k.props['data-radio'] != null), 'Shape Radio is inside the deck again');
     // Glass in the paper's own colour (owner, 2026-11-04: "make sure the glassy look matches the print color").
     assert.ok(String(band.props.style.background).endsWith(`, ${seen[0].PAPER}`), 'the band is glass over the deck theme\'s paper');
     assert.equal(seen[0].PAPER, THEME.PAPER, 'the deck is the paper\'s own colour, not a dark band');
     assert.equal(seen[0].INK, THEME.INK, 'its words are the paper\'s own ink');
+    // With no radio (a coach's calendar deck and the like), the deck keeps its own place.
+    const bare = drive(D.BSHomeDeck, { children: [{ type: 'div', key: 'climb', props: { 'data-climb': '' } }] });
+    assert.equal(bare.nodes().find((n) => n.props && n.props['data-bs-home-deck'] != null).props.style.margin, '6px 10px 0');
   } finally { globalThis.BSContext = prevCtx; }
 });
 
