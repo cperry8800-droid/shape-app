@@ -1188,5 +1188,18 @@
   "work.word.5k": "Prépa 5k",
   "work.word.mobility": "Mobilité",
   "trainer.replaysSubSessions": "Les entraînements que {name} a enregistrés, série par série.",
-  "about.photos": "Où {name} coache"
+  "about.photos": "Où {name} coache",
+  "mine.tabSpotlight": "Vitrine",
+  "mine.spotlightTitle": "Votre vitrine",
+  "mine.spotlightSub": "Une vidéo de présentation, vos chiffres clés, un moment fort, votre musique et les avis que vous épinglez. Tout est facultatif.",
+  "mine.errDemoFilm": "Connectez-vous pour importer votre propre vidéo.",
+  "mine.statsTitle": "Chiffres en tête",
+  "mine.statsHint": "Jusqu’à trois de vos chiffres sous votre nom, dans l’ordre où vous les choisissez. Un chiffre que vous n’avez pas encore ne s’affiche pas.",
+  "mine.statsMax": "{count, plural, one {Jusqu’à # chiffre en tête.} other {Jusqu’à # chiffres en tête.}} Décochez-en un pour en choisir un autre.",
+  "mine.statNone": "Pas encore",
+  "mine.errPinTitle": "Donnez un titre à votre moment fort, ou effacez-le.",
+  "mine.winsHint": "Épinglez jusqu’à trois avis de vos membres. Ils ouvrent « Ce qu’en disent les clients » sur votre page.",
+  "mine.bizName": "Nom de votre studio",
+  "mine.bizHint": "Son nom et son lieu s’affichent sous votre nom ; ses horaires et où vous trouver, dans À propos de moi.",
+  "mine.errBizName": "Donnez un nom à votre studio, ou effacez sa carte."
 }

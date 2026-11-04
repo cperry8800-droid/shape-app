@@ -8,15 +8,20 @@ import {
   BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, BS_ABOUT_YEAR_MIN, bsProfileAbout, bsProfileLinks, bsProfilePrompts, bsProfileLinkHref, bsPromptLabel, bsPromptToken,
   BS_FOCUS_MAX, BS_FOCUS_WORD_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_FOR_WORDS_MAX, BS_FOR_PRESETS,
   bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
+  BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
+  BS_PIN_TITLE_MAX, BS_PIN_NOTE_MAX, BS_PIN_METRIC_MAX, BS_SONG_LABEL_MAX, BS_HERO_STATS_MAX, BS_COACH_FILM_MAX_MB, BS_PIN_KINDS,
+  bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel,
 } from '../services/profileCustom.mjs';
+import { BS_COACH_STATS, bsCoachHeadlineKeys } from '../services/coachWork.mjs';
 import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { BSLookPicker, BSLookBezel, bsLookPreviewTag, paletteOf, onColor, hexA } from './BSLookPicker.jsx';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
-// Owner, 2026-10-27 (the R7 canvas), then 2026-11-04 (the Studio tab as the coach's work): four tabs.
-// Colors and Wall photo sit under a live preview of the profile's top.
+// Owner, 2026-10-27 (the R7 canvas), then 2026-11-04 (the Studio tab as the coach's work, then
+// Spotlight: "Show them on coach pages"): five tabs. Colors and Wall photo sit under a live preview
+// of the profile's top.
 //
 //   Colors       Shape's own papers and accents (the app's makePalette, nothing custom), with a
 //                few starting looks, and a check that the accent reads on the paper.
@@ -30,24 +35,32 @@ import { BSLookPicker, BSLookBezel, bsLookPreviewTag, paletteOf, onColor, hexA }
 //                of their own (written or pasted, with a photo, their note, the numbers, the
 //                ingredients and the method, in the order they put them), the plate they teach and
 //                their portion rules, and their staples.
+//   Spotlight    what the old editors offered and no coach page showed until 2026-11-04: an intro film
+//                (their own upload to coach-media), up to three headline stats (figures their page
+//                already has, `figures`), a pinned highlight, a profile song (a Spotify link) and up
+//                to three of their members' reviews pinned to the front of What clients say.
 //   About me     for a trainer, first what members read under their name: a preview, up to four
 //                focus words (a preset, stored as its token, or their own) and up to two workouts
 //                they would start a member on (their picks); then, for every coach, the story, the
-//                details, accolades and education, the questions members ask, and their socials.
+//                details, accolades and education, the questions members ask, their socials, and
+//                their practice's card (its name and place show under their name, its hours and
+//                where to find them on About me).
 //
 // The floor plan a trainer drew (Your space, gone 2026-11-04: "too confusing for people") and a
 // nutritionist's kitchen layout (gone 2026-10-31) are no longer edited here; a `studio` saved before
 // rides through every save as stored, as any key this editor did not change.
 //
 // What it writes: whichever of `look`, `cover`, `kitchen`, `about`, `prompts`, `links`, `headLinks`,
-// `focus`, `picks`, `descriptions` and `programFor` the coach changed here, in the profile_custom
+// `focus`, `picks`, `descriptions`, `programFor`, `film`, `heroStats`, `pinned`, `song`,
+// `pinnedReviews` and `bizCard` the coach changed here, in the profile_custom
 // doc, merged onto the doc as it is at save time (re-read for this account, so a key saved
 // elsewhere since this opened is kept; no read, no save), through the same normalizer every
 // surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc as read,
 // never on defaults.
 //
 // In the signed-out demo (`demo`), Save changes the page on screen and nothing else: no read, no
-// write, and the wall photo is one of the demo's own (`photos`); an upload asks to sign in.
+// write, the wall photo is one of the demo's own (`photos`), its film one of its own clips (`clips`)
+// and its wins wall picked from its own sample reviews (`reviews`); an upload asks to sign in.
 //
 // The editor's own chrome is the app's dark editor (it does not repaint as colours change); the
 // preview card at the top is painted in the colours being picked.
@@ -64,6 +77,10 @@ function useShapeTr() {
     const v = window.ShapeI18n?.t?.(key, opts);
     return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
   };
+}
+
+function intlLocale() {
+  try { return window.ShapeI18n?.intlLocale?.() || window.ShapeI18n?.current?.() || undefined; } catch (e) { return undefined; }
 }
 
 // The editor's chrome: dark, with the editor's teal.
@@ -87,12 +104,18 @@ function Eyebrow({ children, right }) {
     </div>
   );
 }
+// Five or more (the editor's own tabs since Spotlight joined them) share the row by what their words
+// need rather than in equal parts, at 12.5px, so "Wall photo" and "Your kitchen" keep to one line where
+// the row has room; a longer translation wraps inside its pill.
 function Seg({ options, value, onChange, label }) {
+  const many = options.length > 4;
   return (
-    <div role="group" aria-label={label} style={{ display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: 3, padding: 3, borderRadius: 999, border: `1px solid ${ea(0.2)}` }}>
+    <div role="group" aria-label={label} style={many
+      ? { display: 'flex', gap: 2, padding: 3, borderRadius: 999, border: `1px solid ${ea(0.2)}` }
+      : { display: 'grid', gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`, gap: 3, padding: 3, borderRadius: 999, border: `1px solid ${ea(0.2)}` }}>
       {options.map(([k, l]) => {
         const on = k === value;
-        return <button key={k} type="button" aria-pressed={on} onClick={() => onChange(k)} style={{ minHeight: 38, minWidth: 0, padding: '0 4px', border: 0, borderRadius: 999, background: on ? E.INK : 'transparent', color: on ? E.BG : ea(0.8), fontFamily: DISPLAY, fontSize: options.length > 3 ? 13 : 14, lineHeight: 1.15, fontWeight: on ? 600 : 400, cursor: 'pointer' }}>{l}</button>;
+        return <button key={k} type="button" aria-pressed={on} onClick={() => onChange(k)} style={{ ...(many ? { flex: '1 1 auto' } : null), minHeight: 38, minWidth: 0, padding: many ? '0 6px' : '0 4px', border: 0, borderRadius: 999, background: on ? E.INK : 'transparent', color: on ? E.BG : ea(0.8), fontFamily: DISPLAY, fontSize: many ? 12.5 : options.length > 3 ? 13 : 14, lineHeight: 1.15, fontWeight: on ? 600 : 400, cursor: 'pointer' }}>{l}</button>;
       })}
     </div>
   );
@@ -590,9 +613,10 @@ export const bsStudioWorkIn = (work) => ({
 // a blank entry is never counted, shown or saved (the normalizer drops it too).
 const isBlankWord = (f) => !f || (!f.id && !String(f.w || '').trim());
 
-function TickBox({ on }) {
+// `lit`: on a row that stays dark when ticked (the wins wall's), the box ticked in the editor's teal.
+function TickBox({ on, lit = false }) {
   return <span aria-hidden style={{ flex: 'none', width: 18, height: 18, borderRadius: 4, display: 'grid', placeItems: 'center', boxSizing: 'border-box',
-    boxShadow: on ? 'none' : `inset 0 0 0 1.5px ${ea(0.35)}`, background: on ? E.BG : 'transparent', color: on ? E.INK : 'transparent', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>;
+    boxShadow: on ? 'none' : `inset 0 0 0 1.5px ${ea(0.35)}`, background: on ? (lit ? E.ED : E.BG) : 'transparent', color: on ? (lit ? E.ON_ED : E.INK) : 'transparent', fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>;
 }
 const focusTile = (on, off) => ({ minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', border: 0, borderRadius: 6,
   boxShadow: on ? 'none' : `inset 0 0 0 1px ${ea(off ? 0.12 : 0.24)}`, background: on ? E.INK : 'transparent', color: on ? E.BG : off ? ea(0.45) : E.INK,
@@ -849,9 +873,196 @@ function ProgramsTab({ tr, work, first, descs, setDescs, programFor, setProgramF
   );
 }
 
+// ── Spotlight: the intro film, headline stats, a pinned highlight, the song and the wins wall ────
+// Owner, 2026-11-04 ("Show them on coach pages", and "the customization options should be specific
+// for what coaches can edit"): each part as the old coach editor (iosAppBroadsheetClient.jsx's
+// BSProfileCustomizer with `coach`, no longer reached) offered it, in this editor's ruled fields.
+//   Film       the coach's own video in coach-media (MP4, MOV, WebM or M4V, up to 200 MB), and a caption.
+//   Stats      up to three of the coach's figures (coachWork.mjs BS_COACH_STATS), each with its number
+//              as the page has it now, or "None yet": a stat with no figure stays off the page.
+//   Highlight  one short pinned card: a kind, a headline, a line and a metric.
+//   Song       a Spotify link, checked as it is typed, with its player under it.
+//   Wins wall  up to three of the coach's members' reviews, which lead What clients say on the page.
+// The stat words, by key: the labels the page already uses for each.
+export const BS_STAT_WORDS = {
+  rating: ['profile:stat.rating', 'Rating'], reviews: ['profile:trainer.reviews', 'Reviews'], years: ['profile:mine.years', 'Years coaching'],
+  programs: ['profile:trainer.programs', 'Programs'], workouts: ['profile:trainer.workouts', 'Workouts'], replays: ['profile:trainer.tabReplays', 'Replays'],
+  recipes: ['profile:nutri.secRecipes', 'Recipes'], plates: ['profile:nutri.tabPlateNotes', 'Plate notes'], certs: ['profile:about.certs', 'Certificates'],
+};
+// A literal address, the same in every language (the old editor's note on it): not a key.
+const SPOTIFY_PH = 'https://open.spotify.com/track/…';
+// The video types the film's own check keeps (bsOwnVideoUrl): a picker that names no type is read by
+// the file's extension, as the upload does.
+const FILM_EXT = ['mp4', 'mov', 'webm', 'm4v'];
+export const bsFilmFileOk = (file) => {
+  if (!file) return false;
+  const ext = String(file.name || '').split('.').pop().toLowerCase();
+  return /^video\/(mp4|quicktime|webm|x-m4v|m4v)$/i.test(file.type || '') || (!file.type && FILM_EXT.includes(ext));
+};
+const statFigure = (k, v, locale) => {
+  if (v == null) return null;
+  try { return k === 'rating' ? Number(v).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(v).toLocaleString(locale); } catch (e) { return String(v); }
+};
+
+function SpotlightTab({ tr, role, locale, film, setFilm, filmBusy, filmErr, onFilm, stats, setStats, figures, pinned, setPinned, song, setSong, pins, togglePin, reviews, reviewsRead }) {
+  const fileRef = React.useRef(null);
+  const [statMsg, setStatMsg] = React.useState(null);
+  const optional = tr('profile:mine.optional', { defaultValue: 'Optional' });
+  const keys = BS_COACH_STATS[role === 'nutritionist' ? 'nutritionist' : 'trainer'];
+  const toggleStat = (k) => {
+    setStatMsg(null);
+    if (stats.includes(k)) { setStats(stats.filter((x) => x !== k)); return; }
+    if (stats.length >= BS_HERO_STATS_MAX) { setStatMsg(tr('profile:mine.statsMax', { defaultValue: '{count, plural, one {Up to # headline stat.} other {Up to # headline stats.}} Untick one to pick another.', count: BS_HERO_STATS_MAX })); return; }
+    setStats([...stats, k]);
+  };
+  const setPin = (patch) => setPinned((p) => ({ ...p, ...patch }));
+  const pinAny = !!(pinned.title.trim() || pinned.note.trim() || pinned.metric.trim());
+  const songUrl = song.url.trim();
+  const embed = songUrl ? bsSpotifyEmbed(songUrl) : null;
+  const chip = (on) => ({ minHeight: 44, padding: '0 13px', border: 0, borderRadius: 6, boxShadow: on ? 'none' : `inset 0 0 0 1px ${ea(0.24)}`, background: on ? E.INK : 'transparent',
+    color: on ? E.BG : E.INK, fontFamily: BODY, fontSize: 14, fontWeight: 600, lineHeight: 1.2, cursor: 'pointer' });
+  const quietBtn = { ...smallBtn, minHeight: 44, border: 0, padding: '0 2px', color: ea(0.7) };
+  const full = pins.length >= BS_PINNED_REVIEWS_MAX;
+  // The reviews as they came, the ones pinned first among them kept where they are: a list that
+  // reordered on each tap would move the row under the finger.
+  const shownReviews = (() => {
+    const list = Array.isArray(reviews) ? reviews.slice(0, 40) : [];
+    for (const id of pins) if (!list.some((r) => r.id === id)) { const r = (reviews || []).find((x) => x.id === id); if (r) list.push(r); }
+    return list;
+  })();
+  return (
+    <div data-mine-spotlight="">
+      <Ruled data-spot-film="" kicker={tr('profile:film.headCoach', { defaultValue: 'Intro film' })} right={optional}>
+        <input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,.mp4,.mov,.webm,.m4v" onChange={onFilm} style={{ display: 'none' }} />
+        {film ? (
+          <div style={{ marginTop: 9 }}>
+            <div style={{ borderRadius: 10, overflow: 'hidden', background: '#000', border: `1px solid ${ea(0.14)}` }}>
+              <video data-spot-film-video="" src={film.url} controls playsInline preload="metadata" style={{ display: 'block', width: '100%', maxHeight: 220, background: '#000' }} />
+            </div>
+            <input data-spot-film-caption="" value={film.caption} maxLength={BS_FILM_CAPTION_MAX} onChange={(e) => setFilm({ ...film, caption: e.target.value })}
+              aria-label={tr('profile:editor.ph.caption', { defaultValue: 'Caption (optional)' })} placeholder={tr('profile:editor.ph.caption', { defaultValue: 'Caption (optional)' })} style={{ ...field, marginTop: 8, fontSize: 16 }} />
+            <button type="button" data-spot-film-remove="" onClick={() => setFilm(null)} style={{ ...quietBtn, marginTop: 4 }}>{tr('profile:editor.film.remove', { defaultValue: 'Remove film' })}</button>
+          </div>
+        ) : (
+          <button type="button" data-spot-film-add="" disabled={filmBusy} onClick={() => { if (!filmBusy && fileRef.current) fileRef.current.click(); }}
+            style={{ ...smallBtn, marginTop: 9, width: '100%', minHeight: 46, borderRadius: 12, borderStyle: 'dashed', color: ea(0.85), cursor: filmBusy ? 'wait' : 'pointer' }}>
+            {filmBusy ? tr('profile:mine.uploading', { defaultValue: 'Uploading…' }) : tr('profile:editor.film.add', { defaultValue: '+ Add intro film' })}
+          </button>
+        )}
+        {filmErr ? <p role="alert" data-spot-film-err="" style={{ margin: '8px 0 0', fontSize: 13.5, color: E.WARN }}>{filmErr}</p> : null}
+        <p style={hintStyle}>{tr('profile:editor.film.hint', { defaultValue: '30–60 seconds · MP4, MOV or WebM' })}</p>
+      </Ruled>
+
+      <Ruled data-spot-stats="" kicker={tr('profile:mine.statsTitle', { defaultValue: 'Headline stats' })} right={tr('profile:mine.countOf', { defaultValue: '{count} of {max}', count: stats.length, max: BS_HERO_STATS_MAX })}>
+        <div style={{ marginTop: 9, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+          {keys.map((k) => {
+            const on = stats.includes(k);
+            const fig = statFigure(k, figures ? figures[k] : null, locale);
+            return (
+              // The stat's name, and under it the figure the page has now, so a long name keeps its line.
+              <button key={k} type="button" data-stat={k} aria-pressed={on} onClick={() => toggleStat(k)} style={{ ...focusTile(on, !on && stats.length >= BS_HERO_STATS_MAX), minHeight: 52, padding: '6px 12px' }}>
+                <TickBox on={on} />
+                <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <span style={tileText}>{tr(BS_STAT_WORDS[k][0], { defaultValue: BS_STAT_WORDS[k][1] })}</span>
+                  <span data-stat-figure="" style={{ ...tileText, fontFamily: MONO, fontSize: 11, fontWeight: 500, fontVariantNumeric: 'tabular-nums', opacity: fig ? 0.75 : 0.55 }}>
+                    {fig ? (k === 'rating' ? `${fig}/10` : fig) : tr('profile:mine.statNone', { defaultValue: 'None yet' })}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {statMsg ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: E.WARN }}>{statMsg}</p> : null}
+        <p style={hintStyle}>{tr('profile:mine.statsHint', { defaultValue: 'Up to three of your numbers, under your name, in the order you pick them. One you have no figure for yet stays off your page.' })}</p>
+      </Ruled>
+
+      <Ruled data-spot-pin="" kicker={tr('profile:editor.pin.label', { defaultValue: 'Pin a highlight' })} right={optional}>
+        <div role="group" aria-label={tr('profile:editor.pin.label', { defaultValue: 'Pin a highlight' })} style={{ marginTop: 9, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {BS_PIN_KINDS.map((k) => {
+            const on = pinned.kind === k.id;
+            return <button key={k.id} type="button" data-pin-kind={k.id} aria-pressed={on} onClick={() => setPin({ kind: k.id })} style={chip(on)}>{bsPinKindLabel(k.id, tr)}</button>;
+          })}
+        </div>
+        <input data-pin-title="" value={pinned.title} maxLength={BS_PIN_TITLE_MAX} onChange={(e) => setPin({ title: e.target.value })}
+          aria-label={tr('profile:editor.ph.pinTitle', { defaultValue: 'Headline — e.g. Pulled 2× bodyweight today' })} placeholder={tr('profile:editor.ph.pinTitle', { defaultValue: 'Headline — e.g. Pulled 2× bodyweight today' })} style={{ ...field, marginTop: 8, fontSize: 16 }} />
+        <input data-pin-note="" value={pinned.note} maxLength={BS_PIN_NOTE_MAX} onChange={(e) => setPin({ note: e.target.value })}
+          aria-label={tr('profile:editor.ph.pinNote', { defaultValue: 'A line of context (optional)' })} placeholder={tr('profile:editor.ph.pinNote', { defaultValue: 'A line of context (optional)' })} style={{ ...field, marginTop: 8, fontSize: 16 }} />
+        <input data-pin-metric="" value={pinned.metric} maxLength={BS_PIN_METRIC_MAX} onChange={(e) => setPin({ metric: e.target.value })}
+          aria-label={tr('profile:editor.ph.pinMetric', { defaultValue: 'Metric (optional) — e.g. 2×BW' })} placeholder={tr('profile:editor.ph.pinMetric', { defaultValue: 'Metric (optional) — e.g. 2×BW' })} style={{ ...field, marginTop: 8, fontSize: 16 }} />
+        {pinAny ? <button type="button" data-pin-clear="" onClick={() => setPinned({ kind: pinned.kind, title: '', note: '', metric: '' })} style={{ ...quietBtn, marginTop: 4 }}>{tr('profile:editor.pin.clear', { defaultValue: 'Clear pin' })}</button> : null}
+      </Ruled>
+
+      <Ruled data-spot-song="" kicker={tr('profile:extras.profileSong', { defaultValue: 'Profile song' })} right="Spotify">
+        <input data-song-url="" value={song.url} maxLength={BS_LINK_MAX} onChange={(e) => setSong({ ...song, url: e.target.value })} autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url"
+          aria-label={tr('profile:editor.song.label', { defaultValue: 'Profile song · Spotify link' })} placeholder={SPOTIFY_PH} style={{ ...field, marginTop: 9, fontSize: 16 }} />
+        <input data-song-label="" value={song.label} maxLength={BS_SONG_LABEL_MAX} onChange={(e) => setSong({ ...song, label: e.target.value })}
+          aria-label={tr('profile:editor.ph.songLabel', { defaultValue: 'Label (optional) — e.g. Lift anthem' })} placeholder={tr('profile:editor.ph.songLabel', { defaultValue: 'Label (optional) — e.g. Lift anthem' })} style={{ ...field, marginTop: 8, fontSize: 16 }} />
+        {songUrl && !embed ? <p role="alert" data-song-err="" style={{ margin: '8px 0 0', fontSize: 13.5, color: E.WARN }}>{tr('profile:editor.song.err', { defaultValue: 'Paste a Spotify track or playlist link (open.spotify.com/…).' })}</p> : null}
+        {embed ? (
+          <div data-song-preview="" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', background: E.BG2 }}>
+            <iframe title={tr('profile:editor.song.previewTitle', { defaultValue: 'Song preview' })} src={embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" loading="lazy" style={{ display: 'block', border: 0 }} />
+          </div>
+        ) : null}
+        {songUrl || song.label.trim() ? <button type="button" data-song-remove="" onClick={() => setSong({ url: '', label: '' })} style={{ ...quietBtn, marginTop: 4 }}>{tr('profile:mine.remove', { defaultValue: 'Remove' })}</button> : null}
+      </Ruled>
+
+      <Ruled data-spot-wins="" kicker={tr('profile:wins.head', { defaultValue: 'Wins wall' })} right={tr('profile:mine.countOf', { defaultValue: '{count} of {max}', count: pins.length, max: BS_PINNED_REVIEWS_MAX })}>
+        <p style={{ ...hintStyle, margin: '6px 0 0' }}>{tr('profile:mine.winsHint', { defaultValue: 'Pin up to three of your members’ reviews. They lead What clients say on your page.' })}</p>
+        {!reviewsRead ? null : shownReviews.length ? (
+          <div style={{ marginTop: 8, borderTop: `1px solid ${ea(0.14)}` }}>
+            {shownReviews.map((r) => {
+              const on = pins.includes(r.id);
+              const off = !on && full;
+              return (
+                <button key={r.id} type="button" data-spot-review={r.id} aria-pressed={on} disabled={off} onClick={() => togglePin(r.id)}
+                  style={{ width: '100%', minHeight: 56, padding: '10px 0', border: 0, borderBottom: `1px solid ${ea(0.14)}`, background: 'transparent', color: off ? ea(0.45) : E.INK, display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left', cursor: off ? 'default' : 'pointer' }}>
+                  <span style={{ paddingTop: 1 }}><TickBox on={on} lit /></span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? E.ED : ea(0.55) }}>
+                      {on ? tr('profile:editor.pins.pinned', { defaultValue: '✓ Pinned' }) : tr('profile:editor.pins.tapToPin', { defaultValue: 'Tap to pin' })} · ★ {Math.round(Number(r.rating) || 0)}/10 · {r.author || tr('profile:role.member', { defaultValue: 'Member' })}
+                    </span>
+                    <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', marginTop: 4, fontFamily: BODY, fontSize: 14, lineHeight: 1.4, color: off ? ea(0.45) : ea(0.86) }}>“{String(r.text || '').trim()}”</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : <p data-spot-wins-empty="" style={{ ...hintStyle, marginTop: 8 }}>{tr('profile:editor.pins.empty', { defaultValue: 'No reviews to pin yet — reviews members leave from now on can be pinned here.' })}</p>}
+      </Ruled>
+    </div>
+  );
+}
+
+// The practice's card on About me: its name (the card's anchor), where, its hours and where to find
+// them. The name and the place show under the coach's name; the hours and the handle on About me.
+function PracticeCard({ tr, biz, setBiz }) {
+  const set = (k, v) => setBiz((b) => ({ ...b, [k]: v }));
+  const hair = `1px solid ${ABOUT_HAIR}`;
+  const rows = [
+    ['name', tr('profile:mine.bizName', { defaultValue: 'Name of your practice' }), tr('profile:editor.ph.bizName', { defaultValue: 'Business name — e.g. Iron Path Strength' }), BS_BIZ_NAME_MAX],
+    ['where', tr('profile:biz.where', { defaultValue: 'Where' }), tr('profile:editor.ph.bizWhere', { defaultValue: 'Where (optional) — e.g. Austin, TX · online' }), BS_BIZ_WHERE_MAX],
+    ['hours', tr('profile:biz.hours', { defaultValue: 'Hours' }), tr('profile:editor.ph.bizHours', { defaultValue: 'Hours (optional) — e.g. Mon–Fri, mornings' }), BS_BIZ_HOURS_MAX],
+    ['handle', tr('profile:biz.find', { defaultValue: 'Find' }), tr('profile:editor.ph.bizHandle', { defaultValue: 'Find me (optional) — e.g. @ironpath' }), BS_BIZ_HANDLE_MAX],
+  ];
+  return (
+    <div data-about-practice="">
+      <div style={ABOUT_CARD}>
+        {rows.map(([k, label, ph, max], i) => (
+          <div key={k} data-about-cell="" style={{ padding: '10px 14px 2px', borderTop: i ? hair : 0 }}>
+            <label htmlFor={`mine-biz-${k}`} style={aboutLabel}>{label}</label>
+            <input id={`mine-biz-${k}`} data-about-biz={k} value={biz[k]} maxLength={max} onChange={(e) => set(k, e.target.value)} placeholder={ph}
+              autoCapitalize={k === 'handle' ? 'none' : undefined} style={{ ...ABOUT_BARE, minHeight: 40 }} />
+          </div>
+        ))}
+      </div>
+      <p data-about-practice-hint="" style={{ ...hintStyle, margin: '10px 2px 0' }}>{tr('profile:mine.bizHint', { defaultValue: 'Its name and place show under your name; its hours and where to find you, on About me.' })}</p>
+    </div>
+  );
+}
+
 // `studioWords` (a trainer's About me only): { focus, setFocus, picks, setPicks, work, name } for the focus
 // words and picks at its top.
-function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, headLinks = false, setHeadLinks = () => {}, studioWords: studio = null }) {
+function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, headLinks = false, setHeadLinks = () => {}, studioWords: studio = null, biz = null, setBiz = () => {} }) {
   const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
   const howLabel = { online: tr('profile:mine.howOnline', { defaultValue: 'Online' }), in_person: tr('profile:mine.howInPerson', { defaultValue: 'In person' }), both: tr('profile:mine.howBoth', { defaultValue: 'Both' }) };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
@@ -983,6 +1194,13 @@ function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, h
           <span style={{ position: 'absolute', top: 3, left: headLinks ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: headLinks ? E.ON_ED : E.INK, transition: 'left 160ms ease' }} />
         </span>
       </button>
+
+      {biz ? (
+        <>
+          <AboutHead n={7} title={tr('profile:biz.head', { defaultValue: 'The practice' })} />
+          <PracticeCard tr={tr} biz={biz} setBiz={setBiz} />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -1196,7 +1414,9 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
 }
 
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
-export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], work = null, onClose, onSaved, onSettings = null }) {
+// `figures`: the coach's numbers by stat key, as their page has them (coachWork.mjs bsCoachStatFigures),
+// for the headline stats' picker. `reviews` and `clips`: the demo's own sample reviews and clips.
+export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], work = null, figures = null, reviews = null, clips = null, onClose, onSaved, onSettings = null }) {
   const tr = useShapeTr();
   // The app's gutter, so the masthead and ← Back sit where they sit on every page (owner,
   // 2026-10-31); the chrome's hook is on window before any page renders.
@@ -1212,6 +1432,14 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [owner] = React.useState(() => ownerUid || signedInUid());
   // A wall photo the editor keeps: the owner's own media, or in the demo one of its photos.
   const coverOf = (image) => (demo ? (photos.includes(image) ? { image } : null) : bsProfileCover({ image }, owner));
+  // The film likewise: the coach's own video in coach-media, or in the demo one of its clips.
+  const demoClips = Array.isArray(clips) ? clips : [];
+  const demoReviews = demo && Array.isArray(reviews) ? reviews.filter((r) => r && typeof r.id === 'string' && String(r.text || '').trim()) : [];
+  const filmOf = (f) => {
+    if (!f || typeof f !== 'object') return null;
+    if (demo) return typeof f.url === 'string' && demoClips.includes(f.url) ? { url: f.url, caption: bsCleanText(f.caption, BS_FILM_CAPTION_MAX) } : null;
+    return bsProfileFilm(f, owner, 'coach-media');
+  };
   // What the editor opened on, fixed for its life, so what reads as changed is what the coach
   // changed here. The profile opens it only once their doc is read (Codex P1 on #2484).
   const [seed] = React.useState(() => {
@@ -1238,11 +1466,22 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       kitchen: kt
         ? { plate: kt.plate, rules: kt.rules.slice(), staples: kt.staples.map((x) => ({ ...x })), recipes: JSON.parse(JSON.stringify(kt.recipes)) }
         : { plate: null, rules: [], staples: [], recipes: [] },
+      // The Spotlight, each as the page would show it: a stat key another editor wrote that is not a
+      // coach's opens unticked, and a song or highlight the page would not draw opens empty.
+      film: filmOf(initial && initial.film),
+      stats: bsCoachHeadlineKeys(initial && initial.heroStats, role),
+      pinned: (() => { const p = bsProfilePinned(initial && initial.pinned); return p ? { kind: p.kind || 'win', title: p.title, note: p.note, metric: p.metric } : { kind: 'win', title: '', note: '', metric: '' }; })(),
+      song: (() => { const s = bsProfileSong(initial && initial.song); return s ? { url: s.url, label: s.label } : { url: '', label: '' }; })(),
+      // A demo's pins are its sample reviews' ids; a coach's, their members' reviews' (uuids).
+      pins: demo
+        ? (Array.isArray(initial && initial.pinnedReviews) ? initial.pinnedReviews.filter((id, i, a) => demoReviews.some((r) => r.id === id) && a.indexOf(id) === i).slice(0, BS_PINNED_REVIEWS_MAX) : [])
+        : bsProfilePinnedReviews(initial && initial.pinnedReviews),
+      biz: (() => { const b = bsProfileBizCard(initial && initial.bizCard); return { name: (b && b.name) || '', where: (b && b.where) || '', hours: (b && b.hours) || '', handle: (b && b.handle) || '' }; })(),
     };
   });
   // A trainer's Programs took Your space's place, so a way in that still asks for the space opens it.
   const startAt = !nutri && startTab === 'space' ? 'programs' : startTab;
-  const [tab, setTab] = React.useState(['colors', 'wall', third, 'about'].includes(startAt) ? startAt : 'colors');
+  const [tab, setTab] = React.useState(['colors', 'wall', third, 'spotlight', 'about'].includes(startAt) ? startAt : 'colors');
   const [look, setLook] = React.useState(seed.look);
   const [wall, setWall] = React.useState(seed.wall);
   const [kitchen, setKitchen] = React.useState(seed.kitchen);
@@ -1254,6 +1493,40 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [picks, setPicks] = React.useState(seed.picks);
   const [descs, setDescs] = React.useState(seed.descs);
   const [programFor, setProgramFor] = React.useState(seed.programFor);
+  const [film, setFilm] = React.useState(seed.film);
+  const [filmBusy, setFilmBusy] = React.useState(false);
+  const [filmErr, setFilmErr] = React.useState(null);
+  const [stats, setStats] = React.useState(seed.stats);
+  const [highlight, setHighlight] = React.useState(seed.pinned);
+  const [song, setSong] = React.useState(seed.song);
+  const [pins, setPins] = React.useState(seed.pins);
+  const [biz, setBiz] = React.useState(seed.biz);
+  // The coach's own reviews to pin from (their members', never one of their own), read when Spotlight
+  // first opens: their latest, and the ones already pinned (by id, so a pin older than the latest is
+  // still there to take off). `reviewsOk` says both reads answered, so a pin that is not among them is
+  // a review gone, which neither fills a place nor survives the next change (as a pick of a workout).
+  const [cands, setCands] = React.useState(() => (demo ? demoReviews : null));
+  const [reviewsOk, setReviewsOk] = React.useState(demo);
+  React.useEffect(() => {
+    if (demo || tab !== 'spotlight' || cands !== null) return undefined;
+    const api = window.ShapeCoachReviews;
+    if (!api || !owner) { setCands([]); return undefined; }
+    let on = true;
+    const keep = (list) => (Array.isArray(list) ? list.filter((r) => r && typeof r.id === 'string' && r.ownerId === owner && r.authorId !== r.ownerId && String(r.text || '').trim()) : []);
+    Promise.all([
+      Promise.resolve().then(() => api.forOwner(owner)).catch(() => null),
+      seed.pins.length && api.byIds ? Promise.resolve().then(() => api.byIds(seed.pins.join(','))).catch(() => null) : Promise.resolve(null),
+    ]).then(([mine, pinnedRead]) => {
+      if (!on) return;
+      const owned = keep(mine && mine.reviews);
+      const seen = new Set(owned.map((r) => r.id));
+      setCands(owned.concat(keep(pinnedRead && pinnedRead.reviews).filter((r) => !seen.has(r.id))));
+      setReviewsOk(mine != null && (!seed.pins.length || pinnedRead != null));
+    });
+    return () => { on = false; };
+  }, [tab]);
+  const livePins = reviewsOk && Array.isArray(cands) ? pins.filter((id) => cands.some((r) => r.id === id)) : pins;
+  const togglePin = (id) => setPins(() => (livePins.includes(id) ? livePins.filter((x) => x !== id) : livePins.length >= BS_PINNED_REVIEWS_MAX ? livePins : [...livePins, id]));
   const [uploading, setUploading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState(null);
@@ -1281,8 +1554,26 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const picksChanged = !sameJson(bsProfilePicks(picks), bsProfilePicks(seed.picks));
   const descriptionsChanged = !sameJson(byKey(bsProfileDescriptions(descs)), byKey(bsProfileDescriptions(seed.descs)));
   const programForChanged = !sameJson(byKey(bsProfileProgramFor(programFor)), byKey(bsProfileProgramFor(seed.programFor)));
+  // The Spotlight's keys and the practice's card, each compared as the doc would keep it. A song link
+  // the page could not play, a highlight with words but no headline and a card with no name count as
+  // changes too, so the save bar shows and Save says why rather than dropping them.
+  const filmOut = film ? { url: film.url, caption: bsCleanText(film.caption, BS_FILM_CAPTION_MAX) } : null;
+  const filmChanged = !sameJson(filmOut, seed.film);
+  const statsChanged = !sameJson(stats, seed.stats);
+  const pinnedDoc = (p) => (p.title.trim() ? bsProfilePinned(p) : null);
+  const pinProblem = !highlight.title.trim() && !!(highlight.note.trim() || highlight.metric.trim());
+  const pinnedChanged = !sameJson(pinnedDoc(highlight), pinnedDoc(seed.pinned)) || pinProblem;
+  const songDoc = (s) => (s.url.trim() ? bsProfileSong({ url: s.url.trim(), label: s.label }) : null);
+  const songProblem = !!song.url.trim() && !bsSpotifyEmbed(song.url.trim());
+  const songChanged = !sameJson(songDoc(song), songDoc(seed.song)) || songProblem;
+  // As stored until a tap: a tap writes the live pins (a gone review dropped) with the change.
+  const pinsChanged = !sameJson(pins, seed.pins);
+  const bizDoc = (b) => bsProfileBizCard(b);
+  const bizProblem = !biz.name.trim() && !!(biz.where.trim() || biz.hours.trim() || biz.handle.trim());
+  const bizChanged = !sameJson(bizDoc(biz), bizDoc(seed.biz)) || bizProblem;
   const dirty = lookChanged || wallChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged || headLinksChanged
-    || focusChanged || picksChanged || descriptionsChanged || programForChanged;
+    || focusChanged || picksChanged || descriptionsChanged || programForChanged
+    || filmChanged || statsChanged || pinnedChanged || songChanged || pinsChanged || bizChanged;
   const first = who.first || bsCoachFirstName(who.name);
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -1320,6 +1611,27 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     } finally { setUploading(false); }
   };
 
+  // The intro film: an upload of the coach's own to coach-media, checked as the old editor did before
+  // it goes (the type the film's check keeps, and the bucket's 200 MB), so nothing uploads to be
+  // dropped at save. Said under the film, where the coach is looking.
+  const onFilm = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || filmBusy) return;
+    if (demo) { setFilmErr(tr('profile:mine.errDemoFilm', { defaultValue: 'Sign in to upload your own film.' })); return; }
+    if (!bsFilmFileOk(file)) { setFilmErr(tr('profile:editor.err.videoType', { defaultValue: 'Pick an MP4, MOV or WebM video.' })); return; }
+    if (file.size > BS_COACH_FILM_MAX_MB * 1024 * 1024) { setFilmErr(tr('profile:editor.err.videoSize', { defaultValue: 'That video is too large — keep it under {mb} MB.', mb: BS_COACH_FILM_MAX_MB })); return; }
+    setFilmBusy(true); setFilmErr(null);
+    try {
+      const up = await window.ShapeCoachMedia?.upload?.(file, { videoOnly: true });
+      const kept = up && up.url ? filmOf({ url: up.url }) : null;
+      if (!kept) throw new Error('not kept');
+      setFilm((prev) => ({ url: kept.url, caption: (prev && prev.caption) || '' }));
+    } catch (ex) {
+      setFilmErr(tr('profile:editor.err.film', { defaultValue: 'Could not upload film.' }));
+    } finally { setFilmBusy(false); }
+  };
+
   // The doc with what was changed here put on it. Each key is written only when it was changed
   // here, so one changed elsewhere since this opened is kept; the wall photo only as coverOf keeps it.
   // A floor plan saved before (`studio`) is never edited here, so it is always the doc's own.
@@ -1342,6 +1654,16 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       const cover = wall ? coverOf(wall) : null;
       if (cover) doc.cover = cover; else delete doc.cover;
     }
+    // The Spotlight and the practice's card, each written cleaned and dropped when emptied.
+    if (filmChanged) { const f = filmOut ? filmOf(filmOut) : null; if (f) doc.film = f; else delete doc.film; }
+    if (statsChanged) { if (stats.length) doc.heroStats = stats.slice(); else delete doc.heroStats; }
+    if (pinnedChanged) { const p = pinnedDoc(highlight); if (p) doc.pinned = p; else delete doc.pinned; }
+    if (songChanged) { const s = songDoc(song); if (s) doc.song = s; else delete doc.song; }
+    if (pinsChanged) { if (pins.length) doc.pinnedReviews = pins.slice(); else delete doc.pinnedReviews; }
+    if (bizChanged) {
+      const b = bizDoc(biz);
+      if (b) doc.bizCard = b; else delete doc.bizCard;
+    }
     return doc;
   };
   const save = async () => {
@@ -1354,10 +1676,23 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (listProblem === 'year') { setTab('about'); setErr(tr('profile:mine.errItemYear', { defaultValue: 'A year from {min} to {max}.', min: BS_ABOUT_YEAR_MIN, max: new Date().getFullYear() + 1 })); return; }
     const badLink = linksChanged ? bsLinkProblem(links) : null;
     if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
+    // So is a card with no name, a highlight with no headline and a song the page could not play.
+    if (bizProblem) { setTab('about'); setErr(tr('profile:mine.errBizName', { defaultValue: 'Give your practice a name, or clear its card.' })); return; }
+    if (pinProblem) { setTab('spotlight'); setErr(tr('profile:mine.errPinTitle', { defaultValue: 'Give your highlight a headline, or clear it.' })); return; }
+    if (songProblem) { setTab('spotlight'); setErr(tr('profile:editor.song.err', { defaultValue: 'Paste a Spotify track or playlist link (open.spotify.com/…).' })); return; }
+    if (filmBusy) { setTab('spotlight'); setErr(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' })); return; }
+    const spot = { film: filmChanged, heroStats: statsChanged, pinned: pinnedChanged, song: songChanged, pinnedReviews: pinsChanged, bizCard: bizChanged };
     // The demo also says which keys were changed here, so its page keeps only those over its own
-    // sample (whose station names follow the language; Codex P2 on #2486).
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged,
-      focus: focusChanged, picks: picksChanged, descriptions: descriptionsChanged, programFor: programForChanged }); thenTool(); return; }
+    // sample (whose station names follow the language; Codex P2 on #2486). Its pins are its sample
+    // reviews' ids, which the normalizer (a coach's pins are their members' reviews' uuids) would drop.
+    if (demo) {
+      const shown = bsNormalizeProfileCustom(withChanges(initial || {}), null);
+      if (pinsChanged) { if (pins.length) shown.pinnedReviews = pins.slice(); else delete shown.pinnedReviews; }
+      onSaved && onSaved(shown, { look: lookChanged, cover: wallChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged,
+        focus: focusChanged, picks: picksChanged, descriptions: descriptionsChanged, programFor: programForChanged, ...spot });
+      thenTool();
+      return;
+    }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -1373,7 +1708,9 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       setErr(tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." }));
       return;
     }
-    const clean = bsNormalizeProfileCustom(withChanges(base), uid);
+    // The film is held to the coach's own coach-media folder when it was changed here; one not changed
+    // rides through as stored, as every key this editor did not change.
+    const clean = bsNormalizeProfileCustom(withChanges(base), uid, filmChanged ? { filmBucket: 'coach-media' } : undefined);
     let res;
     try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean, { expectedUserId: uid }); } catch (ex) { res = { error: ex }; }
     setBusy(false);
@@ -1408,6 +1745,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     wall: [tr('profile:mine.wallTitle', { defaultValue: 'Your wall photo' }), tr('profile:mine.wallSub', { defaultValue: 'The big photo behind your avatar. Your gym, your platform, your view.' })],
     programs: [tr('profile:mine.programsTitle', { defaultValue: 'Descriptions' }), tr('profile:mine.programsSub', { defaultValue: 'A short line under each thing you sell. All optional.' })],
     kitchen: [tr('profile:mine.kitchenTitle', { defaultValue: 'Your kitchen' }), tr('profile:mine.kitchenSub', { defaultValue: 'Your recipes, the plate you teach and your staples.' })],
+    spotlight: [tr('profile:mine.spotlightTitle', { defaultValue: 'Your spotlight' }), tr('profile:mine.spotlightSub', { defaultValue: 'An intro film, your headline numbers, a highlight, your song and the reviews you pin. All optional.' })],
     about: [tr('profile:mine.aboutTitle', { defaultValue: 'About me' }), nutri
       ? tr('profile:mine.aboutSub', { defaultValue: 'Your story, how you coach, the questions members ask, and where to find you.' })
       : tr('profile:mine.aboutSubTrainer', { defaultValue: 'What members read under your name, your picks, your story and where to find you.' })],
@@ -1456,7 +1794,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
           trailing={<span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>} /> : null}
         <div style={{ marginTop: 8 }}>
           <Seg label={tr('profile:mine.sections', { defaultValue: 'What to change' })} value={tab} onChange={setTab}
-            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['programs', tr('profile:mine.tabPrograms', { defaultValue: 'Programs' })], ['about', tr('profile:mine.tabAbout', { defaultValue: 'About me' })]]} />
+            options={[['colors', tr('profile:mine.tabColors', { defaultValue: 'Colors' })], ['wall', tr('profile:mine.tabWall', { defaultValue: 'Wall photo' })], nutri ? ['kitchen', tr('profile:mine.tabKitchen', { defaultValue: 'Your kitchen' })] : ['programs', tr('profile:mine.tabPrograms', { defaultValue: 'Programs' })],
+              ['spotlight', tr('profile:mine.tabSpotlight', { defaultValue: 'Spotlight' })], ['about', tr('profile:mine.tabAbout', { defaultValue: 'About me' })]]} />
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
@@ -1465,8 +1804,11 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
         {tab === 'programs' ? <ProgramsTab tr={tr} work={wk} first={first} descs={descs} setDescs={setDescs} programFor={programFor} setProgramFor={setProgramFor} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
+        {tab === 'spotlight' ? <SpotlightTab tr={tr} role={role} locale={intlLocale()} film={film} setFilm={(f) => { setFilm(f); setFilmErr(null); }} filmBusy={filmBusy} filmErr={filmErr} onFilm={onFilm}
+          stats={stats} setStats={setStats} figures={figures} pinned={highlight} setPinned={(f) => { setHighlight(f); setErr(null); }} song={song} setSong={(s) => { setSong(s); setErr(null); }}
+          pins={livePins} togglePin={togglePin} reviews={cands} reviewsRead={cands !== null} /> : null}
         {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} headLinks={headLinks} setHeadLinks={setHeadLinks}
-          studioWords={nutri ? null : { focus, setFocus, picks, setPicks, work: wk, name: who.name || first }} /> : null}
+          studioWords={nutri ? null : { focus, setFocus, picks, setPicks, work: wk, name: who.name || first }} biz={biz} setBiz={(f) => { setBiz(f); setErr(null); }} /> : null}
         {err && !unsaved ? <p role="alert" style={{ margin: '14px 0 0', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
       </div>
       {unsaved ? (

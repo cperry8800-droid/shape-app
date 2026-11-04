@@ -40,12 +40,15 @@ test('the member profile renders inside BSPage, on the Me tab and pushed', () =>
 test('both profiles are pages, and neither keeps its own scroller or tab-bar spacer', () => {
   for (const marker of ['function BSTerrainProfile(', 'function BSSignalCoachProfile(']) {
     const fn = body(marker);
-    assert.match(fn, /return \(\s*<BSPage><div /, `${marker} no longer returns a BSPage`);
+    // The member profile holds its page as `page` and hands it out inside the theme provider that paints it
+    // in the member's own look (2026-11-04; tests/member-look.test.mjs), so BSPage is still what scrolls.
+    assert.match(fn, /(?:return|const page =) \(\s*<BSPage><div /, `${marker} no longer returns a BSPage`);
     assert.doesNotMatch(fn, /className="bs-scroll"/, `${marker} renders its own scroller again`);
     assert.match(fn, /const pinnedTop = useBSPinnedMastTop\(\);/, `${marker} no longer measures the pinned masthead`);
     assert.match(fn, /scrollMarginTop: pinnedTop/, `${marker}'s Posts jump lands under the pinned masthead`);
   }
   assert.doesNotMatch(body('function BSTerrainProfile('), /height: 92/, 'the member profile pads for the tab bar twice');
+  assert.match(body('function BSTerrainProfile('), /return ThemeCtx \? <ThemeCtx\.Provider value=\{tTheme\}>\{page\}<\/ThemeCtx\.Provider> : page;/, 'the member profile no longer returns its page');
   assert.doesNotMatch(body('function BSSignalCoachProfile('), /meMode \? 112/, 'the coach profile pads for the tab bar twice');
 });
 

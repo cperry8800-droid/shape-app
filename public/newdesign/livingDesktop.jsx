@@ -19,12 +19,58 @@
 const dHexA = (typeof hexA !== "undefined") ? hexA : (h, a) => h;
 const dSerif = "'Fraunces', serif", dSans = "'Space Grotesk', sans-serif", dMono = "'JetBrains Mono', monospace";
 
+// ── The page's colours: a member's own look ───────────────────────────────────
+// Owner, 2026-11-04: members get the colours coaches got ("Both"), and "this should apply to website as
+// well". Once a member picks a paper (profile_custom.look, from the app or the editor below) their page is
+// in it: its paper and its ink, and their accent where the old hex accent tinted. With no paper picked it is
+// the site's dark stock, exactly as before, never a default look. The colours are the coach kit's
+// (coachProfileKit.mjs bsCoachPalette, the app's makePalette value for value).
+//
+// Each part of the page reads its ink and paper as LV_INK and LV_BG from useDkPage(), which SHADOWS the
+// site's stock of the same names inside that part: the parts' styles are unchanged, and a part drawn outside
+// a member's page (the editor's dark chrome, a coach's old page) reads the stock as before.
+const DK_PAGE_STOCK = Object.freeze({ INK: LV_INK, BG: LV_BG, BG_FILL: LV_BG, isLight: false, ACCENT: null, painted: false });
+const DkPageContext = React.createContext(DK_PAGE_STOCK);
+function useDkPage() { return React.useContext(DkPageContext) || DK_PAGE_STOCK; }
+// The coach kit, shared with coachProfileWeb.jsx's loader (one import a page): null while it loads.
+function dkLoadKit() {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (window.ShapeCoachKit) return Promise.resolve(window.ShapeCoachKit);
+  if (!window.__cpwKitLoad) {
+    window.__cpwKitLoad = import("/newdesign/coachProfileKit.mjs")
+      .then((K) => { window.ShapeCoachKit = K; return K; })
+      .catch((e) => { window.__cpwKitLoad = null; throw e; });
+  }
+  return window.__cpwKitLoad;
+}
+function useDkKit(wanted) {
+  const [kit, setKit] = React.useState(() => (typeof window !== "undefined" && window.ShapeCoachKit) || null);
+  React.useEffect(() => {
+    if (kit || !wanted) return undefined;
+    let on = true;
+    try { dkLoadKit().then((K) => { if (on) setKit(K); }).catch(() => {}); } catch (e) {}
+    return () => { on = false; };
+  }, [wanted, kit]);
+  return kit;
+}
+// The page's colours from a member's look (already through bsProfileLook): the stock without a paper, or
+// while the kit is still on its way. An accent with no paper of its own reads as it does on the stock's dark
+// paper, as the app reads it on the paper its page is in.
+function dkPageColors(look, kit) {
+  if (!look || !kit || typeof kit.bsCoachPalette !== "function") return DK_PAGE_STOCK;
+  if (!look.paper) return look.accent ? { ...DK_PAGE_STOCK, ACCENT: kit.bsCoachPalette({ paper: "dark", accent: look.accent }, "client").ACCENT } : DK_PAGE_STOCK;
+  const P = kit.bsCoachPalette(look, "client");
+  return { INK: P.INK, BG: P.PAPER, BG_FILL: P.PAPER_BG, isLight: !!P.isLight, ACCENT: look.accent ? P.ACCENT : null, painted: true };
+}
+
 // ── Shared atoms ───────────────────────────────────────────────
 function DKick({ children, c, style }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   return <div style={{ fontFamily: dMono, fontSize: 11, letterSpacing: "0.22em", textTransform: "uppercase", color: c || dHexA(LV_INK, 0.5), ...style }}>{children}</div>;
 }
-function dCard(extra) {
-  return { background: dHexA(LV_INK, 0.04), border: `1px solid ${dHexA(LV_INK, 0.09)}`, borderRadius: 18, ...extra };
+// `ink`: the page's ink where the card sits on a member's page (useDkPage), else the stock.
+function dCard(extra, ink = LV_INK) {
+  return { background: dHexA(ink, 0.04), border: `1px solid ${dHexA(ink, 0.09)}`, borderRadius: 18, ...extra };
 }
 
 // ── Ledger primitives (desktop analogs of the mobile BST* kit) ─────────────
@@ -39,6 +85,7 @@ function dStation(extra) {
 // Section head: 6px heat tick + mono eyebrow (+ optional right meta) over a 2px
 // ink→heat ledger rule.
 function DStationHead({ c, label, meta, style }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   return (
     <div style={{ marginBottom: 16, ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -52,6 +99,7 @@ function DStationHead({ c, label, meta, style }) {
 }
 // Eyebrow-above-figure register (matches the mobile BSTLedgerStat orientation).
 function DLedgerStat({ c, label, value, sub, delta, figSize = 40, style }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   return (
     <div style={{ ...style }}>
       <div style={{ fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>{label}</div>
@@ -65,6 +113,7 @@ function DLedgerStat({ c, label, value, sub, delta, figSize = 40, style }) {
 }
 // Honest-absent redaction line — a dashed rule flexing both sides of a mono label.
 function DRedact({ label }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   return (
     <div style={{ display: "flex", alignItems: "center", margin: "6px 0" }} aria-label={label}>
       <span aria-hidden="true" style={{ flex: 1, borderTop: `1px dashed ${dHexA(LV_INK, 0.2)}` }} />
@@ -75,6 +124,7 @@ function DRedact({ label }) {
 }
 // Dotted leader for dot-leader rows (label · leader · figure).
 function DLeader() {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   return <span aria-hidden="true" style={{ flex: 1, borderBottom: `1px dotted ${dHexA(LV_INK, 0.28)}`, transform: "translateY(-4px)", minWidth: 18 }} />;
 }
 // The tier rail that threads the tab content — a 2px heat line at the left of the
@@ -92,6 +142,7 @@ function DRail({ c, children, max = 1240, padTop = 14, padBottom = 0 }) {
 
 // ── Top navigation ─────────────────────────────────────────────
 function DesktopNav({ d, direction }) {
+  const { INK: LV_INK, BG: LV_BG } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   // Match the site's marketing nav — same logo + links, so the profile page
   // doesn't feel like a different site.
@@ -143,6 +194,7 @@ function coachSigilModel(d, live) {
   return { progress, rings, nextTier: top ? NM[i] : NM[i + 1], top };
 }
 function SignalVisual({ d, reduced, owner }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const coach = d.role !== "client";
   const [ringLive, setRingLive] = React.useState(null);
   React.useEffect(() => {
@@ -197,6 +249,7 @@ function memberLevel(d) {
 // a ridgeline, a teal progress trace, the member's avatar climbing it, and a
 // flag at the summit labelled with the next level.
 function TerrainVisual({ d }) {
+  const { INK: LV_INK, BG: LV_BG } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const W = 520, H = 460;
   const lvl = memberLevel(d);
@@ -258,6 +311,7 @@ function TerrainVisual({ d }) {
 // film). `film` is the already-normalized { url, caption }; native controls,
 // tap-to-play; NO fabricated poster — a playback failure shows the browser's state.
 function DFilmCard({ film, c, label }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   if (!film || !film.url) return null;
   return (
     <div style={{ maxWidth: 1240, margin: "18px auto 0", padding: "0 40px" }}>
@@ -272,6 +326,7 @@ function DFilmCard({ film, c, label }) {
 
 // ── Hero — split: identity (left) · signature visual (right) ───
 function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow, coachingHref, onViewCoaching }) {
+  const { INK: LV_INK, BG: LV_BG } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const coach = d.role !== "client";
   const Visual = direction === "terrain" ? TerrainVisual : SignalVisual;
@@ -321,30 +376,21 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
             </div>
           );
         })()}
-        {/* M2 · Start line + M4 · Line — member hero character (terrain only). */}
+        {/* M2 · Start line — member hero character (terrain only). A member's line (M4) is no longer shown
+            or asked for (owner, 2026-11-04, of "Your line · one motto": "Remove the field"); a coach's still is. */}
         {direction === "terrain" && (() => {
           const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
           if (!plib) return null;
-          const heroLine = plib.bsProfileLine ? plib.bsProfileLine(d.custom && d.custom.line) : "";
           const heroStart = plib.bsProfileStartLine ? plib.bsProfileStartLine(d.custom && d.custom.startLine) : null;
           const heroStartState = (heroStart && plib.bsStartLineState) ? plib.bsStartLineState(heroStart.date, new Date()) : null;
-          if (!heroLine && !heroStartState) return null;
-          const firstName = (String(d.name || "").trim().split(/\s+/)[0] || "").toUpperCase();
+          if (!heroStartState) return null;
           let dateLabel = "";
           if (heroStartState && plib.bsValidStartDate) { const v = plib.bsValidStartDate(heroStart.date); try { dateLabel = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString(undefined, { month: "short", day: "numeric" }).toUpperCase(); } catch (e) {} }
           return (
             <div style={{ marginTop: 22, maxWidth: 460 }}>
-              {heroStartState && (
-                <div style={{ fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6), lineHeight: 1.5 }}>
-                  <span style={{ color: c }}>Training for</span>{heroStart.title ? ` · ${heroStart.title}` : ""}{dateLabel ? ` · ${dateLabel}` : ""} · <span style={{ color: c }}>{heroStartState.days === 0 ? "Today" : `${heroStartState.days} ${heroStartState.days === 1 ? "day" : "days"} out`}</span>
-                </div>
-              )}
-              {heroLine && (
-                <div style={{ marginTop: heroStartState ? 12 : 0 }}>
-                  <span style={{ fontFamily: dSerif, fontSize: 22, fontStyle: "italic", letterSpacing: "-0.01em", lineHeight: 1.3, color: LV_INK }}>{heroLine}</span>
-                  <div style={{ marginTop: 5, fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.45) }}>— {firstName} line</div>
-                </div>
-              )}
+              <div data-dk-start="" style={{ fontFamily: dMono, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6), lineHeight: 1.5 }}>
+                <span style={{ color: c }}>Training for</span>{heroStart.title ? ` · ${heroStart.title}` : ""}{dateLabel ? ` · ${dateLabel}` : ""} · <span style={{ color: c }}>{heroStartState.days === 0 ? "Today" : `${heroStartState.days} ${heroStartState.days === 1 ? "day" : "days"} out`}</span>
+              </div>
             </div>
           );
         })()}
@@ -400,6 +446,7 @@ function DesktopHero({ d, direction, owner, reduced, onMessage, onFollow, follow
 
 // ── Living signals band (full width, 3-up) ─────────────────────
 function SignalsBand({ d }) {
+  const { INK: LV_INK, isLight } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   return (
     <DRail c={c} padTop={44}>
@@ -411,11 +458,11 @@ function SignalsBand({ d }) {
             <span style={{ fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5) }}>Weekly momentum</span>
             <span style={{ fontFamily: dMono, fontSize: 10, color: c }}>today ↑</span>
           </div>
-          <LvWeekBars d={d} height={48} />
+          <LvWeekBars d={d} height={48} light={isLight} />
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 18 }}>
           <DLedgerStat c={c} label={d.trajNote} value={d.trajDelta} figSize={30} style={{ flex: "none" }} />
-          <div style={{ flex: 1 }}><LvSparkline data={d.traj} color={c} w={200} h={56} /></div>
+          <div style={{ flex: 1 }}><LvSparkline data={d.traj} color={c} w={200} h={56} light={isLight} /></div>
         </div>
       </div>
     </DRail>
@@ -457,6 +504,7 @@ function dkClimbCfg(d, aspect) {
   return { arc: d.arc, pct: d.goalPct != null ? d.goalPct : 0.84 };
 }
 function ClimbBlock({ d, owner }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const [shown, setShown] = React.useState(DK_CLIMB_DEFAULT);
   const [source, setSource] = React.useState("weight");
@@ -537,7 +585,7 @@ function ClimbBlock({ d, owner }) {
           </div>
         </div>
       )}
-      <TerrainRidge d={{ ...d, arc, climbPct: climbCfg.pct }} />
+      <TerrainRidge d={{ ...d, arc, climbPct: climbCfg.pct }} ink={LV_INK} />
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
         {arc.map((a, i) => (
           <div key={i} style={{ flex: 1, textAlign: i === 0 ? "left" : i === 2 ? "right" : "center" }}>
@@ -552,6 +600,7 @@ function ClimbBlock({ d, owner }) {
 
 // ── Disciplines — terrain: strata bars · signal: ring legend ──
 function DisciplinesBlock({ d, direction }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const disc = Array.isArray(d.disciplines) ? d.disciplines : [];
   if (direction === "terrain") {
@@ -600,6 +649,7 @@ function DisciplinesBlock({ d, direction }) {
 
 // ── Records / signature numbers ────────────────────────────────
 function RecordsBlock({ d }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const lifts = Array.isArray(d.lifts) ? d.lifts : [];
   return (
@@ -622,12 +672,13 @@ function RecordsBlock({ d }) {
 
 // ── Relation card ──────────────────────────────────────────────
 function RelationBlock({ d }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   return (
     <div style={dStation()}>
       <DStationHead c={c} label={d.relation.kicker} />
       <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        <div style={{ width: 46, height: 46, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${d.relation.hue} 40% 34%), hsl(${d.relation.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: dSerif, fontSize: 17 }}>{d.relation.initials}</div>
+        <div style={{ width: 46, height: 46, borderRadius: 999, flex: "none", background: `linear-gradient(150deg, hsl(${d.relation.hue} 40% 34%), hsl(${d.relation.hue} 36% 20%))`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: dSerif, fontSize: 17, color: "#f2ede4" }}>{d.relation.initials}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: dSans, fontSize: 15, fontWeight: 500 }}>{d.relation.name}</div>
           <div style={{ fontFamily: dSans, fontSize: 13, color: dHexA(LV_INK, 0.6), lineHeight: 1.45, marginTop: 4, textWrap: "pretty" }}>{d.relation.note}</div>
@@ -648,6 +699,7 @@ function RelationBlock({ d }) {
 // a redundant second timeline); entries now sit flat on that rail like the app's
 // dispatches. Section head (feedLabel + ＋ Post) + honest redaction carry over.
 function FeedBlock({ d, direction, owner }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const shown = d.feed.filter(it => lvFeedVisible(it.vis, owner));
   const hidden = d.feed.length - shown.length;
@@ -711,6 +763,7 @@ function FeedBlock({ d, direction, owner }) {
 
 // ── Locked state (desktop centered card) ───────────────────────
 function DesktopLocked({ d, follow, onMessage, onFollow, coachingHref }) {
+  const { INK: LV_INK, BG: LV_BG } = useDkPage(); // the page's colours (above)
   const c = tierOf(d).color;
   const coach = d.role !== "client";
   return (
@@ -748,6 +801,7 @@ function DesktopLocked({ d, follow, onMessage, onFollow, coachingHref }) {
 
 // ── Footer ─────────────────────────────────────────────────────
 function DesktopFooter() {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   return (
     <footer style={{ borderTop: `1px solid ${dHexA(LV_INK, 0.08)}`, marginTop: 64 }}>
       <div style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 40px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
@@ -769,6 +823,7 @@ function DesktopFooter() {
 // Segmented tabs under the hero — Personal activities ("Activity") leads, so the
 // profile opens on what someone's doing (mirrors the mobile profile).
 function DesktopTabs({ direction, tab, setTab, c }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const coach = direction !== "terrain";
   const tabs = coach
     ? [["activity", "Activity"], ["about", "About"], ["coaching", "Coaching"], ["reviews", "Reviews"], ["music", "Music"]]
@@ -796,6 +851,7 @@ function DesktopTabs({ direction, tab, setTab, c }) {
 // get_member_playlists; own → all, others → public only). Parity with the mobile
 // Music tab. Read display on web; owner manages from the app. ──────────────────
 function MusicBlock({ d }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const [items, setItems] = React.useState(null);
   React.useEffect(() => {
     const c = (typeof window !== "undefined" && window.shapeDb && window.shapeDb.client) || null;
@@ -821,7 +877,7 @@ function MusicBlock({ d }) {
   };
   return (
     <section style={{ maxWidth: 1000, margin: "0 auto", padding: "14px 40px 0" }}>
-      <div style={dCard({ padding: "22px 24px" })}>
+      <div style={dCard({ padding: "22px 24px" }, LV_INK)}>
         <div style={{ fontFamily: dMono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: dHexA(LV_INK, 0.5), marginBottom: 16 }}>Music · Playlists</div>
         {items === null ? (
           <div style={{ fontFamily: dMono, fontSize: 11, color: dHexA(LV_INK, 0.4) }}>Loading…</div>
@@ -874,7 +930,143 @@ const DK_COACH_PROMPTS = [
   { id: "who_i_coach_best", en: "Who I coach best" }, { id: "wont_program", en: "What I won't program" },
   { id: "approach", en: "My approach" }, { id: "client_win", en: "A client win" },
 ];
-const DK_ACCENTS = ["#34d6c5", "#5ec8e0", "#7bbf5a", "#d8a23a", "#e0644b", "#e0518a", "#8a5cf6"];
+// ── Your colors: the lit panel (owner, 2026-11-04) ─────────────────────────────
+// The app's colours page (mobile-app BSLookPicker.jsx), on the website's editor for coaches and members alike,
+// in place of the seven hex swatches: the Shape looks, then the paper and the accent each on a raised plate,
+// the pick read in a lit slot ("Paper · Bone"), a swatch in a dark inset bezel framed and glowing in the
+// editor's teal when picked, each accent a lamp lit in its own colour, and under them whether buttons and text
+// read on that paper. The words are the app's (settings:paper.*, settings:accent.*, profile:mine.*), in English
+// as the rest of this editor. The colours are the coach kit's, so a swatch is exactly the page it paints.
+const DK_LOOK_PAPERS = ["dark", "light", "white", "bone", "manila", "sage", "rose", "mist", "steel", "teal", "forest", "blueprint", "midnight", "slate", "plum", "oxblood", "cocoa", "carbon"];
+const DK_LOOK_ACCENTS = ["teal", "blue", "amber", "rust", "green", "violet", "rose", "white", "black"];
+const DK_PAPER_NAMES = { light: "Cream", white: "White", dark: "Black", teal: "Teal", manila: "Manila", blueprint: "Blueprint", carbon: "Carbon", steel: "Steel", bone: "Bone", oxblood: "Oxblood", sage: "Sage", forest: "Forest", slate: "Slate", plum: "Plum", rose: "Rose", mist: "Mist", cocoa: "Cocoa", midnight: "Midnight" };
+const DK_ACCENT_NAMES = { blue: "Blue", amber: "Amber", rust: "Rust", green: "Green", teal: "Teal", violet: "Violet", rose: "Rose", white: "White", black: "Black" };
+// The Shape looks: [key, paper, accent], the app's.
+const DK_LOOK_PRESETS = [["shape", "dark", "teal"], ["bone", "bone", "rust"], ["blueprint", "blueprint", "amber"], ["oxblood", "oxblood", "amber"], ["forest", "forest", "green"], ["plum", "plum", "violet"], ["manila", "manila", "black"]];
+const DK_LOOK_TEAL = "#34d6c5", DK_LOOK_WARN = "#e3a544";
+// The digits are extracted, so a paper token (var(--x, #hex)) reads as its fallback, never as black.
+const dkLookRgb = (hex) => { const m = /#([0-9a-f]{6})(?![0-9a-f])/i.exec(String(hex || "")); if (!m) return null; const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const dkLookLum = (hex) => { const c = dkLookRgb(hex); if (!c) return 0; const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const dkLookA = (hex, a) => { const c = dkLookRgb(hex); return c ? `rgba(${c.join(",")},${a})` : hex; };
+// The editor's chrome as the app's raised plate (bsRaised) and lit slot (bsWsLed), on dark.
+const DK_LOOK_PLATE = {
+  position: "relative", borderRadius: 20, overflow: "hidden", padding: "12px 14px 14px", marginTop: 12,
+  background: `linear-gradient(180deg, ${dHexA(LV_INK, 0.12)} 0%, ${dHexA(LV_INK, 0.05)} 60%, ${dHexA(LV_INK, 0.025)} 100%), ${LV_BG}`,
+  border: `1px solid ${dHexA(LV_INK, 0.14)}`,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -3px 0 rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.35), 0 22px 40px -14px rgba(0,0,0,0.85)",
+};
+const DK_LOOK_LED = { display: "inline-block", maxWidth: "100%", boxSizing: "border-box", padding: "6px 10px", borderRadius: 8, background: "rgba(0,0,0,0.45)", border: `1px solid ${DK_LOOK_TEAL}`, boxShadow: "inset 0 1px 3px rgba(0,0,0,0.6)", color: DK_LOOK_TEAL, textShadow: `0 0 8px ${dkLookA(DK_LOOK_TEAL, 0.8)}`, fontFamily: dMono, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const dkLookBezel = (on, ring = DK_LOOK_TEAL) => ({ padding: 3, borderRadius: 11, background: "rgba(0,0,0,0.45)", border: `1px solid ${on ? ring : dHexA(LV_INK, 0.1)}`, boxSizing: "border-box", boxShadow: `inset 0 1px 3px rgba(0,0,0,0.6)${on ? `, 0 0 14px ${dkLookA(ring, 0.5)}` : ""}` });
+// A look's paper and accent as colours (the kit's palette), and the accent before the kit swaps one that
+// would vanish on that paper (black on Black reads white), to say so.
+function dkLookColors(kit, paper, accent) {
+  const P = kit.bsCoachPalette({ paper, accent }, "client");
+  const pair = (kit.BS_COACH_ACCENTS && kit.BS_COACH_ACCENTS[accent]) || { light: P.ACCENT, dark: P.ACCENT };
+  return { P, raw: P.isLight ? pair.light : pair.dark };
+}
+// Whether buttons and text read on that paper: the app's check, word for word (profile:mine.check*).
+function dkLookCheck(kit, look) {
+  const { P, raw } = dkLookColors(kit, look.paper, look.accent);
+  const paper = DK_PAPER_NAMES[look.paper] || look.paper, accent = DK_ACCENT_NAMES[look.accent] || look.accent;
+  if (String(raw).toLowerCase() !== String(P.ACCENT).toLowerCase()) return { ok: false, text: `${accent} would vanish on ${paper}, so your buttons use ${P.ACCENT === "#000000" ? "Black" : "White"}.` };
+  const a = dkLookLum(P.ACCENT), b = dkLookLum(P.PAPER);
+  const cr = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  return cr >= 3 ? { ok: true, text: `Buttons and text read clearly on ${paper}.` } : { ok: false, text: `${accent} is faint on ${paper}. Try a darker accent.` };
+}
+// `look` is { paper, accent } (both set: the editor seeds them); `setLook` takes the next { paper, accent }.
+// `kit` is the coach kit, or null while it loads.
+function DkLookPicker({ look, setLook, kit }) {
+  // The lists are profileCustom.mjs's (window.ShapeProfileLib), the ones the save keeps; these copies only
+  // while it loads.
+  const plib = (typeof window !== "undefined" && window.ShapeProfileLib) || {};
+  const papers = Array.isArray(plib.BS_LOOK_PAPERS) ? plib.BS_LOOK_PAPERS : DK_LOOK_PAPERS;
+  const accents = Array.isArray(plib.BS_LOOK_ACCENTS) ? plib.BS_LOOK_ACCENTS : DK_LOOK_ACCENTS;
+  const kicker = { fontFamily: dMono, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: dHexA(LV_INK, 0.6) };
+  if (!kit || typeof kit.bsCoachPalette !== "function") {
+    return <div data-dk-look="loading" style={{ ...DK_LOOK_PLATE, marginTop: 6 }}><span style={kicker}>Loading colours…</span></div>;
+  }
+  const check = dkLookCheck(kit, look);
+  return (
+    <div data-dk-look="">
+      <style>{`
+        .dk-look-papers { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); gap:8px; margin-top:12px; }
+        .dk-look-accents { display:grid; grid-template-columns:repeat(9,minmax(0,1fr)); row-gap:4px; margin-top:10px; }
+        .dk-look-presets { display:flex; gap:10px; overflow-x:auto; padding:8px 8px 6px; margin:2px -8px 0; scrollbar-width:none; }
+        .dk-look-presets::-webkit-scrollbar { display:none; }
+        @media(max-width:600px) { .dk-look-papers { grid-template-columns:repeat(6,minmax(0,1fr)); } .dk-look-accents { grid-template-columns:repeat(5,minmax(0,1fr)); } }
+      `}</style>
+      <div data-dk-look-plate="looks" style={{ ...DK_LOOK_PLATE, marginTop: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", minHeight: 26 }}><span style={kicker}>Start from a Shape look</span></div>
+        <div className="dk-look-presets">
+          {DK_LOOK_PRESETS.map(([key, pa, ac]) => {
+            const on = pa === look.paper && ac === look.accent, Q = dkLookColors(kit, pa, ac).P;
+            const name = key === "shape" ? "Shape" : DK_PAPER_NAMES[pa];
+            return (
+              <button key={key} type="button" data-look={key} aria-pressed={on} aria-label={`${name} look`} onClick={() => setLook({ paper: pa, accent: ac })}
+                style={{ flex: "none", width: 72, minHeight: 44, padding: 0, border: 0, background: "transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+                <span style={{ ...dkLookBezel(on), display: "block", width: 72, height: 50 }}>
+                  <span style={{ display: "flex", width: "100%", height: "100%", borderRadius: 8, background: Q.PAPER_BG, alignItems: "flex-end", justifyContent: "flex-end", padding: 5, boxSizing: "border-box" }}>
+                    <span style={{ width: 18, height: 6, borderRadius: 99, background: Q.ACCENT }} />
+                  </span>
+                </span>
+                <span style={{ fontFamily: dMono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: on ? DK_LOOK_TEAL : dHexA(LV_INK, 0.6), textShadow: on ? `0 0 8px ${dkLookA(DK_LOOK_TEAL, 0.8)}` : "none", whiteSpace: "nowrap" }}>{name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div data-dk-look-plate="paper" style={DK_LOOK_PLATE}>
+        <span data-led="on" style={DK_LOOK_LED}>Paper · {DK_PAPER_NAMES[look.paper] || look.paper}</span>
+        <div className="dk-look-papers">
+          {papers.map((k) => {
+            const on = k === look.paper, Q = dkLookColors(kit, k, look.accent).P;
+            return (
+              <button key={k} type="button" data-paper={k} aria-pressed={on} aria-label={`Paper ${DK_PAPER_NAMES[k]}`} title={DK_PAPER_NAMES[k]} onClick={() => setLook({ paper: k, accent: look.accent })}
+                style={{ ...dkLookBezel(on), aspectRatio: "1 / 1", minHeight: 44, minWidth: 0, cursor: "pointer", display: "block" }}>
+                <span style={{ position: "relative", display: "grid", placeItems: "center", width: "100%", height: "100%", borderRadius: 8, background: Q.PAPER_BG, color: Q.INK, fontFamily: dSans, fontWeight: 600, fontSize: 13 }}>
+                  Aa<span style={{ position: "absolute", right: 4, bottom: 4, width: 6, height: 6, borderRadius: 99, background: Q.ACCENT }} />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div data-dk-look-plate="accent" style={DK_LOOK_PLATE}>
+        <span data-led="on" style={DK_LOOK_LED}>Accent · {DK_ACCENT_NAMES[look.accent] || look.accent}</span>
+        <div className="dk-look-accents">
+          {accents.map((k) => {
+            const on = k === look.accent, col = dkLookColors(kit, look.paper, k).raw;
+            // A lamp in its socket: lit (ringed and glowing in its own colour) when picked. Black glows teal.
+            const ring = dkLookLum(col) < 0.02 ? DK_LOOK_TEAL : col;
+            return (
+              <button key={k} type="button" data-accent={k} aria-pressed={on} aria-label={`Accent ${DK_ACCENT_NAMES[k]}`} title={DK_ACCENT_NAMES[k]} onClick={() => setLook({ paper: look.paper, accent: k })}
+                style={{ minWidth: 0, height: 52, padding: 0, border: 0, background: "transparent", cursor: "pointer", display: "grid", placeItems: "center" }}>
+                <span style={{ width: 44, height: 44, borderRadius: 99, background: "rgba(0,0,0,0.45)", border: `1px solid ${on ? ring : dHexA(LV_INK, 0.1)}`, boxShadow: `inset 0 1px 3px rgba(0,0,0,0.6)${on ? `, 0 0 14px ${dkLookA(ring, 0.45)}` : ""}`, display: "grid", placeItems: "center", boxSizing: "border-box" }}>
+                  <span data-lamp="" style={{ width: 26, height: 26, borderRadius: 99, background: col, border: `1px solid ${dHexA(LV_INK, 0.22)}`, boxSizing: "border-box", opacity: on ? 1 : 0.85, boxShadow: on ? `0 0 12px ${dkLookA(ring, 0.85)}, 0 0 3px ${dkLookA(ring, 0.9)}` : "inset 0 1px 2px rgba(0,0,0,0.35)" }} />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p role="status" data-look-check={check.ok ? "ok" : "warn"} style={{ margin: "10px 0 0", paddingTop: 10, borderTop: `1px solid ${dHexA(LV_INK, 0.1)}`, display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, lineHeight: 1.45, color: dHexA(LV_INK, 0.8) }}>
+          <span aria-hidden="true" style={{ flex: "none", marginTop: 5, width: 8, height: 8, borderRadius: 99, background: check.ok ? DK_LOOK_TEAL : DK_LOOK_WARN, boxShadow: `0 0 8px ${check.ok ? DK_LOOK_TEAL : DK_LOOK_WARN}` }} />
+          {check.text}
+        </p>
+      </div>
+    </div>
+  );
+}
+// The panel opens on the doc's look, else on what the page is in now: a member's page is the site's dark
+// stock with teal until they pick; a coach's the kit's default for their role, read off the accent the page
+// hands the editor (`c`: amber for a nutritionist, teal for a trainer).
+function dkLookSeed(initLook, coach, c, kit) {
+  let accent = initLook.accent || null;
+  if (!accent && coach && kit && kit.BS_COACH_ACCENTS) {
+    const hit = Object.entries(kit.BS_COACH_ACCENTS).find(([, v]) => [v.light, v.dark].some((x) => String(x).toLowerCase() === String(c || "").toLowerCase()));
+    if (hit) accent = hit[0];
+  }
+  return { paper: initLook.paper || "dark", accent: accent || "teal" };
+}
 const DK_PIN_KINDS = [
   { id: "pr", en: "PR" }, { id: "workout", en: "Workout" }, { id: "meal", en: "Meal" },
   { id: "post", en: "Post" }, { id: "win", en: "Win" },
@@ -959,6 +1151,7 @@ function dkLinkHref(key, val) {
 const DK_WALL_MIME = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/pjpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif", "image/heic": "heic", "image/heif": "heif" };
 function dkWallExt(file) { return (file && DK_WALL_MIME[String(file.type || "").toLowerCase()]) || null; }
 function ProfileExtras({ d, owner, coach = false, custom = null, onEdit }) {
+  const { INK: LV_INK, ACCENT } = useDkPage(); // the page's colours (above)
   // `custom` is lifted to DesktopProfile so a save reflects in BOTH the hero
   // (M2/M4) and this block (M1/M3) at once — the hero reads d.custom, which the
   // loaded person prop freezes until reload (Codex P2).
@@ -969,7 +1162,9 @@ function ProfileExtras({ d, owner, coach = false, custom = null, onEdit }) {
   // M1/M3 are member (Terrain) features — never render them on a coach profile.
   const wall = (!coach && profLib && profLib.bsProfileWall) ? profLib.bsProfileWall(cu.wall, d.uid) : [];
   const shelf = (!coach && profLib && profLib.bsProfileShelf) ? profLib.bsProfileShelf(cu.shelf) : [];
-  const c = (cu.accent && /^#/.test(cu.accent)) ? cu.accent : tierOf(d).color;
+  // The member's look accent where they chose one (the page's colours), else the hex accent the old picker
+  // stored, else the tier's.
+  const c = ACCENT || ((cu.accent && /^#/.test(cu.accent)) ? cu.accent : tierOf(d).color);
   const embed = dkSpotifyEmbed(cu.song && cu.song.url);
   const prompts = Array.isArray(cu.prompts) ? cu.prompts.filter((p) => p && p.q && p.a) : [];
   const links = (cu.links && typeof cu.links === "object") ? DK_LINKS.map((l) => [l, cu.links[l.key]]).filter(([, v]) => v && String(v).trim()) : [];
@@ -1158,7 +1353,15 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
   const [links, setLinks] = React.useState({ ...(init.links || {}) });
   const [prompts, setPrompts] = React.useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0].id, a: "" }]);
   const [coverUrl, setCoverUrl] = React.useState((init.cover && init.cover.image) || "");
-  const [accent, setAccent] = React.useState(init.accent || "");
+  // Your colors (the lit panel above, in place of the seven hex swatches). `pick` is the paper and accent
+  // picked here, null until one is: a page whose owner never picks keeps its colours, and the save writes
+  // the look only when it changed here. The old hex accent is no longer edited; the doc's own rides through.
+  const initLook = (plib && plib.bsProfileLook ? plib.bsProfileLook(init.look) : null) || {};
+  const [pick, setPick] = React.useState(null);
+  const lookKit = useDkKit(true);
+  const lookSeed = dkLookSeed(initLook, coach, c, lookKit);
+  const shownLook = { paper: (pick && pick.paper) || lookSeed.paper, accent: (pick && pick.accent) || lookSeed.accent };
+  const pickChanged = !!pick && (pick.paper !== initLook.paper || pick.accent !== initLook.accent);
   // Normalise on the way IN: a doc stored before the split carries English, and a
   // picker comparing tokens would match no chip and silently reset the member's pin.
   const [pinKind, setPinKind] = React.useState(dkPinKindToken((init.pinned && init.pinned.kind) || "") || dkPinKinds()[0].id);
@@ -1323,13 +1526,16 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       links: Object.fromEntries(DK_LINKS.map((l) => [l.key, String(links[l.key] || "").trim()]).filter(([, v]) => v)),
       prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: dkPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
       cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
-      accent: accent || null,
+      // The look: the paper and accent only when picked here; its crop (focus), set in the app, stays.
+      ...(pickChanged ? { look: { ...initLook, paper: pick.paper, accent: pick.accent } } : {}),
       climbBg: climbBg || null,
       pinned: pinTitle.trim() ? { kind: dkPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
       heroStats: heroStats.slice(0, 3),
       // Member profile-wave keys (M1–M4). The normalizer below cleans + caps and
-      // DROPS them when empty; every legacy key passes byte-identical.
-      line,
+      // DROPS them when empty; every legacy key passes byte-identical. A member's line is no
+      // longer asked for (owner, 2026-11-04: "Remove the field"), so the doc's own rides through;
+      // a coach's editor still asks.
+      ...(coach ? { line } : {}),
       wall,
       shelf,
       startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
@@ -1407,11 +1613,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
           </div>
         </>)}
         {!coach && (<>
-          {/* M4 · The Line */}
-          <div style={{ marginBottom: 18 }}>
-            <span style={label}>Your line · one motto</span>
-            <input aria-label="Your motto" value={line} onChange={(e) => setLine(e.target.value.slice(0, LM))} maxLength={LM} placeholder="A line you live by — e.g. Strong is a skill." style={field} />
-          </div>
+          {/* M4 · The Line is no longer asked for (owner, 2026-11-04: "Remove the field"). */}
           {/* M5 · The intro film (member → member-films) */}
           {filmSection}
         </>)}
@@ -1419,7 +1621,7 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
       <div key="appearance" data-editor-label="Appearance">
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Cover image</span>
-          <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(accent || c, 0.4)}, ${dHexA(accent || c, 0.08)})` }}>
+          <div style={{ position: "relative", height: 130, borderRadius: 12, overflow: "hidden", border: `1px solid ${dHexA(LV_INK, 0.16)}`, background: coverUrl ? "#000" : `linear-gradient(135deg, ${dHexA(c, 0.4)}, ${dHexA(c, 0.08)})` }}>
             {coverUrl && <img src={coverUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
             <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: "none" }} />
             <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -1428,13 +1630,10 @@ function ProfileCustomizer({ initial, c, onClose, onSave, coach = false, ownerUi
             </div>
           </div>
         </div>
-        <div style={{ marginBottom: 18 }}>
-          <span style={label}>Accent color</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-            <button onClick={() => setAccent("")} title="Tier default" aria-label="Tier default accent" aria-pressed={!accent} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${!accent ? LV_INK : dHexA(LV_INK, 0.25)}`, background: `linear-gradient(135deg, ${c}, ${lvShade(c, 0.5)})`, color: "#fff", fontSize: 12 }}>{!accent ? "✓" : ""}</button>
-            {DK_ACCENTS.map((a) => <button key={a} aria-label={"Accent " + a} aria-pressed={accent === a} onClick={() => setAccent(a)} style={{ width: 32, height: 32, borderRadius: 999, cursor: "pointer", border: `2px solid ${accent === a ? LV_INK : "transparent"}`, background: a, color: "#fff", fontSize: 12 }}>{accent === a ? "✓" : ""}</button>)}
-          </div>
-          <div style={{ marginTop: 7, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.45) }}>Tints your cover + cards. Your tier badge keeps its tier color.</div>
+        <div data-dk-colors="" style={{ marginBottom: 18 }}>
+          <span style={label}>Your colors</span>
+          <div style={{ marginTop: -2, fontFamily: dMono, fontSize: 9, letterSpacing: "0.06em", color: dHexA(LV_INK, 0.5), lineHeight: 1.5 }}>Pick from Shape’s papers and accents. Your whole page follows.</div>
+          <DkLookPicker look={shownLook} setLook={setPick} kit={lookKit} />
         </div>
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Climb background</span>
@@ -1578,6 +1777,7 @@ function lvHourLabel(min) {
   return (h % 12 === 0 ? 12 : h % 12) + (h >= 12 ? "p" : "a");
 }
 function LvCoachAvailability({ d }) {
+  const { INK: LV_INK } = useDkPage(); // the page's colours (above)
   const role = d.role === "nutritionist" ? "nutritionist" : "trainer";
   const uid = d.uid || null;
   const [state, setState] = React.useState(uid ? "loading" : "demo");
@@ -1648,13 +1848,13 @@ function LvCoachAvailability({ d }) {
   const bookHref = "/newdesign/consultation.html?type=" + role + (pid ? "&id=" + pid : "") + "&name=" + encodeURIComponent(d.name || "");
 
   if (state === "loading") {
-    return <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}><div style={dCard({ padding: "16px 22px", color: dHexA(LV_INK, 0.4), fontFamily: dMono, fontSize: 12 })}>Loading availability…</div></section>;
+    return <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}><div style={dCard({ padding: "16px 22px", color: dHexA(LV_INK, 0.4), fontFamily: dMono, fontSize: 12 }, LV_INK)}>Loading availability…</div></section>;
   }
   if (state === "none") return null; // not a marketplace coach / no row — show nothing rather than a wrong state
 
   return (
     <section style={{ maxWidth: 1240, margin: "0 auto", padding: "10px 40px 0" }}>
-      <div style={dCard({ padding: "16px 22px 18px" })}>
+      <div style={dCard({ padding: "16px 22px 18px" }, LV_INK)}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
           <DKick c={LV_TEAL} style={{ fontSize: 10.5 }}>◷ Availability{state === "demo" ? " · example" : zone ? " · " + zone : ""}</DKick>
           <span style={{ fontFamily: dMono, fontSize: 10.5, color: dHexA(LV_INK, 0.45) }}>
@@ -1721,9 +1921,16 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
   const [custom, setCustom] = React.useState(d.custom || null);
   const [editingProfile, setEditingProfile] = React.useState(false);
   const heroPerson = custom ? Object.assign({}, d, { custom }) : d;
+  // A member's page in their own look (above: useDkPage), from the doc this page holds, so a save in the
+  // editor repaints it at once. A coach's look is their own page's (coachProfileWeb.jsx), not this one's.
+  const plibLook = (typeof window !== "undefined" && window.ShapeProfileLib) || null;
+  const look = (!coach && !locked && plibLook && plibLook.bsProfileLook) ? plibLook.bsProfileLook(custom && custom.look) : null;
+  const kit = useDkKit(!!(look && (look.paper || look.accent)));
+  const pageColors = React.useMemo(() => dkPageColors(look, kit), [look && look.paper, look && look.accent, kit]);
 
   return (
-    <div style={{ position: "relative", minHeight: "100vh", background: LV_BG, color: LV_INK, fontFamily: dSans, overflow: "hidden" }}>
+    <DkPageContext.Provider value={pageColors}>
+    <div data-dk-page={pageColors.painted ? look.paper : undefined} style={{ position: "relative", minHeight: "100vh", background: pageColors.BG_FILL, color: pageColors.INK, fontFamily: dSans, overflow: "hidden" }}>
       {/* atmosphere */}
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", background: `radial-gradient(90% 50% at 78% -4%, ${dHexA(c, 0.28)}, transparent 60%), radial-gradient(80% 50% at 0% 12%, ${dHexA(c, 0.12)}, transparent 55%)` }} />
       <div style={{ position: "relative" }}>
@@ -1826,6 +2033,7 @@ function DesktopProfile({ direction = "terrain", persona = "client", variant = "
         {chrome ? <DesktopFooter /> : <div style={{ height: 34 }} />}
       </div>
     </div>
+    </DkPageContext.Provider>
   );
 }
 

@@ -1188,5 +1188,18 @@
   "work.word.5k": "Chuẩn bị chạy 5k",
   "work.word.mobility": "Linh hoạt",
   "trainer.replaysSubSessions": "Các buổi tập {name} đã ghi lại, theo từng hiệp.",
-  "about.photos": "Nơi {name} huấn luyện"
+  "about.photos": "Nơi {name} huấn luyện",
+  "mine.tabSpotlight": "Nổi bật",
+  "mine.spotlightTitle": "Phần nổi bật của bạn",
+  "mine.spotlightSub": "Một video giới thiệu, các số liệu nổi bật, một khoảnh khắc, bài hát của bạn và những đánh giá bạn ghim. Tất cả đều không bắt buộc.",
+  "mine.errDemoFilm": "Đăng nhập để tải video của bạn lên.",
+  "mine.statsTitle": "Số liệu nổi bật",
+  "mine.statsHint": "Tối đa ba số liệu dưới tên bạn, theo thứ tự bạn chọn. Số liệu chưa có sẽ không hiện trên trang.",
+  "mine.statsMax": "{count, plural, other {Tối đa # số liệu nổi bật.}} Bỏ chọn một mục để chọn mục khác.",
+  "mine.statNone": "Chưa có",
+  "mine.errPinTitle": "Hãy đặt tiêu đề cho khoảnh khắc của bạn, hoặc xóa đi.",
+  "mine.winsHint": "Ghim tối đa ba đánh giá của thành viên. Chúng sẽ đứng đầu mục Khách hàng nói gì trên trang của bạn.",
+  "mine.bizName": "Tên cơ sở của bạn",
+  "mine.bizHint": "Tên và địa điểm hiện dưới tên bạn; giờ làm việc và nơi tìm bạn hiện ở mục Về tôi.",
+  "mine.errBizName": "Hãy đặt tên cho cơ sở của bạn, hoặc xóa thẻ."
 }
