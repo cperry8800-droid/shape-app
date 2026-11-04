@@ -4716,7 +4716,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     Promise.resolve(viaHelper)
       .then(d => {
         if (d) return d;
-        return bsApi.fetch('/api/client/analytics', { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
+        return bsApi.fetch(`/api/client/analytics?date=${bsCiIso(new Date())}`, { credentials: 'same-origin', cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
       })
       .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});

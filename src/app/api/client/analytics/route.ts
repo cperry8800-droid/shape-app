@@ -11,6 +11,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
+import { clientLocalDay } from '@/lib/local-day';
 import { bsGoalKind } from '../../../../../mobile-app/src/services/prefOptions.mjs';
 
 export const runtime = 'nodejs';
@@ -161,8 +162,14 @@ export async function GET(request: Request) {
     }
     return null;
   };
-  const todaySnap = snaps[snaps.length - 1] || null;
-  const yest = snaps[snaps.length - 2] || null;
+  // Today's row is the member's own day's row (`?date=`, their local YYYY-MM-DD, the day the check-in
+  // and meal writers date it by), never the newest row: with nothing logged yet today, the newest is
+  // yesterday's, and Home read its calories as "Fuel left today" (Codex P2 on #2583). Without the
+  // parameter the day is the server's UTC day, as /api/client/progress does.
+  const today = clientLocalDay(new URL(request.url).searchParams.get('date'));
+  const todayIdx = snaps.findIndex((s) => s.snapshot_date === today);
+  const todaySnap = todayIdx >= 0 ? snaps[todayIdx] : null;
+  const yest = todayIdx > 0 ? snaps[todayIdx - 1] : null;
   // Goal-derived targets. Calorie target shifts with goal; protein target
   // scales with body weight (≈1g/lb, nudged by goal), falling back to 150g.
   const latestWeight = latestOf((s) => (s.weight_lb != null ? Number(s.weight_lb) : null));
