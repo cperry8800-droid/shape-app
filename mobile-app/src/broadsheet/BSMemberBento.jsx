@@ -39,6 +39,12 @@ const BS_MP_ICON_PATHS = {
   peak: ['m3 20 6-10 4 6 3-4 5 8Z', 'M9 10V4l4 2-4 2'],
   note: ['M9 18V5l11-2v13', 'M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z', 'M20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z'],
   spark: ['M12 3v4', 'M12 17v4', 'M3 12h4', 'M17 12h4', 'm5.6 5.6 2.8 2.8', 'm15.6 15.6 2.8 2.8', 'm5.6 18.4 2.8-2.8', 'm15.6 8.4 2.8-2.8'],
+  // The Signals, Climb and Music tabs' instruments.
+  send: ['M14.54 21.69a.5.5 0 0 0 .94-.03l6.5-19a.5.5 0 0 0-.64-.63l-19 6.5a.5.5 0 0 0-.02.93l7.93 3.18a2 2 0 0 1 1.11 1.11Z', 'm21.85 2.15-10.94 10.94'],
+  share: ['M7 17 17 7', 'M7 7h10v10'],
+  close: ['M18 6 6 18', 'm6 6 12 12'],
+  globe: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', 'M2 12h20', 'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z'],
+  lock: ['M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z', 'M7 11V7a5 5 0 0 1 10 0v4'],
 };
 export function BSMpIcon({ name, size = 16, stroke = 2, style = null }) {
   const paths = BS_MP_ICON_PATHS[name] || BS_MP_ICON_PATHS.spark;
@@ -79,6 +85,59 @@ export function BSMpIconBox({ name, ink, size = 24 }) {
   return (
     <span aria-hidden="true" style={{ width: size, height: size, borderRadius: Math.round(size / 3), flex: 'none', display: 'grid', placeItems: 'center', background: hexA(ink, 0.12) }}>
       <BSMpIcon name={name} size={Math.round(size * 0.5)} stroke={2.3} />
+    </span>
+  );
+}
+
+// ─── The Signals, Climb and Music tabs as glass instruments (owner, 2026-11-04: "these sections need
+// updated designs/looks", and of every design, "creative futuristic and unique"). Each section a pane of
+// glass over a faint dot grid, the figures lit from the tier's colour to the teal the tier's ring runs
+// to, the lines glowing. The readings are the page's own; nothing here makes one up.
+export const bsMpTealOf = bsMpTeal;
+// A pane: a sheet of glass, white over a light paper and the ink's own tint over a dark one, its top edge
+// catching the light. `grid` lays the instrument's dot grid under it.
+export function bsMpGlass(t, INK, { grid = false, radius = 22 } = {}) {
+  const light = !!(t && t.isLight);
+  const sheet = light ? 'linear-gradient(160deg, rgba(255,255,255,0.94), rgba(255,255,255,0.66))' : `linear-gradient(160deg, ${hexA(INK, 0.095)}, ${hexA(INK, 0.03)})`;
+  const dots = `radial-gradient(${hexA(INK, light ? 0.09 : 0.075)} 1px, transparent 1.4px)`;
+  // The sheet is an image over a clear colour: a <button> otherwise keeps the browser's own white fill
+  // under it (the climb's ✎ drew as a white disc, its pencil lost).
+  return {
+    position: 'relative', boxSizing: 'border-box', borderRadius: radius, backgroundColor: 'transparent',
+    backgroundImage: grid ? `${dots}, ${sheet}` : sheet, backgroundSize: grid ? '14px 14px, auto' : 'auto',
+    border: `1px solid ${hexA(INK, light ? 0.08 : 0.11)}`,
+    boxShadow: light ? '0 1px 2px rgba(15,14,12,0.05), 0 14px 30px -20px rgba(15,14,12,0.28)' : 'inset 0 1px 0 rgba(255,255,255,0.07), 0 18px 40px -26px rgba(0,0,0,0.9)',
+  };
+}
+// A figure lit from the tier's colour to teal (on a light paper, from the ink, so it still reads).
+export function bsMpGradText(t, c, INK) {
+  const light = !!(t && t.isLight);
+  return { backgroundImage: light ? `linear-gradient(115deg, ${INK} 35%, ${c} 130%)` : `linear-gradient(115deg, ${c} 15%, ${bsMpTeal(t)} 110%)`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' };
+}
+// The light a lit line or dot gives off, softer on a light paper.
+export const bsMpGlow = (t, c, a = 0.6) => (t && t.isLight ? `0 0 10px ${hexA(c, a * 0.45)}` : `0 0 14px ${hexA(c, a)}`);
+// A pane's label: a glowing dot of the tier's colour, then the words.
+export function BSMpPaneLabel({ children, INK, c, t, note = null }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <span aria-hidden="true" style={{ flex: 'none', width: 7, height: 7, borderRadius: 99, background: c, boxShadow: bsMpGlow(t, c, 0.9) }} />
+      <span style={{ flex: 1, minWidth: 0, fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 600, lineHeight: 1.25, color: hexA(INK, 0.72), overflowWrap: 'anywhere' }}>{children}</span>
+      {note ? <span style={{ flex: 'none', maxWidth: '48%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '3px 9px', borderRadius: 99, border: `1px solid ${hexA(INK, 0.12)}`, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 600, color: hexA(INK, 0.66) }}>{note}</span> : null}
+    </span>
+  );
+}
+// An empty library's record: a vinyl disc, its grooves catching the light, the label lit from the tier's
+// colour to teal with a note on it. It turns slowly unless the reader asked for less motion (`spin`).
+export function BSMpVinyl({ c, onC, t, size = 112, spin = false }) {
+  return (
+    <span aria-hidden="true" style={{ position: 'relative', display: 'block', width: size, height: size, flex: 'none' }}>
+      <span style={{ position: 'absolute', inset: -10, borderRadius: 99, background: `radial-gradient(circle, ${hexA(c, 0.32)} 0%, ${hexA(c, 0)} 68%)` }} />
+      <span style={{ position: 'absolute', inset: 0, borderRadius: 99, background: 'repeating-radial-gradient(circle at 50% 50%, #121212 0 2px, #1c1c1c 2px 3.2px)', boxShadow: '0 14px 28px -12px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(255,255,255,0.06)', ...(spin ? { animation: 'bsspin 7s linear infinite' } : null) }}>
+        <span style={{ position: 'absolute', inset: 0, borderRadius: 99, background: 'conic-gradient(from 20deg, rgba(255,255,255,0) 0deg, rgba(255,255,255,0.16) 30deg, rgba(255,255,255,0) 70deg, rgba(255,255,255,0) 180deg, rgba(255,255,255,0.10) 215deg, rgba(255,255,255,0) 255deg)' }} />
+        <span style={{ position: 'absolute', inset: '31%', borderRadius: 99, display: 'grid', placeItems: 'center', background: `linear-gradient(135deg, ${c}, ${bsMpTeal(t)})`, color: onC }}>
+          <BSMpIcon name="note" size={Math.round(size * 0.17)} stroke={2.2} />
+        </span>
+      </span>
     </span>
   );
 }

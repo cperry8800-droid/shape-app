@@ -79,6 +79,7 @@ import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
+import { bsMpTealOf, bsMpGlass, bsMpGradText, bsMpGlow, BSMpPaneLabel, BSMpVinyl } from './BSMemberBento.jsx';
 import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
@@ -17974,7 +17975,7 @@ function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = fal
 // someone else's profile — save their public playlist into your own library.
 function bsProviderColor(p) { return p === 'apple' ? '#fa243c' : p === 'spotify' ? '#1db954' : '#8a5cf6'; }
 function bsProviderLabel(p) { return p === 'apple' ? 'Apple Music' : p === 'spotify' ? 'Spotify' : 'Playlist'; }
-function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = false }) {
+function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = false, look = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const accent = c || (t.isLight ? '#0a8f87' : '#34d6c5');
@@ -18013,6 +18014,102 @@ function BSProfilePlaylists({ userId, isSelf, c, INK, BG, bleed = 0, ledger = fa
     try { await window.ShapePlaylists.remove(pl.id); } catch (e) { load(); }
   };
 
+  // ── Glass (the member profile's Music tab; owner, 2026-11-04: "these sections need updated
+  // designs/looks", and of every design, "creative futuristic and unique"). Your library and its Add, a
+  // pill with a ring lit from the tier's colour to teal; an empty library a record on glass, turning,
+  // with Add your first lit; each playlist a pane, its cover a disc, its controls real 44px buttons. Only
+  // the member profile asks for it; the coach page keeps its cards. ──
+  if (look === 'glass') {
+    const light = t.isLight;
+    const teal = bsMpTealOf(t);
+    const pane = bsMpGlass(t, INK);
+    const onC = bsReadableOn(accent);
+    const fill = light ? '#ffffff' : (t.PAPER2 || t.PAPER || BG);
+    const ringed = { border: '1px solid transparent', background: `linear-gradient(${fill}, ${fill}) padding-box, linear-gradient(120deg, ${accent}, ${teal}) border-box` };
+    const bare = (s) => String(s || '').replace(/^\s*[＋+]\s*/, '');
+    const iconBtn = (name, label, onClick) => <button key={label} type="button" aria-label={label} title={label} onClick={onClick} style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 99, border: 0, background: 'transparent', color: bsTHexA(INK, 0.66), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}><span style={{ width: 34, height: 34, borderRadius: 99, display: 'grid', placeItems: 'center', border: `1px solid ${bsTHexA(INK, 0.12)}`, background: bsTHexA(INK, 0.04) }}><BSMpIcon name={name} size={15} stroke={2.1} /></span></button>;
+    return (
+      <BSCleanType t={t}>
+      <div>
+        {/* Your own library and its Add. A visitor's has no head: the Music tab right above names it (a
+            tab's first section takes no head, owner, 2026-10-26). */}
+        {isSelf ? (
+          <div data-playlists-head="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <span style={{ paddingLeft: 2, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: INK }}>{tr('profile:playlists.yourLibrary', { defaultValue: 'Your library' })}</span>
+            <button type="button" onClick={() => setAdding(true)} style={{ ...ringed, flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 16px 0 6px', borderRadius: 99, cursor: 'pointer', color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, boxShadow: bsMpGlow(t, accent, 0.35) }}>
+              <span aria-hidden style={{ width: 30, height: 30, borderRadius: 99, display: 'grid', placeItems: 'center', background: `linear-gradient(135deg, ${accent}, ${teal})`, color: onC }}><BSMpIcon name="plus" size={15} stroke={2.6} /></span>
+              <span>{bare(tr('profile:playlists.addPlaylist', { defaultValue: '＋ Add playlist' }))}</span>
+            </button>
+          </div>
+        ) : null}
+        {items === null ? (
+          <div style={{ ...pane, padding: '16px', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, color: muted }}>{tr('profile:playlists.loading', { defaultValue: 'Loading…' })}</div>
+        ) : items.length === 0 ? (
+          <div data-playlists-empty="" style={{ ...bsMpGlass(t, INK, { grid: true }), padding: '26px 18px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', overflow: 'hidden' }}>
+            <BSMpVinyl c={accent} onC={onC} t={t} size={118} spin={!bsSdReduced()} />
+            <span style={{ marginTop: 18, fontFamily: BS_CLEAN_HEAD, fontSize: 19, fontWeight: 750, letterSpacing: '-0.02em', color: INK }}>{isSelf ? tr('profile:playlists.emptyTitle', { defaultValue: 'No playlists yet.' }) : tr('profile:playlists.emptyTitlePublic', { defaultValue: 'No public playlists.' })}</span>
+            <span style={{ marginTop: 6, maxWidth: 300, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.45, color: muted }}>{isSelf ? tr('profile:playlists.emptySelfSub', { defaultValue: 'Add your Spotify or Apple Music playlists — keep them private or share them with the community.' }) : tr('profile:playlists.emptyOtherSub', { defaultValue: 'When they make a playlist public, it shows up here.' })}</span>
+            {isSelf && (
+              <button type="button" onClick={() => setAdding(true)} style={{ marginTop: 18, minHeight: 48, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 22px 0 16px', borderRadius: 99, border: 0, cursor: 'pointer', background: `linear-gradient(120deg, ${accent}, ${teal})`, color: onC, fontFamily: BS_CLEAN_HEAD, fontSize: 15, fontWeight: 750, letterSpacing: '-0.01em', boxShadow: `0 10px 26px -10px ${bsTHexA(accent, 0.9)}, 0 0 0 1px ${bsTHexA('#ffffff', 0.12)} inset` }}>
+                <BSMpIcon name="plus" size={16} stroke={2.6} />
+                <span>{bare(tr('profile:playlists.addFirst', { defaultValue: '＋ Add your first' }))}</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {items.map((pl) => {
+              const pc = bsProviderColor(pl.provider);
+              return (
+                <div key={pl.id} style={{ ...pane, borderRadius: 20, padding: '10px 10px 4px 12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <a href={pl.url} target="_blank" rel="noopener noreferrer" aria-label={pl.name} style={{ position: 'relative', width: 52, height: 52, flexShrink: 0, borderRadius: 99, overflow: 'hidden', background: pl.cover ? `center/cover no-repeat url(${pl.cover})` : `repeating-radial-gradient(circle, #141414 0 2px, #1e1e1e 2px 3.2px)`, boxShadow: `0 0 0 2px ${bsTHexA(pc, 0.6)}`, display: 'grid', placeItems: 'center', textDecoration: 'none' }}>
+                      <span aria-hidden style={{ width: 14, height: 14, borderRadius: 99, background: pl.cover ? fill : `linear-gradient(135deg, ${accent}, ${teal})`, border: `2px solid ${bsTHexA(INK, 0.2)}` }} />
+                    </a>
+                    <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+                      <div style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 15, fontWeight: 700, color: INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pl.name}</div>
+                      <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 500, color: muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        <span aria-hidden style={{ flex: 'none', width: 6, height: 6, borderRadius: 99, background: pc, boxShadow: `0 0 8px ${bsTHexA(pc, 0.8)}` }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsProviderLabel(pl.provider)}{pl.track_count ? ' · ' + tr('profile:playlists.trackCount', { count: pl.track_count, defaultValue: '{count, plural, one {# track} other {# tracks}}' }) : ''}</span>
+                      </div>
+                    </a>
+                    <a href={pl.url} target="_blank" rel="noopener noreferrer" style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>
+                      <span style={{ ...ringed, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 99, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 13, fontWeight: 650 }}>{tr('profile:action.open', { defaultValue: 'Open' })}<BSMpIcon name="share" size={13} stroke={2.3} /></span>
+                    </a>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 }}>
+                    {isSelf ? (
+                      <>
+                        <button type="button" onClick={() => togglePublic(pl)} aria-pressed={!!pl.is_public} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 12px 6px 10px', borderRadius: 99, fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: 600, border: `1px solid ${pl.is_public ? bsTHexA(teal, 0.5) : bsTHexA(INK, 0.12)}`, color: pl.is_public ? INK : bsTHexA(INK, 0.66) }}>
+                            <span style={{ display: 'inline-flex', color: pl.is_public ? teal : 'currentColor' }}><BSMpIcon name={pl.is_public ? 'globe' : 'lock'} size={13} stroke={2.2} /></span>
+                            {pl.is_public ? tr('profile:playlists.public', { defaultValue: 'Public' }) : tr('profile:playlists.private', { defaultValue: 'Private' })}
+                          </span>
+                        </button>
+                        <span style={{ marginLeft: 'auto' }} />
+                        {iconBtn('send', tr('profile:playlists.sendToMember', { defaultValue: 'Send to member' }), () => { if (!pl.is_public) { window.__bsToast?.(tr('profile:playlists.makePublicFirst', { defaultValue: 'Make it public first to share.' }), 'info'); return; } setSendFor(pl); })}
+                        {iconBtn('share', tr('profile:action.share', { defaultValue: 'Share' }), () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                        {iconBtn('close', tr('profile:action.remove', { defaultValue: 'Remove' }), () => removeIt(pl))}
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ marginLeft: 'auto' }} />
+                        {iconBtn('plus', tr('profile:playlists.saveToMyLibrary', { defaultValue: 'Save to my library' }), () => saveToLibrary(pl))}
+                        {iconBtn('share', tr('profile:action.share', { defaultValue: 'Share' }), () => bsSharePostExternal({ who: '', title: pl.name, body: bsProviderLabel(pl.provider), postId: null }))}
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {adding && <BSAddPlaylistSheet c={accent} INK={INK} BG={BG} onClose={() => setAdding(false)} onAdded={() => { setAdding(false); load(); }} />}
+        {sendFor && <BSPostSendSheet post={{ playlist: { name: sendFor.name, url: sendFor.url, provider: sendFor.provider }, title: sendFor.name, body: bsProviderLabel(sendFor.provider) }} onClose={() => setSendFor(null)} c={accent} INK={INK} BG={BG} />}
+      </div>
+      </BSCleanType>
+    );
+  }
   // ── Ledger variant (Terrain) — zero-box hairline rows, line-only heat. ──
   if (ledger) {
     const glyph = (g, label, onClick) => <button key={label} aria-label={label} onClick={onClick} style={{ minWidth: 44, minHeight: 44, flexShrink: 0, background: 'transparent', border: 0, color: bsTHexA(INK, 0.55), cursor: 'pointer', fontFamily: t.MONO, fontSize: 14, fontWeight: 800, display: 'grid', placeItems: 'center', padding: 0 }}>{g}</button>;
@@ -19192,82 +19289,123 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             ]} />
             {tab === 'playlists' && (
               <div style={{ marginBottom: 22 }}>
-                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={8} ledger />
+                <BSProfilePlaylists userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} bleed={8} ledger look="glass" />
               </div>
             )}
-            {tab === 'climb' && (<>
-            {/* THE CLIMB — the ascent inked straight on the paper (no box, no
-                wash). Heat route draws start → now; target stays a hollow circle.
-                No head: the Climb tab right above names it (owner, 2026-10-26). The
-                head's "Member since" stays, at the right of the climb's own switch
-                row (or on its own line when there is no switch): it is the only
-                place most profiles show it (Codex P2 on #2468). */}
-            <div style={{ marginBottom: 28 }}>
-              {/* Member since on its own line (beside the switch and ✎ it was cut to "FEB 202"). */}
-              {since ? <span data-climb-since="" style={{ display: 'block', marginBottom: 6, fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })}</span> : null}
-              {/* The switch, with ✎ on your own page (a Tier-only climb keeps the row, for ✎). */}
+            {tab === 'climb' && (() => {
+            // THE CLIMB as an instrument (owner, 2026-11-04: "these sections need updated designs/looks", and
+            // of every design, "creative futuristic and unique"): the route lit over a grid that runs to the
+            // horizon, Now a pulsing dot, the target a reticle in its colour; the sources a glass switch and
+            // the three readings readouts under it. No head: the Climb tab right above names it (owner,
+            // 2026-10-26). "Member since" stays: it is the only place most profiles show it (Codex P2 on #2468).
+            const light = tTheme.isLight;
+            const teal = bsMpTealOf(tTheme);
+            const pane = bsMpGlass(tTheme, INK);
+            const paper = light ? '#ffffff' : (tTheme.PAPER || BG);
+            const tgtC = climbCfg.targetC || c;
+            const reduced = bsSdReduced() || !tabFresh; // revisit renders the finished route (no replay)
+            return (
+            <BSCleanType t={tTheme}>
+            <div style={{ marginBottom: 22 }}>
+              {since ? (
+                <span data-climb-since="" style={{ ...pane, borderRadius: 99, display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '6px 12px 6px 10px', fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 600, color: bsTHexA(INK, 0.74) }}>
+                  <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: teal, boxShadow: bsMpGlow(tTheme, teal, 0.9) }} />
+                  {tr('profile:terrain.memberSince', { date: since, defaultValue: 'Member since {date}' })}
+                </span>
+              ) : null}
+              {/* The switch, a pane of glass, with ✎ beside it on your own page (a Tier-only climb keeps the row, for ✎). */}
               {(climbTabs.length > 1 || isSelf) && (
-                <div data-climb-switch="" className="bs-hide-scroll" style={{ display: 'flex', gap: 16, marginBottom: 14, overflowX: 'auto', alignItems: 'center' }}>
-                  {climbTabs.map((s) => { const on = activeClimb === s.key; return (
-                    <button key={s.key} type="button" aria-pressed={on} onClick={() => pickClimb(s.key)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '10px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.55), fontFamily: SERIF, fontSize: 14, fontWeight: on ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap' }}><span style={{ borderBottom: on ? `2px solid ${c}` : '2px solid transparent', paddingBottom: 3 }}>{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
-                  ); })}
-                  {isSelf && <button onClick={() => setClimbCustomizing((v) => !v)} aria-label={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} title={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} style={{ flex: 'none', minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: climbCustomizing ? INK : bsTHexA(INK, 0.5), cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                <div data-climb-switch="" style={{ display: 'flex', gap: 6, marginBottom: 10, alignItems: 'stretch' }}>
+                  <div className="bs-hide-scroll" style={{ ...pane, borderRadius: 16, flex: 1, minWidth: 0, padding: 4, display: 'flex', gap: 2, overflowX: 'auto' }}>
+                    {climbTabs.map((s) => { const on = activeClimb === s.key; return (
+                      <button key={s.key} type="button" aria-pressed={on} onClick={() => pickClimb(s.key)} style={{ flex: '1 0 auto', minHeight: 44, padding: '0 14px', borderRadius: 12, border: 0, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em', color: on ? INK : bsTHexA(INK, 0.58), background: on ? bsTHexA(c, light ? 0.14 : 0.16) : 'transparent', boxShadow: on ? `inset 0 -2px 0 ${c}, 0 8px 20px -10px ${bsTHexA(c, 0.8)}` : 'none', transition: 'background-color 200ms ease, color 200ms ease' }}>{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</button>
+                    ); })}
+                  </div>
+                  {isSelf && <button type="button" onClick={() => setClimbCustomizing((v) => !v)} aria-label={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} title={tr('profile:terrain.customizeClimb', { defaultValue: 'Customize climb' })} aria-expanded={climbCustomizing}
+                    style={{ ...pane, borderRadius: 99, flex: 'none', width: 52, minHeight: 52, color: climbCustomizing ? c : bsTHexA(INK, 0.72), boxShadow: climbCustomizing ? `0 0 0 1px ${c}, ${bsMpGlow(tTheme, c, 0.6)}` : pane.boxShadow, cursor: 'pointer', display: 'grid', placeItems: 'center', padding: 0 }}>
+                    <BSMpIcon name="pencil" size={17} stroke={2.2} />
                   </button>}
                 </div>
               )}
               {isSelf && climbCustomizing && (
-                <div style={{ margin: '2px 0 16px', paddingBottom: 12, borderBottom: `1px solid ${bsTHexA(INK, 0.08)}` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
-                    <div style={{ fontFamily: MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: bsTHexA(INK, 0.5) }}>{tr('profile:terrain.showOnClimb', { defaultValue: 'Show on your climb' })}</div>
-                    <button onClick={() => setClimbCustomizing(false)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: INK, fontFamily: MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: '13px 0' }}><span style={{ borderBottom: `1px solid ${c}`, paddingBottom: 1 }}>{tr('profile:action.done', { defaultValue: 'Done' })}</span></button>
+                <div style={{ ...pane, borderRadius: 18, margin: '0 0 10px', padding: '4px 12px 12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <BSMpPaneLabel INK={INK} c={c} t={tTheme}>{tr('profile:terrain.showOnClimb', { defaultValue: 'Show on your climb' })}</BSMpPaneLabel>
+                    <button type="button" onClick={() => setClimbCustomizing(false)} style={{ flex: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, color: light ? INK : teal, fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '0 2px' }}>{tr('profile:action.done', { defaultValue: 'Done' })}</button>
                   </div>
-                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {CLIMB_SOURCES.filter((s) => s.key !== 'score').map((s) => { const on = climbShown.includes(s.key); return (
-                      <button key={s.key} onClick={() => toggleClimbShown(s.key)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '13px 0', border: 0, background: 'transparent', color: on ? INK : bsTHexA(INK, 0.4), fontFamily: MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}><span style={{ borderBottom: on ? `1px solid ${c}` : '1px solid transparent', paddingBottom: 2 }}>{on ? '✓ ' : '＋ '}{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</span></button>
+                      <button key={s.key} type="button" onClick={() => toggleClimbShown(s.key)} style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', padding: '0 14px', borderRadius: 99, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, ...(on ? { border: '1px solid transparent', background: `linear-gradient(${light ? '#ffffff' : (tTheme.PAPER2 || paper)}, ${light ? '#ffffff' : (tTheme.PAPER2 || paper)}) padding-box, linear-gradient(120deg, ${c}, ${teal}) border-box`, color: INK } : { background: 'transparent', border: `1px dashed ${bsTHexA(INK, 0.24)}`, color: bsTHexA(INK, 0.6) }) }}>{on ? '✓ ' : '＋ '}{tr('profile:terrain.climb.' + s.key, { defaultValue: s.label })}</button>
                     ); })}
                   </div>
                 </div>
               )}
-              {(() => {
-                // The "now" dot height tracks the selected aspect's progress (pct).
-                const W = 320, H = 128; const npct = Math.max(0.05, Math.min(0.95, pct || 0));
-                const ys = [H - 16, (H - 16) + (20 - (H - 16)) * npct, 20]; const xs = [22, W / 2, W - 22];
-                const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
-                const rgNow = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]}`;
-                const reduced = bsSdReduced() || !tabFresh; // revisit renders the finished route (no replay)
-                return (
-                <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
-                  {/* whole route, dashed ink */}
-                  <path d={rg} fill="none" stroke={bsTHexA(INK, 0.25)} strokeWidth="1.5" strokeDasharray="4 4" />
-                  {/* earned start → now, heat, self-drawing */}
-                  <path d={rgNow} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(reduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 1100ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
-                  {/* hollow ink start square · heat now dot (pops) · hollow heat target */}
-                  <rect x={xs[0] - 4} y={ys[0] - 4} width="8" height="8" fill="none" stroke={bsTHexA(INK, 0.5)} strokeWidth="1.5" />
-                  <circle cx={xs[1]} cy={ys[1]} r="5" fill={c} style={reduced ? null : { transformOrigin: `${xs[1]}px ${ys[1]}px`, animation: 'bsSdPop 320ms cubic-bezier(.2,1.1,.3,1) 1350ms both' }} />
-                  <circle cx={xs[2]} cy={ys[2]} r="4.5" fill="none" stroke={climbCfg.targetC || c} strokeWidth="1.5" />
-                </svg>
-                );
-              })()}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
-                {arc.map((a, i) => (
-                  <div key={i} style={{ flex: 1, textAlign: i === 0 ? 'left' : i === 2 ? 'right' : 'center' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{a[0]}</div>
-                    <div style={{ fontFamily: SERIF, fontSize: 14.5, fontWeight: a[2] === 'now' ? 600 : 400, color: INK, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>{a[1]}</div>
-                  </div>
-                ))}
+              <div style={{ ...pane, padding: '10px 10px 12px', overflow: 'hidden' }}>
+                {(() => {
+                  // The "now" dot height tracks the selected aspect's progress (pct).
+                  const W = 320, H = 156, HZ = 36; const npct = Math.max(0.05, Math.min(0.95, pct || 0));
+                  const ys = [H - 24, (H - 24) + (30 - (H - 24)) * npct, 30]; const xs = [24, W / 2, W - 24];
+                  const rg = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]} T ${xs[2]} ${ys[2]}`;
+                  const rgNow = `M ${xs[0]} ${ys[0]} Q ${(xs[0] + xs[1]) / 2} ${(ys[0] + ys[1]) / 2 - 14}, ${xs[1]} ${ys[1]}`;
+                  const gid = `bs-climb-${tierKey}`;
+                  // The floor: lines running to a vanishing point on the horizon, rows closing up towards it.
+                  const rays = Array.from({ length: 13 }, (_, i) => -240 + i * 66.7);
+                  const rows = Array.from({ length: 7 }, (_, k) => HZ + (H - HZ) * Math.pow((k + 1) / 7, 1.7));
+                  return (
+                  <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-hidden style={{ display: 'block', overflow: 'visible' }}>
+                    <defs>
+                      <linearGradient id={`${gid}-floor`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#fff" stopOpacity="1" /></linearGradient>
+                      <mask id={`${gid}-fade`}><rect x="-20" y={HZ} width={W + 40} height={H - HZ + 10} fill={`url(#${gid}-floor)`} /></mask>
+                      <linearGradient id={`${gid}-route`} x1={xs[0]} y1="0" x2={xs[1]} y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor={c} /><stop offset="1" stopColor={teal} /></linearGradient>
+                      <filter id={`${gid}-glow`} x="-30%" y="-60%" width="160%" height="220%"><feGaussianBlur stdDeviation={light ? 1.6 : 3} result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                    </defs>
+                    <g mask={`url(#${gid}-fade)`} stroke={bsTHexA(INK, light ? 0.16 : 0.13)} strokeWidth="1">
+                      {rays.map((x, i) => <line key={`r${i}`} x1={W / 2} y1={HZ} x2={x + W / 2 - 160} y2={H + 8} />)}
+                      {rows.map((y, i) => <line key={`h${i}`} x1="-20" x2={W + 20} y1={y} y2={y} />)}
+                    </g>
+                    <line x1="0" x2={W} y1={HZ} y2={HZ} stroke={bsTHexA(c, 0.35)} strokeWidth="1" />
+                    {/* the whole route dashed, then start → now lit from the tier's colour to teal, self-drawing */}
+                    <path d={rg} fill="none" stroke={bsTHexA(INK, 0.3)} strokeWidth="1.6" strokeDasharray="3 5" strokeLinecap="round" />
+                    <path d={rgNow} fill="none" stroke={`url(#${gid}-route)`} strokeWidth="3.4" strokeLinecap="round" pathLength={1} strokeDasharray="1 1" filter={`url(#${gid}-glow)`} style={{ '--sd-len': 1, ...(reduced ? { strokeDashoffset: 0 } : { animation: 'bsSdDrawLine 1100ms cubic-bezier(.4,0,.2,1) 300ms both' }) }} />
+                    {/* start a diamond · now a dot in a pulsing ring · the target a reticle in its colour */}
+                    <rect x={xs[0] - 4.5} y={ys[0] - 4.5} width="9" height="9" fill={paper} stroke={bsTHexA(INK, 0.6)} strokeWidth="1.6" transform={`rotate(45 ${xs[0]} ${ys[0]})`} />
+                    <circle cx={xs[1]} cy={ys[1]} r="11" fill="none" stroke={teal} strokeWidth="1.4" opacity="0.55">
+                      {reduced ? null : <animate attributeName="r" values="8;17;8" dur="2.6s" begin="1.4s" repeatCount="indefinite" />}
+                      {reduced ? null : <animate attributeName="opacity" values="0.7;0;0.7" dur="2.6s" begin="1.4s" repeatCount="indefinite" />}
+                    </circle>
+                    <circle cx={xs[1]} cy={ys[1]} r="6" fill={teal} stroke={paper} strokeWidth="2.5" filter={`url(#${gid}-glow)`} style={reduced ? null : { transformOrigin: `${xs[1]}px ${ys[1]}px`, animation: 'bsSdPop 320ms cubic-bezier(.2,1.1,.3,1) 1350ms both' }} />
+                    <g stroke={tgtC} strokeWidth="1.6" fill="none" strokeLinecap="round">
+                      <circle cx={xs[2]} cy={ys[2]} r="9" />
+                      <line x1={xs[2]} x2={xs[2]} y1={ys[2] - 15} y2={ys[2] - 11} /><line x1={xs[2]} x2={xs[2]} y1={ys[2] + 11} y2={ys[2] + 15} />
+                      <line x1={xs[2] - 15} x2={xs[2] - 11} y1={ys[2]} y2={ys[2]} /><line x1={xs[2] + 11} x2={xs[2] + 15} y1={ys[2]} y2={ys[2]} />
+                    </g>
+                    <circle cx={xs[2]} cy={ys[2]} r="2.4" fill={tgtC} />
+                  </svg>
+                  );
+                })()}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginTop: 10 }}>
+                  {arc.map((a, i) => { const now = a[2] === 'now'; const bar = i === 0 ? bsTHexA(INK, 0.45) : now ? `linear-gradient(90deg, ${c}, ${teal})` : tgtC; return (
+                    <div key={i} style={{ position: 'relative', minWidth: 0, borderRadius: 14, padding: '11px 10px 9px', boxSizing: 'border-box', background: now ? bsTHexA(c, light ? 0.1 : 0.12) : bsTHexA(INK, 0.045), border: `1px solid ${now ? bsTHexA(c, 0.4) : bsTHexA(INK, 0.07)}`, overflow: 'hidden' }}>
+                      <span aria-hidden style={{ position: 'absolute', left: 10, top: 0, width: 26, height: 3, borderRadius: '0 0 3px 3px', background: bar, boxShadow: now ? bsMpGlow(tTheme, c, 0.9) : 'none' }} />
+                      <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 600, color: bsTHexA(INK, 0.64), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a[0]}</span>
+                      <div style={{ marginTop: 4, fontFamily: BS_CLEAN_HEAD, fontSize: 14.5, fontWeight: now ? 800 : 650, letterSpacing: '-0.01em', lineHeight: 1.2, color: INK, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{a[1]}</div>
+                    </div>
+                  ); })}
+                </div>
               </div>
             </div>
 
-            {/* The why: their goal, upright in the headline face under a hairline (the bio is in the head now;
-                it showed only here, and only with no goal). */}
+            {/* The why: their goal, on glass under the climb (the bio is in the head now; it showed only here,
+                and only with no goal). */}
             {goal ? (
-              <div data-climb-why="" style={{ marginBottom: 26, paddingTop: 14, borderTop: `1px solid ${bsTHexA(INK, 0.12)}` }}>
-                <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) }}>{tr('profile:terrain.theWhy', { defaultValue: 'The why' })}</span>
-                <p style={{ margin: '8px 0 0', fontFamily: SERIF, fontSize: 19, fontWeight: 500, lineHeight: 1.35, color: INK }}><span aria-hidden style={{ color: c }}>“</span>{goal}<span aria-hidden style={{ color: c }}>”</span></p>
+              <div data-climb-why="" style={{ ...pane, marginBottom: 22, padding: '12px 16px 14px' }}>
+                <BSMpPaneLabel INK={INK} c={c} t={tTheme}>{tr('profile:terrain.theWhy', { defaultValue: 'The why' })}</BSMpPaneLabel>
+                <p style={{ margin: '10px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 18, fontWeight: 650, letterSpacing: '-0.01em', lineHeight: 1.35, color: INK }}><span aria-hidden style={{ color: c, textShadow: bsMpGlow(tTheme, c, 0.8) }}>“</span>{goal}<span aria-hidden style={{ color: c, textShadow: bsMpGlow(tTheme, c, 0.8) }}>”</span></p>
               </div>
             ) : null}
-            </>)}
+            </BSCleanType>
+            );
+            })()}
 
             {tab === 'signals' && (() => {
               const reduced = bsSdReduced();
@@ -19287,94 +19425,167 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               const hasDisc = !signedInSelf || discPerf.some((v) => v > 0);
               const discBest = hasDisc ? discPerf.indexOf(Math.max(...discPerf)) : -1;
               const hasLifts = !signedInSelf || liftsEff.some(([, v]) => v !== '—');
-              // The coach page's sections (owner, 2026-10-31: the member profile in the coach profile's
-              // look, and "improve design of these pages"): a 10px mono eyebrow, the figures in the headline
-              // face, hairlines between; no heavy rules or 7px labels.
-              const eyebrowS = { display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: bsTHexA(INK, 0.64) };
-              const sectionS = { padding: '16px 0', borderTop: `1px solid ${bsTHexA(INK, 0.12)}` };
-              const figS = { fontFamily: SERIF, fontSize: 34, fontWeight: 600, color: INK, letterSpacing: '-0.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' };
-              const unitS = { fontSize: 13, color: bsTHexA(INK, 0.64) };
+              // As glass instruments (owner, 2026-11-04, of these tabs: "these sections need updated
+              // designs/looks", and of every design, "creative futuristic and unique"): the week a dial
+              // around the streak, the trajectory a lit line over the instrument's grid, the disciplines a
+              // radar beside their figures, the lifts readouts. The same readings from the same sources; the
+              // strongest discipline and today lit from the tier's colour to teal.
+              const light = tTheme.isLight;
+              const teal = bsMpTealOf(tTheme);
+              const pane = bsMpGlass(tTheme, INK);
+              const paneGrid = bsMpGlass(tTheme, INK, { grid: true });
+              const lit = bsMpGradText(tTheme, c, INK);
+              const figS = { fontFamily: BS_CLEAN_HEAD, fontWeight: 800, letterSpacing: '-0.05em', lineHeight: 0.95, fontVariantNumeric: 'tabular-nums' };
+              const unitS = { fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, color: bsTHexA(INK, 0.6) };
+              const emptyS = { margin: '10px 0 2px', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.35, color: bsTHexA(INK, 0.6) };
+              const headS = { display: 'block', margin: '18px 2px 10px', fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: INK };
+              const paper = light ? '#ffffff' : (tTheme.PAPER || BG);
+              // Each pane rises in, once per profile open; Reduce Motion lands them in place.
+              const enter = (i) => (play ? { animation: `bsSdFadeUp 460ms cubic-bezier(.2,.8,.2,1) ${80 + i * 80}ms both` } : null);
               // Real weigh-ins say how many they span; the preview's sample keeps its caption.
               const trajCaption = (isSelf && realSig && Array.isArray(realSig.traj) && realSig.traj.length >= 2)
                 ? tr('profile:terrain.weighInsCount', { defaultValue: '{count, plural, one {# weigh-in} other {# weigh-ins}}', count: realSig.traj.length })
                 : tr('profile:terrain.recomp', { defaultValue: '16-wk recomp' });
-              return (<>
-              {/* THIS WEEK: the day streak and the week's sessions. No head: the Signals tab names it. */}
-              <div data-signals-week="" style={{ ...sectionS, borderTop: 0, paddingTop: 6, display: 'flex', gap: 22, alignItems: 'flex-start' }}>
-                <div style={{ flex: 'none' }}>
-                  <span style={eyebrowS}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</span>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 6 }}>
-                    <span style={figS}>{streakEff}</span>
+              const lastY = 34 - ((trajEff[trajEff.length - 1] - minTraj) / (maxTraj - minTraj || 1)) * 28 - 3;
+              const gid = `bs-sig-${tierKey}`;
+              // THE DIAL: a wedge a day around the streak, each as long as that day's minutes against the
+              // week's most (a day with none keeps a sliver, as the bars did); today's lit.
+              const DIAL = 160, R0 = 30, R1 = 64;
+              const span = (Math.PI * 2) / Math.max(1, weekEff.length);
+              const at = (r, a) => `${(DIAL / 2 + r * Math.cos(a)).toFixed(2)} ${(DIAL / 2 + r * Math.sin(a)).toFixed(2)}`;
+              const wedge = (i, frac) => {
+                const a0 = -Math.PI / 2 + i * span + 0.06, a1 = a0 + span - 0.12;
+                const r = R0 + Math.max(0.1, Math.min(1, frac)) * (R1 - R0);
+                return `M ${at(R0, a0)} L ${at(r, a0)} A ${r} ${r} 0 0 1 ${at(r, a1)} L ${at(R0, a1)} A ${R0} ${R0} 0 0 0 ${at(R0, a0)} Z`;
+              };
+              // THE RADAR: an axis a discipline, each to its own 100 (rings at a quarter, a half, three quarters).
+              const RAD = 160, RR = 58, nAx = discPerf.length;
+              const axAt = (i, v) => { const a = -Math.PI / 2 + (i * Math.PI * 2) / Math.max(1, nAx); return [RAD / 2 + RR * v * Math.cos(a), RAD / 2 + RR * v * Math.sin(a)]; };
+              const ring = (v) => discPerf.map((_, i) => axAt(i, v).map((n) => n.toFixed(1)).join(',')).join(' ');
+              const shape = discPerf.map((p, i) => axAt(i, Math.max(0.02, Math.min(1, (Number(p) || 0) / 100))).map((n) => n.toFixed(1)).join(',')).join(' ');
+              return (
+              <BSCleanType t={tTheme}>
+              {/* THIS WEEK: the day streak inside the week's dial. No head: the Signals tab names it. */}
+              <div data-signals-week="" style={{ ...paneGrid, padding: '14px 14px 14px 16px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, min(168px, 50%))', alignItems: 'center', gap: 10, ...enter(0) }}>
+                <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <BSMpPaneLabel INK={INK} c={c} t={tTheme}>{tr('profile:stat.dayStreak', { defaultValue: 'Day streak' })}</BSMpPaneLabel>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ ...figS, ...lit, fontSize: 64, paddingRight: 2 }}>{streakEff}</span>
                     <span style={unitS}>{tr('profile:terrain.days', { defaultValue: 'days' })}</span>
                   </div>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 600, color: bsTHexA(INK, 0.6) }}>
+                    <span aria-hidden style={{ flex: 'none', width: 14, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${c}, ${teal})` }} />
+                    {tr('profile:terrain.weeklyMomentum', { defaultValue: 'Weekly momentum' })}
+                  </span>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={eyebrowS}>{tr('profile:terrain.weeklyMomentum', { defaultValue: 'Weekly momentum' })}</span>
-                  {hasWeek ? (<>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 40, marginTop: 8 }}>{weekEff.map((v, i) => { const today = i === weekEff.length - 1; return <div key={i} aria-hidden style={{ flex: 1, height: `${Math.max(8, (v / (maxWk || 1)) * 100)}%`, borderRadius: 3, background: today ? c : bsTHexA(INK, 0.2), transformOrigin: 'bottom', ...(play ? { animation: `bsSdRise 480ms cubic-bezier(.4,0,.2,1) ${480 + i * 60}ms both` } : null) }} />; })}</div>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>{weekLabels.map((d, i) => <div key={i} data-week-day="" style={{ flex: 1, textAlign: 'center', fontSize: 10.5, color: bsTHexA(INK, 0.55) }}>{d}</div>)}</div>
-                  </>) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.noSessionsWeek', { defaultValue: 'No sessions this week' })}</p>}
-                </div>
-              </div>
-
-              {/* TRAJECTORY: the weight's change over the weigh-ins, its line, and what it spans. */}
-              <div data-signals-trajectory="" style={sectionS}>
-                <span style={eyebrowS}>{tr('profile:terrain.trajectory', { defaultValue: 'Trajectory' })}</span>
-                {hasTraj ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 6 }}>
-                    <div style={{ flex: 'none', display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                      {trajDelta === 0
-                        ? <span style={{ ...figS, fontSize: 22 }}>{tr('profile:terrain.noChange', { defaultValue: 'No change' })}</span>
-                        : <><span style={figS}>{trajDelta > 0 ? '+' : '−'}{Math.abs(trajDelta)}</span><span style={unitS}>{trajDeltaIn.unit || 'lb'}</span></>}
-                    </div>
-                    <svg viewBox="0 0 150 34" preserveAspectRatio="none" width="100%" height="34" style={{ flex: 1, minWidth: 0 }} aria-hidden>
-                      <path d={sparkPath} fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" style={{ '--sd-len': 1, ...(play ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' } : { strokeDashoffset: 0 }) }} />
+                {hasWeek ? (
+                  <div style={{ position: 'relative', width: '100%', maxWidth: 168, aspectRatio: '1 / 1', justifySelf: 'end' }}>
+                    <svg viewBox={`0 0 ${DIAL} ${DIAL}`} width="100%" height="100%" aria-hidden style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+                      <defs>
+                        <linearGradient id={`${gid}-day`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={c} /><stop offset="1" stopColor={teal} /></linearGradient>
+                        <filter id={`${gid}-glow`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation={light ? 1.6 : 2.6} result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                      </defs>
+                      <circle cx={DIAL / 2} cy={DIAL / 2} r={R1 + 1} fill="none" stroke={bsTHexA(INK, 0.07)} strokeWidth="1" strokeDasharray="1.5 3.5" />
+                      {weekEff.map((_, i) => <path key={`t${i}`} d={wedge(i, 1)} fill={bsTHexA(INK, 0.045)} />)}
+                      {weekEff.map((v, i) => { const today = i === weekEff.length - 1; return (
+                        <path key={i} d={wedge(i, v / (maxWk || 1))} fill={today ? `url(#${gid}-day)` : bsTHexA(INK, light ? 0.24 : 0.3)} stroke={today ? 'none' : bsTHexA(INK, 0.06)} strokeWidth="1" strokeLinejoin="round" filter={today ? `url(#${gid}-glow)` : undefined} style={play ? { animation: `bsSdFadeUp 420ms cubic-bezier(.2,.8,.2,1) ${360 + i * 60}ms both` } : null} />
+                      ); })}
+                      <circle cx={DIAL / 2} cy={DIAL / 2} r={R0 - 7} fill="none" stroke={bsTHexA(c, 0.5)} strokeWidth="1.2" />
+                      <circle cx={DIAL / 2} cy={DIAL / 2} r="3" fill={c} filter={`url(#${gid}-glow)`} />
                     </svg>
+                    {weekLabels.map((d, i) => { const a = -Math.PI / 2 + i * span + span / 2; const today = i === weekLabels.length - 1; return (
+                      <div key={i} data-week-day="" style={{ position: 'absolute', left: `${((DIAL / 2 + (R1 + 11) * Math.cos(a)) / DIAL) * 100}%`, top: `${((DIAL / 2 + (R1 + 11) * Math.sin(a)) / DIAL) * 100}%`, transform: 'translate(-50%, -50%)', fontFamily: BS_CLEAN_SANS, fontSize: 10, fontWeight: today ? 750 : 500, color: today ? INK : bsTHexA(INK, 0.5), lineHeight: 1 }}>{d}</div>
+                    ); })}
                   </div>
-                ) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.trajectoryNoWeighIns', { defaultValue: 'Trajectory · no weigh-ins yet' })}</p>}
-                {hasTraj ? <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: bsTHexA(INK, 0.6) }}>{trajCaption}</span> : null}
+                ) : <p style={{ ...emptyS, textAlign: 'right' }}>{tr('profile:terrain.noSessionsWeek', { defaultValue: 'No sessions this week' })}</p>}
               </div>
 
-              {/* DISCIPLINES: each a bar to its own 100, the strongest in the page's colour. */}
-              <div data-signals-disciplines="" style={sectionS}>
-                <span style={eyebrowS}>{tr('profile:terrain.disciplines', { defaultValue: 'Disciplines' })}</span>
+              {/* TRAJECTORY: the weight's change over the weigh-ins, its line lit over the grid, and what it spans. */}
+              <div data-signals-trajectory="" style={{ ...paneGrid, marginTop: 8, padding: '14px 16px 14px', overflow: 'hidden', ...enter(1) }}>
+                <BSMpPaneLabel INK={INK} c={c} t={tTheme} note={hasTraj ? trajCaption : null}>{tr('profile:terrain.trajectory', { defaultValue: 'Trajectory' })}</BSMpPaneLabel>
+                {hasTraj ? (<>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 10 }}>
+                    {trajDelta === 0
+                      ? <span style={{ ...figS, ...lit, fontSize: 30 }}>{tr('profile:terrain.noChange', { defaultValue: 'No change' })}</span>
+                      : <><span style={{ ...figS, ...lit, fontSize: 52, paddingRight: 2 }}>{trajDelta > 0 ? '+' : '−'}{Math.abs(trajDelta)}</span><span style={unitS}>{trajDeltaIn.unit || 'lb'}</span></>}
+                  </div>
+                  <div style={{ position: 'relative', height: 72, marginTop: 10 }}>
+                    <svg viewBox="0 0 150 34" preserveAspectRatio="none" width="100%" height="72" style={{ display: 'block', overflow: 'visible' }} aria-hidden>
+                      <defs>
+                        <linearGradient id={`${gid}-fill`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={c} stopOpacity="0.34" /><stop offset="1" stopColor={c} stopOpacity="0" /></linearGradient>
+                        <linearGradient id={`${gid}-line`} x1="0" y1="0" x2="150" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stopColor={c} /><stop offset="1" stopColor={teal} /></linearGradient>
+                        <filter id={`${gid}-lglow`} x="-10%" y="-60%" width="120%" height="220%"><feGaussianBlur stdDeviation={light ? 0.8 : 1.4} result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                      </defs>
+                      <path d={`${sparkPath} L 150 34 L 0 34 Z`} fill={`url(#${gid}-fill)`} stroke="none" style={play ? { animation: 'bsSdFadeUp 700ms ease 700ms both' } : null} />
+                      <path d={sparkPath} fill="none" stroke={`url(#${gid}-line)`} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray="1 1" filter={`url(#${gid}-lglow)`} style={{ '--sd-len': 1, ...(play ? { animation: 'bsSdDrawLine 900ms cubic-bezier(.4,0,.2,1) 300ms both' } : { strokeDashoffset: 0 }) }} />
+                    </svg>
+                    <span aria-hidden style={{ position: 'absolute', left: '100%', top: `${(lastY / 34) * 100}%`, width: 12, height: 12, marginLeft: -6, marginTop: -6, borderRadius: 99, background: teal, border: `2px solid ${paper}`, boxSizing: 'border-box', boxShadow: bsMpGlow(tTheme, teal, 0.9), ...(play ? { '--sd-glow': bsTHexA(teal, 0.6), animation: 'bsSdPop 320ms cubic-bezier(.2,1.1,.3,1) 1150ms both, bsSdPrBreath 2.8s ease-in-out 1500ms infinite' } : null) }} />
+                  </div>
+                </>) : <p style={emptyS}>{tr('profile:terrain.trajectoryNoWeighIns', { defaultValue: 'Trajectory · no weigh-ins yet' })}</p>}
+              </div>
+
+              {/* DISCIPLINES: a radar, each axis to its own 100, beside each one's figure and bar; the strongest lit. */}
+              <div data-signals-disciplines="">
+                <span style={headS}>{tr('profile:terrain.disciplines', { defaultValue: 'Disciplines' })}</span>
                 {hasDisc ? (
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {discRows.map(([label, val], i) => (
-                      <div key={i} data-disc-row={i === discBest ? 'best' : ''} style={{ display: 'grid', gridTemplateColumns: '108px minmax(0, 1fr) 34px', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 13.5, color: i === discBest ? INK : bsTHexA(INK, 0.78), fontWeight: i === discBest ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                        <span aria-hidden style={{ height: 6, borderRadius: 3, background: bsTHexA(INK, 0.1), overflow: 'hidden' }}>
-                          <span style={{ display: 'block', height: '100%', width: `${Math.max(2, Math.min(100, Number(discPerf[i]) || 0))}%`, borderRadius: 3, background: i === discBest ? c : bsTHexA(INK, 0.45) }} />
-                        </span>
-                        <span style={{ textAlign: 'right', fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
-                      </div>
-                    ))}
+                  <div style={{ ...pane, padding: 12, display: 'grid', gridTemplateColumns: nAx >= 3 ? 'minmax(0, 0.95fr) minmax(0, 1fr)' : 'minmax(0, 1fr)', alignItems: 'center', gap: 12, ...enter(2) }}>
+                    {nAx >= 3 ? (
+                      <svg viewBox={`0 0 ${RAD} ${RAD}`} width="100%" style={{ display: 'block', maxWidth: 190, justifySelf: 'center', overflow: 'visible' }} aria-hidden>
+                        <defs>
+                          <linearGradient id={`${gid}-rad`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={c} stopOpacity="0.5" /><stop offset="1" stopColor={teal} stopOpacity="0.26" /></linearGradient>
+                          <linearGradient id={`${gid}-radl`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={c} /><stop offset="1" stopColor={teal} /></linearGradient>
+                          {/* its own glow: the dial's is drawn only when the week has sessions, and a filter that
+                              is not there hides what points at it */}
+                          <filter id={`${gid}-rglow`} x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation={light ? 1.6 : 2.6} result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+                        </defs>
+                        {[0.25, 0.5, 0.75, 1].map((v) => <polygon key={v} points={ring(v)} fill="none" stroke={bsTHexA(INK, v === 1 ? 0.16 : 0.08)} strokeWidth="1" />)}
+                        {discPerf.map((_, i) => { const [x, y] = axAt(i, 1); return <line key={i} x1={RAD / 2} y1={RAD / 2} x2={x} y2={y} stroke={bsTHexA(INK, 0.08)} strokeWidth="1" />; })}
+                        <polygon points={shape} fill={`url(#${gid}-rad)`} stroke={`url(#${gid}-radl)`} strokeWidth="2" strokeLinejoin="round" filter={`url(#${gid}-rglow)`} style={play ? { transformBox: 'view-box', transformOrigin: `${RAD / 2}px ${RAD / 2}px`, animation: 'bsSdStamp 620ms cubic-bezier(.2,.9,.3,1) 420ms both' } : null} />
+                        {discPerf.map((p, i) => { const [x, y] = axAt(i, Math.max(0.02, Math.min(1, (Number(p) || 0) / 100))); const best = i === discBest; return <circle key={i} cx={x} cy={y} r={best ? 4.5 : 3} fill={best ? c : paper} stroke={best ? paper : bsTHexA(INK, 0.7)} strokeWidth="1.5" filter={best ? `url(#${gid}-rglow)` : undefined} />; })}
+                        {discPerf.map((p, i) => { const [x, y] = axAt(i, 1.24); return <text key={i} x={x} y={y + 3.5} textAnchor="middle" fontFamily={BS_CLEAN_HEAD} fontSize="10" fontWeight="700" fill={i === discBest ? INK : bsTHexA(INK, 0.55)}>{p}</text>; })}
+                      </svg>
+                    ) : null}
+                    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {discRows.map(([label, val], i) => { const best = i === discBest; return (
+                        <div key={i} data-disc-row={best ? 'best' : ''} style={{ minWidth: 0, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', columnGap: 8, rowGap: 5 }}>
+                          <span style={{ minWidth: 0, fontFamily: BS_CLEAN_SANS, fontSize: 12.5, fontWeight: best ? 700 : 500, color: best ? INK : bsTHexA(INK, 0.7), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                          <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, fontVariantNumeric: 'tabular-nums', ...(best ? lit : { color: INK }) }}>{val}</span>
+                          <span aria-hidden style={{ gridColumn: '1 / -1', display: 'block', height: 4, borderRadius: 99, background: bsTHexA(INK, 0.09), overflow: 'hidden' }}>
+                            <span style={{ display: 'block', height: '100%', width: `${Math.max(2, Math.min(100, Number(discPerf[i]) || 0))}%`, borderRadius: 99, background: best ? `linear-gradient(90deg, ${c}, ${teal})` : bsTHexA(INK, 0.42), boxShadow: best ? bsMpGlow(tTheme, c, 0.8) : 'none', transformOrigin: 'left', ...(play ? { animation: `bsSdDrawX 640ms cubic-bezier(.4,0,.2,1) ${420 + i * 80}ms both` } : null) }} />
+                          </span>
+                        </div>
+                      ); })}
+                    </div>
                   </div>
-                ) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })}</p>}
+                ) : <div style={{ ...pane, padding: '4px 16px 12px' }}><p style={emptyS}>{tr('profile:terrain.notEnoughLogged', { defaultValue: 'Not enough logged yet' })}</p></div>}
               </div>
 
-              {/* KEY LIFTS: each lift and its best, in the reader's unit (a bare figure is pounds). */}
-              <div data-signals-lifts="" style={{ ...sectionS, marginBottom: 12 }}>
-                <span style={eyebrowS}>{tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })}</span>
+              {/* KEY LIFTS: a readout each, the best in the reader's unit (a bare figure is pounds). */}
+              <div data-signals-lifts="" style={{ marginBottom: 12 }}>
+                <span style={headS}>{tr('profile:terrain.keyLifts', { defaultValue: 'Key lifts' })}</span>
                 {hasLifts ? (
-                  <div style={{ marginTop: 4 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, liftsEff.length)}, minmax(0, 1fr))`, gap: 8 }}>
                     {liftsEff.map(([label, val], i) => {
                       const raw = String(val);
                       const bare = /^\s*\d+(\.\d+)?\s*$/.test(raw);
                       const conv = bare ? tTheme.uMeasure(Number(raw), 'lb') : null;
                       const u = conv ? { num: String(Math.round(Number(conv.value))), unit: conv.unit } : bsSdSplitUnit(tTheme.uText(raw));
                       return (
-                        <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 10, minHeight: 44, paddingTop: 10, borderTop: i ? `1px solid ${bsTHexA(INK, 0.08)}` : 0 }}>
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 14.5, color: INK }}>{label}</span>
-                          <span style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 18, color: INK, fontVariantNumeric: 'tabular-nums' }}>{u.num}</span>
-                          {u.unit ? <span style={unitS}>{u.unit}</span> : null}
+                        <div key={label} style={{ ...pane, borderRadius: 18, minWidth: 0, padding: '12px 12px 14px', overflow: 'hidden', ...enter(3 + i) }}>
+                          <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 600, color: bsTHexA(INK, 0.66), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                          <span style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}>
+                            <span style={{ ...figS, ...lit, fontSize: 30, paddingRight: 1 }}>{u.num}</span>
+                            {u.unit ? <span style={{ ...unitS, fontSize: 12 }}>{u.unit}</span> : null}
+                          </span>
+                          <span aria-hidden style={{ position: 'absolute', left: 12, right: 12, bottom: 0, height: 2, borderRadius: 2, background: `linear-gradient(90deg, ${bsTHexA(c, 0)}, ${c}, ${bsTHexA(teal, 0)})`, boxShadow: bsMpGlow(tTheme, c, 0.7) }} />
                         </div>
                       );
                     })}
                   </div>
-                ) : <p style={{ margin: '8px 0 0', fontSize: 13.5, color: bsTHexA(INK, 0.6) }}>{tr('profile:terrain.liftsNotOnRecord', { defaultValue: 'Lifts · not on record' })}</p>}
+                ) : <div style={{ ...pane, padding: '4px 16px 12px' }}><p style={emptyS}>{tr('profile:terrain.liftsNotOnRecord', { defaultValue: 'Lifts · not on record' })}</p></div>}
               </div>
-              </>);
+              </BSCleanType>
+              );
             })()}
 
             {tab === 'activity' && (
