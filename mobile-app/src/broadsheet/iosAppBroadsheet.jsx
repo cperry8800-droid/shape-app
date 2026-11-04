@@ -1269,11 +1269,12 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
 
   // B · CENTRED FLAG — the newspaper flag: the mark and Vol·No at the left, the tools in a slim pill at
   // the right; the wordmark centred a size up between two double hairlines; the dateline centred under
-  // it with the clock folded in; a double rule closes it.
+  // it with the clock folded in. No rule closes it: the ticker under it follows straight on (owner,
+  // 2026-11-04: "remove this border line abobe the ticker on home page for all profiles").
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   const flank = <span aria-hidden style={{ flex: '1 1 0', minWidth: 10, height: 4, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`, opacity: 0.6 }} />;
   return (
-    <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0`, borderBottom: `3px double ${t.INK}` }}>
+    <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
       <div aria-hidden style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
         backgroundImage: `repeating-linear-gradient(135deg, rgba(${inkRgb},0.035) 0, rgba(${inkRgb},0.035) 1px, transparent 1px, transparent 7px)`,

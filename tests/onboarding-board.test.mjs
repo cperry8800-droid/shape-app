@@ -1018,13 +1018,13 @@ test('a coached member with no plan yet sees their coach preparing it, never the
   assert.match(program, /\{dtrCoachingOf\(plan\)\s+\? \(dtrCoachingOf\(plan\)\.name \|\| "Your trainer"\) \+ " is preparing it\. It lands here, week by week, the moment they publish it\."\s+: "Your trainer assigns the block/);
   assert.match(train, /<DtrBuilder self=\{selfData\} onChanged=\{reloadAll\} coaching=\{dtrCoachingOf\(plan\)\} findCoach=\{dtrFindCoachOk\(plan, live\)\} \/>/);
 
-  // The app: no "find a coach" bar for a member who pays one, on Train or on Eat. Train's page carries it
-  // as the last of its links (BSTrainDay.jsx, 2026-11-04), under the same rule; its no-plan door keeps the bar.
+  // The app: no "find a coach" bar for a member who pays one, on Train or on Eat. Train hands its bar to
+  // BSTrainDay (findCoach), under the same rule; its no-plan door keeps its own.
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   const bars = [...client.matchAll(/<BSFindCoachBar role="(trainer|nutritionist)"/g)].map((m) => client.slice(Math.max(0, m.index - 60), m.index + 40));
-  assert.equal(bars.length, 2);
-  for (const b of bars) assert.match(b, /\(!bsTrainSignedIn \|\| trainCoaching === null\) && <BSFindCoachBar role="trainer"|\(!bsEatSignedIn \|\| eatCoaching === null\) && <BSFindCoachBar role="nutritionist"/, b);
-  assert.match(client, /\.\.\.\(\(!bsTrainSignedIn \|\| trainCoaching === null\) \? \[\{ color: '#c0533b', glyph: '↗', label: tr\('home:shortcut\.findCoach'[^\n]*onOpen: \(\) => goMarket\('trainer'\) \}\] : \[\]\),/, "Train's find-a-coach link keeps the rule");
+  assert.equal(bars.length, 3);
+  for (const b of bars) assert.match(b, /\(!bsTrainSignedIn \|\| trainCoaching === null\) (&&|\?) <BSFindCoachBar role="trainer"|\(!bsEatSignedIn \|\| eatCoaching === null\) && <BSFindCoachBar role="nutritionist"/, b);
+  assert.match(client, /findCoach=\{\(!bsTrainSignedIn \|\| trainCoaching === null\) \? <BSFindCoachBar role="trainer" onOpen=\{\(\) => goMarket\('trainer'\)\} \/> : null\}/, "Train's find-a-coach bar keeps the rule");
 });
 
 test('a coach the plan read could not tell is unknown, not none: no marketplace prompt (Codex on #2378)', () => {

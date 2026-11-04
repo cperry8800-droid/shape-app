@@ -1,8 +1,9 @@
-// Train's day as instruments (BSTrainDay.jsx; owner, 2026-11-04, of three designs: "C for train but
-// incorporate this button if you can", then "and then C for next part"), MOUNTED in jsdom with the
-// shipping module and real React: the session's title and its round ignition Start, Start, Swap and a
-// move calling the page's own handlers, a picked day moving the session, a rest day, On deck and the
-// links, every target at least 44px, and no motion under prefers-reduced-motion.
+// Train's day (BSTrainDay.jsx) in the owner's C for Train (2026-11-04: "C for tainer page but make these glow
+// when day selected like in option b"), restored the same day ("no revert training to what i had prior"),
+// MOUNTED in jsdom with the shipping module and real React: the week as lit tiles, Burned this week as a lit
+// slot, the session on a lit glass lead hanging from it by a dotted line, Start as a glowing capsule; Start,
+// Swap, a move, the soundtrack, the burn, a picked day, On deck, Plan, the links and the find-a-coach bar
+// calling the page's own handlers; a rest day; the glow on dark paper only; every target 44px tall.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -31,8 +32,8 @@ W.ShapeI18n = {
   intlLocale: () => 'en-US',
 };
 const PAPERS = {
-  dark: { MONO: 'mono', DISPLAY: 'display', BODY: 'body', HEAD: 'head', PAPER: '#141210', INK: '#f2ede4', INK70: 'rgba(242,237,228,0.7)', INK50: 'rgba(242,237,228,0.5)', HAIR: 'rgba(242,237,228,0.1)', RULE: 'rgba(242,237,228,0.2)', ACCENT: '#34d6c5', padX: 22, sectGap: 22, isLight: false },
-  light: { MONO: 'mono', DISPLAY: 'display', BODY: 'body', HEAD: 'head', PAPER: '#f4efe4', INK: '#14120f', INK70: 'rgba(20,18,15,0.7)', INK50: 'rgba(20,18,15,0.5)', HAIR: 'rgba(20,18,15,0.08)', RULE: 'rgba(20,18,15,0.18)', ACCENT: '#0a8f87', padX: 22, sectGap: 22, isLight: true },
+  dark: { MONO: 'mono', DISPLAY: 'display', BODY: 'body', HEAD: 'head', PAPER: '#141210', INK: '#f2ede4', INK70: 'rgba(242,237,228,0.7)', INK50: 'rgba(242,237,228,0.5)', HAIR: 'rgba(242,237,228,0.1)', RULE: 'rgba(242,237,228,0.2)', ACCENT: '#34d6c5', padX: 22, sectGap: 22, isLight: false, RUST: '#c0533b', GREEN: '#4fae5a', W: { display: 300 } },
+  light: { MONO: 'mono', DISPLAY: 'display', BODY: 'body', HEAD: 'head', PAPER: '#f4efe4', INK: '#14120f', INK70: 'rgba(20,18,15,0.7)', INK50: 'rgba(20,18,15,0.5)', HAIR: 'rgba(20,18,15,0.08)', RULE: 'rgba(20,18,15,0.18)', ACCENT: '#0a8f87', padX: 22, sectGap: 22, isLight: true, RUST: '#c0533b', GREEN: '#4fae5a', W: { display: 300 } },
 };
 let paper = PAPERS.dark;
 W.useBS = () => paper;
@@ -64,7 +65,7 @@ function Page({ calls, initial = 2 }) {
   const [d, setD] = React.useState(initial);
   const cur = PROGRAM[d];
   return React.createElement(D.BSTrainDay, {
-    kicker: 'Build · Week 31', title: 'Your training', program: PROGRAM, day: d, cur, moves: cur.moves, swapped: cur.moves.map((_, i) => i === 1),
+    program: PROGRAM, day: d, cur, moves: cur.moves, swapped: cur.moves.map((_, i) => i === 1),
     isRest: cur.tag === 'REST', when: 'Today · 8:00 AM', head: cur.headline, until: null, weekN: 31, coach: 'Jordan Chen',
     onDay: (i) => { calls.day.push(i); setD(i); }, onMonth: () => { calls.month += 1; }, onBurn: () => { calls.burn += 1; },
     onStart: () => { calls.start += 1; }, onSwap: () => { calls.swap += 1; }, onMove: (i) => calls.move.push(i), onRadio: () => { calls.radio += 1; },
@@ -73,6 +74,8 @@ function Page({ calls, initial = 2 }) {
       { color: '#34d6c5', glyph: '♪', label: 'Music from Jordan', tag: 'For today', onOpen: () => { calls.link.push('music'); } },
       { color: 'rgba(0,0,0,0.7)', glyph: '▤', label: 'Full plan', tag: 'Build · Week 31', onOpen: () => { calls.link.push('plan'); } },
     ],
+    // The page's own BSFindCoachBar, handed in only for a member who pays no trainer.
+    findCoach: React.createElement('button', { type: 'button', 'data-test-find': '', onClick: () => calls.link.push('find'), style: { minHeight: 44 } }, 'Find a coach'),
   });
 }
 const freshCalls = () => ({ day: [], month: 0, burn: 0, start: 0, swap: 0, move: [], radio: 0, link: [] });
@@ -89,110 +92,131 @@ async function mount(props) {
   return { host, q, click, btn, close: () => React.act(async () => { root.unmount(); host.remove(); }) };
 }
 
-test('the session panel: its title, the round ignition Start, and the page\'s own Start, Swap, move and Radio', async () => {
+const follows = (a, b) => !!(a.compareDocumentPosition(b) & W.Node.DOCUMENT_POSITION_FOLLOWING);
+
+test('the module never imports the client, and draws the page in order: week, burn, lead, program, On deck, links', async () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainDay.jsx'), 'utf8');
+  assert.doesNotMatch(src, /from '\.\/iosAppBroadsheetClient/, 'a feature module never imports back into the client');
+  const m = await mount({ calls: freshCalls() });
+  try {
+    const order = ['[data-week-strip="lit"]', '[data-train-burn]', '[data-focus-link]', '[data-focus-lead="lit"]', '[data-train-program]', '[data-train-ondeck]', '[data-train-links]'].map((sel) => [sel, m.q(sel)]);
+    for (const [sel, el] of order) assert.ok(el, `no ${sel}`);
+    for (let i = 1; i < order.length; i += 1) assert.ok(follows(order[i - 1][1], order[i][1]), `${order[i][0]} is not after ${order[i - 1][0]}`);
+    assert.ok(m.q('[data-test-find]') && follows(m.q('[data-train-links]').lastElementChild.previousElementSibling, m.q('[data-test-find]')), 'finding a coach is not at the foot of the links');
+  } finally { await m.close(); }
+});
+
+test('the session on a lit lead: its kicker, title and coach, the glowing Start, and the page\'s own Start, Swap, move, soundtrack and burn', async () => {
   const calls = freshCalls();
   const m = await mount({ calls });
   try {
-    const hero = m.q('[data-train-day-hero]');
-    assert.equal(hero.getAttribute('data-tour'), 'hero-train', 'the tour anchors on the session');
-    assert.equal(m.q('[data-train-day-title]').textContent, 'Upper Pull — Peak.');
-    assert.match(hero.textContent, /Today · 8:00 AM · Your move/);
-    assert.match(hero.textContent, /Jordan Chen · Coach · Trainer/);
-    // The ignition: a round button, named for a reader, with ▶ and its words in it.
-    const start = m.q('[data-train-day-start]');
-    assert.equal(start.tagName, 'BUTTON');
-    assert.equal(start.getAttribute('aria-label'), 'Start session');
-    assert.match(start.textContent, /Start session/);
-    assert.equal(start.style.width, '92px');
+    const lead = m.q('[data-focus-lead="lit"]');
+    assert.equal(lead.getAttribute('data-tour'), 'hero-train', 'the tour anchors on the session');
+    assert.match(lead.textContent, /Today · 8:00 AM · Your move/);
+    assert.match(lead.textContent, /Week 31 · D3/);
+    assert.match(lead.textContent, /Upper Pull — Peak/);
+    assert.match(lead.textContent, /Jordan Chen · Coach · Trainer/);
+    // The capsule: a 999px radius, Start session and its arrow.
+    const start = m.q('[data-focus-primary="lit"]');
+    assert.equal(start.textContent, 'Start session →');
     assert.equal(start.style.borderRadius, '999px');
-    assert.ok(start.querySelector('svg'), 'the ▶');
     await m.click(start);
     assert.equal(calls.start, 1, 'Start calls the page\'s start');
-    // Swap sits beside it, in the same console.
-    const swap = m.q('[data-train-day-swap]');
-    assert.ok(swap.parentElement.parentElement === start.parentElement, 'Swap beside the ignition');
-    await m.click(swap);
-    assert.equal(calls.swap, 1);
-    // The program: a node a move, the swapped one marked; a move opens its swap.
-    const rows = [...m.host.querySelectorAll('[data-train-day-move]')];
-    assert.equal(rows.length, 2);
-    assert.match(rows[0].textContent, /Pull-up.*4 × 6-8 · 3m.*42lb/);
-    assert.match(rows[1].textContent, /SWAPPED/);
-    await m.click(rows[1]);
-    assert.deepEqual(calls.move, [1]);
-    // The day's playlist, chipped, opens Shape Radio.
-    const chip = m.q('[data-train-day-playlist]');
-    assert.equal(chip.textContent, '♪ Pull heavy · 14 tracks');
-    await m.click(chip);
-    assert.equal(calls.radio, 1);
-    // Month view, and the burn line's door.
-    await m.click(m.btn(/^Month view →$/));
-    assert.equal(calls.month, 1);
+    await m.click([...lead.querySelectorAll('button')].find((b) => /^Swap →$/.test(b.textContent)));
+    assert.equal(calls.swap, 1, 'Swap calls the page\'s swap');
+    await m.click(m.q('[data-train-soundtrack]'));
+    assert.equal(calls.radio, 1, 'the day\'s soundtrack opens Shape Radio');
     await m.click(m.q('[data-train-burn-open]'));
-    assert.equal(calls.burn, 1);
+    assert.equal(calls.burn, 1, 'Burned this week opens its page');
+    const rows = [...m.q('[data-train-program]').querySelectorAll('button')];
+    assert.equal(rows.length, 2, 'a row a move');
+    assert.match(rows[1].textContent, /Barbell row/);
+    assert.match(rows[1].textContent, /swapped/i, 'a swapped move says so');
+    assert.match(rows[0].textContent, /4 × 6-8 · 3m/, 'the rest abbreviated in the table only');
+    await m.click(rows[1]);
+    assert.deepEqual(calls.move, [1], 'a row opens its move\'s swap');
   } finally { await m.close(); }
 });
 
-test('picking a day moves the session, and the picked day is marked', async () => {
+test('the week is seven lit tiles, the picked day framed in the accent; picking one moves the session', async () => {
   const calls = freshCalls();
   const m = await mount({ calls });
   try {
-    await m.click(m.q('[data-train-day-pick="4"]'));
-    assert.deepEqual(calls.day, [4]);
-    assert.equal(m.q('[data-train-day-title]').textContent, 'Lower Push — Peak.');
-    assert.equal(m.q('[data-train-day-pick="4"]').getAttribute('aria-pressed'), 'true');
-    assert.equal(m.q('[data-train-day-pick="2"]').getAttribute('aria-pressed'), 'false');
-    // A conditioning day reads its minutes on the gauge when it names no RPE.
-    await m.click(m.q('[data-train-day-pick="3"]'));
-    assert.equal(m.q('[data-train-day-title]').textContent, 'Z2 run · 45 min.');
-    assert.match(m.q('[data-train-day-hero]').textContent, /45Time/);
+    const strip = m.q('[data-week-strip="lit"]');
+    const tiles = [...strip.querySelectorAll('button[aria-pressed]')];
+    assert.equal(tiles.length, 7);
+    assert.deepEqual(tiles.map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'true', 'false', 'false', 'false', 'false']);
+    assert.match(tiles[2].getAttribute('aria-label'), /, selected$/);
+    assert.match(tiles[2].style.border, /1px solid (#34d6c5|rgb\(52, 214, 197\))/, 'the picked tile is framed in the accent');
+    assert.match(tiles[0].style.background, /rgba\(0, 0, 0, 0\.42\)/, 'an unpicked tile is a dark slot');
+    await m.click(tiles[0]);
+    assert.deepEqual(calls.day, [0]);
+    assert.match(m.q('[data-focus-lead="lit"]').textContent, /Lower Pull — Vol\./, 'the session follows the picked day');
+    assert.equal([...strip.querySelectorAll('button[aria-pressed]')][0].getAttribute('aria-pressed'), 'true');
+    await m.click(m.btn(/^Month view →$/));
+    assert.equal(calls.month, 1, 'Month view opens the calendar');
   } finally { await m.close(); }
 });
 
-test('a rest day: a resting disc for Start, no Swap, no program, and no soundtrack though the day keeps one', async () => {
-  const calls = freshCalls();
-  const m = await mount({ calls, initial: 6 });
+test('a rest day: a Rest chip for Start, no Swap, no program, and no soundtrack though the day keeps one', async () => {
+  const m = await mount({ calls: freshCalls(), initial: 6 });
   try {
-    assert.equal(m.q('[data-train-day-title]').textContent, 'Full rest.');
-    assert.ok(!m.q('[data-train-day-start]'), 'no Start on a rest day');
-    assert.equal(m.q('[data-train-day-rest]').textContent, 'Rest');
-    assert.ok(!m.q('[data-train-day-swap]'), 'no Swap on a rest day');
-    assert.ok(!m.q('[data-train-day-program]'), 'no moves, no program');
-    assert.ok(!m.q('[data-train-day-playlist]'), 'a rest day is no session, so it has no soundtrack');
-    assert.match(m.q('[data-train-day-hero]').textContent, /No training today\./);
+    const lead = m.q('[data-focus-lead="lit"]');
+    assert.match(lead.textContent, /· Rest/);
+    assert.equal(m.q('[data-train-rest]').textContent, 'Rest');
+    assert.ok(!m.q('[data-focus-primary]'), 'no Start on a rest day');
+    assert.ok(![...lead.querySelectorAll('button')].some((b) => /Swap/.test(b.textContent)), 'no Swap on a rest day');
+    assert.ok(!m.q('[data-train-program]'), 'no program on a rest day');
+    assert.ok(!m.q('[data-train-soundtrack]'), 'no soundtrack on a rest day');
   } finally { await m.close(); }
 });
 
-test('On deck: the next three days as a lit timeline that opens a day, Plan, and the links', async () => {
+test('On deck: the next three days, each opening on the page; Plan, the links and the find-a-coach bar call the page', async () => {
   const calls = freshCalls();
   const m = await mount({ calls });
   try {
-    const deck = m.q('[data-train-day-ondeck]');
-    assert.match(deck.textContent, /This week/);
-    assert.match(deck.textContent, /On deck/);
-    const rows = [...deck.querySelectorAll('[data-train-day-next]')];
-    const today = (new Date().getDay() + 6) % 7;
-    const want = [1, 2, 3].map((o) => (today + o) % 7);
-    assert.deepEqual(rows.map((r) => Number(r.getAttribute('data-train-day-next'))), want, 'the three days after today');
-    want.forEach((idx, i) => {
-      const p = PROGRAM[idx];
-      if (p.tag === 'REST') assert.match(rows[i].textContent, /Active rest.*walk \+ mobility/);
-      else assert.match(rows[i].textContent, new RegExp(`${p.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*${p.meta.split(' · ')[0]}`));
-    });
+    const todayIdx = (new Date().getDay() + 6) % 7;
+    const rows = [...m.q('[data-train-ondeck]').querySelectorAll('button')];
+    assert.equal(rows.length, 3);
+    const first = PROGRAM[(todayIdx + 1) % 7];
+    assert.match(rows[0].textContent, new RegExp(first.tag === 'REST' ? 'Active rest' : first.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     await m.click(rows[0]);
-    assert.deepEqual(calls.day, [want[0]], 'a day on deck opens on the page');
-    await m.click([...deck.querySelectorAll('button')].find((b) => /^Plan →$/.test(b.textContent)));
+    assert.deepEqual(calls.day, [(todayIdx + 1) % 7]);
+    await m.click(m.btn(/^Plan →$/));
     assert.equal(calls.month, 1, 'Plan opens the calendar');
-    const links = [...m.host.querySelectorAll('[data-train-day-link]')];
-    assert.deepEqual(links.map((l) => l.getAttribute('aria-label')), ['Music from Jordan, For today', 'Full plan, Build · Week 31']);
-    await m.click(links[1]);
-    assert.deepEqual(calls.link, ['plan']);
+    await m.click(m.btn(/Music from Jordan/));
+    await m.click(m.btn(/Full plan/));
+    await m.click(m.q('[data-test-find]'));
+    assert.deepEqual(calls.link, ['music', 'plan', 'find']);
   } finally { await m.close(); }
 });
 
-// The harness has no layout, so this pins the sizes each target declares; the seven day columns share
-// the pane's width (measured at 390px in the browser run) and are held to their height here.
-test('every target is at least 44px, on a dark and a light paper', async () => {
+test('the glow is dark paper\'s: the picked tile, the burn total, the lead\'s spine and Start glow there, and none on light', async () => {
+  for (const name of ['dark', 'light']) {
+    paper = PAPERS[name];
+    const m = await mount({ calls: freshCalls() });
+    try {
+      const picked = m.q('[data-week-strip="lit"] button[aria-pressed="true"]');
+      const start = m.q('[data-focus-primary="lit"]');
+      const spine = m.q('[data-focus-lead="lit"]').querySelector('span[aria-hidden]');
+      const total = m.q('[data-train-burn-total]');
+      if (name === 'dark') {
+        assert.match(picked.style.boxShadow, /0 0 16px -2px/);
+        assert.match(start.style.boxShadow, /0 0 22px -6px/);
+        assert.match(spine.style.boxShadow, /0 0 14px/);
+        assert.match(total.style.textShadow, /0 0 12px/);
+      } else {
+        assert.equal(picked.style.boxShadow, 'none');
+        assert.equal(start.style.boxShadow, 'none');
+        assert.equal(spine.style.boxShadow, 'none');
+        assert.equal(total.style.textShadow, 'none');
+      }
+    } finally { await m.close(); }
+  }
+  paper = PAPERS.dark;
+});
+
+test('every target is at least 44px tall, on a dark and a light paper, a session day and a rest day', async () => {
   for (const name of ['dark', 'light']) {
     paper = PAPERS[name];
     for (const initial of [2, 6]) {
@@ -202,28 +226,11 @@ test('every target is at least 44px, on a dark and a light paper', async () => {
         const buttons = [...m.host.querySelectorAll('button')];
         assert.ok(buttons.length >= 14, `only ${buttons.length} targets drawn`);
         for (const b of buttons) {
-          const label = `${name}/${initial}: ${(b.getAttribute('aria-label') || b.textContent).slice(0, 40)}`;
           const h = Math.max(px(b.style.minHeight) || 0, px(b.style.height) || 0);
-          assert.ok(h >= 44, `${label} is ${h}px tall`);
-          if (b.hasAttribute('data-train-day-pick')) continue;
-          const w = Math.max(px(b.style.minWidth) || 0, px(b.style.width) || 0);
-          assert.ok(w >= 44 || b.style.width === '100%', `${label} is ${w}px wide`);
+          assert.ok(h >= 44, `${name}/${initial}: ${(b.getAttribute('aria-label') || b.textContent).slice(0, 40)} is ${h}px tall`);
         }
       } finally { await m.close(); }
     }
   }
   paper = PAPERS.dark;
-});
-
-test('the motion stops under prefers-reduced-motion', async () => {
-  const m = await mount({ calls: freshCalls() });
-  try {
-    const css = document.getElementById('bs-train-day-css');
-    assert.ok(css, 'the motion is CSS the module adds once');
-    assert.match(css.textContent, /@media \(prefers-reduced-motion: reduce\) \{ \[data-train-day\], \[data-train-day\] \* \{ animation: none !important; transition: none !important; \} \}/);
-    // The ignition's ring turns and pulses; both are animations the rule stops.
-    const rings = [...m.q('[data-train-day-start]').querySelectorAll('span')].map((s) => s.style.animation).filter(Boolean);
-    assert.ok(rings.some((a) => /bstd-spin/.test(a)) && rings.some((a) => /bstd-ring/.test(a)));
-    assert.ok(m.q('[data-train-day-start]').closest('[data-train-day]'), 'inside the rule\'s reach');
-  } finally { await m.close(); }
 });

@@ -5319,9 +5319,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
   const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
 
-  // The page's links, in order: the coach's music for today (Shape Radio), the full plan, building or
-  // opening a session, then finding a coach (the trainers' marketplace). A member who pays a trainer is not
-  // sent to find one (Codex on #2378).
+  // The page's links, in order: the coach's music for today (Shape Radio), the full plan, then building or
+  // opening a session. Finding a coach follows as its bar (BSFindCoachBar); a member who pays a trainer is
+  // not sent to find one (Codex on #2378).
   const _trainLinks = [
     { color: t.ACCENT, glyph: '♪', label: coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' }), tag: tr('session:train.forToday', { defaultValue: 'For today' }), onOpen: goRadio },
     { color: t.INK70, glyph: '▤', label: tr('session:train.fullPlan', { defaultValue: 'Full plan' }), tag: `${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`, onOpen: goCalendar },
@@ -5329,24 +5329,25 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       { color: t.ACCENT, glyph: '＋', label: tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' }), onOpen: () => setBuilder({ mode: 'session' }) },
       { color: t.INK50, glyph: '▷', label: tr('session:train.openSession', { defaultValue: 'Open session' }), onOpen: () => { setOpenSession(true); setSession(true); } },
     ] : []),
-    ...((!bsTrainSignedIn || trainCoaching === null) ? [{ color: '#c0533b', glyph: '↗', label: tr('home:shortcut.findCoach', { defaultValue: 'Find a coach' }), onOpen: () => goMarket('trainer') }] : []),
   ];
 
   return (
     <BSPage>
-      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
+      <BSPageHeader
+        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
+        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
+        trailing={<BSHeaderTools onProfile={onProfile} />}
+      />
       <BSCleanType t={t}>
       {resumeBanner}
 
-      {/* ── THE DAY (owner, 2026-11-04, of three designs: "C for train but incorporate this button if you
-          can", then "and then C for next part"): BSTrainDay.jsx draws the head, the week's burn with the
-          day picker, the coach's adjust, the session as an engine readout with the round ignition Start,
-          the program as a circuit, On deck as a lit timeline and the links, as glass instruments. It reads
+      {/* ── THE DAY (the owner's C for Train, 2026-11-04: "C for tainer page but make these glow when day
+          selected like in option b", restored the same day: "no revert training to what i had prior"):
+          BSTrainDay.jsx draws the week as lit tiles, the coach's adjust, Burned this week as a lit slot, the
+          session on a lit glass lead with its glowing Start, the program, On deck and the links. It reads
           only what the page hands it; every door is the page's own. Edit · Yours, on a repeating day the
           member wrote, opens the builder on it with its moves as rows. */}
       <BSTrainDay
-        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
-        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
         program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} cur={cur} moves={effMoves}
         swapped={effMoves.map((_, i) => !!moveOverrides[`${day}:${i}`])} isRest={isRestDay} when={_trainWhen} head={_trainHead}
         until={_trainUntil} weekN={bsProgramWeek()} coach={coachDayName} onRadio={goRadio} onBurn={() => setBurnOpen(true)}
@@ -5354,7 +5355,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         onSwap={() => setSwapIdx('pick')} onMove={(i) => setSwapIdx(i)}
         onEditYours={cur.selfAuthored && cur.repeatDow && cur.workoutId ? () => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) }) : null}
         adjust={<BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />}
-        links={_trainLinks} />
+        links={_trainLinks}
+        findCoach={(!bsTrainSignedIn || trainCoaching === null) ? <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} /> : null} />
 
       {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
           though"). Signed in, the ones the member's own trainer sent them;
@@ -13020,18 +13022,25 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   return (
     <BSPage>
-      <BSEatDay tools={<BSHeaderTools onProfile={onProfile} />} tabs={<BSNutritionTopTabs active="eat" onChange={setView} />}
-        phase={bsEatProgram.nutritionPhase} weekN={bsProgramWeek()} title={cur.title}
-        day={day} todayIdx={bsWeekdayIdx()} onDay={setDay} onMonth={goCalendar}
-        week={PROGRAM.map((dd) => ({ kcal: bsEatEaten(dd, 'kcal'), kcalGoal: bsEatCoachSet('calories') ? bsEatCalTgt : bsEatNum(dd.totals.target.cal), p: bsEatEaten(dd, 'p'), pGoal: bsEatCoachSet('protein') ? bsEatNum(bsEatCoachN.protein) : bsEatNum(dd.totals.target.p), rest: dd.tag === 'REST', planned: dd.meals.length > 0 }))}
-        fuel={{ calLeft: bsEatCalLeft, calTarget: bsEatCalTgt, calNow: bsEatCalNow, calPct: bsEatCalPct, macros: bsEatMacros, unread: bsEatFuelUnread, calTargetKnown: bsEatCoachSet('calories') }}
-        onMacro={(k) => setMacroPage(k)} notices={_eatNotices} morning={_eatMorning} empty={_eatEmpty}
-        meals={effMeals} rows={_eatRows} nowIdx={_eatNowIdx} nowText={_eatFmtNow} nowMin={_eatNowMin}
-        next={_eatNext} nextAt={_eatNextAt} ahead={_eatAhead} until={_eatUntil} prev={_eatPrev} arrivalPct={_eatPct}
-        slotOf={_eatSlot} timeOf={bsMealSchedLabel} minOf={_eatMin} fmt12={bsFmt12} macroRow={_eatMacro}
-        onOpenMeal={(id) => setPreviewMealId(id)} onSwapMeal={(id) => setSwapMealId(id)} onSwapPick={() => setSwapMealId('pick')} />
+      <BSPageHeader
+        kicker={`${bsEatProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
+        title={cur.title}
+        trailing={<BSHeaderTools onProfile={onProfile} />}
+      />
+
+      <BSNutritionTopTabs active="eat" onChange={setView} />
 
       <BSCleanType t={tClean}>
+      {/* THE DAY VIEW'S TOP (BSEatDay.jsx, the owner's pick for Eat, 2026-11-04, restored: "use this again"):
+          the week as round days, the plan's notices, Fuel left as the ring card, the next meal on a lit lead,
+          the morning swap and the menu, drawn from what this page reads and through its own doors. */}
+      <BSEatDay day={day} todayIdx={bsWeekdayIdx()} onDay={setDay} onMonth={goCalendar} restFlags={PROGRAM.map((dd) => dd.tag === 'REST')}
+        fuel={{ calLeft: bsEatCalLeft, calTarget: bsEatCalTgt, calNow: bsEatCalNow, calPct: bsEatCalPct, macros: bsEatMacros, unread: bsEatFuelUnread, calTargetKnown: bsEatCoachSet('calories') }}
+        onMacro={(k) => setMacroPage(k)} notices={_eatNotices} morning={_eatMorning} empty={_eatEmpty}
+        rows={_eatRows} nowIdx={_eatNowIdx} nowText={_eatFmtNow}
+        next={_eatNext} nextAt={_eatNextAt} ahead={_eatAhead} until={_eatUntil} prev={_eatPrev} arrivalPct={_eatPct}
+        slotOf={_eatSlot} timeOf={bsMealSchedLabel} fmt12={bsFmt12} macroRow={_eatMacro}
+        onOpenMeal={(id) => setPreviewMealId(id)} onSwapMeal={(id) => setSwapMealId(id)} onSwapPick={() => setSwapMealId('pick')} />
 
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}

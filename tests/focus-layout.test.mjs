@@ -273,16 +273,21 @@ test('Eat draws its day through BSEatDay, from its own figures and through its o
   const order = d.nodes();
   const day = order.find(fn('BSEatDay'));
   assert.ok(day, 'Eat draws no Day view');
-  for (const gone of ['BSEatFuel', 'BSFocusLead', 'BSTrackHeader', 'BSWeekStrip', 'BSFocusLine']) assert.equal(order.findIndex(fn(gone)), -1, `the old ${gone} is still on Eat`);
+  // The week, Fuel left, the next meal and the menu are BSEatDay's (the owner's pick, restored 2026-11-04), not
+  // drawn inline on the page.
+  for (const inline of ['BSEatFuel', 'BSFocusLead', 'BSTrackHeader', 'BSWeekStrip', 'BSFocusLine']) assert.equal(order.findIndex(fn(inline)), -1, `${inline} is drawn on the page, not in BSEatDay`);
+  // The head and the Eat tabs (on Day) sit above it, outside it: the tabs are Grocery's too.
+  const tabs = order.findIndex(fn('BSNutritionTopTabs'));
+  const headAt = order.findIndex((n) => n.type === globalThis.BSPageHeader);
+  assert.ok(headAt >= 0 && tabs > headAt && order.indexOf(day) > tabs, 'the head, then the tabs, then the day');
+  assert.equal(order[tabs].props.active, 'eat', 'the Eat tabs, on Day');
   const p = day.props;
   assert.deepEqual(p.fuel.macros.map((m) => m.k), ['p', 'c', 'f'], 'protein, carbs and fat, in that order');
   assert.equal(typeof p.onMacro, 'function', 'a macro opens its own page');
   assert.equal(p.fuel.calLeft, Math.max(0, p.fuel.calTarget - p.fuel.calNow));
-  assert.equal(p.week.length, 7, 'the week is Monday to Sunday');
-  assert.equal(p.rows.length, p.meals.length, 'a row for each meal');
-  assert.ok(p.rows.every((r) => typeof r.onOpen === 'function'), 'each meal opens');
+  assert.equal(p.restFlags.length, 7, 'the week is Monday to Sunday, its rest days marked');
+  assert.ok(p.rows.length > 0 && p.rows.every((r) => typeof r.onOpen === 'function' && r.key), 'each meal is a row that opens');
   for (const k of ['onDay', 'onMonth', 'onOpenMeal', 'onSwapMeal', 'onSwapPick']) assert.equal(typeof p[k], 'function', k);
-  assert.equal(p.tabs.props.active, 'eat', 'the Eat tabs, on Day');
   assert.equal(p.day, p.todayIdx, 'Eat opens on today');
   assert.ok(p.next, 'the preview has a next meal today');
   // A picked day moves the page to it: its figures, its meals, and no next meal (that is today's).
@@ -295,7 +300,7 @@ test('Eat draws its day through BSEatDay, from its own figures and through its o
   // The tour's step on the menu, and the menu's swap door, are BSEatDay's.
   const src = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSEatDay.jsx'), 'utf8');
   assert.match(src, /data-tour="hero-eat"/);
-  assert.match(src, /onClick=\{p\.onSwapPick\}/);
+  assert.match(src, /onAction=\{p\.onSwapPick\}/);
 });
 
 const EATFUEL = await loadRealModule(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSEatFuel.jsx'), {
@@ -493,11 +498,15 @@ test('Train hands the day and its doors to BSTrainDay, and a picked day moves th
   const at = (pred) => order.findIndex(pred);
   const day = order[at(fn('BSTrainDay'))];
   assert.ok(day, 'no BSTrainDay on Train');
-  // Finding a coach is the last of the links, at the foot, not pinned to the top; it opens the trainers.
-  const find = day.props.links[day.props.links.length - 1];
-  assert.equal(find.label, 'Find a coach');
-  find.onOpen();
+  // Finding a coach is the bar at the foot, after the links, not pinned to the top; it opens the trainers.
+  const find = day.props.findCoach;
+  assert.ok(find && find.type && find.type.name === 'BSFindCoachBar' && find.props.role === 'trainer', 'no find-a-coach bar handed in');
+  find.props.onOpen();
   assert.deepEqual(market, ['trainer']);
+  assert.ok(!day.props.links.some((l) => /find a coach/i.test(l.label)), 'finding a coach is a link and a bar both');
+  // The head is the page's: the phase and week over "Your training".
+  const head = order[at((n) => n.type === globalThis.BSPageHeader)];
+  assert.ok(head && head.props.title === 'Your training' && /Week \d+/.test(head.props.kicker), 'Train lost its head');
   assert.equal(at(fn('BSWeekStrip')), -1, 'the old week strip is gone');
   assert.equal(at((n) => n.props && n.props.tour === 'hero-train'), -1, 'the old lead is gone (BSTrainDay carries the tour anchor)');
   assert.equal(day.props.program.length, 7, 'the whole week');
