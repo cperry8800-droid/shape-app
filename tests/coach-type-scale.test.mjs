@@ -13,6 +13,8 @@ import { readFileSync } from 'node:fs';
 const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
 const LIB = readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryLibrary.jsx', import.meta.url), 'utf8');
 const CLIENT = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
+// The Clients page (owner, 2026-11-04: "C for clients") is drawn by its own module.
+const CLIENTS = readFileSync(new URL('../mobile-app/src/broadsheet/BSProClients.jsx', import.meta.url), 'utf8');
 
 // A function's body, from its declaration to the next top-level declaration.
 function body(src, decl) {
@@ -37,22 +39,26 @@ test('the coach header helpers: 32 / 600, 13.5, 17, and links at 12.5 / 600', ()
 test('Today, Clients and Plans set no line under a row at 14, no 19px head and no button at 14 / 700', () => {
   const parts = {
     Today: body(PROS, 'function BSProToday('),
-    Clients: PROS.slice(PROS.indexOf("label: tr('coach:roster.groupRed'"), PROS.indexOf("label: tr('coach:roster.groupRed'") + 12000),
+    Clients: CLIENTS,
     'the plan row and card': PROS.slice(PROS.indexOf('function bsProTopPlan('), PROS.indexOf('function bsProOpenPerson(')),
   };
   for (const [name, src] of Object.entries(parts)) {
     assert.ok(src.length > 1000, name + ': the scan found too little');
     assert.doesNotMatch(src, /fontFamily: t\.DISPLAY, fontSize: 14,/, name + ': a line under a row at 14');
     assert.doesNotMatch(src, /fontSize: 19\b/, name + ': a 19px head');
-    const buttons = src.split('\n').filter((l) => l.includes('<button') && /fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 700/.test(l));
+    const buttons = src.split('\n').filter((l) => l.includes('<button') && /fontFamily: BS_(?:PRO|CLEAN)_SANS, fontSize: 14, fontWeight: 700/.test(l));
     assert.deepEqual(buttons, [], name + ': a button at 14 / 700');
   }
   // The rows themselves, at the member's 15, with the line under them at 12.5.
   assert.match(parts.Today, /fontFamily: t\.DISPLAY, fontSize: 15, fontWeight: 600, color: t\.INK \}\}>\{w\.name\}/);
   assert.match(parts.Today, /marginTop: 2, fontFamily: t\.DISPLAY, fontSize: 12\.5, lineHeight: 1\.35, color: t\.INK70 \}\}>\{w\.directive\}/);
-  assert.match(PROS, /fontFamily: t\.DISPLAY, fontSize: 15, fontWeight: lead \? 700 : 600/);
-  // Inputs keep 16: iOS zooms the page when a focused box is under it.
-  assert.match(PROS, /placeholder=\{[^}]*Search[^]*?fontFamily: t\.DISPLAY, fontSize: 16/);
+  // Clients: a row's name at 15, the reason under it at 12.5, the facts at 12, the views and ＋ Add at 13-13.5.
+  assert.match(CLIENTS, /fontFamily: BS_CLEAN_HEAD, fontSize: 15, fontWeight: 650/);
+  assert.match(CLIENTS, /fontSize: 12\.5, fontWeight: 500, lineHeight: 1\.4, color: t\.INK70 \}\}>\{reason\}/);
+  assert.match(CLIENTS, /fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 500, color: t\.INK50/);
+  // Inputs keep 16: iOS zooms the page when a focused box is under it (the search, and the phase picker).
+  assert.match(CLIENTS, /placeholder=\{[^}]*Search[^]*?fontFamily: BS_CLEAN_SANS, fontSize: 16/);
+  assert.match(CLIENTS, /<select[^]*?fontFamily: BS_CLEAN_SANS, fontSize: 16/);
 });
 
 test('the Eat Library is headed as a tab: no Back, no "Section · Library"', () => {

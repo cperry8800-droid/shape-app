@@ -78,7 +78,10 @@ function span(a, b) {
   assert.ok(i > 0 && j > i, `${a} moved`);
   return SRC.slice(i, j);
 }
-const PAGES = span('function BSWorkoutReviewPage(', 'function BSProLiveWatch(') + span('function BSProAdjustProgram(', 'const bsEditorSteps = ');
+// Adjust (Tune the program / plan) is its own module since its redesign (BSProAdjust.jsx; the module's own
+// rules are tests/pro-adjust-module.test.mjs), so its source joins the coach module's spans.
+const ADJ = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSProAdjust.jsx'), 'utf8');
+const PAGES = span('function BSWorkoutReviewPage(', 'function BSProLiveWatch(') + span('function BSProScheduleSession(', 'const bsEditorSteps = ') + ADJ;
 
 test('the review pages set no mono, no italic, no dashed rule and no mono station head', () => {
   assert.doesNotMatch(PAGES, /fontFamily: t\.MONO/, 'a mono label');
@@ -86,7 +89,9 @@ test('the review pages set no mono, no italic, no dashed rule and no mono statio
   assert.doesNotMatch(PAGES, /<window\.BSTStationHead|<window\.BSTRedact|<window\.BSTLedgerStat/, 'a client-module mono primitive');
   // Every page takes the clean theme and hands it on.
   for (const fn of ['BSWorkoutReviewPage', 'BSProAdjustProgram', 'BSProScheduleSession', 'BSProAssignPage', 'BSProCheckinDraft', 'BSProClientFullProfilePage']) {
-    const body = span(`function ${fn}(`, '\n}\n');
+    const body = fn === 'BSProAdjustProgram'
+      ? ADJ.slice(ADJ.indexOf('export default function BSProAdjustProgram('), ADJ.indexOf('\n}\n', ADJ.indexOf('export default function BSProAdjustProgram(')))
+      : span(`function ${fn}(`, '\n}\n');
     assert.match(body, /const t = useBSProClean\(\);/, fn + ' is not in the clean type');
     assert.match(body, /<BSProCleanType t=\{t\}>/, fn + ' does not hand the clean type on');
   }
@@ -146,17 +151,19 @@ test("a demo trainer client's case file agrees with itself and the Clients page:
   } finally { await m.close(); }
 });
 
-test('Adjust: the title without its italic half or period, the client in a card, one ink button', async () => {
-  for (const [role, title] of [['nutritionist', 'Tune the plan'], ['trainer', 'Tune the program']]) {
+test('Adjust: the title without its italic half or period, the client under it, one lit button', async () => {
+  // Owner, 2026-11-04 ("update design here as well", then "reduce the coloring"): the one button that
+  // sends is lit in the role's colour, trainer rust and nutritionist gold; the second way is quiet.
+  for (const [role, title, lit] of [['nutritionist', 'Tune the plan', 'rgb(160, 122, 46)'], ['trainer', 'Tune the program', 'rgb(192, 83, 59)']]) {
     const m = await mount(React.createElement(PROS.BSProAdjustProgram, { client: { n: 'Ana Reyes', i: 'A', c: '#000', prog: 'Cut' }, role, onBack: () => {} }));
     try {
       assert.equal(m.host.querySelector('h1').textContent, title, role);
-      assert.ok(m.host.querySelector('[data-pro-client-mini]'), role + ': the client card');
+      assert.ok(m.host.querySelector('[data-pro-client-mini]'), role + ': the client under the title');
       assert.ok(m.host.querySelector('[data-bs-back-row] [data-bs-back]'), role + ': Back is the shared row\'s');
       assert.ok(m.host.querySelectorAll('[data-pro-action-sec] h2').length >= 3, role + ': the section heads');
       const send = [...m.host.querySelectorAll('button')].find((b) => /Apply & Send/.test(b.textContent));
       const notify = [...m.host.querySelectorAll('button')].find((b) => /Apply & Notify/.test(b.textContent));
-      assert.equal(send.style.background, 'rgb(17, 17, 17)', role + ': Apply & Send is not the ink button');
+      assert.equal(send.style.background, lit, role + ': Apply & Send is not lit in the role\'s colour');
       assert.equal(notify.style.background, 'transparent', role + ': Apply & Notify is not the quiet one');
       // A note box at 16px: iOS zooms the page when a focused box is under it.
       assert.equal(m.host.querySelector('textarea').style.fontSize, '16px');

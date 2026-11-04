@@ -17,7 +17,7 @@ const require_ = createRequire(import.meta.url);
 const React = require_('react');
 const STORY = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSWallStory.jsx'), { registry: new Map([['react', React]]) });
 const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
-const WALL_STORY = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSWallStory.jsx'), 'utf8');
+const WALL_TOP = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSWallTop.jsx'), 'utf8');
 
 test('the magazine teal is the Wall\'s, on both papers', () => {
   // Shape's teal, not the magazine's red it was (owner, 2026-10-27: "Those should be shape colors"): the
@@ -34,9 +34,9 @@ test('the magazine teal is the Wall\'s, on both papers', () => {
   assert.equal(STORY.bsWsHead({ HEADLINE: 'Oswald', DISPLAY: 'Saira' }), 'Saira');
 });
 
-// The owner's C for the top of the Wall (2026-11-04): the lens, the count of who is online and the type chips
-// are lit chips. On dark paper the one lit is framed and lettered in the bright teal and glows in a dark slot;
-// on light paper it takes the deeper teal, in a faint ink wash, with no glow.
+// The lit chip (the owner's C for the top of the Wall, 2026-11-04; the look picker's tags since the Wall's top
+// became the owner's B). On dark paper the one lit is framed and lettered in the bright teal and glows in a
+// dark slot; on light paper it takes the deeper teal, in a faint ink wash, with no glow.
 test('the Wall\'s lit chip, on both papers', () => {
   const dark = { isLight: false, INK: '#f1ece1', INK70: 'ink70' };
   const light = { isLight: true, INK: '#14110e', INK70: 'ink70' };
@@ -55,16 +55,20 @@ test('the Wall\'s lit chip, on both papers', () => {
 });
 
 test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s flat cut', () => {
-  const rail = CLIENT.slice(CLIENT.indexOf('{railPeople.map((p, i) => {'), CLIENT.indexOf('{/* The way BACK, in place'));
+  // The rail is BSWallTop's (tests/wall-top.test.mjs); it asks the client for each face, so the facet and the
+  // ringed circle stay with BSFacetAvatar and BSRailCoachFace.
+  const rail = CLIENT.slice(CLIENT.indexOf('const railFace = (p, o = {}) =>'), CLIENT.indexOf('const openRailPerson = '));
+  assert.ok(rail.length > 0, 'the client draws no rail face');
+  assert.match(CLIENT, /<BSWallTop [^>]*face=\{railFace\}/, 'the rail does not draw its faces with the client\'s railFace');
   // A member keeps the facet; a coach is a circle in the coach's colour (owner, 2026-11-04: "keep the facet
   // avatars for clients and circle avatar for coaches").
-  assert.match(rail, /\{p\.role === 'trainer' \|\| p\.role === 'nutritionist'\s*\? <BSRailCoachFace size=\{46\} box=\{40\} ring=\{p\.role === 'nutritionist' \? '#a07a2e' : '#c0533b'\}/);
+  assert.match(rail, /\(p\.role === 'trainer' \|\| p\.role === 'nutritionist'\s*\? <BSRailCoachFace size=\{o\.size \|\| 46\} box=\{o\.box \|\| 40\} ring=\{p\.role === 'nutritionist' \? '#a07a2e' : '#c0533b'\}/);
   // A coach's photo that fails to load gives way to their initials, as a facet's does (Codex on #2602).
   const coachFace = CLIENT.slice(CLIENT.indexOf('function BSRailCoachFace('), CLIENT.indexOf('function BSFacetAvatar('));
   assert.match(coachFace, /const \[failed, setFailed\] = useStateBSC\(null\);\s*const src = valid && failed !== valid \? valid : null;/);
   assert.match(coachFace, /<img src=\{src\} alt="" onError=\{\(\) => setFailed\(src\)\}/);
   assert.match(coachFace, /: <span[^>]*>\{initial \|\| '•'\}<\/span>\}/, 'no photo, the initials');
-  assert.match(rail, /: <BSFacetAvatar flat size=\{40\} c=\{t\.INK\} dotC=\{p\.activity === 'cooking' \? \(t\.AMBER \|\| '#d8a23a'\) : magAccent\} initial=\{bsInitials\(p\.name\)\} photo=\{pPhoto\} showRank=\{false\} live=\{!!p\.live\} activity=\{p\.activity\} BG=\{t\.PAPER\} \/>\}/);
+  assert.match(rail, /: <BSFacetAvatar flat size=\{o\.box \|\| 40\} c=\{t\.INK\} dotC=\{p\.activity === 'cooking' \? \(t\.AMBER \|\| '#d8a23a'\) : magAccent\} initial=\{bsInitials\(p\.name\)\} photo=\{railPhotoOf\(p\)\} showRank=\{false\} live=\{!!p\.live\} activity=\{p\.activity\} BG=\{t\.PAPER\} \/>\);/);
   assert.doesNotMatch(rail, /railTierColor/, 'no tier colour in the rail');
   // The live story's byline face is the same flat cut, and so are a Wall story's: its byline, the
   // faces of who reacted, and the comments under it (the classic card keeps its tier gems).
@@ -81,13 +85,12 @@ test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s f
   assert.match(facet, /\{!flat && <div style=\{\{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient\(135deg, rgba\(255,255,255,0\.28\)/);
   // The flat cut's dot defaults to the magazine's teal (amber at the stove); the gem keeps its teal.
   assert.match(facet, /const dotColor = dotC \|\| \(activity === 'cooking' \? COOK : flat \? bsWsAccent\(t\) : '#34d6c5'\);/);
-  // The online count is a lit slot (the owner's C, 2026-11-04), its dot teal and still.
-  assert.match(CLIENT, /<span data-bs-rail-count="" style=\{\{[^}]*\.\.\.bsWsLed\(t, true\) \}\}>\s*<span aria-hidden style=\{\{ width: 6, height: 6, borderRadius: 3, background: magAccent,/);
 });
 
 test('no section strip and no role tabs: the title is the switch, on the Wall\'s 12px edge', () => {
-  // The Wall's type chips keep the cards' 12px gutter.
-  assert.match(WALL_STORY, /<nav data-bs-wall-types="" className="bs-hide-scroll" aria-label=\{typesLabel\} style=\{\{ margin: '0 12px',/);
+  // The Wall's type chips keep the cards' 12px gutter (BSWallTop draws them; tests/wall-top.test.mjs).
+  assert.match(WALL_TOP, /<nav data-bs-wall-types="" data-bswt-scroll="" aria-label=\{typesLabel\}/);
+  assert.match(WALL_TOP, /margin: '0 12px'/);
   // Owner, 2026-10-26: "go with B". The Feed / Team / Channels strip and the Wall / Client / Community
   // tabs are gone; where the strip stood is the gap under the rail and the auto-hide's anchor.
   assert.doesNotMatch(CLIENT, /data-bs-chat-sections|const SectionTab = /, 'the section strip is back');
@@ -105,8 +108,9 @@ test('Team\'s Coaches / Friends row is an index, ink against grey, centred on th
   assert.doesNotMatch(sub, /borderBottom|position: 'absolute'|magAccent \}/, 'no underline');
   // Team's Coaches / Friends sits centred on the page ("center these on page").
   assert.match(CLIENT, /<div style=\{\{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 \}\}>\s*\{selectors\.map\(sec => bsSubTab\(/);
-  // The Wall's lens is a pair of lit chips (the owner's C, 2026-11-04), each in a 44px target.
-  assert.match(CLIENT, /onClick=\{\(\) => switchFeedMode\(k\)\} aria-pressed=\{on\}\s*style=\{\{ display: 'inline-flex', alignItems: 'center', minHeight: 44,[\s\S]{0,200}<span data-led=\{on \? 'on' : 'off'\}[^>]*\.\.\.bsWsLed\(t, on\) \}\}>\{label\}<\/span>/);
+  // The Wall's lens is BSWallTop's (the owner's B, 2026-11-04; tests/wall-top.test.mjs), the switch the client's.
+  assert.match(CLIENT, /<BSWallTop [^>]*lenses=\{wallLenses\} mode=\{feedMode\} onMode=\{switchFeedMode\}/);
+  assert.doesNotMatch(CLIENT, /BSWallLensChips|bsWsLed/, 'the lit chips are back in the title row');
 });
 
 // Owner, 2026-10-24: "make the team list match the new design too". The Team list (Coaches and Friends)

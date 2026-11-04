@@ -21,6 +21,8 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
+// The top of the Wall (the rail, its × and its SHOW row) is drawn by BSWallTop.jsx since the owner's B (2026-11-04).
+const TOP = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSWallTop.jsx'), 'utf8');
 
 const { JSDOM } = require_('jsdom');
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'https://shape.test/m/' });
@@ -440,8 +442,12 @@ test('a null cloud read keeps the member’s local choice — absence of data is
 // ── The wiring the probe cannot see, pinned against the shipping source ─────
 test('the feed consumes the pref, the pane owns the row, both writers apply it', () => {
   const src = readFileSync(SRC, 'utf8');
-  assert.match(src, /\{railOn && railPeople\.length > 0 && \(/,
+  // The rail is drawn by BSWallTop (the owner's B, 2026-11-04): the feed hands it the pref and the people,
+  // and the module gates on both, exactly as the feed did.
+  assert.match(src, /<BSWallTop [^>]*railOn=\{railOn\} people=\{railPeople\}/,
     'the rail render must gate on railOn — a hook nothing consumes is the silent-death class');
+  assert.match(TOP, /const has = p\.people\.length > 0;/);
+  assert.match(TOP, /\{p\.railOn && has && \(/, 'the rail must gate on railOn AND someone online');
   assert.match(src, /const railOn = useBSOnlineRailPref\(\);/,
     'BSClientFeed must read the pref through the hook');
   assert.match(src, /key: 'onlineRail', segmented: PREF_OPTIONS\.onlineRail/,
@@ -452,17 +458,18 @@ test('the feed consumes the pref, the pane owns the row, both writers apply it',
     'BOTH pane writers (cyclePref + setPref) must apply the toggle');
   assert.match(src, /if \(fresh\('onlineRail'\)\) \{ try \{ bsOnlineRailApply\(orOn\); \} catch \(e\) \{\} \}/,
     'the pane hydrate must converge a mounted feed');
-  assert.match(src, /<button onClick=\{hideRail\}/,
-    'the inline × must exist');
+  assert.match(src, /<BSWallTop [^>]*onHide=\{hideRail\}/, 'the inline × must hide the rail');
+  assert.match(TOP, /onClick=\{p\.onHide\}/, 'the inline × must exist');
   // ⚠ Asserted on what the code ANSWERS, not how it is SPELLED: a regex pinned
   // to `{loggedIn && (` passed happily against `{loggedIn && <button` — one
-  // space of difference, the whole guard blind. The window before the button is
-  // searched for the identifier instead, so every spelling of the gate fails.
-  const railBtn = src.indexOf('<button onClick={hideRail}');
-  assert.ok(railBtn > 0, 'the inline × must exist');
-  const before = src.slice(railBtn - 500, railBtn);
-  assert.ok(!/loggedIn/.test(before),
+  // space of difference, the whole guard blind. The window before the call is
+  // searched for the identifier instead, so every spelling of the gate fails,
+  // and the module that draws the × knows nothing of sign-in at all.
+  const railAt = src.indexOf('<BSWallTop ');
+  assert.ok(railAt > 0, 'the rail must be drawn');
+  assert.ok(!/loggedIn/.test(src.slice(railAt - 500, railAt)) && !/loggedIn/.test(src.slice(railAt, src.indexOf('/>', railAt))),
     'the × must NOT be gated on sign-in — the preview is where it is reachable (owner call, 2026-08-27)');
+  assert.ok(!/loggedIn|ShapeAuth/.test(TOP), 'BSWallTop must not gate the rail on sign-in');
   assert.match(src, /function bsOnlineRailUid\(\) \{ return bsCheckinPrefUid\(\) \|\| BS_ONLINE_RAIL_DEMO_UID; \}/,
     'the MIRROR resolves a demo sentinel so a signed-out choice can persist device-locally');
   assert.match(src, /const uid0 = bsCheckinPrefUid\(\);\n  if \(!uid0\) return; \/\/ signed-out: nothing to bind a save to/,
@@ -480,15 +487,16 @@ test('once hidden, a SHOW row stands where the rail was — and obeys the rail r
   const src = readFileSync(SRC, 'utf8');
   // Rendered exactly when the rail would render if un-hidden: !railOn AND
   // people to show. A Show button over an empty roster would "restore" nothing.
-  assert.match(src, /\{!railOn && railPeople\.length > 0 && \(/,
+  // BSWallTop draws it (tests/wall-top.test.mjs mounts every state).
+  assert.match(TOP, /\{!p\.railOn && has && \(/,
     'the SHOW row must gate on !railOn AND a non-empty rail');
-  assert.match(src, /<button onClick=\{showRail\}/, 'the SHOW button must exist');
-  // Same reachability rule as the × (owner call 2026-08-27), asserted the same
-  // way the × is — the identifier in the window before the button, so every
-  // spelling of a sign-in gate fails, not just the one a regex happens to pin.
-  const showBtn = src.indexOf('<button onClick={showRail}');
-  assert.ok(showBtn > 0, 'the SHOW button must exist');
-  assert.ok(!/loggedIn/.test(src.slice(showBtn - 500, showBtn)),
+  assert.match(TOP, /onClick=\{p\.onShow\}/, 'the SHOW button must exist');
+  assert.match(src, /<BSWallTop [^>]*onShow=\{showRail\}/, 'the SHOW button must show the rail');
+  // Same reachability rule as the × (owner call 2026-08-27): the module that
+  // draws SHOW knows nothing of sign-in (asserted above), and the call is not gated.
+  const showAt = src.indexOf('<BSWallTop ');
+  assert.ok(showAt > 0, 'the SHOW button must exist');
+  assert.ok(!/loggedIn/.test(src.slice(showAt - 500, showAt)),
     'SHOW must NOT be gated on sign-in — hidden-in-preview must be restorable in preview');
   // showRail is apply-then-persist, the ×'s own order: the rail is back on THIS
   // render whatever the network does, and applying removes the per-uid mirror

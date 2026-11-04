@@ -32,11 +32,13 @@ test('Today re-renders on each minute and clears its timers on unmount', () => {
 
 test('the library search filters the signed-in workout clips, with the same miss line as the rows', () => {
   const programs = body('BSTrainerPrograms', 'BSNutritionistApp');
-  const block = programs.slice(programs.indexOf('const clips = coachWorkoutVideos(serverPlans);'));
+  const at = programs.indexOf('const clips = coachWorkoutVideos(serverPlans);');
+  assert.ok(at > 0, 'the clips are read from the library');
+  const block = programs.slice(at, programs.indexOf('})();', at));
   assert.match(block, /const shownClips = clips\.filter\(\(c\) => libMatch\(c\.name\)\);/);
-  assert.match(block, /\{!shownClips\.length && libSearchMiss\}/);
-  assert.match(block, /\{shownClips\.map\(/);
-  assert.doesNotMatch(block.slice(0, block.indexOf('</div>\n          );')), /\{clips\.map\(/, 'the unfiltered clips still render');
+  assert.match(block, /miss: shownClips\.length \? null : missText/, 'the same miss line as the rows');
+  assert.match(block, /shownClips\.map\(/);
+  assert.doesNotMatch(block, /\bclips\.map\(/, 'the unfiltered clips still render');
 });
 
 test('the calendar read is keyed to the week the strip shows', () => {
