@@ -944,9 +944,12 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
         {previewEmpty ? <p style={{ ...noteS, marginTop: 12, fontSize: 14 }}>{tr('profile:editor.preview.empty', { defaultValue: 'Fill in the parts below. Your profile takes shape here as you type.' })}</p> : null}
         {/* The door to the whole page as visitors see it: a lit pill at the card's foot. */}
         {LiveProfile ? (
+          // A compact lit pill (owner, 2026-11-04: "make the box smaller"), 32px drawn inside a 44px target.
           <button type="button" data-cust-live-open="hub" className="bs-cust-btn bs-cust-press" onClick={openPreview}
-            style={{ ...led(true), marginTop: 14, minHeight: 44, maxWidth: '100%', padding: '0 18px 0 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxSizing: 'border-box', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, lineHeight: 1.2, textAlign: 'left', ...(light ? null : { boxShadow: `${wellIn}, ${glowOf()}` }) }}>
-            {custIcon('eye', 18)}<span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{liveOpenLabel}</span>
+            style={{ marginTop: 8, minHeight: 44, maxWidth: '100%', padding: 0, border: 0, background: 'transparent', color: 'inherit', display: 'inline-flex', alignItems: 'center', cursor: 'pointer', boxSizing: 'border-box', textAlign: 'left' }}>
+            <span style={{ ...led(true), minHeight: 32, maxWidth: '100%', padding: '0 12px 0 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, boxSizing: 'border-box', fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 650, lineHeight: 1.2, ...(light ? null : { boxShadow: `${wellIn}, ${glowOf()}` }) }}>
+              {custIcon('eye', 15)}<span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{liveOpenLabel}</span>
+            </span>
           </button>
         ) : null}
       </div>

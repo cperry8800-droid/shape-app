@@ -1817,10 +1817,13 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   // The editor's chrome is the dark paper, so is the bar.
   const liveT = { ...(theme || {}), isLight: false, INK: E.INK, inkRGB: '245,240,230', PAPER: E.BG, PAPER_BG: E.BG, PAPER2: E.BG2, padX: gut };
   const livePill = LivePage ? (
+    // A compact lit pill (owner, 2026-11-04: "make the box smaller"), 32px drawn inside a 44px target.
     <button type="button" data-mine-live-open="" onClick={openPreview}
-      style={{ ...bsWsLed(liveT, true), marginTop: 12, minHeight: 44, maxWidth: '100%', padding: '0 18px 0 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxSizing: 'border-box', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, lineHeight: 1.2, textAlign: 'left', boxShadow: `inset 0 1px 3px rgba(0,0,0,0.6), 0 0 16px -6px ${hexA(E.ED, 0.85)}` }}>
-      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flex: 'none' }}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
-      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{tr('profile:editor.live.open', { defaultValue: 'View live preview' })}</span>
+      style={{ marginTop: 6, minHeight: 44, maxWidth: '100%', padding: 0, border: 0, background: 'transparent', color: 'inherit', display: 'inline-flex', alignItems: 'center', cursor: 'pointer', boxSizing: 'border-box', textAlign: 'left' }}>
+      <span style={{ ...bsWsLed(liveT, true), minHeight: 32, maxWidth: '100%', padding: '0 12px 0 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 6, boxSizing: 'border-box', fontFamily: DISPLAY, fontSize: 13, fontWeight: 600, lineHeight: 1.2, boxShadow: `inset 0 1px 3px rgba(0,0,0,0.6), 0 0 12px -6px ${hexA(E.ED, 0.85)}` }}>
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flex: 'none' }}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
+        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{tr('profile:editor.live.open', { defaultValue: 'View live preview' })}</span>
+      </span>
     </button>
   ) : null;
   let livePage = null;

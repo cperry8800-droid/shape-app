@@ -213,8 +213,10 @@ test('Customize opens on a hub: the profile as the hero plate, then a raised til
     const door = inPreview.find((n) => n.props['data-cust-live-open'] === 'hub');
     assert.ok(door && door.type === 'button', `${who}: the hero has no View live preview`);
     assert.match(textOf(door), /^View live preview$/);
-    assert.ok(door.props.style.minHeight >= 44 && door.props.style.borderRadius === 999, `${who}: the door is not a 44px pill`);
-    assert.match(String(door.props.style.border), new RegExp(TEAL_SAVE), `${who}: the door is not lit`);
+    // A compact pill (owner, 2026-11-04: "make the box smaller"): 32px drawn inside the 44px target.
+    const doorPill = [].concat(door.props.children).find((c) => c && c.props && c.props.style && c.props.style.borderRadius === 999);
+    assert.ok(door.props.style.minHeight >= 44 && doorPill && doorPill.props.style.minHeight === 32 && doorPill.props.style.fontSize === 13, `${who}: the door is not a 32px pill on a 44px target`);
+    assert.match(String(doorPill.props.style.border), new RegExp(TEAL_SAVE), `${who}: the door is not lit`);
     assert.equal(inPreview.filter((n) => n.props['data-cust-tag'] != null).length, 0, `${who}: a tag is back in the name's row`);
     assert.equal(inPreview.filter(named('BSFacetAvatar')).length, coach ? 0 : 1, `${who}: the wrong avatar`);
     assert.equal(inPreview.filter((n) => n.props['data-cust-round-avatar'] != null).length, coach ? 1 : 0, `${who}: the wrong avatar`);
