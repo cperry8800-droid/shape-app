@@ -7879,7 +7879,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [chatRequest, setChatRequest] = useStateBSP(null);
   // Swipe judgment (PR C) — mirrors the trainer shell (no liveWatch here).
   const [navSlideCls, navSlide] = useBSNavSlide(tab);
-  const onNavGesture = (intent) => {
+  const stepNav = (intent) => {
     if (intent === 'back') {
       if (navBack()) return;
       if (showSearch) { setShowSearch(false); return; }
@@ -7897,6 +7897,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     navSlide(intent === 'next-tab' ? 'l' : 'r');
     setTab(next);
   };
+  // A swipe that reaches the shell (a tab step, or a back with no page Back to take it) leaves
+  // whatever is open, so a screen holding unsaved changes is asked first, as for a tab tap (Codex on #2594).
+  const onNavGesture = (intent) => { mayLeave(window).then((ok) => { if (ok) stepNav(intent); }); };
   navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
   React.useEffect(() => {

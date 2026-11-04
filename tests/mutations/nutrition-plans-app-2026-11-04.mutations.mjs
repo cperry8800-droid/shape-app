@@ -210,6 +210,8 @@ export default {
       find: '{ setDirty(false); if (name !== savedName) setName(savedName); }', replace: '{ setDirty(false); }' },
     { name: 'the nutritionist\'s tab bar switches without asking', file: PROS,
       find: '<BSTabBar active={tab} onChange={(k) => { mayLeave(window).then((ok) => { if (ok) setTab(k); }); }} tabs={[', replace: '<BSTabBar active={tab} onChange={setTab} tabs={[' },
+    { name: 'a swipe to the next tab leaves without asking', file: PROS,
+      find: '  const onNavGesture = (intent) => { mayLeave(window).then((ok) => { if (ok) stepNav(intent); }); };', replace: '  const onNavGesture = (intent) => stepNav(intent);' },
     { name: 'the root switches coach apps without asking', file: MAIN,
       find: '      mayLeave(window).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);', replace: '      Promise.resolve(true).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);' },
     { name: 'the trainer shell never lets go of Nora\'s open', file: PROS,
