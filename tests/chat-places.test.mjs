@@ -26,7 +26,8 @@ const dom = new JSDOM('<!doctype html><html><body><div id="bs-phone-surface"></d
 // The en catalog, with its two placeholders filled the way the runtime fills them.
 const t = (key, opts = {}) => {
   const v = EN[key.replace(/^feed:/, '')] ?? opts.defaultValue ?? key;
-  return String(v).replace(/\{count, number\}/g, String(opts.count)).replace(/\{place\}/g, String(opts.place));
+  return String(v).replace(/\{count, number\}/g, String(opts.count)).replace(/\{place\}/g, String(opts.place))
+    .replace(/\{n, number\}/g, String(opts.n)).replace(/\{total, number\}/g, String(opts.total));
 };
 
 async function render(el) {
@@ -61,15 +62,13 @@ test('the title names the place, says it opens a dialog, and opens it', async ()
     assert.equal(btn.getAttribute('aria-haspopup'), 'dialog');
     assert.equal(btn.getAttribute('aria-expanded'), 'false');
     // The title says it switches (owner, 2026-10-31: "make it more noticeable that you click here to
-    // change between pages"): a keyed chip with a chevron, not a lone ▾. No word on it ("dont say
-    // switch, need something else"): a 2×2 grid icon, then the chevron.
-    assert.equal(btn.textContent, 'Wall', 'the chip carries a word again');
+    // change between pages"): a mark with a chevron, not a lone ▾. No word on it ("dont say switch, need
+    // something else"); since 2026-11-04 ("last option") the mark is the places' dots (the test below).
+    assert.equal(btn.textContent, 'Wall', 'the mark carries a word again');
     const chip = btn.querySelector('[data-bs-chat-switch]');
-    assert.ok(chip, 'the chip');
-    const svgs = [...chip.querySelectorAll('svg')];
-    assert.equal(svgs.length, 2, 'the grid and the chevron');
-    assert.ok(svgs[0].hasAttribute('data-bs-chat-pages-icon') && svgs[0].querySelectorAll('rect').length === 4, 'the grid first, four squares');
-    assert.equal(chip.getAttribute('aria-hidden'), 'true', 'the chip is not read; the button\'s label is');
+    assert.ok(chip, 'the mark');
+    assert.equal(chip.querySelectorAll('svg').length, 1, 'the chevron');
+    assert.equal(chip.getAttribute('aria-hidden'), 'true', 'the mark is not read; the button\'s label is');
     assert.match(chip.getAttribute('style'), /border: 1px solid/);
     // Codex on #2535: a long name and the chip wrap rather than run past the phone's width.
     assert.match(btn.getAttribute('style'), /flex-wrap: wrap/);
@@ -157,4 +156,35 @@ test('the hooks the places add sit above the page\'s early returns', () => {
     const at = FEED.indexOf(hook);
     assert.ok(at > 0 && at < firstReturn, hook + ' is declared after an early return');
   }
+});
+
+// The switch's mark (owner, 2026-11-04, of four drawn for "a few more design/symbol options for this drop
+// down": "last option"): a dot for each place, the one you are in a teal dash, and a ⌄, on a soft pill in
+// the paper's own colour. The button says where you are among the places.
+test('the switch\'s mark is a dot per place, the open one a teal dash, and the title says which of how many', async () => {
+  const keys = PLACE_LIST.map((p) => p.key);
+  for (const open of [false, true]) {
+    const r = await render(React.createElement(PLACES.BSChatPlaceTitle, { label: 'Team', open, onOpen: () => {}, place: 'team', places: keys }));
+    try {
+      const btn = r.host.querySelector('h1 > button');
+      const mark = btn.querySelector('[data-bs-chat-switch]');
+      const dots = [...mark.querySelectorAll('[data-bs-chat-dot]')];
+      assert.deepEqual(dots.map((d) => d.getAttribute('data-bs-chat-dot')), keys.map((k) => (k === 'team' ? 'on' : 'off')), 'a dot per place, the open one lit');
+      assert.equal(dots[3].style.background, 'rgb(10, 122, 114)', 'the open place is not the teal');
+      assert.equal(dots[3].style.width, '14px', 'the open place is not a dash');
+      assert.ok(dots.filter((d, i) => i !== 3).every((d) => d.style.width === '5px' && !/10, 122, 114/.test(d.style.background)), 'another place is lit');
+      assert.equal(btn.textContent, 'Team', 'the mark carries a word');
+      assert.equal(btn.getAttribute('aria-label'), 'Team, 4 of 5. Choose another place in Chat');
+      assert.equal(btn.getAttribute('aria-expanded'), String(open));
+      assert.ok(parseFloat(btn.style.minHeight) >= 44, 'the title is a full touch target');
+      // The pill is the paper's own, with no gradient, tint or glow; the chevron turns when the sheet is open.
+      assert.equal(mark.style.background, 'rgb(245, 240, 230)');
+      assert.doesNotMatch(mark.outerHTML, /gradient\(|data-bs-chat-pages-icon/);
+      assert.equal(mark.querySelector('svg').style.transform, open ? 'rotate(180deg)' : 'none');
+    } finally { await r.done(); }
+  }
+  // The client hands the title the open place and every place, in the sheet's order; no preview switch is left.
+  assert.match(CLIENT, /<BSChatPlaceTitle [\s\S]{0,200}? place=\{place\} places=\{places\.map\(\(x\) => x\.key\)\} \/>/);
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSChatPlaces.jsx'), 'utf8');
+  assert.doesNotMatch(src, /designPreview|wallmenu/, 'a preview switch is left in');
 });

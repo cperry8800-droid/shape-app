@@ -622,6 +622,27 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website: the login box in the middle of the screen; Club Shape in the website\'s Anybody (#2613). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "center this box on screen on website and change club shape font in login box to match website font"', status: 'done' },
+        { label: '#2613 the login card (login.jsx, on Login.html and the apps\' sign-in) loses its right-of-centre offset (margin-left: clamp(0px, 30vw, 520px) and the 1100px rule that undid it): it stands in the middle at every width', status: 'done' },
+        { label: '#2613 Club Shape in the title is set as the homepage\'s teal heading words are (Anybody, 500, width 90, upright), in place of the italic serif; "Log in to" stays in the serif. The login page mounts no site header, so its styles request Anybody themselves, at pageShell\'s own URL', status: 'done' },
+        { label: 'Review (#2613): Codex clean on 6cfd0ea5; CI green on it, and on the War Room commit before main\'s #2611 and #2612 were merged in', status: 'done' },
+        { label: 'OWNER: the login page on the deployed site, on a phone and a desktop (seen only in headless Chromium)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App: Tune the program, the Boost sheet, coach Clients C with Add a client, the Wall top B with Chat\'s switch D, Programs B with the draft composer and Assign (#2612). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of each page built in the app: Clients "C for clients" and "add a client looks good" (a message icon on every client); Programs "B for programs just reduce size of this button"; the composer "clean up filters, make them smaller, and alow for custom focuses to be used"; Assign "reduce size of header and the boxes on page"; the Wall "go with B", smaller online cards, and of the switch "last option"; Boost and Tune "update to design"', status: 'done' },
+        { label: '#2612 new modules: BSProAdjust.jsx (Tune), BSLiveBoost.jsx (Boost), BSProClients.jsx (Clients C, drawing only), BSWallTop.jsx (the Wall top), BSProCatalog.jsx and BSProDraftComposer.jsx (Programs B, the composer with ＋ Custom focus or goal, sent to Nora as goal); the Add a client sheet redrawn; Assign compact; /api/ai/generate-plan caps goal at 80', status: 'done' },
+        { label: '#2612 review: Codex P2 (a plan\'s kcal or RPE dropped beside its stats) fixed in 4fc4600. CI on 4fc4600 failed search-rate-limit, which pinned the roster\'s old !searching literal; the redrawn sheet keeps the gate, and the pin takes either form (9e22b8b). CI green on 9e22b8b', status: 'done' },
+        { label: 'The owner asked for a raised, lit, almost-3D look on these pages, then stopped that work ("stop", "just apply what i said here for now"); they ship as approved', status: 'pending' },
+        { label: 'Clients rows: a client who needs you shows their reason in place of program, streak and since-when; the AI draft title wraps at 320px', status: 'pending' },
+        { label: 'OWNER: on a phone, coach Clients (Message on a row, Add a client), Programs and Plans, the AI draft with a custom focus, Assign, Tune, the Wall top with the place switch, and a Boost', status: 'manual' },
+      ],
+    },
+    {
       section: 'App and website: profile customization per role, the coaches\' spotlight on their pages and members\' own colours (#2611). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of the profile editor after B for its Colors page (#2609): "make sure also setting cutomizations on that page cover al capabilities members should have when customizing", "Both", "the customization options should be specific for what coaches can edit and clients", "this should apply to website as well"; of the coach extras no coach page drew, "Show them on coach pages"; of members\' "Your line", "Remove the field"', status: 'done' },

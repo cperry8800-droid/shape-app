@@ -58,21 +58,23 @@ test('app: an empty menu on Eat asks what to eat, today or on the day shown', ()
 });
 
 test('app: an empty Plans or Workouts list asks Nora to draft one; a trainer a workout, a nutritionist a meal plan', () => {
+  // The pages hand their empty lists to BSProCatalog (the owner's B, 2026-11-04) with Nora's link as the
+  // empty state's `nora`; an empty list says so only once the library has loaded.
   const trainer = between(PROS, 'function BSTrainerPrograms(', 'function BSNutritionistApp(');
-  const paid = between(trainer, "{programs.length === 0 ? (serverPlans === null ? null :", ') : (');
-  assert.match(paid, /<BSProAskNora t=\{t\} label=\{tr\('feed:support\.ask\.draftWorkoutLink'.*draft=\{tr\('feed:support\.ask\.draftWorkout', \{ defaultValue: 'Draft a workout for me: ' \}\)\} \/>/);
-  const sessions = between(trainer, '{workouts.length === 0 ? (', ') : (');
-  assert.match(sessions, /serverPlans !== null && Redact \? <>/, 'only once the list has loaded, as the redaction');
-  assert.match(sessions, /<BSProAskNora t=\{t\} label=\{tr\('feed:support\.ask\.draftWorkoutLink'/);
+  assert.match(trainer, /const askNora = <BSProAskNora t=\{t\} label=\{tr\('feed:support\.ask\.draftWorkoutLink'.*draft=\{tr\('feed:support\.ask\.draftWorkout', \{ defaultValue: 'Draft a workout for me: ' \}\)\} \/>;/);
+  const paid = between(trainer, "key: 'plans', sortable: true", "{ kind: 'enrolled'");
+  assert.match(paid, /empty: programs\.length \|\| serverPlans === null \? null : \{ label: tr\('coach:plans\.noPublishedPlans'[^\n]*nora: askNora \}/);
+  const sessions = between(trainer, "key: 'sessions'", 'videos,');
+  assert.match(sessions, /empty: workouts\.length \|\| serverPlans === null \? null : \{ label: tr\('coach:plans\.noWorkouts'[^\n]*nora: askNora \}/, 'only once the list has loaded');
   const nutri = between(PROS, 'function BSNutriPlans(', '\nfunction ');
-  const plans = between(nutri, '{plans.length === 0 ? (', ') : (');
-  assert.match(plans, /draft=\{tr\('feed:support\.ask\.draftMealPlan', \{ defaultValue: 'Draft a meal plan for me: ' \}\)\}/);
+  const plans = between(nutri, "key: 'plans', head:", "{ kind: 'enrolled'");
+  assert.match(plans, /nora: <BSProAskNora t=\{t\} label=\{tr\('feed:support\.ask\.draftMealPlanLink'[^\n]*draft=\{tr\('feed:support\.ask\.draftMealPlan', \{ defaultValue: 'Draft a meal plan for me: ' \}\)\} \/> \} \},/);
 });
 
 // ⚠ Codex, #2261: a coach session can evaluate the pros bundle before the client module, or
 // without it, so the link would never render there. The wrapper imports it on demand.
 test('app: the coach screens\' link imports the client module when it is not loaded yet', async () => {
-  const src = between(PROS, 'function BSProAskNora(props) {', '\nfunction BSProTextAction(');
+  const src = between(PROS, 'function BSProAskNora(props) {', '\n}\n');
   assert.match(src, /const Link = typeof window !== 'undefined' \? window\.BSAskNoraLink : null;/, 'read at render, never captured at load');
   assert.match(src, /if \(Link\) return undefined;\n\s+let alive = true;\n\s+import\('\.\/iosAppBroadsheetClient\.jsx'\)\.then\(\(\) => \{ if \(alive\) setLoaded\(true\); \}\)/);
   assert.match(src, /return Link \? React\.createElement\(Link, props\) : null;/);

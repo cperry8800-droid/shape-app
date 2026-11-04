@@ -55,7 +55,9 @@ test('the Wall maps its posts through both, and opens on who is training now', (
   const src = readFileSync(SRC, 'utf8');
   assert.match(src, /const acts = rows\.map\(\(p\) => bsActivityFromPost\(p\) \|\| bsWallMediaCard\(p\)\)\.filter\(Boolean\);/);
   assert.match(src, /\{railOn && feedType === 'all' && feedMode === 'universal' \? \(\n\s+<BSWallTrainingNow people=\{railPeople\} demo=\{!loggedIn\}/, 'Training now: the rail\'s people, under All in Universal, hidden with the rail');
-  // The live boost sheet and the Wall read a live row the one way.
-  assert.match(src, /const live = useBSLiveRow\(person\.userId \|\| null\);/);
-  assert.match(src, /const mins = useBSLiveMinutes\(person\.userId \|\| null\);/);
+  // The live boost sheet (BSLiveBoost.jsx since its redesign) and the Wall read a live row the one way.
+  const boost = readFileSync(SRC.replace(/iosAppBroadsheetClient\.jsx$/, 'BSLiveBoost.jsx'), 'utf8');
+  assert.match(boost, /^import \{ useBSLiveRow, useBSLiveMinutes \} from '\.\/BSWallLive\.jsx';$/m);
+  assert.match(boost, /const row = useBSLiveRow\(person\.userId \|\| null\);/);
+  assert.match(boost, /const mins = useBSLiveMinutes\(person\.userId \|\| null\);/);
 });

@@ -11,7 +11,8 @@ export const bsWsHead = (t) => t.DISPLAY;
 
 // The Wall's lit chip (the owner's C for the top of the Wall, 2026-11-04): a dark inset slot in a hairline
 // frame, the one shown framed and lettered in the accent and glowing on dark paper (no glow on light paper,
-// where the inset is a faint ink wash). The Wall's lens, its count of who is online and its type chips wear it.
+// where the inset is a faint ink wash). The look picker's tags wear it (BSLookPicker.jsx); the top of the Wall
+// did until the owner's B (BSWallTop.jsx, 2026-11-04), which reads bsWsHexA from here.
 export const bsWsHexA = (hex, a) => {
   const h = String(hex || '#888888').replace('#', '');
   const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h;

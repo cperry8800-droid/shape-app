@@ -92,8 +92,10 @@ import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
-import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead, bsWsLed } from './BSWallStory.jsx';
+import { BSWallTrainingNow } from './BSWallLive.jsx';
+import { BSLiveBoostSheet } from './BSLiveBoost.jsx';
+import { BSWallTop } from './BSWallTop.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
@@ -13535,127 +13537,8 @@ async function bsOpenMemberConversation(person, closeOverlay) {
   } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
 }
 
-// ── Live boost — cheer someone on WHILE they're mid-workout / mid-cook ───────
-// Opened from the presence rail when a member carries a live activity dot.
-// Sends a real 1:1 DM stamped metadata {kind:'live_boost', activity} — it lands
-// in their chat right now (the thread renders a "Live boost" eyebrow), instead
-// of waiting for the completed activity to post. Quick phrases are one-tap sends.
-const BS_BOOST_PHRASES = {
-  workout: ["Let's go!", 'Nice!', 'Love it!', 'One more rep.', 'Finish strong →', 'Strong — keep going.', 'Respect the work.'],
-  cooking: ['What are you making?', 'Send a pic →', 'Looks good already.', 'Chef mode — respect.', 'Fuel the work.', 'Plate it clean.'],
-};
-// Drawn as the Wall prints (owner, 2026-10-24: "update design of this as well to match"): the flat facet in an
-// ink frame, the live line as the magazine's kicker (red mid-workout, amber at the stove, as the face's dot),
-// "Boost Priya" in the headline face over a heavy ink rule, and square phrase boxes, field and Send in ink.
-function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const kind = person.activity === 'cooking' ? 'cooking' : 'workout';
-  const accent = kind === 'cooking' ? t.AMBER : bsWsAccent(t);
-  const box = bsTHexA(t.INK, 0.28);
-  const first = String(person.name || person.who || 'Member').split(' ')[0];
-  const [custom, setCustom] = useStateBSC('');
-  const [busy, setBusy] = useStateBSC(false);
-  const [sent, setSent] = useStateBSC(false);
-  // "N min in" — honest: only when started_at is readable (BSWallLive.jsx, shared with the Wall's card).
-  const mins = useBSLiveMinutes(person.userId || null);
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  // Live set-by-set line (spec 2026-07-18) — renders ONLY when a row is
-  // readable under RLS. No row → today's sheet, byte-identical; absence is
-  // deliberately unremarkable (never "they hid this" — that would leak the
-  // existence of a setting choice). Demo people (no userId) never fetch.
-  // The row's own payload.kind decides what renders (spec 2026-07-19). The read, its TOCTOU guard and
-  // its expiry live in useBSLiveRow (BSWallLive.jsx), shared with the Wall's Training now cards.
-  const live = useBSLiveRow(person.userId || null);
-  const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
-  // lp is a DISCRIMINATED UNION (workout | cooking). Split it here so neither
-  // branch can touch the other's fields: lpWork carries exercises/sets, lpCook
-  // carries a title and nothing else.
-  const lpWork = lp && (!lp.kind || lp.kind === 'workout') ? lp : null;
-  const lpCook = lp && lp.kind === 'cooking' ? lp : null;
-  const lpCur = lpWork && lpWork.curIdx >= 0 && lpWork.exercises[lpWork.curIdx] ? lpWork.exercises[lpWork.curIdx] : null;
-  const sendBoost = async (body) => {
-    const msg = String(body || '').trim();
-    if (!msg || busy || sent) return;
-    if (!signedIn) { window.__bsToast?.('Join Shape to send live boosts', 'info'); return; }
-    if (!person.userId) { window.__bsToast?.("Demo member — boosts reach real members when they're live.", 'info'); return; }
-    setBusy(true);
-    try {
-      const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
-      const cid = (r && r.data) || null;
-      if (!cid) throw new Error('no conversation');
-      await window.ShapeMessages.sendMessage({ conversationId: cid, body: msg, metadata: { kind: 'live_boost', activity: kind } });
-      setSent(true);
-      window.__bsToast?.(`Boost sent → ${first}`, 'ok');
-      setTimeout(() => { onClose && onClose(); }, 650);
-    } catch (e) {
-      window.__bsToast?.('Could not send — try again', 'err');
-    } finally { setBusy(false); }
-  };
-  // Real modal semantics: dialog role + Escape closes + focus moves INTO the
-  // sheet on open (no autofocused input — that would pop the mobile keyboard).
-  const panelRef = React.useRef(null);
-  React.useEffect(() => { try { panelRef.current && panelRef.current.focus(); } catch (e) {} }, []);
-  // Living-instrument boot: the sheet rises, the live dot breathes, the pulse
-  // rule draws, phrase chips stagger in — shared sd keyframes + chip CSS.
-  const reduced = bsSdReduced();
-  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); bsInjectFollowChipCss(); }, []);
-  const surface = (typeof document !== 'undefined' && (document.getElementById('bs-phone-surface') || document.body)) || null;
-  if (!surface) return null;
-  return createPortal(
-    <div onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } }} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Send ${first} a live boost`} onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', outline: 'none', ...(reduced ? null : { animation: 'bsSdFadeUp 340ms cubic-bezier(.2,.8,.3,1) both' }) }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
-            </div>
-            {/* Cooking: the PLANNED meal's title only — never macros, portions
-                or adjustments. A freehand meal pushes nothing, so this simply
-                doesn't render and the generic presence line above stands. */}
-            {lpCook && (
-              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <span style={{ color: t.INK, fontWeight: 800 }}>{lpCook.title}</span>
-              </div>
-            )}
-            {lpWork && (
-              <div style={{ marginTop: 5 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {lpCur ? <>
-                    <span style={{ color: t.INK, fontWeight: 800 }}>{lpCur.n}</span>
-                    {' · '}{tr('feed:boost.liveSet', { done: Math.min(lpCur.done + 1, lpCur.total), total: lpCur.total, defaultValue: 'set {done, number} of {total, number}' })}
-                    {' — '}
-                  </> : null}
-                  {tr('feed:boost.liveSets', { done: lpWork.setsDone, total: lpWork.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
-                </div>
-                <div aria-hidden style={{ marginTop: 4, height: 2, background: bsTHexA(t.INK, 0.12) }}>
-                  <div style={{ height: 2, width: `${lpWork.setsTotal ? Math.round((lpWork.setsDone / lpWork.setsTotal) * 100) : 0}%`, background: accent }} />
-                </div>
-              </div>
-            )}
-            <div style={{ marginTop: 5, fontFamily: bsWsHead(t), fontSize: 24, fontWeight: 600, lineHeight: 1, color: t.INK, letterSpacing: '0.012em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Boost {first}</div>
-          </div>
-          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
-        </div>
-        {/* The heavy rule under the head, as the Wall's masthead */}
-        <div aria-hidden style={{ height: 3, marginTop: 12, background: t.INK }} />
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
-        <div className="bs-fa-wrap" style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph, i) => (
-            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ minHeight: 40, padding: '9px 12px', borderRadius: 0, border: `1px solid ${box}`, background: 'transparent', color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, transition: 'transform 140ms ease', ...(reduced ? null : { animation: `bsSdFadeUp 380ms ease ${160 + i * 70}ms both` }) }}>{ph}</button>
-          ))}
-        </div>
-        <div style={{ marginTop: 11, display: 'flex', gap: 8, ...(reduced ? null : { animation: 'bsSdFadeUp 380ms ease 440ms both' }) }}>
-          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, minHeight: 44, boxSizing: 'border-box', borderRadius: 0, border: `1px solid ${box}`, background: 'transparent', color: t.INK, padding: '11px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, minHeight: 44, borderRadius: 0, border: 0, background: custom.trim() && !busy && !sent ? t.INK : bsTHexA(t.INK, 0.12), color: custom.trim() && !busy && !sent ? t.PAPER : t.INK50, cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
-        </div>
-      </div>
-    </div>,
-    surface
-  );
-}
+// The live boost sheet (cheer someone on mid-workout or mid-cook) lives in BSLiveBoost.jsx since its redesign
+// (2026-11-04); it is imported at the top and stays on window for the Pros bundle.
 
 function BSFollowMini({ onOpen }) {
   const t = useBS();
@@ -23875,6 +23758,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const railPhotoOf = (p) => p.photoUrl || bsDemoPhoto(p.photo);
   const railProfileOf = (p) => ({ who: p.name, kind: p.role === 'trainer' ? 'TRAINER' : p.role === 'nutritionist' ? 'NUTRI' : 'CLIENT', tier: p.tier, public: true, userId: p.userId || null, photo: railPhotoOf(p) || bsDemoFace(p.name) });
   const liftingNow = online > 0 ? online : (loggedIn ? railPeople.length : 2104);
+  // A face on the rail (BSWallTop draws the rail and asks for each face here, where BSFacetAvatar and
+  // BSRailCoachFace live). A member keeps the faceted shape, in the magazine's flat cut (owner, 2026-10-24:
+  // "keep the same facet shape but … go with the new design"): an ink frame and a still dot, teal in a
+  // workout and amber at the stove. A coach is a circle in a ring of the coach's colour (owner, 2026-11-04:
+  // "keep the facet avatars for clients and circle avatar for coaches"). `o.size` is the circle's size and
+  // `o.box` the room either takes.
+  const railFace = (p, o = {}) => (p.role === 'trainer' || p.role === 'nutritionist'
+    ? <BSRailCoachFace size={o.size || 46} box={o.box || 40} ring={p.role === 'nutritionist' ? '#a07a2e' : '#c0533b'} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} active={!!(p.activity || p.live)} initial={bsInitials(p.name)} photo={railPhotoOf(p)} />
+    : <BSFacetAvatar flat size={o.box || 40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={railPhotoOf(p)} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />);
+  // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can cheer them on while they're at
+  // it; otherwise straight to the profile. Demo rail people open the sheet too (it's how the feature is
+  // discoverable in preview) — the sheet labels itself a demo preview and a send lands the honest "reaches
+  // real members" note, never a fake delivery (honest-data).
+  const openRailPerson = (p) => (p.activity ? setBoostFor({ ...p, photoUrl: railPhotoOf(p), _profile: railProfileOf(p) }) : setOpenProfile(railProfileOf(p)));
+  // The Wall's lens and its activity types, as [key, label] pairs, for BSWallTop.
+  const wallLenses = [['universal', tr('feed:lens.universal', { defaultValue: 'Universal' })], ['following', tr('feed:lens.following', { defaultValue: 'Following' })]];
+  const wallTypes = [['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]];
+  const onWall = tab === 'feed' && filter === 'COMMUNITY';
 
   // THE TITLE IS THE SWITCH (owner, 2026-10-26: "go with B"). The five places Chat has, the feeds
   // first and then the two message places with their unread, named in the title and opened from it;
@@ -23928,97 +23829,24 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             </div>
             {/* The place's name in the Wall's headline face (owner, 2026-10-24: "everything on chat page should
                 match new feed wall design"); tapping it opens the places. */}
-            <BSChatPlaceTitle label={placeLabel} open={placesOpen} onOpen={() => setPlacesOpen(true)} buttonRef={placesTitleRef} />
+            <BSChatPlaceTitle label={placeLabel} open={placesOpen} onOpen={() => setPlacesOpen(true)} buttonRef={placesTitleRef} place={place} places={places.map((x) => x.key)} />
           </div>
-          {/* The feed's viewing lens rides the title row (owner call 2026-07-14), a page-level control out of
-              the chip stack; flexWrap drops it under the title on a narrow phone rather than squeezing it.
-              Since the owner's C for the top of the Wall (2026-11-04) it is a pair of lit chips (bsWsLed), the
-              lens shown framed and lettered in the teal, each in a 44px target. */}
-          {tab === 'feed' && filter === 'COMMUNITY' && (
-            <div data-bs-wall-lens="" style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-              {[['universal', tr('feed:lens.universal', { defaultValue: 'Universal' })], ['following', tr('feed:lens.following', { defaultValue: 'Following' })]].map(([k, label]) => {
-                const on = feedMode === k;
-                return (
-                  <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
-                    style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer' }}>
-                    <span data-led={on ? 'on' : 'off'} style={{ display: 'inline-block', padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap', ...bsWsLed(t, on) }}>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Live "training now" presence rail — hidden when nobody's active (a
-          signed-in member with no active people sees no rail), and hidden by
-          choice via railOn (Settings → Preferences → "Online members", or the
-          inline HIDE × below). OFF renders NOTHING — deliberately the exact
-          state the empty-rail branch already produces, not a new layout. */}
-      {railOn && railPeople.length > 0 && (
-      <div style={{ padding: `4px ${t.padX}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
-            {/* How many are online, in a lit slot (the owner's C, 2026-11-04), its dot glowing on dark paper. */}
-            <span data-bs-rail-count="" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, ...bsWsLed(t, true) }}>
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magAccent, boxShadow: t.isLight ? 'none' : `0 0 8px ${magAccent}` }} />
-              {tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}
-            </span>
-            {/* Signed-in AND signed-out (owner call, 2026-08-27): the preview is
-                where this is reachable at all — a signed-in member sees no rail
-                until live presence is non-empty. A demo tap persists to the
-                demo mirror key only; bsOnlineRailPersist still declines without
-                a real uid, so nothing is written to any account. */}
-            <button onClick={hideRail} aria-label={tr('feed:rail.hideAria', { defaultValue: 'Hide the online members rail' })}
-              style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>
-              {tr('feed:rail.hide', { defaultValue: 'Hide' })} <span aria-hidden>×</span>
-            </button>
-          </div>
-          <div className="bs-scroll" style={{ display: 'flex', gap: 14, overflowX: 'auto', overflowY: 'visible', padding: '14px 12px 6px' }}>
-            {railPeople.map((p, i) => {
-              const pPhoto = railPhotoOf(p);
-              const railProfile = railProfileOf(p);
-              // Mid-activity (workout/cooking dot) → the LIVE BOOST sheet, so you can
-              // cheer them on while they're at it; otherwise straight to the profile.
-              // Demo rail people open the sheet too (it's how the feature is
-              // discoverable in preview) — the sheet labels itself a demo preview
-              // and a send lands the honest "reaches real members" note, never a
-              // fake delivery (honest-data).
-              return (
-                <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    {/* A member keeps the faceted shape, in the magazine's flat cut (owner, 2026-10-24: "keep the same
-                        facet shape but … go with the new design"): an ink frame, no glow, and a still dot, teal in a
-                        workout and amber at the stove. A coach is a circle in a ring of the coach's colour (owner,
-                        2026-11-04: "keep the facet avatars for clients and circle avatar for coaches"). */}
-                    {p.role === 'trainer' || p.role === 'nutritionist'
-                      ? <BSRailCoachFace size={46} box={40} ring={p.role === 'nutritionist' ? '#a07a2e' : '#c0533b'} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} active={!!(p.activity || p.live)} initial={bsInitials(p.name)} photo={pPhoto} />
-                      : <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />}
-                  </div>
-                  <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.INK70 }}>{p.name.split(' ')[0]}</span>
-                </button>
-              );
-            })}
-          </div>
-      </div>
-      )}
-      {/* The way BACK, in place (owner ask 2026-08-28): once the rail is
-          hidden — by the inline × above or from Settings — a slim SHOW row
-          stands where it was. Same reachability rule as the × (owner call
-          2026-08-27): NO loggedIn gate, because the preview is where the rail
-          is reachable at all, and a demo tap writes the demo mirror key only
-          (bsOnlineRailPersist still declines without a real uid). Gated on
-          railPeople like the rail itself, so it can never offer to show a rail
-          that would render nothing. */}
-      {!railOn && railPeople.length > 0 && (
-        <div style={{ padding: `4px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: muted }} />
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
-          <button onClick={showRail} aria-label={tr('feed:rail.showAria', { defaultValue: 'Show the online members rail' })}
-            style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', padding: '4px 0 4px 12px', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEALB, fontWeight: 700 }}>
-            {tr('feed:rail.show', { defaultValue: 'Show' })} <span aria-hidden>＋</span>
-          </button>
-        </div>
-      )}
+      {/* The top of the Wall (BSWallTop.jsx, the owner's B, 2026-11-04): on the Wall the lens (Universal /
+          Following, once a pair of chips in the title row), then the live "training now" presence rail with
+          its inline Hide, or the count with Show where it stood once hidden (owner ask 2026-08-28), then the
+          type chips; on Chat's other places the rail alone. The rail is gated in there exactly as it was: shown
+          when railOn and someone is online, the SHOW row when !railOn and someone is online, nothing at all
+          when nobody is (a signed-in member with no active people sees no rail; never fabricated people).
+          railOn is Settings → Preferences → "Online members" and the inline ×; hideRail and showRail are
+          apply-then-persist, and neither is gated on sign-in (owner call, 2026-08-27: the preview is where
+          the rail is reachable at all, and a demo tap writes the demo mirror key only). */}
+      <BSWallTop wall={onWall} railOn={railOn} people={railPeople} count={liftingNow}
+        face={railFace} onFace={openRailPerson} onHide={hideRail} onShow={showRail}
+        lenses={wallLenses} mode={feedMode} onMode={switchFeedMode}
+        types={wallTypes} type={feedType} onType={setFeedType} typesLabel={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })} />
 
       {boostFor && (
         <BSLiveBoostSheet person={boostFor} onClose={() => setBoostFor(null)}
@@ -24289,13 +24117,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <>
           {filter === 'COMMUNITY' ? (
             <div style={{ padding: '4px 0 84px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* The activity types as tabs. THE WALL's masthead over them (its name, the day and how many
-                  were training) is cut (owner, 2026-10-25: "remove this header in chat page", "clean this
-                  up"); the live story below says who is training. */}
-              <BSWallTypes
-                types={[['all', tr('feed:type.all', { defaultValue: 'All' })], ['workouts', tr('feed:type.workouts', { defaultValue: 'Workouts' })], ['runs', tr('feed:type.runs', { defaultValue: 'Runs' })], ['prs', tr('feed:type.prs', { defaultValue: 'PRs' })], ['nutrition', tr('feed:type.nutrition', { defaultValue: 'Nutrition' })], ['milestones', tr('feed:type.milestones', { defaultValue: 'Milestones' })]]}
-                typesLabel={tr('feed:type.filterAria', { defaultValue: 'Filter by activity type' })}
-                type={feedType} onType={setFeedType} />
+              {/* The activity types are BSWallTop's, at the top of the page. THE WALL's masthead over them (its
+                  name, the day and how many were training) is cut (owner, 2026-10-25: "remove this header in
+                  chat page", "clean this up"); the live story below says who is training. */}
               {/* LIVE NOW (owner, 2026-10-22; the magazine's live story since 2026-10-23): who is training
                   right now opens the Wall, with their live set and a boost. The rail's people (real ones
                   signed in, the preview's signed out), under All in Universal only (presence is not
