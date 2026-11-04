@@ -162,9 +162,18 @@ function harness({ startInSec = 5, decodeFails = [], writeFailsAt = null, decode
   let written = 0, closed = 0;
   const startsAt = new Date(clock + startInSec * 1000).toISOString();
   const job = { set: { id: SET_ID, startsAt }, programme: PROGRAMME, sources: { [T1]: 'u1', [T2]: 'u2' }, serverNowMs: clock, localAtFetchMs: clock };
+  // ⚠ This sleep never yields to the event loop, so a test's own timeout cannot stop an engine
+  // that waits forever (a song it will never get): the fake clock stops it an hour past the set.
+  // It throws as it is called, not from its promise: the engine races a sleep against a load that
+  // has already settled, and a rejected sleep there would go unseen.
+  const stopAt = Date.parse(startsAt) + (PROGRAMME.endsSec + 3600) * 1000;
   const deps = {
     now: () => clock,
-    sleep: async (ms) => { clock += ms; },
+    sleep: (ms) => {
+      clock += ms;
+      if (clock > stopAt) throw new Error('the engine is still waiting an hour after the set ended');
+      return Promise.resolve();
+    },
     decode: async (url) => {
       loads.push({ url, at: clock });
       if (decodeDelayMs) clock += decodeDelayMs;
