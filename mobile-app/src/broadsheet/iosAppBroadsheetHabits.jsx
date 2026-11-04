@@ -491,8 +491,10 @@ function BSHabitToday({ habits, onToggle, onRemove, onAdd, reminders, onReminder
   }, [habits, today]);
   const tone = (type) => (type === 'avoid' ? t.RUST : teal);
   const addKey = (type) => (
-    <button onClick={() => onAdd(type)} style={{ ...bsMpGlass(t, t.INK, { radius: 99 }), minHeight: 44, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap' }}>
-      <span aria-hidden style={{ color: tone(type), fontSize: 15, lineHeight: 1 }}>＋</span>{type === 'avoid' ? tr('habits:today.addToDont', { defaultValue: 'Add a to-don’t' }) : tr('habits:today.addToDo', { defaultValue: 'Add a to-do' })}
+    // ⚠ THE LABEL WRAPS (Codex P2 on #2598). Beside the dial the column is narrow on a small phone, and the
+    // longest translations ("Tambah hal untuk dilakukan", "Aggiungi qualcosa da evitare") ran out of the key.
+    <button onClick={() => onAdd(type)} style={{ ...bsMpGlass(t, t.INK, { radius: 99 }), minHeight: 44, padding: '6px 16px 6px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: t.INK, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600, lineHeight: 1.2, textAlign: 'left', overflowWrap: 'anywhere' }}>
+      <span aria-hidden style={{ flex: 'none', color: tone(type), fontSize: 15, lineHeight: 1 }}>＋</span>{type === 'avoid' ? tr('habits:today.addToDont', { defaultValue: 'Add a to-don’t' }) : tr('habits:today.addToDo', { defaultValue: 'Add a to-do' })}
     </button>
   );
   if (habits.length === 0) {

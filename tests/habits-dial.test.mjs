@@ -106,3 +106,11 @@ test('Week and Month are two quiet words, each a 44px tap, the lit one over the 
   assert.match(month.querySelector('span').style.borderBottom, /transparent/);
   await m.close();
 });
+
+test('the add keys wrap a long translation rather than running out of the key (Codex P2 on #2598)', () => {
+  const SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx'), 'utf8');
+  const key = SRC.slice(SRC.indexOf('const addKey = (type) => ('), SRC.indexOf('if (habits.length === 0) {'));
+  assert.doesNotMatch(key, /whiteSpace: 'nowrap'/, 'the label cannot wrap');
+  assert.match(key, /minHeight: 44, padding: '6px 16px 6px 14px'[^\n]*lineHeight: 1\.2, textAlign: 'left', overflowWrap: 'anywhere'/);
+  assert.match(key, /<span aria-hidden style=\{\{ flex: 'none', color: tone\(type\)/, 'the ＋ gives way to the words');
+});
