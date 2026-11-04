@@ -938,7 +938,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
             flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 18, lineHeight: 1.15,
             letterSpacing: '-0.02em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>{detailText}</div>
-          {(MastCorner && !bareMast) ? <MastCorner /> : null}
+          {(MastCorner && !bareMast) ? <BSMastToolPill><MastCorner /></BSMastToolPill> : null}
         </div>
       ) : (mastCondensed && pinBack) ? (
         // Any other page with a Back: the same ← at the bar's left, then the logo row. The page's own
@@ -1222,9 +1222,97 @@ const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px
 // Back absolutely (the sign-in and coach-application screens): the same y as on every app page.
 const BS_BACK_SLOT_TOP_CSS = `calc(${BS_MAST_TOP_CSS} + ${BS_MAST_ROW_H + BS_BACK_ROW_GAP}px)`;
 
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
+// ⚠ THE MASTHEAD'S TOOLS RIDE IN ONE SLIM PILL ON EVERY PAGE (owner, 2026-11-04, of masthead B:
+// "leave the bubble just make it more condensed, not as thick. tighter around icons", then "make sure
+// this part of the masthead stays present on every page and stays visible as you scroll down page" and
+// "make sure this new masthead applies to both coaches and members profile"). Every top row draws its
+// tools through this: BSMastRow (and so the pinned bar and BSDetailHeader), BSMasthead, BSPageHeader,
+// the flag, and the hand-built rows (the profiles, Nora's page, sheets). The Club Shape wordmark stays on
+// Home alone ("the club shape part of masthead should only be on home page"). The pill is 30px tall
+// and sits 6px inside the outer buttons; each button keeps a 44px tap target past the pill's edge.
+// `ink` is the row's own ink where it sits on a photo or a band (a hex).
+const BS_MAST_PILL_CSS = '[data-bs-mast-tools] button{min-width:44px;min-height:44px;margin:0!important}[data-bs-mast-tools]>*{gap:0!important}';
+function bsMastPillCss() {
+  if (typeof document === 'undefined' || document.getElementById('bs-mast-pill-css')) return;
+  const el = document.createElement('style');
+  el.id = 'bs-mast-pill-css';
+  el.textContent = BS_MAST_PILL_CSS;
+  document.head.appendChild(el);
+}
+function bsMastInkRgb(ink, t) {
+  const h = typeof ink === 'string' ? ink.replace('#', '') : '';
+  const x = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  if (/^[0-9a-f]{6}$/i.test(x)) { const n = parseInt(x, 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; }
+  return t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
+}
+function BSMastToolPill({ children, ink = null }) {
+  const t = useBS();
+  React.useEffect(() => { bsMastPillCss(); }, []);
+  if (children == null || children === false) return null;
+  const rgb = bsMastInkRgb(ink, t);
+  return (
+    <span data-bs-mast-pill="" style={{
+      display: 'flex', alignItems: 'center', flexShrink: 0, height: 30, borderRadius: 999,
+      border: `1px solid rgba(${rgb},0.12)`, background: `rgba(${rgb},0.05)`,
+      backdropFilter: 'blur(12px) saturate(160%)', WebkitBackdropFilter: 'blur(12px) saturate(160%)',
+    }}><span data-bs-mast-tools="" style={{ display: 'flex', alignItems: 'center', margin: '0 -6px' }}>{children}</span></span>
+  );
+}
+
+// The wordmark masthead of member Home and coach Today (`layout`): the Club Shape wordmark, its
+// tools and the dateline ({ edition, editionColor, date, extra, clock }). The wordmark element is
+// the page's own (club-shape-wordmark.svg); the layout sets only its width and place.
+function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
+  const t = useBS();
+  const word = (width) => (React.isValidElement(title) ? (
+    <div style={{ flex: `0 1 ${width}px`, width, minWidth: 0 }}>
+      {React.cloneElement(title, { style: { ...(title.props.style || {}), margin: 0, width: '100%' } })}
+    </div>
+  ) : title);
+  const tools = trailing ? <BSMastToolPill>{trailing}</BSMastToolPill> : null;
+  const dl = dateline || {};
+  const run = [dl.date, dl.extra].filter(Boolean).join(' · ');
+  const mono = { fontFamily: t.MONO, textTransform: 'uppercase', fontWeight: 800 };
+
+  // B · CENTRED FLAG — the newspaper flag: the mark and Vol·No at the left, the tools in a slim pill at
+  // the right; the wordmark centred a size up between two double hairlines; the dateline centred under
+  // it with the clock folded in; a double rule closes it.
+  const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
+  const flank = <span aria-hidden style={{ flex: '1 1 0', minWidth: 10, height: 4, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`, opacity: 0.6 }} />;
+  return (
+    <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0`, borderBottom: `3px double ${t.INK}` }}>
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundImage: `repeating-linear-gradient(135deg, rgba(${inkRgb},0.035) 0, rgba(${inkRgb},0.035) 1px, transparent 1px, transparent 7px)`,
+        WebkitMaskImage: 'linear-gradient(180deg, black 0%, transparent 100%)', maskImage: 'linear-gradient(180deg, black 0%, transparent 100%)',
+      }} />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <BSLogo size={16} color={t.INK} />
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{vol} · {no}</div>
+        </div>
+        {tools}
+      </div>
+      {onBack && <BSBackRow onBack={onBack} />}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+        {flank}{word(228)}{flank}
+      </div>
+      {dateline && (
+        <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
+          {/* Each piece keeps together; on a narrow phone the line breaks between them. */}
+          <span style={{ color: dl.editionColor || t.ACCENT, whiteSpace: 'nowrap' }}>{dl.edition}</span>
+          {run ? <>{' '}<span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>· {run}</span></> : null}
+          {dl.clock ? <>{' '}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>· {dl.clock}</span></> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false, layout = null, dateline = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
+  if (layout) return <BSMastLayout layout={layout} title={title} trailing={trailing} dateline={dateline} onBack={onBack} vol={vol} no={no} />;
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
   // Layered: subtle halftone dot wash + faint pinstripes + side vignette + double rule.
@@ -1284,7 +1372,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
             {vol} · {no}
           </div>
         </div>
-        {trailing}
+        <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
 
       {/* Universal back slot — ← BACK on its own row, flush left, directly
@@ -1329,7 +1417,7 @@ function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
         <BSLogo size={size} color={ink || t.INK} />
         <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink || t.INK70, opacity: ink ? 0.75 : 1 }}>Vol. 1 · No. 1</div>
       </div>
-      {trailing}
+      <BSMastToolPill ink={ink}>{trailing}</BSMastToolPill>
     </div>
   );
 }
@@ -1347,7 +1435,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
             {vol} · {no}
           </div>
         </div>
-        {trailing}
+        <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
       {/* Universal back slot — own row, flush left, under the masthead row. */}
       {onBack && <BSBackRow onBack={onBack} />}
@@ -2489,7 +2577,7 @@ function BSNavGestures() {
 Object.assign(window, {
   BSContext, BSProvider, useBS, BSBackButton, BSBackRow, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
-  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate,
+  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
