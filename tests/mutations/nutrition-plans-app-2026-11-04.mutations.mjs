@@ -59,7 +59,7 @@ export default {
     { name: 'publishing a saved row makes a copy', file: PROS,
       find: '    if (editDraft && editDraft.id) {\n      if (!window.ShapeCoachPlans?.update)', replace: '    if (false) {\n      if (!window.ShapeCoachPlans?.update)' },
     { name: 'a saved row keeps the old week when published to one menu', file: PROS,
-      find: "detail: { ...payload.detail, days: days && days.length ? days : null } });", replace: 'detail: { ...payload.detail } });' },
+      find: ", days: days && days.length ? days : null };", replace: ' };' },
     { name: 'a refused publish holds Publishing…', file: PROS,
       find: "          catch (e) { setStatus(''); setPubErr(", replace: "          catch (e) { setPubErr(" },
     { name: 'Nora\'s open gives up on a plan the first read missed', file: PROS,

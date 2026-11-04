@@ -144,7 +144,8 @@ test('a refused publish of a saved row says why and keeps the draft open', async
     await m.click([...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
     await m.click(m.byText(/^Publish/));
     assert.match(m.q('[data-draft-publish-error]').textContent, /This plan changed while saving/);
-    assert.ok(m.byText(/^Publish/), 'the button is back, not stuck on Publishing');
+    assert.ok(!m.byText(/^Publishing/), 'not stuck on Publishing…');
+    assert.ok(m.byText(/^Publish program →$/), 'the button is back to Publish');
     assert.doesNotMatch(m.text(), /Program published/);
     assert.ok([...m.host.querySelectorAll('textarea, input')].some((i) => i.value === 'Week 1 — Reset & habits'), 'still on the draft');
   } finally { await m.close(); }
