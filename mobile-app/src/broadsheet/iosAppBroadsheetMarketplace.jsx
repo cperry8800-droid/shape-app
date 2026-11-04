@@ -851,9 +851,11 @@ function BSMarketplaceScreen({ onBack, onProfile, initialRole, goChat, initialCo
   // Nº on the listing it opens), null from the feature and the tiles, which aren't numbered.
   const mktDirCard = (c, n = null) => {
     const nutri = getPublicProfileKind(c) === 'nutritionist';
+    const standing = mktCoachTier(c);
     return {
       key: c.id, n, name: c.name, nutri,
-      cred: getPrimaryCredential(c), loc: mktShortLoc(c.loc), tier: mktCoachTier(c).name || null,
+      // The standing's name and its colour (the list's cards light it; none when there is no name).
+      cred: getPrimaryCredential(c), loc: mktShortLoc(c.loc), tier: standing.name || null, tierColor: standing.name ? standing.color : null,
       // The rating as words ("★ 9.6/10", or New) and as the figure behind them (null for New).
       rating: formatCoachRating10(c, tr), score: getCoachRating10(c), rate: c.rate, verified: !!c.verified,
       photo: mktValidPhoto(coachPhoto(c)), cover: mktListingMedia(c).cover,

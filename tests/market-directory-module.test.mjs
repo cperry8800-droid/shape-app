@@ -10,8 +10,9 @@
 //     handing it each coach as its own rules read them (the rating's honesty, the standing, the face).
 //   · THE PAGE, driven through the real marketplace screen on its demo roster: the masthead and ← Back,
 //     the search and the role switch first, a role's filters as chips with the sort on the list's head,
-//     Clear filters only when one is set, the feature card with its three stat tiles, This week's tiles,
-//     the numbered rows with faces, the plans rail (signed out only) and the Apply doors.
+//     Clear filters only when one is set, the condensed feature card (owner, 2026-11-04: "this can be more
+//     condensed"), This week's tiles, the list as tall cards two across with the Shape Score tier (the
+//     owner's A, for trainers and nutritionists), the plans rail (signed out only) and the Apply doors.
 //   · THE CONTROLS: every one a 44px target, faces a photo in the role's ring or the initials on it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -100,7 +101,8 @@ test('the marketplace renders the view once and hands it each coach as its own r
   assert.match(market, /<BSMarketDirectory\n\s+onBack=\{onBack\} corner=\{bsMktCorner\(t\.INK\)\}/);
   const card = market.slice(market.indexOf('const mktDirCard = (c, n = null) => {'), market.indexOf('const feature = cotw && cotwProfile'));
   assert.match(card, /rating: formatCoachRating10\(c, tr\), score: getCoachRating10\(c\)/, 'the rating is a live coach\'s reviews, or New');
-  assert.match(card, /tier: mktCoachTier\(c\)\.name \|\| null/, 'the standing is their Shape Score, or nothing');
+  assert.match(card, /const standing = mktCoachTier\(c\);/);
+  assert.match(card, /tier: standing\.name \|\| null, tierColor: standing\.name \? standing\.color : null/, 'the standing is their Shape Score and its colour, or nothing');
   assert.match(card, /photo: mktValidPhoto\(coachPhoto\(c\)\), cover: mktListingMedia\(c\)\.cover/, 'the face is the portrait ladder, checked');
   assert.match(card, /onOpen: \(\) => \{ setOpenNo\(n\); setOpen\(c\); \}/, 'a row opens its coach at its place (LISTING Nº)');
   // Sample plans are the signed-out preview only.
@@ -266,24 +268,55 @@ const CARD = (over = {}) => ({ key: 'n9', n: 4, name: 'Dr. Kevin Park', nutri: t
 const PER_MONTH = ['', '/mo'];
 const minH = (n) => Number(n.props.style.minHeight || n.props.style.height || 0);
 
-test('a row: its place, a face, the name over role · credential and place · standing · vetted, the rate over the rating, one 72px button', () => {
+// The owner's A (2026-11-04), for trainers and nutritionists alike, with "make sure their shape score
+// tier is shown": a tall card, two across, its place in one corner and the Shape Score tier in the other.
+test('a row is a tall card: its place, the tier, a big face, the name over role · credential and place · vetted, the rating beside the rate', () => {
   let opened = 0;
-  const d = drive(ofType(drive(BSMarketDirectory, { list: [CARD()], browsing: true }), 'MktDirRow')[0].type, { card: CARD({ onOpen: () => { opened += 1; } }), perMonth: PER_MONTH, first: true });
+  const Row = ofType(drive(BSMarketDirectory, { list: [CARD()], browsing: true }), 'MktDirRow')[0].type;
+  const d = drive(Row, { card: CARD({ tier: 'Elite', tierColor: '#e0533b', onOpen: () => { opened += 1; } }), perMonth: PER_MONTH });
   const btn = d.nodes()[0];
   assert.equal(btn.type, 'button');
-  assert.ok(minH(btn) >= 72);
+  assert.ok(minH(btn) >= 200, 'a tall card');
+  assert.equal(btn.props.style.flexDirection, 'column', 'the face sits at the top, not centred');
   btn.props.onClick();
   assert.equal(opened, 1);
   assert.equal(d.nodes().find((n) => n.props['data-mkt-rank'] != null).props.children, '04');
+  // The tier, lit in its colour.
+  const tier = d.nodes().find((n) => n.props['data-mkt-tier'] != null);
+  assert.equal(tier.props['data-mkt-tier'], 'lit');
+  assert.equal(textOf(tier), 'Elite');
+  assert.match(tier.props.style.border, /224, ?83, ?59/, 'framed in the tier\'s colour');
   const face = ofType(d, 'MktDirFace')[0];
-  assert.deepEqual([face.props.name, face.props.nutri, face.props.photo, face.props.size], ['Dr. Kevin Park', true, null, 44]);
+  assert.deepEqual([face.props.name, face.props.nutri, face.props.photo, face.props.size], ['Dr. Kevin Park', true, null, 80]);
   const metas = ofType(d, 'MktDirMeta');
-  assert.deepEqual(metas.map((m) => [m.props.parts, m.props.roleWord || null]), [[['CNS'], 'Nutritionist'], [['Remote', 'Pro', '✓ Vetted'], null]]);
+  assert.deepEqual(metas.map((m) => [m.props.parts, m.props.roleWord || null]), [[['CNS'], 'Nutritionist'], [['Remote', '✓ Vetted'], null]]);
   assert.equal(drive(metas[0].type, metas[0].props).text, 'Nutritionist · CNS', 'the role is named in words, never colour alone');
-  assert.equal(drive(metas[1].type, metas[1].props).text, 'Remote · Pro · ✓ Vetted');
   const price = ofType(d, 'MktDirPrice')[0];
   assert.equal(drive(price.type, price.props).text, '$55/mo');
-  assert.match(textOf(btn), /★ 9\.6\/10$/);
+  assert.equal(textOf(btn), '04EliteDr. Kevin Park★ 9.6/10', 'the place, the tier, the name, the rating (the meta and the rate draw themselves)');
+  assert.equal(d.nodes().filter((n) => n.props['data-mkt-cover'] != null).length, 0, 'no cover, none drawn');
+  const covered = drive(Row, { card: CARD({ cover: 'https://x.test/c.jpg' }), perMonth: PER_MONTH });
+  assert.match(covered.nodes().find((n) => n.props['data-mkt-cover'] != null).props.style.background, /url\("https:\/\/x\.test\/c\.jpg"\)/);
+});
+
+test('a coach with no standing reads a dim New where the tier goes, never a rung', () => {
+  const Row = ofType(drive(BSMarketDirectory, { list: [CARD()], browsing: true }), 'MktDirRow')[0].type;
+  const d = drive(Row, { card: CARD({ tier: null, tierColor: null }), perMonth: PER_MONTH });
+  const tier = d.nodes().find((n) => n.props['data-mkt-tier'] != null);
+  assert.equal(tier.props['data-mkt-tier'], 'none');
+  assert.equal(textOf(tier), 'New');
+  assert.doesNotMatch(textOf(d.nodes()[0]), /Certified|Pro\b|Elite|Master|Icon/, 'no rung is invented');
+});
+
+test('the list is the cards two across; a miss is one raised card', () => {
+  const two = drive(BSMarketDirectory, { list: [CARD(), CARD({ key: 'n8', n: 5 })], browsing: true });
+  const grid = two.nodes().find((n) => n.props['data-mkt-cards'] != null);
+  assert.equal(grid.props.style.display, 'grid');
+  assert.equal(grid.props.style.gridTemplateColumns, 'repeat(2, minmax(0, 1fr))');
+  const none = drive(BSMarketDirectory, { list: [], browsing: true });
+  const box = none.nodes().find((n) => n.props['data-mkt-cards'] != null);
+  assert.notEqual(box.props.style.display, 'grid', 'the miss is not a grid cell');
+  assert.ok(none.nodes().some((n) => n.props['data-mkt-empty'] != null));
 });
 
 test('a face: the photo in the role\'s ring, the initials on it without one, and the initials when the photo fails', () => {
@@ -304,26 +337,32 @@ test('a face: the photo in the role\'s ring, the initials on it without one, and
   assert.equal(initials.nodes()[0].props.style.border, '2px solid #a07a2e', 'a nutritionist\'s ring is gold on a light paper');
 });
 
-test('the feature: Rating, Clients and Years as tiles (a dash for none), the offers, and See the profile', () => {
+// Owner, 2026-11-04: "this can be more condensed". One line of figures, one line of their words, and
+// what they sell as a count and its lowest price beside See the profile.
+test('the feature, condensed: one line of figures (none for none), one line of words, the offers counted from the lowest, See the profile', () => {
   let opened = 0;
-  const feature = { ...CARD({ onOpen: () => { opened += 1; } }), quote: 'Plans that fit a real week.', clients: 0, years: 12, offers: [{ key: 'a', name: 'Single meal plan', monthly: false, perks: 4, price: '$28' }, { key: 'b', name: 'Monthly - custom', monthly: true, perks: 4, price: '$170' }] };
+  const feature = { ...CARD({ onOpen: () => { opened += 1; } }), quote: 'Plans that fit a real week.', clients: 0, years: 12, offers: [{ key: 'a', name: 'Monthly - custom', monthly: true, perks: 4, price: '$170' }, { key: 'b', name: 'Single meal plan', monthly: false, perks: 4, price: '$28' }] };
   const Feature = ofType(drive(BSMarketDirectory, { feature }), 'MktDirFeature')[0].type;
   const d = drive(Feature, { feature });
   const stats = d.nodes().filter((n) => n.props['data-mkt-stat']);
-  assert.deepEqual(stats.map((n) => n.props['data-mkt-stat']), ['rating', 'clients', 'years']);
-  assert.equal(textOf(stats[1]), 'Clients—', 'no clients reads a dash, never "0+"');
-  assert.equal(textOf(stats[2]), 'Years12');
+  assert.deepEqual(stats.map((n) => n.props['data-mkt-stat']), ['rating', 'years'], 'no clients is left out, never "0+"');
+  assert.equal(textOf(stats[1]), '12Years');
   const score = ofType(d, 'MktDirScore')[0];
   assert.equal(drive(score.type, score.props).text, '★ 9.6/10');
   assert.equal(drive(score.type, { score: null, label: 'New' }).text, 'New', 'an unreviewed live coach reads New');
-  assert.match(d.text, /“Plans that fit a real week\.”/);
-  assert.match(d.text, /Single meal plan.*One-time · 4 included\$28/);
-  assert.match(d.text, /Monthly - customMonthly · 4 included\$170/);
+  const withClients = drive(Feature, { feature: { ...feature, clients: 71 } });
+  assert.deepEqual(withClients.nodes().filter((n) => n.props['data-mkt-stat'] && n.props['data-mkt-stat'] !== 'rating').map((n) => textOf(n)), ['71+Clients', '12Years']);
+  const quote = d.nodes().find((n) => n.props['data-mkt-quote'] != null);
+  assert.equal(textOf(quote), '“Plans that fit a real week.”');
+  assert.equal(quote.props.style.whiteSpace, 'nowrap', 'one line');
+  assert.equal(textOf(d.nodes().find((n) => n.props['data-mkt-offers'] != null)), 'Tracklist · 2 · $28+', 'counted, from the lowest price');
+  const bare = drive(Feature, { feature: { ...feature, offers: [] } });
+  assert.ok(!bare.nodes().some((n) => n.props['data-mkt-offers'] != null), 'nothing to sell, no tracklist');
   // One button: See the profile, which opens the coach without the card's own tap firing twice.
   const buttons = d.nodes().filter((n) => n.type === 'button');
   assert.equal(buttons.length, 1);
   assert.equal(textOf(buttons[0]).trim(), 'See the profile →');
-  assert.ok(minH(buttons[0]) >= 48);
+  assert.ok(minH(buttons[0]) >= 44);
   let stopped = 0;
   buttons[0].props.onClick({ stopPropagation: () => { stopped += 1; } });
   assert.deepEqual([opened, stopped], [1, 1]);
