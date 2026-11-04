@@ -2100,8 +2100,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         ? React.createElement(window.BSLiveBoostSheet, { person: boostFor, onClose: () => setBoostFor(null) })
         : null}
 
-      {/* UP NEXT — today's next booking as the plate (direction A): the role's rule down its left, a cut
-          corner, the time to it as a countdown, and what the coach does about it. The buttons keep 44 to tap. */}
+      {/* UP NEXT — today's next booking on the plate, round and raised (owner, 2026-11-04: "round and
+          popping, almost 3d"): the role's heat as a glow, the time to it as a countdown, and what the coach
+          does about it. The buttons are round too, and keep 44 to tap. */}
       {upB && (
         <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, ...bsProPlate(t, heat), padding: '14px 16px 14px 15px' }}>
           <span aria-hidden style={{ position: 'absolute', right: 22, top: 16, width: 7, height: 7, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
@@ -2117,8 +2118,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           <div style={{ marginTop: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 6, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
-            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 6, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 14, border: 0, background: t.INK, color: t.PAPER, boxShadow: `inset 0 1px 0 rgba(255,255,255,${t.isLight ? 0.18 : 0.6}), 0 8px 16px -10px rgba(0,0,0,0.7)`, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
+            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 14, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
           </div>
         </div>
       )}

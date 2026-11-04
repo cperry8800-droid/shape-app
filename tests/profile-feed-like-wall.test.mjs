@@ -108,7 +108,8 @@ test('who of the people you follow reacted shows on the profile as on the Wall',
 test('the member profile draws its feed with the Wall\'s byline and the Wall\'s follows', () => {
   const start = SRC.indexOf('function BSTerrainProfile(');
   const body = SRC.slice(start, SRC.indexOf('\nfunction ', start + 30));
-  assert.match(body, /<BSActivityCard a=\{a\} ctx=\{profileCtx\} onAuthorPage isLast=\{i === feedEff\.length - 1\} pagePad=\{0\} variant="magazine" \/>/);
+  // Every other post in glass, as on the Wall (owner, 2026-11-04: "apply these changes to profile activity feeds as well").
+  assert.match(body, /<BSActivityCard a=\{a\} ctx=\{profileCtx\} onAuthorPage isLast=\{i === feedEff\.length - 1\} pagePad=\{0\} variant="magazine" glass=\{i % 2 === 1\} \/>/);
   assert.doesNotMatch(body, /<BSActivityCard[^>]*hideAuthor/, 'the member profile hides the byline again');
   assert.match(body, /const profFollowing = useBSMyFollowing\(\);/);
   // The byline's face is the hero's (the avatar-source toggle and the live profile's photo included).

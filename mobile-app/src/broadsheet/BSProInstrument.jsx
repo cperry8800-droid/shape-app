@@ -177,8 +177,24 @@ export function BSProMeter({ t, pct, hue, ticks = 10 }) {
   );
 }
 
-// The plate: a raised paper card with the role's rule down its left and its top-right corner cut.
-export const bsProPlate = (t, heat) => ({ position: 'relative', ...bsGlassFill(t), borderLeft: `3px solid ${heat}`, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)' });
+// ⚠ THE PLATE, ROUND AND RAISED (owner, 2026-11-04: "round out this box. dont love the look of it. maybe it
+// round and popping, almost 3d"): no cut corner and no hard rule. A 20px round in the paper's own colour,
+// lit from the top (a light-to-clear sheen with a bright top edge and a darker lower lip), the role's heat
+// as a glow from its top-left corner, and a layered shadow that lifts it off the page.
+export const bsProPlate = (t, heat) => {
+  const rgb = t.inkRGB || rgbOf(t.INK) || (t.isLight ? '20,18,15' : '242,237,228');
+  const lit = t.isLight
+    ? 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 60%, rgba(255,255,255,0.32) 100%)'
+    : `linear-gradient(180deg, rgba(${rgb},0.12) 0%, rgba(${rgb},0.05) 60%, rgba(${rgb},0.025) 100%)`;
+  return {
+    position: 'relative', borderRadius: 20, overflow: 'hidden',
+    background: `radial-gradient(120% 90% at 0% 0%, ${heat}30 0%, transparent 55%), ${lit}, ${t.PAPER}`,
+    border: `1px solid rgba(${rgb},${t.isLight ? 0.1 : 0.14})`,
+    boxShadow: t.isLight
+      ? `inset 0 1px 0 rgba(255,255,255,1), inset 0 -3px 0 rgba(${rgb},0.06), 0 2px 4px rgba(${rgb},0.08), 0 20px 36px -16px rgba(${rgb},0.38)`
+      : 'inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -3px 0 rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.35), 0 22px 40px -14px rgba(0,0,0,0.85)',
+  };
+};
 
 // A ledger: a 2px ink rule over hairline rows, each led by its number.
 export const bsProLedgerTop = (t) => ({ borderTop: `2px solid ${t.INK}` });
