@@ -236,43 +236,17 @@ test('the figures, the record and the quote', async () => {
 
 // Owner, 2026-10-25: "remove this header in chat page" and "clean this up", of THE WALL over its heavy rule
 // and the day with how many were training. What stays is the type filter, one row on the cards' gutter;
-// since the owner's C for the top of the Wall (2026-11-04) it is a row of lit chips, the one shown framed
-// and lettered in the teal.
-test('the Wall\'s types are one row of lit chips, with no masthead over them', async () => {
-  const picked = [];
-  const types = [['all', 'All'], ['workouts', 'Workouts'], ['runs', 'Runs'], ['prs', 'PRs']];
-  const r = await render(React.createElement(STORY.BSWallTypes, { types, typesLabel: 'Filter by activity type', type: 'runs', onType: (k) => picked.push(k) }));
-  try {
-    const nav = r.host.querySelector('nav[data-bs-wall-types]');
-    assert.ok(nav, 'no type tabs');
-    assert.equal(nav.style.margin, '0px 12px', 'on the cards\' gutter, as the live story is');
-    assert.equal(nav.getAttribute('aria-label'), 'Filter by activity type');
-    assert.ok(!r.host.querySelector('h2'), 'a masthead is back over the tabs');
-    assert.equal(r.host.textContent, 'AllWorkoutsRunsPRs', 'the row carries a dateline or a count again');
-    const tabs = [...nav.querySelectorAll('button')];
-    assert.deepEqual(tabs.map((b) => b.getAttribute('aria-pressed')), ['false', 'false', 'true', 'false'], 'the type shown is the pressed tab');
-    assert.ok(tabs.every((b) => b.style.minHeight === '44px'), 'every tab is a full touch target');
-    const chips = tabs.map((b) => b.firstElementChild);
-    assert.deepEqual(chips.map((c) => c.getAttribute('data-led')), ['off', 'off', 'on', 'off'], 'only the type shown is lit');
-    // Dark paper: the shown chip is framed and lettered in the bright teal and glows; the others are framed in a hairline.
-    assert.equal(chips[2].style.color, 'rgb(52, 214, 197)', 'the type shown is not in the teal');
-    assert.match(chips[2].style.border, /rgb\(52, 214, 197\)/, 'the type shown is not framed in the teal');
-    assert.match(chips[2].style.textShadow, /0(px)? 0(px)? 8px/, 'the type shown does not glow');
-    assert.ok(chips[0].style.textShadow === 'none' && !/52, 214, 197/.test(chips[0].style.border), 'a type not shown is lit');
-    assert.ok(chips.every((c) => c.style.background === 'rgba(0, 0, 0, 0.45)'), 'every chip sits in the dark slot');
-    await React.act(async () => { tabs[3].click(); });
-    assert.deepEqual(picked, ['prs']);
-  } finally { await r.done(); }
-});
-
+// since the owner's B for the top of the Wall (2026-11-04) BSWallTop draws it (tests/wall-top.test.mjs).
 test('the Wall opens on its type tabs, the filter the ALL ▾ select was, with no masthead', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.doesNotMatch(src, /<select value=\{feedType\}/, 'the select is gone');
   assert.doesNotMatch(src, /BSWallMasthead|feed:wallMast\./, 'THE WALL\'s masthead is back');
-  const at = src.indexOf('<BSWallTypes');
+  const at = src.indexOf('<BSWallTop ');
   assert.ok(at > 0, 'the Wall draws its type tabs');
   const call = src.slice(at, src.indexOf('/>', at));
-  assert.match(call, /type=\{feedType\} onType=\{setFeedType\}/, 'its tabs filter the Wall');
-  for (const k of ['all', 'workouts', 'runs', 'prs', 'nutrition', 'milestones']) assert.match(call, new RegExp(`\\['${k}', tr\\('feed:type\\.${k}'`), k);
+  assert.match(call, /types=\{wallTypes\} type=\{feedType\} onType=\{setFeedType\}/, 'its tabs filter the Wall');
+  const list = src.slice(src.indexOf('const wallTypes = ['), src.indexOf('\n', src.indexOf('const wallTypes = [')));
+  for (const k of ['all', 'workouts', 'runs', 'prs', 'nutrition', 'milestones']) assert.match(list, new RegExp(`\\['${k}', tr\\('feed:type\\.${k}'`), k);
   assert.ok(at < src.indexOf('<BSWallTrainingNow '), 'the tabs head the live story');
+  assert.doesNotMatch(src, /<BSWallTypes/, 'a second row of type chips is back in the feed');
 });

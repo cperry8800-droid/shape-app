@@ -17,6 +17,7 @@ import { mayLeave, holdLeave } from '../services/leaveGuard.mjs';
 import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
+import BSProAdjustProgram from './BSProAdjust.jsx';
 import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookable.mjs';
 import { bsMakeAheadIndex, bsMadeAheadByName } from '../services/prepAhead.mjs';
 import { SHAPE_KITCHEN_RECIPES as BS_PRO_KITCHEN } from './shapeKitchenData.js';
@@ -30,7 +31,10 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProCatalog } from './BSProCatalog.jsx';
+import { BSProDraftComposer } from './BSProDraftComposer.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsRaised, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProClients } from './BSProClients.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -2580,8 +2584,6 @@ function useBSProRoster(role) {
   const matches = loadedFor === `${uid}:${role}`;
   return { clients: signedIn ? (matches ? live || [] : []) : bsDemoRoster(role, t), status: signedIn ? (matches ? status : 'loading') : 'ready', retry: () => setReload(n => n + 1) };
 }
-// Card-based coach roster — header, search, scrollable filter pills (scrollbar
-// hidden via .bs-hide-scroll), an Active/Past toggle, and tappable client cards.
 // The coach's corner settings gear — opens Settings (the shells listen for the
 // event). The chrome's BSSettingsCorner, as on every page's corner (owner: "make
 // the settings avatar something different in top right").
@@ -2590,10 +2592,6 @@ function BSProSettingsButton({ size = 38 }) {
   const Gear = typeof window !== 'undefined' ? window.BSSettingsCorner : null;
   return Gear ? <Gear size={size} onClick={open} /> : null;
 }
-// The Client Index — the owner's Clients mockup C (2026-10-25): three tabs (Needs you · On track ·
-// Past), a search field and the phase filters; Needs you groups its clients by how soon (reach out
-// today, this week, new clients), each a row that opens the client, with a Message button for the
-// first group. The parent's state/logic (query/filter/needsYou/roster/counts/onOpen) is unchanged.
 // Stable no-op fallback for the in-view hook, so BSProRosterView can call it
 // UNCONDITIONALLY (rules of hooks) even if the client-bundle kit isn't present.
 function bsUseSdInViewFallback() { return [null, true]; }
@@ -2617,32 +2615,34 @@ function BSProPayRetryMark({ c }) {
   return <span data-pay-retry="" style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:roster.paymentRetrying', { defaultValue: 'Payment retrying' })}</span>;
 }
 
-function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients, allClients = null, activeCount, pastCount, totalCount, newThisMonth = 3, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
+// ⚠ THE CLIENTS PAGE (owner, 2026-11-04, of three looks drawn for it: "C for clients"). BSProClients.jsx
+// draws it: who needs you first (their faces and how many, the other two figures under them), the four
+// views, the search with the phase beside it, and every client in one compact list with Message on each.
+// This view works out what it shows (the roster, the views and their counts, the groups and their order,
+// the figures, each row's facts and figure) and owns every door (a client's file, Message, ＋ Add, the
+// views, Clear filters), and hands them over as the model.
+function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients, allClients = null, activeCount, pastCount, totalCount, roster, setRoster, query, setQuery, filter, setFilter, needsYou = false, setNeedsYou = () => {}, onOpen, footerLeft, footerRight }) {
   const t = useBSProClean();
   const tr = useShapeTr();
   const heat = bsProHeat(t, role);
   const filters = BS_ROSTER_FILTERS[role] || BS_ROSTER_FILTERS.trainer;
-  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
 
   // The client's age, as a string, or null when there is none to show.
-  // ⚠ A STRING, NOT THE NUMBER: every row below composes its meta through
-  // `.filter(Boolean)`, and a bare 0 would be dropped by it — 0 is a real age.
-  // `_age` is absent for demo rows and for anyone the roster read could not
-  // answer for; absence renders as nothing, never as a placeholder or "private".
+  // ⚠ A STRING, NOT THE NUMBER: a row composes its words through `.filter(Boolean)`, and a bare 0 would
+  // be dropped by it — 0 is a real age. `_age` is absent for demo rows and for anyone the roster read
+  // could not answer for; absence renders as nothing, never as a placeholder or "private".
   const ageWord = (c) => (typeof c._age === 'number' ? String(c._age) : null);
 
   const [expanded, setExpanded] = useStateBSP(false);
   const [showAdd, setShowAdd] = useStateBSP(false);
-  // The tab (owner, 2026-10-25, the Clients mockup C): Needs you · On track · Past. `null` opens on
-  // Needs you whenever anyone needs the coach, else on On track. Past is the parent's roster state.
+  // The view: Needs you · On track · Past · All. `null` opens on Needs you whenever anyone needs the
+  // coach, else on On track. Past is the parent's roster state.
   const [view, setView] = useStateBSP(null);
 
-  // ＋ADD opens the real add-client sheet (invite a member with your listing attached, or share the link).
+  // ＋ Add opens the real add-client sheet (invite a member with your listing attached, or share the link).
   const goGrowRoster = () => setShowAdd(true);
   const messageClient = (c) => { try { window.dispatchEvent(new CustomEvent('shape:proMessageClient', { detail: { client: { userId: c.userId || null, n: c.n } } })); } catch (e) {} };
 
-  const SEV_HUE = { red: '#c0533b', amber: '#d8a23a', new: '#5fa96e' };
-  const sevText = (s) => (t.isLight ? { red: '#9c3b26', amber: '#7a5205', new: '#2c6436' } : { red: '#e98a73', amber: '#e8c06a', new: '#86c995' })[s] || t.INK70;
   const rows = clients.map((c) => ({ c, sig: bsRowSeverity(c, role) })).sort((a, b) => a.sig.rank - b.sig.rank);
   // In PAST mode `clients` holds past records (all sev 'past') — they'd be dropped by
   // both the needs and on-track filters, so route them to their own list instead.
@@ -2651,7 +2651,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
   const onTrackRows = pastMode ? [] : rows.filter((r) => !bsProNeedsAttention(r.sig) && r.sig.sev !== 'past');
   const pastRows = pastMode ? rows : [];
   // Every current client in one list (owner, 2026-10-31: "client page should include a tab or
-  // section that shows total current clients"): the tabs split them by what they need, this is all.
+  // section that shows total current clients"): the views split them by what they need, this is all.
   const allRows = pastMode ? [] : rows.filter((r) => r.sig.sev !== 'past');
   const k = needsRows.length;
   const m = onTrackRows.length;
@@ -2664,29 +2664,19 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
     { sev: 'amber', label: tr('coach:roster.groupAmber', { defaultValue: 'This week' }) },
     { sev: 'new', label: tr('coach:roster.groupNew', { defaultValue: 'New clients' }) },
   ];
-
-  const tab = (key, label, count, onPick) => {
-    const on = activeView === key;
-    return (
-      // A compact chip, as concept A drew them (owner, 2026-11-03: "the filter options looks much
-      // different"): 34px to see, the button around it 44px to tap.
-      <button key={key} type="button" role="tab" aria-selected={on} onClick={onPick}
-        style={{ flexShrink: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', height: 34, padding: '0 12px', boxSizing: 'border-box', border: `1px solid ${on ? t.INK : t.INK50}`, borderRadius: 4, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 650, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-          {label}{count != null ? <span style={{ color: !on && key === 'needs' && count > 0 ? sevText('red') : 'inherit' }}>&nbsp;{count}</span> : null}
-        </span>
-      </button>
-    );
+  const pickTab = {
+    needs: () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); },
+    track: () => { setView('track'); if (pastMode) setRoster('active'); },
+    past: () => { if (!pastMode) setRoster('past'); },
+    all: () => { setView('all'); if (pastMode) setRoster('active'); },
   };
-  // A client row: the whole row opens the client; marks ride inside it (a payment that is retrying,
-  // a weekend gap, a variable week). A client to reach out to today also gets a Message button.
+
   // ⚠ MORE ABOUT EACH CLIENT (owner, 2026-10-31: "this page needs to have more information on
-  // clients"). A row named the client, what to do and the phase. It now also says what the roster
-  // knows: their program and streak, their workouts in the last six weeks (a trainer) or average
-  // intake (a nutritionist), since when they have been a client, and the coach's own figure (training
-  // adherence, or days logged this week) as a number with a bar. Nothing is made up: a fact the
-  // roster lacks is left out. The live reads hold no program or streak for a coach yet (Codex on
-  // #2532; War Room), so a live row says what they do hold.
+  // clients"). What the roster knows: their program and streak, their workouts in the last six weeks
+  // (a trainer) or average intake (a nutritionist), since when they have been a client, and the coach's
+  // own figure (training adherence, or days logged this week). Nothing is made up: a fact the roster
+  // lacks is left out. The live reads hold no program or streak for a coach yet (Codex on #2532; War
+  // Room), so a live row says what they do hold.
   const rowAdh = (c) => (typeof c.adh === 'number' ? c.adh : (/^\d{1,3}%$/.test(String(c.d || '')) ? Number(String(c.d).slice(0, -1)) : null));
   const rowFacts = (c) => {
     let since = null;
@@ -2710,187 +2700,36 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
       since ? tr('coach:roster.since', { defaultValue: 'Since {date}', date: since }) : null,
     ].filter(Boolean);
   };
-  // The coach's figure as a ten-tick meter over the number (direction A): ink when it holds, amber when it
-  // slips, red under half. The roster reads one figure a client, not their days, so the meter is that figure.
-  const weekFigure = (c) => {
-    const pct = rowAdh(c);
-    if (pct == null || pastMode) return null;
-    const hue = pct >= 75 ? t.INK : pct >= 50 ? SEV_HUE.amber : SEV_HUE.red;
-    return (
-      <span data-roster-week="" style={{ flexShrink: 0, minWidth: 56, textAlign: 'right', paddingRight: 2 }}>
-        <BSProMeter t={t} pct={pct} hue={hue} />
-        <span style={{ display: 'block', marginTop: 5, fontFamily: BS_GAUGE_FACE, fontSize: 18, fontWeight: 400, letterSpacing: '-0.01em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
-        <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{(c.adhSrc || (role === 'nutritionist' ? 'log' : 'train')) === 'log' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })}</span>
-      </span>
-    );
-  };
-  // The deck's figures read the whole current roster, whatever the tab, phase or search shows: who needs
-  // the coach, the average of the coach's own measure (adherence, or days logged) over the clients it is
-  // known for, and how many are active.
+  // A row's marks: a weekend gap (the rust FLAG) and a variable week (a WATCH-tier signal, something to
+  // coach, not a failure; `steady` says nothing, never-shaming).
+  const marks = (c) => [
+    c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged
+      ? { k: 'wknd', tone: 'red', text: tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) }) } : null,
+    c._var && c._var.band === 'variable' ? { k: 'var', tone: 'amber', text: tr('coach:roster.variable', { defaultValue: 'VARIABLE' }) } : null,
+  ].filter(Boolean);
+  // The figures read the whole current roster, whatever the view, phase or search shows: who needs the
+  // coach, the average of the coach's own measure (adherence, or days logged) over the clients it is known
+  // for, and how many are active.
   const deckPool = (allClients || clients).filter((c) => c.active !== false && bsRowSeverity(c, role).sev !== 'past');
   const deckNeed = deckPool.filter((c) => bsProNeedsAttention(bsRowSeverity(c, role))).length;
   const deckMeasure = role === 'nutritionist' ? 'log' : 'train';
   const deckAdh = deckPool.filter((c) => (c.adhSrc || deckMeasure) === deckMeasure).map(rowAdh).filter((v) => v != null);
   const deckAvg = deckAdh.length ? Math.round(deckAdh.reduce((x, y) => x + y, 0) / deckAdh.length) : null;
-  const deckReady = status === 'ready';
-  const clientRow = ({ c, sig }, i, { lead = true, message = false } = {}) => (
-    <div key={`${activeView}-${c.n}-${i}`} data-roster-sev={sig.sev} style={{ display: 'flex', alignItems: 'center', gap: 4, borderBottom: `1px solid ${t.RULE}`, borderLeft: `3px solid ${sig.sev === 'red' || sig.sev === 'amber' ? SEV_HUE[sig.sev] : 'transparent'}`, background: sig.sev === 'red' ? `${SEV_HUE.red}12` : 'transparent' }}>
-      <button type="button" onClick={() => onOpen(c)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, minHeight: lead ? 66 : 54, padding: lead ? '10px 4px 10px 12px' : '8px 4px 8px 14px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-        {lead
-          ? <BSFacetAvatar size={40} c={c.c} initial={c.i} name={c.n} photo={c.avatarUrl || c.avatar || undefined} showRank={false} />
-          : <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, background: pastMode ? t.INK70 : SEV_HUE.new }} />}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: lead ? 700 : 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {c.n}{ageWord(c) ? <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}> · {ageWord(c)}</span> : null}
-          </span>
-          {lead && sig.directive ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{sig.directive}</span> : null}
-          {(() => { const facts = rowFacts(c); return facts.length ? <span data-roster-facts="" style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12, lineHeight: 1.35, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{facts.join(' · ')}</span> : null; })()}
-          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 3 }}>
-            {(() => { const meta = c.r || (pastMode ? tr('coach:roster.labelPast', { defaultValue: 'PAST' }) : null); return meta ? <span style={{ fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK70 }}>{meta}</span> : null; })()}
-            {c._wknd?.worstDimension && c._wknd.dimensions?.[c._wknd.worstDimension]?.flagged && (
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: sevText('red'), whiteSpace: 'nowrap' }}>{tr('coach:roster.wkndGap', { defaultValue: 'WKND −{gap}', gap: Math.abs(Math.round(c._wknd.dimensions[c._wknd.worstDimension].gapPp)) })}</span>
-            )}
-            {/* WATCH-tier signal, deliberately NOT the rust FLAG colour — a variable week-to-week
-                pattern is something to coach, not a failure. `steady` renders nothing (never-shaming). */}
-            {c._var && c._var.band === 'variable' && (
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: sevText('amber'), whiteSpace: 'nowrap' }}>{tr('coach:roster.variable', { defaultValue: 'VARIABLE' })}</span>
-            )}
-            <BSProPayRetryMark c={c} />
-          </span>
-        </span>
-        {weekFigure(c)}
-        {!message && <span aria-hidden style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, lineHeight: 1, color: t.INK70, paddingRight: 6 }}>›</span>}
-      </button>
-      {message && (
-        <button type="button" onClick={() => messageClient(c)} aria-label={tr('coach:roster.messageAria', { defaultValue: 'Message {name}', name: c.n })}
-          style={{ width: 44, height: 44, flexShrink: 0, marginRight: 8, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16v11H9.5L4 20z" /></svg>
-        </button>
-      )}
-    </div>
-  );
-  // A group's rows as a ledger: a 2px ink rule over hairline rows (direction A).
-  const card = (children) => <div data-roster-ledger="" style={bsProLedgerTop(t)}>{children}</div>;
-  const quiet = (label) => (Redact ? <Redact INK={t.INK} label={label} /> : (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-      <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.RULE}` }} />
-      <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{label}</span>
-      <span aria-hidden style={{ flex: 1, borderTop: `1px dashed ${t.RULE}` }} />
-    </div>
-  ));
 
   return (
-    <BSPage>
-      {/* Header — the mast row on the paper, then the deck (direction A): "Clients." with ＋ Add (≥44px) and
-          the roster's three figures. The mast row needs the standard top / t.padX inset (BSPage provides no top
-          padding) so it clears the notch; it stays on the paper, under the status bar's own colours. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
-      <BSProCleanType t={t}>
-      <BSProDeck t={t} role={role} tour="hero-clients" title={tr('coach:nav.clients', { defaultValue: 'Clients' })}
-        aside={<button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(bsDeckTeal(t)) }}>＋ {tr('coach:head.add', { defaultValue: 'Add' })}</button>}>
-        <BSProDeckGauges t={t} items={[
-          { key: 'need', value: deckReady ? String(deckNeed) : '—', label: tr('coach:today.needYou', { defaultValue: 'NEED YOU' }), color: deckReady && deckNeed ? '#f08f76' : undefined },
-          { key: 'avg', value: deckReady && deckAvg != null ? `${deckAvg}%` : '—', label: role === 'nutritionist' ? tr('coach:roster.kpiAvgLogged', { defaultValue: 'Avg logged · 7d' }) : tr('coach:roster.kpiAvgAdherence', { defaultValue: 'Avg adherence' }) },
-          { key: 'active', value: deckReady ? String(Number(activeCount) || 0) : '—', label: tr('coach:ticker.active', { defaultValue: 'ACTIVE' }) },
-        ]} />
-        <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={status} onRetry={onRetry} /></div>
-      </BSProDeck>
-
-      {/* The four tabs — what needs the coach, who is holding, past clients, and every current client:
-          compact chips in concept A's order, the pick in ink. */}
-      <div role="tablist" aria-label={tr('coach:roster.viewAria', { defaultValue: 'Roster view' })} data-roster-view={activeView} className="bs-hide-scroll"
-        style={{ margin: `12px ${t.padX}px 0`, display: 'flex', gap: 6, overflowX: 'auto' }}>
-        {tab('needs', tr('coach:roster.tabNeeds', { defaultValue: 'Needs you' }), pastMode ? null : k, () => { setExpanded(false); setView('needs'); if (pastMode) setRoster('active'); })}
-        {tab('track', tr('coach:roster.tabTrack', { defaultValue: 'On track' }), pastMode ? null : m, () => { setView('track'); if (pastMode) setRoster('active'); })}
-        {tab('past', tr('coach:roster.tabPast', { defaultValue: 'Past' }), pastCount, () => { if (!pastMode) setRoster('past'); })}
-        {tab('all', tr('coach:roster.tabAll', { defaultValue: 'All' }), pastMode ? null : allRows.length, () => { setView('all'); if (pastMode) setRoster('active'); })}
-      </div>
-
-      {/* Search, then the phase filters. */}
-      <label style={{ margin: `6px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
-        <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('coach:roster.searchAria', { defaultValue: 'Search clients' })} placeholder={tr('coach:roster.searchPlaceholder', { defaultValue: 'Search {count} clients', count: totalCount })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
-      </label>
-      <div className="bs-hide-scroll" style={{ margin: `6px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 4, overflowX: 'auto' }}>
-        {filters.map((f) => {
-          const on = filter === f.k;
-          return (
-            <button key={f.k} type="button" aria-pressed={on} onClick={() => setFilter(f.k)} style={{ flexShrink: 0, minWidth: 44, minHeight: 44, padding: '0 10px', border: 0, borderBottom: `2px solid ${on ? heat : 'transparent'}`, borderRadius: 0, background: 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{f.label}</button>
-          );
-        })}
-        {(query || filter !== 'all' || needsYou) && <button type="button" onClick={() => { setQuery(''); setFilter('all'); setNeedsYou(false); }} style={bsProLink(t)}>{tr('coach:roster.clearFilters', { defaultValue: 'Clear filters' })}</button>}
-      </div>
-
-      <div style={{ padding: `0 ${t.padX}px 24px` }}>
-        {/* Filtered-to-empty (an active roster with no matches) — NOT the zero-roster case (below). */}
-        {!pastMode && rows.length === 0 && totalCount > 0 && <div style={{ marginTop: 22 }}>{quiet(tr('coach:roster.noMatching', { defaultValue: 'NO MATCHING CLIENTS' }))}</div>}
-
-        {/* NEEDS YOU — grouped by how soon: reach out today, this week, new clients. */}
-        {activeView === 'needs' && rows.length > 0 && (
-          <>
-            {GROUPS.map(({ sev, label }) => {
-              const group = needsRows.filter((r) => r.sig.sev === sev);
-              if (!group.length) return null;
-              return (
-                <div key={sev} data-roster-group={sev} style={{ marginTop: 20 }}>
-                  <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{label}{bsProCount(t, group.length, sevText(sev))}</h2>
-                  {card(group.map((r, i) => clientRow(r, i, { message: sev === 'red' })))}
-                </div>
-              );
-            })}
-            {k === 0 && <p style={{ margin: '20px 0 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.nobodyNeeds', { defaultValue: 'Nobody needs you right now.' })}</p>}
-            {m > 0 && (
-              <button type="button" onClick={() => setView('track')} style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 8, minHeight: 48, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.everyoneElse', { defaultValue: 'Everyone else is on track.' })}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, color: t.INK }}>{tr('coach:roster.seeCount', { defaultValue: 'See {count} →', count: m })}</span>
-              </button>
-            )}
-          </>
-        )}
-
-        {/* ALL — every current client in one card, those who need the coach first. */}
-        {activeView === 'all' && rows.length > 0 && (
-          <div data-roster-group="all" style={{ marginTop: 20 }}>
-            <h2 style={{ ...bsProH2(t), marginBottom: 8 }}>{tr('coach:roster.groupAll', { defaultValue: 'Current clients' })}{bsProCount(t, allRows.length, t.INK)}</h2>
-            {allRows.length > 0 ? card(allRows.map((r, i) => clientRow(r, i, { lead: true, message: r.sig.sev === 'red' }))) : null}
-          </div>
-        )}
-
-        {/* ON TRACK — quiet rows in one card, the first eight then the rest on a tap. */}
-        {activeView === 'track' && rows.length > 0 && (
-          <div data-roster-group="track" style={{ marginTop: 20 }}>
-            {onTrackRows.length > 0 ? card(trackShown.map((r, i) => clientRow(r, i, { lead: false }))) : <p style={{ margin: 0, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:roster.noneOnTrack', { defaultValue: 'Nobody is on track yet. Start with Needs you.' })}</p>}
-            {trackMore > 0 && (
-              <button type="button" onClick={() => setExpanded(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: '6px 2px 0', textAlign: 'left' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:roster.moreOnTrack', { defaultValue: '{count} MORE ON TRACK', count: trackMore })}</span>
-                <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${t.RULE}` }} />
-                <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK }}>{tr('coach:roster.show', { defaultValue: 'SHOW ›' })}</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* PAST — the coach's past clients (the parent's roster is 'past' here). */}
-        {pastMode && status === 'ready' && (
-          <div data-roster-group="past" style={{ marginTop: 20 }}>
-            {pastRows.length > 0 ? card(pastRows.map((r, i) => clientRow(r, i, { lead: false }))) : quiet(tr('coach:roster.noPast', { defaultValue: 'NO PAST CLIENTS' }))}
-          </div>
-        )}
-
-        {/* Signed-in empty roster — redaction line + Grow your roster →. */}
-        {status === 'ready' && totalCount === 0 && (
-          <div style={{ marginTop: 20 }}>
-            {quiet(tr('coach:roster.noClients', { defaultValue: 'NO CLIENTS YET' }))}
-            <button type="button" onClick={goGrowRoster} style={{ display: 'block', margin: '10px auto 0', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK }}>
-              <span style={{ borderBottom: `1.5px solid ${heat}`, paddingBottom: 2 }}>{tr('coach:roster.growRoster', { defaultValue: 'Grow your roster →' })}</span>
-            </button>
-          </div>
-        )}
-      </div>
-      </BSProCleanType>
-      <BSFooter left={footerLeft} right={footerRight} />
-      {showAdd && <BSProAddClientSheet role={role} onClose={() => setShowAdd(false)} />}
-    </BSPage>
+    <BSProClients t={t} model={{
+      role, status, onRetry, pastMode, activeView, pickTab, k, m, pastCount, totalCount,
+      rows, needsRows, onTrackRows, pastRows, allRows, trackShown, trackMore, expandTrack: () => setExpanded(true), groups: GROUPS,
+      deck: { ready: status === 'ready', need: deckNeed, avg: deckAvg, active: Number(activeCount) || 0 },
+      // Who the figures count as needing the coach, most urgent first: their faces at the top.
+      needPool: deckPool.map((c) => ({ c, sig: bsRowSeverity(c, role) })).filter((r) => bsProNeedsAttention(r.sig)).sort((a, b) => a.sig.rank - b.sig.rank),
+      query, setQuery, filter, setFilter, filters, filtered: !!(query || filter !== 'all' || needsYou),
+      clearFilters: () => { setQuery(''); setFilter('all'); setNeedsYou(false); },
+      onOpen, messageClient, goGrowRoster, showAdd, closeAdd: () => setShowAdd(false),
+      rowFacts, rowAdh: (c) => (pastMode ? null : rowAdh(c)), ageWord, marks,
+      weekLabel: (c) => ((c.adhSrc || deckMeasure) === 'log' ? tr('coach:roster.weekLogged', { defaultValue: 'Logged · 7d' }) : tr('coach:roster.weekAdherence', { defaultValue: 'Adherence' })),
+      heat, footerLeft, footerRight,
+    }} kit={{ mastRow: bsProMastRow, PayRetry: BSProPayRetryMark, AddSheet: BSProAddClientSheet }} />
   );
 }
 
@@ -2908,7 +2747,6 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
 function BSProAddClientSheet({ role, onClose }) {
   const t = useBS();
   const tr = useShapeTr();
-  const heat = bsProHeat(t, role);
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const myUid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const [mine, setMine] = useStateBSP(undefined); // undefined = loading · null = no provider row
@@ -3102,84 +2940,152 @@ function BSProAddClientSheet({ role, onClose }) {
       window.__bsToast?.(tr('coach:addClient.shareFailed', { defaultValue: 'Couldn’t share or copy the link — it’s also on your Business page.' }), 'err');
     }
   };
+  // ⚠ THE SHEET IN THE MEMBER PROFILE'S LOOK (owner, 2026-11-04, of this sheet: "this needs update", and of
+  // every redesign: "simple … modern, appealing, easy to navigate, not overwhelming, not analog … really alive").
+  // It was mono capitals, amber-ruled notes and dashed boxes. Now: a friendly head with its icon, the notices
+  // as soft callouts, the member search as a rounded field whose matches are rows with their facet avatar and
+  // an Invite pill, and the three ways to send the link as rounded buttons with their icons. Every state and
+  // door above is unchanged: the listing check and its notice, the search's three answers, invite and Retry
+  // 0% tag, the 0% pitch or its unavailable note, email, text, share or copy, close.
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
+  const L = !!t.isLight;
+  const inkA = (a) => `rgba(${t.inkRGB || (L ? '20,18,15' : '242,237,228')},${a})`;
+  const isNutri = role === 'nutritionist';
+  // The role's colour as words (AA on the paper) and as a lit pill (its fill and the words on it).
+  const heatText = isNutri ? (L ? '#7a5a1e' : '#e3c477') : (L ? '#9c3b26' : '#f09a84');
+  const heatFill = isNutri ? (L ? { bg: '#86641f', fg: '#ffffff' } : { bg: '#d8b25a', fg: '#1f1606' }) : (L ? { bg: '#b8452c', fg: '#ffffff' } : { bg: '#ff8a70', fg: '#2a0d06' });
+  const amber = L ? '#b07810' : '#f2b84b';
+  const tealText = L ? '#07706a' : '#34d6c5';
+  // Light given off: a soft tinted shadow on a light paper, a halo on a dark one (hex colours only).
+  const softGlow = (c) => (L ? `0 8px 18px -10px ${c}` : `0 0 16px ${c}73`);
+  const tile = { borderRadius: 18, background: L ? 'rgba(255,255,255,0.8)' : inkA(0.06), border: `1px solid ${inkA(L ? 0.08 : 0.1)}`, boxShadow: L ? '0 1px 2px rgba(20,18,15,0.05), 0 12px 26px -20px rgba(20,18,15,0.45)' : 'inset 0 1px 0 rgba(255,255,255,0.06), 0 14px 30px -22px rgba(0,0,0,0.9)' };
+  const head = (label) => <span style={{ display: 'block', fontFamily: BS_PRO_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK }}>{label}</span>;
+  // A soft callout: a tinted round box with its mark, the words in the clean face at a readable size.
+  const callout = (tone, mark, words, key) => (
+    <div data-add-callout={key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 16, background: `${tone}${L ? '14' : '1f'}`, border: `1px solid ${tone}${L ? '33' : '40'}` }}>
+      <span aria-hidden="true" style={{ flex: 'none', minWidth: 26, height: 26, padding: '0 4px', boxSizing: 'border-box', borderRadius: 99, display: 'grid', placeItems: 'center', background: `${tone}${L ? '24' : '33'}`, color: L ? t.INK : tone, fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 800 }}>{mark}</span>
+      <span style={{ flex: 1, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 500, lineHeight: 1.45, color: t.INK }}>{words}</span>
+    </div>
+  );
+  const pill = (fill, extra) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, padding: '0 15px', borderRadius: 99, boxSizing: 'border-box', whiteSpace: 'nowrap', fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, lineHeight: 1, ...(fill ? { background: fill.bg, color: fill.fg, boxShadow: softGlow(fill.bg) } : null), ...(extra || null) });
+  const hit = { minHeight: 44, minWidth: 44, padding: 0, border: 0, background: 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' };
+  const icon = (d, size = 20, sw = 2) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+  const channels = [
+    { key: 'email', label: tr('coach:addClient.emailIt', { defaultValue: 'Email it' }), onTap: emailIt, d: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M4 7l8 6 8-6" /></> },
+    { key: 'text', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt, d: <path d="M4 5h16v11H9.5L4 20z" /> },
+    { key: 'share', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing, d: <><path d="M12 3v12" /><path d="M7.5 7.5L12 3l4.5 4.5" /><path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></> },
+  ];
+  const sheetCss = `
+@keyframes bsadd-up { from { transform: translateY(40px); opacity: 0.6; } }
+@keyframes bsadd-fade { from { opacity: 0; } }
+@keyframes bsadd-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes bsadd-dot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+[data-add-client] button { -webkit-tap-highlight-color: transparent; }
+[data-add-client] button:focus-visible, [data-add-client] input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+[data-add-client] [data-add-press] { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+[data-add-client] [data-add-press]:not(:disabled):active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) { [data-add-client], [data-add-client] * { animation: none !important; transition: none !important; } }
+`;
   const sheet = (
-    <div onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '86%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }} className="bs-hide-scroll">
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase', color: heat }}>{tr('coach:addClient.eyebrow', { defaultValue: 'Grow your roster' })}</div>
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1.15 }}>{tr('coach:addClient.title', { defaultValue: 'Add a client.' })}</div>
-        <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.6 }}>{tr('coach:addClient.blurb', { defaultValue: 'Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.' })}</div>
-        {mine === null && (
-          <div style={{ marginTop: 12, padding: '10px 12px', borderLeft: `3px solid ${t.AMBER || heat}`, background: t.PAPER2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-            {tr('coach:addClient.noListing', { defaultValue: "No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved." })}
+    <div data-add-client="" onClick={() => !busyId && onClose()} style={{ position: 'absolute', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', animation: 'bsadd-fade 220ms ease-out both' }}>
+      <style>{sheetCss}</style>
+      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={tr('coach:addClient.aria', { defaultValue: 'Add a client' })} data-bs-clean="" className="bs-hide-scroll"
+        style={{ position: 'relative', width: '100%', boxSizing: 'border-box', maxHeight: '88%', overflowY: 'auto', background: L ? `linear-gradient(180deg, rgba(255,255,255,0.7), rgba(255,255,255,0) 160px), ${t.PAPER}` : `linear-gradient(180deg, ${inkA(0.07)}, ${inkA(0)} 160px), ${t.PAPER}`, borderTopLeftRadius: 28, borderTopRightRadius: 28, boxShadow: L ? '0 -18px 40px -20px rgba(20,18,15,0.45), inset 0 1px 0 rgba(255,255,255,1)' : '0 -20px 44px -18px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.1)', padding: `10px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, animation: 'bsadd-up 300ms cubic-bezier(.2,.8,.2,1) both' }}>
+        <span aria-hidden="true" style={{ display: 'block', width: 40, height: 5, margin: '0 auto 12px', borderRadius: 99, background: inkA(0.18) }} />
+        {/* The head: its icon, who this is for, the title, and ✕. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <span aria-hidden="true" style={{ flex: 'none', width: 48, height: 48, borderRadius: 16, display: 'grid', placeItems: 'center', background: `linear-gradient(150deg, ${heatFill.bg}, ${L ? '#0a7a72' : '#1fb3a3'})`, color: '#fff', boxShadow: `${softGlow(heatFill.bg)}, inset 0 1px 0 rgba(255,255,255,0.35)` }}>
+            {icon(<><circle cx="10" cy="8" r="3.6" /><path d="M3.5 20c.8-3.6 3.4-5.6 6.5-5.6 1.5 0 2.9.4 4 1.3" /><path d="M18 14v6M15 17h6" /></>, 24, 2.1)}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, color: heatText }}>{tr('coach:addClient.eyebrow', { defaultValue: 'Grow your roster' })}</div>
+            <h2 style={{ margin: '2px 0 0', fontFamily: BS_PRO_HEAD, fontSize: 26, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.1, color: t.INK }}>{tr('coach:addClient.title', { defaultValue: 'Add a client.' })}</h2>
           </div>
-        )}
-        <label style={{ display: 'block', marginTop: 14 }}>
-          <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, marginBottom: 6 }}>{tr('coach:addClient.inviteLabel', { defaultValue: 'Invite a member on Shape' })}</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('coach:addClient.searchPlaceholder', { defaultValue: 'Search members by name…' })} autoComplete="off"
-            style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER2, color: t.INK, border: `1px solid ${t.RULE}`, borderRadius: t.RADIUS_SM, padding: '10px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-        </label>
-        {searching && <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.searching', { defaultValue: 'Searching…' })}</div>}
-        {/* The refusal/failure notice renders AHEAD of the empty state — reversing
-            these two puts "No members match" on screen for a search that never
-            ran, which is the claim this whole change exists to stop making. */}
-        {!searching && searchState !== 'ok' && (
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>
-            {searchState === 'limited'
-              ? tr('coach:addClient.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
-              : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." })}
-          </div>
-        )}
-        {!searching && searchState === 'ok' && results && results.length === 0 && (
-          <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:addClient.noMembers', { defaultValue: 'No members match — share your listing link instead.' })}</div>
-        )}
-        {!searching && (results || []).map((p) => (
-          <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>
-            {FA
-              ? <FA size={34} c={teal} initial={(p.name || 'M').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()} photo={p.avatar || undefined} showRank={false} />
-              : <span style={{ width: 34, height: 34, borderRadius: 10, background: teal, color: '#06110e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{(p.name || 'M').slice(0, 1).toUpperCase()}</span>}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
+          <button type="button" data-add-close="" onClick={onClose} aria-label={tr('coach:common.close', { defaultValue: 'Close' })} style={{ ...hit, marginTop: -4, marginRight: -6, cursor: 'pointer', color: t.INK70 }}>
+            <span style={{ width: 34, height: 34, borderRadius: 99, display: 'grid', placeItems: 'center', background: inkA(0.07), border: `1px solid ${inkA(0.12)}` }}>{icon(<path d="M6 6l12 12M18 6L6 18" />, 15, 2.4)}</span>
+          </button>
+        </div>
+        <p style={{ margin: '12px 0 0', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 500, lineHeight: 1.5, color: t.INK70 }}>{tr('coach:addClient.blurb', { defaultValue: 'Clients join your roster by subscribing to you. Invite a member — your listing lands in their chat — or share the link anywhere.' })}</p>
+        {mine === null && <div style={{ marginTop: 12 }}>{callout(amber, '!', tr('coach:addClient.noListing', { defaultValue: "No marketplace listing found for this account yet — invites carry your listing, so they'll switch on once your coach application is approved." }), 'noListing')}</div>}
+
+        {/* Invite a member: a rounded search field, then the matches as rows with their facet avatar. */}
+        <section style={{ marginTop: 20 }}>
+          <label style={{ display: 'block' }}>
+            {head(tr('coach:addClient.inviteLabel', { defaultValue: 'Invite a member on Shape' }))}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, minHeight: 50, padding: '0 16px', borderRadius: 99, boxSizing: 'border-box', background: L ? 'rgba(255,255,255,0.85)' : inkA(0.06), border: `1px solid ${inkA(L ? 0.12 : 0.14)}`, boxShadow: L ? 'inset 0 1px 2px rgba(20,18,15,0.06)' : 'inset 0 1px 3px rgba(0,0,0,0.45)', cursor: 'text' }}>
+              <span style={{ color: t.INK50, display: 'inline-flex' }}>{icon(<><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></>, 18, 2.2)}</span>
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr('coach:addClient.searchPlaceholder', { defaultValue: 'Search members by name…' })} autoComplete="off"
+                style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 16, fontWeight: 500, outline: 'none' }} />
+            </span>
+          </label>
+          {searching && (
+            <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 600, color: t.INK50 }}>
+              <span aria-hidden="true" style={{ display: 'inline-flex', gap: 4 }}>{[0, 1, 2].map((i) => <span key={i} style={{ width: 6, height: 6, borderRadius: 99, background: tealText, animation: `bsadd-dot 1s ease-in-out ${i * 160}ms infinite` }} />)}</span>
+              {tr('coach:common.searching', { defaultValue: 'Searching…' })}
             </div>
-            {invited[inviteKey(p.userId)] === 'ok'
-              ? <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: teal }}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
-              : invited[inviteKey(p.userId)] === 'noTag'
-                ? <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 12px', background: 'transparent', border: `1px dashed ${t.AMBER || heat}`, color: t.AMBER || heat, cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</button>
-                : <button onClick={() => invite(p)} disabled={!!busyId} style={{ minHeight: 34, padding: '8px 14px', border: 0, background: heat, color: t.isLight ? '#fff' : '#0c0a08', cursor: busyId ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)', opacity: busyId ? 0.6 : 1 }}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</button>}
-          </div>
-        ))}
-        <div style={{ marginTop: 18 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' })}</div>
+          )}
+          {/* The refusal/failure notice renders AHEAD of the empty state — reversing
+              these two puts "No members match" on screen for a search that never
+              ran, which is the claim this whole change exists to stop making. */}
+          {!searching && searchState !== 'ok' && (
+            <div style={{ marginTop: 12 }}>{callout(amber, '!', searchState === 'limited'
+              ? tr('coach:addClient.searchLimited', { defaultValue: 'Searching a little fast — give it a moment.' })
+              : tr('coach:addClient.searchFailed', { defaultValue: "Couldn't search just now — check your connection and try again." }), 'search')}</div>
+          )}
+          {!searching && searchState === 'ok' && results && results.length === 0 && (
+            <div style={{ marginTop: 12 }}>{callout(L ? '#5b5650' : '#b8b1a6', '?', tr('coach:addClient.noMembers', { defaultValue: 'No members match — share your listing link instead.' }), 'none')}</div>
+          )}
+          {!searching && results && results.length > 0 && (
+            <div data-add-results="" style={{ ...tile, marginTop: 12, padding: '2px 12px' }}>
+              {results.map((p, i) => {
+                const st = invited[inviteKey(p.userId)];
+                return (
+                  <div key={p.userId} data-add-member={p.userId} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 62, padding: '8px 0', borderTop: i ? `1px solid ${inkA(0.08)}` : 0, animation: `bsadd-in 260ms ease-out ${Math.min(i, 6) * 40}ms both` }}>
+                    <span aria-hidden="true" style={{ flex: 'none', display: 'grid' }}>
+                      {FA
+                        ? <FA size={40} c={teal} initial={(p.name || 'M').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()} name={p.name || ''} photo={p.avatar || undefined} showRank={false} />
+                        : <span style={{ width: 40, height: 40, borderRadius: 99, background: teal, color: '#06110e', display: 'grid', placeItems: 'center', fontFamily: BS_PRO_SANS, fontSize: 14, fontWeight: 800 }}>{(p.name || 'M').slice(0, 1).toUpperCase()}</span>}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: BS_PRO_HEAD, fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em', color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                      <div style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 500, color: t.INK50 }}>{tr('coach:addClient.member', { defaultValue: 'Member' })}</div>
+                    </div>
+                    {st === 'ok'
+                      ? <span style={pill(null, { background: L ? 'rgba(10,143,135,0.12)' : 'rgba(52,214,197,0.14)', color: tealText })}>{tr('coach:addClient.invited', { defaultValue: 'Invited ✓' })}</span>
+                      : st === 'noTag'
+                        ? <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(null, { background: 'transparent', border: `1.5px solid ${amber}`, color: L ? '#7a5205' : amber })}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.retryTag', { defaultValue: 'Retry 0% tag' })}</span></button>
+                        : <button type="button" data-add-press="" onClick={() => invite(p)} disabled={!!busyId} style={{ ...hit, cursor: busyId ? 'default' : 'pointer', opacity: busyId ? 0.6 : 1 }}><span style={pill(heatFill)}>{busyId === p.userId ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : tr('coach:addClient.invite', { defaultValue: 'Invite' })}</span></button>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Send your link: the 0% pitch (only with a real ref token) or the note that it is unavailable, then
+            email, text and share or copy as three rounded buttons with their icons. */}
+        <section style={{ marginTop: 22 }}>
+          {head(tr('coach:addClient.sendLabel', { defaultValue: 'Send your link' }))}
           {/* The honest pitch — incl. the waitlist qualifier — renders ONLY
               with a REAL ref token. When the token is confirmed unavailable
               (signed out / no listing / pre-migration) the plain URL still
               shares, but the copy says the truth: those links can't attribute,
               so the 0% promise never sits over an untagged link. */}
           {refToken ? (
-            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-              {tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' })}
-            </div>
+            <div style={{ marginTop: 10 }}>{callout(L ? '#0a8f87' : '#34d6c5', '0%', tr('coach:addClient.byoPitch', { defaultValue: 'Clients you bring pay no Shape commission — you keep your full rate. They join Shape as members at $5/mo. Members already in your Shape waiting room count as Shape-found.' }), 'pitch')}</div>
           ) : linkReady ? (
-            <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `3px solid ${t.AMBER || heat}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK70, lineHeight: 1.6 }}>
-              {tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' })}
-            </div>
+            <div style={{ marginTop: 10 }}>{callout(amber, '!', tr('coach:addClient.noTagNote', { defaultValue: 'The 0% tag isn’t available right now — links sent from here will count as Shape-found.' }), 'noTag')}</div>
           ) : null}
-          {/* Monochrome typographic glyphs only (︎ pins text presentation) —
-              never colored emoji, per the AGENTS.md new-additions rule. */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            {[
-              { key: 'email', glyph: '✉︎', label: tr('coach:addClient.emailIt', { defaultValue: 'Email it' }), onTap: emailIt },
-              { key: 'text', glyph: '✆︎', label: tr('coach:addClient.textIt', { defaultValue: 'Text it' }), onTap: textIt },
-              { key: 'share', glyph: '↗︎', label: tr('coach:addClient.shareCopy', { defaultValue: 'Share / copy' }), onTap: shareListing },
-            ].map((ch) => (
-              <button key={ch.key} onClick={ch.onTap} disabled={!linkReady} style={{ flex: 1, minHeight: 44, cursor: linkReady ? 'pointer' : 'default', padding: '10px 6px', border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: linkReady ? 1 : 0.45 }}>
-                {ch.glyph} {ch.label}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+            {channels.map((ch, i) => (
+              <button key={ch.key} type="button" data-add-channel={ch.key} data-add-press="" onClick={ch.onTap} disabled={!linkReady}
+                style={{ ...tile, minWidth: 0, minHeight: 84, padding: '12px 6px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: linkReady ? 'pointer' : 'default', color: t.INK, opacity: linkReady ? 1 : 0.45, animation: `bsadd-in 300ms ease-out ${120 + i * 50}ms both` }}>
+                <span style={{ width: 38, height: 38, borderRadius: 99, display: 'grid', placeItems: 'center', background: L ? 'rgba(10,143,135,0.1)' : 'rgba(52,214,197,0.13)', color: tealText }}>{icon(ch.d, 19)}</span>
+                <span style={{ maxWidth: '100%', fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, lineHeight: 1.2, textAlign: 'center', overflowWrap: 'anywhere' }}>{ch.label}</span>
               </button>
             ))}
           </div>
-        </div>
-        <button onClick={onClose} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '12px 4px', minHeight: 44, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:common.close', { defaultValue: 'Close' })}</button>
+        </section>
       </div>
     </div>
   );
@@ -3212,7 +3118,6 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = COACH_CLIENTS.filter(c => c.active).length;
   const pastCount = COACH_CLIENTS.length - activeCount;
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} />;
   }
@@ -3238,7 +3143,6 @@ function BSTrainerClients({ openRequest = null, onOpenConsumed = () => {} } = {}
       pastCount={pastCount}
       totalCount={COACH_CLIENTS.length}
       allClients={COACH_CLIENTS}
-      newThisMonth={signedIn ? 0 : 3}
       roster={roster}
       setRoster={setRoster}
       query={cQuery}
@@ -3300,132 +3204,13 @@ function bsProAccent(t, role) { return role === 'nutritionist' ? '#d8b25a' : (t.
 // on all papers; nutritionist gold is a light/dark pair). bsProAccent (teal)
 // stays the ACTION accent for the action pages — heat ≠ accent.
 function bsProHeat(t, role) { return role === 'nutritionist' ? (t.isLight ? '#a07a2e' : '#d8b25a') : '#c0533b'; }
-// ── Catalogue primitives (Plans/Programs tab, both roles) — the owner's Programs mockup
-// "A + C combined" (2026-10-25) with option B's filter: rows that lead with a coloured length square,
-// the price and Assign on the right, and a feature card for the most popular plan. ──
-// A row's square: the plan's length when its meta says one (weeks, days a week, minutes), else its number.
-function bsProSwatch(t, heat, index, meta) {
-  const m = String(meta || '');
-  const wk = m.match(/(\d+)\s*(?:wk|wks|week|weeks)\b/i);
-  const days = m.match(/(\d+)\s*days?\s*\/\s*wk/i);
-  const mins = m.match(/(\d+)\s*min\b/i);
-  // One tone, an ink outline (owner, 2026-10-31, of rust, ink, teal and amber squares down the list:
-  // "too many colors here. I dont like the design here"); the length is what tells rows apart.
-  const tone = { bg: 'transparent', fg: t.INK, line: t.INK };
-  if (wk) return { ...tone, big: wk[1], unit: coachTr('coach:plans.unitWk', { defaultValue: 'WK' }) };
-  if (days) return { ...tone, big: days[1], unit: coachTr('coach:plans.unitDaysWk', { defaultValue: 'D/WK' }) };
-  if (mins) return { ...tone, big: mins[1], unit: coachTr('coach:plans.unitMin', { defaultValue: 'MIN' }) };
-  return { ...tone, big: String(index + 1).padStart(2, '0'), unit: null };
-}
-// The filter (owner, 2026-10-25: "the program filter should be like option B … boxes set up across
-// the top"), set as tabs in direction A (2026-11-03).
-function bsProTypoIndex(t, items, activeKey, onPick, { ariaLabel = 'Sections', heat = null } = {}) {
-  // Direction A (owner, 2026-11-03): the kinds as words across a hairline, the pick in ink and underlined
-  // in the role's heat. It was a hairline track of equal boxes with the pick filled in ink.
-  return (
-    <div role="tablist" aria-label={ariaLabel} className="bs-hide-scroll" style={{ display: 'flex', gap: 20, borderBottom: `1px solid ${t.RULE}`, overflowX: 'auto' }}>
-      {items.map(([k, l]) => {
-        const on = activeKey === k;
-        return (
-          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => onPick(k)} style={{ flexShrink: 0, minHeight: 44, padding: 0, marginBottom: -1, border: 0, borderBottom: `2px solid ${on ? (heat || t.INK) : 'transparent'}`, borderRadius: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: on ? 650 : 500, letterSpacing: '-0.01em', color: on ? t.INK : t.INK70, whiteSpace: 'nowrap' }}>{l}</button>
-        );
-      })}
-    </div>
-  );
-}
-// Build the kind on show blank. Nora's draft line beside it is gone (owner, 2026-11-04: "remove this
-// nora box from program and plan page since coach should just be able to ask nora from click nora
-// button in mast head"); the masthead's ✦ opens her on every coach page. 44 to tap, on the deck.
-function bsProCreateButton(t, tr, onScratch) {
-  return (
-    <button type="button" data-create="scratch" onClick={onScratch} style={{ flexShrink: 0, minHeight: 44, padding: '0 14px', borderRadius: 4, border: `1px solid ${t.INK30}`, background: 'transparent', color: t.INK, fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('coach:plans.fromScratch', { defaultValue: '＋ From scratch' })}</button>
-  );
-}
-// The library search: one field over every list on the page.
-function bsProLibrarySearch(t, tr, value, setValue, placeholder) {
-  return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '0 12px', borderRadius: 4, border: `1px solid ${t.RULE}`, background: 'transparent', boxSizing: 'border-box' }}>
-      <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 16, color: t.INK70 }}>⌕</span>
-      <input type="search" value={value} onChange={(e) => setValue(e.target.value)} aria-label={tr('coach:plans.searchAria', { defaultValue: 'Search your library' })} placeholder={placeholder || tr('coach:plans.searchPlaceholder', { defaultValue: 'Search plans, workouts, music' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 16 }} />
-    </label>
-  );
-}
-// The most popular plan, as a card: its length on the band, who is on it, the price and ASSIGN. Shown
-// only for a plan whose meta carries a real client count (the signed-out sample, or a plan that has one).
+// The most popular plan, featured at the head of Plans: the first of the list, only when its meta carries a
+// real client count (the signed-out sample, or a plan that has one).
 function bsProTopPlan(list) {
   const top = (list || [])[0];
   const n = top && Number((String(top.meta || '').match(/(\d+)\s*on it/i) || [])[1]);
   return top && n > 0 ? top : null;
 }
-function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
-  const tr = useShapeTr();
-  const m = String(plan.meta || '');
-  const n = (m.match(/(\d+)\s*on it/i) || [])[1];
-  const rating = (m.match(/([\d.]+)\s*★/) || [])[1];
-  // Direction A (owner, 2026-11-03): the plate, a step tighter (2026-11-04: "condense these boxes slightly":
-  // the block 64px wide, 10px in). The plan's length down a block in the role's heat, then
-  // "Most popular", the name, clients and rating, the plan's weeks as a spine of ticks, and the price
-  // beside Assign. The whole plate opens the plan; the name is its button and Assign keeps its own tap.
-  const sw = bsProSwatch(t, heat, 0, m);
-  const weeks = Number((m.match(/(\d+)\s*(?:wk|wks|week|weeks)\b/i) || [])[1]) || 0;
-  const facts = [
-    n ? tr('coach:plans.clientsCount', { defaultValue: '{count, plural, one {# client} other {# clients}}', count: Number(n) }) : null,
-    rating ? `${rating} ★` : null,
-  ].filter(Boolean).map((f) => f.replace(/ /g, '\u00a0')).join(' · '); // a fact breaks only between facts ("4.9" kept with its ★)
-  return (
-    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', ...bsRaised(t), cursor: 'pointer' }}>
-      <span aria-hidden style={{ background: heat, color: '#f6f0e3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '10px 0' }}>
-        <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 30, fontWeight: 300, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
-        {sw.unit && <span style={{ marginTop: 4, fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em' }}>{sw.unit}</span>}
-      </span>
-      <div style={{ minWidth: 0, padding: '10px 14px' }}>
-        <div style={{ paddingRight: 12, fontFamily: BS_DECK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:head.mostPopular', { defaultValue: 'Most popular' })}</div>
-        <button type="button" data-featured-name="" onClick={(e) => { e.stopPropagation(); if (onOpen) onOpen(); }} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name: plan.n })} style={{ display: 'block', maxWidth: '100%', marginTop: 4, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.INK, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plan.n}</button>
-        {facts && <span data-featured-facts="" style={{ display: 'block', marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 500, lineHeight: 1.35, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{facts}</span>}
-        {weeks > 0 && weeks <= 52 && (
-          <span aria-hidden data-featured-spine={weeks} style={{ display: 'flex', gap: 2, marginTop: 6 }}>
-            {Array.from({ length: weeks }).map((_, i) => <span key={i} style={{ flex: 1, maxWidth: 14, height: 4, borderRadius: 1, background: i === 0 ? heat : t.INK30 }} />)}
-          </span>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4 }}>
-          {plan.price ? <span data-featured-price="" style={{ minWidth: 0, fontFamily: BS_GAUGE_FACE, fontSize: 18, fontWeight: 500, lineHeight: 1.2, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{String(plan.price)}</span> : <span />}
-          {onAssign && <button type="button" data-featured-assign="" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 44, padding: '0 18px', borderRadius: 6, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
-        </div>
-      </div>
-    </div>
-  );
-}
-// A catalogue row: the length square · name over its meta · price over COPY / ASSIGN. Row tap = onOpen.
-function BSProCatRow({ index, name, meta, price, onOpen, onAssign, onDuplicate, heat, t }) {
-  const tr = useShapeTr();
-  // Direction A: a ledger row, led by its number; the name over its facts in mono capitals; the price in
-  // Saira over COPY and ASSIGN →, the teal text actions. Row tap = onOpen.
-  const tealText = t.isLight ? '#07706a' : '#34d6c5';
-  const act = { minHeight: 40, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' };
-  return (
-    <div data-cat-row="" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 64, padding: '8px 0', borderBottom: `1px solid ${t.RULE}` }}>
-      <span style={bsProLedgerNo(t)}>{bsProNo(index)}</span>
-      <button type="button" onClick={onOpen} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name })} style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, cursor: onOpen ? 'pointer' : 'default', padding: 0, color: t.INK }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, lineHeight: 1.2, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-        {meta && <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', lineHeight: 1.4, color: t.INK70 }}>{meta}</span>}
-      </button>
-      {(price || onDuplicate || onAssign) && (
-        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-          {price && <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, fontWeight: 500, color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{String(price)}</span>}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            {onDuplicate && <button type="button" onClick={onDuplicate} aria-label={tr('coach:workoutEditor.copyName', { defaultValue: 'Duplicate {name}', name })} style={{ ...act, minWidth: 44, color: t.INK70 }}>{tr('coach:head.copy', { defaultValue: 'Copy' })}</button>}
-            {onAssign && (
-              <button type="button" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name })} style={{ ...act, padding: '0 0 0 8px', color: tealText }}>
-                {tr('coach:head.assign', { defaultValue: 'Assign' })} →
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-// Text action: ink + heat underline (mono:false) or plain mono (mono:true).
 // "✦ Ask Nora …" under an empty list or an error (the Ask Nora plan, step 5): the client
 // module's BSAskNoraLink, which opens Nora's sheet. ⚠ A COACH SESSION CAN EVALUATE THIS BUNDLE
 // BEFORE THE CLIENT MODULE, OR WITHOUT IT (loadProsBundle loads only the feature modules and
@@ -3460,61 +3245,6 @@ function BSProAskNora(props) {
   return Link ? React.createElement(Link, props) : null;
 }
 
-function BSProTextAction({ label, onClick, heat, t, mono = false }) {
-  return (
-    <button type="button" onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 44, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: mono ? t.INK50 : t.INK }}>
-      <span style={mono ? undefined : { borderBottom: `2px solid ${heat}`, paddingBottom: 2 }}>{label}</span>
-    </button>
-  );
-}
-// ── Shared catalogue ledger furniture (Plans tab, both roles — extracted so the
-// trainer + nutrition copies can't drift). Deps (t, heat, flash) come in as args.
-// Section head: the clean 20px head (the header mockup 3), with an optional trailing control.
-// `heat` is unused since the heat tick went; the signature stays for both pages' bound helpers.
-function bsProStationHead(t, heat, label, trailing) {
-  // Direction A: the head sits on the list's 2px ink rule, as a ledger's.
-  return (
-    <div style={{ marginTop: 26, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 44, borderBottom: `2px solid ${t.INK}` }}>
-      <h2 style={bsProH2(t)}>{label}</h2>
-      {trailing || null}
-    </div>
-  );
-}
-// Trailing control (Sort: Popular / New) — a teal text link, 44px target.
-function bsProMonoTrail(t, label, onClick) {
-  return (
-    <button type="button" onClick={onClick} style={bsProLink(t)}>{label}</button>
-  );
-}
-// The top feature of a list (signed-out sample), as a card: the eyebrow on the heat band, then the
-// headline with its heat-italic last word, its meta and EDIT · DUPLICATE · SHARE → actions.
-function bsProFeatureLead(t, heat, eyebrow, headA, headB, meta, actions) {
-  return (
-    <div style={{ marginTop: 18, borderRadius: 14, overflow: 'hidden', border: `1px solid ${t.RULE}` }}>
-      <div style={{ color: t.INK70, padding: '12px 16px 0', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{eyebrow}</div>
-      <div style={{ padding: '12px 16px 8px' }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.1 }}>{headA} {headB}</div>
-        <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{meta}</div>
-        <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 18 }}>{actions}</div>
-      </div>
-    </div>
-  );
-}
-// Enrolled row: name · facepile · {n} ON IT.
-function bsProEnrolledRow(t, flash, e, i, heat = '#c0533b') {
-  return (
-    <button key={i} type="button" onClick={() => flash(coachTr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog }))} aria-label={coachTr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n })} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}`, cursor: 'pointer', padding: '10px 0', minHeight: 56, color: t.INK }}>
-      <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.prog}</span>
-      <span style={{ display: 'flex' }}>
-        {e.who.map(([ini, col], j) => (
-          // Faces in the paper's own tones, not a colour each (owner, 2026-10-31: "too many colors").
-          <span key={j} style={{ marginLeft: j ? -8 : 0, width: 26, height: 26, boxSizing: 'border-box', borderRadius: 999, background: t.PAPER2, color: t.INK, border: `2px solid ${t.PAPER}`, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 11, fontWeight: 800 }}>{ini}</span>
-        ))}
-      </span>
-      <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em', color: t.INK, whiteSpace: 'nowrap' }}>{coachTr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n })}</span>
-    </button>
-  );
-}
 // The standing masthead row (logo + Vol·No) for pros pages with fully custom
 // headers — withCorners adds the coach corner cluster (search + the settings gear).
 // The canonical corner cluster for pages whose header is BSMasthead/BSPageHeader
@@ -3572,7 +3302,7 @@ function useBSProClientHeat(t, role, clientUid) {
   }, [clientUid]);
   return tier && window.bsTierColor ? window.bsTierColor(tier) : bsProHeat(t, role);
 }
-function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
+function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack, compact = false }) {
   const t = useBSProClean();
   // The title as one line in Geist, without the italic accent half or its period (the clean grammar's
   // titles carry none); the eyebrow, which names the page, rides above it as an overline.
@@ -3587,7 +3317,7 @@ function BSProActionHead({ eyebrow, titleA, titleB, accent, onBack }) {
           clean type's marked box so the app's weight rules keep its 650. */}
       <BSBackRow onBack={onBack} trailing={eyebrow ? <BSProCleanType t={t}><div data-pro-action-eyebrow="" style={{ ...bsProOverline(t), minWidth: 0, textAlign: 'right' }}>{eyebrow}</div></BSProCleanType> : null} />
       <BSProCleanType t={t}>
-        <h1 style={{ ...bsProH1(t), marginTop: 10 }}>{titleA}{tail ? ` ${tail}` : ''}</h1>
+        <h1 style={{ ...bsProH1(t), marginTop: compact ? 4 : 10, ...(compact ? { fontSize: 25, lineHeight: 1.12 } : null) }}>{titleA}{tail ? ` ${tail}` : ''}</h1>
       </BSProCleanType>
     </div>
   );
@@ -3665,333 +3395,7 @@ function BSProStepper({ label, sub, value, set, min = 1, max = 14, step = 1, uni
   );
 }
 
-function BSProAdjustProgram({ client, role = 'trainer', clientUid, onBack }) {
-  const t = useBSProClean();
-  const tr = useShapeTr();
-  const accent = useBSProClientHeat(t, role, clientUid);
-  const isNutri = role === 'nutritionist';
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const gold = '#d8b25a';
-  const rust = t.RUST;
-  const first = (client?.n || tr('coach:common.there', { defaultValue: 'there' })).split(' ')[0];
-  // Trainer state
-  const [intensity, setIntensity] = useStateBSP('progress');
-  const [sessions, setSessions] = useStateBSP(4);
-  const [weeks, setWeeks] = useStateBSP(6);
-  const [focus, setFocus] = useStateBSP(['strength', 'hypertrophy']);
-  const DAY_OPTS = ['Push day', 'Pull day', 'Legs day', 'Upper day', 'Lower day', 'Conditioning', 'Rest'];
-  const [days, setDays] = useStateBSP(['Push day', 'Pull day', 'Legs day', 'Rest', 'Push day', 'Pull day', 'Rest']);
-  // Nutritionist state
-  const [calories, setCalories] = useStateBSP(2100);
-  const [protein, setProtein] = useStateBSP(170);
-  const [carbs, setCarbs] = useStateBSP(190);
-  const [fat, setFat] = useStateBSP(62);
-  const [meals, setMeals] = useStateBSP(4);
-  const [refeed, setRefeed] = useStateBSP(true);
-  const [restrictions, setRestrictions] = useStateBSP(['dairy-light']);
-  // Shared
-  const [noteText, setNoteText] = useStateBSP(null);
-  const [status, setStatus] = useStateBSP('');
-  // A guardrail rejection is an ANSWER, not an error (SPEC-guardrails.md §9.4):
-  // held here with the boundary's own words so the coach can read the reason
-  // and decide. Nothing else in the Apply runs while a regeneration is blocked.
-  const [blocked, setBlocked] = useStateBSP(null); // {weekStartISO, copy, reason}
-  const [reasonText, setReasonText] = useStateBSP('');
-  const DOW = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
-
-  // Seed the controls from the last-applied adjustment so reopening the page
-  // shows what's currently in effect for this client (coach-writable store).
-  // The note is left to auto-regenerate from the seeded values.
-  useEffectBSP(() => {
-    let alive = true;
-    if (!clientUid || !window.ShapeProgramApi?.get) return undefined;
-    window.ShapeProgramApi.get(clientUid).then((rec) => {
-      if (!alive || !rec) return;
-      const d = isNutri ? rec.detail?.nutrition : rec.detail?.training;
-      if (!d) return;
-      if (isNutri) {
-        if (d.calories != null) setCalories(d.calories);
-        if (d.protein != null) setProtein(d.protein);
-        if (d.carbs != null) setCarbs(d.carbs);
-        if (d.fat != null) setFat(d.fat);
-        if (d.meals != null) setMeals(d.meals);
-        if (typeof d.refeed === 'boolean') setRefeed(d.refeed);
-        if (Array.isArray(d.restrictions)) setRestrictions(d.restrictions);
-      } else {
-        if (d.intensity) setIntensity(d.intensity);
-        if (d.sessions != null) setSessions(d.sessions);
-        if (d.weeks != null) setWeeks(d.weeks);
-        if (Array.isArray(d.focus)) setFocus(d.focus);
-        if (Array.isArray(d.days)) setDays(d.days);
-      }
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  // Trainer derived
-  const intensityDesc = { deload: tr('coach:adjust.descDeload', { defaultValue: 'Pull volume back ~40% and cap intensity. Recover and resensitize.' }), maintain: tr('coach:adjust.descMaintain', { defaultValue: 'Hold volume and loads — keep the engine ticking, no new stress.' }), progress: tr('coach:adjust.descProgress', { defaultValue: 'Add a set to main lifts and nudge top-set loads. Keep RPE ≤ 8.' }) }[intensity];
-  const focusOpts = [{ k: 'strength', l: tr('coach:adjust.focusStrength', { defaultValue: 'Strength' }) }, { k: 'hypertrophy', l: tr('coach:adjust.focusHypertrophy', { defaultValue: 'Hypertrophy' }) }, { k: 'conditioning', l: tr('coach:adjust.focusConditioning', { defaultValue: 'Conditioning' }) }, { k: 'mobility', l: tr('coach:adjust.focusMobility', { defaultValue: 'Mobility' }) }, { k: 'power', l: tr('coach:adjust.focusPower', { defaultValue: 'Power' }) }];
-  const toggleFocus = (k) => setFocus(f => f.includes(k) ? f.filter(x => x !== k) : [...f, k]);
-  const cycleDay = (i) => setDays(d => d.map((v, j) => j === i ? DAY_OPTS[(DAY_OPTS.indexOf(v) + 1) % DAY_OPTS.length] : v));
-  const focusLabel = focus.map(k => focusOpts.find(o => o.k === k)?.l.toLowerCase()).filter(Boolean).join(' + ') || tr('coach:adjust.generalFitness', { defaultValue: 'general fitness' });
-  const verb = intensity === 'progress' ? tr('coach:adjust.verbProgress', { defaultValue: 'progressing top sets' }) : intensity === 'deload' ? tr('coach:adjust.verbDeload', { defaultValue: 'deloading this week' }) : tr('coach:adjust.verbMaintain', { defaultValue: 'maintaining volume' });
-  // Nutritionist derived
-  const restrictOpts = [{ k: 'vegetarian', l: tr('coach:adjust.restrictVegetarian', { defaultValue: 'Vegetarian' }) }, { k: 'dairy-light', l: tr('coach:adjust.restrictDairyLight', { defaultValue: 'Dairy-light' }) }, { k: 'gluten-free', l: tr('coach:adjust.restrictGlutenFree', { defaultValue: 'Gluten-free' }) }, { k: 'egg-free', l: tr('coach:adjust.restrictEggFree', { defaultValue: 'Egg-free' }) }, { k: 'nut-free', l: tr('coach:adjust.restrictNutFree', { defaultValue: 'Nut-free' }) }, { k: 'halal', l: tr('coach:adjust.restrictHalal', { defaultValue: 'Halal' }) }];
-  const toggleRestrict = (k) => setRestrictions(r => r.includes(k) ? r.filter(x => x !== k) : [...r, k]);
-  const kcalFromMacros = protein * 4 + carbs * 4 + fat * 9;
-  const kcalDiff = kcalFromMacros - calories;
-  const pK = protein * 4, cK = carbs * 4, fK = fat * 9, mTot = (pK + cK + fK) || 1;
-
-  const autoNote = isNutri
-    ? tr('coach:adjust.noteNutri', { defaultValue: 'Updated your plan to {calories} kcal — {protein}g protein, {carbs}g carbs, {fat}g fat across {meals} meals.{refeed} New targets are live in your Eat tab.', calories, protein, carbs, fat, meals, refeed: refeed ? tr('coach:adjust.noteRefeed', { defaultValue: ' Keeping the weekend refeed to support training.' }) : '' })
-    : tr('coach:adjust.noteTrainer', { defaultValue: 'Adjusting your block: {sessions}×/week, {verb}. Focus stays on {focus}. Check the updated split in your Train tab.', sessions, verb, focus: focusLabel });
-  const body = noteText == null ? autoNote : noteText;
-  const apply = async (notify, ack) => {
-    const who = (client && (client.n || client.name)) || tr('coach:common.thisClient', { defaultValue: 'this client' });
-    if (!(await window.bsAskConfirm({
-      title: isNutri ? tr('coach:adjust.confirmTitleNutri', { defaultValue: 'Update nutrition targets?' }) : tr('coach:adjust.confirmTitleTrainer', { defaultValue: 'Update training program?' }),
-      name: who,
-      message: isNutri
-        ? tr('coach:adjust.confirmMsgNutri', { defaultValue: "This overwrites this client's live nutrition targets (calories + macros) on their Eat tab. It takes effect immediately." })
-        : tr('coach:adjust.confirmMsgTrainer', { defaultValue: "This overwrites this client's live training program on their Train tab. It takes effect immediately." }),
-      confirmLabel: tr('coach:adjust.confirmApply', { defaultValue: 'Apply changes' }),
-    }))) return;
-    setStatus('saving');
-    try {
-      // 1a) TRAINING: regenerate the client's REAL upcoming rows first
-      //     (spec #1707) — the deck, calendar, and website then read the same
-      //     adjusted plan from the same rows. A regeneration failure aborts
-      //     honestly (detail/note only land after the rows do); pre-migration
-      //     it degrades to the detail+note behavior below.
-      let regenGen = null;
-      if (!isNutri && clientUid && window.ShapeAdjustRegen?.apply) {
-        const regen = await window.ShapeAdjustRegen.apply({
-          clientId: clientUid,
-          adjustment: { intensity, sessions, weeks, days },
-          acknowledgment: ack || null,
-        });
-        // ⚠ A GUARDRAIL REJECTION STOPS THE WHOLE APPLY — it must not fall
-        // through to the detail/note writes below. Those are what the client
-        // actually reads, so persisting them over a regeneration the boundary
-        // refused would tell the client their program changed when not one of
-        // their rows moved. Held, surfaced, and never absorbed into a success.
-        if (regen?.rejected) {
-          // ⚠ CARRY THE NOTIFY CHOICE THAT TRIGGERED THE HOLD. "Publish anyway"
-          // replays this apply, and it used to pass `false` unconditionally — so
-          // a coach who tapped Apply & Notify, got held, then overrode, changed
-          // the client's Train tab and NOBODY TOLD THE CLIENT. The override is a
-          // decision about the guardrail, not about notification.
-          //
-          // Spread over an object rather than `|| null` so a rejection with no
-          // blocking week still RENDERS (the panel's default copy). Clearing the
-          // status with nothing on screen is the silent refusal §9.4 forbids.
-          setBlocked({ ...(regen.blocking || {}), notify: notify === true });
-          setStatus('');
-          return;
-        }
-        setBlocked(null);
-        // Keep the generation whenever the regeneration path ran (changed OR
-        // a no-op re-apply returning the CURRENT gen) so the display guard
-        // never lapses on already-baked rows; only the degraded
-        // (pre-migration) path leaves gen absent.
-        if (regen?.gen != null && regen.gen > 0) regenGen = regen.gen;
-        if (regen?.changed && regen.capped) window.__bsToast?.(tr('coach:adjust.trimmed', { defaultValue: 'Extension hit the plan bound — trimmed to fit.' }), 'warn');
-      }
-      // 1b) Persist the adjustment to the client's coach-writable program record.
-      //    This is what actually "takes effect" — the client app reads it back
-      //    and reflects it on their Train / Eat tabs. Only on Apply, never on tap.
-      if (clientUid && window.ShapeProgramApi?.set) {
-        const now = new Date().toISOString();
-        const detail = isNutri
-          ? { nutrition: { calories, protein, carbs, fat, meals, refeed, restrictions, note: body, updatedAt: now } }
-          : { training: { intensity, sessions, weeks, focus, days, note: body, updatedAt: now, ...(regenGen != null ? { gen: regenGen } : {}) } };
-        try { await window.ShapeProgramApi.set({ userId: clientUid, detail }); }
-        catch (e) {
-          // After a real row rewrite the gen stamp MUST land (it's the
-          // display double-scale guard) — surface the failure honestly
-          // instead of sending the note over a half-applied adjustment.
-          if (regenGen != null) throw e;
-        }
-      }
-      // 2) Deliver the note to the client's 1:1 thread.
-      if (clientUid && window.ShapeMessages?.getOrCreateMemberConversation) {
-        const conv = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: clientUid });
-        const cid = conv?.data;
-        if (cid && window.ShapeMessages?.sendMessage) await window.ShapeMessages.sendMessage({ conversationId: cid, body, metadata: { kind: isNutri ? 'plan_update' : 'program_update', notify: !!notify } });
-      }
-      setStatus('done');
-      setTimeout(onBack, 950);
-    } catch (e) {
-      setStatus('error');
-      // ⚠ NEVER SWALLOW THE BOUNDARY'S REASON. The rust line below says only
-      // "Couldn't send — try again", which is true of a network blip and
-      // actively misleading for the answer that matters: a 409 means the
-      // client's plan MOVED under this adjustment and NOTHING WAS WRITTEN. The
-      // coach needs to know their apply was refused rather than half-applied,
-      // and that applying again re-reads the plan rather than repeating a
-      // doomed call.
-      //
-      // Only a 4xx carries a message written for a human; a 5xx is our own
-      // failure and its text is not the coach's business, so that falls back to
-      // the same generic line the status already renders.
-      const s = e && e.status;
-      const msg = (s >= 400 && s < 500 && e && e.message)
-        ? e.message
-        : tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." });
-      window.__bsToast?.(msg, 'warn');
-    }
-  };
-  // One ink button for the change and its note; the second way to apply it is the quiet one.
-  const cta = (txt, onClick, mt, quiet) => {
-    const off = status === 'saving' || status === 'done';
-    return <button type="button" onClick={onClick} disabled={off} style={{ ...(quiet ? bsProQuietBtn(t, off) : bsProPrimaryBtn(t, off)), marginTop: mt || 0, opacity: status === 'saving' ? 0.6 : 1 }}>{txt}</button>;
-  };
-  const sendLabel = status === 'saving' ? tr('coach:common.sending', { defaultValue: 'Sending…' }) : status === 'done' ? tr('coach:adjust.sent', { defaultValue: 'Sent ✓' }) : tr('coach:adjust.applySend', { defaultValue: 'Apply & Send →' });
-
-  const trainerBody = (
-    <>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.thisWeek', { defaultValue: 'THIS WEEK' })} title={tr('coach:adjust.intensity', { defaultValue: 'Intensity' })} accent={accent} />
-        <BSProSegment options={[{ k: 'deload', l: tr('coach:adjust.deload', { defaultValue: 'Deload' }) }, { k: 'maintain', l: tr('coach:adjust.maintain', { defaultValue: 'Maintain' }) }, { k: 'progress', l: tr('coach:adjust.progress', { defaultValue: 'Progress' }) }]} value={intensity} onPick={setIntensity} accent={accent} />
-        <div style={{ marginTop: 14, fontFamily: BS_PRO_SANS, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{intensityDesc}</div>
-      </div>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.structure', { defaultValue: 'STRUCTURE' })} title={tr('coach:adjust.frequencyBlock', { defaultValue: 'Frequency & block' })} accent={accent} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label={tr('coach:adjust.sessionsWeek', { defaultValue: 'SESSIONS / WEEK' })} sub={tr('coach:adjust.perMicrocycle', { defaultValue: 'Per microcycle' })} value={sessions} set={setSessions} min={1} max={7} accent={accent} />
-          <BSProStepper label={tr('coach:adjust.weeksRemaining', { defaultValue: 'WEEKS REMAINING' })} sub={tr('coach:adjust.untilReview', { defaultValue: 'Until next review' })} value={weeks} set={setWeeks} min={1} max={16} accent={accent} />
-        </div>
-      </div>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.emphasis', { defaultValue: 'EMPHASIS' })} title={tr('coach:adjust.focus', { defaultValue: 'Focus' })} accent={accent} />
-        <BSProChips options={focusOpts} value={focus} multi onPick={toggleFocus} accent={accent} />
-      </div>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.weeklySplit', { defaultValue: 'WEEKLY SPLIT' })} title={tr('coach:adjust.trainingDays', { defaultValue: 'Training days' })} trailing={<span style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, letterSpacing: 0, color: t.INK50, whiteSpace: 'nowrap' }}>{tr('coach:adjust.tapToChange', { defaultValue: 'TAP TO CHANGE →' })}</span>} accent={accent} />
-        {days.map((label, i) => {
-          const rest = label === 'Rest';
-          return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 10, alignItems: 'center', padding: '13px 0', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
-              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: 0, color: rest ? t.INK50 : accent }}>{DOW[i]}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: rest ? t.INK50 : t.INK }}>{label}</span>
-              <button onClick={() => cycleDay(i)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: rest ? t.INK50 : accent, fontSize: 16, lineHeight: 1 }}>⇄</button>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-
-  const nutriBody = (
-    <>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.energy', { defaultValue: 'ENERGY' })} title={tr('coach:adjust.calorieTarget', { defaultValue: 'Calorie target' })} accent={accent} />
-        <BSProStepper label={tr('coach:adjust.dailyCalories', { defaultValue: 'DAILY CALORIES' })} sub={tr('coach:adjust.kcalPerDay', { defaultValue: 'kcal / day' })} value={calories} set={setCalories} min={1000} max={5000} step={50} accent={accent} />
-      </div>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.macros', { defaultValue: 'MACROS' })} title={tr('coach:adjust.dailySplit', { defaultValue: 'Daily split' })} accent={accent} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label={tr('coach:adjust.protein', { defaultValue: 'PROTEIN' })} sub="" value={protein} set={setProtein} min={0} max={400} step={5} unit="g" dot={teal} />
-          <BSProStepper label={tr('coach:adjust.carbs', { defaultValue: 'CARBS' })} sub="" value={carbs} set={setCarbs} min={0} max={600} step={5} unit="g" dot={gold} />
-          <BSProStepper label={tr('coach:adjust.fat', { defaultValue: 'FAT' })} sub="" value={fat} set={setFat} min={0} max={250} step={2} unit="g" dot={rust} />
-          <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: 0, color: accent }}>{tr('coach:adjust.fromMacros', { defaultValue: 'FROM MACROS' })}</span>
-              <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12, color: t.INK50 }}>{tr('coach:adjust.kcalUnit', { defaultValue: '{kcal} kcal', kcal: kcalFromMacros.toLocaleString(coachLocale()) })} · <span style={{ color: kcalDiff < 0 ? rust : t.INK }}>{kcalDiff >= 0 ? '+' : ''}{tr('coach:adjust.vsTarget', { defaultValue: '{diff} vs target', diff: kcalDiff })}</span></span>
-            </div>
-            <div style={{ marginTop: 9, display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', gap: 2 }}>
-              <div style={{ width: `${(pK / mTot) * 100}%`, background: teal }} />
-              <div style={{ width: `${(cK / mTot) * 100}%`, background: gold }} />
-              <div style={{ width: `${(fK / mTot) * 100}%`, background: rust }} />
-            </div>
-            <div style={{ marginTop: 8, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50 }}>{protein}P · {carbs}C · {fat}F</div>
-          </div>
-        </div>
-      </div>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.structure', { defaultValue: 'STRUCTURE' })} title={tr('coach:adjust.mealsRefeeds', { defaultValue: 'Meals & refeeds' })} accent={accent} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <BSProStepper label={tr('coach:adjust.mealsDay', { defaultValue: 'MEALS / DAY' })} sub="" value={meals} set={setMeals} min={1} max={8} accent={accent} />
-          <button onClick={() => setRefeed(r => !r)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '15px 16px', cursor: 'pointer', textAlign: 'left' }}>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK }}>{tr('coach:adjust.weekendRefeed', { defaultValue: 'Weekend refeed' })}</div>
-              <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:adjust.refeedSub', { defaultValue: '+40g carbs on training days' })}</div>
-            </div>
-            <span style={{ width: 42, height: 24, borderRadius: 999, padding: 3, flexShrink: 0, border: `1px solid ${refeed ? accent : t.RULE}`, background: refeed ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: refeed ? 'flex-end' : 'flex-start' }}>
-              <span style={{ width: 16, height: 16, borderRadius: 999, background: refeed ? '#06231f' : t.INK50, display: 'block' }} />
-            </span>
-          </button>
-        </div>
-      </div>
-      <div>
-        <BSProActionSec eyebrow={tr('coach:adjust.constraints', { defaultValue: 'CONSTRAINTS' })} title={tr('coach:adjust.restrictions', { defaultValue: 'Restrictions' })} accent={accent} />
-        <BSProChips options={restrictOpts} value={restrictions} multi onPick={toggleRestrict} accent={accent} />
-      </div>
-    </>
-  );
-
-  return (
-    <BSPage>
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        <BSProActionHead eyebrow={isNutri ? tr('coach:adjust.eyebrowNutri', { defaultValue: 'ADJUST PLAN' }) : tr('coach:adjust.eyebrowTrainer', { defaultValue: 'ADJUST PROGRAM' })} titleA={tr('coach:adjust.titleA', { defaultValue: 'Tune the' })} titleB={isNutri ? tr('coach:adjust.titleBNutri', { defaultValue: 'plan.' }) : tr('coach:adjust.titleBTrainer', { defaultValue: 'program.' })} accent={accent} onBack={onBack} />
-        <BSProCleanType t={t}>
-        <BSProClientMini client={client} heat={accent} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
-          {isNutri ? nutriBody : trainerBody}
-          <div>
-            <BSProActionSec eyebrow={tr('coach:adjust.message', { defaultValue: 'MESSAGE' })} title={tr('coach:adjust.noteTo', { defaultValue: 'Note to {name}', name: first })} accent={accent} />
-            <textarea value={body} onChange={(e) => setNoteText(e.target.value)} rows={4} style={{ width: '100%', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: BS_PRO_SANS, fontSize: 16, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />
-            <div style={{ marginTop: 14 }}>
-              {cta(sendLabel, () => apply(false))}
-              {cta(tr('coach:adjust.applyNotify', { defaultValue: 'Apply & Notify →' }), () => apply(true), 10, true)}
-            </div>
-            {/* The guardrail's own words, a REQUIRED reason, and an explicit
-                override — the same acknowledgment path §9.4 gives a
-                hand-authored week, because a regenerated one is judged on
-                exactly the same terms.
-
-                ⚠ The `coach:assign.guard*` keys are reused DELIBERATELY. This is
-                one concept with one wording, and forking it into a second key
-                set would let the two gated surfaces drift into describing the
-                same refusal differently — in 13 locales. */}
-            {blocked && (
-              <div style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
-                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.AMBER }}>{(blocked.copy && blocked.copy.chip) || tr('coach:assign.guardChip', { defaultValue: 'Held for review' })}</div>
-                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{(blocked.copy && blocked.copy.line) || tr('coach:assign.guardLine', { defaultValue: 'This week was held for review.' })}</div>
-                {blocked.copy && blocked.copy.detail && (
-                  <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{blocked.copy.detail}</div>
-                )}
-                {blocked.weekStartISO && (
-                  <div style={{ marginTop: 9, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.guardWeek', { defaultValue: 'Week of {date}', date: blocked.weekStartISO })}</div>
-                )}
-                <textarea
-                  value={reasonText}
-                  onChange={(e) => setReasonText(e.target.value)}
-                  rows={3}
-                  placeholder={tr('coach:assign.guardReasonPlaceholder', { defaultValue: 'Why is this week right for them?' })}
-                  style={{ width: '100%', boxSizing: 'border-box', marginTop: 11, borderRadius: 10, border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, padding: '9px 10px', fontFamily: t.BODY, fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
-                />
-                <div style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.guardReasonHint', { defaultValue: 'Recorded with the week · required to publish' })}</div>
-                <button
-                  onClick={() => apply(blocked.notify === true, { reasonCode: 'coach_override', reasonText: reasonText.trim() })}
-                  disabled={!reasonText.trim() || status === 'saving'}
-                  style={{ width: '100%', marginTop: 10, borderRadius: 12, border: `1px solid ${t.AMBER}`, background: 'transparent', color: t.AMBER, padding: '12px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, letterSpacing: '0.05em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!reasonText.trim() || status === 'saving') ? 0.5 : 1 }}
-                >{tr('coach:assign.guardPublishAnyway', { defaultValue: 'Publish anyway' })}</button>
-                <button onClick={() => { setBlocked(null); setReasonText(''); }} style={{ width: '100%', marginTop: 8, border: 0, background: 'transparent', color: t.INK50, padding: '8px', fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 700, letterSpacing: 0, cursor: 'pointer' }}>{tr('coach:common.cancel', { defaultValue: 'Cancel' })}</button>
-              </div>
-            )}
-            {status === 'error' && <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.RUST, letterSpacing: 0 }}>{tr('coach:adjust.sendError', { defaultValue: "Couldn't send — try again." })}</div>}
-            {clientUid
-              ? <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{isNutri ? tr('coach:adjust.onApplyNutri', { defaultValue: "On apply · updates {name}'s Eat tab + sends this note", name: first }) : tr('coach:adjust.onApplyTrainer', { defaultValue: "On apply · updates {name}'s Train tab + sends this note", name: first })}</div>
-              : <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:adjust.demoApplies', { defaultValue: 'Demo client · applies once linked to a live member' })}</div>}
-          </div>
-        </div>
-        </BSProCleanType>
-      </div>
-      <BSFooter left={isNutri ? tr('coach:adjust.footerNutri', { defaultValue: 'Adjust plan' }) : tr('coach:adjust.footerTrainer', { defaultValue: 'Adjust program' })} right={client?.n} />
-    </BSPage>
-  );
-}
+// Tune the program / Tune the plan (ADJUST on a client's file) is its own module, BSProAdjust.jsx.
 
 function BSProScheduleSession({ client, role = 'trainer', clientUid, onBack }) {
   const t = useBSProClean();
@@ -4488,17 +3892,27 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     } catch (e) { setStatus(String(e?.message || 'error')); }
   };
 
-  const rowBtn = (key, title, sub, on, onClick) => (
-    <button key={key} onClick={onClick} style={{ width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', borderRadius: 14, border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, padding: '13px 14px', cursor: 'pointer' }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{title}</div>
-        {sub && <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11.5, letterSpacing: 0, color: t.INK50 }}>{sub}</div>}
+  // The page in the member profile's grammar (owner, 2026-11-04, of this page: "and this", then "reduce the
+  // coloring and simplify UI more", then "just reduce size of header and the boxes on page"): compact tiles in
+  // the paper's own colour with soft depth, a client by their facet avatar, the picked client, day and time in
+  // ink, and the accent only on Assign & notify once it can go. Every tap stays 44px.
+  const inkA = (a) => `rgba(${t.inkRGB || (t.isLight ? '15,14,12' : '245,240,230')},${a})`;
+  const tileA = { boxSizing: 'border-box', borderRadius: 18, background: t.isLight ? `linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.72)), ${t.PAPER}` : `linear-gradient(${inkA(0.06)}, ${inkA(0.06)}), ${t.PAPER}`, border: `1px solid ${inkA(t.isLight ? 0.07 : 0.1)}`, boxShadow: t.isLight ? `0 1px 2px ${inkA(0.06)}, 0 12px 26px -18px ${inkA(0.38)}` : 'inset 0 1px 0 rgba(255,255,255,0.05), 0 14px 30px -20px rgba(0,0,0,0.95)' };
+  const pillA = (on) => ({ display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 13px', borderRadius: 999, boxSizing: 'border-box', border: `1px solid ${on ? t.INK : inkA(t.isLight ? 0.1 : 0.14)}`, background: on ? t.INK : (t.isLight ? 'rgba(255,255,255,0.72)' : inkA(0.06)), color: on ? t.PAPER : t.INK70, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: on ? 700 : 600, whiteSpace: 'nowrap' });
+  const Facet = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
+  const initialsOf = (n) => String(n || '').trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '•';
+  const rowBtn = (key, title, sub, on, onClick, face = false) => (
+    <button key={key} type="button" data-assign-pick={on ? 'on' : 'off'} aria-pressed={on} onClick={onClick} style={{ ...tileA, borderRadius: 16, width: '100%', minHeight: 52, textAlign: 'left', display: 'flex', gap: 10, alignItems: 'center', padding: '6px 12px', cursor: 'pointer', color: t.INK, ...(on ? { border: `1.5px solid ${t.INK}` } : null) }}>
+      {face ? (Facet ? <Facet size={32} c={t.isLight ? '#0a8f87' : '#34d6c5'} name={title} initial={initialsOf(title)} showRank={false} flat /> : <span aria-hidden style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 99, display: 'grid', placeItems: 'center', background: inkA(0.08), fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 700 }}>{initialsOf(title)}</span>) : null}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: BS_PRO_SANS, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>{title}</div>
+        {sub && <div style={{ marginTop: 1, fontFamily: BS_PRO_SANS, fontSize: 12, color: t.INK70 }}>{sub}</div>}
       </div>
-      <span style={{ fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 650, color: on ? accent : t.INK50 }}>{on ? '✓' : '○'}</span>
+      <span aria-hidden style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 99, boxSizing: 'border-box', display: 'grid', placeItems: 'center', border: on ? 0 : `1.5px solid ${inkA(0.3)}`, background: on ? t.INK : 'transparent', color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 800 }}>{on ? '✓' : ''}</span>
     </button>
   );
   const emptyCard = (txt) => (
-    <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 16, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>{txt}</div>
+    <div style={{ ...tileA, borderRadius: 16, boxShadow: 'none', padding: '12px 14px', fontFamily: BS_PRO_SANS, fontSize: 13.5, color: t.INK70, lineHeight: 1.45 }}>{txt}</div>
   );
   const working = status === 'working';
   const ctaLabel = working ? tr('coach:assign.assigning', { defaultValue: 'Assigning…' }) : status === 'done' ? tr('coach:assign.assigned', { defaultValue: 'Assigned ✓' }) : tr('coach:assign.assignNotify', { defaultValue: 'Assign & notify →' });
@@ -4513,7 +3927,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     : isNutri
     ? tr('coach:assign.whenNutri', { defaultValue: 'This week · replaces their current menu from you' })
     : structuredWorkout
-      ? tr('coach:assign.whenStructured', { defaultValue: '{sessions} sessions · {weeks} weeks · from {from}', sessions: workoutDetail.builder.weeks.reduce((sum, w) => sum + w.days.length, 0), weeks: workoutDetail.builder.weeks.length, from: fromLabel })
+      ? tr('coach:assign.whenStructured', { defaultValue: '{sessions, plural, one {# session} other {# sessions}} · {weeks, plural, one {# week} other {# weeks}} · from {from}', sessions: workoutDetail.builder.weeks.reduce((sum, w) => sum + w.days.length, 0), weeks: workoutDetail.builder.weeks.length, from: fromLabel })
     : isSplit
       ? tr('coach:assign.whenSplit', { defaultValue: '{sessions} sessions/wk · {weeks, plural, one {# week} other {# weeks}} · from {from}', sessions: dayLines.filter(d => d && !d.rest).length, weeks, from: fromLabel })
       // A week block is one session per stated week — accurate under the existing
@@ -4523,13 +3937,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
 
   return (
     <BSPage>
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
+      <div data-assign-page="" style={{ padding: `0 ${t.padX}px 28px` }}>
         {/* C0 — the heading must not promise what the arc can't deliver: with the
             "Not a menu" notice below, "Put them on a menu." would contradict it. */}
-        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={isNutriWeekBlock || isDietGuide ? tr('coach:assign.titleAArc', { defaultValue: 'No menu' }) : tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutriWeekBlock || isDietGuide ? tr('coach:assign.titleBArc', { defaultValue: 'to assign.' }) : isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
+        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={isNutriWeekBlock || isDietGuide ? tr('coach:assign.titleAArc', { defaultValue: 'No menu' }) : tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutriWeekBlock || isDietGuide ? tr('coach:assign.titleBArc', { defaultValue: 'to assign.' }) : isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} compact />
         <BSProCleanType t={t}>
         {fixedClient && <BSProClientMini client={clientProp} />}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 16 }}>
           {!planProp && (
             <div>
               <BSProActionSec eyebrow={tr('coach:schedule.what', { defaultValue: 'WHAT' })} title={isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' })} accent={accent} />
@@ -4543,23 +3957,23 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
           {!fixedClient && (
             <div>
               <BSProActionSec eyebrow={tr('coach:schedule.who', { defaultValue: 'WHO' })} title={tr('coach:assign.pickClient', { defaultValue: 'Pick a client' })} accent={accent} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {clientList == null ? emptyCard(tr('coach:assign.loadingClients', { defaultValue: 'Loading your clients…' }))
                   : clientList.length === 0 ? emptyCard(tr('coach:assign.noLinked', { defaultValue: 'No linked members yet — clients appear here once they subscribe or book' }))
-                  : clientList.map(c => rowBtn(c.userId, c.name, c.sessions ? tr('coach:assign.sessionsTogether', { defaultValue: '{count, plural, one {# session} other {# sessions}} together', count: c.sessions }) : tr('coach:assign.linkedMember', { defaultValue: 'Linked member' }), picked && picked.userId === c.userId, () => setPicked(c)))}
+                  : clientList.map(c => rowBtn(c.userId, c.name, c.sessions ? tr('coach:assign.sessionsTogether', { defaultValue: '{count, plural, one {# session} other {# sessions}} together', count: c.sessions }) : tr('coach:assign.linkedMember', { defaultValue: 'Linked member' }), picked && picked.userId === c.userId, () => setPicked(c), true))}
               </div>
             </div>
           )}
           {!isNutri && (
             <div>
               <BSProActionSec eyebrow={tr('coach:schedule.when', { defaultValue: 'WHEN' })} title={tr('coach:assign.starts', { defaultValue: 'Starts' })} accent={accent} />
-              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+              <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', padding: '2px 2px 8px', margin: '0 -2px' }}>
                 {dayCells.map((d, i) => {
                   const on = dayIdx === i;
                   return (
-                    <button key={i} onClick={() => setDayIdx(i)} style={{ flexShrink: 0, width: 52, borderRadius: 12, padding: '10px 0', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, textAlign: 'center' }}>
-                      <div style={{ fontFamily: BS_PRO_SANS, fontSize: 11, fontWeight: 700, letterSpacing: 0, color: on ? accent : t.INK50 }}>{WD[d.getDay()]}</div>
-                      <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK }}>{d.getDate()}</div>
+                    <button key={i} type="button" data-assign-day={on ? 'on' : 'off'} aria-pressed={on} onClick={() => setDayIdx(i)} style={{ ...tileA, flexShrink: 0, width: 50, minHeight: 54, borderRadius: 15, padding: '6px 0', cursor: 'pointer', textAlign: 'center', ...(on ? { background: t.INK, border: `1px solid ${t.INK}` } : null) }}>
+                      <div style={{ fontFamily: BS_PRO_SANS, fontSize: 10.5, fontWeight: 700, color: on ? t.PAPER : t.INK50 }}>{WD[d.getDay()]}</div>
+                      <div style={{ marginTop: 1, fontFamily: BS_PRO_HEAD, fontSize: 18, fontWeight: 650, color: on ? t.PAPER : t.INK, fontVariantNumeric: 'tabular-nums' }}>{d.getDate()}</div>
                     </button>
                   );
                 })}
@@ -4572,15 +3986,15 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                   <BSProStepper label={tr('coach:assign.weeks', { defaultValue: 'WEEKS' })} sub={isSplit ? tr('coach:assign.repeatsSplit', { defaultValue: 'Repeats the weekly split' }) : tr('coach:assign.repeatsSession', { defaultValue: 'Repeats the session weekly' })} value={weeks} set={setWeeks} min={1} max={8} accent={accent} />
                 </div>
               )}
-              <div style={{ marginTop: 14 }}>
-                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.sessionTime', { defaultValue: 'Session time · optional' })}</div>
-                <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.sessionTimeHint', { defaultValue: "Set the time you've agreed with your client — it shows on their calendar & home card." })}</div>
-                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', marginTop: 9 }}>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 13.5, fontWeight: 650, color: t.INK }}>{tr('coach:assign.sessionTime', { defaultValue: 'Session time · optional' })}</div>
+                <div style={{ marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12, lineHeight: 1.4, color: t.INK70 }}>{tr('coach:assign.sessionTimeHint', { defaultValue: "Set the time you've agreed with your client — it shows on their calendar & home card." })}</div>
+                <div className="bs-hide-scroll" style={{ display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', marginTop: 2 }}>
                   {['', '06:00', '07:00', '08:00', '09:00', '12:00', '16:00', '17:00', '17:45', '18:00', '19:00', '20:00'].map((tv) => {
                     const on = timeSel === tv;
                     const lbl = tv === '' ? tr('coach:assign.noSetTime', { defaultValue: 'No set time' }) : (() => { const [h, m] = tv.split(':').map(Number); const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return `${hh}:${String(m).padStart(2, '0')} ${ap}`; })();
                     return (
-                      <button key={tv || 'none'} onClick={() => setTimeSel(tv)} style={{ flexShrink: 0, borderRadius: 999, padding: '8px 13px', cursor: 'pointer', border: `1px solid ${on ? accent : t.RULE}`, background: on ? `${accent}1c` : t.PAPER2, color: on ? accent : t.INK50, fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 700, letterSpacing: 0 }}>{lbl}</button>
+                      <button key={tv || 'none'} type="button" aria-pressed={on} onClick={() => setTimeSel(tv)} style={{ flexShrink: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><span style={pillA(on)}>{lbl}</span></button>
                     );
                   })}
                 </div>
@@ -4589,9 +4003,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
           )}
           <div>
             <BSProActionSec eyebrow={tr('coach:schedule.summary', { defaultValue: 'SUMMARY' })} title={tr('coach:assign.theAssignment', { defaultValue: 'The assignment' })} accent={accent} />
-            <div style={{ borderRadius: 16, border: `1px solid ${accent}44`, background: `linear-gradient(150deg, ${accent}16, ${t.PAPER2} 80%), ${t.PAPER2}`, padding: 16 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, color: t.INK }}>{plan ? plan.name : (isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' }))} · <span style={{ color: t.INK70, fontWeight: 500 }}>{first}</span></div>
-              <div style={{ marginTop: 7, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: accent }}>{summaryWhen}</div>
+            <div data-assign-summary="" style={{ ...tileA, borderRadius: 18, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: t.isLight ? `0 2px 4px ${inkA(0.08)}, 0 24px 40px -22px ${inkA(0.5)}` : '0 2px 4px rgba(0,0,0,0.4), 0 26px 44px -22px rgba(0,0,0,1)' }}>
+              {uid ? (Facet ? <Facet size={36} c={t.isLight ? '#0a8f87' : '#34d6c5'} name={targetName} initial={initialsOf(targetName)} showRank={false} flat /> : null) : null}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 650, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK, overflowWrap: 'anywhere' }}>{plan ? plan.name : (isNutri ? tr('coach:assign.pickMealPlan', { defaultValue: 'Pick a meal plan' }) : tr('coach:assign.pickProgram', { defaultValue: 'Pick a program' }))} · <span style={{ color: t.INK70, fontWeight: 500 }}>{first}</span></div>
+                <div style={{ marginTop: 3, fontFamily: BS_PRO_SANS, fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>{summaryWhen}</div>
+              </div>
             </div>
             {/* C0 — a week block has no menu to install, so there is no assign
                 action. State what it is, what to do instead, and (ruling 7)
@@ -4613,7 +4030,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
               </div>
             ) : (
               <>
-                <button type="button" onClick={() => apply()} disabled={!plan || !uid || working || status === 'done'} style={{ ...bsProPrimaryBtn(t, !plan || !uid || working || status === 'done'), marginTop: 14 }}>{ctaLabel}</button>
+                <button type="button" data-assign-go={!plan || !uid ? 'off' : 'on'} onClick={() => apply()} disabled={!plan || !uid || working || status === 'done'} style={{ ...bsProPrimaryBtn(t, working), marginTop: 16, minHeight: 56, borderRadius: 18, fontSize: 16, fontWeight: 700, ...(!plan || !uid ? { background: inkA(t.isLight ? 0.08 : 0.1), color: t.INK50, opacity: 1, cursor: 'default' } : { background: accent, color: isNutri ? '#241c08' : (t.isLight ? '#ffffff' : '#04201d'), boxShadow: t.isLight ? `0 12px 24px -14px ${inkA(0.55)}` : '0 14px 28px -14px rgba(0,0,0,0.95)' }) }}>{ctaLabel}</button>
                 {/* A guardrail rejection is HELD, never absorbed: the boundary's
                     own words, a required reason, and an explicit override. */}
                 {blocked && (
@@ -4652,7 +4069,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                   <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.AMBER, letterSpacing: 0 }}>{tr('coach:assign.queuedWeeks', { defaultValue: "{count, plural, one {# week is held on this device} other {# weeks are held on this device}} — they publish when you're back online, and {name} hasn't been told yet", count: queuedWeeks, name: first })}</div>
                 )}
                 {status && status !== 'working' && status !== 'done' && <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11.5, color: t.RUST, letterSpacing: 0 }}>{tr('coach:assign.assignError', { defaultValue: "Couldn't assign — {status}", status })}</div>}
-                <div style={{ marginTop: 10, fontFamily: BS_PRO_SANS, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: t.INK50 }}>
+                <div style={{ marginTop: 10, textAlign: 'center', fontFamily: BS_PRO_SANS, fontSize: 12.5, lineHeight: 1.45, color: t.INK50 }}>
                   {uid
                     ? (isNutri ? tr('coach:assign.onAssignNutri', { defaultValue: "On assign · lands on {name}'s Eat tab + sends a note", name: first }) : tr('coach:assign.onAssignTrainer', { defaultValue: "On assign · lands on {name}'s Train tab + sends a note", name: first }))
                     : fixedClient ? tr('coach:assign.demoAssigns', { defaultValue: 'Demo client · assigns once linked to a live member' }) : tr('coach:assign.pickLinked', { defaultValue: 'Pick a linked client above' })}
@@ -6924,10 +6341,8 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const heat = bsProHeat(t, 'trainer');
-  const heatRole = 'trainer';
   const accountId = typeof window !== 'undefined' ? window.ShapeAuth?.getCachedState?.()?.user?.id || null : null;
   const signedIn = !!accountId;
-  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   const [desc, setDesc] = useStateBSP('');
   const [focus, setFocus] = useStateBSP('Full body');
@@ -7008,7 +6423,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
     catch (e) { setLibraryError(e.message || tr('coach:workoutEditor.saveFailed', { defaultValue: 'Could not save. Your draft is still here.' })); }
     finally { duplicateBusyRef.current = false; }
   };
-  const cycleSort = () => setSort(s => s === 'Popular' ? 'Price' : s === 'Price' ? 'Rating' : 'Popular');
 
   // ── Add a clip to a published workout (WORKOUT VIDEOS station) ──
   const [clipSheet, setClipSheet] = useStateBSP(false);
@@ -7079,7 +6493,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
     { n: 'Warmup & mobility', meta: '6 videos · 9 min · in 4 plans' },
   ];
   const [tab, setTab] = useStateBSP('library');
-  const TABS = [['library', tr('coach:plans.tabLibrary', { defaultValue: 'Library' })], ['soundtracks', tr('coach:plans.tabSoundtracks', { defaultValue: 'Soundtracks' })]];
   // Library sub-tabs. NOTE the labels: Plans = multi-week paid programs,
   // Programs = reusable weekly routines/templates, Workouts = single sessions.
   const [libTab, setLibTab] = useStateBSP('plans');
@@ -7087,7 +6500,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
   // The library search (one field over every list) and the most popular plan's card.
   const [libQuery, setLibQuery] = useStateBSP('');
   const libMatch = (n) => { const q = libQuery.trim().toLowerCase(); return !q || String(n || '').toLowerCase().includes(q); };
-  const libSearchMiss = libQuery.trim() ? <div style={{ padding: '14px 0', fontFamily: tClean.DISPLAY, fontSize: 15, color: t.INK70 }}>{tr('coach:plans.noMatch', { defaultValue: 'Nothing matches “{query}”.', query: libQuery.trim() })}</div> : null;
   const shownPrograms = programs.filter((p) => libMatch(p.n));
   const topProgram = sort === 'Popular' ? bsProTopPlan(shownPrograms) : null;
   const [buildType, setBuildType] = useStateBSP('plan'); // plan | workout | program
@@ -7137,8 +6549,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
   ];
   const libBuild = ({ plans: 'plan', workouts: 'workout', programs: 'program' })[libTab] || 'plan';
 
-  if (showSoundtracks) return <BSProSoundtracks role="trainer" onBack={() => setShowSoundtracks(false)} />;
-
   // ── Assign a catalogue plan to a linked client ──
   // The Nora client is a one-time hint: the first Assign for that plan uses it, and
   // leaving that Assign (back or done) clears it, so a later Assign of the same
@@ -7155,17 +6565,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
 
   // ── AI draft sheet (workout builder) ──
   if (drafting) {
-    const chips = (label, value, set, opts) => (
-      <div style={{ marginTop: 18 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{label}</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {opts.map(o => {
-            const on = value === o;
-            return <button key={o} onClick={() => set(o)} style={{ borderRadius: 999, padding: '9px 15px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em' }}>{o}</button>;
-          })}
-        </div>
-      </div>
-    );
     const generateOnce = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
@@ -7234,49 +6633,36 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
       const run = draftRunRef.current;
       try { await generateOnce(); } finally { if (run === draftRunRef.current) { draftBusyRef.current = false; setDraftStatus(''); } }
     };
+    // The composer (BSProDraftComposer.jsx; owner, 2026-11-04: "update design of page here"). Masthead row at
+    // the standard inset; corners: false — this view holds an unsaved draft the settings gear would discard.
     return (
       <BSPage>
-        {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
-            sit BELOW it (every page opens on the same row). corners: false —
-            this view holds an unsaved draft the settings gear would discard. */}
         <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
-        <div style={{ padding: `12px ${t.padX}px 28px` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: teal }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
-          </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: teal }}>{BUILD_LABEL[buildType]}.</span></div>
-          {/* What are you building? */}
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>{tr('coach:plans.building', { defaultValue: 'BUILDING' })}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[['plan', tr('coach:plans.kindPlan', { defaultValue: 'Plan' })], ['workout', tr('coach:plans.kindWorkout', { defaultValue: 'Workout' })], ['program', tr('coach:plans.kindProgram', { defaultValue: 'Program' })]].map(([k, l]) => {
-                const on = buildType === k;
-                return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}1c` : 'transparent', color: on ? teal : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{l}</button>;
-              })}
-            </div>
-            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'plan' ? tr('coach:plans.descPlan', { defaultValue: 'A multi-week paid program clients enroll in.' }) : buildType === 'program' ? tr('coach:plans.descProgram', { defaultValue: 'A reusable weekly routine / template.' }) : tr('coach:plans.descWorkout', { defaultValue: 'A single day workout session.' })}</div>
-          </div>
-          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder={tr('coach:plans.descPlaceholderTrainer', { defaultValue: 'e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only' })} style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
-          {chips(tr('coach:plans.focusLabel', { defaultValue: 'FOCUS' }), focus, setFocus, ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'])}
-          {chips(tr('coach:plans.experienceLabel', { defaultValue: 'EXPERIENCE' }), exp, setExp, ['Beginner', 'Intermediate', 'Advanced'])}
-          {chips(tr('coach:plans.equipmentLabel', { defaultValue: 'EQUIPMENT' }), equip, setEquip, ['Full gym', 'Dumbbells', 'Bodyweight'])}
-          {chips(tr('coach:plans.lengthLabel', { defaultValue: 'LENGTH' }), length, setLength, ['30 min', '45 min', '60 min', '75 min'])}
-          <button onClick={generate} disabled={!!draftStatus} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: teal, color: '#04201d', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: draftStatus ? 'default' : 'pointer', opacity: draftStatus ? 0.75 : 1 }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
-          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
-        </div>
+        <BSProCleanType t={tClean}>
+          <BSProDraftComposer t={tClean} accent={teal} accentInk={t.isLight ? '#ffffff' : '#04201d'}
+            eyebrow={`${blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · ${BUILD_LABEL[buildType].toUpperCase()}`}
+            cancelLabel={tr('coach:common.cancel', { defaultValue: 'Cancel' })}
+            onCancel={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }}
+            titleA={blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} titleB={BUILD_LABEL[buildType]}
+            buildingLabel={tr('coach:plans.building', { defaultValue: 'BUILDING' })}
+            kinds={[['plan', tr('coach:plans.kindPlan', { defaultValue: 'Plan' })], ['workout', tr('coach:plans.kindWorkout', { defaultValue: 'Workout' })], ['program', tr('coach:plans.kindProgram', { defaultValue: 'Program' })]]} kind={buildType} onKind={setBuildType}
+            kindDesc={buildType === 'plan' ? tr('coach:plans.descPlan', { defaultValue: 'A multi-week paid program clients enroll in.' }) : buildType === 'program' ? tr('coach:plans.descProgram', { defaultValue: 'A reusable weekly routine / template.' }) : tr('coach:plans.descWorkout', { defaultValue: 'A single day workout session.' })}
+            prompt={blankMode ? null : { value: desc, onChange: setDesc, placeholder: tr('coach:plans.descPlaceholderTrainer', { defaultValue: 'e.g. 45-min upper body for an intermediate lifter, shoulder-friendly, dumbbells only' }) }}
+            groups={[
+              // A focus of the coach's own ("Glutes", "Mobility") is picked like these and sent as Nora's `goal`.
+              { key: 'focus', label: tr('coach:plans.focusLabel', { defaultValue: 'FOCUS' }), value: focus, onPick: setFocus, options: ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full body', 'Conditioning'],
+                custom: { addLabel: tr('coach:plans.customChip', { defaultValue: '＋ Custom' }), placeholder: tr('coach:plans.customFocusPlaceholder', { defaultValue: 'Your focus, e.g. Glutes' }), addWord: tr('coach:plans.customAdd', { defaultValue: 'Add' }), removeAria: (name) => tr('coach:plans.customRemoveAria', { defaultValue: 'Remove {name}', name }), fallback: 'Full body' } },
+              { key: 'experience', label: tr('coach:plans.experienceLabel', { defaultValue: 'EXPERIENCE' }), value: exp, onPick: setExp, options: ['Beginner', 'Intermediate', 'Advanced'] },
+              { key: 'equipment', label: tr('coach:plans.equipmentLabel', { defaultValue: 'EQUIPMENT' }), value: equip, onPick: setEquip, options: ['Full gym', 'Dumbbells', 'Bodyweight'] },
+              { key: 'length', label: tr('coach:plans.lengthLabel', { defaultValue: 'LENGTH' }), value: length, onPick: setLength, options: ['30 min', '45 min', '60 min', '75 min'] },
+            ]}
+            generate={{ label: draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' })), busy: !!draftStatus, onClick: generate }}
+            hint={tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })} />
+        </BSProCleanType>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:plans.footerAiWorkout', { defaultValue: 'Workout' })} />
       </BSPage>
     );
   }
-
-  // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
-  // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
-  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
-  const stationHead = (label, trailing) => bsProStationHead(tClean, heat, label, trailing);
-  const monoTrail = (label, onClick) => bsProMonoTrail(tClean, label, onClick);
-  const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(tClean, heat, eyebrow, headA, headB, meta, actions);
-  const enrolledRow = (e, i) => bsProEnrolledRow(tClean, flash, e, i, heat);
 
   // §2 (CodeRabbit) — the line under the title: signed-out keeps the sample's figures; signed-in
   // shows the live published count once loaded, else "—" (no fabricated drafts).
@@ -7285,25 +6671,13 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
     : (serverPlans === null ? '—' : tr('coach:head.publishedCount', { defaultValue: '{count, plural, one {# published} other {# published}}', count: serverPlans.filter((p) => p.published !== false).length }));
   const publishedRest = !signedIn ? tr('coach:head.draftCount', { defaultValue: '{count, plural, one {# draft} other {# drafts}}', count: 1 }) : null;
 
-  // The catalogue is set in the clean face (useBSProClean); the editors and the draft page above keep theirs.
+  // ── The page (BSProCatalog.jsx, the owner's B, 2026-11-04): the lists, their rows, doors and states,
+  // handed in to be drawn. It is set in the clean face (useBSProClean); the editors and the draft page
+  // above keep theirs. ──
   {
   const t = tClean;
-  return (
-    <BSPage>
-      {/* §1.1 Header — mast row (the standard inset, #1574 rule), then "Programs" and its line. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
-      <BSProCleanType t={t}>
-      {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
-          kind on show blank (Nora drafts from the masthead's ✦). */}
-      <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.programs', { defaultValue: 'Programs' })}
-        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(bsDeckTeal(t)), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
-        {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
-      </BSProDeck>
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        {note && <div role="status" style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.isLight ? '#07706a' : teal, padding: '10px 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>✓ {note}</div>}
-        {signedIn && libraryError && <div role="alert" style={{ marginTop: 14, color: t.RUST, fontFamily: t.BODY, fontSize: 13 }}>{libraryError} <button type="button" onClick={refreshLibrary} style={{ minHeight: 44, border: 0, background: 'transparent', color: teal, cursor: 'pointer' }}>{tr('coach:workoutEditor.retryLibrary', { defaultValue: 'Reload library' })}</button></div>}
-        {signedIn && serverPlans === null && !libraryError && <p role="status" style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>{tr('coach:workoutEditor.loading', { defaultValue: 'Loading your saved workouts and programs…' })}</p>}
-
+  // The clip sheet (Workout videos → ＋ Add a clip) and its file input.
+  const clipSheetNode = (<>
         <input ref={clipVideoRef} type="file" accept="video/*" onChange={uploadClipToPlan} style={{ display: 'none' }} />
         {clipSheet && createPortal(
           <div onClick={closeClipSheet} style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
@@ -7330,137 +6704,81 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
           </div>,
           (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || (typeof document !== 'undefined' ? document.body : null)
         )}
-
-        {/* §1.3 The kinds as tabs, underlined in the role's heat, then Music (the soundtracks). */}
-        <div style={{ marginTop: 10 }}>{bsProTypoIndex(t, [...LIB_TABS, ['soundtracks', tr('coach:plans.tabMusic', { defaultValue: 'Music' })]], tab === 'soundtracks' ? 'soundtracks' : libTab, (k) => { if (k === 'soundtracks') { setTab('soundtracks'); return; } setTab('library'); setLibTab(k); }, { ariaLabel: tr('coach:plans.catalogueKind', { defaultValue: 'Catalogue kind' }), heat })}</div>
-        {/* §1.4 Search, over every list on the page. */}
-        {tab === 'library' && <div style={{ marginTop: 12 }}>{bsProLibrarySearch(t, tr, libQuery, setLibQuery)}</div>}
-
-        {tab === 'library' && (<>
-        {libTab === 'plans' && (<>
-        {/* §1.5 THE CATALOGUE — the most popular plan as a card, then the rest as rows. */}
-        {topProgram && <>
-          <BSProFeaturedPlan plan={topProgram} heat={heat} t={t}
-            onOpen={() => topProgram.id ? setEditingPlan((serverPlans || []).find((row) => row.id === topProgram.id) || { ...topProgram, name: topProgram.n }) : openDraft('plan')}
-            onAssign={() => setAssignPlan({ id: topProgram.id || null, name: topProgram.n, meta: topProgram.meta, detail: topProgram.detail || null })} />
-        </>}
-        {stationHead(topProgram ? tr('coach:head.allPlans', { defaultValue: 'All plans' }) : tr('coach:head.paidPlans', { defaultValue: 'Paid plans' }), monoTrail(tr('coach:head.sortBy', { defaultValue: 'Sort: {mode}', mode: (sort === 'Price' ? tr('coach:head.sortPrice', { defaultValue: 'Price' }) : sort === 'Rating' ? tr('coach:head.sortRating', { defaultValue: 'Rating' }) : tr('coach:head.sortPopular', { defaultValue: 'Popular' })) }), cycleSort))}
-        {programs.length === 0 ? (serverPlans === null ? null :
-          <div style={{ marginTop: 2 }}>
-            {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
-            <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('plan', true)} />
-            <BSProAskNora t={t} label={tr('feed:support.ask.draftWorkoutLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftWorkout', { defaultValue: 'Draft a workout for me: ' })} />
-          </div>
-        ) : (
-          <div style={{ marginTop: 2 }}>
-            {!shownPrograms.length && libSearchMiss}
-            {shownPrograms.filter((p) => p !== topProgram).map((p, i) => (
-              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
-                onOpen={() => p.id ? setEditingPlan((serverPlans || []).find((row) => row.id === p.id) || { ...p, name: p.n }) : openDraft('plan')}
-                onDuplicate={p.id ? () => duplicate(p) : undefined}
-                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
-            ))}
-          </div>
-        )}
-        {/* §1.6 ENROLLED — clients on plans */}
-        {stationHead(tr('coach:head.enrolled', { defaultValue: 'Enrolled' }))}
-        {enrolled.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' })} /> : null
-        ) : (
-          <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
-        )}
-        </>)}
-
-        {libTab === 'workouts' && (<>
-        {/* Top workout — unboxed verdict lead. §5 (CodeRabbit) — fabricated
-            "used by 34 · 4.9 ★" so signed-OUT preview only. */}
-        {!signedIn && featureLead('TOP WORKOUT · 62 MIN', 'Lower Push —', 'Peak.', '6 lifts · used by 34 · RPE 8 · 4.9 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('workout')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('Lower Push Peak')} /></span>
-        </>)}
-        {/* Single day workouts — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead(tr('coach:head.sessions', { defaultValue: 'Sessions' }), monoTrail(tr('coach:head.new', { defaultValue: 'New' }), () => openDraft('workout')))}
-        {workouts.length === 0 ? (
-          serverPlans !== null && Redact ? <>
-            <Redact INK={t.INK} label={tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' })} />
-            <BSProAskNora t={t} label={tr('feed:support.ask.draftWorkoutLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftWorkout', { defaultValue: 'Draft a workout for me: ' })} />
-          </> : null
-        ) : (
-        <div style={{ marginTop: 2 }}>
-          {!workouts.filter((w) => libMatch(w.n)).length && libSearchMiss}
-          {workouts.filter((w) => libMatch(w.n)).map((w, i) => (
-            <BSProCatRow key={w.id || w.n} index={i} name={w.n} meta={w.meta} heat={heat} t={t}
-              onOpen={() => w.id ? setEditingPlan({ ...w, name: w.n }) : openDraft('workout')}
-              onDuplicate={w.id ? () => duplicate(w) : undefined}
-              onAssign={() => setAssignPlan({ id: w.id || null, name: w.n, meta: w.meta, detail: w.detail || null })} />
-          ))}
-        </div>
-        )}
-
-        {/* Video library — real clips flattened from published plans (plan
-            media + per-block clips); demo cues are the signed-out fallback. */}
-        {stationHead(tr('coach:head.workoutVideos', { defaultValue: 'Workout videos' }))}
-        <BSProTextAction heat={heat} t={t} label={tr('coach:plans.addClipAction', { defaultValue: '＋ Add a clip to a workout →' })} onClick={openClipAdder} />
-        {serverPlans === null ? (
-          !signedIn ? (
-            // Signed-out preview → demo cues are fine.
-            <div style={{ marginTop: 2 }}>
-              {cues.filter((c) => libMatch(c.n)).map((c, i) => (
-                <BSProCatRow key={c.n} index={i} name={c.n} meta={c.meta} heat={heat} t={t} onOpen={() => flash(tr('coach:plans.openVideoSet', { defaultValue: 'Open video set' }))} />
-              ))}
-            </div>
-          ) : (
-            // Signed-in but still loading → redaction line, never fabricated counts.
-            <div style={{ marginTop: 2 }}>{!libraryError && Redact ? <Redact INK={t.INK} label={tr('coach:plans.clipsLoading', { defaultValue: 'CLIPS · LOADING' })} /> : null}</div>
-          )
-        ) : (() => {
-          const clips = coachWorkoutVideos(serverPlans);
-          if (!clips.length) return <div style={{ marginTop: 2 }}>{Redact ? <Redact INK={t.INK} label={tr('coach:plans.noClips', { defaultValue: 'NO CLIPS YET' })} /> : null}</div>;
-          // The library search covers the clips too (Codex on #2458), as it does the rows above.
-          const shownClips = clips.filter((c) => libMatch(c.name));
-          return (
-            <div style={{ marginTop: 2 }}>
-              {!shownClips.length && libSearchMiss}
-              {shownClips.map((c, i) => (
-                <ShapeVideoPlayer key={c.url} value={c} title={c.name}/>
-              ))}
-            </div>
-          );
-        })()}
-        </>)}
-
-        {libTab === 'programs' && (<>
-        {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
-            "used by 22 · 4.8 ★" so signed-OUT preview only. */}
-        {!signedIn && featureLead('TOP PROGRAM · 8 WK', '5-day Upper /', 'Lower.', '5 days/wk · 8-week block · used by 22 · 4.8 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('program')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('5-day Upper Lower')} /></span>
-        </>)}
-        {/* Reusable weekly routines / templates — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead(tr('coach:head.templates', { defaultValue: 'Templates' }), monoTrail(tr('coach:head.new', { defaultValue: 'New' }), () => openDraft('program')))}
-        {routines.length === 0 ? (
-          serverPlans !== null && Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' })} /> : null
-        ) : (
-        <div style={{ marginTop: 2 }}>
-          {!routines.filter((r) => libMatch(r.n)).length && libSearchMiss}
-          {routines.filter((r) => libMatch(r.n)).map((r, i) => (
-            <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
-              onOpen={() => r.id ? setEditingPlan({ ...r, name: r.n }) : openDraft('program')}
-              onDuplicate={r.id ? () => duplicate(r) : undefined}
-              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
-          ))}
-        </div>
-        )}
-        </>)}
-        </>)}
-
-        {tab === 'soundtracks' && (
-        <BSProSoundtracks role="trainer" embedded onBack={() => setTab('library')} />
-        )}
-      </div>
-      </BSProCleanType>
+  </>);
+  const item = (p, onOpen, onDuplicate) => ({ key: p.id || p.n, name: p.n, meta: p.meta, price: p.price, detail: p.detail || null, demo: !signedIn && !p.id, onOpen, onDuplicate, onAssign: () => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null }) });
+  const missText = libQuery.trim() ? tr('coach:plans.noMatch', { defaultValue: 'Nothing matches “{query}”.', query: libQuery.trim() }) : null;
+  const askNora = <BSProAskNora t={t} label={tr('feed:support.ask.draftWorkoutLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftWorkout', { defaultValue: 'Draft a workout for me: ' })} />;
+  const newOne = (kind) => ({ label: tr('coach:head.new', { defaultValue: 'New' }), icon: '＋', onClick: () => openDraft(kind) });
+  // The signed-out sample's top pick of a list, with EDIT · DUPLICATE · SHARE →.
+  const topPick = (badge, title, meta, kind, row, shareName) => ({ kind: 'lead', lead: { badge, title, meta, actions: [
+    { key: 'edit', label: tr('coach:plans.edit', { defaultValue: 'EDIT' }), onClick: () => openDraft(kind) },
+    { key: 'duplicate', label: tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' }), onClick: () => duplicate(row) },
+    { key: 'share', label: tr('coach:plans.shareAction', { defaultValue: 'SHARE →' }), onClick: () => share(shareName) },
+  ] } });
+  const openProgram = (p) => () => (p.id ? setEditingPlan((serverPlans || []).find((row) => row.id === p.id) || { ...p, name: p.n }) : openDraft('plan'));
+  const shownWorkouts = workouts.filter((w) => libMatch(w.n));
+  const shownRoutines = routines.filter((r) => libMatch(r.n));
+  // Workout videos: real clips flattened from published plans (plan media + per-block clips); the demo cues
+  // are the signed-out fallback; signed in and still loading, a line that says so, never fabricated counts.
+  const videos = (() => {
+    const base = { kind: 'list', key: 'videos', head: tr('coach:head.workoutVideos', { defaultValue: 'Workout videos' }), action: { label: tr('coach:plans.addClipAction', { defaultValue: '＋ Add a clip to a workout →' }), onClick: openClipAdder }, items: [] };
+    if (serverPlans === null) {
+      if (!signedIn) return { ...base, items: cues.filter((c) => libMatch(c.n)).map((c) => ({ ...item(c, () => flash(tr('coach:plans.openVideoSet', { defaultValue: 'Open video set' }))), onAssign: undefined })) };
+      return { ...base, empty: libraryError ? null : { label: tr('coach:plans.clipsLoading', { defaultValue: 'CLIPS · LOADING' }) } };
+    }
+    const clips = coachWorkoutVideos(serverPlans);
+    if (!clips.length) return { ...base, empty: { label: tr('coach:plans.noClips', { defaultValue: 'NO CLIPS YET' }) } };
+    // The library search covers the clips too (Codex on #2458), as it does the rows above.
+    const shownClips = clips.filter((c) => libMatch(c.name));
+    return { ...base, miss: shownClips.length ? null : missText, node: shownClips.length ? <>{shownClips.map((c) => <ShapeVideoPlayer key={c.url} value={c} title={c.name} />)}</> : null };
+  })();
+  // §5 (CodeRabbit) — the sample's figures (used by 34 · 4.9 ★) are a signed-OUT preview only. An empty
+  // list says so once the library has loaded, with Nora's draft where the page had it.
+  const sections = tab !== 'library' ? [] : libTab === 'workouts' ? [
+    !signedIn ? topPick('TOP WORKOUT · 62 MIN', 'Lower Push — Peak.', '6 lifts · used by 34 · RPE 8 · 4.9 ★', 'workout', { n: 'Lower Push — Peak', meta: '6 lifts · 62 min · RPE 8' }, 'Lower Push Peak') : null,
+    { kind: 'list', key: 'sessions', head: tr('coach:head.sessions', { defaultValue: 'Sessions' }), trail: newOne('workout'),
+      items: shownWorkouts.map((w) => item(w, () => (w.id ? setEditingPlan({ ...w, name: w.n }) : openDraft('workout')), w.id ? () => duplicate(w) : undefined)),
+      miss: workouts.length && !shownWorkouts.length ? missText : null,
+      empty: workouts.length || serverPlans === null ? null : { label: tr('coach:plans.noWorkouts', { defaultValue: 'NO WORKOUTS YET' }), nora: askNora } },
+    videos,
+  ] : libTab === 'programs' ? [
+    !signedIn ? topPick('TOP PROGRAM · 8 WK', '5-day Upper / Lower.', '5 days/wk · 8-week block · used by 22 · 4.8 ★', 'program', { n: '5-day Upper / Lower', meta: '5 days/wk · 8-week block' }, '5-day Upper Lower') : null,
+    { kind: 'list', key: 'templates', head: tr('coach:head.templates', { defaultValue: 'Templates' }), trail: newOne('program'),
+      items: shownRoutines.map((r) => item(r, () => (r.id ? setEditingPlan({ ...r, name: r.n }) : openDraft('program')), r.id ? () => duplicate(r) : undefined)),
+      miss: routines.length && !shownRoutines.length ? missText : null,
+      empty: routines.length || serverPlans === null ? null : { label: tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' }) } },
+  ] : [
+    topProgram ? { kind: 'featured', item: { ...item(topProgram, openProgram(topProgram)), badge: tr('coach:head.mostPopular', { defaultValue: 'Most popular' }) } } : null,
+    { kind: 'list', key: 'plans', sortable: true, head: topProgram ? tr('coach:head.allPlans', { defaultValue: 'All plans' }) : tr('coach:head.paidPlans', { defaultValue: 'Paid plans' }),
+      items: shownPrograms.filter((p) => p !== topProgram).map((p) => item(p, openProgram(p), p.id ? () => duplicate(p) : undefined)),
+      miss: programs.length && !shownPrograms.length ? missText : null,
+      empty: programs.length || serverPlans === null ? null : { label: tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' }), build: { label: tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' }), onClick: () => openDraft('plan', true) }, nora: askNora } },
+    { kind: 'enrolled', head: tr('coach:head.enrolled', { defaultValue: 'Enrolled' }), empty: { label: tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' }) },
+      rows: enrolled.map((e) => ({ key: e.prog, name: e.prog, faces: e.who.map((w) => w[0]), demo: !signedIn, label: tr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n }), aria: tr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n }), onClick: () => flash(tr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog })) })) },
+  ];
+  const sortWord = sort === 'Price' ? tr('coach:head.sortPrice', { defaultValue: 'Price' }) : sort === 'Rating' ? tr('coach:head.sortRating', { defaultValue: 'Rating' }) : tr('coach:head.sortPopular', { defaultValue: 'Popular' });
+  const model = {
+    role: 'trainer', title: tr('coach:shortcut.programs', { defaultValue: 'Programs' }), published: publishedLead, publishedRest,
+    onScratch: tab === 'library' ? () => openDraft(libBuild, true) : null, note,
+    alert: signedIn && libraryError ? { text: libraryError, retry: tr('coach:workoutEditor.retryLibrary', { defaultValue: 'Reload library' }), onRetry: refreshLibrary } : null,
+    loading: signedIn && serverPlans === null && !libraryError ? tr('coach:workoutEditor.loading', { defaultValue: 'Loading your saved workouts and programs…' }) : null,
+    // The kinds as tabs (Plans = multi-week paid programs, Workouts = single sessions, Programs = weekly
+    // templates), then Music (the soundtracks).
+    tabs: [...LIB_TABS, ['soundtracks', tr('coach:plans.tabMusic', { defaultValue: 'Music' })]], tab: tab === 'soundtracks' ? 'soundtracks' : libTab,
+    onTab: (k) => { if (k === 'soundtracks') { setTab('soundtracks'); return; } setTab('library'); setLibTab(k); }, tabsAria: tr('coach:plans.catalogueKind', { defaultValue: 'Catalogue kind' }),
+    // One search over every list on the page.
+    search: tab === 'library' ? { value: libQuery, onChange: setLibQuery, placeholder: tr('coach:plans.searchPlaceholder', { defaultValue: 'Search plans, workouts, music' }), aria: tr('coach:plans.searchAria', { defaultValue: 'Search your library' }) } : null,
+    sort: tab === 'library' && libTab === 'plans' ? { value: sort, label: tr('coach:head.sortBy', { defaultValue: 'Sort: {mode}', mode: sortWord }), onPick: setSort,
+      options: [['Popular', tr('coach:head.sortPopular', { defaultValue: 'Popular' })], ['Price', tr('coach:head.sortPrice', { defaultValue: 'Price' })], ['Rating', tr('coach:head.sortRating', { defaultValue: 'Rating' })]] } : null,
+    sections: sections.filter(Boolean),
+    music: tab === 'soundtracks' ? <BSProSoundtracks role="trainer" embedded onBack={() => setTab('library')} /> : null,
+    overlay: clipSheetNode,
+  };
+  return (
+    <BSPage>
+      {/* The mast row at the standard inset (#1574 rule), then the page. */}
+      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
+      <BSProCleanType t={t}><BSProCatalog t={t} model={model} /></BSProCleanType>
       <BSFooter left={tr('coach:common.coachEdition', { defaultValue: 'The Coach Edition' })} right={tr('coach:plans.footerRightTrainer', { defaultValue: 'Programs' })} />
     </BSPage>
   );
@@ -8133,7 +7451,6 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
     .filter(c => bsClientMatchesQuery(c, cQuery));
   const activeCount = NUTRI_CLIENTS.filter(c => c.active).length;
   const pastCount = NUTRI_CLIENTS.length - activeCount;
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);
   if (fullClient) {
     return <BSProClientFullProfilePage client={fullClient} onBack={() => setFullClient(null)} role="nutritionist" />;
   }
@@ -8159,7 +7476,6 @@ function BSNutriClients({ openRequest = null, onOpenConsumed = () => {} } = {}) 
       pastCount={pastCount}
       totalCount={NUTRI_CLIENTS.length}
       allClients={NUTRI_CLIENTS}
-      newThisMonth={signedIn ? 0 : 3}
       roster={roster}
       setRoster={setRoster}
       query={cQuery}
@@ -8203,10 +7519,8 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
   const t = useBS();
   const tClean = useBSProClean();
   const tr = useShapeTr();
-  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', heat = bsProHeat(t, 'nutritionist');
-  const heatRole = 'nutritionist';
+  const gold = '#d8b25a';
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const [showSoundtracks, setShowSoundtracks] = useStateBSP(false);
   const [drafting, setDrafting] = useStateBSP(false);
   // AI draft form
   const [desc, setDesc] = useStateBSP('');
@@ -8269,7 +7583,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     { n: 'Weight-loss kickstart', meta: '4 wks · calorie-controlled · $110' },
   ];
   const [tab, setTab] = useStateBSP('library');
-  const TABS = [['library', tr('coach:plans.tabLibrary', { defaultValue: 'Library' })], ['soundtracks', tr('coach:plans.tabSoundtracks', { defaultValue: 'Soundtracks' })]];
   // Library sub-tabs. Plans = multi-week paid meal plans, Programs = lifestyle
   // meal programs you sell, Diet = diet-specific meals / plans.
   const [libTab, setLibTab] = useStateBSP('plans');
@@ -8385,8 +7698,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     flash(tr('coach:plans.openMissingPlan', { defaultValue: "That plan isn't in your library yet. Try again in a moment." }));
   }, [openPlanRequest, serverPlans, refreshLibrary]);
 
-  if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
-
   // ── Assign a catalogue meal plan to a linked client ──
   if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} preferClientUid={assignPrefer && assignPlan.id && assignPrefer.planId === assignPlan.id ? assignPrefer.clientId : null} onBack={() => { setAssignPrefer(null); setAssignPlan(null); }} onDone={() => { setAssignPrefer(null); setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
 
@@ -8404,17 +7715,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
 
   // ── AI draft sheet (meal-plan builder) ──
   if (drafting) {
-    const chips = (label, value, set, opts) => (
-      <div style={{ marginTop: 18 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{label}</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {opts.map(o => {
-            const on = value === o;
-            return <button key={o} onClick={() => set(o)} style={{ borderRadius: 999, padding: '9px 15px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.06em' }}>{o}</button>;
-          })}
-        </div>
-      </div>
-    );
     const generateOnce = async () => {
       setDraftStatus(blankMode ? tr('coach:plans.openingEditor', { defaultValue: 'Opening editor…' }) : tr('coach:plans.generating', { defaultValue: 'Generating…' }));
       const mk = (arr) => arr.map((s, i) => ({ id: 'b' + i, text: s }));
@@ -8466,58 +7766,38 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
       const run = draftRunRef.current;
       try { await generateOnce(); } finally { if (run === draftRunRef.current) { draftBusyRef.current = false; setDraftStatus(''); } }
     };
+    // The composer (BSProDraftComposer.jsx), as the trainer's; corners: false for the same unsaved draft.
     return (
       <BSPage>
-        {/* Masthead row at the standard inset — the AI-draft eyebrow + CANCEL
-            sit BELOW it (every page opens on the same row). corners: false —
-            this view holds an unsaved draft the settings gear would discard. */}
         <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow({ corners: false })}</div>
-        <div style={{ padding: `12px ${t.padX}px 28px` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: gold }}>{blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · {BUILD_LABEL[buildType].toUpperCase()}</div>
-            <button onClick={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }} style={{ border: 0, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', cursor: 'pointer' }}>{tr('coach:common.cancelUpper', { defaultValue: 'CANCEL' })}</button>
-          </div>
-          <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} <span style={{ fontStyle: 'italic', color: gold }}>{BUILD_LABEL[buildType]}.</span></div>
-          {/* What are you building? */}
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 8 }}>{tr('coach:plans.building', { defaultValue: 'BUILDING' })}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[['mealplan', tr('coach:diet.kindMealPlan', { defaultValue: 'Meal plan' })], ['program', tr('coach:plans.kindProgram', { defaultValue: 'Program' })], ['diet', tr('coach:diet.kindDiet', { defaultValue: 'Diet' })]].map(([k, l]) => {
-                const on = buildType === k;
-                return <button key={k} onClick={() => setBuildType(k)} style={{ flex: 1, borderRadius: 999, padding: '10px 6px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{l}</button>;
-              })}
-            </div>
-            <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', color: t.INK50 }}>{buildType === 'mealplan' ? tr('coach:diet.descMealPlan', { defaultValue: 'A multi-week paid plan clients enroll in.' }) : buildType === 'program' ? tr('coach:diet.descProgram', { defaultValue: 'A lifestyle meal program a client can buy.' }) : tr('coach:diet.descDiet', { defaultValue: 'A diet-specific set of meals / plans.' })}</div>
-          </div>
-          {!blankMode && <textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={3} placeholder={tr('coach:diet.descPlaceholder', { defaultValue: 'e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats' })} style={{ width: '100%', boxSizing: 'border-box', marginTop: 18, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: 14, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' }} />}
-          {chips(tr('coach:diet.goalLabel', { defaultValue: 'GOAL' }), goal, setGoal, ['Cut', 'Maintain', 'Lean bulk', 'Performance'])}
-          {chips(tr('coach:diet.dietLabel', { defaultValue: 'DIET' }), diet, setDiet, ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'])}
-          {chips(tr('coach:diet.dailyCaloriesLabel', { defaultValue: 'DAILY CALORIES' }), cals, setCals, ['~1800', '~2100', '~2600', '~3000'])}
-          <div style={{ marginTop: 18 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', color: t.INK50, marginBottom: 9 }}>{tr('coach:diet.mealsPerDay', { defaultValue: 'MEALS / DAY' })}</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[3, 4, 5, 6].map(n => { const on = mealsDay === n; return <button key={n} onClick={() => setMealsDay(n)} style={{ width: 40, height: 40, borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? gold : 'transparent', color: on ? '#241c08' : t.INK, fontFamily: t.MONO, fontSize: 12, fontWeight: 800 }}>{n}</button>; })}
-            </div>
-          </div>
-          <button onClick={generate} disabled={!!draftStatus} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: gold, color: '#241c08', padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: draftStatus ? 'default' : 'pointer', opacity: draftStatus ? 0.75 : 1 }}>{draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' }))}</button>
-          <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })}</div>
-        </div>
+        <BSProCleanType t={tClean}>
+          <BSProDraftComposer t={tClean} accent={gold} accentInk="#241c08"
+            eyebrow={`${blankMode ? tr('coach:plans.buildEyebrow', { defaultValue: 'BUILD' }) : tr('coach:plans.aiDraftEyebrow', { defaultValue: '✦ AI DRAFT' })} · ${BUILD_LABEL[buildType].toUpperCase()}`}
+            cancelLabel={tr('coach:common.cancel', { defaultValue: 'Cancel' })}
+            onCancel={() => { draftRunRef.current += 1; draftBusyRef.current = false; setDraftStatus(''); setDrafting(false); }}
+            titleA={blankMode ? tr('coach:plans.buildA', { defaultValue: 'Build a' }) : tr('coach:plans.describeThe', { defaultValue: 'Describe the' })} titleB={BUILD_LABEL[buildType]}
+            buildingLabel={tr('coach:plans.building', { defaultValue: 'BUILDING' })}
+            kinds={[['mealplan', tr('coach:diet.kindMealPlan', { defaultValue: 'Meal plan' })], ['program', tr('coach:plans.kindProgram', { defaultValue: 'Program' })], ['diet', tr('coach:diet.kindDiet', { defaultValue: 'Diet' })]]} kind={buildType} onKind={setBuildType}
+            kindDesc={buildType === 'mealplan' ? tr('coach:diet.descMealPlan', { defaultValue: 'A multi-week paid plan clients enroll in.' }) : buildType === 'program' ? tr('coach:diet.descProgram', { defaultValue: 'A lifestyle meal program a client can buy.' }) : tr('coach:diet.descDiet', { defaultValue: 'A diet-specific set of meals / plans.' })}
+            prompt={blankMode ? null : { value: desc, onChange: setDesc, placeholder: tr('coach:diet.descPlaceholder', { defaultValue: 'e.g. high-protein cut, vegetarian, around 2,000 kcal, hates seafood, loves oats' }) }}
+            groups={[
+              // A goal of the coach's own ("Gut health") is picked like these and sent as Nora's `goal`.
+              { key: 'goal', label: tr('coach:diet.goalLabel', { defaultValue: 'GOAL' }), value: goal, onPick: setGoal, options: ['Cut', 'Maintain', 'Lean bulk', 'Performance'],
+                custom: { addLabel: tr('coach:plans.customChip', { defaultValue: '＋ Custom' }), placeholder: tr('coach:diet.customGoalPlaceholder', { defaultValue: 'Your goal, e.g. Gut health' }), addWord: tr('coach:plans.customAdd', { defaultValue: 'Add' }), removeAria: (name) => tr('coach:plans.customRemoveAria', { defaultValue: 'Remove {name}', name }), fallback: 'Cut' } },
+              { key: 'diet', label: tr('coach:diet.dietLabel', { defaultValue: 'DIET' }), value: diet, onPick: setDiet, options: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'] },
+              { key: 'calories', label: tr('coach:diet.dailyCaloriesLabel', { defaultValue: 'DAILY CALORIES' }), value: cals, onPick: setCals, options: ['~1800', '~2100', '~2600', '~3000'] },
+              { key: 'meals', label: tr('coach:diet.mealsPerDay', { defaultValue: 'MEALS / DAY' }), value: mealsDay, onPick: setMealsDay, options: [3, 4, 5, 6], round: true },
+            ]}
+            generate={{ label: draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' })), busy: !!draftStatus, onClick: generate }}
+            hint={tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })} />
+        </BSProCleanType>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:diet.footerAiMealPlan', { defaultValue: 'Meal plan' })} />
       </BSPage>
     );
   }
 
-  // ── Ledger furniture (spec §1) — shared bsPro* helpers (above bsProMastRow),
-  // bound to this component's t/heat/flash so trainer + nutri can't drift. ──
-  const Redact = typeof window !== 'undefined' ? window.BSTRedact : null;
-  const stationHead = (label, trailing) => bsProStationHead(tClean, heat, label, trailing);
-  const monoTrail = (label, onClick) => bsProMonoTrail(tClean, label, onClick);
-  const featureLead = (eyebrow, headA, headB, meta, actions) => bsProFeatureLead(tClean, heat, eyebrow, headA, headB, meta, actions);
-  const enrolledRow = (e, i) => bsProEnrolledRow(tClean, flash, e, i, heat);
-
-  // §2 (CodeRabbit) — catalogue stat: signed-out keeps the demo string; signed-in
-  // shows the live PUBLISHED count once loaded, else "—" (no fabricated on-it count).
-  const libSearchMiss = libQuery.trim() ? <div style={{ padding: '14px 0', fontFamily: tClean.DISPLAY, fontSize: 15, color: t.INK70 }}>{tr('coach:plans.noMatch', { defaultValue: 'Nothing matches “{query}”.', query: libQuery.trim() })}</div> : null;
+  // §2 (CodeRabbit) — the line under the title: signed-out keeps the sample's figures; signed-in shows the
+  // live PUBLISHED count once loaded, else "—" (no fabricated on-it count).
   const shownPlans = plans.filter((p) => libMatch(p.n));
   const topPlan = bsProTopPlan(shownPlans);
   const publishedLead = !signedIn
@@ -8525,131 +7805,69 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     : (serverPlans === null ? '—' : tr('coach:head.publishedCount', { defaultValue: '{count, plural, one {# published} other {# published}}', count: serverPlans.length }));
   const publishedRest = !signedIn ? tr('coach:head.onItCount', { defaultValue: '{count, plural, one {# client on them} other {# clients on them}}', count: 40 }) : null;
 
-  // The catalogue is set in the clean face (useBSProClean); the editors and the draft page above keep theirs.
+  // ── The page (BSProCatalog.jsx, the owner's B, 2026-11-04), as the trainer's: the lists, their rows, doors
+  // and states, handed in to be drawn, in the clean face. ──
   {
   const t = tClean;
+  const item = (p, onOpen, withAssign = true) => ({ key: p.id || p.n, name: p.n, meta: p.meta, price: p.price, detail: p.detail || null, demo: !signedIn && !p.id, onOpen,
+    onAssign: withAssign ? () => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null }) : undefined });
+  const missText = libQuery.trim() ? tr('coach:plans.noMatch', { defaultValue: 'Nothing matches “{query}”.', query: libQuery.trim() }) : null;
+  const newOne = (kind) => ({ label: tr('coach:head.new', { defaultValue: 'New' }), icon: '＋', onClick: () => openDraft(kind) });
+  // The signed-out sample's top pick of a list, with EDIT · DUPLICATE · SHARE →.
+  const topPick = (badge, title, meta, kind, row, shareName) => ({ kind: 'lead', lead: { badge, title, meta, actions: [
+    { key: 'edit', label: tr('coach:plans.edit', { defaultValue: 'EDIT' }), onClick: () => openDraft(kind) },
+    { key: 'duplicate', label: tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' }), onClick: () => duplicate(row) },
+    { key: 'share', label: tr('coach:plans.shareAction', { defaultValue: 'SHARE →' }), onClick: () => share(shareName) },
+  ] } });
+  const shownPrograms = nutriPrograms.filter((r) => libMatch(r.n));
+  const shownDiets = diets.filter((r) => libMatch(r.n));
+  const shownMeals = singleMeals.filter((r) => libMatch(r.n));
+  // §5 (CodeRabbit) — the sample's figures (24 on it · 4.8 ★) are a signed-OUT preview only.
+  const sections = tab !== 'library' ? [] : libTab === 'programs' ? [
+    !signedIn ? topPick('TOP PROGRAM · $130', 'Busy professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', 'program', { n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' }, 'Busy professional') : null,
+    { kind: 'list', key: 'lifestyle', head: tr('coach:head.lifestyle', { defaultValue: 'Lifestyle' }), trail: newOne('program'),
+      // A program is weeks, never a menu: no Assign on a saved one.
+      items: shownPrograms.map((r) => item(r, () => openCard(r, 'program'), !nutritionNotAMenu(r.detail))),
+      miss: nutriPrograms.length && !shownPrograms.length ? missText : null,
+      empty: nutriPrograms.length ? null : { label: tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' }) } },
+  ] : libTab === 'diet' ? [
+    !signedIn ? topPick('TOP DIET · $90', 'Keto · 7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', 'diet', { n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' }, 'Keto 7-day') : null,
+    { kind: 'list', key: 'diets', head: tr('coach:head.dietSpecific', { defaultValue: 'Diet-specific' }), trail: newOne('diet'),
+      // A diet guide has no menu to put on a client's Eat tab: no Assign on its row.
+      items: shownDiets.map((r) => item(r, () => openCard(r, 'diet'), !nutritionNotAMenu(r.detail))),
+      miss: diets.length && !shownDiets.length ? missText : null,
+      empty: diets.length ? null : { label: tr('coach:diet.noDiets', { defaultValue: 'NO DIETS YET' }) } },
+    // Owner directive — MEALS · SINGLE DISHES: individual meals, no price and no Assign.
+    { kind: 'list', key: 'dishes', head: tr('coach:head.singleDishes', { defaultValue: 'Meals · single dishes' }),
+      items: shownMeals.map((r) => item(r, () => openDraft(libBuild), false)),
+      empty: singleMeals.length ? null : { label: tr('coach:diet.noMeals', { defaultValue: 'NO MEALS YET' }) } },
+  ] : [
+    topPlan ? { kind: 'featured', item: { ...item(topPlan, () => openCard(topPlan, 'mealplan')), badge: tr('coach:head.mostPopular', { defaultValue: 'Most popular' }) } } : null,
+    { kind: 'list', key: 'plans', head: topPlan ? tr('coach:head.allPlans', { defaultValue: 'All plans' }) : tr('coach:head.paidPlans', { defaultValue: 'Paid plans' }),
+      items: shownPlans.filter((p) => p !== topPlan).map((p) => item(p, () => openCard(p, 'mealplan'))),
+      miss: plans.length && !shownPlans.length ? missText : null,
+      empty: plans.length ? null : { label: tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' }), build: { label: tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' }), onClick: () => openDraft('mealplan', true) },
+        nora: <BSProAskNora t={t} label={tr('feed:support.ask.draftMealPlanLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftMealPlan', { defaultValue: 'Draft a meal plan for me: ' })} /> } },
+    { kind: 'enrolled', head: tr('coach:head.enrolled', { defaultValue: 'Enrolled' }), empty: { label: tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' }) },
+      rows: enrolled.map((e) => ({ key: e.prog, name: e.prog, faces: e.who.map((w) => w[0]), demo: !signedIn, label: tr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n }), aria: tr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n }), onClick: () => flash(tr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog })) })) },
+  ];
+  const model = {
+    role: 'nutritionist', title: tr('coach:shortcut.plans', { defaultValue: 'Plans' }), published: publishedLead, publishedRest,
+    onScratch: tab === 'library' ? () => openDraft(libBuild, true) : null, note, alert: null, loading: null,
+    // Plans / Programs / Diet, then Music (the soundtracks).
+    tabs: [...LIB_TABS, ['soundtracks', tr('coach:plans.tabMusic', { defaultValue: 'Music' })]], tab: tab === 'soundtracks' ? 'soundtracks' : libTab,
+    onTab: (k) => { if (k === 'soundtracks') { setTab('soundtracks'); return; } setTab('library'); setLibTab(k); }, tabsAria: tr('coach:plans.catalogueKind', { defaultValue: 'Catalogue kind' }),
+    search: tab === 'library' ? { value: libQuery, onChange: setLibQuery, placeholder: tr('coach:plans.searchPlaceholderNutri', { defaultValue: 'Search plans, diets, music' }), aria: tr('coach:plans.searchAria', { defaultValue: 'Search your library' }) } : null,
+    sort: null,
+    sections: sections.filter(Boolean),
+    music: tab === 'soundtracks' ? <BSProSoundtracks role="nutritionist" embedded onBack={() => setTab('library')} /> : null,
+    overlay: null,
+  };
   return (
     <BSPage>
-      {/* §1.1 Header — mast row (the standard inset), then "Plans" and its line. */}
+      {/* The mast row at the standard inset, then the page. */}
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
-      <BSProCleanType t={t}>
-      {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
-          kind on show blank (Nora drafts from the masthead's ✦). */}
-      <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.plans', { defaultValue: 'Plans' })}
-        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(bsDeckTeal(t)), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
-        {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
-      </BSProDeck>
-      <div style={{ padding: `0 ${t.padX}px 28px` }}>
-        {note && <div role="status" style={{ marginTop: 12, borderRadius: 999, border: `1px solid ${teal}`, background: `${teal}1c`, color: t.isLight ? '#07706a' : teal, padding: '10px 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.04em' }}>✓ {note}</div>}
-
-        {/* §1.3 The kinds as tabs, underlined in the role's heat: Plans / Programs / Diet, then Music (the soundtracks). */}
-        <div style={{ marginTop: 10 }}>{bsProTypoIndex(t, [...LIB_TABS, ['soundtracks', tr('coach:plans.tabMusic', { defaultValue: 'Music' })]], tab === 'soundtracks' ? 'soundtracks' : libTab, (k) => { if (k === 'soundtracks') { setTab('soundtracks'); return; } setTab('library'); setLibTab(k); }, { ariaLabel: tr('coach:plans.catalogueKind', { defaultValue: 'Catalogue kind' }), heat })}</div>
-        {/* §1.4 Search, over every list on the page. */}
-        {tab === 'library' && <div style={{ marginTop: 12 }}>{bsProLibrarySearch(t, tr, libQuery, setLibQuery, tr('coach:plans.searchPlaceholderNutri', { defaultValue: 'Search plans, diets, music' }))}</div>}
-
-        {tab === 'library' && (<>
-        {libTab === 'plans' && (<>
-        {/* §1.5 THE CATALOGUE — the most popular meal plan as a card, then the rest as rows. */}
-        {topPlan && <>
-          <BSProFeaturedPlan plan={topPlan} heat={heat} t={t}
-            onOpen={() => openCard(topPlan, 'mealplan')}
-            onAssign={() => setAssignPlan({ id: topPlan.id || null, name: topPlan.n, meta: topPlan.meta, detail: topPlan.detail || null })} />
-        </>}
-        {stationHead(topPlan ? tr('coach:head.allPlans', { defaultValue: 'All plans' }) : tr('coach:head.paidPlans', { defaultValue: 'Paid plans' }))}
-        {plans.length === 0 ? (
-          <div style={{ marginTop: 2 }}>
-            {Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' })} /> : null}
-            <BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' })} onClick={() => openDraft('mealplan', true)} />
-            <BSProAskNora t={t} label={tr('feed:support.ask.draftMealPlanLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftMealPlan', { defaultValue: 'Draft a meal plan for me: ' })} />
-          </div>
-        ) : (
-          <div style={{ marginTop: 2 }}>
-            {!shownPlans.length && libSearchMiss}
-            {shownPlans.filter((p) => p !== topPlan).map((p, i) => (
-              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
-                onOpen={() => openCard(p, 'mealplan')}
-                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
-            ))}
-          </div>
-        )}
-        {/* §1.6 ENROLLED — clients on plans */}
-        {stationHead(tr('coach:head.enrolled', { defaultValue: 'Enrolled' }))}
-        {enrolled.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' })} /> : null
-        ) : (
-          <div style={{ marginTop: 2 }}>{enrolled.map(enrolledRow)}</div>
-        )}
-        </>)}
-
-        {libTab === 'programs' && (<>
-        {/* Top program — unboxed verdict lead. §5 (CodeRabbit) — fabricated
-            "24 on it · 4.8 ★" so signed-OUT preview only. */}
-        {!signedIn && featureLead('TOP PROGRAM · $130', 'Busy', 'professional.', '4 wks · fast & balanced · 24 on it · 4.8 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('program')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: 'Busy professional', meta: '4 wks · 24 on it · 4.8 ★', price: '$130' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('Busy professional')} /></span>
-        </>)}
-        {/* Lifestyle meal programs for sale — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead(tr('coach:head.lifestyle', { defaultValue: 'Lifestyle' }), monoTrail(tr('coach:head.new', { defaultValue: 'New' }), () => openDraft('program')))}
-        {nutriPrograms.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:plans.noPrograms', { defaultValue: 'NO PROGRAMS YET' })} /> : null
-        ) : (
-        <div style={{ marginTop: 2 }}>
-          {!nutriPrograms.filter((r) => libMatch(r.n)).length && libSearchMiss}
-          {/* A program is weeks, never a menu: no Assign on a saved one's row. */}
-          {nutriPrograms.filter((r) => libMatch(r.n)).map((r, i) => (
-            <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
-              onOpen={() => openCard(r, 'program')}
-              onAssign={nutritionNotAMenu(r.detail) ? undefined : () => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
-          ))}
-        </div>
-        )}
-        </>)}
-
-        {libTab === 'diet' && (<>
-        {/* Top diet — unboxed verdict lead. §5 (CodeRabbit) — fabricated
-            "31 on it · 4.7 ★" so signed-OUT preview only. */}
-        {!signedIn && featureLead('TOP DIET · $90', 'Keto ·', '7-day.', '20g net carbs · high fat · 31 on it · 4.7 ★', <>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction heat={heat} t={t} label={tr('coach:plans.edit', { defaultValue: 'EDIT' })} onClick={() => openDraft('diet')} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.duplicate', { defaultValue: 'DUPLICATE' })} onClick={() => duplicate({ n: 'Keto · 7-day', meta: '20g net carbs · 31 on it · 4.7 ★', price: '$90' })} /></span>
-          <span style={{ display: 'inline-flex' }}><BSProTextAction mono heat={heat} t={t} label={tr('coach:plans.shareAction', { defaultValue: 'SHARE →' })} onClick={() => share('Keto 7-day')} /></span>
-        </>)}
-        {/* Diet-specific meals / plans — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead(tr('coach:head.dietSpecific', { defaultValue: 'Diet-specific' }), monoTrail(tr('coach:head.new', { defaultValue: 'New' }), () => openDraft('diet')))}
-        {diets.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:diet.noDiets', { defaultValue: 'NO DIETS YET' })} /> : null
-        ) : (
-        <div style={{ marginTop: 2 }}>
-          {!diets.filter((r) => libMatch(r.n)).length && libSearchMiss}
-          {/* A diet guide has no menu to put on a client's Eat tab: no Assign on its row. */}
-          {diets.filter((r) => libMatch(r.n)).map((r, i) => (
-            <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
-              onOpen={() => openCard(r, 'diet')}
-              onAssign={nutritionNotAMenu(r.detail) ? undefined : () => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
-          ))}
-        </div>
-        )}
-
-        {/* Owner directive — MEALS · SINGLE DISHES: individual meals (no price / no
-            ASSIGN) — demo signed-out, redaction signed-in-with-none. */}
-        {stationHead(tr('coach:head.singleDishes', { defaultValue: 'Meals · single dishes' }))}
-        {singleMeals.length === 0 ? (
-          Redact ? <Redact INK={t.INK} label={tr('coach:diet.noMeals', { defaultValue: 'NO MEALS YET' })} /> : null
-        ) : (
-        <div style={{ marginTop: 2 }}>
-          {singleMeals.filter((m) => libMatch(m.n)).map((m, i) => (
-            <BSProCatRow key={m.n} index={i} name={m.n} meta={m.meta} heat={heat} t={t} onOpen={() => openDraft(libBuild)} />
-          ))}
-        </div>
-        )}
-        </>)}
-        </>)}
-
-        {tab === 'soundtracks' && (
-        <BSProSoundtracks role="nutritionist" embedded onBack={() => setTab('library')} />
-        )}
-      </div>
-      </BSProCleanType>
+      <BSProCleanType t={t}><BSProCatalog t={t} model={model} /></BSProCleanType>
       <BSFooter left={tr('coach:common.nutriEdition', { defaultValue: 'The Nutri Edition' })} right={tr('coach:nav.plans', { defaultValue: 'Plans' })} />
     </BSPage>
   );
