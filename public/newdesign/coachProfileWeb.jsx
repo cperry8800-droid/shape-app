@@ -84,12 +84,12 @@ function useCpwWide(min = 1000) {
   }, [q]);
   return wide;
 }
-// The site header is fixed; a sticky row sits under it.
+// The site header is fixed; a sticky row sits under it. Inside a coach dashboard (no chrome of its own)
+// the dashboard's sticky app bar is the header instead.
 function useCpwHeadH(chrome) {
   const [h, setH] = React.useState(chrome ? 72 : 0);
   React.useEffect(() => {
-    if (!chrome) { setH(0); return undefined; }
-    const read = () => { const el = document.querySelector(".shape-header"); setH(el ? el.getBoundingClientRect().height : 0); };
+    const read = () => { const el = document.querySelector(chrome ? ".shape-header" : ".dash-appbar"); setH(el ? el.getBoundingClientRect().height : 0); };
     read();
     window.addEventListener("resize", read);
     const t = setTimeout(read, 400);
@@ -596,10 +596,12 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     <div className="cpw" data-coach-profile="" data-role={role} data-mode={live ? "live" : "sample"} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased" }}>
       <style>{`
     /* clip, not hidden: hidden makes a box a scroller, and the tabs, the Studio's filter and the rail never pin.
-       pageShell's html, body { overflow-x: hidden } does that to <body> on every page; while a coach page is
-       shown, they clip instead (a browser without clip keeps hidden). The rail's column runs the page's
-       height, so Work with has room to stay beside it. */
+       pageShell's html, body { overflow-x: hidden } does that to <body> on every page, and a coach dashboard's
+       <main> (livingProfilePage wrapShell) to itself; while a coach page is shown, they clip instead (a
+       browser without clip keeps hidden). The rail's column runs the page's height, so Work with has room
+       to stay beside it. */
     html:root, html > body{overflow-x:clip}
+    .dash-app main{overflow-x:clip !important}
     .cpw{overflow-x:hidden;overflow-x:clip}
     .cpw-wrap{max-width:1180px;margin:0 auto;padding:0 32px}
     .cpw-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:56px;align-items:start}

@@ -498,6 +498,12 @@ test('the page pins its rows: the root clips sideways without becoming a scrolle
   // rows stuck to; the coach page overrides it, more specifically, while it is shown.
   assert.match(read('public/newdesign/pageShell.jsx'), /html, body \{ overflow-x: hidden; \}/, 'pageShell still hides: drop the override if it stops');
   assert.match(src, /html:root, html > body\{overflow-x:clip\}/, 'the page and its body clip while a coach page is shown');
+  // In a coach dashboard the page sits in livingProfilePage's <main style={{ overflowX: "hidden" }}> under
+  // the dashboard's sticky app bar (Codex P2 on #2597): that <main> clips too, and the rows pin under the bar.
+  assert.match(read('public/newdesign/livingProfilePage.jsx'), /<main style=\{\{ minWidth: 0, overflowX: "hidden" \}\}>\{node\}<\/main>/, 'the dashboard wrapper still hides: drop the override if it stops');
+  assert.match(src, /\.dash-app main\{overflow-x:clip !important\}/, 'over its inline hidden; a browser without clip keeps hidden');
+  assert.match(src, /document\.querySelector\(chrome \? "\.shape-header" : "\.dash-appbar"\)/, 'without the site\'s chrome, the dashboard\'s app bar is the header the rows sit under');
+  assert.doesNotMatch(src, /if \(!chrome\) \{ setH\(0\)/, 'a dashboard no longer reads as no header');
   assert.doesNotMatch(src, /data-coach-profile=""[^\n]*overflowX: "hidden"/, 'no inline hidden on the root');
   assert.match(src, /\.cpw-rail\{align-self:stretch\}/, 'the rail\'s column runs the grid\'s height, so the rail has room to pin');
   assert.match(src, /data-studio-filter=""[^\n]*\n[^\n]*position: "sticky", top: stickyTop/, 'the focus filter pins');
