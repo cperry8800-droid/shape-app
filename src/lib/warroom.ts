@@ -622,6 +622,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile\'s tiles thinner, with more room between them (#2588). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of Log activity / Edit profile and the coach tile: "these can still be condensed. dont have to be such think bubbles, with slightly more spacing between them"', status: 'done' },
+        { label: '#2588 BSMemberBento.jsx bsMpAction: 6px padding, 14px corners, 15px words, a softer glow on the lit tile; BSMpIconBox 24px. Log activity / Edit profile and Follow / Message rows 44px (from 54) with 10px between (from 6); Log three fifths and Edit two, so Edit profile holds one line at 390px. The coach tile 44px, 10px under the tiles, its ring 30px, its phase chips slimmer. Tests pin the sizes; review: Codex clean on 31e4f29 (on open); CI green', status: 'done' },
+        { label: 'Next: new looks for the profile\'s Signals, Climb and Music tabs (owner: "these sections need updated designs/looks"); the options are being made', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: the member profile\'s Followers / Following / Posts line right under the photo, above the bio (#2587). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "move the followers, following row above the bio just below picture on profile"', status: 'done' },
