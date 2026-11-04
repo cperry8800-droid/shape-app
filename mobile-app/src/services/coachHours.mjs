@@ -163,3 +163,101 @@ export function bsHoursLabel(m, locale) {
     return bsHoursToInput(v);
   }
 }
+
+// ── The week's grid on Your hours: its span, its hour scale, and each day's ranges in words ──────
+// Owner, 2026-11-04, of the lit grid: "make it so you can tell more specifically what times certain
+// bars sit on". The grid spans the coach's own hours, an hour scale labels them closely, and each
+// day says its ranges in words. All of it follows the reader's clock (12- or 24-hour) through Intl.
+
+/** The shortest span the grid shows, so one short block doesn't stretch into two giant cells. */
+export const BS_HOURS_SPAN_MIN = 4 * 60;
+
+/**
+ * The span the week's grid covers: the earliest start to the latest end, rounded out to whole
+ * hours and at least BS_HOURS_SPAN_MIN long. An empty week shows 9 to 5, the hours ＋ Add hours puts
+ * on a day.
+ */
+export function bsHoursSpan(days) {
+  let lo = Infinity, hi = -Infinity;
+  for (let wd = 0; wd < 7; wd++) {
+    for (const [s, e] of bsHoursMerge(days && days[wd])) { if (s < lo) lo = s; if (e > hi) hi = e; }
+  }
+  if (!Number.isFinite(lo)) return [9 * 60, 17 * 60];
+  lo = Math.floor(lo / 60) * 60;
+  hi = Math.ceil(hi / 60) * 60;
+  if (hi - lo < BS_HOURS_SPAN_MIN) {
+    hi = Math.min(DAY_MIN, lo + BS_HOURS_SPAN_MIN);
+    lo = Math.max(0, hi - BS_HOURS_SPAN_MIN);
+  }
+  return [lo, hi];
+}
+
+// The parts of a minute of the day as the reader's clock writes it.
+function clockParts(v, locale, withMinute) {
+  const d = new Date(Date.UTC(2000, 0, 1, Math.floor(v / 60), v % 60));
+  const opts = withMinute ? { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' } : { hour: 'numeric', timeZone: 'UTC' };
+  try { return new Intl.DateTimeFormat(locale || undefined, opts).formatToParts(d); } catch (e) { return null; }
+}
+const partOf = (parts, type) => { const p = parts && parts.find((x) => x.type === type); return p ? p.value : ''; };
+
+/**
+ * An hour mark on the scale: the hour as the reader's clock says it ("9", "14") and its day period
+ * ("AM", or '' on a 24-hour clock). The day's end is 12 AM on a 12-hour clock and 24 on a 24-hour one.
+ */
+export function bsHoursMark(m, locale) {
+  const v = Math.max(0, Math.min(DAY_MIN, Math.round(Number(m) || 0)));
+  const parts = clockParts(v % DAY_MIN, locale, false);
+  const period = partOf(parts, 'dayPeriod');
+  let hour = (partOf(parts, 'hour') || String(Math.floor((v % DAY_MIN) / 60))).replace(/^0(?=\d)/, '');
+  if (v >= DAY_MIN && !period) hour = '24';
+  return { hour, period };
+}
+
+/**
+ * A minute of the day as short as the reader's clock writes it: "9", "9:30", "14", "14.30" (the
+ * locale's own separator). No AM/PM: the hour scale over the grid carries it. The day's end is "12" on
+ * a 12-hour clock and "24" on a 24-hour one.
+ */
+export function bsHoursShort(m, locale) {
+  const v = Math.max(0, Math.min(DAY_MIN, Math.round(Number(m) || 0)));
+  const { hour } = bsHoursMark(v - (v % 60), locale);
+  if (v % 60 === 0) return hour;
+  const parts = clockParts(v, locale, true);
+  const i = parts ? parts.findIndex((p) => p.type === 'hour') : -1;
+  const sep = i >= 0 && parts[i + 1] && parts[i + 1].type === 'literal' ? parts[i + 1].value : ':';
+  return `${hour}${sep}${partOf(parts, 'minute') || String(v % 60).padStart(2, '0')}`;
+}
+
+/** A day's open ranges in words, merged as they are stored: "9–12 · 2–6". '' for a closed day. */
+export function bsHoursRangeWords(blocks, locale) {
+  return bsHoursMerge(blocks).map(([s, e]) => `${bsHoursShort(s, locale)}–${bsHoursShort(e, locale)}`).join(' · ');
+}
+
+/**
+ * The hour scale over the grid: a tick at every hour of the span, and a label on every hour when the
+ * labels fit `width` px, else on every 2nd (3rd, 4th, 6th, 12th) hour, taken on whole multiples so
+ * noon stays among them. On a 12-hour clock a label carries its AM/PM only where that changes
+ * ("9 AM", "10", "11", "12 PM", "1"). `charPx` is the label face's advance per character, `gap` the
+ * least space between two labels.
+ */
+export function bsHoursScale(span, { width = 260, locale, charPx = 5.5, gap = 4 } = {}) {
+  const [lo, hi] = span;
+  const ticks = [];
+  for (let m = lo; m <= hi; m += 60) ticks.push(m);
+  const marks = new Map(ticks.map((m) => [m, bsHoursMark(m, locale)]));
+  const x = (m) => ((m - lo) / ((hi - lo) || 60)) * width;
+  const steps = [1, 2, 3, 4, 6, 12];
+  for (const step of steps) {
+    let last = null;
+    const labels = ticks.filter((m) => (m / 60) % step === 0).map((m) => {
+      const { hour, period } = marks.get(m);
+      const text = period && period !== last ? `${hour} ${period}` : hour;
+      last = period;
+      return { at: m, text };
+    });
+    const fits = labels.every((l, i) => i === 0
+      || x(l.at) - x(labels[i - 1].at) >= ((l.text.length + labels[i - 1].text.length) * charPx) / 2 + gap);
+    if (fits || step === steps[steps.length - 1]) return { step, ticks, labels };
+  }
+  return { step: 1, ticks, labels: [] };
+}

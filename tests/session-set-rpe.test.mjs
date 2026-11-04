@@ -17,7 +17,7 @@ import { stripComments } from './helpers/strip-comments.mjs';
 import { loadBroadsheet, drive, THEME } from './helpers/broadsheet-mount.mjs';
 
 const CLIENT = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8'));
-const PROS = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8'));
+const REVIEW = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/BSWorkoutReview.jsx', import.meta.url), 'utf8'));
 
 // Lift a whole function body by brace-matching, skipping the PARAMETER list first — a
 // destructured parameter opens and closes the count on its own and hands back the bare
@@ -104,9 +104,9 @@ test('half-point ratings survive, and floating point does not print nine decimal
 
 test('the member and their coach spell one duration one way', () => {
   // The coach's session review prints the SAME set's seconds through its own formatter
-  // (`formatReviewSeconds`). Two spellings of one number on two screens is the
+  // (`formatReviewSeconds`, BSWorkoutReview.jsx). Two spellings of one number on two screens is the
   // disagreement this file keeps post-morteming, so they are driven against each other.
-  const coach = new Function(grab(PROS, 'formatReviewSeconds') + '\nreturn formatReviewSeconds;')();
+  const coach = new Function(grab(REVIEW, 'formatReviewSeconds') + '\nreturn formatReviewSeconds;')();
   for (const s of [1, 9, 42, 59, 60, 61, 90, 125, 150, 599, 600, 3600]) {
     assert.equal(build.bsSetSeconds(s), coach(s), 'the two surfaces disagree at ' + s + 's');
   }
