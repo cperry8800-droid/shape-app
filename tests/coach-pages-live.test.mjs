@@ -48,7 +48,8 @@ test('the calendar read is keyed to the week the strip shows', () => {
 test('To do: paid sessions share the five-row budget and the rest open in place', () => {
   const today = body('BSProToday', 'BSTrainerToday');
   assert.match(today, /const paidShown = showAllPaid \? toScheduleList : toScheduleList\.slice\(0, TODO_MAX\);/);
-  assert.match(today, /const todoShown = triageRows\.slice\(0, Math\.max\(0, TODO_MAX - paidShown\.length\)\);/);
+  // The to-dos a session today doesn't carry (YOUR DAY folds the rest into their sessions).
+  assert.match(today, /const todoShown = anytimeTodos\.slice\(0, Math\.max\(0, TODO_MAX - paidShown\.length\)\);/);
   assert.match(today, /\{toSchedule !== false && paidShown\.map\(\(p\) => \(/);
   assert.match(today, /\{paidMore > 0 && <button type="button" onClick=\{\(\) => setShowAllPaid\(true\)\}/);
   assert.doesNotMatch(today, /toSchedule\.map\(/, 'every paid row still renders');

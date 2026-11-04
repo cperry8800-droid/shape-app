@@ -1365,6 +1365,7 @@
   "today.openReviews": "Open reviews",
   "today.seeAllTodo": "See all {count} →",
   "today.title": "Today",
+  "today.dayList": "Your day",
   "today.todo": "To do",
   "today.todoClear": "Nothing to do — everyone is on track.",
   "today.upNextAt": "Up next · {time}",

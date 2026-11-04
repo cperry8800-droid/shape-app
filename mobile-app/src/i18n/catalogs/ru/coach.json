@@ -1365,6 +1365,7 @@
   "today.openReviews": "Открыть разборы",
   "today.seeAllTodo": "Показать все {count} →",
   "today.title": "Сегодня",
+  "today.dayList": "Ваш день",
   "today.todo": "Дела",
   "today.todoClear": "Дел нет — все идут по графику.",
   "today.upNextAt": "Далее · {time}",

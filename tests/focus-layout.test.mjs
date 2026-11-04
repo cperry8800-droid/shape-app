@@ -259,118 +259,44 @@ test('shop by meal groups the same ticks by meal, and a skip takes a meal\'s ite
   assert.match(d.text, /4 items/);
 });
 
-// Owner, 2026-10-22: "move this above lunch on eat page and condense a little more". The day's
-// budget reads first, then the next meal, then the menu; the three macros share one row. The block
-// lives in its own module (BSEatFuel.jsx), so Eat is checked for the order and the module for the row.
-test('Eat reads fuel left today above the next meal', () => {
+// Owner, 2026-11-04, of the three Day views drawn for Eat: "C for eat". The Day view's top is one piece now
+// (BSEatDay.jsx: the head, the week, the day as an orbit with Fuel left, the next meal and the menu, in that
+// order), and tests/eat-day.test.mjs mounts it. Here Eat is checked for what it hands it: Fuel left's figures,
+// a door per macro, the week, the menu's rows and its doors, and that a picked day moves the page.
+test('Eat draws its day through BSEatDay, from its own figures and through its own doors', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientEat, { onProfile() {} });
-  const order = d.nodes();
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
-  const at = (pred) => order.findIndex(pred);
-  const fuel = at(fn('BSEatFuel'));
-  const lead = at(fn('BSFocusLead'));
-  const menu = at(fn('BSTrackHeader'));
-  assert.ok(fuel >= 0 && menu > fuel, 'fuel left today sits above the menu');
-  if (lead >= 0) assert.ok(fuel < lead && lead < menu, 'and above the next meal');
-  const p = order[fuel].props;
-  assert.deepEqual(p.macros.map((m) => m.k), ['p', 'c', 'f'], 'protein, carbs and fat, in that order');
-  assert.equal(typeof p.onOpen, 'function', 'a macro opens its own page');
-  assert.equal(p.calLeft, Math.max(0, p.calTarget - p.calNow));
-  assert.equal(at((n) => fn('BSShelfDoor')(n) && /left/.test(String(n.props.figure || ''))), -1, 'no tall row per macro');
+  const order = d.nodes();
+  const day = order.find(fn('BSEatDay'));
+  assert.ok(day, 'Eat draws no Day view');
+  for (const gone of ['BSEatFuel', 'BSFocusLead', 'BSTrackHeader', 'BSWeekStrip', 'BSFocusLine']) assert.equal(order.findIndex(fn(gone)), -1, `the old ${gone} is still on Eat`);
+  const p = day.props;
+  assert.deepEqual(p.fuel.macros.map((m) => m.k), ['p', 'c', 'f'], 'protein, carbs and fat, in that order');
+  assert.equal(typeof p.onMacro, 'function', 'a macro opens its own page');
+  assert.equal(p.fuel.calLeft, Math.max(0, p.fuel.calTarget - p.fuel.calNow));
+  assert.equal(p.week.length, 7, 'the week is Monday to Sunday');
+  assert.equal(p.rows.length, p.meals.length, 'a row for each meal');
+  assert.ok(p.rows.every((r) => typeof r.onOpen === 'function'), 'each meal opens');
+  for (const k of ['onDay', 'onMonth', 'onOpenMeal', 'onSwapMeal', 'onSwapPick']) assert.equal(typeof p[k], 'function', k);
+  assert.equal(p.tabs.props.active, 'eat', 'the Eat tabs, on Day');
+  assert.equal(p.day, p.todayIdx, 'Eat opens on today');
+  assert.ok(p.next, 'the preview has a next meal today');
+  // A picked day moves the page to it: its figures, its meals, and no next meal (that is today's).
+  const other = (p.todayIdx + 1) % 7;
+  p.onDay(other);
+  d.render();
+  const moved = d.nodes().find(fn('BSEatDay')).props;
+  assert.equal(moved.day, other);
+  assert.equal(moved.next, null, 'the next meal is today\'s only');
+  // The tour's step on the menu, and the menu's swap door, are BSEatDay's.
+  const src = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSEatDay.jsx'), 'utf8');
+  assert.match(src, /data-tour="hero-eat"/);
+  assert.match(src, /onClick=\{p\.onSwapPick\}/);
 });
 
 const EATFUEL = await loadRealModule(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSEatFuel.jsx'), {
   registry: new Map([['react', { ...SHIM, useContext: (c) => c._currentValue }], ['react-dom', { createPortal: (n) => n }]]),
-});
-
-// Owner, 2026-11-04: "the change in weekly date should adjust activities". Eat's figures follow the day picked
-// in its strip; the head said "Fuel left today" over another day's figures.
-test('Eat\'s fuel head names the picked day when it is not today', () => {
-  const macros = [{ k: 'p', l: 'PROTEIN', v: 118, g: 165, c: '#e06547' }];
-  const head = (props) => drive(EATFUEL.BSEatFuel, { calLeft: 532, calTarget: 2100, calNow: 1568, calPct: 75, macros, onOpen() {}, ...props })
-    .nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
-  assert.equal(head({ label: 'Fuel · Fri 6' }).props.label, 'Fuel · Fri 6');
-  assert.equal(head({}).props.label, 'Fuel left today', 'today keeps its words');
-  const CLIENT = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(CLIENT, /label=\{_eatIsToday \? null : tr\('nutrition:eat\.fuelOn', \{ defaultValue: 'Fuel · \{day\}', day: bsEatStripDay\(day\) \}\)\} \/>/, 'Eat hands the picked day');
-  // Codex P2 on #2599: the day as the strip shows it (this week's date, the weekday in the reader's language),
-  // never the plan record's label (a sample's May dates, English initials).
-  const helper = CLIENT.slice(CLIENT.indexOf('function bsEatStripDay('), CLIENT.indexOf('function BSWeekStrip('));
-  assert.match(helper, /d\.setDate\(now\.getDate\(\) - \(\(now\.getDay\(\) \+ 6\) % 7\) \+ idx\);/, 'this week, Monday first, as the strip counts it');
-  assert.match(helper, /return `\$\{bsWeekdayName\(idx, 'short'\)\} \$\{d\.getDate\(\)\}`;/, 'the localized weekday and the date');
-  assert.doesNotMatch(CLIENT.slice(CLIENT.indexOf("tr('nutrition:eat.fuelOn'"), CLIENT.indexOf("tr('nutrition:eat.fuelOn'") + 200), /PROGRAM\[day\]\.d/, 'not the plan record\'s label');
-});
-
-test('Fuel left today puts the three macros side by side, each a door with what is left', () => {
-  const opened = [];
-  const macros = [
-    { k: 'p', l: 'PROTEIN', v: 178, g: 180, c: '#e06547' },
-    { k: 'c', l: 'CARBS', v: 218, g: 220, c: '#e3a544' },
-    { k: 'f', l: 'FAT', v: 70, g: 65, c: '#5b8df9' },
-  ];
-  const d = drive(EATFUEL.BSEatFuel, { calLeft: 52, calTarget: 2100, calNow: 2048, calPct: 98, macros, onOpen: (k) => { opened.push(k); } });
-  const order = d.nodes();
-  const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
-  assert.equal(head.props.label, 'Fuel left today');
-  assert.equal(head.props.meta, '2,100 kcal plan');
-  assert.equal(head.props.top, 10, 'Fuel left sits close under the week strip (owner, 2026-10-23: "reduce the spacing here")');
-  assert.match(d.text, /52/);
-  const strip = order.find((n) => n.props && n.props['data-eat-macros'] != null);
-  assert.ok(strip, 'the macros are one row');
-  assert.match(String(strip.props.style.gridTemplateColumns), /repeat\(3,/);
-  const doors = order.filter((n) => n.type === 'button');
-  assert.deepEqual(doors.map((b) => b.props['aria-label']), ['PROTEIN 2g left 178 / 180', 'CARBS 2g left 218 / 220', 'FAT 0g left 70 / 65'], 'over the target reads 0 left, never negative');
-  doors.forEach((b) => b.props.onClick());
-  // Each tile opens its own macro (owner, 2026-10-24: "the 3 of these are links to the same page").
-  assert.deepEqual(opened, ['p', 'c', 'f']);
-  // The look follows the morning panel (owner, 2026-10-22: "change the look of this"): one rounded
-  // panel, and each macro a tile tinted in its own colour.
-  const panel = order.find((n) => n.props && n.props['data-eat-fuel'] != null);
-  assert.ok(panel, 'the fuel block lost its panel');
-  assert.equal(panel.props.style.borderRadius, 16);
-  assert.deepEqual(doors.map((b) => b.props.style.background), ['#e0654714', '#e3a54414', '#5b8df914'], 'each macro tile is tinted in its colour');
-  assert.ok(doors.every((b) => b.props.style.borderRadius === 12));
-});
-
-// The owner, 2026-10-25: "fix the Eat Fuel left 0 kcal on a failed read". What was eaten comes from the
-// meal plan, so a read that failed (or hasn't answered) leaves it unknown: "—", not 0 kcal, and the tiles
-// open nothing (their pages would show the same zeros). A target Eat has from elsewhere still reads.
-test('Fuel left reads "—", not 0, when the meal plan could not be read', () => {
-  const opened = [];
-  const zero = [
-    { k: 'p', l: 'PROTEIN', v: 0, g: 0, c: '#e06547' },
-    { k: 'c', l: 'CARBS', v: 0, g: 0, c: '#e3a544' },
-    { k: 'f', l: 'FAT', v: 0, g: 0, c: '#5b8df9' },
-  ];
-  const d = drive(EATFUEL.BSEatFuel, { calLeft: 0, calTarget: 0, calNow: 0, calPct: 0, macros: zero, onOpen: (k) => { opened.push(k); }, unread: true });
-  const order = d.nodes();
-  const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
-  assert.equal(head.props.meta, '—', 'no "0 kcal plan"');
-  assert.doesNotMatch(d.text, /\b0\b|0 kcal|eaten|g left/, 'no zero and no eaten line');
-  assert.match(d.text, /—kcal left/);
-  const panel = order.find((n) => n.props && n.props['data-eat-fuel'] != null);
-  assert.equal(panel.props['data-eat-fuel-unread'], '');
-  const doors = order.filter((n) => n.type === 'button');
-  assert.deepEqual(doors.map((b) => b.props['aria-label']), ['PROTEIN — — / —', 'CARBS — — / —', 'FAT — — / —']);
-  assert.ok(doors.every((b) => b.props.disabled === true && b.props.style.cursor === 'default'));
-  doors.forEach((b) => b.props.onClick());
-  assert.deepEqual(opened, [], 'a tile opens no page of zeros');
-  // A coach's Adjust target is read apart from the plan, so it still reads, a 0 g one too (Codex P2 on
-  // #2453: Adjust allows 0 for a macro).
-  const coachMacros = [{ ...zero[0], g: 150, gKnown: true }, { ...zero[1], g: 0, gKnown: true }, { ...zero[2], g: 0, gKnown: false }];
-  const coached = drive(EATFUEL.BSEatFuel, { calLeft: 2100, calTarget: 2100, calNow: 0, calPct: 0, macros: coachMacros, onOpen() {}, unread: true, calTargetKnown: true });
-  const ch = coached.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
-  assert.equal(ch.props.meta, '2,100 kcal plan');
-  assert.doesNotMatch(coached.text, /2,100kcal left/, 'what is left is still unknown');
-  assert.deepEqual(coached.nodes().filter((n) => n.type === 'button').map((b) => b.props['aria-label']), ['PROTEIN — — / 150', 'CARBS — — / 0', 'FAT — — / —']);
-  // A target with no source beside the plan reads "—", even when a figure was passed.
-  const unsourced = drive(EATFUEL.BSEatFuel, { calLeft: 2100, calTarget: 2100, calNow: 0, calPct: 0, macros: zero.map((m) => ({ ...m, g: 150 })), onOpen() {}, unread: true });
-  assert.equal(unsourced.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead').props.meta, '—');
-  assert.deepEqual(unsourced.nodes().filter((n) => n.type === 'button').map((b) => b.props['aria-label'])[0], 'PROTEIN — — / —');
-  // Read, it is as before.
-  const read = drive(EATFUEL.BSEatFuel, { calLeft: 0, calTarget: 0, calNow: 0, calPct: 0, macros: zero, onOpen() {} });
-  assert.equal(read.nodes().find((n) => n.props && n.props['data-eat-fuel'] != null).props['data-eat-fuel-unread'], undefined);
 });
 
 test('Eat: signed in, Fuel left is unread until the meals read answers for meals', () => {
@@ -381,7 +307,7 @@ test('Eat: signed in, Fuel left is unread until the meals read answers for meals
   globalThis.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-a' } }) };
   try {
     const d = drive(BSClientEat, { onProfile() {} });
-    assert.equal(d.nodes().find(fn('BSEatFuel')).props.unread, true, 'before the read answers, no 0 kcal');
+    assert.equal(d.nodes().find(fn('BSEatDay')).props.fuel.unread, true, 'before the read answers, no 0 kcal');
     const link = d.nodes().find((n) => fn('BSFocusLink')(n) && n.props.glyph === '✎');
     assert.ok(link, 'the coach link');
     assert.doesNotMatch(String(link.props.tag), /·/, 'and the coach link names no 0 kcal target');
@@ -389,10 +315,11 @@ test('Eat: signed in, Fuel left is unread until the meals read answers for meals
     delete globalThis.ShapeAuth;
   }
   const preview = drive(BSClientEat, { onProfile() {} });
-  assert.equal(preview.nodes().find(fn('BSEatFuel')).props.unread, false, 'the signed-out preview reads its sample');
+  assert.equal(preview.nodes().find(fn('BSEatDay')).props.fuel.unread, false, 'the signed-out preview reads its sample');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const bsEatFuelUnread = bsEatSignedIn && !eatPlanRead && !liveMealDays;/);
-  assert.match(client, /macros=\{bsEatMacros\} onOpen=\{\(k\) => setMacroPage\(k\)\} unread=\{bsEatFuelUnread\} calTargetKnown=\{bsEatCoachSet\('calories'\)\}\s/);
+  assert.ok(client.includes("fuel={{ calLeft: bsEatCalLeft, calTarget: bsEatCalTgt, calNow: bsEatCalNow, calPct: bsEatCalPct, macros: bsEatMacros, unread: bsEatFuelUnread, calTargetKnown: bsEatCoachSet('calories') }}"));
+  assert.ok(client.includes('onMacro={(k) => setMacroPage(k)}'));
   assert.match(client, /tag=\{bsEatFuelUnread && !bsEatCoachSet\('calories'\) \? planGoalLabel : `\$\{planGoalLabel\} · \$\{bsEatCalTgt\.toLocaleString\(\)\}`\}/);
   // Each macro says whether its target is the coach's, so a coach's 0 g reads as 0 (Codex P2 on #2453).
   assert.match(client, /const bsEatCoachSet = \(key\) => !!\(bsEatCoachN && bsEatCoachN\[key\] != null\);/);
@@ -405,12 +332,12 @@ test('Eat opens a macro tile on its own page, a different one for each', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientEat, { onProfile() {} });
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
-  const fuel = () => d.nodes().find(fn('BSEatFuel'));
+  const fuel = () => d.nodes().find(fn('BSEatDay'));
   const page = () => d.nodes().find(fn('BSEatMacroPage'));
-  const tiles = fuel().props.macros;
+  const tiles = fuel().props.fuel.macros;
   const seen = [];
   for (const m of tiles) {
-    fuel().props.onOpen(m.k);
+    fuel().props.onMacro(m.k);
     d.render();
     const p = page();
     assert.ok(p, `the ${m.k} tile opens no page`);
@@ -428,7 +355,7 @@ test('Eat opens a macro tile on its own page, a different one for each', () => {
   }
   assert.deepEqual(seen, ['Protein', 'Carbs', 'Fat']);
   // The day's breakdown is still a tap away, from the page.
-  fuel().props.onOpen('p');
+  fuel().props.onMacro('p');
   d.render();
   page().props.onDay();
   d.render();
@@ -538,32 +465,58 @@ test('Train opens Burned this week on its own page', () => {
   delete globalThis.ShapeAuth;
   const d = drive(BSClientTrain, { onProfile() {}, goRadio() {}, goMarket() {}, goCalendar() {} });
   const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
-  const row = d.nodes().find(fn('BSTrainBurn'));
-  assert.equal(typeof row.props.onOpen, 'function', 'the row opens nothing');
-  row.props.onOpen();
+  const day = d.nodes().find(fn('BSTrainDay'));
+  assert.equal(typeof day.props.onBurn, 'function', 'the burn line opens nothing');
+  day.props.onBurn();
   d.render();
   const page = d.nodes().find(fn('BSTrainBurnPage'));
   assert.ok(page, 'the week page did not open');
-  assert.equal(d.nodes().find(fn('BSTrainBurn')), undefined, 'the page stands in for Train');
+  assert.equal(d.nodes().find(fn('BSTrainDay')), undefined, 'the page stands in for Train');
   page.props.onBack();
   d.render();
-  assert.ok(d.nodes().find(fn('BSTrainBurn')), 'Back returns to Train');
+  assert.ok(d.nodes().find(fn('BSTrainDay')), 'Back returns to Train');
 });
 
-test('Train reads in the Focus order: the week, the session, the links', () => {
+// Owner, 2026-11-04, of three designs: "C for train but incorporate this button if you can", then "and
+// then C for next part". BSTrainDay.jsx draws the week, the burn, the session, the program, On deck and the
+// links; the page hands it the day and every door, and Find a trainer stays a bar at the foot.
+test('Train hands the day and its doors to BSTrainDay, and a picked day moves the session', () => {
   delete globalThis.ShapeAuth;
-  const d = drive(BSClientTrain, { onProfile() {}, goRadio() {}, goMarket() {}, goCalendar() {} });
+  let month = 0, radio = 0;
+  const market = [];
+  const d = drive(BSClientTrain, { onProfile() {}, goRadio() { radio += 1; }, goMarket(role) { market.push(role); }, goCalendar() { month += 1; } });
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
   const order = d.nodes();
   const at = (pred) => order.findIndex(pred);
-  const week = at((n) => typeof n.type === 'function' && n.type.name === 'BSWeekStrip');
-  const lead = at((n) => n.props && n.props.tour === 'hero-train');
-  const find = at((n) => typeof n.type === 'function' && n.type.name === 'BSFindCoachBar');
-  const burn = at((n) => typeof n.type === 'function' && n.type.name === 'BSTrainBurn');
-  assert.ok(week >= 0 && lead > week, 'the session sits under the week');
-  // Owner, 2026-10-24: the week's calories burned sit under the week strip, as Eat's Fuel left does.
-  assert.ok(burn > week && burn < lead, 'Burned this week sits between the week and the session');
-  assert.ok(find > lead, 'Find a trainer is a link at the foot, not pinned to the top');
-  assert.ok(String(order[lead].props.title || '').length > 0, 'the session has a title');
+  const day = order[at(fn('BSTrainDay'))];
+  assert.ok(day, 'no BSTrainDay on Train');
+  // Finding a coach is the last of the links, at the foot, not pinned to the top; it opens the trainers.
+  const find = day.props.links[day.props.links.length - 1];
+  assert.equal(find.label, 'Find a coach');
+  find.onOpen();
+  assert.deepEqual(market, ['trainer']);
+  assert.equal(at(fn('BSWeekStrip')), -1, 'the old week strip is gone');
+  assert.equal(at((n) => n.props && n.props.tour === 'hero-train'), -1, 'the old lead is gone (BSTrainDay carries the tour anchor)');
+  assert.equal(day.props.program.length, 7, 'the whole week');
+  assert.ok(String(day.props.head || '').length > 0, 'the session has a title');
+  for (const k of ['onDay', 'onMonth', 'onBurn', 'onStart', 'onSwap', 'onMove', 'onRadio']) assert.equal(typeof day.props[k], 'function', `${k} is not wired`);
+  day.props.onMonth();
+  day.props.onRadio();
+  assert.equal(month, 1, 'Month view opens the calendar');
+  assert.equal(radio, 1, 'the playlist opens Shape Radio');
+  assert.ok(day.props.links.length >= 2 && day.props.links.every((l) => typeof l.onOpen === 'function' && l.label), 'the links come with their doors');
+  // A day in another session than this one: the page's day moves, and the session with it.
+  const before = day.props.head;
+  const other = day.props.program.findIndex((p, i) => i !== day.props.day && (p.headline || p.title) !== before);
+  day.props.onDay(other);
+  d.render();
+  const after = d.nodes().find(fn('BSTrainDay'));
+  assert.equal(after.props.day, other);
+  assert.notEqual(after.props.head, before, 'the session follows the picked day');
+  // Start opens the live session, standing in for the page.
+  after.props.onStart();
+  d.render();
+  assert.equal(d.nodes().find(fn('BSTrainDay')), undefined, 'Start did not open the session');
 });
 
 // Owner, 2026-10-11, on the first build: "check-in should be towards the top". Owner, 2026-10-22, Option A:

@@ -81,8 +81,10 @@ import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
 import { bsMpTealOf, bsMpGlass, bsMpGradText, bsMpGlow, BSMpPaneLabel, BSMpVinyl } from './BSMemberBento.jsx';
-import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
-import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
+import { BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
+import { BSEatDay } from './BSEatDay.jsx';
+import { BSTrainBurnPage } from './BSTrainBurn.jsx';
+import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead, bsWsLed } from './BSWallStory.jsx';
@@ -105,7 +107,7 @@ import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
 import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
-import { BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
+import { BSFocusTitle, BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -5530,14 +5532,6 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
   );
 }
 
-// A day of this week (0 = Monday) as BSWeekStrip shows it: the weekday in the reader's language and this
-// week's date ("Fri 6"), for a head that names the day the strip has picked.
-function bsEatStripDay(idx) {
-  const now = new Date();
-  const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(now.getDate() - ((now.getDay() + 6) % 7) + idx);
-  return `${bsWeekdayName(idx, 'short')} ${d.getDate()}`;
-}
-
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -5579,20 +5573,6 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-// Section header: teal kicker, big serif title, optional right-aligned action.
-function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
-  const t = useBS();
-  return (
-    <div style={{ padding: `18px ${t.padX}px 0` }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 5 }}>{kicker}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: t.HEAD ? 700 : t.W.display, fontSize: 21, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
-        {actionLabel && <button onClick={onAction} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>{actionLabel} →</button>}
       </div>
     </div>
   );
@@ -6424,10 +6404,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     );
   }
 
-  // ── FOCUS (owner, 2026-10-11, off the C · Focus board) — Train in the Focus
-  // order: the week, the session on its own with how long until it starts, its
-  // moves, what is on deck, then links (music, build, open session, find a
-  // trainer). The data is unchanged; only where each thing sits moved.
+  // What the session panel says (BSTrainDay.jsx): when it is, how long until it starts, and its head.
   const _trainIsToday = day === bsWeekdayIdx();
   const _trainNow = new Date();
   const _trainUntil = _trainIsToday && !isRestDay ? bsFocusUntil(bsFocusMin(cur.time), _trainNow.getHours() * 60 + _trainNow.getMinutes()) : null;
@@ -6437,145 +6414,42 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const _trainNorm = (s) => String(s || '').trim().replace(/\.$/, '').toLowerCase();
   const _trainHead = _trainNorm(cur.headline) && _trainNorm(cur.headline) !== _trainNorm(cur.title) ? cur.headline : cur.title;
 
-  // A section title's one action, in the design's grammar (accent mono caps).
-  const _trainAct = (label, onClick) => (
-    <button type="button" onClick={onClick} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, marginBottom: -6, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{label} →</button>
-  );
+  // The page's links, in order: the coach's music for today (Shape Radio), the full plan, building or
+  // opening a session, then finding a coach (the trainers' marketplace). A member who pays a trainer is not
+  // sent to find one (Codex on #2378).
+  const _trainLinks = [
+    { color: t.ACCENT, glyph: '♪', label: coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' }), tag: tr('session:train.forToday', { defaultValue: 'For today' }), onOpen: goRadio },
+    { color: t.INK70, glyph: '▤', label: tr('session:train.fullPlan', { defaultValue: 'Full plan' }), tag: `${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`, onOpen: goCalendar },
+    ...(bsTrainSignedIn ? [
+      { color: t.ACCENT, glyph: '＋', label: tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' }), onOpen: () => setBuilder({ mode: 'session' }) },
+      { color: t.INK50, glyph: '▷', label: tr('session:train.openSession', { defaultValue: 'Open session' }), onOpen: () => { setOpenSession(true); setSession(true); } },
+    ] : []),
+    ...((!bsTrainSignedIn || trainCoaching === null) ? [{ color: '#c0533b', glyph: '↗', label: tr('home:shortcut.findCoach', { defaultValue: 'Find a coach' }), onOpen: () => goMarket('trainer') }] : []),
+  ];
 
   return (
     <BSPage>
-      <BSPageHeader
-        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
-        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
-        trailing={<BSHeaderTools onProfile={onProfile} />}
-      />
+      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
       <BSCleanType t={t}>
       {resumeBanner}
 
-      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
-
-      <BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />
-
-      {/* Burned this week (BSTrainBurn.jsx), under the week as Eat's Fuel left is (owner, 2026-10-24); it
-          opens the week day by day. */}
-      <BSTrainBurn onOpen={() => setBurnOpen(true)} />
-
-      {/* The session — on its own, on the move line's rust spine. */}
-      <BSFocusLead tour="hero-train" color={t.RUST}
-        kicker={`${_trainWhen} · ${isRestDay ? tr('session:train.restChip', { defaultValue: 'Rest' }) : tr('home:lead.railHeader', { defaultValue: 'Your move' })}`}
-        kickerRight={`${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })} · ${tr('session:train.dayN', { defaultValue: 'D{n}', n: day + 1 })}`}
-        title={_trainHead}
-        sub={effMoves.length > 0 ? cur.meta : cur.copy}>
-        {cur.coachAdjust && (cur.intensityLabel || cur.coachFocus) && (
-          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {cur.coachFocus && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderRadius: 3, padding: '3px 8px' }}>{cur.coachFocus}</span>}
-            {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>{tr('session:train.coachIntensity', { defaultValue: 'Coach · {label}', label: cur.intensityLabel })}</span>}
-          </div>
-        )}
-        {/* The coach's playlist for this day, as the website card chips it ("♪ name ·
-            meta"). It is a Shape Radio soundtrack, so it opens Radio. A coach-set rest
-            keeps the day's fields but is no session, so it shows no soundtrack. */}
-        {!isRestDay && cur.playlist && cur.playlist.name && (
-          <button type="button" onClick={goRadio} style={{ marginTop: 6, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-            <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, padding: '5px 9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>♪ {cur.playlist.name}{cur.playlist.meta ? ` · ${cur.playlist.meta}` : ''}</span>
-          </button>
-        )}
-        <BSFocusCountdown label={tr('session:train.startsIn', { defaultValue: 'Starts in' })}
-          value={_trainUntil ? (_trainUntil.h > 0 ? tr('session:train.untilHourMin', { defaultValue: '{h}h {m}m', h: _trainUntil.h, m: _trainUntil.m }) : tr('session:train.untilMin', { defaultValue: '{m} min', m: _trainUntil.m })) : null} />
-        {/* Who wrote the day — honest byline: "Programmed by you" (or the program
-            name · Wn) on self days, the real assigning trainer on coach days, and
-            nothing at all when no coach authored it. */}
-        {cur.selfAuthored ? (
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}{cur.program && cur.program.week ? ` · ${tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week })}` : ''}</span>
-            {cur.repeatDow && cur.workoutId && (
-              <button onClick={() => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) })} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 32, padding: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>
-            )}
-          </div>
-        ) : coachDayName ? (
-          <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{coachDayName} · <span style={{ color: t.INK50 }}>{tr('session:train.coachRole', { defaultValue: 'Coach · Trainer' })}</span></div>
-        ) : null}
-        {!isRestDay ? (
-          <BSFocusActions color={t.RUST}
-            primary={{ label: `${tr('session:train.startAria', { defaultValue: 'Start session' })} →`, onClick: () => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); } }}
-            secondary={effMoves.length > 0 ? { label: `${tr('session:train.swap', { defaultValue: 'Swap' })} →`, onClick: () => setSwapIdx('pick') } : null} />
-        ) : (
-          <div style={{ marginTop: 14 }}>
-            <span style={{ display: 'inline-block', padding: '8px 12px', borderRadius: 3, border: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:train.restChip', { defaultValue: 'Rest' })}</span>
-          </div>
-        )}
-      </BSFocusLead>
-
-      {/* Workout — the moves. Tap a move (or Swap) to pick a coach-approved sub. */}
-      {effMoves.length > 0 && (
-        <>
-          <BSFocusTitle kicker={tr('session:train.programKicker', { defaultValue: 'The program' })} title={tr('session:train.moveCount', { defaultValue: `${effMoves.length} move${effMoves.length === 1 ? '' : 's'}`, count: effMoves.length })}
-            right={_trainAct(tr('session:train.swap', { defaultValue: 'Swap' }), () => setSwapIdx('pick'))} />
-          <div style={{ padding: `10px ${t.padX}px 0` }}>
-            <div aria-hidden style={{ display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, padding: '0 0 7px', borderBottom: `1.5px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>
-              <span>{tr('session:train.col.n', { defaultValue: 'N' })}</span><span>{tr('session:train.col.move', { defaultValue: 'Move' })}</span><span>{tr('session:train.col.scheme', { defaultValue: 'Scheme' })}</span><span style={{ textAlign: 'right' }}>{tr('session:train.col.load', { defaultValue: 'Load' })}</span>
-            </div>
-            {effMoves.map((r, i) => {
-              const swapped = !!moveOverrides[`${day}:${i}`];
-              // Display-only abbreviation ("3 min rest" → "3m", "90s rest" → "90s");
-              // the stored scheme string is untouched (the session parser reads r.s).
-              const sch = String(r.s || '').replace(/(\d+)\s*min rest/g, '$1m').replace(/(\d+)s rest/g, '$1s');
-              return (
-                <button type="button" key={i} onClick={() => setSwapIdx(i)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr 92px 52px', gap: 10, alignItems: 'baseline', minHeight: 44, padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600 }}>{r.n}</span>
-                  <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.m}{swapped && <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', color: t.ACCENT, marginLeft: 7 }}>{tr('session:train.swapped', { defaultValue: 'SWAPPED' })}</span>}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em' }}>{sch}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 11, color: t.INK, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.l}</span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      {/* This week — on deck. Derived from the shared week (PROGRAM): the next few
-          days after today, so it matches the calendar + home. Tap to jump there. */}
-      <BSFocusTitle kicker={tr('home:section.thisWeek', { defaultValue: 'This week' })} title={tr('session:train.onDeck', { defaultValue: 'On deck' })}
-        right={_trainAct(tr('session:train.plan', { defaultValue: 'Plan' }), goCalendar)} />
-      <div style={{ padding: `10px ${t.padX}px 0` }}>
-        {[1, 2, 3].map((off) => {
-          const idx = (bsWeekdayIdx() + off) % 7;
-          const p = PROGRAM[idx] || {};
-          const rest = p.tag === 'REST';
-          const dow = bsWeekdayName(idx, 'short');
-          return { idx, m: rest ? tr('session:train.activeRest', { defaultValue: 'Active rest' }) : (p.headline || p.title || '—'), s: `${dow} · ${rest ? tr('session:train.restSub', { defaultValue: 'walk + mobility' }) : (p.meta || '')}`, r: '' };
-        }).map((x, i) => (
-          <button key={i} onClick={() => setDay(x.idx)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '22px 1fr auto', gap: 10, alignItems: 'start', padding: '13px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50, fontWeight: 600, marginTop: 3 }}>{String(i + 1).padStart(2, '0')}</span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 400, lineHeight: 1.2, color: t.INK, letterSpacing: '-0.01em' }}>{x.m}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{x.s}</div>
-            </div>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3 }}>{x.r || ''}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* ── FOCUS · LINKS — the rest of Train, one row each, as the design board
-          has them: the coach's music for today (Shape Radio), the full plan, then
-          building or opening a session, and finding a trainer. The playlist cards
-          that sat here became the music link (owner, 2026-10-11: Train "match the
-          design"). */}
-      <div style={{ marginTop: t.sectGap + 8 }}>
-        <BSFocusLink color={t.ACCENT} glyph="♪"
-          label={coachDayName ? tr('session:train.musicFrom', { defaultValue: 'Music from {name}', name: String(coachDayName).split(' ')[0] }) : tr('session:train.music', { defaultValue: 'Music' })}
-          tag={tr('session:train.forToday', { defaultValue: 'For today' })} onOpen={goRadio} />
-        <BSFocusLink color={t.INK70} glyph="▤" label={tr('session:train.fullPlan', { defaultValue: 'Full plan' })}
-          tag={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`} onOpen={goCalendar} />
-        {bsTrainSignedIn && (
-          <>
-            <BSFocusLink color={t.ACCENT} glyph="＋" label={tr('session:train.buildWorkoutLink', { defaultValue: 'Build a workout' })} onOpen={() => setBuilder({ mode: 'session' })} />
-            <BSFocusLink color={t.INK50} glyph="▷" label={tr('session:train.openSession', { defaultValue: 'Open session' })} onOpen={() => { setOpenSession(true); setSession(true); }} />
-          </>
-        )}
-        {/* A member who pays a trainer is not sent to find one (Codex on #2378), as at the page's head. */}
-        {(!bsTrainSignedIn || trainCoaching === null) && <BSFindCoachBar role="trainer" onOpen={() => goMarket('trainer')} />}
-      </div>
+      {/* ── THE DAY (owner, 2026-11-04, of three designs: "C for train but incorporate this button if you
+          can", then "and then C for next part"): BSTrainDay.jsx draws the head, the week's burn with the
+          day picker, the coach's adjust, the session as an engine readout with the round ignition Start,
+          the program as a circuit, On deck as a lit timeline and the links, as glass instruments. It reads
+          only what the page hands it; every door is the page's own. Edit · Yours, on a repeating day the
+          member wrote, opens the builder on it with its moves as rows. */}
+      <BSTrainDay
+        kicker={`${bsTrainProgram.trainingPhase || 'Build'} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
+        title={tr('session:train.yourTraining', { defaultValue: 'Your training' })}
+        program={PROGRAM} day={day} onDay={setDay} onMonth={goCalendar} cur={cur} moves={effMoves}
+        swapped={effMoves.map((_, i) => !!moveOverrides[`${day}:${i}`])} isRest={isRestDay} when={_trainWhen} head={_trainHead}
+        until={_trainUntil} weekN={bsProgramWeek()} coach={coachDayName} onRadio={goRadio} onBurn={() => setBurnOpen(true)}
+        onStart={() => { try { window.ShapeAnalytics?.track?.('workout_started'); } catch (e) {} setSession(true); }}
+        onSwap={() => setSwapIdx('pick')} onMove={(i) => setSwapIdx(i)}
+        onEditYours={cur.selfAuthored && cur.repeatDow && cur.workoutId ? () => setBuilder({ mode: 'session', editId: cur.workoutId, name: cur.title, repeatDow: cur.repeatDow, moves: (cur.moves || []).map((m) => ({ name: m.m, seg: /[·]|mi\b|min\b|Z\d/.test(m.s || '') && !m.l ? m.s : '', sets: (String(m.s).match(/(\d+)\s*×/) || [])[1] || '', reps: (String(m.s).match(/×\s*([\d–-]+)/) || [])[1] || '', load: m.l || '' })) }) : null}
+        adjust={<BSCoachAdjustBanner detail={bsTrainProgram.detail} kind="training" />}
+        links={_trainLinks} />
 
       {/* From Jordan — the trainer's playlists (owner, 2026-10-11: "keep playlists
           though"). Signed in, the ones the member's own trainer sent them;
@@ -14516,128 +14390,87 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   })();
   const _eatFmtNow = bsFmt12(`${_eatNowD.getHours()}:${String(_eatNowD.getMinutes()).padStart(2, '0')}`);
 
-  return (
-    <BSPage>
-      <BSPageHeader
-        kicker={`${bsEatProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
-        title={cur.title}
-        trailing={<BSHeaderTools onProfile={onProfile} />}
-      />
-
-      <BSNutritionTopTabs active="eat" onChange={setView} />
-
-      <BSCleanType t={tClean}>
-      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
-
+  // ── THE DAY VIEW'S TOP (BSEatDay.jsx, owner 2026-11-04: "C for eat"): the head, the week, the day as an
+  // orbit with Fuel left, the next meal and the menu, drawn from what this page reads and through its own
+  // doors. The plan's notices under the week (a coach's Adjust, a nutritionist preparing the plan, a read
+  // that failed), the morning swap, the menu's rows and its empty line are made here and handed in.
+  const _eatNotices = (
+    <>
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
       {bsEatSignedIn && eatPlanFailed && !liveMealDays && <BSPlanReadFailed part="meals" busy={eatPlanRetrying} onRetry={() => { setEatPlanRetrying(true); setEatPlanReads((n) => n + 1); }} />}
+    </>
+  );
+  // The morning swap (Phase 2): a made-ahead meal that was not prepped last night, and a quick
+  // recipe for it this morning, for today only.
+  const _eatMorning = morningSwap ? (
+    <div style={{ padding: `18px ${t.padX}px 0` }}>
+      <BSMorningSwapCard meal={{ title: morningSwap.meal.title, slot: morningSwap.slot }} recipe={morningSwap.recipe} busy={morningBusy}
+        onSwap={() => doMorningSwap(morningSwap)} onKeep={() => keepMorningMeal(morningSwap)} />
+    </div>
+  ) : null;
+  // The menu's rows: each meal at its time, its stamps, its shop list and its door.
+  const _eatRows = effMeals.map((m) => {
+    const logged = m.state === 'done';
+    const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
+    // A meal the member planned, or swapped for the day (Phase 2), says so instead.
+    const swapped = !m._own && !m._daySwap && !!mealOverrides[m._baseTitle];
+    const ownMark = m._daySwap ? tr('nutrition:planDay.daySwapped', { defaultValue: 'Swapped for today' })
+      : m._own ? tr('nutrition:planDay.yours', { defaultValue: 'Planned by you' }) : null;
+    const timeLabel = bsMealSchedLabel(m) || m.tag || '';
+    // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
+    // match only, and only until it's logged (the log supersedes it).
+    // A made-ahead meal counts as prepped only when a prep covers it on this day, and on
+    // today's menu one that is not says so (bsMenuPrepState).
+    const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });
+    const stamp = (text, color) => <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{text}</span>;
+    return {
+      key: m.id,
+      time: timeLabel,
+      title: m.title,
+      sub: `${_eatMacro(m)}${isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}`,
+      extra: (swapped || ownMark || prepped || notPrepped) ? (
+        <>
+          {swapped && stamp(tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' }), t.ACCENT)}
+          {ownMark && stamp(ownMark, t.ACCENT)}
+          {prepped && stamp(tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' }), t.isLight ? '#0a8f87' : t.ACCENT)}
+          {notPrepped && stamp(tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' }), t.INK70)}
+        </>
+      ) : null,
+      note: logged ? '✓' : isNext ? tr('nutrition:eat.next', { defaultValue: 'NEXT' }) : '',
+      state: logged ? 'done' : isNext ? 'next' : '',
+      // An eaten meal needs no shopping; its tag would only add noise.
+      below: logged ? null : mealShopBelow(m),
+      onOpen: () => setPreviewMealId(m.id),
+      ariaLabel: `${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`,
+    };
+  });
+  // An empty menu offers Nora (the Ask Nora plan, step 5): the question lands in her composer for the
+  // member to send.
+  const _eatEmpty = effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) ? (
+    <div data-eat-empty style={{ padding: `4px ${t.padX}px 2px` }}>
+      <div style={{ fontFamily: tClean.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
+      {day === bsWeekdayIdx()
+        ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
+        : <BSAskNoraLink t={t} label={tr('feed:support.ask.eatOnDayLink', { defaultValue: 'Ask Nora what to eat on {day}', day: bsWeekdayName(day) })} draft={tr('feed:support.ask.eatOnDay', { defaultValue: 'What should I eat on {day}?', day: bsWeekdayName(day) })} />}
+    </div>
+  ) : null;
 
-      {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
-          targets (Adjust plan → Apply) win; each macro opens its own page. */}
-      <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')}
-        // Another day picked in the strip: its own head, not "Fuel left today" over that day's figures. The
-        // day reads as the strip shows it: this week's date and the weekday in the reader's language, not the
-        // plan record's own label (a sample's dates and English initials; Codex P2 on #2599).
-        label={_eatIsToday ? null : tr('nutrition:eat.fuelOn', { defaultValue: 'Fuel · {day}', day: bsEatStripDay(day) })} />
+  return (
+    <BSPage>
+      <BSEatDay tools={<BSHeaderTools onProfile={onProfile} />} tabs={<BSNutritionTopTabs active="eat" onChange={setView} />}
+        phase={bsEatProgram.nutritionPhase} weekN={bsProgramWeek()} title={cur.title}
+        day={day} todayIdx={bsWeekdayIdx()} onDay={setDay} onMonth={goCalendar}
+        week={PROGRAM.map((dd) => ({ kcal: bsEatEaten(dd, 'kcal'), kcalGoal: bsEatCoachSet('calories') ? bsEatCalTgt : bsEatNum(dd.totals.target.cal), p: bsEatEaten(dd, 'p'), pGoal: bsEatCoachSet('protein') ? bsEatNum(bsEatCoachN.protein) : bsEatNum(dd.totals.target.p), rest: dd.tag === 'REST', planned: dd.meals.length > 0 }))}
+        fuel={{ calLeft: bsEatCalLeft, calTarget: bsEatCalTgt, calNow: bsEatCalNow, calPct: bsEatCalPct, macros: bsEatMacros, unread: bsEatFuelUnread, calTargetKnown: bsEatCoachSet('calories') }}
+        onMacro={(k) => setMacroPage(k)} notices={_eatNotices} morning={_eatMorning} empty={_eatEmpty}
+        meals={effMeals} rows={_eatRows} nowIdx={_eatNowIdx} nowText={_eatFmtNow} nowMin={_eatNowMin}
+        next={_eatNext} nextAt={_eatNextAt} ahead={_eatAhead} until={_eatUntil} prev={_eatPrev} arrivalPct={_eatPct}
+        slotOf={_eatSlot} timeOf={bsMealSchedLabel} minOf={_eatMin} fmt12={bsFmt12} macroRow={_eatMacro}
+        onOpenMeal={(id) => setPreviewMealId(id)} onSwapMeal={(id) => setSwapMealId(id)} onSwapPick={() => setSwapMealId('pick')} />
 
-      {/* The next meal — on its own, today only. Log it opens the meal, where it
-          is logged; Swap opens the swap sheet on this meal. */}
-      {_eatNext && (
-        <BSFocusLead color={t.ACCENT}
-          kicker={`${bsMealSchedLabel(_eatNext) || _eatSlot(_eatNext)} · ${_eatNextAt != null && !_eatAhead ? tr('home:focus.notLogged', { defaultValue: 'Not logged yet' }) : tr('home:focus.nextStop', { defaultValue: 'Next stop' })}`}
-          kickerRight={_eatUntil ? (_eatUntil.h > 0
-            ? tr('home:focus.inHourMin', { defaultValue: 'In {h} h {m} min', h: _eatUntil.h, m: _eatUntil.m })
-            : tr('home:focus.inMin', { defaultValue: 'In {m} min', m: _eatUntil.m })) : ''}
-          title={_eatSlot(_eatNext)}
-          sub={`${_eatNext.title} · ${_eatMacro(_eatNext)}`}>
-          {_eatPrev && (
-            <BSFocusArrival pct={_eatPct}
-              nowLabel={`${tr('home:slate.now', { defaultValue: 'Now' })} ${_eatFmtNow}`}
-              fromLabel={`${bsFmt12(`${Math.floor(_eatPrev.min / 60)}:${String(_eatPrev.min % 60).padStart(2, '0')}`)} · ${_eatPrev.label}${_eatPrev.done ? ' ✓' : ''}`}
-              toLabel={`${bsMealSchedLabel(_eatNext)} · ${_eatSlot(_eatNext)}`}
-              ariaLabel={tr('home:focus.arrivalAria', { defaultValue: 'Now {now}, between {from} and {to}', now: _eatFmtNow, from: bsFmt12(`${Math.floor(_eatPrev.min / 60)}:${String(_eatPrev.min % 60).padStart(2, '0')}`), to: bsMealSchedLabel(_eatNext) })} />
-          )}
-          <BSFocusActions
-            primary={{ label: tr('nutrition:eat.logIt', { defaultValue: 'Log it →' }), onClick: () => setPreviewMealId(_eatNext.id) }}
-            secondary={{ label: `${tr('nutrition:eat.swapTitle', { defaultValue: 'Swap' })} →`, onClick: () => setSwapMealId(_eatNext.id) }} />
-        </BSFocusLead>
-      )}
-
-      {/* The morning swap (Phase 2): a made-ahead meal that was not prepped last night, and a quick
-          recipe for it this morning, for today only. */}
-      {morningSwap && (
-        <div style={{ padding: `18px ${t.padX}px 0` }}>
-          <BSMorningSwapCard meal={{ title: morningSwap.meal.title, slot: morningSwap.slot }} recipe={morningSwap.recipe} busy={morningBusy}
-            onSwap={() => doMorningSwap(morningSwap)} onKeep={() => keepMorningMeal(morningSwap)} />
-        </div>
-      )}
-
-      {/* The menu — the day as a line: each meal at its time, on the rail, with the
-          NOW tick today; the next one is marked and carries the kcal still left.
-          Tapping a meal opens it. */}
-      {/* ⚠ THE TITLE WAS AN ENGLISH POSSESSIVE OVER A HARDCODED WEEKDAY ARRAY
-          (`${['Monday', ...][day]}'s meals`) — not even the device locale, a
-          literal list. Home already formats its weekday through bsDateLocale();
-          this was its unlocalized twin. The possessive is the catalog's to form:
-          es reads 'Comidas del lunes', de 'Mahlzeiten am Montag'. */}
-      <BSTrackHeader kicker={tr('nutrition:eat.menuKicker', { defaultValue: 'The menu' })}
-        title={day === bsWeekdayIdx()
-          ? tr('nutrition:eat.mealsToday', { defaultValue: "Today's meals" })
-          : tr('nutrition:eat.mealsOnDay', { defaultValue: "{day}'s meals", day: bsWeekdayName(day) })}
-        actionLabel={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} onAction={() => setSwapMealId('pick')} />
-      <div data-tour="hero-eat" style={{ paddingTop: 4 }}>
-        <BSFocusLine
-          nowIndex={_eatNowIdx}
-          nowLabel={_eatNowIdx >= 0 ? `${tr('home:slate.now', { defaultValue: 'Now' })} · ${_eatFmtNow}` : null}
-          rows={effMeals.map((m) => {
-            const logged = m.state === 'done';
-            const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
-            // A meal the member planned, or swapped for the day (Phase 2), says so instead.
-            const swapped = !m._own && !m._daySwap && !!mealOverrides[m._baseTitle];
-            const ownMark = m._daySwap ? tr('nutrition:planDay.daySwapped', { defaultValue: 'Swapped for today' })
-              : m._own ? tr('nutrition:planDay.yours', { defaultValue: 'Planned by you' }) : null;
-            const timeLabel = bsMealSchedLabel(m) || m.tag || '';
-            // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
-            // match only, and only until it's logged (the log supersedes it).
-            // A made-ahead meal counts as prepped only when a prep covers it on this day, and on
-            // today's menu one that is not says so (bsMenuPrepState).
-            const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });
-            const stamp = (text, color) => <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{text}</span>;
-            return {
-              key: m.id,
-              time: timeLabel,
-              title: m.title,
-              sub: `${_eatMacro(m)}${isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}`,
-              extra: (swapped || ownMark || prepped || notPrepped) ? (
-                <>
-                  {swapped && stamp(tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' }), t.ACCENT)}
-                  {ownMark && stamp(ownMark, t.ACCENT)}
-                  {prepped && stamp(tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' }), t.isLight ? '#0a8f87' : t.ACCENT)}
-                  {notPrepped && stamp(tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' }), t.INK70)}
-                </>
-              ) : null,
-              note: logged ? '✓' : isNext ? tr('nutrition:eat.next', { defaultValue: 'NEXT' }) : '',
-              state: logged ? 'done' : isNext ? 'next' : '',
-              // An eaten meal needs no shopping; its tag would only add noise.
-              below: logged ? null : mealShopBelow(m),
-              onOpen: () => setPreviewMealId(m.id),
-              ariaLabel: `${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`,
-            };
-          })} />
-        {/* An empty menu offers Nora (the Ask Nora plan, step 5): the question lands in her
-            composer for the member to send. */}
-        {effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (
-          <div data-eat-empty style={{ padding: `4px ${t.padX}px 2px` }}>
-            <div style={{ fontFamily: tClean.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
-            {day === bsWeekdayIdx()
-              ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
-              : <BSAskNoraLink t={t} label={tr('feed:support.ask.eatOnDayLink', { defaultValue: 'Ask Nora what to eat on {day}', day: bsWeekdayName(day) })} draft={tr('feed:support.ask.eatOnDay', { defaultValue: 'What should I eat on {day}?', day: bsWeekdayName(day) })} />}
-          </div>
-        )}
-      </div>
+      <BSCleanType t={tClean}>
 
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}

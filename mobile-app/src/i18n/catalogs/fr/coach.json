@@ -1365,6 +1365,7 @@
   "today.openReviews": "Ouvrir les revues",
   "today.seeAllTodo": "Voir les {count} →",
   "today.title": "Aujourd’hui",
+  "today.dayList": "Votre journée",
   "today.todo": "À faire",
   "today.todoClear": "Rien à faire — tout le monde est sur la bonne voie.",
   "today.upNextAt": "Ensuite · {time}",

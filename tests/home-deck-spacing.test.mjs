@@ -77,7 +77,7 @@ test('coach Today: the deck\'s sessions follow the day picked in the strip', () 
   // done count on today or a day gone by, and BOOKED with the count for a day ahead.
   assert.match(PROS, /const dayBookings = isToday \? todayBookings : bookings;/);
   assert.match(PROS, /const doneDay = dayBookings\.filter\(\(b\) => b\.state === 'done'\)\.length;/);
-  assert.match(PROS, /\{calendarReady && dayBookings\.length > 0 && \(\s*<BSProDeckSegments t=\{t\} done=\{isToday \|\| dayPast \? doneDay : 0\} total=\{dayBookings\.length\}/);
+  assert.match(PROS, /\{calendarReady && dayBookings\.length > 0 && \(\s*<BSProDeckSegments dense t=\{t\} done=\{isToday \|\| dayPast \? doneDay : 0\} total=\{dayBookings\.length\}/);
   assert.match(PROS, /onSelectDay=\{setSelDay\}/);
 });
 
@@ -91,7 +91,8 @@ test('the ticker is 10px in from each side, as the deck and panels under it on e
   const CHECKIN = readFileSync(new URL('../mobile-app/src/broadsheet/BSCheckinCard.jsx', import.meta.url), 'utf8');
   assert.match(CHECKIN, /<section data-bs-morning="" style=\{\{ margin: '10px 10px 4px'/);
   const INSTR = readFileSync(new URL('../mobile-app/src/broadsheet/BSProInstrument.jsx', import.meta.url), 'utf8');
-  assert.match(INSTR, /<section data-pro-deck="" data-glass=""[^>]*margin: '6px 10px 0'/);
+  // 10px in on both sides, dense or not (coach Today's dense deck stands 16px under Shape Radio, 2026-11-04).
+  assert.match(INSTR, /<section data-pro-deck="" data-glass=""[^>]*margin: dense \? '16px 10px 0' : '6px 10px 0'/);
   // Coach Today's Shape Radio box, between the ticker and the deck, is 10px in too (its own 8 and 2).
   const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
   assert.match(PROS, /<div style=\{\{ margin: '12px 2px 0' \}\}>\n\s+<BSNowPlaying onOpen=\{goRadio\} \/>/);

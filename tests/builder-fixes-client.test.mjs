@@ -205,26 +205,31 @@ async function trainPage(workout) {
 }
 const today = () => { const x = new Date(); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
 
+// The chip itself is BSTrainDay's (BSTrainDay.jsx, drawn and pressed in tests/train-day.test.mjs): the
+// page hands it the live day, its playlist, and Shape Radio's door.
 test('the Train hero chips the day\'s playlist the way the website card does, and opens Radio', async () => {
   const { d, opened } = await trainPage({ ...delivered(), scheduledDate: today() });
-  assert.match(d.text, /Back squat/, 'setup: the live day is on the page');
-  const chip = d.buttons().find((b) => b.label.startsWith('♪'));
-  assert.ok(chip, 'no playlist chip on the hero');
-  assert.equal(chip.label, '♪ Lower Push — Peak · 14 tracks');
-  d.click('♪');
+  const day = d.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSTrainDay');
+  assert.ok(day, 'no BSTrainDay on Train');
+  assert.ok(day.props.moves.some((m) => m.m === 'Back squat'), 'setup: the live day is on the page');
+  assert.deepEqual(day.props.cur.playlist, { name: 'Lower Push — Peak', meta: '14 tracks' }, 'no playlist on the hero');
+  day.props.onRadio();
   assert.equal(opened(), 1, 'the chip opens Shape Radio');
   delete globalThis.window.ShapePlan;
 });
 
+// BSTrainDay draws no chip for a day with no playlist or for a rest day (tests/train-day.test.mjs); the
+// page hands it which day is which.
+const trainDay = (d) => d.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSTrainDay');
 test('a day without a playlist, and a rest day, chip nothing', async () => {
   const { d } = await trainPage({ ...delivered(), playlist: null, scheduledDate: today() });
-  assert.match(d.text, /Back squat/);
-  assert.ok(!d.buttons().some((b) => b.label.startsWith('♪')));
+  assert.ok(trainDay(d).props.moves.some((m) => m.m === 'Back squat'));
+  assert.equal(trainDay(d).props.cur.playlist, null, 'a day with no playlist hands none on');
   // Today is rest when the only workout sits on another day of the week.
   const other = new Date(); other.setDate(other.getDate() + (other.getDay() === 0 ? -1 : 1));
   const iso = other.getFullYear() + '-' + String(other.getMonth() + 1).padStart(2, '0') + '-' + String(other.getDate()).padStart(2, '0');
   const rest = await trainPage({ ...delivered(), scheduledDate: iso });
-  assert.ok(!rest.d.buttons().some((b) => b.label.startsWith('♪')), 'a rest day is no session, so it has no soundtrack');
+  assert.equal(trainDay(rest.d).props.isRest, true, 'a rest day is no session, so it has no soundtrack');
   delete globalThis.window.ShapePlan;
 });
 
@@ -237,11 +242,12 @@ test('a coach-set rest keeps the day\'s playlist, and still chips nothing', asyn
   globalThis.window.ShapeProgram = { get: () => ({ trainingPhase: 'Build', detail: { training: { updatedAt: '2026-10-07T00:00:00Z', days } } }), set() {} };
   try {
     const { d } = await trainPage({ ...delivered(), scheduledDate: today() });
-    // The session block is the Focus lead (BSFocus.jsx, 2026-10-11); its title is a
-    // prop, which this shallow driver does not render into text.
-    const lead = d.nodes().find((n) => n.props && n.props.tour === 'hero-train');
-    assert.match(String(lead && lead.props.title), /Coach-set rest/, 'setup: today is the coach\'s rest');
-    assert.ok(!d.buttons().some((b) => b.label.startsWith('♪')), 'a soundtrack on a day the coach set to rest');
+    // The session is BSTrainDay's (2026-11-04); its head is a prop, which this shallow driver does not
+    // render into text. BSTrainDay chips nothing on a rest day (tests/train-day.test.mjs).
+    const day = trainDay(d);
+    assert.match(String(day && day.props.head), /Coach-set rest/, 'setup: today is the coach\'s rest');
+    assert.ok(day.props.cur.playlist, 'setup: the rest keeps the day\'s playlist');
+    assert.equal(day.props.isRest, true, 'a soundtrack on a day the coach set to rest');
   } finally {
     delete globalThis.window.ShapeProgram;
     delete globalThis.window.ShapePlan;
