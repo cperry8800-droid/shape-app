@@ -225,7 +225,7 @@ export default async function NoraSets({ updated, error }: { updated?: string; e
           {')'}
           <div>
             Every song played, each with its performances: the listeners who heard any part of it, counted by Shape’s own station.
-            The totals add the month’s listening hours. Before the station’s listening sessions were kept (2026-11-03-radio-listens.sql), the column is blank.
+            The totals add the month’s listening hours. Plays from before the station’s first run that kept a listening session are blank: not measured, rather than nobody listening.
           </div>
         </div>
       </div>

@@ -376,9 +376,9 @@ test('the play report lists the rotation\'s plays beside her sets\', and still r
   const r = await playsCsv(fakeDb({ nora_engine_log: log }), '2026-11');
   const lines = r.body.trim().split('\r\n');
   assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Actual total performances,Nora set,Rotation block');
-  // No session yet: every play is Shape's own station's, and nobody heard either (0).
-  assert.equal(lines[1], `2026-11-03T10:00:00.000Z,A,a,,,,0,${SET},`);
-  assert.equal(lines[2], `2026-11-03T11:00:00.000Z,B,b,,,,0,,${BLK}`);
+  // No session yet: the station has recorded nothing, so neither play is measured (blank, never 0).
+  assert.equal(lines[1], `2026-11-03T10:00:00.000Z,A,a,,,,,${SET},`);
+  assert.equal(lines[2], `2026-11-03T11:00:00.000Z,B,b,,,,,,${BLK}`);
   const before = await playsCsv(fakeDb({ nora_engine_log: [log[0]] }, { noBlockColumn: true, missing: ['radio_listens'] }), '2026-11');
   assert.equal(before.status, 200);
   assert.equal(before.body.trim().split('\r\n')[1], `2026-11-03T10:00:00.000Z,A,a,,,,,${SET},`);

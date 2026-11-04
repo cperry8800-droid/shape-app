@@ -133,8 +133,8 @@ export function monthRange(month) {
 /**
  * Every song the engine played in a month (Nora's sets and, on Shape's own station, its rotation),
  * as CSV, in the order SoundExchange's report of use asks for its per-play fields, each with its
- * performances: the listeners who heard any part of it (src/lib/radio/listens.mjs; blank only
- * before the station's sessions were kept). Every play, a page at a time.
+ * performances: the listeners who heard any part of it (src/lib/radio/listens.mjs; blank before the
+ * station's first recorded start). Every play, a page at a time.
  */
 export async function playsCsv(db, month, { now = Date.now() } = {}) {
   const range = monthRange(month);

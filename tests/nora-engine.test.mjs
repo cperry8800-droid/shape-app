@@ -443,8 +443,8 @@ test('the play report: one month, CSV, formulas defused', LIMIT, async () => {
   assert.equal(r.count, 1);
   const lines = r.body.trim().split('\r\n');
   assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Actual total performances,Nora set,Rotation block');
-  // Her set on Shape's own station with nobody listening: 0 (every play is Shape's own; radio.co was taken out).
-  assert.equal(lines[1], `2026-10-12T18:00:00.000Z,"X, the Band","'=HYPERLINK(""x"")",USRC17607839,"Say ""hi""",,0,${SET_ID},`);
+  // No session recorded yet: not measured, blank (never a 0 that would under-report).
+  assert.equal(lines[1], `2026-10-12T18:00:00.000Z,"X, the Band","'=HYPERLINK(""x"")",USRC17607839,"Say ""hi""",,,${SET_ID},`);
   assert.equal((await playsCsv(db, 'oct')).status, 400);
 });
 
