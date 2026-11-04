@@ -59,6 +59,11 @@ test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s f
   // A member keeps the facet; a coach is a circle in the coach's colour (owner, 2026-11-04: "keep the facet
   // avatars for clients and circle avatar for coaches").
   assert.match(rail, /\{p\.role === 'trainer' \|\| p\.role === 'nutritionist'\s*\? <BSRailCoachFace size=\{46\} box=\{40\} ring=\{p\.role === 'nutritionist' \? '#a07a2e' : '#c0533b'\}/);
+  // A coach's photo that fails to load gives way to their initials, as a facet's does (Codex on #2602).
+  const coachFace = CLIENT.slice(CLIENT.indexOf('function BSRailCoachFace('), CLIENT.indexOf('function BSFacetAvatar('));
+  assert.match(coachFace, /const \[failed, setFailed\] = useStateBSC\(null\);\s*const src = valid && failed !== valid \? valid : null;/);
+  assert.match(coachFace, /<img src=\{src\} alt="" onError=\{\(\) => setFailed\(src\)\}/);
+  assert.match(coachFace, /: <span[^>]*>\{initial \|\| '•'\}<\/span>\}/, 'no photo, the initials');
   assert.match(rail, /: <BSFacetAvatar flat size=\{40\} c=\{t\.INK\} dotC=\{p\.activity === 'cooking' \? \(t\.AMBER \|\| '#d8a23a'\) : magAccent\} initial=\{bsInitials\(p\.name\)\} photo=\{pPhoto\} showRank=\{false\} live=\{!!p\.live\} activity=\{p\.activity\} BG=\{t\.PAPER\} \/>\}/);
   assert.doesNotMatch(rail, /railTierColor/, 'no tier colour in the rail');
   // The live story's byline face is the same flat cut, and so are a Wall story's: its byline, the

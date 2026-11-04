@@ -16047,18 +16047,21 @@ function bsChannelColor(name) {
 }
 // A coach's face on the Wall's online rail: a round photo (or initials) inside a ring of the coach's colour,
 // trainer rust or nutritionist gold, with the same still corner dot as a member's facet when the coach is
-// in a workout or at the stove. A member keeps BSFacetAvatar's faceted shape beside it.
+// in a workout or at the stove. A member keeps BSFacetAvatar's faceted shape beside it. A photo that fails
+// to load (an expired or unreachable address) gives way to the initials, as the facet's does (Codex on #2602).
 // `box` is the room it takes in the row: a facet's corners reach past its box, so the circle is drawn a little
 // larger than the box it stands in, and the names under the row stay on one line.
 function BSRailCoachFace({ size = 46, box = 40, ring, dotC, active = false, initial = '', photo }) {
   const t = useBS();
-  const src = bsValidPhoto(photo);
+  const valid = bsValidPhoto(photo);
+  const [failed, setFailed] = useStateBSC(null);
+  const src = valid && failed !== valid ? valid : null;
   const inner = size - 6;
   const dot = Math.max(8, Math.round(size * 0.24));
   return (
     <span data-rail-face="coach" aria-hidden style={{ position: 'relative', display: 'inline-block', width: size, height: size, margin: (box - size) / 2, borderRadius: '50%', border: `2px solid ${ring}`, padding: 1, boxSizing: 'border-box' }}>
       {src
-        ? <img src={src} alt="" style={{ width: inner, height: inner, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+        ? <img src={src} alt="" onError={() => setFailed(src)} style={{ width: inner, height: inner, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
         : <span style={{ width: inner, height: inner, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(t.INK, 0.08), fontFamily: t.DISPLAY, fontSize: Math.round(size * 0.34), fontWeight: 600, color: t.INK70 }}>{initial || '•'}</span>}
       {active && <span style={{ position: 'absolute', right: -2, bottom: -2, width: dot, height: dot, borderRadius: '50%', background: dotC, border: `2px solid ${t.PAPER}` }} />}
     </span>
@@ -32274,7 +32277,8 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               glow of the rung's colour warms the card's corner. */}
           {(() => {
             const frac = atRisk ? 0 : (st.frac || 0);
-            const lit = Math.round(frac * 24);
+            // Floored, so the track never reads full while points remain (Codex on #2602).
+            const lit = Math.floor(frac * 24);
             return (
               <div data-score-card="" style={{
                 margin: '12px 10px 0', ...bsMpGlass(t, t.INK, { radius: 22 }), padding: `16px ${t.padX - 4}px`, overflow: 'hidden',
@@ -32902,7 +32906,8 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
             return (
               <div data-store-closest="" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {closest.map(({ p, gap }) => {
-                  const lit = Math.round(Math.max(0, Math.min(1, balance / p.cost)) * 16);
+                  // Floored: everything here is out of reach, so a strip never reads full (Codex on #2602).
+                  const lit = Math.floor(Math.max(0, Math.min(1, balance / p.cost)) * 16);
                   return (
                     <button key={p.id} type="button" onClick={() => jumpTo(p)} style={{
                       display: 'flex', alignItems: 'center', gap: 12, width: '100%', minHeight: 64, padding: '10px 12px', boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', color: t.INK,

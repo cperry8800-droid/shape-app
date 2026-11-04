@@ -249,8 +249,9 @@ const mktDirPriceNum = (x) => { const n = parseFloat(String(x == null ? '' : x).
 // The coach of the week, condensed (owner, 2026-11-04: "this can be more condensed"): one raised card
 // warmed by their role, the face beside the name, role · standing · place and one line of figures (the
 // rating, then clients and years when they have some, never "0+"), one line of their own words, and
-// along the foot what they sell (how many, from the lowest price) beside See the profile. A tap anywhere
-// on it opens them, and See the profile is the card's one button (the keyboard's way in).
+// along the foot what they sell (how many, from the lowest price) beside See the profile. A coach at
+// capacity reads At capacity beside their name, as on the list (Codex on #2602). A tap anywhere on it
+// opens them, and See the profile is the card's one button (the keyboard's way in).
 function MktDirFeature({ feature }) {
   const { useBS } = window;
   const t = useBS();
@@ -274,6 +275,7 @@ function MktDirFeature({ feature }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>{feature.name}<span aria-hidden="true" style={{ color: role.mark }}>.</span></div>
           <div style={{ ...mono, marginTop: 4, color: role.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta}</div>
+          {feature.atCapacity ? <div style={{ marginTop: 6 }}><MktDirFull /></div> : null}
           <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: '2px 10px', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
             {stats.map(([k, v, l]) => (
               <span key={k} data-mkt-stat={k} style={{ whiteSpace: 'nowrap' }}>{v}{l ? <span style={{ marginLeft: 4, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{l}</span> : null}</span>

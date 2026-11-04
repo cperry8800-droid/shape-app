@@ -122,14 +122,33 @@ test('Score: one raised card holds the score, the rung as a badge, the verdict a
     assert.ok(card, 'no score card');
     assert.equal(card.querySelector('[data-score-tier]').textContent, 'Tempo');
     assert.match(card.textContent, /Tempo, and climbing\./);
-    // 1,840 is 1,090 into Tempo's 1,250 (750 to 2,000): 0.872 of 24 dots is 21.
+    // 1,840 is 1,090 into Tempo's 1,250 (750 to 2,000): 0.872 of 24 dots, floored, is 20. Floored so
+    // the track never reads full while points remain (Codex on #2602).
     const dots = [...card.querySelectorAll('[data-score-track] > span')];
     assert.equal(dots.length, 24);
-    assert.equal(dots.filter((d) => d.dataset.on === '1').length, 21);
+    assert.equal(dots.filter((d) => d.dataset.on === '1').length, 20);
     const next = card.querySelector('[data-score-next]').textContent.replace(/\s+/g, ' ');
     assert.match(next, /Tempo · 750Form · 2,000/);
     assert.match(next, /1,090 into the tier — 160 from Form\./);
     assert.match(next, /Form unlocks: Free coach workout or plan/);
+  } finally { await s.unmount(); }
+});
+
+// Codex on #2602: rounded, a member 15 points short of Form lit all 24 dots while the card still said
+// points remained.
+test('Score: a member just short of the next rung never sees a full track', async () => {
+  world();
+  window.ShapeApi = {
+    fetch: async (path) => (path === '/api/client/score'
+      ? { ok: true, status: 200, json: async () => ({ ...MEMBER_SCORE, points_total: 1985, points_to_next: 15 }) }
+      : { ok: false, status: 404, json: async () => ({ error: 'unscripted' }) }),
+  };
+  const s = await mount(React.createElement(MOD.BSShapeScorePage, { profile: P.client, onBack() {}, onOpenStore() {} }));
+  try {
+    const card = s.host.querySelector('[data-score-card]');
+    assert.match(card.textContent, /15 from Form/);
+    const lit = [...card.querySelectorAll('[data-score-track] > span')].filter((d) => d.dataset.on === '1').length;
+    assert.equal(lit, 23, '1,235 of 1,250 floors to 23 of 24');
   } finally { await s.unmount(); }
 });
 
@@ -203,11 +222,13 @@ test('Store: Closest to you lists the nearest unlocked things out of reach by po
     assert.ok(rail && rail.length > 0 && rail.length <= 4, `rail of ${rail && rail.length}`);
     assert.equal(new Set(rail.map((c) => c.name)).size, rail.length, 'a variant group shows twice');
     for (let i = 1; i < rail.length; i++) assert.ok(rail[i].gap >= rail[i - 1].gap, 'not by points to go');
-    // Each row's strip lights the share of its price the balance covers, in 16 cells.
+    // Each row's strip lights the share of its price the balance covers, in 16 cells, floored, so one out
+    // of reach never reads full (Codex on #2602).
     for (const c of rail) {
       const cost = 900 + c.gap;
       assert.equal(c.cells, 16);
-      assert.equal(c.lit, Math.round((900 / cost) * 16), `${c.name}: the strip lights ${c.lit} of 16`);
+      assert.equal(c.lit, Math.floor((900 / cost) * 16), `${c.name}: the strip lights ${c.lit} of 16`);
+      assert.ok(c.lit < 16, `${c.name} is out of reach and reads full`);
     }
     // Each card is a real, unlocked product the member can buy, its gap read off the catalogue.
     for (const c of rail) {

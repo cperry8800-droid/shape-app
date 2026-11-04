@@ -323,6 +323,11 @@ test('a coach at capacity reads At capacity over a dimmed face, on the list and 
   const Tile = ofType(drive(BSMarketDirectory, { roster: [CARD()] }), 'MktDirTile')[0].type;
   assert.equal(ofType(drive(Tile, { card: CARD({ atCapacity: true }), perMonth: PER_MONTH }), 'MktDirFull').length, 1);
   assert.equal(ofType(drive(Tile, { card: CARD(), perMonth: PER_MONTH }), 'MktDirFull').length, 0);
+  // And the coach of the week, the most prominent card of all (Codex on #2602).
+  const feature = { ...CARD(), quote: '', clients: 0, years: 0, offers: [] };
+  const Feature = ofType(drive(BSMarketDirectory, { feature }), 'MktDirFeature')[0].type;
+  assert.equal(ofType(drive(Feature, { feature: { ...feature, atCapacity: true } }), 'MktDirFull').length, 1);
+  assert.equal(ofType(drive(Feature, { feature }), 'MktDirFull').length, 0);
 });
 
 test('the marketplace reads a coach\'s capacity by the server\'s rule, once, for the listing and the cards', () => {
