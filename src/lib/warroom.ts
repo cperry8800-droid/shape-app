@@ -622,6 +622,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website: the login box in the middle of the screen; Club Shape in the website\'s Anybody (#2613). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "center this box on screen on website and change club shape font in login box to match website font"', status: 'done' },
+        { label: '#2613 the login card (login.jsx, on Login.html and the apps\' sign-in) loses its right-of-centre offset (margin-left: clamp(0px, 30vw, 520px) and the 1100px rule that undid it): it stands in the middle at every width', status: 'done' },
+        { label: '#2613 Club Shape in the title is set as the homepage\'s teal heading words are (Anybody, 500, width 90, upright), in place of the italic serif; "Log in to" stays in the serif. The login page mounts no site header, so its styles request Anybody themselves, at pageShell\'s own URL', status: 'done' },
+        { label: 'Review (#2613): Codex clean on 6cfd0ea5; CI green on it, and on the War Room commit before main\'s #2611 and #2612 were merged in', status: 'done' },
+        { label: 'OWNER: the login page on the deployed site, on a phone and a desktop (seen only in headless Chromium)', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Tune the program, the Boost sheet, coach Clients C with Add a client, the Wall top B with Chat\'s switch D, Programs B with the draft composer and Assign (#2612). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of each page built in the app: Clients "C for clients" and "add a client looks good" (a message icon on every client); Programs "B for programs just reduce size of this button"; the composer "clean up filters, make them smaller, and alow for custom focuses to be used"; Assign "reduce size of header and the boxes on page"; the Wall "go with B", smaller online cards, and of the switch "last option"; Boost and Tune "update to design"', status: 'done' },
