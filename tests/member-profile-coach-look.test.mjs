@@ -344,7 +344,7 @@ test('the Following count is a noun, not Follow\'s state', () => {
   }
 });
 
-test('the Shape Score row opens the Score page on every member\'s page: through the host on yours, through shape:openScore anywhere else', () => {
+test('the Shape Score row: on your page it opens the Score page (through the host, else shape:openScore); on another\'s it shows their score and opens nothing', () => {
   // Owner, 2026-11-04: "there should also be a link to shape score page on profiles". Codex P2 on #2546 held
   // that a tier line which opens nothing must not be a button; every app root now answers shape:openScore,
   // so the row always opens the Score page.
@@ -366,13 +366,17 @@ test('the Shape Score row opens the Score page on every member\'s page: through 
     const [own] = withAttr(bare.nodes(), 'data-member-score');
     assert.equal(own.type, 'button');
     own.props.onClick();
+    // Codex P1 on #2599: the Score page shows only the reader's own standing, so another member's row opens
+    // nothing rather than put the reader's figures where theirs were.
     const visit = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: false });
     const [theirs] = withAttr(visit.nodes(), 'data-member-score');
-    assert.equal(theirs.type, 'button', 'a visitor\'s page has the row too');
+    assert.equal(theirs.type, 'div', 'a visitor\'s page shows the row, not a door');
+    assert.equal(theirs.props.onClick, undefined);
+    assert.match(theirs.props['aria-label'], /^Shape Score: /);
     assert.equal(theirs.props['data-tour'], undefined, 'the tour anchors on your own page only');
-    theirs.props.onClick();
+    assert.doesNotMatch(textOf(theirs), /→/, 'no arrow where nothing opens');
   } finally { globalThis.window.dispatchEvent = prev; }
-  assert.deepEqual(sent, ['shape:openScore', 'shape:openScore']);
+  assert.deepEqual(sent, ['shape:openScore'], 'only your own page fires it');
   // Every app root answers it: the member app and both coach apps.
   assert.match(CLIENT, /window\.addEventListener\('shape:openScore', open\);/);
   assert.match(CLIENT, /const open = \(\) => \{ setShowSettings\(false\); navJumpRef\.current\.goScore\(\); \};/);

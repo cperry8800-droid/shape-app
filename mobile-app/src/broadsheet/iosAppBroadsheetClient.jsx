@@ -19241,20 +19241,29 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   onMessage={hasMessage && !isSelf ? () => onMsg(person) : null}>
                   {bio ? <p data-member-bio="" style={{ margin: '2px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
                   {/* The Shape Score, as a row on every member's page (owner, 2026-11-04: "there should also be a
-                      link to shape score page on profiles"): the tier · points · streak, opening the Shape Score
-                      page. Your own page opens it through its host where the host has a way (onOpenScore); every
-                      other page, a visitor's included, through shape:openScore, which each app's root answers, so
-                      the row never does nothing (Codex P2 on #2546). */}
-                  {metaBits ? (
-                    <button type="button" data-tour={isSelf ? 'hero-score' : undefined} data-member-meta="" data-member-score=""
-                      onClick={isSelf && typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
-                      aria-label={['Shape Score', metaBits].join(': ')}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '7px 12px 7px 14px', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.14)}`, boxShadow: `inset 3px 0 0 ${c}`, background: bsTHexA(INK, 0.03), textAlign: 'left', cursor: 'pointer', color: INK }}>
-                      <span style={{ flex: 'none', fontFamily: tTheme.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Shape Score</span>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3, color: bsTHexA(INK, 0.78), overflowWrap: 'anywhere' }}>{metaBits}</span>
-                      <span aria-hidden style={{ flex: 'none', color: c, fontSize: 16, lineHeight: 1 }}>→</span>
-                    </button>
-                  ) : null}
+                      link to shape score page on profiles"): the tier · points · streak. On your own page it opens
+                      the Shape Score page, through its host where the host has a way (onOpenScore), else through
+                      shape:openScore, which each app's root answers, so it never does nothing (Codex P2 on #2546).
+                      On someone else's page it shows their score and opens nothing: the Score page shows only the
+                      reader's own standing, so a tap would put the reader's figures where theirs were (Codex P1 on
+                      #2599). */}
+                  {metaBits ? (() => {
+                    const scoreBody = (
+                      <>
+                        <span style={{ flex: 'none', fontFamily: tTheme.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Shape Score</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3, color: bsTHexA(INK, 0.78), overflowWrap: 'anywhere' }}>{metaBits}</span>
+                        {isSelf ? <span aria-hidden style={{ flex: 'none', color: c, fontSize: 16, lineHeight: 1 }}>→</span> : null}
+                      </>
+                    );
+                    const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '7px 12px 7px 14px', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.14)}`, boxShadow: `inset 3px 0 0 ${c}`, background: bsTHexA(INK, 0.03), textAlign: 'left', color: INK };
+                    return isSelf ? (
+                      <button type="button" data-tour="hero-score" data-member-meta="" data-member-score=""
+                        onClick={typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
+                        aria-label={['Shape Score', metaBits].join(': ')} style={{ ...rowStyle, cursor: 'pointer' }}>{scoreBody}</button>
+                    ) : (
+                      <div data-member-meta="" data-member-score="" aria-label={['Shape Score', metaBits].join(': ')} role="group" style={rowStyle}>{scoreBody}</div>
+                    );
+                  })() : null}
                   {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
                       not read on the light papers). */}
                   {heroStartState ? (
