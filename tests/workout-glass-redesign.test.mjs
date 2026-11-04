@@ -224,17 +224,27 @@ function session(view, props = {}) {
   return { p, root, v, press, byText, type, left };
 }
 
-test('Focus: the glass top, the view and Change view, the strip, then the raised card with the set\'s figures', () => {
+// Focus is the owner's C with every set on the card (2026-11-04: "Do C but have all required sets appear at same
+// time so client can see what weight may change or reps, and then user get customize and edit results/outcome
+// appropriately", "if a specfic exercies has multiple sets").
+test('Focus: the glass top, the view and Change view, the lit readouts, then the raised card with every set', () => {
   const s = session('focus');
   const n = s.v().nodes();
-  assert.match(s.v().text, /^Pause & exitElapsed0:\d\dFocusLive sessionChange viewEx 1\/3 · Sets 0\/70% complete/, 'the glass top, the view row, the counts');
-  assert.equal(n.filter((x) => x.props && x.props['data-ws-seg'] !== undefined).length, 3, 'one segment per exercise');
+  assert.match(s.v().text, /^Pause & exitElapsed0:\d\dFocusLive sessionChange viewExercise1\/3Sets0\/7Done0%/, 'the glass top, the view row, the readouts');
+  assert.equal(n.filter((x) => x.props && x.props['data-ws-seg'] !== undefined).length, 0, 'the readouts stand in for the strip');
+  assert.deepEqual(ofData(n, 'data-focus-readout').map((r) => r.props['data-focus-readout']), ['exercise', 'sets', 'done']);
   const card = ofData(n, 'data-ws-card')[0];
   assert.match(card.props.style.boxShadow, /inset/, 'the card is raised');
-  assert.equal(textOf(card), 'Back squat3 × 5 · 3 min rest · Target RPE 8Brace, then sit.Set 01 · UpLoadRepsRPE');
-  const fields = ofData(n, 'data-ws-field');
-  assert.deepEqual(fields.map((f) => f.props['data-ws-field']), ['load', 'reps', 'rpe']);
+  assert.match(textOf(card), /^Back squat3 × 5 · 3 min rest · Target RPE 8Brace, then sit\.Set 01 · UpSetLoadRepsRPEDone01/);
+  // Every set at once, each a row of its own load, reps and RPE, the one up lit.
+  const rows = ofData(n, 'data-ws-set');
+  assert.deepEqual(rows.map((r) => r.props['data-ws-set']), ['now', '', '']);
+  assert.deepEqual(ofData(n, 'data-focus-field').map((f) => f.props['data-focus-field']), ['load', 'reps', 'rpe', 'load', 'reps', 'rpe', 'load', 'reps', 'rpe']);
   assert.equal(labelled(n, 'Set 1 Load').props.value, '225 lb');
+  // A set to come shows what it asks for, the coach's target, until the member writes what they did.
+  const later = labelled(n, 'Set 3 Load');
+  assert.ok(later.props.value === '225 lb' || later.props.placeholder === '225 lb', 'set 3 does not show its target');
+  assert.ok(labelled(n, 'Mark set 3 done'), 'each set has its own ✓');
   // Exercise details folded, Previous / Next, the queue, the heart-rate line, the session's own ends.
   assert.equal(n.filter((x) => x.type === 'details')[0].props.open, false);
   assert.equal(buttons(flatten(ofData(n, 'data-ws-queue')[0].props.children)).length, 3);
@@ -253,22 +263,42 @@ test('Focus: a typed figure is the set\'s, Log set starts the rest, +30 sec and 
   let rest = ofData(s.v().nodes(), 'data-ws-rest')[0];
   assert.ok(rest, 'the rest card');
   assert.match(textOf(rest), /^Rest · set 1 done3:00 \/ 3:00/);
-  assert.match(s.v().text, /Ex \d\/3 · Sets 1\/7/);
+  assert.equal(textOf(ofData(s.v().nodes(), 'data-focus-readout')[1]), 'Sets1/7');
   assert.equal(textOf(buttons(flatten(ofData(s.v().nodes(), 'data-ws-action')[0].props.children))[0]), 'Skip rest →', 'the one action skips the rest');
   s.press(s.byText('+30 sec'));
   rest = ofData(s.v().nodes(), 'data-ws-rest')[0];
   assert.match(textOf(rest), /\/ 3:30/);
   s.press((n) => buttons(flatten(ofData(n, 'data-ws-rest')[0].props.children)).find((b) => /^Skip rest/.test(textOf(b))));
   assert.equal(ofData(s.v().nodes(), 'data-ws-rest').length, 0, 'skipped');
-  // The logged set reads ✓ in the set's row, and the card has moved on to set 2.
+  // The logged set reads ✓ in the set's row and stays editable, and the card has moved on to set 2.
   assert.match(textOf(ofData(s.v().nodes(), 'data-ws-card')[0]), /Set 02 · Up/);
+  assert.deepEqual(ofData(s.v().nodes(), 'data-ws-set').map((r) => r.props['data-ws-set']), ['done', 'now', '']);
+  assert.ok(labelled(s.v().nodes(), 'Set 1 done'), 'the logged set reads done');
+  s.type('Set 1 Reps', '4');
+  assert.equal(labelled(s.v().nodes(), 'Set 1 Reps').props.value, '4', 'a logged set\'s figure is corrected in place');
+});
+
+test('Focus: a slot the member clears reads "—", not the coach\'s target, so what shows is what saves (Codex P2 on #2610)', () => {
+  const s = session('focus');
+  s.type('Set 1 Load', '');
+  const cleared = labelled(s.v().nodes(), 'Set 1 Load');
+  assert.equal(cleared.props.value, '');
+  assert.equal(cleared.props.placeholder, '—', 'a cleared slot shows the target again');
+});
+
+test('Focus: a set further down the card is logged from its own ✓, with what was typed into it', () => {
+  const s = session('focus');
+  s.type('Set 2 Load', '245 lb');
+  s.press((n) => labelled(n, 'Mark set 2 done'));
+  assert.deepEqual(ofData(s.v().nodes(), 'data-ws-set').map((r) => r.props['data-ws-set']).filter((x) => x === 'done').length, 1);
+  assert.equal(labelled(s.v().nodes(), 'Set 2 Load').props.value, '245 lb');
 });
 
 test('Focus: Next and Previous move through the exercises, and the queue jumps', () => {
   const s = session('focus');
   s.press(s.byText('Next: Barbell row →'));
   assert.match(textOf(ofData(s.v().nodes(), 'data-ws-card')[0]), /^Barbell row/);
-  assert.match(s.v().text, /Ex 2\/3 · Sets 0\/7/);
+  assert.equal(textOf(ofData(s.v().nodes(), 'data-focus-readout')[0]), 'Exercise2/3');
   s.press(s.byText('← Previous'));
   assert.match(textOf(ofData(s.v().nodes(), 'data-ws-card')[0]), /^Back squat/);
   s.press((n) => buttons(flatten(ofData(n, 'data-ws-queue')[0].props.children))[2]);
@@ -285,6 +315,8 @@ test('Exercise details: Quick Log | Timed sets, the target, Add and Remove set',
   assert.equal(buttons(s.v().nodes()).find((b) => textOf(b) === 'Timed sets').props['aria-pressed'], true);
   assert.equal(textOf(buttons(flatten(ofData(s.v().nodes(), 'data-ws-action')[0].props.children))[0]), 'Start set 1');
   s.press((n) => buttons(n).find((b) => textOf(b) === 'Quick Log'));
+  // Every set is on the card, so Exercise details keeps its tools and not the set log it would repeat.
+  assert.equal(flatten(det().props.children).filter((x) => x.props && x.props['data-ws-set'] !== undefined).length, 0, 'the details repeat the set log');
   const sets = () => s.v().nodes().filter((x) => x.props && x.props['data-ws-set'] !== undefined).length;
   assert.equal(sets(), 3);
   s.press((n) => labelled(n, 'Add a set to this exercise'));
@@ -303,12 +335,16 @@ test('Workout log: no card and no queue; a glass card per exercise, the current 
   assert.equal(sections.length, 3);
   assert.deepEqual(sections.map((x) => x.props['data-ws-move']), ['now', '', '']);
   assert.match(sections[0].props.style.boxShadow, /inset 0 1px 0/, 'the current exercise is raised');
+  // And says so in words, not by its lift alone (session:player.now, which the old log drew there too).
+  assert.deepEqual(sections.map((x) => ofData(flatten(x.props.children), 'data-ws-now').map(textOf)), [['NOW'], [], []]);
   assert.equal(textOf(flatten(sections[1].props.children).find((x) => x.type === 'button')), 'Barbell row2 × 8 · 155 lb');
   // Done on the row's own set logs it, and the row reads ✓.
   s.press((nodes) => nodes.filter((x) => x.type === 'section')[1] && flatten(nodes.filter((x) => x.type === 'section')[1].props.children).find((x) => x.props && x.props['aria-label'] === 'Mark set 1 done'));
   const row = flatten(s.v().nodes().filter((x) => x.type === 'section')[1].props.children);
   assert.ok(row.some((x) => x.props && x.props['aria-label'] === 'Set 1 done'), 'logged');
-  assert.match(s.v().text, /Ex \d\/3 · Sets 1\/7/);
+  assert.equal(textOf(ofData(s.v().nodes(), 'data-focus-readout')[1]), 'Sets1/7');
+  // In C (owner, 2026-11-04): each set a row of lit slots with its own ✓, as on Focus.
+  assert.ok(ofData(s.v().nodes(), 'data-focus-field').length >= 21, 'every set of every exercise has its three slots');
   for (const b of buttons(s.v().nodes())) assert.ok(minH(b) >= 44, `${JSON.stringify(textOf(b))} is under 44px`);
 });
 
@@ -345,7 +381,7 @@ test('an open session names its move, offers the swap names, and adds a move', (
   s.p.render();
   assert.equal(s.v().nodes().find((x) => x.type === 'input' && x.props.list === 'bs-session-move-names').props.value, 'Goblet squat');
   s.press((nodes) => labelled(nodes, 'Add another move'));
-  assert.equal(s.v().nodes().filter((x) => x.props && x.props['data-ws-seg'] !== undefined).length, 2);
+  assert.equal(textOf(ofData(s.v().nodes(), 'data-focus-readout')[0]), 'Exercise2/2', 'the move added is the one in hand');
 });
 
 test('a coach\'s form clip opens from the card; a live heart rate rides beside the clock', () => {
