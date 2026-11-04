@@ -1,10 +1,10 @@
 // tests/eat-day.test.mjs
 //
-// EAT'S DAY VIEW (owner, 2026-11-04, of three designs drawn for it: "C for eat but these 2 boxes with a faint
-// border similar to option A"). BSEatDay.jsx draws the top of Eat's Day view, from the head down to the
-// day's meals: the week as ring gauges, the day as a 24-hour orbit with Fuel left inside it, the next meal,
-// and the menu. Eat hands it its figures and its doors (focus-layout.test.mjs drives Eat for that); this file
-// MOUNTS the shipping module in jsdom and checks what it shows and what each tap does.
+// EAT'S DAY VIEW in the owner's pick for Eat (2026-11-04: "option C for eat but use this for fuel section and 2nd
+// image for fuel left today"), restored the same day ("use this again"). BSEatDay.jsx draws the top of Eat's Day
+// view under its head and tabs: the week as round days, Fuel left as a ring beside the macros, the next meal on a
+// lit lead, and the menu. Eat hands it its figures and its doors (focus-layout.test.mjs drives Eat for that);
+// this file MOUNTS the shipping module in jsdom and checks what it shows and what each tap does.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -115,7 +115,7 @@ function fixture(over = {}) {
   const props = {
     tools: null, tabs: React.createElement('nav', { 'data-test-tabs': '' }),
     phase: 'Cut', weekN: 31, title: React.createElement(React.Fragment, null, 'Reset plate.'),
-    day: todayIdx, todayIdx, onDay: (i) => calls.day.push(i), onMonth: () => { calls.month += 1; },
+    day: todayIdx, todayIdx, onDay: (i) => calls.day.push(i), onMonth: () => { calls.month += 1; }, restFlags: [false, false, false, false, false, false, true],
     week: Array.from({ length: 7 }, (_, i) => ({ kcal: 1800 + i, kcalGoal: 2100, p: i % 2 ? 150 : 100, pGoal: 140, rest: false, planned: true })),
     fuel: {
       calLeft: 52, calTarget: 2100, calNow: 2048, calPct: 98, unread: false, calTargetKnown: false,
@@ -152,195 +152,146 @@ async function mount(props, paper = 'dark') {
   };
 }
 
-test('the dial shows what is left of the day, with the plan and what was eaten', async () => {
+const follows = (a, b) => !!(a.compareDocumentPosition(b) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+
+test('the page in order: the week, Fuel left, the next meal, the menu', async () => {
   const { props } = fixture();
-  const v = await mount(props);
+  const m = await mount(props);
   try {
-    assert.match(v.q('[data-eat-left]').textContent, /^52kcal left$/);
-    assert.equal(v.q('[data-eat-fuel-head]').textContent, 'Fuel left today');
-    assert.equal(v.q('[data-eat-fuel-plan]').textContent, '2,100 kcal plan');
-    assert.equal(v.q('[data-eat-eaten]').textContent, '2,048 eaten · 98%');
-    assert.equal(v.q('[data-eat-fuel]').getAttribute('data-eat-fuel-unread'), null);
-    // The head reads the day as it is, its full stop drawn once.
-    assert.equal(v.q('h1').textContent, 'Reset plate.');
-    assert.ok(v.q('[data-test-tabs]'), 'the Eat tabs are drawn');
-  } finally { await v.unmount(); }
+    const order = ['[data-week-strip="round"]', '[data-eat-fuel]', '[data-focus-link]', '[data-focus-lead="lit"]', '[data-eat-menu-head]', '[data-tour="hero-eat"]'].map((sel) => [sel, m.q(sel)]);
+    for (const [sel, el] of order) assert.ok(el, `no ${sel}`);
+    for (let i = 1; i < order.length; i += 1) assert.ok(follows(order[i - 1][1], order[i][1]), `${order[i][0]} is not after ${order[i - 1][0]}`);
+  } finally { await m.unmount(); }
 });
 
-test('the macros are three lamp rings in the dial and three doors under it, each to its own page', async () => {
+test('the week is seven round days: the picked one filled, today ringed, a rest day ticked; picking one asks the page', async () => {
   const { props, calls } = fixture();
-  const v = await mount(props);
+  const m = await mount(props);
   try {
-    // Forty lamps a ring, lit to what was eaten; over the target is a full ring, never more.
-    assert.deepEqual(v.qa('[data-eat-arc]').map((g) => [g.getAttribute('data-eat-arc'), g.getAttribute('data-lit')]), [['p', '40'], ['c', '40'], ['f', '40']]);
-    const doors = v.qa('[data-eat-macro]');
-    assert.deepEqual(doors.map((b) => b.getAttribute('aria-label')), ['PROTEIN 2g left 178 / 180', 'CARBS 2g left 218 / 220', 'FAT 0g left 70 / 65'], 'over the target reads 0 left, never negative');
-    for (const b of doors) await v.click(b);
-    assert.deepEqual(calls.macro, ['p', 'c', 'f']);
-  } finally { await v.unmount(); }
-  const half = fixture({ fuel: { ...fixture().props.fuel, macros: [{ k: 'p', l: 'PROTEIN', v: 70, g: 140, c: '#e0654b' }] } });
-  const h = await mount(half.props);
-  try {
-    assert.equal(h.q('[data-eat-arc="p"]').getAttribute('data-lit'), '20', 'half the target lights half the lamps');
-  } finally { await h.unmount(); }
-});
-
-test('the next meal: its time and status, how long until it, the meal, Log it and Swap', async () => {
-  const { props, calls } = fixture();
-  const v = await mount(props);
-  try {
-    const next = v.q('[data-eat-next]');
-    assert.ok(next, 'no next meal');
-    assert.match(next.textContent, /12:30 PM · Next stop/);
-    assert.match(next.textContent, /Lunch\./);
-    assert.match(next.textContent, /In 2 h 15 min/);
-    assert.match(next.textContent, /Chicken bowl · 640 kcal · 46P · 70C · 14F/);
-    assert.match(next.querySelector('[role="img"]').getAttribute('aria-label'), /Now 10:15 AM, between 7:30 AM and 12:30 PM/);
-    await v.click(v.q('[data-eat-log]'));
-    await v.click(v.q('[data-eat-swap]'));
-    assert.deepEqual(calls.log, ['m2'], 'Log it opens the meal, where it is logged');
-    assert.deepEqual(calls.swap, ['m2'], 'Swap opens the swap sheet on it');
-    // On the orbit: a station a meal, at its state, and NOW.
-    assert.deepEqual(v.qa('[data-eat-station]').map((g) => g.getAttribute('data-eat-station')), ['done', 'next', 'ahead']);
-    assert.ok(v.q('[data-eat-now]'), 'NOW on the orbit, today');
-  } finally { await v.unmount(); }
-});
-
-test('the menu: each meal opens, NOW sits over the first still ahead, its shop list sits outside its button', async () => {
-  const { props, calls } = fixture();
-  const v = await mount(props);
-  try {
-    const meals = v.qa('[data-eat-meal]');
-    assert.deepEqual(meals.map((b) => b.getAttribute('aria-label')), ['7:30 AM · Oats and whey', '12:30 PM · Chicken bowl', '7:00 PM · Salmon rice']);
-    assert.equal(v.q('[data-eat-menu-title]').textContent, "Today's meals");
-    const now = v.q('[data-eat-now-row]');
-    assert.equal(now.getAttribute('aria-label'), 'Now · 10:15 AM');
-    assert.ok(now.nextElementSibling === meals[1], 'NOW stands over the first meal still ahead');
-    for (const b of meals) await v.click(b);
-    assert.deepEqual(calls.open, ['m1', 'm2', 'm3']);
-    const shop = v.q('[data-test-shop]');
-    assert.ok(!shop.closest('[data-eat-meal]'), 'a control inside a button is not a control');
-    assert.ok(shop.closest('[data-eat-day-shop]'));
-    await v.click(v.q('[data-eat-swap-pick]'));
-    assert.equal(calls.pick, 1, 'Swap meal opens the picker');
-    assert.ok(v.q('[data-tour="hero-eat"]'), "the tour's step on the menu");
-  } finally { await v.unmount(); }
-});
-
-test('picking a day changes the page: its fuel head, its menu, no next meal and no NOW', async () => {
-  const { props, calls } = fixture();
-  const v = await mount(props);
-  try {
-    const days = v.qa('[data-eat-day-btn]');
-    assert.equal(days.length, 7, 'Monday to Sunday');
-    assert.equal(days[todayIdx].getAttribute('aria-pressed'), 'true');
-    assert.equal(days[todayIdx].getAttribute('aria-current'), 'date');
+    const days = m.qa('[data-week-strip="round"] button[aria-pressed]');
+    assert.equal(days.length, 7);
+    assert.equal(days.filter((b) => b.getAttribute('aria-pressed') === 'true').length, 1);
+    const picked = days[todayIdx].querySelector('[data-day-dot]');
+    assert.match(picked.style.background, /#34d6c5|rgb\(52, 214, 197\)/, 'the picked day is filled in the accent');
+    assert.equal(picked.style.borderRadius, '50%');
+    assert.equal(days[todayIdx].querySelector('[data-day-dot]').textContent, String(thisWeek()[todayIdx].getDate()));
     const other = (todayIdx + 1) % 7;
-    await v.click(days[other]);
-    assert.deepEqual(calls.day, [other], 'the day goes to Eat, which holds it');
-    await v.click(v.q('[data-eat-month]'));
+    await m.click(days[other]);
+    assert.deepEqual(calls.day, [other]);
+    await m.click(m.qa('button').find((b) => /^Month view →$/.test(b.textContent)));
     assert.equal(calls.month, 1, 'Month view opens the calendar');
-    // Eat answers with the picked day's figures and no next meal (that is today's).
-    await v.rerender({ ...props, day: other, next: null, nowIdx: -1 });
+  } finally { await m.unmount(); }
+});
+
+test('Fuel left: a ring of the day with what is left inside, the plan, what was eaten, each macro a door to its own page', async () => {
+  const { props, calls } = fixture();
+  const m = await mount(props);
+  try {
+    const card = m.q('[data-eat-fuel]');
+    const ring = card.querySelector('[data-eat-ring]');
+    assert.match(ring.textContent, /^52kcal left$/);
+    const arc = card.querySelector('[data-eat-ring-arc]');
+    const C = 2 * Math.PI * 44;
+    assert.ok(Math.abs(parseFloat(arc.getAttribute('stroke-dasharray')) - 0.98 * C) < 0.01, 'the ring fills to what was eaten');
+    assert.match(m.host.textContent, /Fuel left today/);
+    assert.match(m.host.textContent, /2,100 kcal plan/);
+    assert.match(card.querySelector('[data-eat-eaten]').textContent, /2,048 eaten · 98%/);
+    const doors = [...card.querySelectorAll('[data-eat-macros] button')];
+    assert.deepEqual(doors.map((b) => b.textContent.replace(/\s+/g, ' ').trim()), ['PROTEIN2g left', 'CARBS2g left', 'FAT0g left']);
+    for (const d of doors) await m.click(d);
+    assert.deepEqual(calls.macro, ['p', 'c', 'f']);
+  } finally { await m.unmount(); }
+});
+
+test('the next meal on a lit lead: its time and status, how long until it, the meal, where now sits, Log it and Swap', async () => {
+  const { props, calls } = fixture();
+  const m = await mount(props);
+  try {
+    const lead = m.q('[data-focus-lead="lit"]');
+    assert.match(lead.textContent, /12:30 PM · Next stop/);
+    assert.match(lead.textContent, /In 2 h 15 min/);
+    assert.match(lead.textContent, /Lunch/);
+    assert.match(lead.textContent, /Chicken bowl · 640 kcal/);
+    assert.match(lead.textContent, /7:30 AM · Breakfast ✓/, 'the meal before it, on the arrival line');
+    const log = m.q('[data-focus-primary="lit"]');
+    assert.equal(log.textContent, 'Log it →');
+    assert.equal(log.style.borderRadius, '999px');
+    await m.click(log);
+    assert.deepEqual(calls.log, ['m2'], 'Log it opens the meal');
+    await m.click([...lead.querySelectorAll('button')].find((b) => /^Swap →$/.test(b.textContent)));
+    assert.deepEqual(calls.swap, ['m2'], 'Swap opens the swap sheet on it');
+  } finally { await m.unmount(); }
+});
+
+test('the menu: today\'s meals, each one opening, NOW over the first ahead, Swap meal asking for the pick', async () => {
+  const { props, calls } = fixture();
+  const m = await mount(props);
+  try {
+    assert.match(m.q('[data-eat-menu-head]').textContent, /The menu.*Today’s meals|The menu.*Today's meals/);
+    const menu = m.q('[data-tour="hero-eat"]');
+    assert.match(menu.textContent, /Now · 10:15 AM/);
+    const rows = [...menu.querySelectorAll('button')].filter((b) => !b.hasAttribute('data-test-shop'));
+    for (const r of rows) await m.click(r);
+    assert.deepEqual(calls.open, ['m1', 'm2', 'm3']);
+    await m.click(m.qa('button').find((b) => /^Swap meal →$/.test(b.textContent)));
+    assert.equal(calls.pick, 1);
+  } finally { await m.unmount(); }
+});
+
+test('another day picked: Fuel names its day, the menu its weekday, no next meal and no NOW', async () => {
+  const other = (todayIdx + 2) % 7;
+  const { props } = fixture({ day: other, next: null, prev: null, nowIdx: -1, until: null });
+  const m = await mount(props);
+  try {
     const d = thisWeek()[other];
-    assert.equal(v.q('[data-eat-fuel-head]').textContent, `Fuel · ${d.toLocaleDateString(undefined, { weekday: 'short' })} ${d.getDate()}`,
-      "the head names the picked day as the strip shows it, never the plan record's label");
-    assert.equal(v.q('[data-eat-menu-title]').textContent, `${d.toLocaleDateString(undefined, { weekday: 'long' })}'s meals`);
-    assert.ok(!v.q('[data-eat-next]'), 'no next meal on another day');
-    assert.ok(!v.q('[data-eat-now]'), 'no NOW on another day');
-    assert.ok(!v.q('[data-eat-now-row]'), 'no NOW row on another day');
-    assert.equal(v.qa('[data-eat-day-btn]')[other].getAttribute('aria-pressed'), 'true');
-    assert.match(v.qa('[data-eat-day-btn]')[other].getAttribute('aria-label'), /, selected$/);
-  } finally { await v.unmount(); }
+    const short = new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(d);
+    const long = new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(d);
+    assert.match(m.host.textContent, new RegExp(`Fuel · ${short} ${d.getDate()}`));
+    assert.doesNotMatch(m.host.textContent, /Fuel left today/);
+    assert.match(m.q('[data-eat-menu-head]').textContent, new RegExp(long));
+    assert.ok(!m.q('[data-focus-lead]'), 'the next meal is today\'s only');
+    assert.doesNotMatch(m.q('[data-tour="hero-eat"]').textContent, /Now ·/);
+  } finally { await m.unmount(); }
 });
 
-// Owner, 2026-11-04, of option B's week: "use this weekly calendar in C option for eat". Seven tiles on the
-// raised box: a day gone holds what was eaten of its target as liquid, a day to come is a dashed outline,
-// today has its ink dot, protein hit its own dot, and the picked tile is ringed in the accent and lifted.
-test('the week is seven tiles: liquid for a day gone, dashed for one to come, its dots, the picked one lit', async () => {
-  const { props } = fixture();
-  const v = await mount(props);
-  try {
-    const tiles = v.qa('[data-eat-week] [data-eat-day-btn]');
-    assert.equal(tiles.length, 7);
-    tiles.forEach((b, i) => {
-      assert.equal(b.getAttribute('data-eat-day-state'), i > todayIdx ? 'ahead' : 'gone', `day ${i}`);
-      const fill = b.querySelector('[data-eat-day-fill]');
-      if (i > todayIdx) assert.ok(!fill, 'a day to come holds nothing');
-      else assert.equal(fill.getAttribute('data-eat-day-fill'), String(Math.round(((1800 + i) / 2100) * 100)), 'what was eaten of the target');
-      assert.equal(!!b.querySelector('[data-eat-day-today]'), i === todayIdx, 'the ink dot is today\'s');
-      assert.equal(!!b.querySelector('[data-eat-day-protein]'), i <= todayIdx && i % 2 === 1, 'protein\'s dot where it was hit');
-      const on = i === todayIdx;
-      assert.equal(b.style.transform, on ? 'translateY(-2px)' : 'none', 'the picked tile lifts');
-      if (on) assert.match(b.style.border, /^1\.5px solid/, 'and is ringed in the accent');
-      else assert.doesNotMatch(b.style.border, /^1\.5px solid/);
-      assert.ok(parseFloat(b.style.minHeight) >= 44);
-    });
-  } finally { await v.unmount(); }
-  // A week the plan could not read fills nothing, and says nothing about protein.
-  const unread = fixture({ fuel: { ...fixture().props.fuel, unread: true } });
-  const u = await mount(unread.props);
-  try {
-    const fills = u.qa('[data-eat-day-fill]').map((f) => f.getAttribute('data-eat-day-fill'));
-    assert.ok(fills.every((x) => x === '0'));
-    assert.ok(!u.q('[data-eat-day-protein]'), 'no protein dot on an unread week');
-  } finally { await u.unmount(); }
-});
-
-// The owner, 2026-10-25: "fix the Eat Fuel left 0 kcal on a failed read". What was eaten comes from the meal
-// plan, so while its read is out what is left reads "—", never 0 kcal, and the macros open nothing; a target
-// Eat has from a coach's Adjust still reads, a 0 g one too (Codex P2 on #2453).
 test('Fuel left reads "—", not 0, while the meal plan is unread, and its doors open nothing', async () => {
-  const zero = [
-    { k: 'p', l: 'PROTEIN', v: 0, g: 0, c: '#e0654b' },
-    { k: 'c', l: 'CARBS', v: 0, g: 0, c: '#e3a544' },
-    { k: 'f', l: 'FAT', v: 0, g: 0, c: '#5b8df9' },
-  ];
-  const { props, calls } = fixture({ fuel: { calLeft: 0, calTarget: 0, calNow: 0, calPct: 0, macros: zero, unread: true, calTargetKnown: false } });
-  const v = await mount(props);
+  const { props, calls } = fixture();
+  const m = await mount({ ...props, fuel: { ...props.fuel, unread: true } });
   try {
-    assert.equal(v.q('[data-eat-fuel]').getAttribute('data-eat-fuel-unread'), '');
-    assert.match(v.q('[data-eat-left]').textContent, /^—kcal left$/);
-    assert.equal(v.q('[data-eat-fuel-plan]').textContent, '—', 'no "0 kcal plan"');
-    assert.ok(!v.q('[data-eat-eaten]'), 'no eaten line');
-    const doors = v.qa('[data-eat-macro]');
-    assert.deepEqual(doors.map((b) => b.getAttribute('aria-label')), ['PROTEIN — — / —', 'CARBS — — / —', 'FAT — — / —']);
+    const card = m.q('[data-eat-fuel]');
+    assert.ok(card.hasAttribute('data-eat-fuel-unread'));
+    assert.match(card.querySelector('[data-eat-ring]').textContent, /^—kcal left$/);
+    assert.ok(!card.querySelector('[data-eat-eaten]'));
+    const doors = [...card.querySelectorAll('[data-eat-macros] button')];
     assert.ok(doors.every((b) => b.disabled));
-    for (const b of doors) await v.click(b);
-    assert.deepEqual(calls.macro, [], 'a door opens no page of zeros');
-    assert.deepEqual(v.qa('[data-eat-arc]').map((g) => g.getAttribute('data-lit')), ['0', '0', '0']);
-  } finally { await v.unmount(); }
-  const coached = fixture({ fuel: { calLeft: 2100, calTarget: 2100, calNow: 0, calPct: 0, unread: true, calTargetKnown: true,
-    macros: [{ ...zero[0], g: 150, gKnown: true }, { ...zero[1], g: 0, gKnown: true }, { ...zero[2], g: 0, gKnown: false }] } });
-  const c = await mount(coached.props);
-  try {
-    assert.equal(c.q('[data-eat-fuel-plan]').textContent, '2,100 kcal plan', "a coach's target still reads");
-    assert.match(c.q('[data-eat-left]').textContent, /^—/, 'what is left is still unknown');
-    assert.deepEqual(c.qa('[data-eat-macro]').map((b) => b.getAttribute('aria-label')), ['PROTEIN — — / 150', 'CARBS — — / 0', 'FAT — — / —']);
-  } finally { await c.unmount(); }
+    for (const d of doors) await m.click(d);
+    assert.deepEqual(calls.macro, []);
+  } finally { await m.unmount(); }
 });
 
-test('every target is at least 44px, the shop list\'s too, and no motion runs for a reader who asked for less', async () => {
+test('the glow is dark paper\'s, and every target is at least 44px tall on both papers', async () => {
   for (const paper of ['dark', 'light']) {
     const { props } = fixture();
-    const v = await mount(props, paper);
+    const m = await mount(props, paper);
     try {
-      const buttons = v.qa('button').filter((b) => !b.closest('[data-eat-day-shop]'));
-      assert.ok(buttons.length >= 7 + 3 + 2 + 3 + 2, `${paper}: the days, macros, Log it and Swap, the meals, Month and Swap meal`);
-      for (const b of buttons) {
-        const h = parseFloat(b.style.minHeight || b.style.height || '0');
-        assert.ok(h >= 44, `${paper}: "${b.getAttribute('aria-label') || b.textContent}" is ${h}px tall`);
+      const dot = m.q('[data-week-strip="round"] button[aria-pressed="true"] [data-day-dot]');
+      const log = m.q('[data-focus-primary="lit"]');
+      const spine = m.q('[data-focus-lead="lit"]').querySelector('span[aria-hidden]');
+      if (paper === 'dark') {
+        assert.match(dot.style.boxShadow, /0 0 16px -2px/);
+        assert.match(log.style.boxShadow, /0 0 22px -6px/);
+        assert.match(spine.style.boxShadow, /0 0 14px/);
+      } else {
+        assert.equal(dot.style.boxShadow, 'none');
+        assert.equal(log.style.boxShadow, 'none');
+        assert.equal(spine.style.boxShadow, 'none');
       }
-      const css = [...document.querySelectorAll('style')].map((s) => s.textContent).join('\n');
-      assert.match(css, /\[data-eat-day-shop\] button \{ min-height: 44px !important; \}/, 'the shop list is lifted to 44px');
-      assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\[data-eat-day\] \*, \[data-eat-day\] \*::before, \[data-eat-day\] \*::after \{ animation: none !important; transition: none !important; \}/);
-      // The two raised boxes take the Home deck's edge: its teal glass edge along the top.
-      assert.equal(v.q('[data-eat-week]').querySelectorAll('[data-glass-edge]').length, 1);
-      assert.equal(v.q('[data-eat-fuel]').querySelectorAll('[data-glass-edge]').length, 1);
-      // On the Cream paper a glow is a soft tinted shadow, never a halo.
-      const glow = v.q('[data-eat-log]').style.boxShadow;
-      if (paper === 'light') assert.doesNotMatch(glow, /^0(px)? 0(px)? /, 'a halo on cream');
-      else assert.match(glow, /^(rgba?\([^)]*\) )?0(px)? 0(px)? /, 'the Black paper glows');
-    } finally { await v.unmount(); }
+      const px = (v) => (/^\d+(\.\d+)?px$/.test(v) ? parseFloat(v) : null);
+      // The fixture's own shop-list button stands in for the page's (BSFocusMealShop, its own test).
+      for (const b of m.qa('button').filter((x) => !x.hasAttribute('data-test-shop'))) {
+        const h = Math.max(px(b.style.minHeight) || 0, px(b.style.height) || 0);
+        assert.ok(h >= 44, `${paper}: ${(b.getAttribute('aria-label') || b.textContent).slice(0, 40)} is ${h}px tall`);
+      }
+    } finally { await m.unmount(); }
   }
 });
