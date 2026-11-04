@@ -2848,10 +2848,11 @@ function ShapeHomeCards() {
   const [overType, setOverType] = React.useState(null);
 
   React.useEffect(() => {
-    // The visitor's own day, so today's figures are today's row and never yesterday's.
+    // The visitor's own day and zone, so today's figures are today's row and today's activities.
     const _d = new Date();
     const _day = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, "0")}-${String(_d.getDate()).padStart(2, "0")}`;
-    fetch(`/api/client/analytics?date=${_day}`, { credentials: "same-origin" })
+    let _tz = ""; try { _tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { _tz = ""; }
+    fetch(`/api/client/analytics?date=${_day}&tz=${encodeURIComponent(_tz)}`, { credentials: "same-origin" })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d && d.ticker) setTicker({ ...d.ticker, workouts_this_week: d.workouts_this_week, weekly_points: d.kpis && d.kpis.weekly_points }); })
       .catch(() => {});

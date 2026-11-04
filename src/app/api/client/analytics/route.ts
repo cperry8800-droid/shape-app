@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireMembership } from '@/lib/require-membership';
 import { clientLocalDay } from '@/lib/local-day';
+import { normalizeZone, wallClockInZone } from '@/lib/time';
 import { bsGoalKind } from '../../../../../mobile-app/src/services/prefOptions.mjs';
 
 export const runtime = 'nodejs';
@@ -166,7 +167,8 @@ export async function GET(request: Request) {
   // and meal writers date it by), never the newest row: with nothing logged yet today, the newest is
   // yesterday's, and Home read its calories as "Fuel left today" (Codex P2 on #2583). Without the
   // parameter the day is the server's UTC day, as /api/client/progress does.
-  const today = clientLocalDay(new URL(request.url).searchParams.get('date'));
+  const params = new URL(request.url).searchParams;
+  const today = clientLocalDay(params.get('date'));
   const todayIdx = snaps.findIndex((s) => s.snapshot_date === today);
   const todaySnap = todayIdx >= 0 ? snaps[todayIdx] : null;
   const yest = todayIdx > 0 ? snaps[todayIdx - 1] : null;
@@ -179,8 +181,16 @@ export async function GET(request: Request) {
     : 150;
 
   // Today's training, from the activities log (real miles / minutes / type).
-  const todayIso = isoDateUTC(daysAgo(0));
-  const todaysActivities = (activities || []).filter((a) => (a.started_at || '').slice(0, 10) === todayIso);
+  // An activity is today's by the same day: its start read on the member's own clock (`?tz=`, their
+  // zone) against `today`, so the training figures agree with the calories and the workout minutes
+  // (Codex P2 on #2583). Without a zone its UTC date is read, as before.
+  const zone = normalizeZone(params.get('tz'));
+  const activityDay = (startedAt: string | null) => {
+    const t = startedAt ? Date.parse(startedAt) : NaN;
+    if (!Number.isFinite(t)) return null;
+    return zone ? (wallClockInZone(t, zone)?.date ?? null) : new Date(t).toISOString().slice(0, 10);
+  };
+  const todaysActivities = (activities || []).filter((a) => activityDay(a.started_at) === today);
   const trainedToday = todaysActivities.length > 0 || (todaySnap?.workout_minutes != null && Number(todaySnap.workout_minutes) > 0);
   const todayDistanceKm = todaysActivities.reduce((sum, a) => sum + (a.distance_km != null ? Number(a.distance_km) : 0), 0);
   const todayActivityMin = todaysActivities.reduce((sum, a) => sum + (a.duration_min != null ? Number(a.duration_min) : 0), 0)
