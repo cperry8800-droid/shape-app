@@ -183,6 +183,9 @@ test('the old editor uploads a cover only in a type the guard keeps (jpg, jpeg, 
     globalThis.window.ShapeCommunity = { uploadPhoto: async (file) => { uploads.push(file.type); return at('community-photos', 'u-me', 'x.' + file.type.split('/')[1]); } };
     globalThis.window.__bsToast = (msg, kind) => toasts.push(kind);
     const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK: '#111', BG: '#fff', onClose() {}, onSave() {}, coach }));
+    // The cover is on the Photos & film page (Customize opens on a hub of areas since 2026-11-04).
+    d.nodes().find((n) => n.props && n.props['data-cust-row'] === 'photos').props.onClick();
+    withSurface(() => d.render());
     const input = coverInput(d);
     const pick = async (type) => input.props.onChange({ target: { files: [{ type, name: 'photo' }], value: 'C:\\fakepath\\photo' } });
     for (const type of ['image/svg+xml', 'image/avif', 'image/bmp', 'image/pjpeg', 'video/mp4', 'text/html', '']) await pick(type);

@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType, useBSClean } from './bsCleanType.jsx';
 import { BSMpIcon } from './BSMemberBento.jsx';
-import { BSLookPicker, hexA, onColor } from './BSLookPicker.jsx';
+import { BSLookPicker, bsLookWords, hexA, onColor } from './BSLookPicker.jsx';
 import { bsWsAccent } from './bsMagazine.mjs';
 import {
   bsNormalizeProfileCustom, bsStartLineState, bsValidStartDate, bsProfileLook, BS_LOOK_PAPERS, BS_LOOK_ACCENTS,
@@ -15,28 +15,40 @@ import {
 // Edit profile, and from Settings → Customize. Moved out of iosAppBroadsheetClient.jsx when it was
 // redesigned (owner, 2026-11-04, of the old page's ruled capitals: "new design for these pages", "keep
 // designs simple, nothing to futuristic … but modern, appealing, easy to navigate, not overwhelming, not
-// analog. make them look really alive, like popping off the screen", pointing at the member profile as
-// what "looks better"; then, of the redesigns that followed, "reduce the coloring and simplify UI more").
+// analog. make them look really alive, like popping off the screen"; then "reduce the coloring and
+// simplify UI more"; then, of the one long page: "organize the page listing different sections or areas
+// on the profile you can choose to customize which then brings you to individual page for those
+// customizations instead of listing everyone on one, requires less scrolling").
 //
-//   · A live preview at the top: the profile's head as it will read (the facet avatar for a member, the
-//     round photo for a coach; the name, the countdown, a coach's line and the bio), redrawn as they
-//     type, with the door to the name, @handle and photo (Settings) under it.
-//   · The parts gathered into a few cards in the paper's own colour with a soft lift, each part under a
-//     plain label with its hint beside it; rounded 16px fields; the photos as rounded tiles.
-//   · Colour only as a signal: Save, a focused field, the tier's colour in the facet avatar and an error.
-//     No tinted or gradient panels. The profile's colours are picked in the shared look panel
+//   · THE HUB, what Customize opens to: a compact live preview of the profile's head (the facet avatar
+//     for a member, the round photo for a coach; the name, the countdown or a coach's line, the bio),
+//     then one card of rows, one per area of the profile, each with a line saying what is set there, and
+//     last the door to the name, @handle and photo (Settings).
+//   · AN AREA'S PAGE: a BSPage with the shared Back under the masthead (BSDetailHeader), so a swipe right
+//     goes back as ← does; the area's fields in one card; its own Save at the foot. Leaving it with
+//     changes not saved asks once (Discard / Keep editing).
+//   · Cards in the paper's own colour with a soft lift, plain labels with their hints, rounded 16px
+//     fields, the photos as rounded tiles. Colour only as a signal: Save, a focused field, the facet
+//     avatar's tier colour, an error. The profile's colours are picked in the shared look panel
 //     (BSLookPicker, Make it yours' Colors page), which draws its own chrome.
-//   · Save floats at the foot as one pill. Motion is a short rise as the cards come in and a press on a
-//     tap, all of it off under prefers-reduced-motion.
+//   · Motion is a short rise as the cards come in and a press on a tap, all of it off under
+//     prefers-reduced-motion.
 //
-// ⚠ SAVE READS THE DOC AGAIN AND WRITES ONLY WHAT THIS PAGE SHOWS, as Make it yours saves: the parts this
-// role's editor shows go over the doc as stored now, so a key written elsewhere since it opened (a `look`,
-// a member's line) is kept, and `look` is written only when it was changed here. The limits, the upload
-// type and size checks, the in-flight upload guard, the sign-in guard and the normalizer are the
-// editor's as they were (tests/profile-custom.test.mjs, tests/profile-token-sync.test.mjs).
+// ⚠ AN AREA'S SAVE READS THE DOC AGAIN AND WRITES ONLY THAT AREA'S FIELDS (areaFields), as Make it yours
+// saves: they go over the doc as stored now, so a key written elsewhere since (a `look`, a member's line,
+// another area) is kept. The read is bound to the account, and a read that fails writes nothing. `look`
+// follows the website editor's rule (#2611): the panel shows a tap (`pick`), else the saved look, else
+// the app's own paper and accent, and Colors writes `look` only when a tap differs from the saved look,
+// so an untouched panel never writes the app's colours to a profile. The limits, the upload type and size
+// checks, the in-flight upload guard, the sign-in guard and the normalizer are the editor's as they were
+// (tests/profile-custom.test.mjs, tests/profile-token-sync.test.mjs).
+// ⚠ ONE WORKING COPY. Every field lives in `form`, made from the doc as last saved (bsCustFormOf): an area
+// is unsaved when its fields differ from the saved doc's, Discard puts the form back to it, and a Save
+// replaces the saved doc, so the hub's preview and lines read what is stored.
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP, and this module never imports the client
-// module (the BSLeaderboard / BSEatDay pattern): the masthead row, the facet avatar and the identity
-// helpers are read off window inside the component. The client imports the option tables below from here.
+// module (the BSLeaderboard / BSEatDay pattern): the page, the detail header, the masthead row, the facet
+// avatar and the identity helpers are read off window inside the component. The client imports the
+// option tables below from here.
 
 const { useState, useEffect, useRef } = React;
 
@@ -100,6 +112,41 @@ export const BS_PROFILE_LINKS = [
   { key: 'website', label: 'Website', pre: '', tKey: 'profile:editor.link.website' },
 ];
 
+// ── The editor's working copy ──────────────────────────────────────────────────────────────────
+// Every field as a doc holds it: what the editor opens with, what Discard puts back, and what an area
+// compares itself with to know it has changes. `pick` is the look panel's tap: null until one, so the
+// panel shows the saved look (or the app's own) and writes nothing (the website editor's rule, #2611).
+export function bsCustFormOf(init, { filmKey, promptOpts }) {
+  return {
+    bio: init.bio || '',
+    songUrl: (init.song && init.song.url) || '',
+    songLabel: (init.song && init.song.label) || '',
+    links: { ...(init.links || {}) },
+    prompts: Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: promptOpts[0].id, a: '' }],
+    coverUrl: (init.cover && init.cover.image) || '',
+    pick: null,
+    // Normalise on the way IN: a doc stored before the split carries English, and a
+    // picker comparing tokens would match no chip and silently reset the member's pin.
+    // The label helpers take the translator; the TOKEN is what the picker compares
+    // and the doc stores, so a renaming translator can never reset a member's pin.
+    pinKind: bsPinKindToken((init.pinned && init.pinned.kind) || '') || BS_PIN_KINDS[0].id,
+    pinTitle: (init.pinned && init.pinned.title) || '',
+    pinNote: (init.pinned && init.pinned.note) || '',
+    pinMetric: (init.pinned && init.pinned.metric) || '',
+    heroStats: Array.isArray(init.heroStats) && init.heroStats.length ? init.heroStats : ['score', 'tier', 'streak'],
+    line: init.line || '',
+    startTitle: (init.startLine && init.startLine.title) || '',
+    startDate: (init.startLine && init.startLine.date) || '',
+    wall: Array.isArray(init.wall) ? init.wall.slice(0, BS_WALL_MAX).map((w) => ({ url: w && w.url, caption: (w && w.caption) || '' })) : [],
+    shelf: Array.isArray(init.shelf) ? init.shelf.slice(0, BS_SHELF_MAX).map((s) => ({ title: (s && s.title) || '', when: (s && s.when) || '' })) : [],
+    // Each role's intro film lives in its OWN doc key so they coexist: coach P1 → `film`
+    // (coach-media), member M5 → `filmMember` (member-films).
+    film: (init[filmKey] && init[filmKey].url) ? { url: init[filmKey].url, caption: (init[filmKey].caption || '') } : null,
+    biz: { name: (init.bizCard && init.bizCard.name) || '', where: (init.bizCard && init.bizCard.where) || '', hours: (init.bizCard && init.bizCard.hours) || '', handle: (init.bizCard && init.bizCard.handle) || '' },
+    pins: Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : [],
+  };
+}
+
 // ── Drawing helpers ────────────────────────────────────────────────────────────────────────────
 // The colour maths (a colour at an alpha, the words that read on a colour) are the look panel's own
 // palette helpers (BSLookPicker.jsx), imported above, not a copy: every palette colour is a 6-digit hex.
@@ -114,6 +161,18 @@ const noPlus = (s) => String(s || '').replace(/^\s*[+＋]\s*/, '');
 const fallbackInitials = (name) => String(name || '').split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 const validPhoto = (p) => { const s = (p == null ? '' : String(p)).trim(); return /^(https?:|blob:|\/|data:image\/)/i.test(s) ? s : null; };
 const reducedMotion = () => { try { return typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+// The hub's row icons: monochrome line drawings in currentColor (no coloured emoji in new work). The
+// ones the member profile's set has are drawn by BSMpIcon; these four are this page's own.
+const BS_CUST_ICONS = {
+  image: ['M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', 'M8.5 10.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z', 'm21 15-5-5L5 20'],
+  palette: ['M12 3a9 9 0 1 0 0 18c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3Z', 'M7.5 11.5h.01', 'M10.5 7.5h.01', 'M15.5 8.5h.01'],
+  link: ['M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5', 'M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5'],
+  briefcase: ['M4 8h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z', 'M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2', 'M3 13h18'],
+  user: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 20a8 8 0 0 1 16 0'],
+};
+const custIcon = (name, size = 18) => (BS_CUST_ICONS[name]
+  ? <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flex: 'none' }}>{BS_CUST_ICONS[name].map((d, i) => <path key={i} d={d} />)}</svg>
+  : <BSMpIcon name={name} size={size} stroke={2} />);
 
 // Focus rings, placeholders, the press and the cards' rise: the parts inline styles cannot say. Every
 // motion rule is undone under prefers-reduced-motion.
@@ -130,6 +189,8 @@ function bsCustCss() {
     '.bs-cust-btn:focus-visible { outline: 2px solid var(--cust-teal); outline-offset: 2px; }',
     '.bs-cust-press { transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }',
     '.bs-cust-press:active:not(:disabled) { transform: scale(0.97); }',
+    '.bs-cust-row { transition: background-color 160ms ease; }',
+    '.bs-cust-row:active { background-color: var(--cust-press) !important; }',
     '@keyframes bsCustIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }',
     '.bs-cust-in { animation: bsCustIn 340ms cubic-bezier(.2,.7,.2,1) both; }',
     '@keyframes bsCustFade { from { opacity: 0; } to { opacity: 1; } }',
@@ -138,6 +199,7 @@ function bsCustCss() {
     '  .bs-cust-in, .bs-cust-photo { animation: none !important; }',
     '  .bs-cust-press, .bs-cust-field { transition: none !important; }',
     '  .bs-cust-press:active:not(:disabled) { transform: none !important; }',
+    '  .bs-cust-row { transition: none !important; }',
     '}',
   ].join('\n');
   document.head.appendChild(s);
@@ -146,10 +208,14 @@ function bsCustCss() {
 // ── The editor ─────────────────────────────────────────────────────────────────────────────────
 // `who` is the person the profile behind it shows ({ name, handle, photo }), so the preview reads as
 // that profile does (the preview persona included); without it, the signed-in member's own.
+// `onSave(doc)` closes the editor with the doc as saved (once any area saved); `onClose()` closes it with
+// nothing saved.
 export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, ownerUid = null, who = null }) {
   const W = typeof window !== 'undefined' ? window : {};
   const BSMastRow = W.BSMastRow;
   const FacetAvatar = W.BSFacetAvatar;
+  const Page = W.BSPage;
+  const DetailHeader = W.BSDetailHeader;
   const BS_MAST_TOP_CSS = W.BS_MAST_TOP_CSS || `max(${W.BS_MAST_TOP || 44}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
   // Ink/paper arrive as props (this editor is painted over the profile's own ground); the gutter is a
   // density setting, so it reads the live theme. It portals into the phone surface, and a portal keeps
@@ -166,45 +232,48 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const ERR = light ? '#b3412b' : '#f08a6c';
   const ink = (a) => hexA(INK, a);
   const tr = useShapeTr();
-  const init = initial || {};
   const PROMPT_OPTS = coach ? BS_COACH_PROMPTS : BS_PROFILE_PROMPTS;
+  // This role's intro film key and bucket; the other role's film key is left as the doc has it.
+  const filmKey = coach ? 'film' : 'filmMember';
+  const filmRoleBucket = coach ? 'coach-media' : 'member-films';
+  // The look panel's start for a profile that never picked one: the app's own paper and accent.
+  const seedPaper = BS_LOOK_PAPERS.includes(tTheme.paperMode) ? tTheme.paperMode : 'dark';
+  const seedAccent = BS_LOOK_ACCENTS.includes(tTheme.accentKey) ? tTheme.accentKey : 'teal';
+  const formOf = (doc) => bsCustFormOf(doc || {}, { filmKey, promptOpts: PROMPT_OPTS });
   useEffect(() => { bsCustCss(); }, []);
   const [motion] = useState(() => !reducedMotion());
 
-  const [bio, setBio] = useState(init.bio || '');
-  const [songUrl, setSongUrl] = useState((init.song && init.song.url) || '');
-  const [songLabel, setSongLabel] = useState((init.song && init.song.label) || '');
-  const [links, setLinks] = useState({ ...(init.links || {}) });
-  const [prompts, setPrompts] = useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0].id, a: '' }]);
-  const [coverUrl, setCoverUrl] = useState((init.cover && init.cover.image) || '');
-  // The profile's colours (`look`: a Shape paper and accent), picked in the shared look panel
-  // (BSLookPicker, Make it yours' Colors page). The panel needs both set, so a profile that never
-  // picked starts from the app's own paper and accent; that seed is never written: `look` is saved
-  // only once something here changes it, so a page nobody recoloured stays exactly as it was. The
-  // old `accent` hex and `climbBg` are no longer edited here; Save leaves them as the doc has them.
-  const [lookSeed] = useState(() => {
-    const saved = bsProfileLook(init.look) || {};
-    return {
-      ...saved,
-      paper: saved.paper || (BS_LOOK_PAPERS.includes(tTheme.paperMode) ? tTheme.paperMode : 'dark'),
-      accent: saved.accent || (BS_LOOK_ACCENTS.includes(tTheme.accentKey) ? tTheme.accentKey : 'teal'),
-    };
-  });
-  const [look, setLook] = useState(lookSeed);
-  const lookChanged = look.paper !== lookSeed.paper || look.accent !== lookSeed.accent;
-  // Normalise on the way IN: a doc stored before the split carries English, and a
-  // picker comparing tokens would match no chip and silently reset the member's pin.
-  // The label helpers take the translator; the TOKEN is what the picker compares
-  // and the doc stores, so a renaming translator can never reset a member's pin.
-  const [pinKind, setPinKind] = useState(bsPinKindToken((init.pinned && init.pinned.kind) || '') || BS_PIN_KINDS[0].id);
-  const [pinTitle, setPinTitle] = useState((init.pinned && init.pinned.title) || '');
-  const [pinNote, setPinNote] = useState((init.pinned && init.pinned.note) || '');
-  const [pinMetric, setPinMetric] = useState((init.pinned && init.pinned.metric) || '');
-  const [heroStats, setHeroStats] = useState(Array.isArray(init.heroStats) && init.heroStats.length ? init.heroStats : ['score', 'tier', 'streak']);
-  const toggleStat = (k) => setHeroStats((prev) => { if (prev.includes(k)) return prev.length > 1 ? prev.filter((x) => x !== k) : prev; return prev.length >= 3 ? [...prev.slice(1), k] : [...prev, k]; });
-  const [coverBusy, setCoverBusy] = useState(false);
-  const coverRef = useRef(null);
+  // The doc as last saved (as opened, until an area saves), the working copy, and the open area.
+  const [saved, setSaved] = useState(() => initial || {});
+  const [form, setForm] = useState(() => formOf(initial || {}));
+  const [area, setArea] = useState(null);
+  const [savedOnce, setSavedOnce] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [wallBusy, setWallBusy] = useState(false);
+  const [filmBusy, setFilmBusy] = useState(false);
+  const coverRef = useRef(null);
+  const wallRef = useRef(null);
+  const filmRef = useRef(null);
+  // A field's setter, taking a value or an updater as useState's does.
+  const setF = (k) => (v) => setForm((p) => ({ ...p, [k]: typeof v === 'function' ? v(p[k]) : v }));
+  const { bio, songUrl, songLabel, links, prompts, coverUrl, pick, pinKind, pinTitle, pinNote, pinMetric, heroStats, line, startTitle, startDate, wall, shelf, film, biz, pins } = form;
+  const setBio = setF('bio'), setSongUrl = setF('songUrl'), setSongLabel = setF('songLabel'), setLinks = setF('links'), setPrompts = setF('prompts');
+  const setCoverUrl = setF('coverUrl'), setPinKind = setF('pinKind'), setPinTitle = setF('pinTitle'), setPinNote = setF('pinNote');
+  // The look, as the website editor reads it (#2611): the pick (a tap), else the saved look, else the
+  // app's own paper and accent. A tap records the pick; nothing else does.
+  const initLook = bsProfileLook(saved.look) || {};
+  const look = { ...initLook, paper: (pick && pick.paper) || initLook.paper || seedPaper, accent: (pick && pick.accent) || initLook.accent || seedAccent };
+  const setLook = (next) => setForm((p) => ({ ...p, pick: { paper: next.paper, accent: next.accent } }));
+  const pickChanged = !!pick && (pick.paper !== initLook.paper || pick.accent !== initLook.accent);
+  // TODO(#2611): the cover-crop chips ("Keep in view": top / center / bottom, saved as look.focus) go on
+  // Photos & film under the cover once #2611 lands the member crop map (BS_MEMBER_FOCUS); until then
+  // nothing here changes the focus, and Save writes `look` only for a pick.
+  const focusChanged = false;
+  const setPinMetric = setF('pinMetric'), setHeroStats = setF('heroStats'), setLine = setF('line'), setStartTitle = setF('startTitle'), setStartDate = setF('startDate');
+  const setWall = setF('wall'), setShelf = setF('shelf'), setFilm = setF('film'), setBiz = setF('biz'), setPins = setF('pins');
+
+  const toggleStat = (k) => setHeroStats((prev) => { if (prev.includes(k)) return prev.length > 1 ? prev.filter((x) => x !== k) : prev; return prev.length >= 3 ? [...prev.slice(1), k] : [...prev, k]; });
   const onCoverFile = async (e) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
     if (!file) return;
@@ -219,15 +288,6 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => j === i ? { ...p, [k]: v } : p));
   const addPrompt = () => setPrompts((prev) => prev.length >= 4 ? prev : [...prev, { q: PROMPT_OPTS[prev.length % PROMPT_OPTS.length].id, a: '' }]);
   const removePrompt = (i) => setPrompts((prev) => prev.filter((_, j) => j !== i));
-  // ── Member profile-wave sections (M1–M4). State round-trips init even when the
-  //    section isn't shown (coach path is PR D), so the doc never loses a key. ──
-  const [line, setLine] = useState(init.line || '');
-  const [startTitle, setStartTitle] = useState((init.startLine && init.startLine.title) || '');
-  const [startDate, setStartDate] = useState((init.startLine && init.startLine.date) || '');
-  const [wall, setWall] = useState(Array.isArray(init.wall) ? init.wall.slice(0, BS_WALL_MAX).map((w) => ({ url: w && w.url, caption: (w && w.caption) || '' })) : []);
-  const [shelf, setShelf] = useState(Array.isArray(init.shelf) ? init.shelf.slice(0, BS_SHELF_MAX).map((s) => ({ title: (s && s.title) || '', when: (s && s.when) || '' })) : []);
-  const [wallBusy, setWallBusy] = useState(false);
-  const wallRef = useRef(null);
   const onWallFile = async (e) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
     if (!file || wall.length >= BS_WALL_MAX) return;
@@ -245,15 +305,6 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const addShelfRow = () => setShelf((prev) => prev.length >= BS_SHELF_MAX ? prev : [...prev, { title: '', when: '' }]);
   const setShelfField = (i, k, v) => setShelf((prev) => prev.map((s, j) => j === i ? { ...s, [k]: v.slice(0, k === 'title' ? BS_SHELF_TITLE_MAX : BS_SHELF_WHEN_MAX) } : s));
   const removeShelf = (i) => setShelf((prev) => prev.filter((_, j) => j !== i));
-  // ── Profile-wave state (film · P4 business card · P5 wins wall). ──
-  // Each role's intro film lives in its OWN doc key so they coexist: coach P1 → `film`
-  // (coach-media), member M5 → `filmMember` (member-films). The customizer reads/writes
-  // only this role's key; the other role's film key rides through the save untouched.
-  const filmKey = coach ? 'film' : 'filmMember';
-  const filmRoleBucket = coach ? 'coach-media' : 'member-films';
-  const [film, setFilm] = useState((init[filmKey] && init[filmKey].url) ? { url: init[filmKey].url, caption: (init[filmKey].caption || '') } : null);
-  const [filmBusy, setFilmBusy] = useState(false);
-  const filmRef = useRef(null);
   const onFilmFile = async (e) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
     if (!file) return;
@@ -273,13 +324,14 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     catch (err) { window.__bsToast?.(err?.message || tr('profile:editor.err.film', { defaultValue: 'Could not upload film.' }), 'err'); }
     finally { setFilmBusy(false); }
   };
-  const [biz, setBiz] = useState({ name: (init.bizCard && init.bizCard.name) || '', where: (init.bizCard && init.bizCard.where) || '', hours: (init.bizCard && init.bizCard.hours) || '', handle: (init.bizCard && init.bizCard.handle) || '' });
-  const [pins, setPins] = useState(Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : []);
   const togglePin = (id) => setPins((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : (prev.length >= BS_PINNED_REVIEWS_MAX ? prev : [...prev, id]));
   // Pin candidates: the coach's OWN reviews by owner_id (the trigger-stamped column),
   // NOT a display-name slug — a name mismatch would otherwise hide pinnable reviews.
   // Filtered to a MEMBER's review (authorId !== ownerId), so a self-authored row can't be pinned.
   const [pickReviews, setPickReviews] = useState([]);
+  // The pins that resolve, once the reviews have loaded (null until then): a dead saved pin is dropped
+  // from the form, and from what Your practice compares itself with, so it never reads as a change.
+  const [livePins, setLivePins] = useState(null);
   useEffect(() => {
     // The owner list is a capped latest-200 page; a review already pinned but aged past
     // it still renders on the wall (by-id resolver) yet would vanish from the picker,
@@ -288,7 +340,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     let on = true;
     setPickReviews([]);   // drop the prior coach's candidates before (re)loading — a stale
     if (!coach || !ownerUid) return () => { on = false; };  // set could be shown/pinned for the wrong coach
-    const savedIds = Array.isArray(init.pinnedReviews) ? init.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : [];
+    const savedIds = Array.isArray(saved.pinnedReviews) ? saved.pinnedReviews.slice(0, BS_PINNED_REVIEWS_MAX) : [];
     const keep = (list) => (Array.isArray(list) ? list.filter((r) => r && r.ownerId === ownerUid && r.authorId !== r.ownerId) : []);
     Promise.all([
       // Through the native-safe client (apiBaseUrl + Bearer); `/api/...` reached nothing on native.
@@ -307,6 +359,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       // Guarded so a transient fetch failure can't wipe live pins.
       if (ownerJ != null && (savedIds.length === 0 || idsJ != null)) {
         const live = new Set(merged.map((r) => r.id));
+        setLivePins(live);
         setPins((prev) => prev.filter((id) => live.has(id)));
       }
     });
@@ -314,61 +367,85 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   }, [coach, ownerUid]);
   const startState = bsStartLineState(startDate, new Date());
   const embedPreview = bsSpotifyEmbed(songUrl);
-  // What this editor writes: the parts it SHOWS for this role, as the doc keeps them. Every other key
-  // (the other role's parts, a `look` nobody changed here, the old `accent` hex, `climbBg`, anything a
-  // later editor adds) is left as the doc has it when Save reads it.
-  const shownFields = () => ({
-    bio: bio.trim(),
-    song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
-    links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)),
-    cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
-    pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
-    heroStats: heroStats.slice(0, 3),
-    // This role's intro film → its own key (coach `film`, member `filmMember`); the other
-    // role's film key is left as the doc has it, so they coexist.
-    [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
-    // A coach's page: the line, the prompts, the business card (P4) and the pinned reviews (P5).
-    // The member profile shows no prompts and no longer asks for a line (owner, 2026-11-04:
-    // "Remove the field"); a member's saved ones stay as they are.
-    ...(coach ? {
-      line,
-      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
-      bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
-      pinnedReviews: pins,
-    } : {
-      // A member's page (M1–M4): the wall, the shelf and the countdown. The normalizer below
-      // cleans and caps these and DROPS them when empty.
-      wall,
-      shelf,
-      startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-    }),
-  });
-  const save = async () => {
-    if (busy) return;
+
+  // ── The areas: what each one's page writes ──
+  // An area's Save writes exactly these keys over the doc as stored now; every other key is left as the
+  // doc has it. `f` is a form (the working copy, or the saved doc's).
+  const areaFields = (key, f) => {
+    const { bio, songUrl, songLabel, links, prompts, coverUrl, pinKind, pinTitle, pinNote, pinMetric, heroStats, line, startTitle, startDate, wall, shelf, film, biz, pins } = f;
+    if (key === 'about') {
+      // The member profile shows no prompts and no longer asks for a line (owner, 2026-11-04:
+      // "Remove the field"); a member's saved ones stay as they are.
+      return coach ? {
+        bio: bio.trim(),
+        line,
+        prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
+      } : {
+        bio: bio.trim(),
+        startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
+      };
+    }
+    if (key === 'photos') {
+      return {
+        cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
+        // This role's intro film → its own key (coach `film`, member `filmMember`).
+        [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
+        // A member's wall (M1); the normalizer below cleans and caps it and DROPS it when empty.
+        ...(coach ? {} : { wall }),
+      };
+    }
+    if (key === 'highlights') {
+      return {
+        pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+        heroStats: heroStats.slice(0, 3),
+        ...(coach ? {} : { shelf }),
+      };
+    }
+    if (key === 'song') return { song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null };
+    if (key === 'links') return { links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)) };
+    // A coach's business card (P4) and pinned reviews (P5).
+    if (key === 'practice') return { bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null, pinnedReviews: pins };
+    return {};
+  };
+  const base = formOf(saved);
+  const basePins = livePins ? base.pins.filter((id) => livePins.has(id)) : base.pins;
+  const uploading = wallBusy || coverBusy || filmBusy;
+  const areaDirty = (key) => {
+    if (!key || key === 'signal') return false;
+    if (key === 'colors') return pickChanged || focusChanged;
+    if (key === 'photos' && uploading) return true;
+    const was = key === 'practice' ? { ...base, pins: basePins } : base;
+    return JSON.stringify(areaFields(key, form)) !== JSON.stringify(areaFields(key, was));
+  };
+  const dirty = areaDirty(area);
+  const saveArea = async (key) => {
+    if (busy || !areaDirty(key)) return;
     // A real signed-in owner is REQUIRED before we normalize: bsProfileWall drops
     // every wall entry when ownerUid is empty, so persisting with no uid would
     // SILENTLY erase the member's wall. Surface save failures instead of
-    // swallowing them, and only close (onSave) once the write actually lands.
+    // swallowing them, and only go back to the hub once the write actually lands.
     const uid = window.ShapeAuth?.getCachedState?.()?.user?.id;
     if (!uid) { window.__bsToast?.(tr('profile:editor.err.signIn', { defaultValue: 'Sign in to save your profile.' }), 'err'); return; }
     // A wall/cover/film upload still in flight would be omitted from the saved doc
-    // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
-    if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' }), 'err'); return; }
+    // AND left orphaned in storage — wait.
+    if (uploading) { window.__bsToast?.(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' }), 'err'); return; }
     setBusy(true);
     // Merge onto the doc as saved NOW, not the copy this opened with, so a key written elsewhere
     // since (a `look` from Make it yours, Nora's account setup) is kept — as Make it yours saves. Both
     // calls are bound to this account, and a read that fails (or answers for another account) stops
     // the save: the doc as it was when this opened would undo a change made since.
-    let base = null;
-    try { base = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); } catch (e) { base = null; }
-    if (!base || typeof base !== 'object' || Array.isArray(base)) {
+    let stored = null;
+    try { stored = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); } catch (e) { stored = null; }
+    if (!stored || typeof stored !== 'object' || Array.isArray(stored)) {
       setBusy(false);
       window.__bsToast?.(tr('profile:editor.err.save', { defaultValue: 'Could not save — try again.' }), 'err');
       return;
     }
-    const doc = { ...base, ...shownFields() };
-    // The colours only when they were picked here, over whatever else the doc's look holds.
-    if (lookChanged) doc.look = { ...(bsProfileLook(base.look) || {}), paper: look.paper, accent: look.accent };
+    const doc = { ...stored, ...areaFields(key, form) };
+    // `look` only when it was picked here (or its focus changed: #2611), over whatever else the stored
+    // look holds; an untouched panel writes none. The old `accent` hex and `climbBg` ride through
+    // `...stored` as the doc has them.
+    if (key === 'colors' && (pickChanged || focusChanged)) doc.look = { ...(bsProfileLook(stored.look) || {}), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}) };
     // Normalize only THIS role's film key against its bucket; the other role's film key
     // isn't named here, so it passes through byte-identical.
     const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
@@ -377,12 +454,34 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     catch (e) { res = { error: e }; }
     setBusy(false);
     // saveUserGoals RESOLVES { ok } | { error } (never throws on an RLS/no-backend
-    // failure), so the old empty catch could never see a failed write. Keep the
-    // sheet open + toast on any non-ok result rather than faking success.
+    // failure). Keep the page open + toast on any non-ok result rather than faking success.
     if (!res || res.error) { window.__bsToast?.((res && res.error && res.error.message) || tr('profile:editor.err.save', { defaultValue: 'Could not save — try again.' }), 'err'); return; }
-    onSave(clean);
+    setSaved(clean);
+    setForm(formOf(clean));
+    setSavedOnce(true);
+    setArea(null);
   };
-  const saving = busy || wallBusy || coverBusy || filmBusy;
+  // Back from an area (its ←, or a swipe right): with changes not saved, it asks once; Keep editing
+  // stays, Discard puts the form back to the saved doc.
+  const leaveArea = async () => {
+    if (areaDirty(area)) {
+      const ask = window.bsAskConfirm;
+      const discard = typeof ask === 'function' ? await ask({
+        eyebrow: tr('profile:editor.leave.eyebrow', { defaultValue: 'Unsaved changes' }),
+        title: tr('profile:editor.leave.title', { defaultValue: 'Discard your changes?' }),
+        message: tr('profile:editor.leave.message', { defaultValue: "You haven't saved the changes on this page." }),
+        confirmLabel: tr('profile:editor.leave.discard', { defaultValue: 'Discard' }),
+        cancelLabel: tr('profile:editor.leave.keep', { defaultValue: 'Keep editing' }),
+      }) : false;
+      if (!discard) return false;
+      setForm(formOf(saved));
+    }
+    setArea(null);
+    return true;
+  };
+  const openArea = (key) => { setForm(formOf(saved)); setArea(key); };
+  // Closing the editor hands the profile the doc as saved, once an area has saved; else nothing changed.
+  const closeEditor = () => (savedOnce ? onSave(saved) : onClose());
 
   // ── The look ──
   // A card: the paper's own colour (its raised tone on a dark paper, where a shadow cannot show), a
@@ -392,7 +491,6 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     ? `0 1px 2px ${ink(0.05)}, 0 16px 34px -24px ${ink(0.34)}`
     : 'inset 0 1px 0 rgba(255,255,255,0.04), 0 18px 38px -26px rgba(0,0,0,0.9)';
   const cardS = { background: cardBg, borderRadius: 24, border: `1px solid ${ink(light ? 0.07 : 0.08)}`, boxShadow: lift, padding: '22px 16px 24px', marginBottom: 18, boxSizing: 'border-box', minWidth: 0 };
-  const cardTitleS = { margin: '0 0 20px', fontFamily: BS_CLEAN_HEAD, fontSize: 19, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2, color: INK };
   const labelS = { fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, lineHeight: 1.3, color: INK };
   // Quiet words at 60% of the ink: 4.5:1 and up on every paper at 13px.
   const hintS = { fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, lineHeight: 1.3, color: ink(0.6) };
@@ -422,83 +520,6 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       </div>
     );
   };
-  // A card of parts. The title is a heading, so a screen reader can step from card to card.
-  let cardN = 0;
-  const card = (id, title, body) => {
-    const e = enter(cardN++);
-    return (
-      <section key={id} data-cust-card={id} aria-labelledby={`bs-cust-card-${id}`} className={e.className} style={{ ...cardS, ...(e.style || null) }}>
-        <h2 id={`bs-cust-card-${id}`} style={cardTitleS}>{title}</h2>
-        <div style={stack(28)}>{body}</div>
-      </section>
-    );
-  };
-
-  // ── The live preview: the profile's head as it will read ──
-  const name = (who && who.name) || (W.bsMyName ? W.bsMyName() : '') || '';
-  const handle = (who && who.handle) || '';
-  const photo = validPhoto((who && who.photo) || (W.bsMyPhoto ? W.bsMyPhoto() : null));
-  const initials = (W.bsInitials ? W.bsInitials(name) : fallbackInitials(name)) || (W.bsMyInitials ? W.bsMyInitials() : '') || '•';
-  const startTitleNow = startTitle.trim();
-  let startWhen = '';
-  if (startState) {
-    const v = bsValidStartDate(startDate);
-    try { startWhen = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString((W.bsDateLocale && W.bsDateLocale()) || undefined, { month: 'short', day: 'numeric' }); } catch (e) { startWhen = ''; }
-  }
-  const startDays = startState ? (startState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: startState.days })) : '';
-  // The line is a coach's only now (a member's editor no longer asks for it), so only a coach's preview shows it.
-  const lineNow = coach ? line.trim() : '';
-  const bioNow = bio.trim();
-  const bizNow = coach ? biz.name.trim() : '';
-  const previewEmpty = !lineNow && !bioNow && !(startTitleNow || startState) && !bizNow;
-  const avatar = !coach && FacetAvatar
-    ? <FacetAvatar size={58} c={c} initial={initials} name={name} photo={photo} showRank={false} BG={cardBg} INK={INK} />
-    : (
-      <span data-cust-round-avatar="" aria-hidden="true" style={{ width: 60, height: 60, flex: 'none', borderRadius: 999, overflow: 'hidden', display: 'grid', placeItems: 'center', background: tTheme.PAPER3 || ink(0.08), boxShadow: `0 0 0 3px ${cardBg}, 0 0 0 4px ${ink(0.14)}` }}>
-        {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, color: ink(0.8) }}>{initials}</span>}
-      </span>
-    );
-  const pe = enter(0);
-  cardN = 1;
-  const preview = (
-    <section data-cust-preview="" aria-label={tr('profile:editor.preview.label', { defaultValue: 'Live preview' })} className={pe.className}
-      style={{ ...cardS, ...(pe.style || null), padding: 0, overflow: 'hidden' }}>
-      {coverUrl ? (
-        <div aria-hidden="true" style={{ height: 92, background: `#111 center/cover no-repeat url("${coverUrl}")` }} />
-      ) : null}
-      <div style={{ padding: '18px 16px 18px' }}>
-        <div style={{ ...hintS, fontSize: 12.5, fontWeight: 600, marginBottom: 14 }}>{tr('profile:editor.preview.label', { defaultValue: 'Live preview' })}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
-          <span style={{ flex: 'none', display: 'grid', placeItems: 'center', width: 62, height: 62 }}>{avatar}</span>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div data-cust-preview-name="" style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.15, color: INK, overflowWrap: 'anywhere' }}>{name || initials}</div>
-            {handle || bizNow ? <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 14, color: ink(0.6), overflowWrap: 'anywhere' }}>{[handle, bizNow].filter(Boolean).join(' · ')}</div> : null}
-          </div>
-        </div>
-        {!coach && (startTitleNow || startState) ? (
-          <p data-cust-preview-start="" style={{ margin: '14px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 15, lineHeight: 1.4, color: INK, overflowWrap: 'anywhere' }}>
-            <span style={{ fontWeight: 650 }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
-            {startTitleNow ? ` ${startTitleNow}` : ''}
-            {startState ? <span style={{ display: 'block', marginTop: 2, fontSize: 13.5, color: ink(0.6), fontVariantNumeric: 'tabular-nums' }}>{[startWhen, startDays].filter(Boolean).join(' · ')}</span> : null}
-          </p>
-        ) : null}
-        {lineNow ? <p data-cust-preview-line="" style={{ margin: '12px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 16, fontWeight: 600, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>“{lineNow}”</p> : null}
-        {bioNow ? <p data-cust-preview-bio="" style={{ margin: '10px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14.5, lineHeight: 1.5, color: ink(0.78), whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{bioNow}</p> : null}
-        {previewEmpty ? <p style={{ ...noteS, marginTop: 14, fontSize: 14 }}>{tr('profile:editor.preview.empty', { defaultValue: 'Fill in the parts below. Your profile takes shape here as you type.' })}</p> : null}
-        {/* Identity fields (name · @handle · photo · pronouns · goal · link) live in the
-            Settings editor — the door sits under the preview of them, so this page stays
-            the one hub for everything the public profile shows. */}
-        <button type="button" data-cust-identity="" className="bs-cust-btn bs-cust-press" onClick={() => { onClose(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }}
-          style={{ width: '100%', minHeight: 56, marginTop: 16, padding: '10px 6px 10px 14px', borderRadius: 16, border: 0, background: ink(light ? 0.04 : 0.06), color: INK, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, color: INK }}>{tr('profile:editor.identity.title', { defaultValue: 'Name, @handle, photo & details' })}</span>
-            <span style={{ display: 'block', marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13, color: ink(0.62) }}>{tr('profile:editor.identity.sub', { defaultValue: 'Pronouns · goal · link — edit in Settings' })}</span>
-          </span>
-          <span aria-hidden="true" style={{ width: 32, height: 32, flex: 'none', display: 'grid', placeItems: 'center', color: ink(0.55) }}><BSMpIcon name="chevron" size={18} stroke={2.2} /></span>
-        </button>
-      </div>
-    </section>
-  );
 
   // ── The parts ──
   const bioPart = (
@@ -613,6 +634,9 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
           {coverUrl && <button type="button" className="bs-cust-btn bs-cust-press" onClick={() => setCoverUrl('')} style={{ ...coverPill, cursor: 'pointer' }}>{tr('profile:action.remove', { defaultValue: 'Remove' })}</button>}
         </div>
       </div>
+      {/* TODO(#2611): the cover-crop chips go here, under the cover: "Keep in view" (profile:mine.keepInView)
+          with Top / Center / Bottom (profile:mine.focusTop / focusCenter / focusBottom), saved as look.focus
+          through the member crop map #2611 adds (BS_MEMBER_FOCUS). Wire focusChanged above when it lands. */}
     </div>
   );
   // The colours: the shared look panel (BSLookPicker, Make it yours' Colors page): a Shape look, a
@@ -620,9 +644,10 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   // the card's padding so its grids keep their gaps (its lamps measure 42px wide on a 280px-wide
   // surface; the panel's own five-a-row grid is what sets that).
   const lookPart = (
-    <div key="look" data-cust-look="">
-      {head(tr('profile:mine.tabColors', { defaultValue: 'Colors' }))}
-      <div style={{ margin: '0 -12px' }}>
+    <div key="look">
+      {head(tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }))}
+      <p style={{ ...noteS, margin: '-4px 0 4px' }}>{tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })}</p>
+      <div data-cust-look="" style={{ margin: '0 -12px' }}>
         <BSLookPicker tr={tr} look={look} setLook={setLook} />
       </div>
     </div>
@@ -653,16 +678,18 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       {pinTitle.trim() ? <button type="button" className="bs-cust-btn bs-cust-press" onClick={() => { setPinTitle(''); setPinNote(''); setPinMetric(''); }} style={{ ...ghost, marginTop: 12 }}>{tr('profile:editor.pin.clear', { defaultValue: 'Clear pin' })}</button> : null}
     </div>
   );
+  // The song is its page's only part, so the page's title is its label and the hint leads the card.
+  const songHead = splitHead(tr('profile:editor.song.label', { defaultValue: 'Profile song · Spotify link' }));
   const songPart = (
     <div key="song">
-      {head(tr('profile:editor.song.label', { defaultValue: 'Profile song · Spotify link' }))}
+      <p style={{ ...noteS, margin: '0 0 12px' }}>{songHead[1]}</p>
       <div style={stack(10)}>
         {/* The URL example is deliberately NOT keyed — it is a literal address,
             byte-identical in every locale, so a key would ship thirteen copies of
             one string a translator must not touch (the "Shape Score" exemption).
             The HANDLE and DOMAIN examples below ARE keyed: those are the
             +1 555 123 4567 class, where a locale's own form reads better. */}
-        <input className="bs-cust-field" value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" inputMode="url" autoCapitalize="none" style={field} />
+        <input className="bs-cust-field" value={songUrl} onChange={(e) => setSongUrl(e.target.value)} placeholder="https://open.spotify.com/track/…" aria-label={songHead[0]} inputMode="url" autoCapitalize="none" style={field} />
         <input className="bs-cust-field" value={songLabel} onChange={(e) => setSongLabel(e.target.value)} placeholder={tr('profile:editor.ph.songLabel', { defaultValue: 'Label (optional) — e.g. Lift anthem' })} style={field} />
       </div>
       {songUrl.trim() && !embedPreview ? <p role="alert" style={{ ...noteS, color: ERR, fontWeight: 600 }}>{tr('profile:editor.song.err', { defaultValue: 'Paste a Spotify track or playlist link (open.spotify.com/…).' })}</p> : null}
@@ -694,8 +721,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       {prompts.length < 4 ? <button type="button" className="bs-cust-btn bs-cust-press" onClick={addPrompt} style={{ ...ghost, marginTop: prompts.length ? 14 : 0 }}><BSMpIcon name="plus" size={16} stroke={2.3} />{noPlus(tr('profile:editor.prompts.add', { defaultValue: '+ Add prompt' }))}</button> : null}
     </div>
   ) : null;
-  // The links are their card's only part, so the card's title ("Social links") is their label.
-  const linksTitle = tr('profile:editor.links.label', { defaultValue: 'Social links' });
+  // The links are their page's only part, so the page's title ("Social links") is their label.
   const linksPart = (
     <div key="links">
       <div style={stack(10)}>
@@ -747,7 +773,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   // What the Signal sigil rings mean — moved off the public profile to here (coach-only). It explains
   // the instrument on the coach's own profile; each ring's dot is the ring's own colour.
   const signalHead = splitHead(tr('profile:editor.signal.label', { defaultValue: 'Your Signal · what the rings mean' }));
-  const signalCard = coach ? card('signal', signalHead[0], [
+  const signalPart = coach ? (
     <div key="signal">
       <p style={{ margin: 0, fontFamily: BS_CLEAN_SANS, fontSize: 14.5, color: ink(0.74), lineHeight: 1.55 }}>{tr('profile:editor.signal.bodyPre', { defaultValue: 'The instrument on your profile reads your coaching at a glance. The' })} <strong style={{ color: INK, fontWeight: 650 }}>{tr('profile:editor.signal.bodyAccent', { defaultValue: 'outer ring' })}</strong> {tr('profile:editor.signal.bodyPost', { defaultValue: 'is your progress to the next coach tier; the three inner rings each track a contribution and fill as you keep them up:' })}</p>
       <div style={{ ...stack(10), marginTop: 14 }}>
@@ -764,61 +790,203 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
           </div>
         ))}
       </div>
-    </div>,
-  ]) : null;
+    </div>
+  ) : null;
 
-  // The page, card by card, for each role. A part is a keyed <div> under head(); to add one, build it
-  // above, list it in its card here, and if it writes a key, add that key to shownFields() for the
-  // roles that show it (a key no card shows is left as the doc has it).
-  const groups = coach ? [
-    signalCard,
-    card('about', tr('profile:editor.group.about', { defaultValue: 'About you' }), [bioPart, linePart, promptsPart]),
-    card('practice', tr('profile:editor.group.practice', { defaultValue: 'Your practice' }), [bizPart, winsPart]),
-    card('photos', tr('profile:editor.group.photos', { defaultValue: 'Photos & film' }), [coverPart, filmPart]),
-    card('highlights', tr('profile:editor.group.highlights', { defaultValue: 'Highlights' }), [pinPart, statsPart]),
-    card('style', tr('profile:editor.group.style', { defaultValue: 'Look & sound' }), [lookPart, songPart]),
-    card('links', linksTitle, [linksPart]),
-  ] : [
-    card('about', tr('profile:editor.group.about', { defaultValue: 'About you' }), [bioPart, startPart]),
-    card('photos', tr('profile:editor.group.photos', { defaultValue: 'Photos & film' }), [wallPart, coverPart, filmPart]),
-    card('highlights', tr('profile:editor.group.highlights', { defaultValue: 'Highlights' }), [shelfPart, pinPart, statsPart]),
-    card('style', tr('profile:editor.group.style', { defaultValue: 'Look & sound' }), [lookPart, songPart]),
-    card('links', linksTitle, [linksPart]),
-  ];
+  // ── The areas, for each role: their row's name and icon, and their page's parts ──
+  // To add an area: build its parts above, add it here and to ROWS, and give areaFields() the keys its
+  // Save writes (a key no area writes is left as the doc has it).
+  const AREAS = {
+    signal: { name: signalHead[0], icon: 'pulse', parts: [signalPart] },
+    about: { name: tr('profile:editor.group.about', { defaultValue: 'About you' }), icon: 'chat', parts: coach ? [bioPart, linePart, promptsPart] : [bioPart, startPart] },
+    practice: { name: tr('profile:editor.group.practice', { defaultValue: 'Your practice' }), icon: 'briefcase', parts: [bizPart, winsPart] },
+    photos: { name: tr('profile:editor.group.photos', { defaultValue: 'Photos & film' }), icon: 'image', parts: coach ? [coverPart, filmPart] : [wallPart, coverPart, filmPart] },
+    highlights: { name: tr('profile:editor.group.highlights', { defaultValue: 'Highlights' }), icon: 'trophy', parts: coach ? [pinPart, statsPart] : [shelfPart, pinPart, statsPart] },
+    colors: { name: tr('profile:mine.tabColors', { defaultValue: 'Colors' }), icon: 'palette', parts: [lookPart] },
+    song: { name: songHead[0], icon: 'note', parts: [songPart] },
+    links: { name: tr('profile:editor.links.label', { defaultValue: 'Social links' }), icon: 'link', parts: [linksPart] },
+  };
+  const ROWS = coach ? ['signal', 'about', 'practice', 'photos', 'highlights', 'colors', 'song', 'links'] : ['about', 'photos', 'highlights', 'colors', 'song', 'links'];
+
+  // What is set in each area, as its row says it: from the doc as saved, never from a draft.
+  const orNone = (parts) => parts.filter(Boolean).join(' · ') || tr('profile:editor.sum.empty', { defaultValue: 'Not set yet' });
+  const savedStart = bsStartLineState(base.startDate, new Date());
+  const savedPrompts = base.prompts.filter((p) => p && p.q && String(p.a || '').trim()).length;
+  const savedLinks = BS_PROFILE_LINKS.filter((l) => String(base.links[l.key] || '').trim()).length;
+  // The saved look's words (its missing half read as the app's own, as the panel shows it).
+  const savedLook = bsProfileLook(saved.look) ? { paper: initLook.paper || seedPaper, accent: initLook.accent || seedAccent } : null;
+  const lookWords = savedLook ? bsLookWords(tr, savedLook) : null;
+  const SUMMARY = {
+    signal: signalHead[1],
+    about: orNone([
+      base.bio.trim() ? tr('profile:editor.sum.bio', { defaultValue: 'Bio set' }) : '',
+      coach && base.line.trim() ? tr('profile:editor.sum.line', { defaultValue: 'Line set' }) : '',
+      coach && savedPrompts ? tr('profile:editor.sum.prompts', { count: savedPrompts, defaultValue: '{count, plural, one {# prompt} other {# prompts}}' }) : '',
+      !coach && savedStart ? tr('profile:editor.sum.countdown', { defaultValue: 'Countdown set' }) : '',
+    ]),
+    practice: orNone([
+      base.biz.name.trim() ? tr('profile:editor.sum.biz', { defaultValue: 'Business card set' }) : '',
+      basePins.length ? tr('profile:editor.sum.reviews', { count: basePins.length, defaultValue: '{count, plural, one {# review pinned} other {# reviews pinned}}' }) : '',
+    ]),
+    photos: orNone([
+      !coach && base.wall.length ? tr('profile:editor.sum.photos', { count: base.wall.length, defaultValue: '{count, plural, one {# photo} other {# photos}}' }) : '',
+      base.coverUrl ? tr('profile:editor.sum.cover', { defaultValue: 'Cover set' }) : '',
+      base.film && base.film.url ? tr('profile:editor.sum.film', { defaultValue: 'Intro film set' }) : '',
+    ]),
+    highlights: orNone([
+      !coach && base.shelf.length ? tr('profile:editor.sum.shelf', { count: base.shelf.length, defaultValue: '{count} on the shelf' }) : '',
+      base.pinTitle.trim() ? tr('profile:editor.sum.pinned', { defaultValue: 'Highlight pinned' }) : '',
+      Array.isArray(saved.heroStats) && saved.heroStats.length ? tr('profile:editor.sum.stats', { count: Math.min(3, saved.heroStats.length), defaultValue: '{count, plural, one {# headline stat} other {# headline stats}}' }) : '',
+    ]),
+    colors: lookWords ? [lookWords.paperName(savedLook.paper), lookWords.accentName(savedLook.accent)].join(' · ') : orNone([]),
+    song: base.songUrl.trim() ? (base.songLabel.trim() || tr('profile:editor.sum.song', { defaultValue: 'Song set' })) : orNone([]),
+    links: savedLinks ? tr('profile:editor.sum.links', { count: savedLinks, defaultValue: '{count, plural, one {# link} other {# links}}' }) : orNone([]),
+  };
+
+  // ── The hub's live preview: the profile's head as it reads now (the doc as saved) ──
+  const name = (who && who.name) || (W.bsMyName ? W.bsMyName() : '') || '';
+  const handle = (who && who.handle) || '';
+  const photo = validPhoto((who && who.photo) || (W.bsMyPhoto ? W.bsMyPhoto() : null));
+  const initials = (W.bsInitials ? W.bsInitials(name) : fallbackInitials(name)) || (W.bsMyInitials ? W.bsMyInitials() : '') || '•';
+  const startTitleNow = base.startTitle.trim();
+  let startWhen = '';
+  if (savedStart) {
+    const v = bsValidStartDate(base.startDate);
+    try { startWhen = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString((W.bsDateLocale && W.bsDateLocale()) || undefined, { month: 'short', day: 'numeric' }); } catch (e) { startWhen = ''; }
+  }
+  const startDays = savedStart ? (savedStart.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: savedStart.days })) : '';
+  // The line is a coach's only now (a member's editor no longer asks for it), so only a coach's preview shows it.
+  const lineNow = coach ? base.line.trim() : '';
+  const bioNow = base.bio.trim();
+  const bizNow = coach ? base.biz.name.trim() : '';
+  const coverNow = base.coverUrl;
+  const previewEmpty = !lineNow && !bioNow && !(startTitleNow && savedStart) && !bizNow;
+  const avatar = !coach && FacetAvatar
+    ? <FacetAvatar size={50} c={c} initial={initials} name={name} photo={photo} showRank={false} BG={cardBg} INK={INK} />
+    : (
+      <span data-cust-round-avatar="" aria-hidden="true" style={{ width: 52, height: 52, flex: 'none', borderRadius: 999, overflow: 'hidden', display: 'grid', placeItems: 'center', background: tTheme.PAPER3 || ink(0.08), boxShadow: `0 0 0 3px ${cardBg}, 0 0 0 4px ${ink(0.14)}` }}>
+        {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 19, fontWeight: 700, color: ink(0.8) }}>{initials}</span>}
+      </span>
+    );
+  const pe = enter(0);
+  const preview = (
+    <section data-cust-preview="" aria-label={tr('profile:editor.preview.label', { defaultValue: 'Live preview' })} className={pe.className}
+      style={{ ...cardS, ...(pe.style || null), padding: 0, overflow: 'hidden' }}>
+      {coverNow ? <div aria-hidden="true" style={{ height: 72, background: `#111 center/cover no-repeat url("${coverNow}")` }} /> : null}
+      <div style={{ padding: '14px 16px 16px' }}>
+        <div style={{ ...hintS, fontSize: 12.5, fontWeight: 600, marginBottom: 12 }}>{tr('profile:editor.preview.label', { defaultValue: 'Live preview' })}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+          <span style={{ flex: 'none', display: 'grid', placeItems: 'center', width: 54, height: 54 }}>{avatar}</span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div data-cust-preview-name="" style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 19, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.15, color: INK, overflowWrap: 'anywhere' }}>{name || initials}</div>
+            {handle || bizNow ? <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, color: ink(0.6), overflowWrap: 'anywhere' }}>{[handle, bizNow].filter(Boolean).join(' · ')}</div> : null}
+          </div>
+        </div>
+        {!coach && startTitleNow && savedStart ? (
+          <p data-cust-preview-start="" style={{ margin: '12px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14.5, lineHeight: 1.4, color: INK, overflowWrap: 'anywhere' }}>
+            <span style={{ fontWeight: 650 }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
+            {` ${startTitleNow}`}
+            <span style={{ display: 'block', marginTop: 2, fontSize: 13, color: ink(0.6), fontVariantNumeric: 'tabular-nums' }}>{[startWhen, startDays].filter(Boolean).join(' · ')}</span>
+          </p>
+        ) : null}
+        {lineNow ? <p data-cust-preview-line="" style={{ margin: '10px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 15.5, fontWeight: 600, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>“{lineNow}”</p> : null}
+        {bioNow ? <p data-cust-preview-bio="" style={{ margin: '8px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14, lineHeight: 1.5, color: ink(0.78), whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{bioNow}</p> : null}
+        {previewEmpty ? <p style={{ ...noteS, marginTop: 12, fontSize: 14 }}>{tr('profile:editor.preview.empty', { defaultValue: 'Fill in the parts below. Your profile takes shape here as you type.' })}</p> : null}
+      </div>
+    </section>
+  );
+  // A row of the hub: the area's icon, its name, what is set there, and a chevron; a 64px target.
+  const rowS = (i) => ({ width: '100%', minHeight: 64, display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px 10px 14px', border: 0, borderTop: i ? `1px solid ${ink(light ? 0.08 : 0.09)}` : 0, background: 'transparent', color: INK, textAlign: 'left', cursor: 'pointer', boxSizing: 'border-box' });
+  const rowIcon = (icon) => <span aria-hidden="true" style={{ width: 36, height: 36, flex: 'none', borderRadius: 12, background: ink(light ? 0.05 : 0.08), color: ink(0.82), display: 'grid', placeItems: 'center' }}>{custIcon(icon)}</span>;
+  const rowChevron = <span aria-hidden="true" style={{ width: 28, flex: 'none', display: 'grid', placeItems: 'center', color: ink(0.5) }}><BSMpIcon name="chevron" size={18} stroke={2.2} /></span>;
+  const re = enter(1);
+  const rows = (
+    <section data-cust-rows="" className={re.className} style={{ ...cardS, ...(re.style || null), padding: '4px 0', overflow: 'hidden' }}>
+      {ROWS.map((k, i) => (
+        <button key={k} type="button" data-cust-row={k} className="bs-cust-btn bs-cust-row" onClick={() => openArea(k)} style={rowS(i)}>
+          {rowIcon(AREAS[k].icon)}
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 650, lineHeight: 1.25, color: INK }}>{AREAS[k].name}</span>
+            <span data-cust-summary="" style={{ display: 'block', marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, lineHeight: 1.3, color: ink(0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{SUMMARY[k]}</span>
+          </span>
+          {rowChevron}
+        </button>
+      ))}
+      {/* Identity fields (name · @handle · photo · pronouns · goal · link) live in the
+          Settings editor — the door is the list's last row, so this page stays the one
+          hub for everything the public profile shows. */}
+      <button type="button" data-cust-identity="" className="bs-cust-btn bs-cust-row" onClick={() => { closeEditor(); try { window.dispatchEvent(new Event('shape:openProfile')); } catch (e) {} }} style={rowS(1)}>
+        {rowIcon('user')}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: BS_CLEAN_SANS, fontSize: 16, fontWeight: 650, lineHeight: 1.25, color: INK }}>{tr('profile:editor.identity.title', { defaultValue: 'Name, @handle, photo & details' })}</span>
+          <span style={{ display: 'block', marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, lineHeight: 1.3, color: ink(0.62) }}>{tr('profile:editor.identity.sub', { defaultValue: 'Pronouns · goal · link — edit in Settings' })}</span>
+        </span>
+        {rowChevron}
+      </button>
+    </section>
+  );
+  const hub = (
+    <div style={{ padding: `0 ${gutter}px calc(28px + env(safe-area-inset-bottom, 0px))`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
+      {/* Masthead row at the standard inset — the editor's title and close sit
+          BELOW it (every page opens on the same row). */}
+      <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
+        {BSMastRow && <BSMastRow trailing={null} />}
+      </div>
+      <BSCleanType t={tClean}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 0 20px' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: BS_CLEAN_SANS, fontSize: 14, fontWeight: 600, color: ink(0.6) }}>{splitHead(tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' }))[0]}</div>
+            <h1 id="bs-cust-title" style={{ margin: '2px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 32, fontWeight: 750, letterSpacing: '-0.025em', lineHeight: 1.05, color: INK }}>{tr('profile:editor.title', { defaultValue: 'Customize' })}</h1>
+          </div>
+          <button type="button" data-cust-close="" className="bs-cust-btn bs-cust-press" onClick={closeEditor} aria-label={tr('profile:editor.closeAria', { defaultValue: 'Close' })}
+            style={{ width: 44, height: 44, flex: 'none', padding: 0, borderRadius: 999, border: `1px solid ${ink(light ? 0.08 : 0.1)}`, background: cardBg, boxShadow: lift, color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+            <BSMpIcon name="close" size={18} stroke={2.2} />
+          </button>
+        </div>
+        {preview}
+        {rows}
+      </BSCleanType>
+    </div>
+  );
+
+  // ── An area's page: the shared Back and title, its fields in one card, its own Save ──
+  const saveBar = (
+    // Save floats at the foot as one pill, over a fade into the paper (PAPER, the solid colour: BG is
+    // a gradient on Steel). Its edges track the density gutter.
+    <div style={{ position: 'sticky', bottom: 0, zIndex: 2, marginLeft: -gutter, marginRight: -gutter, marginTop: 4, padding: `22px ${gutter}px calc(12px + env(safe-area-inset-bottom, 0px))`, background: `linear-gradient(180deg, ${hexA(PAPER, 0)} 0%, ${hexA(PAPER, 0.92)} 38%, ${PAPER} 100%)`, pointerEvents: 'none' }}>
+      <button type="button" data-cust-save="" className="bs-cust-btn bs-cust-press" onClick={() => saveArea(area)} disabled={!dirty || busy || uploading}
+        style={{ pointerEvents: 'auto', width: '100%', minHeight: 54, borderRadius: 999, border: 0, background: TEAL, color: onTeal, cursor: (busy || uploading) ? 'wait' : dirty ? 'pointer' : 'default', opacity: dirty ? (uploading ? 0.7 : 1) : 0.45, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: dirty ? (light ? `0 12px 24px -14px ${ink(0.5)}` : '0 12px 26px -12px rgba(0,0,0,0.9)') : 'none' }}>
+        {busy ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : <><BSMpIcon name="check" size={18} stroke={2.6} />{tr('profile:editor.save', { defaultValue: 'Save profile' })}</>}
+      </button>
+    </div>
+  );
+  const ae = enter(0);
+  // The header is the chrome's own (outside the clean type), so an area's title and Back read as every
+  // other detail page's do.
+  const areaBody = area && AREAS[area] ? (
+    <div data-cust-area={area}>
+      {DetailHeader ? <DetailHeader onBack={leaveArea} title={AREAS[area].name} noCorner /> : null}
+      <BSCleanType t={tClean}>
+        <div style={{ padding: `8px ${gutter}px 0`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
+          <section data-cust-card={area} className={ae.className} style={{ ...cardS, ...(ae.style || null) }}>
+            <div style={stack(28)}>{AREAS[area].parts}</div>
+          </section>
+          {area === 'signal' ? <div style={{ height: 24 }} /> : saveBar}
+        </div>
+      </BSCleanType>
+    </div>
+  ) : null;
+  // The area's page is a BSPage (its own scroller under the masthead, its Back registered for the swipe);
+  // no tab bar sits under the editor, so it keeps no room for one.
+  const areaPage = areaBody ? (Page ? <Page tabBarHeight={0}>{areaBody}</Page> : <div className="bs-scroll" style={{ position: 'absolute', inset: 0, overflowY: 'auto' }}>{areaBody}</div>) : null;
 
   return createPortal(
-    // Full-page takeover — the customizer owns the screen.
-    <div data-cust-root="" className="bs-scroll" role="dialog" aria-modal="true" aria-labelledby="bs-cust-title"
-      style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: 'auto', overflowX: 'hidden', '--cust-teal': TEAL, '--cust-ring': hexA(TEAL, 0.24), '--cust-ph': ink(0.42) }}>
-      <div style={{ padding: `0 ${gutter}px`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
-        {/* Masthead row at the standard inset — the editor's title and close sit
-            BELOW it (every page opens on the same row). */}
-        <div style={{ paddingTop: BS_MAST_TOP_CSS }}>
-          {BSMastRow && <BSMastRow trailing={null} />}
-        </div>
-        <BSCleanType t={tClean}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 0 20px' }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: BS_CLEAN_SANS, fontSize: 14, fontWeight: 600, color: ink(0.6) }}>{splitHead(tr('profile:editor.eyebrow', { defaultValue: 'Your profile · Editor' }))[0]}</div>
-              <h1 id="bs-cust-title" style={{ margin: '2px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 32, fontWeight: 750, letterSpacing: '-0.025em', lineHeight: 1.05, color: INK }}>{tr('profile:editor.title', { defaultValue: 'Customize' })}</h1>
-            </div>
-            <button type="button" data-cust-close="" className="bs-cust-btn bs-cust-press" onClick={onClose} aria-label={tr('profile:editor.closeAria', { defaultValue: 'Close' })}
-              style={{ width: 44, height: 44, flex: 'none', padding: 0, borderRadius: 999, border: `1px solid ${ink(light ? 0.08 : 0.1)}`, background: cardBg, boxShadow: lift, color: INK, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
-              <BSMpIcon name="close" size={18} stroke={2.2} />
-            </button>
-          </div>
-          {preview}
-          {groups}
-          {/* Save floats at the foot as one pill, over a fade into the paper (PAPER, the solid
-              colour: BG is a gradient on Steel). Its edges track the density gutter. */}
-          <div style={{ position: 'sticky', bottom: 0, zIndex: 2, marginLeft: -gutter, marginRight: -gutter, marginTop: 4, padding: `22px ${gutter}px calc(12px + env(safe-area-inset-bottom, 0px))`, background: `linear-gradient(180deg, ${hexA(PAPER, 0)} 0%, ${hexA(PAPER, 0.92)} 38%, ${PAPER} 100%)`, pointerEvents: 'none' }}>
-            <button type="button" data-cust-save="" className="bs-cust-btn bs-cust-press" onClick={save} disabled={saving}
-              style={{ pointerEvents: 'auto', width: '100%', minHeight: 54, borderRadius: 999, border: 0, background: TEAL, color: onTeal, cursor: saving ? 'wait' : 'pointer', opacity: saving && !busy ? 0.7 : 1, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: light ? `0 12px 24px -14px ${ink(0.5)}` : '0 12px 26px -12px rgba(0,0,0,0.9)' }}>
-              {busy ? tr('profile:log.saving', { defaultValue: 'Saving…' }) : <><BSMpIcon name="check" size={18} stroke={2.6} />{tr('profile:editor.save', { defaultValue: 'Save profile' })}</>}
-            </button>
-          </div>
-        </BSCleanType>
-      </div>
+    // Full-page takeover — the customizer owns the screen. The hub scrolls here; an area's page is a
+    // BSPage, which scrolls itself.
+    <div data-cust-root="" className={areaPage ? undefined : 'bs-scroll'} role="dialog" aria-modal="true"
+      {...(areaPage ? { 'aria-label': AREAS[area].name } : { 'aria-labelledby': 'bs-cust-title' })}
+      style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: areaPage ? 'hidden' : 'auto', overflowX: 'hidden', '--cust-teal': TEAL, '--cust-ring': hexA(TEAL, 0.24), '--cust-ph': ink(0.42), '--cust-press': ink(light ? 0.05 : 0.07) }}>
+      {areaPage || hub}
     </div>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   );

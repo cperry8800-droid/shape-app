@@ -16,6 +16,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, flatten, textOf, THEME, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
+import { IntlMessageFormat } from 'intl-messageformat';
 
 const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer', 'BSCoachCoachingBlock']);
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
@@ -150,22 +151,51 @@ test('the wall, the shelf and the prompts in the Wall\'s look: square shots to t
 });
 
 // Owner, 2026-11-04, of the profile editor (Customize): "new design for these pages", "keep designs simple
-// … modern, appealing, easy to navigate, not overwhelming, not analog. make them look really alive", the
-// member profile as what "looks better"; then, of the redesigns, "reduce the coloring and simplify UI more".
-// So: a live preview of the profile's head on top, the parts in a few cards in the paper's own colour with
-// a soft lift, plain labels with their hints, rounded 16px fields, and colour only as a signal (Save, a
-// focused field, the facet avatar's tier colour, the accent swatches). No ink rules, no gradient panels.
+// … modern, appealing, easy to navigate, not overwhelming, not analog", "reduce the coloring and simplify
+// UI more", and then: "organize the page listing different sections or areas on the profile you can choose
+// to customize which then brings you to individual page for those customizations instead of listing
+// everyone on one, requires less scrolling". So Customize opens on a hub (a compact live preview, then one
+// row per area saying what is set there), and each row opens the area's own page: the shared Back, its
+// fields in one plain card, its own Save. Colour only as a signal: Save, a focused field, the facet avatar.
 const TEAL_SAVE = THEME.isLight ? '#0a7a72' : '#34d6c5';   // bsWsAccent: the page's one colour
 const isoIn = (days) => { const d = new Date(Date.now() + days * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-test('the profile editor: a live preview, the parts in plain cards, colour only as a signal', () => {
-  const CARDS = { member: ['about', 'photos', 'highlights', 'style', 'links'], coach: ['signal', 'about', 'practice', 'photos', 'highlights', 'style', 'links'] };
+const ROWS = { member: ['about', 'photos', 'highlights', 'colors', 'song', 'links'], coach: ['signal', 'about', 'practice', 'photos', 'highlights', 'colors', 'song', 'links'] };
+const openEditor = (props = {}) => withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, ...props }));
+const rowNode = (d, key) => d.nodes().find((n) => n.props['data-cust-row'] === key);
+const openRow = (d, key) => { const row = rowNode(d, key); assert.ok(row, `no ${key} row`); row.props.onClick(); withSurface(() => d.render()); };
+const areaOf = (d) => { const a = d.nodes().find((n) => n.props['data-cust-area'] != null); return a ? a.props['data-cust-area'] : null; };
+const headerOf = (d) => d.nodes().find(named('BSDetailHeader'));
+const goBack = async (d) => { await headerOf(d).props.onBack(); withSurface(() => d.render()); };
+const fieldOf = (d, k) => d.nodes().find((n) => n.props['data-cust-field'] === k);
+const typeIn = (d, k, v) => { fieldOf(d, k).props.onChange({ target: { value: v } }); withSurface(() => d.render()); };
+const summaryOf = (d, key) => textOf(flatten(rowNode(d, key).props.children).find((n) => n.props && n.props['data-cust-summary'] != null));
+const saveOf = (d) => d.nodes().find((n) => n.props['data-cust-save'] != null);
+const pressSave = async (d) => { await withSurface(() => saveOf(d).props.onClick()); withSurface(() => d.render()); };
+function editorWorld({ base, read = 'ok', confirm = null }) {
+  const world = { reads: [], writes: [], toasts: [], asks: [], saved: null, closed: 0 };
+  const had = { auth: globalThis.window.ShapeAuth, db: globalThis.window.shapeDb, toast: globalThis.window.__bsToast, ask: globalThis.window.bsAskConfirm };
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u-me' } }) };
+  globalThis.window.shapeDb = {
+    getUserGoals: async (k, opts) => { world.reads.push([k, opts]); if (read === 'fail') throw new Error('offline'); return read === 'null' ? null : JSON.parse(JSON.stringify(base)); },
+    saveUserGoals: async (k, doc, opts) => { world.writes.push([k, doc, opts]); return { ok: true }; },
+  };
+  globalThis.window.__bsToast = (msg, kind) => world.toasts.push(kind);
+  if (confirm === 'none') delete globalThis.window.bsAskConfirm;
+  else globalThis.window.bsAskConfirm = async (opts) => { world.asks.push(opts); return typeof confirm === 'function' ? confirm(opts) : !!confirm; };
+  world.props = { onSave(doc) { world.saved = doc; }, onClose() { world.closed += 1; } };
+  world.restore = () => { globalThis.window.ShapeAuth = had.auth; globalThis.window.shapeDb = had.db; globalThis.window.__bsToast = had.toast; globalThis.window.bsAskConfirm = had.ask; };
+  return world;
+}
+
+test('Customize opens on a hub: a compact live preview, then one row per area saying what is set there', () => {
   for (const coach of [false, true]) {
-    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { prompts: [{ q: 'why', a: 'x' }, { q: 'fuel', a: 'y' }] }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, coach, who: { name: 'Quinn Harper', handle: '@quinn' } }));
+    const who = coach ? 'coach' : 'member';
+    const d = openEditor({ coach, who: { name: 'Quinn Harper', handle: '@quinn' } });
     const nodes = d.nodes();
     const styled = nodes.filter((n) => n.props && n.props.style);
-    const who = coach ? 'coach' : 'member';
     assert.match(d.text, /Customize/);
-    // The live preview: the person's name, and the facet avatar for a member, the round one for a coach.
+    assert.equal(areaOf(d), null, `${who}: an area is open on arrival`);
+    // The live preview: the person, the facet avatar for a member, the round one for a coach.
     const [preview] = nodes.filter((n) => n.props['data-cust-preview'] != null);
     assert.ok(preview, `${who}: the live preview is gone`);
     assert.match(textOf(preview), /Live preview/);
@@ -173,215 +203,307 @@ test('the profile editor: a live preview, the parts in plain cards, colour only 
     const inPreview = flatten(preview.props.children);
     assert.equal(inPreview.filter(named('BSFacetAvatar')).length, coach ? 0 : 1, `${who}: the wrong avatar`);
     assert.equal(inPreview.filter((n) => n.props['data-cust-round-avatar'] != null).length, coach ? 1 : 0, `${who}: the wrong avatar`);
-    assert.equal(inPreview.filter((n) => n.props['data-cust-identity'] != null && n.type === 'button').length, 1, `${who}: the door to name, @handle and photo`);
-    // The parts in a few cards, each in the paper's own colour, never tinted or a gradient.
-    const cards = nodes.filter((n) => n.props['data-cust-card'] != null);
-    assert.deepEqual(cards.map((n) => n.props['data-cust-card']), CARDS[who]);
-    for (const card of [preview, ...cards]) {
+    // The rows: one per area, in order, each a 44px+ button with its icon, its name, its summary and a
+    // chevron; the door to name, @handle and photo is the list's last row.
+    const rows = nodes.filter((n) => n.props['data-cust-row'] != null);
+    assert.deepEqual(rows.map((n) => n.props['data-cust-row']), ROWS[who], `${who}: the rows`);
+    for (const r of rows) {
+      assert.equal(r.type, 'button');
+      assert.ok(r.props.style.minHeight >= 44, `${who}: the ${r.props['data-cust-row']} row is under 44px`);
+      const inside = flatten(r.props.children);
+      assert.ok(inside.some((n) => n.type === 'svg' || (typeof n.type === 'function' && n.type.name === 'BSMpIcon')), `${who}: the ${r.props['data-cust-row']} row has no icon`);
+      assert.ok(summaryOf(d, r.props['data-cust-row']).length > 0, `${who}: the ${r.props['data-cust-row']} row says nothing`);
+    }
+    const section = nodes.find((n) => n.props['data-cust-rows'] != null);
+    const kids = flatten(section.props.children).filter((n) => n.type === 'button');
+    assert.equal(kids[kids.length - 1].props['data-cust-identity'], '', `${who}: the Settings row is not last`);
+    assert.match(textOf(kids[kids.length - 1]), /Name, @handle, photo & details/);
+    // Cards in the paper's own colour with a soft lift; no tint, gradient, ink rule or ledger capitals.
+    for (const card of [preview, section]) {
       assert.equal(card.props.style.background, THEME.PAPER, `${who}: a card is tinted`);
       assert.ok(card.props.style.borderRadius >= 16, `${who}: a card lost its rounding`);
       assert.match(String(card.props.style.boxShadow), /px/, `${who}: a card lost its lift`);
     }
-    assert.equal(styled.filter((n) => /gradient/.test(String(n.props.style.background || '')) && n.type !== 'input' && !('pointerEvents' in n.props.style)).length, 0, `${who}: a gradient panel is back`);
-    // No heavy ink rules or ledger capitals.
-    assert.equal(styled.filter((n) => /solid/.test(String(n.props.style.borderBottom || '')) || (n.props.style.height === 3 && n.props.style.background === INK)).length, 0, `${who}: an ink rule is back`);
+    assert.equal(styled.filter((n) => /gradient/.test(String(n.props.style.background || ''))).length, 0, `${who}: a gradient panel is back`);
+    assert.equal(styled.filter((n) => /solid/.test(String(n.props.style.borderBottom || ''))).length, 0, `${who}: an ink rule is back`);
     assert.equal(styled.filter((n) => n.props.style.textTransform === 'uppercase').length, 0, `${who}: caps labels are back`);
-    // The tier's colour only where it is the thing shown: the "tier default" swatch and a ring's dot.
-    const swatchOrDot = (n) => n.props.style.width === 44 || n.props.style.width === 8;
-    assert.equal(styled.filter((n) => !swatchOrDot(n) && (n.props.style.color === '#c9a227' || n.props.style.background === '#c9a227')).length, 0, `${who}: the tier's gold is back`);
-    // Every part keeps a plain label, its hint beside it (the social links take their card's title).
-    const heads = nodes.filter((n) => n.props['data-cust-head'] != null);
-    assert.ok(heads.length >= 10, `${who}: the parts lost their heads (${heads.length})`);
-    assert.equal(textOf(cards.find((n) => n.props['data-cust-card'] === 'links')).match(/Social links/g).length, 1, `${who}: the links are labelled twice`);
-    // "Your line" is a coach's only (owner, 2026-11-04, of the member editor: "Remove the field").
-    const line = heads.find((h) => /Your line/.test(textOf(h)));
-    if (coach) assert.deepEqual(line.props.children.filter(Boolean).map((ch) => textOf(ch)), ['Your line', 'one motto'], 'the hint after " · " sits beside the label');
-    else {
-      assert.equal(line, undefined, 'the member editor asks for a line again');
-      assert.equal(nodes.filter((n) => n.props['data-cust-field'] === 'line').length, 0, 'the member editor has a line field');
-    }
-    // The colours are the shared look panel, in place of the seven swatches.
-    const pickers = nodes.filter(named('BSLookPicker'));
-    assert.equal(pickers.length, 1, `${who}: the look panel is missing`);
-    assert.equal(nodes.filter((n) => n.type === 'button' && /Accent color|Tier default/.test(String(n.props['aria-label'] || ''))).length, 0, `${who}: the old swatches are back`);
-    // Fields: rounded, 44px and up, 16px words (iOS zooms a smaller field).
-    const fields = nodes.filter((n) => (n.type === 'input' || n.type === 'textarea' || n.type === 'select') && n.props.type !== 'file');
-    assert.ok(fields.length > 8, `${who}: fields went missing`);
-    for (const f of fields) {
-      assert.ok(f.props.style.borderRadius >= 12, `${who}: a square field`);
-      assert.ok(f.props.style.minHeight >= 44, `${who}: a field under 44 px`);
-      assert.ok(f.props.style.fontSize >= 16, `${who}: a field under 16px zooms on iOS`);
-    }
+    // No field on the hub: every field lives on its area's page.
+    assert.equal(nodes.filter((n) => n.type === 'input' || n.type === 'textarea').length, 0, `${who}: a field on the hub`);
     const close = nodes.find((n) => n.props['data-cust-close'] != null);
     assert.equal(close.props.style.width, 44);
     assert.equal(close.props.style.height, 44);
-    // Save: one pill in the page's one colour, not a slab.
-    const save = nodes.find((n) => n.props['data-cust-save'] != null);
-    assert.equal(save.props.style.background, TEAL_SAVE, 'Save is the one coloured action');
-    assert.equal(save.props.style.borderRadius, 999, 'Save is a pill');
-    assert.ok(save.props.style.minHeight >= 44);
-    assert.match(textOf(save), /Save profile/);
-    // Chips say whether they are chosen; chosen is outlined in the ink, never a colour.
-    const chips = nodes.filter((n) => n.type === 'button' && n.props['aria-pressed'] !== undefined && n.props.style && n.props.style.minHeight === 44 && n.props.style.borderRadius === 999 && n.props.style.width == null);
-    assert.ok(chips.length >= 4, `${who}: the stat and pin chips say whether they are chosen`);
-    for (const ch of chips) {
-      if (ch.props['aria-pressed']) assert.equal(ch.props.style.border, `1.5px solid ${INK}`, `${who}: a chosen chip lost its outline`);
-      else assert.equal(ch.props.style.background, 'transparent', `${who}: an unchosen chip is filled`);
-      assert.doesNotMatch(String(ch.props.style.background), /#c9a227|#0a7a72|#34d6c5/, `${who}: a chip is coloured`);
-    }
-    // Every key is a full 44px target.
-    for (const b of nodes.filter((n) => n.type === 'button' && n.props.style && n.props.style.width != null && n.props.style.width !== '100%')) {
-      assert.ok(b.props.style.width >= 44 && (b.props.style.height == null || b.props.style.height >= 44), `${who}: a key under 44px (${b.props['aria-label']})`);
-    }
   }
 });
 
-test('the editor\'s preview reads as the profile head, and follows what is typed', () => {
-  const date = isoIn(40);
-  const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { line: 'Strong is a skill.', bio: 'Early lifts, long runs.', startLine: { title: 'My first marathon', date } }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, who: { name: 'Quinn Harper', handle: '@quinn' } }));
-  const preview = () => d.nodes().find((n) => n.props['data-cust-preview'] != null);
-  const text = () => textOf(preview());
-  assert.match(text(), /Training for My first marathon/);
-  assert.match(text(), /days out/, 'the countdown');
-  assert.match(text(), /Early lifts, long runs\./);
-  assert.doesNotMatch(text(), /Strong is a skill/, 'a member\'s preview shows a line the editor no longer asks for');
-  assert.doesNotMatch(text(), /Fill in the parts below/, 'the empty-state note shows over a filled profile');
-  const input = (k) => d.nodes().find((n) => n.props['data-cust-field'] === k);
-  input('bio').props.onChange({ target: { value: 'Long runs, early lifts.' } });
-  input('startTitle').props.onChange({ target: { value: 'The Berlin half' } });
-  withSurface(() => d.render());
-  assert.match(text(), /Long runs, early lifts\./, 'the preview did not follow the bio');
-  assert.match(text(), /Training for The Berlin half/, 'the preview did not follow the goal');
-  // A coach's preview follows their line.
-  const coach = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { line: 'Strong is a skill.' }, c: '#c0533b', INK, BG: '#fff', onClose() {}, onSave() {}, coach: true, who: { name: 'Maya Okafor' } }));
-  const coachText = () => textOf(coach.nodes().find((n) => n.props['data-cust-preview'] != null));
-  assert.match(coachText(), /“Strong is a skill\.”/);
-  coach.nodes().find((n) => n.props['data-cust-field'] === 'line').props.onChange({ target: { value: 'One more rep.' } });
-  withSurface(() => coach.render());
-  assert.match(coachText(), /“One more rep\.”/, 'the coach\'s preview did not follow the line');
-  // A date that is not one shows no countdown in the preview, and says why under the field.
-  input('startDate').props.onChange({ target: { value: '2026-13-40' } });
-  withSurface(() => d.render());
-  assert.doesNotMatch(text(), /days out/);
-  assert.match(d.text, /Enter a real date as YYYY-MM-DD\./);
-  // Empty, it says what it is for.
-  const empty = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, who: { name: 'Quinn Harper' } }));
-  assert.match(textOf(empty.nodes().find((n) => n.props['data-cust-preview'] != null)), /Fill in the parts below/);
+test('each row opens its area\'s own page: the shared Back and title, its fields in one card, its own Save', async () => {
+  for (const coach of [false, true]) {
+    const who = coach ? 'coach' : 'member';
+    for (const key of ROWS[who]) {
+      const world = editorWorld({ base: {}, confirm: true });
+      try {
+        const d = openEditor({ coach, ...world.props });
+        const name = textOf(flatten(rowNode(d, key).props.children).find((n) => n.props && n.props.style && n.props.style.fontSize === 16));
+        openRow(d, key);
+        assert.equal(areaOf(d), key, `${who}: the ${key} row opened another page`);
+        assert.equal(d.nodes().filter((n) => n.props['data-cust-row'] != null).length, 0, `${who}: the hub stays under ${key}`);
+        // A BSPage, with the Back the chrome draws (BSDetailHeader: the masthead row, then BSBackRow),
+        // whose title is the row's name; no corner in the masthead row inside the editor.
+        assert.ok(d.nodes().some((n) => n.type === globalThis.BSPage), `${who}: ${key} is not a BSPage`);
+        const header = headerOf(d);
+        assert.ok(header, `${who}: ${key} has no shared Back`);
+        assert.equal(header.props.title, name, `${who}: ${key}'s title is not its row's name`);
+        assert.equal(header.props.noCorner, true);
+        const cards = d.nodes().filter((n) => n.props['data-cust-card'] != null);
+        assert.deepEqual(cards.map((n) => n.props['data-cust-card']), [key], `${who}: ${key} is not one card`);
+        assert.equal(cards[0].props.style.background, THEME.PAPER, `${who}: ${key}'s card is tinted`);
+        // Fields: rounded, 44px and up, 16px words (iOS zooms a smaller field).
+        for (const f of d.nodes().filter((n) => (n.type === 'input' || n.type === 'textarea' || n.type === 'select') && n.props.type !== 'file')) {
+          assert.ok(f.props.style.borderRadius >= 12, `${who}: a square field on ${key}`);
+          assert.ok(f.props.style.minHeight >= 44, `${who}: a field under 44 px on ${key}`);
+          assert.ok(f.props.style.fontSize >= 16, `${who}: a field under 16px on ${key}`);
+        }
+        for (const b of d.nodes().filter((n) => n.type === 'button' && n.props.style && n.props.style.width != null && n.props.style.width !== '100%')) {
+          assert.ok(b.props.style.width >= 44 && (b.props.style.height == null || b.props.style.height >= 44), `${who}: a key under 44px on ${key}`);
+        }
+        // Its own Save (none on Your Signal, which only explains): the one coloured pill, off until
+        // something on the page changes.
+        const save = saveOf(d);
+        if (key === 'signal') assert.equal(save, undefined, 'Your Signal has nothing to save');
+        else {
+          assert.equal(save.props.style.background, TEAL_SAVE, `${who}: ${key}'s Save is not the page's one colour`);
+          assert.equal(save.props.style.borderRadius, 999);
+          assert.ok(save.props.style.minHeight >= 44);
+          assert.equal(save.props.disabled, true, `${who}: ${key}'s Save is on with nothing changed`);
+        }
+        // Back from an unchanged page goes straight to the hub, asking nothing.
+        await goBack(d);
+        assert.equal(areaOf(d), null, `${who}: Back from ${key} stayed`);
+        assert.deepEqual(world.asks, [], `${who}: Back from an unchanged ${key} asked`);
+      } finally { world.restore(); }
+    }
+  }
+  // The member's About asks no line any more (owner, 2026-11-04: "Remove the field"); a coach's keeps it,
+  // with the prompts.
+  const member = openEditor({});
+  openRow(member, 'about');
+  assert.equal(fieldOf(member, 'line'), undefined, 'the member editor has a line field');
+  assert.ok(fieldOf(member, 'startTitle') && fieldOf(member, 'bio'));
+  const coach = openEditor({ coach: true });
+  openRow(coach, 'about');
+  assert.ok(fieldOf(coach, 'line'), 'a coach lost the line');
+  assert.match(coach.text, /Add prompt/);
+});
+
+test('an area\'s Save reads the doc again and writes only that area\'s fields over it, then shows on the hub', async () => {
+  // The editor opened on a stale copy; since then a look, a line, links and an About were written elsewhere.
+  const base = { bio: 'Old', look: { paper: 'bone', accent: 'rust', focus: 'top' }, line: 'Written by Nora', links: { instagram: 'fresh' }, about: { story: 'Twelve years.' }, accent: '#e0644b' };
+  const world = editorWorld({ base });
+  try {
+    const d = openEditor({ initial: { bio: 'Old', links: { instagram: 'stale' } }, who: { name: 'Quinn Harper' }, ...world.props });
+    assert.match(summaryOf(d, 'about'), /Bio set/);
+    openRow(d, 'about');
+    typeIn(d, 'bio', 'New bio');
+    assert.equal(saveOf(d).props.disabled, false, 'Save stays off after a change');
+    await pressSave(d);
+    assert.deepEqual(world.reads, [['profile_custom', { expectedUserId: 'u-me' }]], 'the doc was not read again, bound to the account');
+    assert.equal(world.writes.length, 1);
+    const [kind, doc, opts] = world.writes[0];
+    assert.equal(kind, 'profile_custom');
+    assert.deepEqual(opts, { expectedUserId: 'u-me' }, 'the write is not bound to the account');
+    assert.equal(doc.bio, 'New bio', 'the edit was not written');
+    assert.deepEqual(doc.links, { instagram: 'fresh' }, 'another area\'s stale copy was written over the stored links');
+    assert.deepEqual(doc.look, base.look, 'a look written elsewhere was overwritten');
+    assert.equal(doc.line, 'Written by Nora', 'a member\'s line written elsewhere was overwritten');
+    assert.ok(doc.about && doc.about.story === 'Twelve years.', 'a key no area writes was dropped');
+    assert.equal(doc.accent, '#e0644b', 'the old accent hex was dropped');
+    // Back on the hub, which reads the doc as saved: the preview and the row.
+    assert.equal(areaOf(d), null, 'a save did not go back to the hub');
+    assert.match(textOf(d.nodes().find((n) => n.props['data-cust-preview'] != null)), /New bio/);
+    assert.match(summaryOf(d, 'links'), /link/, 'the hub did not take the stored links');
+    // Closing hands the profile the doc as saved.
+    assert.equal(world.saved, null, 'the editor closed on the save');
+    d.nodes().find((n) => n.props['data-cust-close'] != null).props.onClick();
+    assert.equal(world.saved, doc, 'closing did not hand on the saved doc');
+    // An area with nothing changed writes nothing.
+    openRow(d, 'highlights');
+    await pressSave(d);
+    assert.equal(world.writes.length, 1, 'an unchanged area wrote');
+  } finally { world.restore(); }
+  // A read that fails, or answers nothing, writes nothing and stays on the page.
+  for (const read of ['fail', 'null']) {
+    const w = editorWorld({ base, read });
+    try {
+      const d = openEditor({ initial: { bio: 'Old' }, ...w.props });
+      openRow(d, 'about');
+      typeIn(d, 'bio', 'New bio');
+      await pressSave(d);
+      assert.equal(w.writes.length, 0, `a ${read} read still wrote`);
+      assert.equal(areaOf(d), 'about', `a ${read} read left the page`);
+      assert.deepEqual(w.toasts, ['err'], `a ${read} read said nothing`);
+    } finally { w.restore(); }
+  }
+});
+
+test('Back with changes not saved asks once: Keep editing stays, Discard puts the saved doc back', async () => {
+  // Keep editing.
+  let world = editorWorld({ base: { bio: 'Old' }, confirm: false });
+  try {
+    const d = openEditor({ initial: { bio: 'Old' }, ...world.props });
+    openRow(d, 'about');
+    typeIn(d, 'bio', 'Draft');
+    await goBack(d);
+    assert.equal(world.asks.length, 1, 'Back did not ask once');
+    assert.equal(world.asks[0].confirmLabel, 'Discard');
+    assert.equal(world.asks[0].cancelLabel, 'Keep editing');
+    assert.match(world.asks[0].title, /Discard your changes\?/);
+    assert.equal(areaOf(d), 'about', 'Keep editing left the page');
+    assert.equal(fieldOf(d, 'bio').props.value, 'Draft', 'Keep editing lost the draft');
+  } finally { world.restore(); }
+  // Discard.
+  world = editorWorld({ base: { bio: 'Old' }, confirm: true });
+  try {
+    const d = openEditor({ initial: { bio: 'Old' }, ...world.props });
+    openRow(d, 'about');
+    typeIn(d, 'bio', 'Draft');
+    await goBack(d);
+    assert.equal(world.asks.length, 1);
+    assert.equal(areaOf(d), null, 'Discard stayed on the page');
+    openRow(d, 'about');
+    assert.equal(fieldOf(d, 'bio').props.value, 'Old', 'Discard kept the draft');
+    assert.equal(world.writes.length, 0, 'Discard wrote');
+  } finally { world.restore(); }
+  // With no prompt to ask through, a changed page never drops its changes silently.
+  world = editorWorld({ base: { bio: 'Old' }, confirm: 'none' });
+  try {
+    const d = openEditor({ initial: { bio: 'Old' }, ...world.props });
+    openRow(d, 'about');
+    typeIn(d, 'bio', 'Draft');
+    await goBack(d);
+    assert.equal(areaOf(d), 'about', 'a changed page was left with no way to ask');
+  } finally { world.restore(); }
+});
+
+test('the hub\'s rows say what is set in each area, from the doc as saved', () => {
+  // The English catalog's words, formatted (the harness has no catalog of its own).
+  const hadI18n = globalThis.window.ShapeI18n;
+  globalThis.window.ShapeI18n = { t: (key, opts) => (opts && opts.defaultValue != null ? new IntlMessageFormat(opts.defaultValue, 'en').format(opts) : key) };
+  try {
+  const full = {
+    bio: 'Two years in.', startLine: { title: 'First half-marathon', date: isoIn(74) },
+    wall: [{ url: '/demo/wall-01.webp' }, { url: '/demo/wall-02.webp' }], cover: { image: '/demo/box-cover.webp' }, filmMember: { url: '/x.mp4' },
+    shelf: [{ title: 'Deadlift 140kg', when: 'March' }], pinned: { kind: 'pr', title: 'Pulled 2× bodyweight' }, heroStats: ['score', 'streak'],
+    look: { paper: 'bone', accent: 'rust' }, song: { url: 'https://open.spotify.com/track/abc', label: 'Lift anthem' }, links: { instagram: 'quinn', website: 'quinn.run' },
+  };
+  const d = openEditor({ initial: full });
+  assert.equal(summaryOf(d, 'about'), 'Bio set · Countdown set');
+  assert.equal(summaryOf(d, 'photos'), '2 photos · Cover set · Intro film set');
+  assert.equal(summaryOf(d, 'highlights'), '1 on the shelf · Highlight pinned · 2 headline stats');
+  assert.equal(summaryOf(d, 'colors'), 'Bone · Rust');
+  assert.equal(summaryOf(d, 'song'), 'Lift anthem');
+  assert.equal(summaryOf(d, 'links'), '2 links');
+  // Nothing set reads so, on every area (a coach's Signal says what it explains).
+  for (const coach of [false, true]) {
+    const empty = openEditor({ coach });
+    for (const key of ROWS[coach ? 'coach' : 'member']) {
+      if (key === 'signal') assert.equal(summaryOf(empty, key), 'what the rings mean');
+      else assert.equal(summaryOf(empty, key), 'Not set yet', `${key} with nothing set`);
+    }
+  }
+  // A coach's own areas: the line and prompts, the business card and pinned reviews.
+  const coach = openEditor({ coach: true, initial: { bio: 'x', line: 'Strong is a skill.', prompts: [{ q: 'why', a: 'yes' }], bizCard: { name: 'Iron Path' }, pinnedReviews: ['r1'] } });
+  assert.equal(summaryOf(coach, 'about'), 'Bio set · Line set · 1 prompt');
+  assert.equal(summaryOf(coach, 'practice'), 'Business card set · 1 review pinned');
+  } finally { globalThis.window.ShapeI18n = hadI18n; }
+});
+
+test('Colors: the look panel starts from the app\'s paper and accent, and that start is never written', async () => {
+  for (const coach of [false, true]) {
+    const who = coach ? 'coach' : 'member';
+    const world = editorWorld({ base: { bio: 'Saved', accent: '#e0644b' } });
+    try {
+      const d = openEditor({ initial: { bio: 'Saved' }, coach, ...world.props });
+      assert.equal(summaryOf(d, 'colors'), 'Not set yet', `${who}: an unpicked look reads as set`);
+      openRow(d, 'colors');
+      const picker = d.nodes().find(named('BSLookPicker'));
+      // No look saved and no app paper in the theme: the panel still gets a whole look (dark · teal).
+      assert.deepEqual(picker.props.look, { paper: 'dark', accent: 'teal' }, `${who}: the panel's start`);
+      // ⚠ The panel throws on a look with no paper or accent; drawn with the start, it does not.
+      assert.doesNotThrow(() => picker.type(picker.props), `${who}: the look panel throws on its start`);
+      // Untouched, there is nothing to save.
+      assert.equal(saveOf(d).props.disabled, true, `${who}: Save is on for an untouched look`);
+      await pressSave(d);
+      assert.equal(world.writes.length, 0, `${who}: the start was written to a profile that never picked a look`);
+      // A pick (a tap) is written: the paper and accent, over the stored doc; the old accent hex stays.
+      picker.props.setLook({ paper: 'forest', accent: 'teal' });
+      withSurface(() => d.render());
+      assert.equal(d.nodes().find(named('BSLookPicker')).props.look.paper, 'forest', `${who}: the panel did not show the pick`);
+      await pressSave(d);
+      assert.equal(world.writes.length, 1, `${who}: the pick was not saved`);
+      assert.deepEqual(world.writes[0][1].look, { paper: 'forest', accent: 'teal' });
+      assert.equal(world.writes[0][1].accent, '#e0644b', `${who}: the old accent hex was dropped`);
+      assert.equal(summaryOf(d, 'colors'), 'Forest · Teal', `${who}: the hub did not take the pick`);
+      // Picking the saved look again is no change (the pick is compared with the saved look, #2611).
+      openRow(d, 'colors');
+      d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'forest', accent: 'teal' });
+      withSurface(() => d.render());
+      assert.equal(saveOf(d).props.disabled, true, `${who}: the saved look picked again reads as a change`);
+    } finally { world.restore(); }
+  }
+  // As the website editor counts it (#2611), a tap is a pick: tapping the start on a profile that never
+  // saved a look writes it, because the member chose it.
+  const tapped = editorWorld({ base: {} });
+  try {
+    const d = openEditor({ ...tapped.props });
+    openRow(d, 'colors');
+    d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'dark', accent: 'teal' });
+    withSurface(() => d.render());
+    await pressSave(d);
+    assert.deepEqual(tapped.writes.map((w) => w[1].look), [{ paper: 'dark', accent: 'teal' }], 'a tap on the start was not saved as a pick');
+  } finally { tapped.restore(); }
+  // A pick goes over the stored look and keeps what else it holds (a coach's focus).
+  const focused = editorWorld({ base: { look: { paper: 'bone', accent: 'rust', focus: 'top' } } });
+  try {
+    const d = openEditor({ initial: { look: { paper: 'bone', accent: 'rust', focus: 'top' } }, ...focused.props });
+    openRow(d, 'colors');
+    d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'forest', accent: 'green', focus: 'top' });
+    withSurface(() => d.render());
+    await pressSave(d);
+    assert.deepEqual(focused.writes[0][1].look, { paper: 'forest', accent: 'green', focus: 'top' });
+  } finally { focused.restore(); }
+  // The app's own paper and accent are the start when the theme has them; a saved look wins over them.
+  const lookTheme = (over) => new Proxy(over, { get: (t, k) => (k in t ? t[k] : THEME[k]), has: () => true });
+  const had = globalThis.useBS;
+  globalThis.useBS = () => lookTheme({ paperMode: 'bone', accentKey: 'rust' });
+  try {
+    const d = openEditor({});
+    openRow(d, 'colors');
+    assert.deepEqual(d.nodes().find(named('BSLookPicker')).props.look, { paper: 'bone', accent: 'rust' });
+    const saved = openEditor({ initial: { look: { paper: 'plum', accent: 'violet' } } });
+    openRow(saved, 'colors');
+    assert.deepEqual(saved.nodes().find(named('BSLookPicker')).props.look, { paper: 'plum', accent: 'violet' });
+  } finally { globalThis.useBS = had; }
 });
 
 test('the editor\'s motion is gentle, and none of it runs under reduced motion', () => {
-  const cardsOf = (d) => d.nodes().filter((n) => n.props['data-cust-card'] != null || n.props['data-cust-preview'] != null);
-  const moving = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
-  assert.ok(cardsOf(moving).every((n) => n.props.className === 'bs-cust-in'), 'the cards rise in');
+  const cardsOf = (d) => d.nodes().filter((n) => n.props['data-cust-rows'] != null || n.props['data-cust-preview'] != null || n.props['data-cust-card'] != null);
+  const moving = openEditor({});
+  assert.ok(cardsOf(moving).length === 2 && cardsOf(moving).every((n) => n.props.className === 'bs-cust-in'), 'the hub\'s cards rise in');
+  openRow(moving, 'about');
+  assert.ok(cardsOf(moving).every((n) => n.props.className === 'bs-cust-in'), 'the area\'s card rises in');
   const had = globalThis.matchMedia;
   globalThis.matchMedia = (q) => ({ matches: /prefers-reduced-motion: reduce/.test(q) });
   try {
-    const still = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
-    assert.ok(cardsOf(still).every((n) => !n.props.className && !(n.props.style && n.props.style.animationDelay)), 'a card still animates under reduced motion');
+    const still = openEditor({});
+    assert.ok(cardsOf(still).every((n) => !n.props.className && !(n.props.style && n.props.style.animationDelay)), 'a hub card still animates under reduced motion');
+    openRow(still, 'photos');
+    assert.ok(cardsOf(still).every((n) => !n.props.className && !(n.props.style && n.props.style.animationDelay)), 'an area card still animates under reduced motion');
   } finally { if (had === undefined) delete globalThis.matchMedia; else globalThis.matchMedia = had; }
   // The stylesheet undoes every motion rule under the media query too (a reader who turns it on later).
   const css = stripComments(readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', 'BSProfileCustomizer.jsx'), 'utf8'));
   const reduced = css.slice(css.indexOf("'@media (prefers-reduced-motion: reduce) {'"));
   assert.ok(reduced.length > 40, 'no reduced-motion block');
-  for (const rule of ['.bs-cust-in, .bs-cust-photo { animation: none !important; }', '.bs-cust-press, .bs-cust-field { transition: none !important; }', '.bs-cust-press:active:not(:disabled) { transform: none !important; }']) {
+  for (const rule of ['.bs-cust-in, .bs-cust-photo { animation: none !important; }', '.bs-cust-press, .bs-cust-field { transition: none !important; }', '.bs-cust-press:active:not(:disabled) { transform: none !important; }', '.bs-cust-row { transition: none !important; }']) {
     assert.ok(reduced.includes(rule), `reduced motion leaves ${rule.split(' {')[0]} moving`);
-  }
-});
-
-// The profile's colours, in the shared look panel (BSLookPicker, Make it yours' Colors page), and a Save
-// that reads the doc again before it writes (as Make it yours saves), so a `look` or a line written
-// elsewhere since the editor opened is not overwritten by the copy it opened with.
-const lookTheme = (over) => new Proxy(over, { get: (t, k) => (k in t ? t[k] : THEME[k]), has: () => true });
-function editorWorld({ base, read = 'ok' }) {
-  const world = { reads: [], writes: [], toasts: [], saved: null };
-  const had = { auth: globalThis.window.ShapeAuth, db: globalThis.window.shapeDb, toast: globalThis.window.__bsToast };
-  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u-me' } }) };
-  globalThis.window.shapeDb = {
-    getUserGoals: async (k, opts) => { world.reads.push([k, opts]); if (read === 'fail') throw new Error('offline'); return read === 'null' ? null : JSON.parse(JSON.stringify(base)); },
-    saveUserGoals: async (k, doc, opts) => { world.writes.push([k, doc, opts]); return { ok: true }; },
-  };
-  globalThis.window.__bsToast = (msg, kind) => world.toasts.push(kind);
-  world.restore = () => { globalThis.window.ShapeAuth = had.auth; globalThis.window.shapeDb = had.db; globalThis.window.__bsToast = had.toast; };
-  return world;
-}
-const pressSave = async (d) => withSurface(() => d.nodes().find((n) => n.props['data-cust-save'] != null).props.onClick());
-
-test('the look panel: seeded from the app\'s paper and accent when none is saved, and the seed is never written', async () => {
-  for (const coach of [false, true]) {
-    const who = coach ? 'coach' : 'member';
-    const world = editorWorld({ base: { bio: 'Saved', accent: '#e0644b' } });
-    try {
-      // No look saved and no app paper in the theme: the panel still gets a whole look (dark · teal).
-      const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { bio: 'Saved' }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave(doc) { world.saved = doc; }, coach }));
-      const picker = d.nodes().find(named('BSLookPicker'));
-      assert.deepEqual(picker.props.look, { paper: 'dark', accent: 'teal' }, `${who}: the panel's seed`);
-      // ⚠ The panel throws on a look with no paper or accent; drawn with the seed, it does not.
-      assert.doesNotThrow(() => picker.type(picker.props), `${who}: the look panel throws on the seed`);
-      // Saved untouched: no look is written, the old accent hex stays as the fallback.
-      await pressSave(d);
-      assert.equal(world.writes.length, 1, `${who}: the save did not write`);
-      const [, doc, opts] = world.writes[0];
-      assert.equal('look' in doc, false, `${who}: the seed was written to a profile that never picked a look`);
-      assert.equal(doc.accent, '#e0644b', `${who}: the old accent hex was dropped`);
-      assert.deepEqual(opts, { expectedUserId: 'u-me' }, `${who}: the write is not bound to the account`);
-      // A pick is written: the paper and accent, nothing else of the seed.
-      picker.props.setLook({ ...picker.props.look, paper: 'forest' });
-      withSurface(() => d.render());
-      assert.equal(d.nodes().find(named('BSLookPicker')).props.look.paper, 'forest');
-      await pressSave(d);
-      assert.deepEqual(world.writes[1][1].look, { paper: 'forest', accent: 'teal' }, `${who}: the pick was not saved`);
-      // Picking the seed back is no change, and writes no look.
-      d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'dark', accent: 'teal' });
-      withSurface(() => d.render());
-      await pressSave(d);
-      assert.equal('look' in world.writes[2][1], false, `${who}: a look put back as it was is written`);
-    } finally { world.restore(); }
-  }
-  // The app's own paper and accent seed it when the theme has them.
-  const had = globalThis.useBS;
-  globalThis.useBS = () => lookTheme({ paperMode: 'bone', accentKey: 'rust' });
-  try {
-    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
-    assert.deepEqual(d.nodes().find(named('BSLookPicker')).props.look, { paper: 'bone', accent: 'rust' });
-    // A saved look wins over the app's.
-    const saved = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { look: { paper: 'plum', accent: 'violet' } }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
-    assert.deepEqual(saved.nodes().find(named('BSLookPicker')).props.look, { paper: 'plum', accent: 'violet' });
-  } finally { globalThis.useBS = had; }
-});
-
-test('Save reads the doc again and writes only what the editor shows over it', async () => {
-  // The editor opened on a stale copy; since then a look, a line and an About were written elsewhere.
-  const base = { bio: 'Old', look: { paper: 'bone', accent: 'rust', focus: 'top' }, line: 'Written by Nora', about: { story: 'Twelve years.' }, accent: '#e0644b' };
-  const world = editorWorld({ base });
-  try {
-    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { bio: 'Old' }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave(doc) { world.saved = doc; } }));
-    d.nodes().find((n) => n.props['data-cust-field'] === 'bio').props.onChange({ target: { value: 'New bio' } });
-    withSurface(() => d.render());
-    await pressSave(d);
-    assert.deepEqual(world.reads, [['profile_custom', { expectedUserId: 'u-me' }]], 'the doc was not read again, bound to the account');
-    const [kind, doc] = world.writes[0];
-    assert.equal(kind, 'profile_custom');
-    assert.equal(doc.bio, 'New bio', 'the edit was not written');
-    assert.deepEqual(doc.look, base.look, 'a look written elsewhere was overwritten');
-    assert.equal(doc.line, 'Written by Nora', 'a member\'s line written elsewhere was overwritten');
-    assert.ok(doc.about && doc.about.story === 'Twelve years.', 'a key the editor does not show was dropped');
-    assert.equal(world.saved, doc, 'the profile gets the doc that was written');
-    // A pick goes over the stored look and keeps what else it holds (the focus).
-    d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'forest', accent: 'green' });
-    withSurface(() => d.render());
-    await pressSave(d);
-    assert.deepEqual(world.writes[1][1].look, { paper: 'forest', accent: 'green', focus: 'top' });
-  } finally { world.restore(); }
-  // A read that fails, or answers nothing, stops the save: the stale copy is never written.
-  for (const read of ['fail', 'null']) {
-    const w = editorWorld({ base, read });
-    try {
-      const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { bio: 'Old' }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave(doc) { w.saved = doc; } }));
-      await pressSave(d);
-      assert.equal(w.writes.length, 0, `a ${read} read still wrote`);
-      assert.equal(w.saved, null, `a ${read} read still closed the editor`);
-      assert.deepEqual(w.toasts, ['err'], `a ${read} read said nothing`);
-    } finally { w.restore(); }
   }
 });
 
@@ -806,12 +928,13 @@ test('the member profile shows no prompts, and the member\'s editor no longer as
   const body = src.slice(start, src.indexOf('\nfunction ', start + 30));
   assert.match(body, /<BSProfileExtras [^>]*showPrompts=\{false\}/, 'the member profile asks for the prompts again');
   for (const coach of [false, true]) {
-    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { prompts: [{ q: 'why', a: 'x' }] }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {}, coach }));
+    const d = openEditor({ initial: { prompts: [{ q: 'why', a: 'x' }] }, coach });
+    openRow(d, 'about');
     const asks = /Add prompt/.test(d.text);
     assert.equal(asks, coach, coach ? 'a coach lost their prompts' : 'the member\'s editor still asks for prompts');
   }
   // What a member already wrote rides through a save (the editor's own module since 2026-11-04).
   const editorSrc = readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', 'BSProfileCustomizer.jsx'), 'utf8');
-  assert.match(editorSrc, /const \[prompts, setPrompts\] = useState\(Array\.isArray\(init\.prompts\) && init\.prompts\.length \? init\.prompts\.slice\(0, 4\)/);
+  assert.match(editorSrc, /prompts: Array\.isArray\(init\.prompts\) && init\.prompts\.length \? init\.prompts\.slice\(0, 4\)/);
   assert.match(editorSrc, /prompts: prompts\.filter\(\(p\) => p && p\.q && String\(p\.a\)\.trim\(\)\)/);
 });
