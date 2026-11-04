@@ -147,7 +147,9 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
         onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } },
       } : null)}
       style={{ position: 'relative', margin: '8px 0 0', cursor: typeof onOpen === 'function' && st.kind !== 'loading' ? 'pointer' : 'default' }}>
-      <svg role="img" aria-label={aria} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
+      {/* Named by what it shows; still reading, it shows nothing yet and is hidden from a screen reader,
+          never an unnamed graphic in browse mode (Codex P2 on #2583). */}
+      <svg {...(aria ? { role: 'img', 'aria-label': aria } : { 'aria-hidden': true, focusable: 'false' })} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
         <polygon points={bsClimbRidge()} fill={`rgba(${t.inkRGB || '245,240,230'},0.07)`} />
         <polyline points={bsClimbPath(walked ? pct / 100 : 0, 1)} fill="none" stroke={faint} strokeWidth="1.4" strokeDasharray="3 4" strokeLinecap="round" />
         {walked && pct > 0 ? <polyline data-climb-walked={pct} points={bsClimbPath(0, pct / 100)} fill="none" stroke={teal} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /> : null}

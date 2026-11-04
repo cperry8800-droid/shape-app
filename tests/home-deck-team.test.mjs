@@ -226,6 +226,17 @@ test('the climb says only what it can: reached, a start with no target, a target
   assert.equal(loading.text, '');
   assert.equal(climbLinks(loading).length, 0);
   assert.equal(milestones(loading).length, 0);
+  // Its ridge is hidden from a screen reader, never an unnamed graphic (Codex P2 on #2583); every
+  // other state's graphic is named by what it shows.
+  const svgOf = (d) => d.nodes().find((n) => n.type === 'svg');
+  assert.equal(svgOf(loading).props['aria-hidden'], true);
+  assert.equal(svgOf(loading).props.role, undefined);
+  assert.equal(svgOf(loading).props['aria-label'], undefined);
+  for (const d of [reached, none]) {
+    assert.equal(svgOf(d).props.role, 'img');
+    assert.ok(String(svgOf(d).props['aria-label'] || '').length > 0, 'a named state lost its name');
+    assert.equal(svgOf(d).props['aria-hidden'], undefined);
+  }
 }));
 
 test('the deck hands its own dark theme to what it holds: the radio first, then the climb and the week', () => {
