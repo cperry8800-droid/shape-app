@@ -284,6 +284,18 @@ const EATFUEL = await loadRealModule(join(ROOT, 'mobile-app', 'src', 'broadsheet
   registry: new Map([['react', { ...SHIM, useContext: (c) => c._currentValue }], ['react-dom', { createPortal: (n) => n }]]),
 });
 
+// Owner, 2026-11-04: "the change in weekly date should adjust activities". Eat's figures follow the day picked
+// in its strip; the head said "Fuel left today" over another day's figures.
+test('Eat\'s fuel head names the picked day when it is not today', () => {
+  const macros = [{ k: 'p', l: 'PROTEIN', v: 118, g: 165, c: '#e06547' }];
+  const head = (props) => drive(EATFUEL.BSEatFuel, { calLeft: 532, calTarget: 2100, calNow: 1568, calPct: 75, macros, onOpen() {}, ...props })
+    .nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSFocusHead');
+  assert.equal(head({ label: 'Fuel · Fri 6' }).props.label, 'Fuel · Fri 6');
+  assert.equal(head({}).props.label, 'Fuel left today', 'today keeps its words');
+  const CLIENT = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(CLIENT, /label=\{_eatIsToday \? null : tr\('nutrition:eat\.fuelOn', \{ defaultValue: 'Fuel · \{day\}', day: \(PROGRAM\[day\] && PROGRAM\[day\]\.d\) \|\| bsWeekdayName\(day, 'short'\) \}\)\} \/>/, 'Eat hands the picked day');
+});
+
 test('Fuel left today puts the three macros side by side, each a door with what is left', () => {
   const opened = [];
   const macros = [
@@ -374,7 +386,7 @@ test('Eat: signed in, Fuel left is unread until the meals read answers for meals
   assert.equal(preview.nodes().find(fn('BSEatFuel')).props.unread, false, 'the signed-out preview reads its sample');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const bsEatFuelUnread = bsEatSignedIn && !eatPlanRead && !liveMealDays;/);
-  assert.match(client, /macros=\{bsEatMacros\} onOpen=\{\(k\) => setMacroPage\(k\)\} unread=\{bsEatFuelUnread\} calTargetKnown=\{bsEatCoachSet\('calories'\)\} \/>/);
+  assert.match(client, /macros=\{bsEatMacros\} onOpen=\{\(k\) => setMacroPage\(k\)\} unread=\{bsEatFuelUnread\} calTargetKnown=\{bsEatCoachSet\('calories'\)\}\s/);
   assert.match(client, /tag=\{bsEatFuelUnread && !bsEatCoachSet\('calories'\) \? planGoalLabel : `\$\{planGoalLabel\} · \$\{bsEatCalTgt\.toLocaleString\(\)\}`\}/);
   // Each macro says whether its target is the coach's, so a coach's 0 g reads as 0 (Codex P2 on #2453).
   assert.match(client, /const bsEatCoachSet = \(key\) => !!\(bsEatCoachN && bsEatCoachN\[key\] != null\);/);

@@ -14485,7 +14485,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
           targets (Adjust plan → Apply) win; each macro opens its own page. */}
       <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')} />
+        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')}
+        // Another day picked in the strip: its own head, not "Fuel left today" over that day's figures.
+        label={_eatIsToday ? null : tr('nutrition:eat.fuelOn', { defaultValue: 'Fuel · {day}', day: (PROGRAM[day] && PROGRAM[day].d) || bsWeekdayName(day, 'short') })} />
 
       {/* The next meal — on its own, today only. Log it opens the meal, where it
           is logged; Swap opens the swap sheet on this meal. */}

@@ -379,6 +379,7 @@
   "eat.allSetTag": "Semua siap",
   "eat.eatenPct": "{eaten} dimakan · {pct}%",
   "eat.fuelLeft": "Sisa energi hari ini",
+  "eat.fuelOn": "Energi · {day}",
   "eat.gramsLeft": "sisa {g} g",
   "eat.macro.gramsOver": "lebih {g} g",
   "eat.macro.ofTarget": "{v} dari {g} g · {pct}%",

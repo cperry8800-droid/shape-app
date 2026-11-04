@@ -379,6 +379,7 @@
   "eat.allSetTag": "Everything set",
   "eat.eatenPct": "{eaten} don chop · {pct}%",
   "eat.fuelLeft": "Fuel wey remain today",
+  "eat.fuelOn": "Fuel · {day}",
   "eat.gramsLeft": "{g}g remain",
   "eat.macro.gramsOver": "{g}g don pass",
   "eat.macro.ofTarget": "{v} out of {g} g · {pct}%",

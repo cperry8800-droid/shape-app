@@ -379,6 +379,7 @@
   "eat.allSetTag": "Всё есть",
   "eat.eatenPct": "съедено {eaten} · {pct}%",
   "eat.fuelLeft": "Осталось на сегодня",
+  "eat.fuelOn": "Осталось · {day}",
   "eat.gramsLeft": "осталось {g} г",
   "eat.macro.gramsOver": "на {g} г больше",
   "eat.macro.ofTarget": "{v} из {g} г · {pct}%",
