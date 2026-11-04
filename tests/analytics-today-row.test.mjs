@@ -102,6 +102,13 @@ test('without ?date= the day is the server\'s UTC day, and a malformed one is ig
   assert.equal((await ticker([row(utc, { dietary_kcal: 900 })])).cal, 900);
   assert.equal((await ticker([row(shift(utc, -1), { dietary_kcal: 900 })])).cal, null);
   assert.equal((await ticker([row(utc, { dietary_kcal: 900 })], 'yesterday')).cal, 900);
+  // Shaped right but no real day: the UTC day, and a 200, never a RangeError (Codex P2 on #2583).
+  for (const bad of ['2026-99-99', '2026-02-30', '2026-13-01', '0000-00-00']) {
+    const res = await ROUTE.GET(new Request(`https://shape.test/api/client/analytics?date=${bad}&tz=America%2FNew_York`));
+    assert.equal(res.status, 200, bad);
+    assert.equal((await res.json()).pulse.workout.length, 7, bad);
+    assert.equal((await ticker([row(utc, { dietary_kcal: 900 })], bad)).cal, 900, bad);
+  }
 });
 
 test("an activity is today's by the member's own clock, as the calories are (Codex P2 on #2583)", async () => {

@@ -52,7 +52,13 @@ export async function GET(request: Request) {
   // /api/client/progress does. `?tz=` is their zone, and a session's or activity's start is read in it,
   // so "today" and the week agree with the snapshots; without a known zone its UTC date is read.
   const params = new URL(request.url).searchParams;
-  const today = clientLocalDay(params.get('date'));
+  // Only a real calendar day: one shaped right but impossible (2026-99-99, 2026-02-30) is the UTC
+  // day too, never a RangeError in the week's arithmetic (Codex P2 on #2583).
+  const today = (() => {
+    const asked = clientLocalDay(params.get('date'));
+    const d = new Date(`${asked}T12:00:00Z`);
+    return Number.isFinite(d.getTime()) && isoDateUTC(d) === asked ? asked : isoDateUTC(new Date());
+  })();
   const zone = normalizeZone(params.get('tz'));
   const dayOf = (startedAt: unknown) => {
     const t = startedAt ? Date.parse(String(startedAt)) : NaN;
