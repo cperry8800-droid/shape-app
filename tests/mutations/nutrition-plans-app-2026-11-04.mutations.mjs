@@ -57,8 +57,6 @@ export default {
       find: '  const diets = signedIn ? ownDiets : [...ownDiets,', replace: '  const diets = signedIn ? [] : [...ownDiets,' },
     { name: 'a saved row opens a blank draft', file: PROS,
       find: "  const openCard = (card, type) => (card && card.row ? openRow(card.row) : openDraft(type));", replace: '  const openCard = (card, type) => openDraft(type);' },
-    { name: 'a saved row opens on the page\'s goal', file: PROS,
-      find: '    if (d.goal) setGoal(String(d.goal));\n', replace: '' },
     { name: 'publishing a saved row makes a copy', file: PROS,
       find: '    if (editDraft && editDraft.id) {\n      if (!window.ShapeCoachPlans?.update)', replace: '    if (false) {\n      if (!window.ShapeCoachPlans?.update)' },
     { name: 'a saved row keeps the old week when published to one menu', file: PROS,

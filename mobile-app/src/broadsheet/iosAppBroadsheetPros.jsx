@@ -8199,10 +8199,8 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
     const d = row.detail && typeof row.detail === 'object' ? row.detail : {};
     const type = kindOf(row);
     setBuildType(type);
-    if (d.goal) setGoal(String(d.goal));
-    if (d.diet) setDiet(String(d.diet));
-    if (d.cals) setCals(String(d.cals));
-    if (Number(d.mealsDay) > 0) setMealsDay(Number(d.mealsDay));
+    // The page's goal, diet, calories and meals-a-day chips are left alone: the editor shows none of
+    // them, the row publishes its own (below), and a new draft keeps the chips the coach chose.
     const blockLabel = type === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : type === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
     const blocks = (Array.isArray(d.blocks) ? d.blocks : []).map((b, i) => (b && typeof b === 'object' ? { id: b.id || 'b' + i, ...b } : { id: 'b' + i, text: String(b == null ? '' : b) }));
     // Its own line and figures ride along, so publishing it never writes the page's chips over them.
