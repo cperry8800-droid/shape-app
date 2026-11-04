@@ -172,6 +172,7 @@ const BS_CUST_ICONS = {
   link: ['M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5', 'M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5'],
   briefcase: ['M4 8h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z', 'M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2', 'M3 13h18'],
   user: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4 20a8 8 0 0 1 16 0'],
+  eye: ['M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
 };
 const custIcon = (name, size = 18) => (BS_CUST_ICONS[name]
   ? <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flex: 'none' }}>{BS_CUST_ICONS[name].map((d, i) => <path key={i} d={d} />)}</svg>
@@ -201,6 +202,9 @@ function bsCustCss() {
     '.bs-cust-in { animation: bsCustIn 340ms cubic-bezier(.2,.7,.2,1) both; }',
     '@keyframes bsCustFade { from { opacity: 0; } to { opacity: 1; } }',
     '.bs-cust-photo { animation: bsCustFade 260ms ease both; }',
+    // On a narrow phone the area's Preview pill is its eye alone (its name stays its aria-label), so the
+    // title beside it keeps its line.
+    '@media (max-width: 359px) { .bs-cust-live-word { display: none; } }',
     '@media (prefers-reduced-motion: reduce) {',
     '  .bs-cust-in, .bs-cust-photo { animation: none !important; }',
     '  .bs-cust-press, .bs-cust-field { transition: none !important; }',
@@ -255,6 +259,18 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const [area, setArea] = useState(null);
   const [savedOnce, setSavedOnce] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The live preview is open over the hub or the area it was opened from; closing it shows that again,
+  // where it was scrolled, with every draft as it was (nothing is saved or reset by previewing).
+  const [previewing, setPreviewing] = useState(false);
+  const liveOpenerRef = useRef(null);
+  const liveBackRef = useRef(null);
+  useEffect(() => {
+    // Focus moves to the preview's Back to editing, and comes back to the button that opened it.
+    if (previewing) { try { liveBackRef.current && liveBackRef.current.focus({ preventScroll: true }); } catch (e) {} return; }
+    const el = liveOpenerRef.current;
+    liveOpenerRef.current = null;
+    if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+  }, [previewing]);
   const [coverBusy, setCoverBusy] = useState(false);
   const [wallBusy, setWallBusy] = useState(false);
   const [filmBusy, setFilmBusy] = useState(false);
@@ -849,6 +865,16 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   };
   const isSet = (k) => k !== 'signal' && SUMMARY[k] !== EMPTY;
 
+  // ── The live preview's door: the real profile page (the client's, read off window at call time), as a
+  // visitor sees it, with the drafts in (owner, 2026-11-04: "add an option to view live preview") ──
+  const LiveProfile = coach ? W.BSSignalCoachProfile : W.BSTerrainProfile;
+  const openPreview = (e) => { liveOpenerRef.current = (e && e.currentTarget) || null; setPreviewing(true); };
+  // Every way out is a Back (marked, as the page's ← marks itself), so the page it closes is not kept in
+  // the scroll memory as a page left going forward.
+  const closePreview = () => { try { W.bsMarkBack && W.bsMarkBack(); } catch (e) {} setPreviewing(false); };
+  const liveOpenLabel = tr('profile:editor.live.open', { defaultValue: 'View live preview' });
+  const liveTitle = tr('profile:editor.live.title', { defaultValue: 'Preview' });
+
   // ── The hub's hero: the profile as it will look (the doc as saved), on a raised plate with a lit edge ──
   const name = (who && who.name) || (W.bsMyName ? W.bsMyName() : '') || '';
   const handle = (who && who.handle) || '';
@@ -874,7 +900,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
         {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, color: ink(0.8) }}>{initials}</span>}
       </span>
     );
-  // A small lit tag ("LIVE PREVIEW", "UNSAVED CHANGES"): one of the few words that may stay in capitals.
+  // A small lit tag ("UNSAVED CHANGES"): one of the few words that may stay in capitals.
   const tag = (text, on = true) => <span data-cust-tag="" style={{ ...led(on), display: 'inline-block', padding: '4px 9px', borderRadius: 8, fontFamily: BS_CLEAN_SANS, fontSize: 10.5, fontWeight: 750, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{text}</span>;
   const previewLabel = tr('profile:editor.preview.label', { defaultValue: 'Live preview' });
   const pe = enter(0);
@@ -889,7 +915,6 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
             <div data-cust-preview-name="" style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.12, color: INK, overflowWrap: 'anywhere' }}>{name || initials}</div>
             {handle || bizNow ? <div style={{ marginTop: 2, fontFamily: BS_CLEAN_SANS, fontSize: 13.5, color: ink(0.62), overflowWrap: 'anywhere' }}>{[handle, bizNow].filter(Boolean).join(' · ')}</div> : null}
           </div>
-          <span style={{ flex: 'none', alignSelf: 'flex-start' }}>{tag(previewLabel)}</span>
         </div>
         {!coach && startTitleNow && savedStart ? (
           <p data-cust-preview-start="" style={{ margin: '14px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14.5, lineHeight: 1.4, color: INK, overflowWrap: 'anywhere' }}>
@@ -901,6 +926,13 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
         {lineNow ? <p data-cust-preview-line="" style={{ margin: '12px 0 0', fontFamily: BS_CLEAN_HEAD, fontSize: 15.5, fontWeight: 650, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>“{lineNow}”</p> : null}
         {bioNow ? <p data-cust-preview-bio="" style={{ margin: '8px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 14, lineHeight: 1.5, color: ink(0.78), whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{bioNow}</p> : null}
         {previewEmpty ? <p style={{ ...noteS, marginTop: 12, fontSize: 14 }}>{tr('profile:editor.preview.empty', { defaultValue: 'Fill in the parts below. Your profile takes shape here as you type.' })}</p> : null}
+        {/* The door to the whole page as visitors see it: a lit pill at the card's foot. */}
+        {LiveProfile ? (
+          <button type="button" data-cust-live-open="hub" className="bs-cust-btn bs-cust-press" onClick={openPreview}
+            style={{ ...led(true), marginTop: 14, minHeight: 44, maxWidth: '100%', padding: '0 18px 0 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxSizing: 'border-box', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, lineHeight: 1.2, textAlign: 'left', ...(light ? null : { boxShadow: `${wellIn}, ${glowOf()}` }) }}>
+            {custIcon('eye', 18)}<span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{liveOpenLabel}</span>
+          </button>
+        ) : null}
       </div>
     </section>
   );
@@ -1016,9 +1048,17 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   // The header is the chrome's own (outside the clean type), so an area's title and Back read as every
   // other detail page's do. Each group sits on its own raised plate, the first with the lit edge.
   const areaParts = area && AREAS[area] ? AREAS[area].parts.filter(Boolean) : [];
+  // The live preview from an area's page: a quiet raised pill beside the title, its drafts shown unsaved.
+  // In the clean type, as the header around it is not (the app's regular weight would thin it).
+  const areaLivePill = LiveProfile ? (
+    <BSCleanType t={tClean}><button type="button" data-cust-live-open="area" className="bs-cust-btn bs-cust-press" onClick={openPreview} aria-label={liveOpenLabel}
+      style={{ ...plate(), flex: 'none', minHeight: 44, padding: '0 15px 0 12px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 7, color: INK, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 650, boxSizing: 'border-box' }}>
+      <span style={{ display: 'grid', color: ink(0.72) }}>{custIcon('eye', 17)}</span><span className="bs-cust-live-word">{liveTitle}</span>
+    </button></BSCleanType>
+  ) : null;
   const areaBody = area && AREAS[area] ? (
     <div data-cust-area={area}>
-      {DetailHeader ? <DetailHeader onBack={leaveArea} title={AREAS[area].name} noCorner /> : null}
+      {DetailHeader ? <DetailHeader onBack={leaveArea} title={AREAS[area].name} noCorner trailing={areaLivePill} /> : null}
       <BSCleanType t={tClean}>
         <div style={{ padding: `8px ${gutter}px 0`, maxWidth: 620, margin: '0 auto', boxSizing: 'border-box' }}>
           <div data-cust-card={area} className={ae.className} style={{ ...(ae.style || null), display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1058,15 +1098,84 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     </div>
   ) : null;
 
+  // ── The live preview: the profile page itself, full screen, as a visitor sees it, with the drafts in ──
+  // The drafts are every area's fields over the doc as last saved, the look only when it was picked here
+  // (the doc a Save of every area would write, never written: nothing here calls saveUserGoals). The page
+  // is the client's own (BSTerrainProfile for a member, BSSignalCoachProfile for a coach: the page this
+  // editor's coach doc is read by), opened as a visitor's (not isSelf), in the profile's look as the coach
+  // profile paints its own (a BSProvider of the paper and accent). A tap on it does nothing but its Back
+  // and its tabs (LIVE_PASS), so Follow, Message, a like or a sheet can't write from a preview. Its Back
+  // and a swipe right (the page's Back, as on every BSPage) come back here, as Back to editing does.
+  const anyDirty = TILES.some(areaDirty);
+  let livePage = null;
+  if (previewing && LiveProfile) {
+    const uid = ownerUid || W.ShapeAuth?.getCachedState?.()?.user?.id || null;
+    let draft = { ...saved };
+    for (const k of TILES) if (k !== 'signal' && k !== 'colors') Object.assign(draft, areaFields(k, form));
+    if (pickChanged || focusChanged) draft.look = { ...(bsProfileLook(saved.look) || {}), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}) };
+    // As a Save would store it (the wall, the cover and the film bound to the owner); a signed-out preview
+    // has no owner, and the page drops what it can't bind as it renders.
+    if (uid) draft = bsNormalizeProfileCustom(draft, uid, { filmBucket: filmRoleBucket, filmKey });
+    const livePerson = { who: name || initials, init: initials, kind: (who && who.kind) || (coach ? 'TRAINER' : 'CLIENT'), userId: uid, photo: photo || null };
+    const page = <LiveProfile person={livePerson} previewCustom={draft} onBack={closePreview} />;
+    const lookNow = bsProfileLook(draft.look) || {};
+    const LookProvider = W.BSProvider;
+    const painted = LookProvider && (lookNow.paper || lookNow.accent);
+    const livePaper = painted ? paletteOf(lookNow.paper || seedPaper, lookNow.accent || seedAccent).PAPER_BG : BG;
+    const liveUnsaved = tr('profile:editor.live.unsaved', { defaultValue: 'Not saved yet' });
+    const edge = Math.max(10, gutter - 8);
+    livePage = (
+      <div data-cust-live="" role="dialog" aria-modal="true" aria-label={anyDirty ? `${liveTitle} · ${liveUnsaved}` : liveTitle} onClickCapture={liveGuard}
+        style={{ position: 'absolute', inset: 0, zIndex: 221, background: livePaper, overflow: 'hidden', '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85) }}>
+        {painted ? (
+          <LookProvider paperMode={lookNow.paper || seedPaper} accentKey={lookNow.accent || seedAccent} densityKey={tTheme.densityKey} borderKey={tTheme.borderKey}
+            weightKey={tTheme.weightKey} textScaleKey={tTheme.textScaleKey} textureKey={tTheme.textureKey} textureColor={tTheme.textureColor}>
+            {page}
+          </LookProvider>
+        ) : page}
+        {/* The bar floats over the page at its foot, in the editor's own colours: what this is, and the way
+            back. At the foot, the page's top (its masthead, Back, cover and name) shows as a visitor sees it;
+            over the masthead, the row's corner buttons showed past the bar's ends. The page keeps room under
+            its end for a tab bar, which the bar takes. */}
+        <div data-cust-live-bar="" style={{ position: 'absolute', zIndex: 70, bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', left: edge, right: edge }}>
+          <BSCleanType t={tClean}><div className={motion ? 'bs-cust-in' : undefined} style={{ ...plate(), borderRadius: 18, minHeight: 56, padding: '6px 6px 6px 14px', display: 'flex', alignItems: 'center', gap: 10, boxSizing: 'border-box' }}>
+            <BSGlassEdge t={tTheme} />
+            <span data-cust-live-state={anyDirty ? 'unsaved' : 'saved'} style={{ flex: '1 1 0', minWidth: 0 }}>
+              <span style={{ display: 'block', fontFamily: BS_CLEAN_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: INK, overflowWrap: 'anywhere' }}>{liveTitle}</span>
+              {anyDirty ? <span style={{ display: 'block', marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, lineHeight: 1.25, color: TEAL, textShadow: light ? 'none' : `0 0 8px ${hexA(TEAL, 0.7)}`, overflowWrap: 'anywhere' }}>{liveUnsaved}</span> : null}
+            </span>
+            <button ref={liveBackRef} type="button" data-cust-live-back="" className="bs-cust-btn bs-cust-primary" onClick={closePreview}
+              style={{ flex: '0 1 auto', maxWidth: '62%', minHeight: 44, padding: '6px 14px', borderRadius: 999, border: 0, background: TEAL, color: onTeal, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 700, lineHeight: 1.15, textAlign: 'center', overflowWrap: 'anywhere', boxShadow: primaryGlow(TEAL) }}>
+              {tr('profile:editor.live.back', { defaultValue: 'Back to editing' })}
+            </button>
+          </div></BSCleanType>
+        </div>
+      </div>
+    );
+  }
+
   return createPortal(
-    // Full-page takeover — the customizer owns the screen. The hub scrolls here; an area's page is a
-    // BSPage, which scrolls itself.
-    <div data-cust-root="" className={areaPage ? undefined : 'bs-scroll'} role="dialog" aria-modal="true"
-      {...(areaPage ? { 'aria-label': AREAS[area].name } : { 'aria-labelledby': 'bs-cust-title' })}
-      style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: areaPage ? 'hidden' : 'auto', overflowX: 'hidden', '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85), '--cust-well': wellIn, '--cust-ph': ink(0.42) }}>
-      {areaPage || hub}
-      {discardSheet}
-    </div>,
+    <>
+      {/* Full-page takeover — the customizer owns the screen. The hub scrolls here; an area's page is a
+          BSPage, which scrolls itself. Under the live preview it stays as it was, hidden and out of reach. */}
+      <div data-cust-root="" className={areaPage ? undefined : 'bs-scroll'} role="dialog" aria-modal="true"
+        {...(areaPage ? { 'aria-label': AREAS[area].name } : { 'aria-labelledby': 'bs-cust-title' })}
+        aria-hidden={livePage ? true : undefined} inert={livePage ? true : undefined}
+        style={{ position: 'absolute', inset: 0, zIndex: 220, background: BG, color: INK, overflowY: areaPage ? 'hidden' : 'auto', overflowX: 'hidden', visibility: livePage ? 'hidden' : undefined, '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85), '--cust-well': wellIn, '--cust-ph': ink(0.42) }}>
+        {areaPage || hub}
+        {discardSheet}
+      </div>
+      {livePage}
+    </>,
     (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
   );
+}
+
+// What a tap may reach on the live preview: its own bar, the page's Back (the row's and the pinned bar's)
+// and its tabs. Anything else (Follow, Message, a like, a sheet, a link) is stopped before it lands.
+const LIVE_PASS = '[data-cust-live-bar], [data-bs-back], [data-bs-pin-back], [data-terrain-tabs]';
+function liveGuard(e) {
+  const el = e && e.target;
+  if (el && typeof el.closest === 'function' && el.closest(LIVE_PASS)) return;
+  if (e) { e.preventDefault(); e.stopPropagation(); }
 }

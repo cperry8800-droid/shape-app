@@ -16498,7 +16498,7 @@ function BSTerrainTabs({ tabs, active, onPick, heat, INK, BG, pad = 20, top = 0,
     );
   }
   return (
-    <div style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderTop: `3px solid ${INK}`, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
+    <div data-terrain-tabs="mag" style={{ position: 'sticky', top, zIndex: 4, margin: `0 ${-pad}px 4px`, padding: `0 ${pad}px`, background: BG, borderTop: `3px solid ${INK}`, borderBottom: `1px solid ${bsTHexA(INK, 0.12)}` }}>
       <div className="bs-hide-scroll" style={{ display: 'flex', justifyContent: 'space-between', gap: five ? 10 : 14, overflowX: 'auto' }}>
         {tabs.map((tb) => { const on = active === tb.key; return (
           <button key={tb.key} aria-pressed={on} onClick={() => onPick(tb.key)} style={{ flex: 'none', minHeight: 44, display: 'flex', alignItems: 'stretch', background: 'transparent', border: 0, cursor: 'pointer', padding: 0 }}>
@@ -16586,7 +16586,10 @@ function bsProfileDistLabel(t, km) {
   return m.unit === 'mi' ? `${m.value} mi` : `${m.value}K`;
 }
 
-function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null }) {
+// `previewCustom` is Customize's live preview (BSProfileCustomizer.jsx): the editor's drafts as a profile_custom
+// doc, read in place of the stored one, so the page shows them before they are saved. The editor renders the
+// page as a visitor does (not isSelf) and lets no tap through but Back and the tabs, so a preview writes nothing.
+function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null, previewCustom = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
@@ -16650,8 +16653,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   // Signed-out preview persona (no real doc loaded) → show the demo
   // customizations so the profile reads as a finished page. A signed-in member
   // always sees their REAL doc (empty until they fill it in) — never the demo.
-  const demoFill = !signedIn && !person.userId && !custom;
-  const customEff = React.useMemo(() => custom || (demoFill ? bsDemoMemberCustom() : null), [custom, demoFill]);
+  const demoFill = !previewCustom && !signedIn && !person.userId && !custom;
+  const customEff = React.useMemo(() => previewCustom || custom || (demoFill ? bsDemoMemberCustom() : null), [previewCustom, custom, demoFill]);
   // ── The member's own colours (owner, 2026-11-04: members get the colours page coaches got, in the app
   // and on the website). Once they pick a paper the whole page is in it, their accent with it, and what the
   // page holds reads it too (the provider round the page, at its return). Your own page reads your own doc,
@@ -18133,7 +18136,8 @@ function BSCoachCoachingBlock({ cm, isSelf, isNutri, first, ownZero, salePlans, 
   </>);
 }
 
-function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {} }) {
+// `previewCustom`: Customize's live preview of a coach's drafts, as on BSTerrainProfile above.
+function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdit = () => {}, meMode = false, onOpenSettings = () => {}, onOpenScore = () => {}, previewCustom = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
   const hasMessage = typeof onMessage === 'function';
@@ -18191,8 +18195,8 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // Signed-out preview → demo customizations (line/business card/cover/prompts)
   // so the coach's profile-wave items read as filled. A signed-in coach always
   // sees their REAL doc (empty until they fill it in).
-  const demoFill = !signedIn && !person.userId && !custom;
-  const customEff = React.useMemo(() => custom || (demoFill ? bsDemoCoachCustom(isNutri) : null), [custom, demoFill, isNutri]);
+  const demoFill = !previewCustom && !signedIn && !person.userId && !custom;
+  const customEff = React.useMemo(() => previewCustom || custom || (demoFill ? bsDemoCoachCustom(isNutri) : null), [previewCustom, custom, demoFill, isNutri]);
   const points = live && Number.isFinite(live.points) ? live.points : null;
   const baseTier = points != null ? bsTierForPoints(points) : (person.tier || bsPostTier(person));
   const tierName = bsCoachTier(baseTier);
@@ -18260,7 +18264,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
   // P5 wins wall — resolve pinned ids DIRECTLY by id (not from the 200-row slug
   // list), so a pinned review never vanishes once a coach passes 200 reviews; the
   // results are still filtered to ownerId === the profile owner.
-  const pinnedKey = bsProfilePinnedReviews(custom && custom.pinnedReviews).join(',');
+  const pinnedKey = bsProfilePinnedReviews((previewCustom || custom) && (previewCustom || custom).pinnedReviews).join(',');
   const [pinnedResolved, setPinnedResolved] = useStateBSC([]);
   React.useEffect(() => {
     setPinnedResolved([]); // clear the previous profile's / pins' data on any change
@@ -18696,7 +18700,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         )}
       </div>
 
-      {showCustomizer && <BSProfileCustomizer key={(person && person.userId) || 'self'} initial={custom} c={c} INK={INK} BG={BG} coach ownerUid={person.userId} who={{ name, handle, photo: (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar)) }} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
+      {showCustomizer && <BSProfileCustomizer key={(person && person.userId) || 'self'} initial={custom} c={c} INK={INK} BG={BG} coach ownerUid={person.userId} who={{ name, handle, kind: person.kind, photo: (isSelf && typeof window !== 'undefined' && window.ShapeIdentity?.avatarMode === 'initials') ? null : (photo || (live && live.avatar)) }} onClose={() => setShowCustomizer(false)} onSave={(doc) => { setCustom(doc); setShowCustomizer(false); }} />}
       {showLog && <BSLogActivitySheet c={c} INK={INK} BG={BG} onClose={() => setShowLog(false)} onPosted={loadCoachPosts} />}
       {editingActivity && <BSLogActivitySheet c={c} INK={INK} BG={BG} editPost={editingActivity} onClose={() => setEditingActivity(null)} onPosted={() => { setEditingActivity(null); setCoachFeedReloadNonce(n => n + 1); }} />}
       {cardSheets.renderSheets({ applyReaction: profileApplyReaction, setOpenProfile: (p) => setReviewerProfile(p), actLikes, actExpr })}
@@ -31298,6 +31302,8 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
+  // The two profile pages, for Customize's live preview (BSProfileCustomizer.jsx reads them at call time).
+  BSTerrainProfile, BSSignalCoachProfile,
   // The coach storefront, shared with the trainer profile (BSTrainerProfile.jsx).
   useBSCoachCommerce,
   BSCoachCoachingBlock,

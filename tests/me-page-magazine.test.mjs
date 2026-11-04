@@ -204,9 +204,17 @@ test('Customize opens on a hub: the profile as the hero plate, then a raised til
     // The live preview: the person, the facet avatar for a member, the round one for a coach.
     const [preview] = nodes.filter((n) => n.props['data-cust-preview'] != null);
     assert.ok(preview, `${who}: the live preview is gone`);
-    assert.match(textOf(preview), /Live preview/);
+    assert.equal(preview.props['aria-label'], 'Live preview');
     assert.match(textOf(preview), /Quinn Harper/);
     const inPreview = flatten(preview.props.children);
+    // Its door to the whole page (owner, 2026-11-04: "add an option to view live preview"): a lit pill at
+    // the card's foot, not a tag in the name's row (which pushed the name onto two lines).
+    const door = inPreview.find((n) => n.props['data-cust-live-open'] === 'hub');
+    assert.ok(door && door.type === 'button', `${who}: the hero has no View live preview`);
+    assert.match(textOf(door), /^View live preview$/);
+    assert.ok(door.props.style.minHeight >= 44 && door.props.style.borderRadius === 999, `${who}: the door is not a 44px pill`);
+    assert.match(String(door.props.style.border), new RegExp(TEAL_SAVE), `${who}: the door is not lit`);
+    assert.equal(inPreview.filter((n) => n.props['data-cust-tag'] != null).length, 0, `${who}: a tag is back in the name's row`);
     assert.equal(inPreview.filter(named('BSFacetAvatar')).length, coach ? 0 : 1, `${who}: the wrong avatar`);
     assert.equal(inPreview.filter((n) => n.props['data-cust-round-avatar'] != null).length, coach ? 1 : 0, `${who}: the wrong avatar`);
     // The rows: one per area, in order, each a 44px+ button with its icon, its name, its summary and a
@@ -510,6 +518,124 @@ test('Colors: the look panel starts from the app\'s paper and accent, and that s
     openRow(saved, 'colors');
     assert.deepEqual(saved.nodes().find(named('BSLookPicker')).props.look, { paper: 'plum', accent: 'violet' });
   } finally { globalThis.useBS = had; }
+});
+
+// Owner, 2026-11-04, of Customize: "looks good", then "add an option to view live preview". The hub's hero
+// and each area's header open the profile page itself, full screen, as a visitor sees it, with the drafts in
+// (saved or not), under a floating bar that says so and goes back to editing. Back and a swipe come back to
+// where you were, with the drafts kept, and nothing on the way writes.
+test('View live preview opens the real profile page as visitors see it, with the drafts in, and writes nothing', async () => {
+  const hadProvider = globalThis.BSProvider;
+  globalThis.BSProvider = function BSProvider({ children }) { return children; };
+  const liveOf = (d) => d.nodes().find((n) => n.props && n.props['data-cust-live'] != null);
+  const pageOf = (d) => d.nodes().find((n) => n.type === globalThis.BSTerrainProfile || n.type === globalThis.BSSignalCoachProfile);
+  const rootOf = (d) => d.nodes().find((n) => n.props && n.props['data-cust-root'] != null);
+  const barState = (d) => d.nodes().find((n) => n.props && n.props['data-cust-live-state'] != null);
+  const openLive = (d, where) => {
+    const door = d.nodes().find((n) => n.props && n.props['data-cust-live-open'] === where);
+    assert.ok(door, `no View live preview on the ${where}`);
+    door.props.onClick({ currentTarget: null });
+    withSurface(() => d.render());
+  };
+  try {
+    assert.equal(typeof globalThis.BSTerrainProfile, 'function', 'the member profile is not on window');
+    assert.equal(typeof globalThis.BSSignalCoachProfile, 'function', 'the coach profile is not on window');
+    for (const coach of [false, true]) {
+      const who = coach ? 'coach' : 'member';
+      const world = editorWorld({ base: { bio: 'Saved bio' } });
+      try {
+        const d = openEditor({ coach, initial: { bio: 'Saved bio' }, who: { name: 'Quinn Harper', handle: '@quinn' }, ...world.props });
+        // From the hub, nothing changed: "Preview", the saved doc, no look painted (none saved).
+        openLive(d, 'hub');
+        let page = pageOf(d);
+        assert.ok(liveOf(d), `${who}: the hub's door opened nothing`);
+        assert.equal(page.type, coach ? globalThis.BSSignalCoachProfile : globalThis.BSTerrainProfile, `${who}: the wrong profile page`);
+        assert.equal(page.props.previewCustom.bio, 'Saved bio');
+        assert.equal(barState(d).props['data-cust-live-state'], 'saved');
+        assert.doesNotMatch(textOf(liveOf(d)), /Not saved yet/);
+        assert.equal(d.nodes().filter(named('BSProvider')).length, 0, `${who}: a look painted that nobody picked`);
+        // Back to editing: the hub again.
+        d.nodes().find((n) => n.props && n.props['data-cust-live-back'] != null).props.onClick();
+        withSurface(() => d.render());
+        assert.equal(liveOf(d), undefined, `${who}: Back to editing left the preview open`);
+        assert.ok(rowNode(d, 'about'), `${who}: Back to editing did not come back to the hub`);
+
+        // From About, with a bio typed and not saved: the header's quiet raised pill.
+        openRow(d, 'about');
+        typeIn(d, 'bio', 'Draft bio');
+        const pill = flatten(headerOf(d).props.trailing).find((n) => n.props && n.props['data-cust-live-open'] === 'area');
+        assert.ok(pill && pill.type === 'button', `${who}: the area's header has no preview pill`);
+        assert.ok(isRaised(pill.props.style) && pill.props.style.borderRadius === 999 && pill.props.style.minHeight >= 44, `${who}: the pill is not a raised 44px pill`);
+        assert.equal(pill.props['aria-label'], 'View live preview');
+        openLive(d, 'area');
+        page = pageOf(d);
+        assert.ok(page, `${who}: the area's pill opened no profile page`);
+        // The page as a visitor sees it: not the owner's, no Message, the owner's account, the draft in.
+        assert.ok(!page.props.isSelf && !page.props.meMode, `${who}: the preview is the owner's own view`);
+        assert.equal(page.props.onMessage, undefined, `${who}: the preview can message`);
+        assert.equal(page.props.person.userId, 'u-me');
+        assert.equal(page.props.person.who, 'Quinn Harper');
+        assert.equal(page.props.previewCustom.bio, 'Draft bio', `${who}: the draft is not in the preview`);
+        // The bar: floating over the page, raised and lit, "Preview · Not saved yet", Back to editing.
+        const bar = d.nodes().find((n) => n.props && n.props['data-cust-live-bar'] != null);
+        assert.equal(bar.props.style.position, 'absolute');
+        assert.ok(isRaised(flatten(bar.props.children).find((n) => n.props && n.props.style && n.props.style.borderRadius === 18).props.style), `${who}: the bar is not raised`);
+        assert.equal(barState(d).props['data-cust-live-state'], 'unsaved');
+        assert.match(textOf(bar), /Preview.*Not saved yet.*Back to editing/);
+        const backBtn = d.nodes().find((n) => n.props && n.props['data-cust-live-back'] != null);
+        assert.ok(backBtn.props.style.minHeight >= 44 && backBtn.props.style.background === TEAL_SAVE, `${who}: Back to editing is not the primary`);
+        // The editor under it is kept (its scroll and drafts), hidden and out of reach.
+        assert.equal(rootOf(d).props.style.visibility, 'hidden');
+        assert.equal(rootOf(d).props['aria-hidden'], true);
+        assert.equal(rootOf(d).props.inert, true);
+        // The page draws the draft: the member's page, drawn, shows the bio and none of the owner's controls.
+        if (!coach) {
+          const drawn = withSurface(() => drive(page.type, page.props));
+          assert.match(drawn.text, /Draft bio/, 'the member page did not draw the draft bio');
+          assert.equal(drawn.nodes().filter((n) => n.props && n.props['data-member-edit'] != null).length, 0, 'the preview shows Edit profile');
+        }
+        // A tap on the page is stopped, but for the bar, the page's Back and its tabs.
+        const guard = liveOf(d).props.onClickCapture;
+        const tap = (match) => { const e = { stopped: 0, target: { closest: (sel) => (match && sel.includes(match) ? {} : null) }, preventDefault() { this.stopped += 1; }, stopPropagation() { this.stopped += 1; } }; guard(e); return e.stopped; };
+        assert.equal(tap(null), 2, `${who}: a tap on the page went through`);
+        for (const pass of ['[data-bs-back]', '[data-bs-pin-back]', '[data-terrain-tabs]', '[data-cust-live-bar]']) assert.equal(tap(pass), 0, `${who}: ${pass} was stopped`);
+        // The page's own Back (and so a swipe right, which takes it) comes back to About with the draft kept.
+        page.props.onBack();
+        withSurface(() => d.render());
+        assert.equal(liveOf(d), undefined, `${who}: the page's Back left the preview open`);
+        assert.equal(areaOf(d), 'about', `${who}: Back did not come back to About`);
+        assert.equal(fieldOf(d, 'bio').props.value, 'Draft bio', `${who}: Back lost the draft`);
+        assert.equal(saveOf(d).props.disabled, false, `${who}: the draft no longer reads as unsaved`);
+        assert.equal(d.nodes().filter((n) => n.props['data-cust-discard'] != null).length, 0, `${who}: previewing asked to discard`);
+        // Nothing was read for the preview, and nothing written.
+        assert.equal(world.writes.length, 0, `${who}: previewing wrote`);
+        assert.equal(world.reads.length, 0, `${who}: previewing read the doc`);
+      } finally { world.restore(); }
+    }
+
+    // A look picked and not saved: the page is painted in it (a BSProvider of its paper and accent), and the
+    // pick is still there after Back.
+    const world = editorWorld({ base: {} });
+    try {
+      const d = openEditor({ ...world.props });
+      openRow(d, 'colors');
+      d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'bone', accent: 'rust' });
+      withSurface(() => d.render());
+      openLive(d, 'area');
+      const provider = d.nodes().find(named('BSProvider'));
+      assert.ok(provider, 'the picked look is not painted');
+      assert.equal(provider.props.paperMode, 'bone');
+      assert.equal(provider.props.accentKey, 'rust');
+      assert.equal(provider.props.children.type, globalThis.BSTerrainProfile, 'the page is not inside the look');
+      assert.deepEqual(pageOf(d).props.previewCustom.look, { paper: 'bone', accent: 'rust' });
+      assert.equal(barState(d).props['data-cust-live-state'], 'unsaved');
+      pageOf(d).props.onBack();
+      withSurface(() => d.render());
+      assert.equal(areaOf(d), 'colors');
+      assert.deepEqual(d.nodes().find(named('BSLookPicker')).props.look, { paper: 'bone', accent: 'rust' }, 'Back lost the pick');
+      assert.equal(world.writes.length, 0, 'previewing a look wrote it');
+    } finally { world.restore(); }
+  } finally { if (hadProvider === undefined) delete globalThis.BSProvider; else globalThis.BSProvider = hadProvider; }
 });
 
 test('the editor\'s motion is gentle, and none of it runs under reduced motion', () => {
