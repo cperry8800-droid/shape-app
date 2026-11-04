@@ -91,7 +91,8 @@ import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
-import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
+import { BSWallTrainingNow } from './BSWallLive.jsx';
+import { BSLiveBoostSheet } from './BSLiveBoost.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead, bsWsLed } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
@@ -13534,127 +13535,8 @@ async function bsOpenMemberConversation(person, closeOverlay) {
   } catch (e) { window.__bsToast?.('Could not open the conversation — try again.', 'error'); }
 }
 
-// ── Live boost — cheer someone on WHILE they're mid-workout / mid-cook ───────
-// Opened from the presence rail when a member carries a live activity dot.
-// Sends a real 1:1 DM stamped metadata {kind:'live_boost', activity} — it lands
-// in their chat right now (the thread renders a "Live boost" eyebrow), instead
-// of waiting for the completed activity to post. Quick phrases are one-tap sends.
-const BS_BOOST_PHRASES = {
-  workout: ["Let's go!", 'Nice!', 'Love it!', 'One more rep.', 'Finish strong →', 'Strong — keep going.', 'Respect the work.'],
-  cooking: ['What are you making?', 'Send a pic →', 'Looks good already.', 'Chef mode — respect.', 'Fuel the work.', 'Plate it clean.'],
-};
-// Drawn as the Wall prints (owner, 2026-10-24: "update design of this as well to match"): the flat facet in an
-// ink frame, the live line as the magazine's kicker (red mid-workout, amber at the stove, as the face's dot),
-// "Boost Priya" in the headline face over a heavy ink rule, and square phrase boxes, field and Send in ink.
-function BSLiveBoostSheet({ person, onClose, onOpenProfile }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const kind = person.activity === 'cooking' ? 'cooking' : 'workout';
-  const accent = kind === 'cooking' ? t.AMBER : bsWsAccent(t);
-  const box = bsTHexA(t.INK, 0.28);
-  const first = String(person.name || person.who || 'Member').split(' ')[0];
-  const [custom, setCustom] = useStateBSC('');
-  const [busy, setBusy] = useStateBSC(false);
-  const [sent, setSent] = useStateBSC(false);
-  // "N min in" — honest: only when started_at is readable (BSWallLive.jsx, shared with the Wall's card).
-  const mins = useBSLiveMinutes(person.userId || null);
-  const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  // Live set-by-set line (spec 2026-07-18) — renders ONLY when a row is
-  // readable under RLS. No row → today's sheet, byte-identical; absence is
-  // deliberately unremarkable (never "they hid this" — that would leak the
-  // existence of a setting choice). Demo people (no userId) never fetch.
-  // The row's own payload.kind decides what renders (spec 2026-07-19). The read, its TOCTOU guard and
-  // its expiry live in useBSLiveRow (BSWallLive.jsx), shared with the Wall's Training now cards.
-  const live = useBSLiveRow(person.userId || null);
-  const lp = live ? bsValidLivePayload(live.payload) : null;   // malformed/unknown wire shape → render nothing
-  // lp is a DISCRIMINATED UNION (workout | cooking). Split it here so neither
-  // branch can touch the other's fields: lpWork carries exercises/sets, lpCook
-  // carries a title and nothing else.
-  const lpWork = lp && (!lp.kind || lp.kind === 'workout') ? lp : null;
-  const lpCook = lp && lp.kind === 'cooking' ? lp : null;
-  const lpCur = lpWork && lpWork.curIdx >= 0 && lpWork.exercises[lpWork.curIdx] ? lpWork.exercises[lpWork.curIdx] : null;
-  const sendBoost = async (body) => {
-    const msg = String(body || '').trim();
-    if (!msg || busy || sent) return;
-    if (!signedIn) { window.__bsToast?.('Join Shape to send live boosts', 'info'); return; }
-    if (!person.userId) { window.__bsToast?.("Demo member — boosts reach real members when they're live.", 'info'); return; }
-    setBusy(true);
-    try {
-      const r = await window.ShapeMessages.getOrCreateMemberConversation({ otherUserId: person.userId });
-      const cid = (r && r.data) || null;
-      if (!cid) throw new Error('no conversation');
-      await window.ShapeMessages.sendMessage({ conversationId: cid, body: msg, metadata: { kind: 'live_boost', activity: kind } });
-      setSent(true);
-      window.__bsToast?.(`Boost sent → ${first}`, 'ok');
-      setTimeout(() => { onClose && onClose(); }, 650);
-    } catch (e) {
-      window.__bsToast?.('Could not send — try again', 'err');
-    } finally { setBusy(false); }
-  };
-  // Real modal semantics: dialog role + Escape closes + focus moves INTO the
-  // sheet on open (no autofocused input — that would pop the mobile keyboard).
-  const panelRef = React.useRef(null);
-  React.useEffect(() => { try { panelRef.current && panelRef.current.focus(); } catch (e) {} }, []);
-  // Living-instrument boot: the sheet rises, the live dot breathes, the pulse
-  // rule draws, phrase chips stagger in — shared sd keyframes + chip CSS.
-  const reduced = bsSdReduced();
-  React.useInsertionEffect(() => { bsInjectSessionDetailCss(); bsInjectFollowChipCss(); }, []);
-  const surface = (typeof document !== 'undefined' && (document.getElementById('bs-phone-surface') || document.body)) || null;
-  if (!surface) return null;
-  return createPortal(
-    <div onClick={onClose} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose && onClose(); } }} style={{ position: 'absolute', inset: 0, zIndex: 240, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`Send ${first} a live boost`} onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', outline: 'none', ...(reduced ? null : { animation: 'bsSdFadeUp 340ms cubic-bezier(.2,.8,.3,1) both' }) }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <BSFacetAvatar flat size={44} c={t.INK} initial={bsInitials(person.name || person.who) || '?'} photo={person.photoUrl || person.photo || undefined} live activity={kind} showRank={false} BG={t.PAPER} INK={t.INK} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: accent }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{kind === 'cooking' ? 'Cooking now' : 'In a workout now'}{mins != null ? ` · ${mins} min in` : ''}</span>
-            </div>
-            {/* Cooking: the PLANNED meal's title only — never macros, portions
-                or adjustments. A freehand meal pushes nothing, so this simply
-                doesn't render and the generic presence line above stands. */}
-            {lpCook && (
-              <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                <span style={{ color: t.INK, fontWeight: 800 }}>{lpCook.title}</span>
-              </div>
-            )}
-            {lpWork && (
-              <div style={{ marginTop: 5 }}>
-                <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {lpCur ? <>
-                    <span style={{ color: t.INK, fontWeight: 800 }}>{lpCur.n}</span>
-                    {' · '}{tr('feed:boost.liveSet', { done: Math.min(lpCur.done + 1, lpCur.total), total: lpCur.total, defaultValue: 'set {done, number} of {total, number}' })}
-                    {' — '}
-                  </> : null}
-                  {tr('feed:boost.liveSets', { done: lpWork.setsDone, total: lpWork.setsTotal, defaultValue: '{done, number}/{total, number} sets' })}
-                </div>
-                <div aria-hidden style={{ marginTop: 4, height: 2, background: bsTHexA(t.INK, 0.12) }}>
-                  <div style={{ height: 2, width: `${lpWork.setsTotal ? Math.round((lpWork.setsDone / lpWork.setsTotal) * 100) : 0}%`, background: accent }} />
-                </div>
-              </div>
-            )}
-            <div style={{ marginTop: 5, fontFamily: bsWsHead(t), fontSize: 24, fontWeight: 600, lineHeight: 1, color: t.INK, letterSpacing: '0.012em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Boost {first}</div>
-          </div>
-          {onOpenProfile && <button onClick={() => { onClose && onClose(); onOpenProfile(); }} style={{ flexShrink: 0, background: 'transparent', border: 0, color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer', padding: 4 }}>Profile →</button>}
-        </div>
-        {/* The heavy rule under the head, as the Wall's masthead */}
-        <div aria-hidden style={{ height: 3, marginTop: 12, background: t.INK }} />
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, lineHeight: 1.45 }}>{person.userId ? <>Lands in their chat right now — mid-{kind === 'cooking' ? 'cook' : 'set'}, not after the post.</> : <>Preview · demo member — boosts land in a real member's chat while they train.</>}</div>
-        <div className="bs-fa-wrap" style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {(BS_BOOST_PHRASES[kind] || BS_BOOST_PHRASES.workout).map((ph, i) => (
-            <button key={ph} disabled={busy || sent} onClick={() => sendBoost(ph)} style={{ minHeight: 40, padding: '9px 12px', borderRadius: 0, border: `1px solid ${box}`, background: 'transparent', color: t.INK, cursor: busy || sent ? 'default' : 'pointer', fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, transition: 'transform 140ms ease', ...(reduced ? null : { animation: `bsSdFadeUp 380ms ease ${160 + i * 70}ms both` }) }}>{ph}</button>
-          ))}
-        </div>
-        <div style={{ marginTop: 11, display: 'flex', gap: 8, ...(reduced ? null : { animation: 'bsSdFadeUp 380ms ease 440ms both' }) }}>
-          <input value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') sendBoost(custom); }} placeholder={`Say it your way — cheer ${first} on…`} style={{ flex: 1, minWidth: 0, minHeight: 44, boxSizing: 'border-box', borderRadius: 0, border: `1px solid ${box}`, background: 'transparent', color: t.INK, padding: '11px 12px', fontFamily: t.DISPLAY, fontSize: 14, outline: 'none' }} />
-          <button disabled={busy || sent || !custom.trim()} onClick={() => sendBoost(custom)} style={{ flexShrink: 0, minWidth: 74, minHeight: 44, borderRadius: 0, border: 0, background: custom.trim() && !busy && !sent ? t.INK : bsTHexA(t.INK, 0.12), color: custom.trim() && !busy && !sent ? t.PAPER : t.INK50, cursor: custom.trim() && !busy && !sent ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{sent ? '✓ Sent' : busy ? '…' : 'Send'}</button>
-        </div>
-      </div>
-    </div>,
-    surface
-  );
-}
+// The live boost sheet (cheer someone on mid-workout or mid-cook) lives in BSLiveBoost.jsx since its redesign
+// (2026-11-04); it is imported at the top and stays on window for the Pros bundle.
 
 function BSFollowMini({ onOpen }) {
   const t = useBS();

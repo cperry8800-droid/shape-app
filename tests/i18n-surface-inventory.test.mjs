@@ -401,7 +401,7 @@ const PARTIAL = new Set([
   'Calendar::BSEventConsultBody', 'Client::BSActivityCard', 'Client::BSClientEat',
   'Client::BSClientLibrary', 'Client::BSLibraryDetail',
   'Client::BSClientFeed', 'Client::BSClientTrain',
-  'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
+  'Client::BSLogActivitySheet',
   // The workout detail page moved files 2026-11-04 (iosAppBroadsheetClient.jsx → BSWorkoutDetail.jsx)
   // with its redesign; the key follows the file. Its two literals are the library's Save words.
   'BSWorkoutDetail::BSWorkoutDetail',
@@ -854,7 +854,12 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // sample day into module-scope constants this walk cannot attribute (the BSWeekStrip blind spot): they
   // are still on the page and still English, on a live day too, as before (-4). With the filed stamp's
   // +3 above: 164 -> 162.
-  assert.equal(partStrings, 162, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The live Boost sheet's redesign (owner, 2026-11-04: "update to design for this pop up") moved it to its
+  // own module, BSLiveBoost.jsx, fully covered: every word on it is keyed in all 13 locales (feed:boost.*),
+  // its toasts and quick cheers too. Its 15 hardcoded strings ("Boost", "In a workout now", "Profile →", the
+  // two notes, the placeholder, Send, "✓ Sent" and the rest) go with the old one: 162 -> 147, and
+  // part.length 30 -> 29.
+  assert.equal(partStrings, 147,'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -971,7 +976,8 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.
   // BSMealLogged came in (2026-11-04): 29 -> 30.
-  assert.equal(part.length, 30, 'partial-surface count moved — regenerate PARTIAL and the record');
+  // The live Boost sheet left, fully covered in its own module (2026-11-04, see partStrings): 30 -> 29.
+  assert.equal(part.length, 29,'partial-surface count moved — regenerate PARTIAL and the record');
   // BSProfileIdentityHead was deleted with the member profile's old head (2026-10-31): 79 -> 78.
   // Nora's profile moved to BSNoraProfile.jsx, fully covered (2026-11-01): 78 -> 77.
   // BSMealLogged left for PARTIAL (2026-11-04): 77 -> 76.
