@@ -1,6 +1,6 @@
 // The website's login box, option A, "Spotlight glass" (owner, 2026-11-03: "lets also come up
-// with new designs for this login box on website", then "do a"). A calmer glass card to the right
-// of centre where the spotlight falls, sentence-case labels, Email/Phone and the role as sliding
+// with new designs for this login box on website", then "do a"). A calmer glass card (in the middle of
+// the screen since 2026-11-04, "center this box on screen"), sentence-case labels, Email/Phone and the role as sliding
 // segmented controls, and the teal button as the only solid shape. Only the markup that draws the
 // box changed; the sign-in logic above it didn't. These pin what the redesign had to keep: where
 // the links go (#2573), the fields a password manager reads, the role switch, the error box, and
@@ -24,6 +24,25 @@ test('the card says Club Shape (owner, 2026-11-03: "change log in to club shape"
   assert.match(src, /<h1 className="lgA-title">Log in to <em>Club&nbsp;Shape<\/em>\.<\/h1>/);
   assert.match(src, /<span>New to Club Shape\?<\/span>/);
   assert.match(readFileSync(new URL('../public/newdesign/Login.html', import.meta.url), 'utf8'), /<title>Log in — Club Shape<\/title>/);
+});
+
+test('the card stands in the middle of the screen, and Club Shape is in the website\'s face (owner, 2026-11-04)', () => {
+  // "center this box on screen": no offset to the right of centre, on any width
+  assert.match(src, /\.lgA-mainrow\{[^}]*justify-content:center/);
+  assert.match(src, /\.lgA-main\{[^}]*align-items:center/);
+  assert.doesNotMatch(src, /\.lgA-card\{[^}]*margin-left/, 'the card is not pushed right of centre');
+  // "change club shape font in login box to match website font": the homepage's headings are Anybody at
+  // 500 and width 90, their teal words upright (index.html), and so is Club Shape here.
+  const home = readFileSync(new URL('../public/newdesign/index.html', import.meta.url), 'utf8');
+  assert.match(home, /--disp:'Anybody'/);
+  assert.match(home, /h2 em,h1 em,h3 em\{font-style:normal;color:var\(--teal\)\}/);
+  assert.match(src, /\.lgA-title em\{font-family:'Anybody','Anybody Fallback',system-ui,sans-serif;font-style:normal;font-weight:500;font-variation-settings:'wdth' 90;[^}]*color:#34d6c5\}/);
+  // The login page mounts no site header, so it requests Anybody itself, with its width axis, at pageShell's URL.
+  const shell = readFileSync(new URL('../public/newdesign/pageShell.jsx', import.meta.url), 'utf8');
+  const url = "https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap";
+  assert.ok(shell.includes(`@import url('${url}')`), 'pageShell\'s request moved: keep the two the same');
+  assert.ok(src.includes(`@import url('${url}')`));
+  assert.ok(src.indexOf('@import') < src.indexOf('.lgA-page{'), '@import comes before every rule in its sheet');
 });
 
 test('the fields a password manager and a phone keyboard read are kept', () => {
