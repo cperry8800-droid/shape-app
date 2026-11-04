@@ -90,11 +90,17 @@ test('the counts sit right under the photo, above the bio; a visitor\'s Follow s
   const [actions] = withAttr(nodes, 'data-member-actions');
   assert.ok(at(nameEl) < at(follow), 'the counts went above the name');
   assert.ok(at(follow) < at(meta) && at(meta) < at(actions), 'the counts are not between the photo and the tier line');
-  // The bio, the tier line and the countdown ride inside the follow block, so one block holds the counts
-  // and the Follow that changes them.
+  // The bio and the tier line ride inside the follow block, so one block holds the counts and the Follow
+  // that changes them.
   const body = fnBody('function BSTerrainProfile(');
   const block = body.slice(body.indexOf('<BSFollowBlock '), body.indexOf('</BSFollowBlock>'));
-  for (const attr of ['data-member-bio', 'data-member-meta', 'data-member-start']) assert.ok(block.includes(attr), `${attr} left the follow block`);
+  for (const attr of ['data-member-bio', 'data-member-meta']) assert.ok(block.includes(attr), `${attr} left the follow block`);
+  // The countdown is under the name, as their status (owner, 2026-11-04: "also move this somewhere else on
+  // client profile"; it sat between the Shape Score row and Log activity).
+  assert.ok(!block.includes('data-member-start'), 'the countdown is back between the Score row and the tiles');
+  const nameAt = body.indexOf('data-member-name');
+  const startAt = body.indexOf('data-member-start');
+  assert.ok(nameAt > -1 && startAt > nameAt && startAt < body.indexOf('<BSFollowBlock '), 'the countdown sits in the name\'s block, before the counts');
   assert.ok(body.indexOf('data-member-bio') > body.indexOf('<BSFollowBlock '), 'the bio is above the counts again');
   // In the block: the counts, then what the host put inside, then a visitor's Follow and Message.
   signedInAs('u-me');

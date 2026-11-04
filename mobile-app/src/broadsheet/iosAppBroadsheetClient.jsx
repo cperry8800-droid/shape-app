@@ -5156,6 +5156,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
           stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
           onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()}
+          // Steps under the strip is the Shape Steps page's door again (owner, 2026-11-04: "yes put it back
+          // on this week steps"), as Week so far's tile was: the page once steps have synced, else Integrations.
+          onSteps={() => {
+            if (stepsToday.hasData) { setStepsHistory(true); return; }
+            try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
+          }}
               picked={pickedDay} onPick={setPickedDay} />
       </BSHomeDeck>
 
@@ -19283,11 +19289,24 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <h1 data-member-name="" style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.05, color: INK, overflowWrap: 'anywhere' }}>{name}<span style={{ color: c }}>.</span></h1>
                 {whoLine ? <span style={{ fontSize: 13, color: bsTHexA(INK, 0.74), overflowWrap: 'anywhere' }}>{whoLine}</span> : null}
                 {aboutLine ? <span style={{ fontSize: 12, color: bsTHexA(INK, 0.64) }}>{aboutLine}</span> : null}
+                {/* What they are training for, under the name as their status (owner, 2026-11-04: "also move this
+                    somewhere else on client profile"; it sat between the Shape Score row and Log activity): the
+                    goal's words, then its date and the days left on a line of their own. Ink words, the tier's
+                    colour as the rule (8px coloured text did not read on the light papers). */}
+                {heroStartState ? (
+                  <p data-member-start="" style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.35, color: INK, overflowWrap: 'anywhere' }}>
+                    <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
+                    {heroStart.title ? ` ${heroStart.title}` : ''}
+                    <span style={{ display: 'block', marginTop: 3, fontSize: 12, color: bsTHexA(INK, 0.64) }}>
+                      {[startDate, heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })].filter(Boolean).join(' · ')}
+                    </span>
+                  </p>
+                ) : null}
               </div>
               {/* The counts first, right under the photo (owner, 2026-11-04: "move the followers, following row
-                  above the bio just below picture"); the bio, tier line and countdown ride inside the follow
+                  above the bio just below picture"); the bio and the Shape Score row ride inside the follow
                   block, between the counts and a visitor's Follow and Message, so one block keeps the counts
-                  and the Follow that changes them. */}
+                  and the Follow that changes them. The countdown is under the name (above). */}
               <div style={{ marginTop: 6 }}>
                 <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} variant="coach" ownerPhoto={avPhoto} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
                   onMessage={hasMessage && !isSelf ? () => onMsg(person) : null}>
@@ -19316,15 +19335,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                       <div data-member-meta="" data-member-score="" aria-label={['Shape Score', metaBits].join(': ')} role="group" style={rowStyle}>{scoreBody}</div>
                     );
                   })() : null}
-                  {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
-                      not read on the light papers). */}
-                  {heroStartState ? (
-                    <p data-member-start="" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.4, color: INK }}>
-                      <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
-                      {heroStart.title ? ` ${heroStart.title}` : ''}{startDate ? ` · ${startDate}` : ''}
-                      <span style={{ color: bsTHexA(INK, 0.64) }}>{` · ${heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}`}</span>
-                    </p>
-                  ) : null}
                 </BSFollowBlock>
               </div>
               {/* Your own actions as tiles: Log activity lit in the tier's colour over three fifths, Edit
