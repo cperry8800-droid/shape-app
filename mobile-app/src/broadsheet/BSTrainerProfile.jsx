@@ -1577,7 +1577,9 @@ function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, f
         <div style={{ marginTop: 6 }}>
           {list.map((a, i) => (Card ? (
             <div key={a.key || i} data-activity-card="">
-              <Card a={a} ctx={ctx} onAuthorPage isLast={i === list.length - 1} pagePad={0} variant="magazine" />
+              {/* Every other post in glass, as the Wall's and the member profile's (owner, 2026-11-04: "every
+                  other post gets the glassy look … apply these changes to profile activity feeds as well"). */}
+              <Card a={a} ctx={ctx} onAuthorPage isLast={i === list.length - 1} pagePad={0} variant="magazine" glass={i % 2 === 1} />
             </div>
           ) : (
             <div key={a.key || i} data-activity-card="" style={{ margin: `0 ${gutter}px`, padding: '12px 0', borderTop: `1px solid ${ink(0.12)}` }}>

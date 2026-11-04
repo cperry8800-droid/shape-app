@@ -1607,11 +1607,16 @@ test('the coach\'s activity cards carry the full byline: their face, name and ti
   window.BSActivityCard = (props) => { seen.push(props); return React.createElement('div', { 'data-probe-card': '' }, props.a.title); };
   window.useBSCardSheets = () => ({ ctx: {}, renderSheets: () => null });
   try {
-    reset({ posts: [{ key: 'n1', title: 'Note 1', typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null }] });
+    const post = (n) => ({ key: `n${n}`, title: `Note ${n}`, typeLabel: 'Note', ago: '1d', body: 'Body', statsRow: [], breakdown: null });
+    reset({ posts: [post(1), post(2), post(3)] });
     const m = await mount(page({ person: { ...maya, photo: 'https://cdn.test/maya.jpg' } }));
     await tab('Activity');
     assert.ok(seen.length, 'no card drawn');
-    const p = seen[seen.length - 1];
+    // Every other post in glass, as on the Wall and the member profile (Codex P2 on #2592: this is the
+    // feed every coach's profile draws).
+    const last = new Map(seen.map((q) => [q.a.key, q]));
+    assert.deepEqual(['n1', 'n2', 'n3'].map((k) => last.get(k).glass), [false, true, false]);
+    const p = last.get('n1');
     assert.equal(p.onAuthorPage, true, 'the full byline, its name not a link');
     assert.ok(!p.hideAuthor, 'the slim byline (the time alone) is back');
     assert.equal(p.variant, 'magazine');
