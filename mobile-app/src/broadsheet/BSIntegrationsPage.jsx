@@ -66,7 +66,7 @@ export function BSReconcile({ onBack, clientId }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Data · Integrations" kicker="Reconcile" title={<>Which source<br/>do you trust?</>} />
+      <BSDetailHeader onBack={onBack} kicker="Reconcile" title={<>Which source<br/>do you trust?</>} />
       <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>When two connected devices report a metric differently, pick the one to trust. Your choice becomes the authoritative source going forward.</div>
       </div>

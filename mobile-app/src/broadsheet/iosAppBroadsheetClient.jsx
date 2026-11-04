@@ -12217,11 +12217,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} />;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={(() => {
-        const a = bsRecipeAttribution(r);
-        if (!a) return 'RECIPE';
-        return a.kind === 'authored' ? `${a.role ? `${a.role} · ` : ''}${a.name}` : a.name;
-      })()} kicker="Shape Kitchen" title={r.title} />
+      <BSDetailHeader onBack={onBack} kicker="Shape Kitchen" title={r.title} />
 
       <BSKitchenCard recipe={r} no={_no} />
 
@@ -28476,7 +28472,7 @@ function BSNoraMemoryPage({ onBack }) {
   const when = (iso) => { try { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) { return ''; } };
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Nora" kicker="Memory" title={<>What Nora<br/>remembers.</>} />
+      <BSDetailHeader onBack={onBack} kicker="Memory" title={<>What Nora<br/>remembers.</>} />
       <div style={{ padding: `4px ${t.padX}px 30px` }}>
         <BSNoraThreadCard />
         {notes === null ? (
@@ -28641,7 +28637,7 @@ function BSNotifyPrefs({ onBack, role }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('settings:notifyPrefs.eyebrow', { defaultValue: 'Section · Notifications' })} kicker={tr('settings:section.notifications', { defaultValue: 'Notifications' })} title={<>{tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })}<br/>{tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}</>} />
+      <BSDetailHeader onBack={onBack} kicker={tr('settings:section.notifications', { defaultValue: 'Notifications' })} title={<>{tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })}<br/>{tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}</>} />
       {settings === null ? (
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:notifyPrefs.loading', { defaultValue: 'Loading…' })}</div>
       ) : (
@@ -28833,7 +28829,7 @@ function BSSessionsScreen({ onBack }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Bookings" kicker="Coaching" title={<>Your<br/>sessions.</>} />
+      <BSDetailHeader onBack={onBack} kicker="Coaching" title={<>Your<br/>sessions.</>} />
       {sessions === null && (
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
       )}
@@ -29565,7 +29561,7 @@ function BSCycleCalendarPage({ onBack }) {
 
   return (
     <BSPage tabBarHeight={0}>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('cycle:cal.eyebrow', { defaultValue: 'Tracking · Private' })}
+      <BSDetailHeader onBack={onBack}
         title={<>{tr('cycle:optIn.titlePre', { defaultValue: 'The' })} <span style={{ fontStyle: 'italic', color: heat }}>{tr('cycle:optIn.titleAccent', { defaultValue: 'Cycle.' })}</span></>} />
 
       {register}
@@ -30932,7 +30928,7 @@ function BSWeeklyCheckin({ onBack }) {
   const numIn = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, outline: 'none', textAlign: 'center' };
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={`Week of ${(window.ShapeCheckins && window.ShapeCheckins.weekOf()) || ''}`} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
+      <BSDetailHeader onBack={onBack} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
       <div style={{ padding: '8px 0 28px' }}>
         {doneWeek && (
           <div style={{ ...card, borderLeft: `3px solid ${teal}`, background: `${teal}10`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Already checked in this week — saving again updates it.</div>
@@ -32053,7 +32049,7 @@ function BSScoreRecordPage({ onBack, tier }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Shape Score" kicker={tr('score:record.title', { defaultValue: 'The Record' })} title={tr('score:record.title', { defaultValue: 'The Record' })} />
+      <BSDetailHeader onBack={onBack} kicker={tr('score:record.title', { defaultValue: 'The Record' })} title={tr('score:record.title', { defaultValue: 'The Record' })} />
 
       {preview && (
         <div style={{ margin: `0 ${t.padX}px 4px`, padding: '8px 10px', border: `1px solid ${bsTHexA(heat, 0.4)}`, borderRadius: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: heat }}>
@@ -33203,7 +33199,7 @@ function BSTierClaimShip({ t, reward, busy, notice, onBack, onConfirm }) {
   const ok = bsShipValid(f) && !busy;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('store:unlocked.eyebrow', { defaultValue: 'Unlocked' })} kicker={reward.name}
+      <BSDetailHeader onBack={onBack} kicker={reward.name}
         title={<>{tr('store:unlocked.shipTitleA', { defaultValue: 'Where do we' })}<br/>{tr('store:unlocked.shipTitleB', { defaultValue: 'send it?' })}</>} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>
@@ -33235,7 +33231,7 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
   const canPlace = lines.length > 0 && validShip && !short && !busy;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('store:page.eyebrow', { defaultValue: 'Store' })} kicker={tr('store:checkout.kicker', { defaultValue: 'Checkout' })} title={<>{tr('store:checkout.titleA', { defaultValue: 'Your' })}<br/>{tr('store:checkout.titleB', { defaultValue: 'cart.' })}</>} />
+      <BSDetailHeader onBack={onBack} kicker={tr('store:checkout.kicker', { defaultValue: 'Checkout' })} title={<>{tr('store:checkout.titleA', { defaultValue: 'Your' })}<br/>{tr('store:checkout.titleB', { defaultValue: 'cart.' })}</>} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         {lines.length === 0 ? (
           <div style={{ padding: '28px 0', textAlign: 'center', fontFamily: t.BODY, fontSize: 14, color: t.INK70 }}>
@@ -33351,7 +33347,7 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════
 function bsNoDetailBar() { return null; }
 
-function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = false }) {
+function BSDetailHeader({ onBack, kicker, title, trailing, noCorner = false }) {
   const t = useBS();
   const BSMastRow = window.BSMastRow;
   // Inside a BSPage the header scrolls away, and the page's pinned bar takes ← and the title in
@@ -33360,12 +33356,14 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   const titleRef = (window.useBSDetailBar || bsNoDetailBar)(title, onBack);
   const pin = titleRef ? null : { position: 'sticky', top: 0, zIndex: 2 };
   // Standing masthead row first (logo + Vol·No + the search/avatar corners —
-  // the strip that opens every page), then the back + eyebrow row.
+  // the strip that opens every page), then ← Back on its own (owner, 2026-11-04, of the grey line at
+  // its right, "MORNING CHECK-IN · HISTORY": "also remove these eyebrow headers"; a page's title says
+  // what it is, and what an eyebrow carried besides is on the page: a recipe's credit on its card, the
+  // burned week's dates on its days).
   return (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, background: t.PAPER, ...pin }}>
       {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} />}
-      <BSBackRow onBack={onBack} style={{ marginBottom: 2 }}
-        trailing={eyebrow ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span> : null} />
+      <BSBackRow onBack={onBack} style={{ marginBottom: 2 }} />
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div ref={titleRef || undefined} style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: t.W.display, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
@@ -39894,7 +39892,7 @@ function BSCodeOfConductPage({ onBack, onContact }) {
   ];
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <BSDetailHeader onBack={onBack} kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.</div>
@@ -39923,7 +39921,7 @@ function BSConsumerHealthPage({ onBack, onContact }) {
   ];
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <BSDetailHeader onBack={onBack} kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.</div>
@@ -39949,7 +39947,7 @@ function BSSubprocessorsPage({ onBack, onContact }) {
   ];
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <BSDetailHeader onBack={onBack} kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The third parties that help run Shape — each engaged to use your data only to provide its service, on the basis stated for it.</div>
