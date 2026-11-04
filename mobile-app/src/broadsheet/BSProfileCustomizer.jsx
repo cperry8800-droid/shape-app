@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType, useBSClean } from './bsCleanType.jsx';
 import { BSMpIcon } from './BSMemberBento.jsx';
-import { BSLookPicker } from './BSLookPicker.jsx';
+import { BSLookPicker, hexA, onColor } from './BSLookPicker.jsx';
 import { bsWsAccent } from './bsMagazine.mjs';
 import {
   bsNormalizeProfileCustom, bsStartLineState, bsValidStartDate, bsProfileLook, BS_LOOK_PAPERS, BS_LOOK_ACCENTS,
@@ -101,25 +101,8 @@ export const BS_PROFILE_LINKS = [
 ];
 
 // ── Drawing helpers ────────────────────────────────────────────────────────────────────────────
-
-// A colour at an alpha. Every palette colour is a hex; anything else is mixed by the browser.
-const hexA = (c, a) => {
-  const s = String(c || '');
-  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(s);
-  if (!m) return `color-mix(in srgb, ${s || 'currentColor'} ${Math.round(a * 100)}%, transparent)`;
-  const h = m[1].length === 3 ? m[1].replace(/./g, (x) => x + x) : m[1];
-  const n = parseInt(h, 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-};
-// Dark words on a light colour, white on a dark one (the swatch's tick, Save's words).
-const readableOn = (c) => {
-  const m = /^#([0-9a-f]{6})$/i.exec(String(c || ''));
-  if (!m) return '#ffffff';
-  const n = parseInt(m[1], 16);
-  const lin = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
-  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
-  return L > 0.4 ? '#0f0e0c' : '#ffffff';
-};
+// The colour maths (a colour at an alpha, the words that read on a colour) are the look panel's own
+// palette helpers (BSLookPicker.jsx), imported above, not a copy: every palette colour is a 6-digit hex.
 // A part's name and its hint, as the catalog writes them: "The wall · pinned photos · up to 6".
 const splitHead = (text) => {
   const s = String(text || '');
@@ -179,7 +162,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const PAPER2 = tTheme.PAPER2 || PAPER;
   // The one colour of the page: Save and a focused field (the magazine's teal, readable on either paper).
   const TEAL = bsWsAccent(tTheme);
-  const onTeal = readableOn(TEAL);
+  const onTeal = onColor(TEAL);
   const ERR = light ? '#b3412b' : '#f08a6c';
   const ink = (a) => hexA(INK, a);
   const tr = useShapeTr();
