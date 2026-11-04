@@ -633,6 +633,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App: the live session in the owner\'s C, every set on the card to read and edit, in Focus, Workout log and Guided coach (#2610). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of three Focus designs built in the app: "Do C but have all required sets appear at same time so client can see what weight may change or reps, and then user get customize and edit results/outcome appropriately", then "if a specfic exercies has multiple sets"; then "focus c looks good. You are redesigning the other view options as well right?"', status: 'done' },
+        { label: '#2610 BSWorkoutSession.jsx: every view opens on lit readouts (the exercise, the sets logged, the share done) in place of the strip. Each set is a row of lit slots (load, reps, RPE) with its own ✓ (▶ in timed sets), shared by every view (setRowsFor): a slot shows the coach\'s target until the member touches it, a cleared one reads "—", and a logged set stays editable in place (updateSetInput patches its log row)', status: 'done' },
+        { label: '#2610 Focus: a raised card with the move, its set lights, scheme and cue, then every set at once and Add / Remove set. Workout log: each exercise a card of its set rows, the current one raised and saying NOW. Guided coach: the step in hand a lit slot, the other folded, the set\'s figures as lit slots. Previous / Next as lit chips and the queue as lit rows on Focus and Guided coach', status: 'done' },
+        { label: '#2610 review: Codex P2 on ab60114 (a cleared slot showed the target again while an empty value saved) fixed in e2b1b59, answered and resolved; Codex clean on 279bade and on e2b1b59. CI on e2b1b59 failed tests/i18n-key-resolution (the band\'s and old table\'s keys had no reader): fixed in 37de0b6, the log\'s current exercise saying NOW again (player.now) and player.bandCounts / player.colWeight leaving the 13 locales; Codex clean on 37de0b6. tests/workout-glass-redesign passes, 18; the i18n and session suites, 209; vite build passes; shots of all three views at 390px on both papers. CI green on 37de0b6; no reviewer read this record', status: 'done' },
+        { label: 'OWNER: on a phone, a workout in each view: type a different weight into set 3, log set 1, correct its reps, clear a slot, then log set 3 from its own ✓', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Make it yours\' Colors page as the lit panel (the owner\'s B), in its own module (#2609). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of the coach profile editor\'s Colors page: "update profile edit settings page", then of three designs built in the app, "B for colors"; then "Both" (members get this page, and the coach editor gains what it lacks), "the customization options should be specific for what coaches can edit and clients", and "this should apply to website as well"', status: 'done' },
