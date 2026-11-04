@@ -31,6 +31,7 @@ const STATUS_OF = Object.freeze({
   // Every change is drafted as a card the member confirms, so a write tool is "getting it ready".
   draft_workout: 'draft',
   draft_meal_plan: 'draft',
+  draft_nutrition_program: 'draft',
   log_meal: 'draft',
   log_weigh_in: 'draft',
   log_water: 'draft',

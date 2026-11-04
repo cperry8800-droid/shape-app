@@ -26693,7 +26693,9 @@ function BSNoraProposal({ a, t }) {
     } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.undoFailed', { defaultValue: 'Could not undo.' }))); setStatus('done'); }
   };
   const openPlan = () => {
-    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null } })); } catch (e) {}
+    // planKind says whose shell answers: a trainer's program, or a nutritionist's meal plan, program
+    // or diet (planKind 'meal_plan'), each opened in the app's own editor.
+    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null, planKind: open.planKind || null } })); } catch (e) {}
   };
   return (
     <div style={{ width: '100%', border: `1px solid ${ac}55`, background: `${ac}0f`, borderRadius: 14, padding: 12, marginTop: 8 }}>
@@ -26735,16 +26737,13 @@ function BSNoraProposal({ a, t }) {
           <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? tr('feed:support.proposal.tryAgain', { defaultValue: 'Try again' }) : tr('feed:support.proposal.confirm', { defaultValue: 'Confirm' })}</button>
         )}
         {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.applying', { defaultValue: 'Applying…' })}</span>}
-        {/* A meal plan Nora drafted is the website builder's document: the app's editor keeps
-            another shape, so the card says where it is instead of opening a screen that cannot
-            show it (Codex, #2260). It is listed under Plans. */}
+        {/* A meal plan Nora drafted is the website builder's document, and the app opens it in its
+            own editor for it (BSMealBuilderEditor; owner, 2026-11-04), so every saved plan's card
+            opens it. It used to say to edit it on the website (Codex, #2260). */}
         {status === 'done' && setupCard && (
           <span data-nora-setup-saved style={{ flexBasis: '100%', fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.setup.saved', { defaultValue: 'Saved to your account. You can change any of it in Settings.' })}</span>
         )}
-        {status === 'done' && open && open.planKind === 'meal_plan' && (
-          <span data-nora-meal-saved style={{ fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.proposal.mealPlanSaved', { defaultValue: 'Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.' })}</span>
-        )}
-        {status === 'done' && open && open.planKind !== 'meal_plan' && (
+        {status === 'done' && open && (
           <button onClick={openPlan} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.proposal.openBuilder', { defaultValue: 'Open in builder' })} →</button>
         )}
         {status === 'done' && auditId && (

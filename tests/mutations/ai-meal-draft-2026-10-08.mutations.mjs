@@ -1,6 +1,6 @@
 // Mutation spec for Nora's meal-plan drafts (the Ask Nora plan, step 5): the planner over
 // Shape's meal library, draft_meal_plan's save and guarded undo, its role gate, the chat
-// route's gate, the website builder that opens the saved draft, and the app's card and Plans. Every one must be killed.
+// route's gate, the website builder that opens the saved draft, and the app's card, shells and Plans. Every one must be killed.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/ai-meal-draft-2026-10-08.mutations.mjs --fail-on-skipped
 const CORE = 'src/lib/ai/mealDraft.mjs';
@@ -61,11 +61,13 @@ export default {
     { name: 'the builder gives up on a plan the first read missed', file: WEB,
       find: '    if (openRetried.current !== openPlan) { openRetried.current = openPlan; setRefresh((n) => n + 1); return; }\n', replace: '' },
     { name: 'Plans hides the builder\'s documents again', file: PROS,
-      find: " || p.detail.buildType === 'mealplan' || !!p.detail.mealBuilder)", replace: " || p.detail.buildType === 'mealplan')" },
-    { name: 'the app opens its own editor on a builder document', file: PROS,
-      find: "onOpen={() => (p.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : openDraft('mealplan'))}",
-      replace: "onOpen={() => openDraft('mealplan')}" },
-    { name: 'the app card opens a meal plan in a shell', file: CLIENT,
-      find: "{status === 'done' && open && open.planKind !== 'meal_plan' && (", replace: "{status === 'done' && open && (" },
+      find: "    .filter(p => !p.id || kindOf(p) === 'mealplan')", replace: "    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan')" },
+    // The app opens a builder document in its own editor (owner, 2026-11-04); it used to send them to the website.
+    { name: 'a builder document opens in the draft editor', file: PROS,
+      find: "    if (mealBuilderDoc(row.detail)) { setBuilderPlan(row); return; }\n", replace: '' },
+    { name: 'the app card no longer names a nutrition plan', file: CLIENT,
+      find: "clientId: open.clientId || null, planKind: open.planKind || null } }", replace: "clientId: open.clientId || null } }" },
+    { name: 'the trainer shell opens its program editor on a meal plan', file: PROS,
+      find: "      if (!planId || e.detail.planKind === 'meal_plan') return;", replace: '      if (!planId) return;' },
   ],
 };

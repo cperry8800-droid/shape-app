@@ -10,6 +10,8 @@ import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWee
 import { normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, knownWorkoutAverage, coachWorkoutVideos, workoutAssignmentsHaveExercises } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
+import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
+import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookable.mjs';
@@ -1492,7 +1494,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   React.useEffect(() => {
     const onOpenPlan = (e) => {
       const planId = e && e.detail && typeof e.detail.planId === 'string' ? e.detail.planId : null;
-      if (!planId) return;
+      // A nutritionist's plan (planKind 'meal_plan') is the nutritionist shell's; it is not a program.
+      if (!planId || e.detail.planKind === 'meal_plan') return;
       // The client Nora drafted it for rides along, so Assign can start on them (#2227).
       const clientId = typeof e.detail.clientId === 'string' && e.detail.clientId ? e.detail.clientId : null;
       navJumpRef.current.navPush();
@@ -4241,7 +4244,13 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         }).filter(Boolean);
         const calM = String((plan.detail && plan.detail.cals) || plan.meta || '').match(/(\d{3,4})/);
         const targets = calM ? { cal: Number(calM[1]) } : {};
-        const days = bsPlanWeek(plan.detail).days.map(({ dow, blocks: dayBlocks }) => ({
+        // A plan in the website builder's document (Nora's meal drafts, every plan made on the website)
+        // sends the week the website's Assign sends: each meal with its macros and ingredients, the
+        // day's targets, a rest day where the plan has one (DashMeals.buildMealAssignment). Its
+        // detail has no outline lines, so the path below would install an empty menu: never taken.
+        const builderDoc = mealBuilderDoc(plan.detail);
+        if (builderDoc && !window.DashMeals) throw new Error(tr('coach:mealEditor.unavailable', { defaultValue: 'The meal builder could not load. Reload the app and try again.' }));
+        const days = builderDoc ? bsMealBuilderWeek(window.DashMeals, builderDoc) : bsPlanWeek(plan.detail).days.map(({ dow, blocks: dayBlocks }) => ({
           dow, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals: mealsFrom(dayBlocks),
         }));
         const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
@@ -6414,6 +6423,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const [uploading, setUploading] = useStateBSP(false);
   const mediaInputRef = React.useRef(null);
   const [status, setStatus] = useStateBSP('');
+  const [pubErr, setPubErr] = useStateBSP(''); // a save that failed, said under Publish
   // ⚠ Find the active day BY `dow`, never by array position. `days` is a SPARSE
   // list, so `days[1]` is whatever weekday happens to sit second — for
   // [{dow:0},{dow:2},{dow:4}] that is Wednesday. An editor that indexed by
@@ -6793,8 +6803,13 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
           // menu and nothing errors. Omitted entirely when there is nothing to
           // say, so a draft with no per-day authoring publishes a payload
           // byte-identical to today's.
-          await onPublish({ name, blocks: pubBlocks, note, media, ...(pubDays.length ? { days: pubDays } : {}) });
+          // A save that fails says so and leaves the draft open (a saved row is published in place,
+          // and that write can be refused); it used to hold "Publishing…" with nothing behind it.
+          setPubErr('');
+          try { await onPublish({ name, blocks: pubBlocks, note, media, ...(pubDays.length ? { days: pubDays } : {}) }); }
+          catch (e) { setStatus(''); setPubErr(String((e && e.message) || tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' }))); }
         }} style={{ width: '100%', marginTop: 24, borderRadius: 14, border: 0, background: accent, color: accentInk, padding: '16px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>{status || tr('coach:editor.publish', { defaultValue: 'Publish {type} →', type: typeName })}</button>
+        {pubErr ? <div role="alert" data-draft-publish-error="" style={{ marginTop: 10, textAlign: 'center', fontFamily: t.BODY, fontSize: 13, color: t.RUST }}>{pubErr}</div> : null}
         <div style={{ marginTop: 12, textAlign: 'center', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{tr('coach:editor.savesLibrary', { defaultValue: 'Saves to your library · you can edit again anytime' })}</div>
       </div>
       <BSFooter left={tr('coach:editor.footer', { defaultValue: 'Edit draft' })} right={typeName} />
@@ -7877,6 +7892,21 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:proMessageCoach', onCoach);
     return () => window.removeEventListener('shape:proMessageCoach', onCoach);
   }, []);
+  // ⚠ "OPEN IN BUILDER" ON NORA'S CARD, for a nutritionist (owner, 2026-11-04: her drafts open in the
+  // app). The card names the plan; the shell takes the coach to Plans, where it opens in its editor,
+  // on the Plans, Programs or Diet tab it belongs to. Only a nutrition plan's card is answered here.
+  const [openPlanRequest, setOpenPlanRequest] = useStateBSP(null);
+  React.useEffect(() => {
+    const onOpenPlan = (e) => {
+      const d = (e && e.detail) || {};
+      if (typeof d.planId !== 'string' || !d.planId || d.planKind !== 'meal_plan') return;
+      navJumpRef.current.navPush();
+      setOpenPlanRequest({ planId: d.planId, nonce: Date.now() });
+      setTab('plans');
+    };
+    window.addEventListener('shape:openCoachPlan', onOpenPlan);
+    return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
+  }, []);
   React.useEffect(() => {
     const onSettingsEvt = () => navJumpRef.current.goSettings();
     const onAvail = () => { navJumpRef.current.navPush(); setShowSettings(false); setShowCalendar(true); };
@@ -7921,7 +7951,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
-    plans:    <BSNutriPlans sheet={sheet} />,
+    plans:    <BSNutriPlans sheet={sheet} openPlanRequest={openPlanRequest} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
@@ -8050,7 +8080,7 @@ function BSProPlansTabBar({ active, onChange }) {
   );
 }
 
-function BSNutriPlans() {
+function BSNutriPlans({ openPlanRequest = null } = {}) {
   const t = useBS();
   const tClean = useBSProClean();
   const tr = useShapeTr();
@@ -8076,7 +8106,10 @@ function BSNutriPlans() {
   const [note, setNote] = useStateBSP('');
   const flash = (m) => { setNote(m); setTimeout(() => setNote(''), 1700); };
   const share = (name) => { try { navigator.clipboard?.writeText(`https://shape.app/p/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`); } catch (e) {} flash(tr('coach:plans.shareCopied', { defaultValue: 'Share link copied' })); };
-  useEffectBSP(() => { if (window.ShapeCoachPlans?.list) window.ShapeCoachPlans.list('meal_plan').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {}); }, []);
+  const refreshLibrary = React.useCallback(() => (window.ShapeCoachPlans?.list
+    ? window.ShapeCoachPlans.list('meal_plan').then(rows => { if (Array.isArray(rows)) setServerPlans(rows); }).catch(() => {})
+    : Promise.resolve()), []);
+  useEffectBSP(() => { refreshLibrary(); }, [refreshLibrary]);
   const duplicate = async (p) => {
     const copy = { kind: 'meal_plan', name: tr('coach:plans.copyName', { defaultValue: '{name} (copy)', name: p.n }), meta: p.meta, price: p.price };
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(copy); if (row) { setServerPlans(list => [row, ...(list || [])]); flash(tr('coach:diet.planDuplicated', { defaultValue: 'Plan duplicated' })); return; } } catch (e) {} }
@@ -8087,11 +8120,19 @@ function BSNutriPlans() {
   // server-derived rows to buildType 'mealplan' (legacy rows w/o detail stay); local
   // dupes (no .id) always pass. Program/diet templates no longer leak in here.
   // ⚠ A PLAN FROM THE WEBSITE BUILDER (detail.mealBuilder, Nora's drafts among them) IS LISTED
-  // TOO (Codex, #2260): it was filtered out, so a draft confirmed here vanished. This screen's
-  // editor and Assign read another document, so its row says where it is edited instead.
+  // TOO (Codex, #2260): it was filtered out, so a draft confirmed here vanished. It opens in
+  // BSMealBuilderEditor and assigns from its own document (owner, 2026-11-04: "fix these and make
+  // them possible"); every other saved row opens in the draft editor on what it holds.
+  // A saved row as a catalogue card, a draft (published: false, as Nora saves hers) saying so.
+  const draftWord = tr('coach:plans.draftTag', { defaultValue: 'draft' });
+  const toCard = (p) => ({ n: p.name, meta: `${p.meta || tr('coach:plans.newMealPlan', { defaultValue: 'New meal plan' })}${p.published === false ? ` · ${draftWord}` : ''}`, price: p.price || '$—', id: p.id, server: true, detail: p.detail || null, row: p });
+  const kindOf = (p) => (p && p.detail && !p.detail.mealBuilder && (p.detail.buildType === 'program' || p.detail.buildType === 'diet') ? p.detail.buildType : 'mealplan');
   const customCards = (serverPlans || dupes)
-    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan' || !!p.detail.mealBuilder)
-    .map(p => p.id ? { n: p.name, meta: p.meta || 'New meal plan', price: p.price || '$—', id: p.id, server: true, detail: p.detail || null, web: !!(p.detail && p.detail.mealBuilder) } : p);
+    .filter(p => !p.id || kindOf(p) === 'mealplan')
+    .map(p => p.id ? toCard(p) : p);
+  // The nutritionist's own programs and diets (owner, 2026-11-04), saved from the editor or by Nora.
+  const ownPrograms = (serverPlans || []).filter(p => p && p.id && kindOf(p) === 'program').map(toCard);
+  const ownDiets = (serverPlans || []).filter(p => p && p.id && kindOf(p) === 'diet').map(toCard);
   // §5 (CodeRabbit) — the demo social-proof rows (12 on it · 4.9 ★) are a
   // signed-OUT preview only; a signed-in coach sees only their real
   // serverPlans-derived rows (customCards), with the empty-state redaction.
@@ -8102,7 +8143,7 @@ function BSNutriPlans() {
     { n: 'Maintenance', meta: '2,700 kcal · 14 on it · 4.9 ★', price: '$120' },
   ];
   // Lifestyle-based meal programs a client can buy (the "Programs" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
-  const nutriPrograms = signedIn ? [] : [
+  const nutriPrograms = signedIn ? ownPrograms : [...ownPrograms,
     { n: 'Busy professional', meta: '4 wks · fast & balanced · $130' },
     { n: 'New-parent reset', meta: '6 wks · simple batch meals · $120' },
     { n: 'Athlete fuel', meta: '8 wks · performance · $160' },
@@ -8121,8 +8162,29 @@ function BSNutriPlans() {
   const [blankMode, setBlankMode] = useStateBSP(false); // false = AI draft, true = build from scratch
   const BUILD_LABEL = { mealplan: tr('coach:diet.buildMealPlan', { defaultValue: 'meal plan' }), program: tr('coach:plans.buildProgram', { defaultValue: 'program' }), diet: tr('coach:diet.buildDiet', { defaultValue: 'diet' }) };
   const openDraft = (type, blank = false) => { setBuildType(type); setBlankMode(blank); setDrafting(true); };
-  const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish
+  const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish; `id` when it is a saved row
+  const [builderPlan, setBuilderPlan] = useStateBSP(null); // a saved plan holding the website builder's document, open in BSMealBuilderEditor
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
+  const accountId = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
+  const rememberRow = (row) => { if (row && row.id) setServerPlans(list => [row, ...(list || []).filter(p => p && p.id !== row.id)]); };
+  // A saved row opens on what it holds: the builder's document in its editor, anything else in the
+  // draft editor with its own name, lines, note, photos and days (it used to open a blank draft).
+  const openRow = (row) => {
+    if (!row) return;
+    if (mealBuilderDoc(row.detail)) { setBuilderPlan(row); return; }
+    const d = row.detail && typeof row.detail === 'object' ? row.detail : {};
+    const type = kindOf(row);
+    setBuildType(type);
+    if (d.goal) setGoal(String(d.goal));
+    if (d.diet) setDiet(String(d.diet));
+    if (d.cals) setCals(String(d.cals));
+    if (Number(d.mealsDay) > 0) setMealsDay(Number(d.mealsDay));
+    const blockLabel = type === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : type === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
+    const blocks = (Array.isArray(d.blocks) ? d.blocks : []).map((b, i) => (b && typeof b === 'object' ? { id: b.id || 'b' + i, ...b } : { id: 'b' + i, text: String(b == null ? '' : b) }));
+    // Its own line and figures ride along, so publishing it never writes the page's chips over them.
+    setEditDraft({ id: row.id, name: row.name, blocks: blocks.length ? blocks : [{ id: 'b0', text: '' }], note: d.note || '', media: Array.isArray(d.media) ? d.media : [], days: Array.isArray(d.days) ? d.days : undefined, blockLabel, meta: row.meta || null, cals: d.cals != null ? d.cals : null, mealsDay: d.mealsDay != null ? d.mealsDay : null });
+  };
+  const openCard = (card, type) => (card && card.row ? openRow(card.row) : openDraft(type));
   // ⚠ `days` must survive this destructure. The editor may hand over seven
   // authored day menus; a payload built without the key stores the legacy
   // repeated menu, the plan reloads looking untouched, and nothing errors —
@@ -8131,13 +8193,26 @@ function BSNutriPlans() {
   const publishDraft = async ({ name, blocks, note, media, days }) => {
     const typeName = BUILD_LABEL[buildType];
     const payload = { kind: 'meal_plan', name: name || `${goal} ${typeName}`, meta: `${typeName} · ${cals.replace('~', '')} kcal · ${diet.toLowerCase()}`, price: buildType === 'mealplan' ? '$120' : null, detail: { buildType, goal, diet, cals, mealsDay, blocks, note, media: media || [], ...(days && days.length ? { days } : {}) } };
+    // A saved row is published in place, keeping its price, its line and its own figures (a program
+    // Nora saved with no calories is not given the page's 2,100); its stored `days` go when the
+    // editor hands back none, so a plan put back to one menu is not served the old week.
+    if (editDraft && editDraft.id) {
+      if (!window.ShapeCoachPlans?.update) throw new Error(tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' }));
+      const { cals: _pageCals, mealsDay: _pageMeals, ...own } = payload.detail;
+      const detail = { ...own, ...(editDraft.cals != null ? { cals: editDraft.cals } : {}), ...(editDraft.mealsDay != null ? { mealsDay: editDraft.mealsDay } : {}), days: days && days.length ? days : null };
+      const row = await window.ShapeCoachPlans.update({ id: editDraft.id, name: payload.name, meta: editDraft.meta || payload.meta, published: true, ...(accountId ? { expectedOwnerId: accountId } : {}), detail });
+      rememberRow(row);
+      flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
+      setEditDraft(null); setDrafting(false);
+      return;
+    }
     if (window.ShapeCoachPlans?.create) { try { const row = await window.ShapeCoachPlans.create(payload); if (row) setServerPlans(list => [row, ...(list || [])]); } catch (e) {} }
     flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
     setEditDraft(null); setDrafting(false);
   };
   const libBuild = ({ plans: 'mealplan', programs: 'program', diet: 'diet' })[libTab] || 'mealplan';
   // Diet-specific meals / plans (the "Diet" sub-tab) — demo (signed-OUT only; §5 CodeRabbit).
-  const diets = signedIn ? [] : [
+  const diets = signedIn ? ownDiets : [...ownDiets,
     { n: 'Keto · 7-day', meta: '20g net carbs · high fat · $90' },
     { n: 'Mediterranean', meta: 'whole-food · heart-healthy · $90' },
     { n: 'High-protein cut', meta: '180g+ protein · lean · $100' },
@@ -8161,10 +8236,36 @@ function BSNutriPlans() {
     { prog: 'Maintenance', n: 14, who: [['C', t.AMBER], ['D', t.RUST]] },
   ];
 
+  // Open the plan a confirmed Nora draft just saved ("Open in builder" on her card). ⚠ IT WAITS FOR
+  // THE LIBRARY, and reads it once more if the plan is not in it yet: the save landed a moment ago.
+  // Only then does it say it cannot find it. Answered once per request (nonce), as the trainer's.
+  const openHandled = React.useRef(null);
+  const openRetried = React.useRef(null);
+  useEffectBSP(() => {
+    const req = openPlanRequest;
+    if (!req || !req.planId || openHandled.current === req.nonce || !serverPlans) return;
+    const row = serverPlans.find((p) => p && p.id === req.planId);
+    if (row) {
+      openHandled.current = req.nonce;
+      setTab('library'); setLibTab(({ program: 'programs', diet: 'diet' })[kindOf(row)] || 'plans');
+      setAssignPlan(null); setDrafting(false); setEditDraft(null); setBuilderPlan(null);
+      openRow(row);
+      return;
+    }
+    if (openRetried.current !== req.nonce) { openRetried.current = req.nonce; refreshLibrary(); return; }
+    openHandled.current = req.nonce;
+    flash(tr('coach:plans.openMissingPlan', { defaultValue: "That plan isn't in your library yet. Try again in a moment." }));
+  }, [openPlanRequest, serverPlans, refreshLibrary]);
+
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Assign a catalogue meal plan to a linked client ──
   if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
+
+  // ── A plan in the website builder's document: its own editor, its own Assign ──
+  if (builderPlan) return <BSMealBuilderEditor key={builderPlan.id} plan={builderPlan} ownerId={accountId} onClose={() => setBuilderPlan(null)}
+    onSaved={(row) => { if (row) { rememberRow(row); setBuilderPlan(row); } }}
+    onAssign={(row) => { setBuilderPlan(null); setAssignPlan({ id: row.id || null, name: row.name, meta: row.meta, detail: row.detail || null }); }} />;
 
   // ── Customize the generated/blank draft before publishing ──
   // perDayAuthoring is capability-gated to the build types that produce a MENU
@@ -8323,8 +8424,8 @@ function BSNutriPlans() {
         {/* §1.5 THE CATALOGUE — the most popular meal plan as a card, then the rest as rows. */}
         {topPlan && <>
           <BSProFeaturedPlan plan={topPlan} heat={heat} t={t}
-            onOpen={() => (topPlan.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : openDraft('mealplan'))}
-            onAssign={() => (topPlan.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : setAssignPlan({ id: topPlan.id || null, name: topPlan.n, meta: topPlan.meta, detail: topPlan.detail || null }))} />
+            onOpen={() => openCard(topPlan, 'mealplan')}
+            onAssign={() => setAssignPlan({ id: topPlan.id || null, name: topPlan.n, meta: topPlan.meta, detail: topPlan.detail || null })} />
         </>}
         {stationHead(topPlan ? tr('coach:head.allPlans', { defaultValue: 'All plans' }) : tr('coach:head.paidPlans', { defaultValue: 'Paid plans' }))}
         {plans.length === 0 ? (
@@ -8337,9 +8438,9 @@ function BSNutriPlans() {
           <div style={{ marginTop: 2 }}>
             {!shownPlans.length && libSearchMiss}
             {shownPlans.filter((p) => p !== topPlan).map((p, i) => (
-              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.web ? `${p.meta} · ${tr('coach:plans.webBuilder', { defaultValue: 'website builder' })}` : p.meta} price={p.price} heat={heat} t={t}
-                onOpen={() => (p.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : openDraft('mealplan'))}
-                onAssign={() => (p.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null }))} />
+              <BSProCatRow key={p.id || p.n} index={i} name={p.n} meta={p.meta} price={p.price} heat={heat} t={t}
+                onOpen={() => openCard(p, 'mealplan')}
+                onAssign={() => setAssignPlan({ id: p.id || null, name: p.n, meta: p.meta, detail: p.detail || null })} />
             ))}
           </div>
         )}
@@ -8368,8 +8469,8 @@ function BSNutriPlans() {
         <div style={{ marginTop: 2 }}>
           {!nutriPrograms.filter((r) => libMatch(r.n)).length && libSearchMiss}
           {nutriPrograms.filter((r) => libMatch(r.n)).map((r, i) => (
-            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
-              onOpen={() => openDraft('program')}
+            <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openCard(r, 'program')}
               onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
@@ -8392,8 +8493,8 @@ function BSNutriPlans() {
         <div style={{ marginTop: 2 }}>
           {!diets.filter((r) => libMatch(r.n)).length && libSearchMiss}
           {diets.filter((r) => libMatch(r.n)).map((r, i) => (
-            <BSProCatRow key={r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
-              onOpen={() => openDraft('diet')}
+            <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
+              onOpen={() => openCard(r, 'diet')}
               onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
