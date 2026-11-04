@@ -994,7 +994,6 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('habits:page.eyebrow', { defaultValue: 'Section · Habits' })}
         title={<>{tr('habits:page.titleLead', { defaultValue: 'Daily' })} <span style={{ color: teal }}>{tr('habits:page.titleAccent', { defaultValue: 'habits' })}</span></>}
       />
       {status !== 'ready' && <div role="status" style={{ padding: `16px ${t.padX}px 0`, color: t.INK }}><button onClick={retry} style={{ minHeight: 44 }}>{status === 'loading' ? tr('habits:page.loading', { defaultValue: 'Loading…' }) : tr('habits:toast.updateError', { defaultValue: 'Could not update habit' }) + ' ↻'}</button></div>}

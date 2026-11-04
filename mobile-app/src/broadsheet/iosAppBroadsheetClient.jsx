@@ -7318,7 +7318,6 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={`Recipe of the day · ${dayLabel}`}
         title={r.title}
       />
 
@@ -7370,7 +7369,6 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={`Day brief · ${day.d}`}
         title={day.headline}
       />
 
@@ -32253,7 +32251,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={isCoach ? tr('score:coach.eyebrow', { defaultValue: 'Your coach standing' }) : tr('score:page.eyebrow', { defaultValue: 'Your standing' })}
         title={<>{tr('score:page.titleA', { defaultValue: 'Shape' })} <span style={{ color: tierText }}>{tr('score:page.titleB', { defaultValue: 'Score.' })}</span></>}
         trailing={<button onClick={onOpenStore} style={pillBtn}>{tr('score:storeBtn', { defaultValue: 'Store' })} <span aria-hidden>→</span></button>}
       />
@@ -32857,7 +32854,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('store:page.eyebrow', { defaultValue: 'Store' })}
         kicker="Shape Store"
         title={<>{tr('store:page.titleA', { defaultValue: 'Gear &' })} <span style={{ color: bsTierText(t, profile.tier) }}>{tr('store:page.titleB', { defaultValue: 'perks.' })}</span></>}
         trailing={<button onClick={onOpenScore} style={{ minHeight: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('store:page.score', { defaultValue: 'Score' })} <span aria-hidden>→</span></button>}
@@ -33442,7 +33438,6 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('session:train.previewEyebrow', { defaultValue: 'Preview · Read-only' })}
         title={program.headline}
       />
 
@@ -38375,7 +38370,6 @@ function BSContactPage({ onBack }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Support"
         kicker="Contact"
         title={<>Get in<br/>touch.</>}
         trailing={<BSAvatar init="S" size={36} fill={t.ACCENT} ink={t.PAPER} />}
@@ -39553,7 +39547,6 @@ function BSPricingPage({ onBack }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Pricing"
         kicker="Membership"
         title={<>Five dollars<br/>a month.</>}
         trailing={<BSAvatar init="$" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -39657,7 +39650,6 @@ function BSTermsPage({ onBack, onContact }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Legal"
         kicker="Terms of service"
         title={<>Terms of<br/>service.</>}
         trailing={<BSAvatar init="T" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -39747,7 +39739,6 @@ function BSPrivacyPage({ onBack, onContact }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Legal"
         kicker="Privacy policy"
         title={<>Privacy<br/>policy.</>}
         trailing={<BSAvatar init="P" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -39807,7 +39798,6 @@ function BSDataCompliancePage({ onBack, onContact }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Legal"
         kicker="Data & compliance"
         title={<>Data &amp;<br/>compliance.</>}
         trailing={<BSAvatar init="D" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -39982,7 +39972,6 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Support"
         kicker="Help center"
         title={<>Help<br/>center.</>}
         trailing={<BSAvatar init="?" size={36} fill={t.ACCENT} ink={t.INK} />}

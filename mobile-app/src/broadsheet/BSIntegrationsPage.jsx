@@ -288,7 +288,6 @@ export function BSIntegrationsPage({ onBack }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('settings:integrations.eyebrow', { defaultValue: 'Data' })}
         kicker={tr('settings:integrations.kicker', { defaultValue: 'Settings · Integrations' })}
         title={<>{tr('settings:integrations.titleA', { defaultValue: 'Connected' })}<br/>{tr('settings:integrations.titleB', { defaultValue: 'apps.' })}</>}
         trailing={<div style={{ textAlign: 'right' }}>

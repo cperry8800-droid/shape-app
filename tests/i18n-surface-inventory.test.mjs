@@ -932,8 +932,8 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // ("Shape team", "Always online", the line under her name, "What Nora helps with", her promise and
   // "Message Nora →"; what she helps with sat in an array literal, the blind spot cut 5 recorded): 592 -> 586.
   // The detail header's eyebrows went (owner, 2026-11-04: "also remove these eyebrow headers"), and the
-  // hardcoded ones with them (the untranslated pages' "Section · …", "Legal" and the like): 586 -> 579.
-  assert.equal(noneStrings, 579, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // hardcoded ones with them (the untranslated pages' "Section · …", "Legal", "Support", "Pricing" and the like): 586 -> 571.
+  assert.equal(noneStrings, 571, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.

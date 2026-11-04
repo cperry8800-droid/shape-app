@@ -126,7 +126,8 @@ test('a signed-in trainer reads /api/coach/score, never the member ledger, and t
     // repeat them).
     assert.match(txt, /Master5,000\+· Next · 2,630 to go/);
     assert.match(txt, /370 into the tier — 2,630 from Master\./);
-    assert.match(txt, /Your coach standing/);
+    // No eyebrow over the title (owner, 2026-11-04: "also remove these eyebrow headers").
+    assert.doesNotMatch(txt, /Your coach standing/);
     // The breakdown is the default tab: the route's rows, their figures said in the app's words.
     assert.match(txt, /Active clients\+1,500/);
     assert.match(txt, /30 clients/);
