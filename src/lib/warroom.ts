@@ -622,6 +622,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Make it yours\' Colors page as the lit panel (the owner\'s B), in its own module (#2609). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the coach profile editor\'s Colors page: "update profile edit settings page", then of three designs built in the app, "B for colors"; then "Both" (members get this page, and the coach editor gains what it lacks), "the customization options should be specific for what coaches can edit and clients", and "this should apply to website as well"', status: 'done' },
+        { label: '#2609 BSLookPicker.jsx: the Shape looks, the paper and the accent each on a raised plate; the paper and accent picks read in a lit slot ("Paper · Black"); each swatch in a dark inset bezel, framed and glowing in the editor\'s teal when picked; each accent a lamp lit in its own colour; the readability check under them. The preview sits in the panel\'s raised bezel with a lit PREVIEW tag on the Colors page only. The palette helpers live in the module for the members\' editor to share', status: 'done' },
+        { label: '#2609 review: Codex clean on 30b308c. The editor\'s tests and tests/look-picker (mounted) pass, 119; vite build passes; the built Colors tab matches the pick at 390px. CI green on the War Room head; no reviewer read this record', status: 'done' },
+        { label: 'Members get this Colors page, and each editor offers what its role can edit (the owner\'s "Both" and "specific for what coaches can edit and clients")', status: 'pending' },
+        { label: 'The website\'s profile editor gets the same Colors page and the same per-role options ("this should apply to website as well")', status: 'pending' },
+        { label: 'OWNER: on a phone, Make it yours → Colors on a trainer and a nutritionist profile', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Train and Eat back to the owner\'s picks; Home\'s goal climb in option B\'s colours; coach Today\'s Your day with its sessions before To do (#2608). No migration',
       items: [
         { label: 'Owner, 2026-11-04: of #2605\'s Train, "dont like this", then "no revert training to what i had prior" and "this one" of a shot of this session\'s earlier Train C; of Eat, "use this again" and "this one for eat" of a shot of its earlier pick; of option B\'s climb graph, "also i like this coloring for graph on home page"; of Your day, "also switch the order of these around on home page"', status: 'done' },
