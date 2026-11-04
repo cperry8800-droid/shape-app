@@ -21,6 +21,9 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+// The workout review moved into its own module with its redesign (2026-11-04); tests/coach-review-b.test.mjs
+// drives it mounted.
+const REVIEW = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSWorkoutReview.jsx'), 'utf8');
 const { JSDOM } = require_('jsdom');
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'https://shape.test/m/' });
 const W = dom.window;
@@ -73,15 +76,16 @@ async function mount(el) {
   return { host, close: () => React.act(async () => { root.unmount(); host.remove(); }) };
 }
 // The source of the review pages: the workout review, and Adjust through the case file.
-function span(a, b) {
-  const i = SRC.indexOf(a), j = SRC.indexOf(b, i);
+function span(a, b, src = SRC) {
+  const i = src.indexOf(a), j = src.indexOf(b, i);
   assert.ok(i > 0 && j > i, `${a} moved`);
-  return SRC.slice(i, j);
+  return src.slice(i, j);
 }
 // Adjust (Tune the program / plan) is its own module since its redesign (BSProAdjust.jsx; the module's own
-// rules are tests/pro-adjust-module.test.mjs), so its source joins the coach module's spans.
+// rules are tests/pro-adjust-module.test.mjs), and the workout review is its own (BSWorkoutReview.jsx), so
+// their sources join the coach module's spans.
 const ADJ = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSProAdjust.jsx'), 'utf8');
-const PAGES = span('function BSWorkoutReviewPage(', 'function BSProLiveWatch(') + span('function BSProScheduleSession(', 'const bsEditorSteps = ') + ADJ;
+const PAGES = span('export default function BSWorkoutReviewPage(', '\n}\n', REVIEW) + span('function BSProScheduleSession(', 'const bsEditorSteps = ') + ADJ;
 
 test('the review pages set no mono, no italic, no dashed rule and no mono station head', () => {
   assert.doesNotMatch(PAGES, /fontFamily: t\.MONO/, 'a mono label');
@@ -91,7 +95,7 @@ test('the review pages set no mono, no italic, no dashed rule and no mono statio
   for (const fn of ['BSWorkoutReviewPage', 'BSProAdjustProgram', 'BSProScheduleSession', 'BSProAssignPage', 'BSProCheckinDraft', 'BSProClientFullProfilePage']) {
     const body = fn === 'BSProAdjustProgram'
       ? ADJ.slice(ADJ.indexOf('export default function BSProAdjustProgram('), ADJ.indexOf('\n}\n', ADJ.indexOf('export default function BSProAdjustProgram(')))
-      : span(`function ${fn}(`, '\n}\n');
+      : span(`function ${fn}(`, '\n}\n', fn === 'BSWorkoutReviewPage' ? REVIEW : SRC);
     assert.match(body, /const t = useBSProClean\(\);/, fn + ' is not in the clean type');
     assert.match(body, /<BSProCleanType t=\{t\}>/, fn + ' does not hand the clean type on');
   }

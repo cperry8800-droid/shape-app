@@ -13,9 +13,9 @@
 // branch leaves that guard, tsc, the build and every other test GREEN. So this
 // file is the deliverable, not a formality.
 //
-// It is a SOURCE guard because the page is a component in a ~7k-line
-// browser-global module with no import seam (the house pattern from
-// tests/integrations-name-token.test.mjs). Comments are stripped first: the
+// It is a SOURCE guard (the house pattern from tests/integrations-name-token.test.mjs);
+// the page lives in its own module since its redesign (BSWorkoutReview.jsx, 2026-11-04),
+// and tests/coach-review-b.test.mjs drives it mounted. Comments are stripped first: the
 // rationale written at each site quotes the very expressions banned here, and
 // this repo has burned that trap more than once.
 import test from 'node:test';
@@ -23,13 +23,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const PROS = 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx';
+const PAGE = 'mobile-app/src/broadsheet/BSWorkoutReview.jsx';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const EN = 'mobile-app/src/i18n/catalogs/en/coach.json';
 
 /** The review page's own body, brace-matched from its declaration. */
 function reviewPage() {
-  const src = stripComments(readFileSync(PROS, 'utf8'));
+  const src = stripComments(readFileSync(PAGE, 'utf8'));
   const marker = 'function BSWorkoutReviewPage(';
   const at = src.indexOf(marker);
   assert.ok(at >= 0, 'BSWorkoutReviewPage not found — re-anchor this guard');
