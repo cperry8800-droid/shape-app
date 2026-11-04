@@ -1365,6 +1365,7 @@
   "today.openReviews": "Відкрити розбори",
   "today.seeAllTodo": "Показати всі {count} →",
   "today.title": "Сьогодні",
+  "today.dayList": "Ваш день",
   "today.todo": "Справи",
   "today.todoClear": "Справ немає — усі йдуть за графіком.",
   "today.upNextAt": "Далі · {time}",

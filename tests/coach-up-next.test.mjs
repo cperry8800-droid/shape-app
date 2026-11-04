@@ -50,16 +50,20 @@ test('Open their file asks for the booking\'s client by id, else by name, throug
 test('Up next hangs from the deck: a dotted line into its rail, the countdown there, its buttons still 44 to tap', () => {
   // Owner, 2026-11-04, of the deck and Up next: "also need to make these 2 sections flow and look better
   // together", then of three built in the app "this one" (the timeline). The name stays 17 (2026-10-31).
+  // Then of the two: "can we make these a little more condensed on home page with a tad more spacing [from]
+  // shape radio": Today's deck is `dense` (16px under the radio, a step tighter), the rail 64px.
   const at = PROS.indexOf('<div data-up-next=""');
-  const card = PROS.slice(at, PROS.indexOf('{/* TO DO', at));
+  const card = PROS.slice(at, PROS.indexOf('{/* YOUR DAY', at));
   // The deck's width: both sit 10px in from the page, so they line up.
   const wrap = PROS.slice(PROS.lastIndexOf('{upB && (', at), at);
   assert.match(wrap, /<div style=\{\{ margin: '0 10px' \}\}>/, 'Up next is not the deck\'s width');
   const KIT = readFileSync(new URL('../mobile-app/src/broadsheet/BSProInstrument.jsx', import.meta.url), 'utf8');
-  assert.match(KIT, /data-pro-deck=""[^\n]*margin: '6px 10px 0', \.\.\.bsRaised\(t\)/, 'the deck moved off its 10px');
-  // The dotted line from the deck, in the role's heat, into the rail's middle (the rail is 74px wide).
-  assert.match(wrap, /data-up-link="" style=\{\{ marginLeft: 36, width: 0, height: 14, borderLeft: `2px dotted \$\{heat\}` \}\}/);
-  assert.match(card, /\.\.\.bsProPlate\(t, heat\), display: 'grid', gridTemplateColumns: '74px minmax\(0, 1fr\)'/);
+  assert.match(KIT, /data-pro-deck=""[^\n]*margin: dense \? '16px 10px 0' : '6px 10px 0', \.\.\.bsRaised\(t\)/, 'the deck moved off its 10px');
+  assert.ok(PROS.includes('<BSProDeck dense t={t} role={role} tour="hero-today"'), 'Today\'s deck is not the dense one');
+  assert.ok(PROS.includes('<BSProDeckWeek dense t={t}') && PROS.includes('<BSProDeckSegments dense t={t}'), 'Today\'s week and bar are not dense');
+  // The dotted line from the deck, in the role's heat, into the rail's middle (the rail is 64px wide).
+  assert.match(wrap, /data-up-link="" style=\{\{ marginLeft: 31, width: 0, height: 10, borderLeft: `2px dotted \$\{heat\}` \}\}/);
+  assert.match(card, /\.\.\.bsProPlate\(t, heat\), display: 'grid', gridTemplateColumns: '64px minmax\(0, 1fr\)'/);
   // The rail: the pulse (still under Reduce Motion), the countdown, or a booking under way's start time.
   const rail = card.slice(card.indexOf('data-up-rail=""'), card.indexOf("tr('coach:today.upNextAt'"));
   assert.match(rail, /\.\.\.\(sdReduced \? null : \{ animation: 'bsLivePulse/);
@@ -69,19 +73,21 @@ test('Up next hangs from the deck: a dotted line into its rail, the countdown th
   assert.match(card, /fontFamily: BS_PRO_HEAD, fontSize: 17,/, 'the name at 17');
   const buttons = card.match(/<button [^\n]*/g) || [];
   assert.ok(buttons.length >= 2);
-  for (const b of buttons) assert.match(b, /minHeight: 44/, 'a button under 44');
+  // Each is a 44px target (upHit) round a 36px pill; its -4px margins let the pill sit 36 in the card.
+  assert.match(PROS, /const upHit = \{ minHeight: 44,/, 'the target under 44');
+  assert.match(PROS, /const upPill = \{[^\n]*height: 36,/);
+  for (const b of buttons) assert.match(b, /style=\{\{ \.\.\.upHit, margin: '-4px 0' \}\}><span style=\{\{ \.\.\.upPill,/, 'a button off the 44px target');
 });
 
 test('the week strip sits at the top, under Today, above Up next and To do', () => {
   // Owner, 2026-11-03, of the strip below To do: "this should be towards top of coaches home page".
-  const head = PROS.indexOf('<BSProDeck t={t} role={role} tour="hero-today"');
+  const head = PROS.indexOf('<BSProDeck dense t={t} role={role} tour="hero-today"');
   const week = PROS.indexOf('{/* THIS WEEK — the day strip');
   const live = PROS.indexOf('{/* LIVE — a client training');
   const up = PROS.indexOf('{/* UP NEXT — today\'s next booking');
-  const todo = PROS.indexOf('{/* TO DO — paid sessions to book');
-  const sched = PROS.indexOf('{/* SCHEDULE — the selected day');
+  const day = PROS.indexOf('{/* YOUR DAY — To do and the Schedule as one list');
   assert.ok(head > 0 && week > head, 'the strip is under the Today header');
-  assert.ok(live > week && up > week && todo > week && sched > todo, 'Today, the strip, then Up next, To do and the schedule');
+  assert.ok(live > week && up > live && day > up, 'Today, the strip, then Up next, then Your day (To do and the schedule)');
   assert.equal((PROS.slice(head, week).match(/<section /g) || []).length, 0, 'nothing between Today and the strip');
 });
 
