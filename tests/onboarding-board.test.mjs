@@ -674,6 +674,12 @@ test('the plan read names every coach of a role, and credits each workout to the
   assert.deepEqual(byTitle, { Lower: 'Tom Trainer', Conditioning: 'Sam Strong', 'My own': null });
   // And by id, so Home files each session under the trainer who wrote it (Codex P2 on #2583).
   assert.deepEqual(Object.fromEntries(body.training.workouts.map((w) => [w.title, w.coachId])), { Lower: 7, Conditioning: 8, 'My own': null });
+  assert.equal(body.meals.coachId, null, 'no meal plan, no nutritionist to file it under');
+  // A meal plan carries its nutritionist's id, so Home files the day's meals under the one who wrote it.
+  const withMenu = { ...tables, client_meal_plans: [{ id: 'mp1', client_id: U, status: 'published', title: 'Cut', week_start: '2026-10-19', nutritionist_id: 4, created_at: ago(1), payload: { days: [] } }],
+    nutritionists: [{ id: 4, name: 'Nia Noor' }] };
+  const meals = (await (await load(fakeSupabase({ tables: withMenu }))).GET(new Request('https://x/api/client/plan'))).body.meals;
+  assert.deepEqual([meals.coach, meals.coachId], ['Nia Noor', 4]);
 });
 
 // The member Home's Team cards show each coach's face (owner, 2026-11-03: "once signed in to real account,

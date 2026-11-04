@@ -5183,6 +5183,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
               coachId: sample ? 'sample-trainer' : (selWorkout.coachId ?? null) } : null}
             meal={nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
             fuel={fuel}
+            // Who wrote the meal plan (the plan read's nutritionist id): Team files the meals under them.
+            mealCoachId={sample ? 'sample-nutritionist' : ((livePlan && livePlan.meals && livePlan.meals.coachId) ?? null)}
             showFindCoach={!teamCoaches.length && coachesKnown}
             onFindCoach={() => goMarket?.()} onCoaches={() => goChat()} onCalendar={goCalendar} />
         );

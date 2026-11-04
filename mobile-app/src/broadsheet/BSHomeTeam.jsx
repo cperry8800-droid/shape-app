@@ -62,8 +62,9 @@ export function BSHomeTeam(props) {
 //   notes     [{ role, text, who, providerId }]               their weekly notes, by coach
 //   workout   { title, meta, time, onStart, coachId } | null  today's session, and the trainer who wrote it
 //   meal      { slot, time, title, onLog } | null             the next meal not logged
+//   mealCoachId                                              the nutritionist who wrote the meal plan
 //   fuel      { left, pct } | null                            food left today, and the share eaten
-export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, tour }) {
+export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, mealCoachId = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, tour }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const trainers = coaches.filter((c) => c.role !== 'nutritionist');
@@ -76,8 +77,13 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
     ? trainers.find((c) => c.providerId != null && String(c.providerId) === String(workout.coachId)) || null
     : null;
   const trainer = sessionCoach || trainers[0] || null;
-  const nutri = nutris[0] || null;
-  const extras = [...trainers.filter((c) => c !== trainer), ...nutris.slice(1)];
+  // The day's meals and food left go on the card of the nutritionist who wrote the meal plan (Codex P2 on
+  // #2583: a member may pay two), with that nutritionist's Message; with none of theirs named, the first.
+  const mealCoach = mealCoachId != null
+    ? nutris.find((c) => c.providerId != null && String(c.providerId) === String(mealCoachId)) || null
+    : null;
+  const nutri = mealCoach || nutris[0] || null;
+  const extras = [...trainers.filter((c) => c !== trainer), ...nutris.filter((c) => c !== nutri)];
   // Each coach's weekly note on their own card. A note carrying a coach's listing id is that coach's (Codex
   // P2 on #2583: two coaches may share a name, and a name lookup may fail); one without an id falls back to
   // the name; one that names no coach here goes to the first of its role. A second coach of a role never

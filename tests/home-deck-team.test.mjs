@@ -475,6 +475,26 @@ test("today's session goes on the card of the trainer who wrote it, and the memb
   }
 });
 
+// Codex P2 on #2583: a member who pays two nutritionists sees the day's meals under the one who wrote the plan.
+test("the day's meals go on the card of the nutritionist who wrote the plan, with their Message", () => {
+  const NIA = { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null };
+  const ev = listen('shape:openConversation');
+  try {
+    const d = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA], mealCoachId: 4 }));
+    const card = coachBlock(d, 'nutritionist');
+    assert.match(textOf(card), /^Nia Noor/, "Nia wrote the meal plan, so Nia's card carries the meals, though Maya is the earlier");
+    assert.match(textOf(coachBlock(d, 'extra')), /^Maya Patel/, 'Maya is the second nutritionist\'s row');
+    const msg = d.nodes().find((n) => n.type === 'button' && n.props['data-team-message'] && n.props['aria-label'] === 'Message Nia Noor' && textOf(card).includes(textOf(n)));
+    assert.ok(msg, "the meals' Message is Nia's");
+    msg.props.onClick();
+    assert.deepEqual(ev.got, [{ conversationId: 'c-n', name: 'Nia Noor' }]);
+  } finally { ev.off(); }
+  // No author named, or one no longer paid: the first nutritionist, as before.
+  for (const mealCoachId of [null, 99]) assert.match(textOf(coachBlock(drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null }], mealCoachId })), 'nutritionist')), /^Maya Patel/);
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /mealCoachId=\{sample \? 'sample-nutritionist' : \(\(livePlan && livePlan\.meals && livePlan\.meals\.coachId\) \?\? null\)\}/);
+});
+
 // Codex P2 on #2583: a note keeps its coach's listing id, and Team files it by that id first, so two coaches
 // who share a name, or a name lookup that failed, never put one coach's advice under the other.
 test("a coach's note is filed by their listing id: same-named coaches each get their own, and a missing name never moves it", () => {

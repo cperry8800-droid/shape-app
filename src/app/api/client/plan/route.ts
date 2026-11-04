@@ -401,6 +401,9 @@ export async function GET(request: Request) {
       read: !mpErr,
       title: mp?.title ?? null,
       coach: nuName,
+      // Its nutritionist's listing id too, so Home files the day's meals under the nutritionist who wrote
+      // the plan, not the first of two (Codex P2 on #2583), as each workout's coachId does for trainers.
+      coachId: mp?.nutritionist_id ?? null,
       weekStart: mp?.week_start ?? null,
       days: mealDays,
       // The nutritionist's live Adjust targets — when present these are the
