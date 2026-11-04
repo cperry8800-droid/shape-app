@@ -71,8 +71,10 @@ test('the coach look\'s counts, then Follow and Message for someone else, nothin
   const [toggle] = withAttr(nodes, 'data-follow-toggle');
   const [message] = withAttr(nodes, 'data-follow-message');
   assert.equal(textOf(toggle).trim(), 'Follow');
-  assert.equal(toggle.props.style.background, '#34d6c5');
-  assert.equal(toggle.props.style.color, '#0f0e0c', 'Follow\'s words in the ink that reads on teal');
+  // Follow is a small lit pill inside its 44px target (owner, 2026-11-04: "make smaller to hit the look of that section").
+  const followPill = [toggle.props.children].flat(3).find((n) => n && n.props && n.props['data-follow-pill'] !== undefined);
+  assert.equal(followPill.props.style.background, '#34d6c5');
+  assert.equal(followPill.props.style.color, '#0f0e0c', 'Follow\'s words in the ink that reads on teal');
   assert.equal(textOf(message).trim(), 'Message Priya', 'Message says whom, by first name');
   for (const b of [toggle, message]) assert.equal(b.props.style.minHeight, 44);
   // No handler, no Message: never a button that does nothing.

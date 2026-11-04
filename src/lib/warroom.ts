@@ -637,6 +637,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App: This week\'s Steps opens Shape Steps again; the member profile\'s countdown under the name, its Score row, tiles and coach card as one set, Follow and Message as pills by the counts; the Score row on coach profiles (#2601). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "where did shape steps go?", "yes put it back on this week steps"; of the countdown, "also move this somewhere else on client profile"; of the Score row, tiles and coach card, "make these sit better together. they each look out of place", "idk if its the colors or what"; of Follow and Message, "make the follow and message buttons match too", "also move the [Follow] up to where followers, following are", "and make smaller to hit the look of that section of page", "same thing for the message box"; "Add the Shape Score row to coach profiles too"', status: 'done' },
+        { label: '#2601 Home: Steps in This week\'s line (the picked day\'s, and the key while the week is unread) is the Shape Steps page\'s door again, in the accent: the page once steps have synced or while the steps read has not answered (useBSStepsToday\'s `known`), Integrations once it says nothing ever synced. Its 44px box reaches as the date\'s → does; the line is a flex row whose words end in "…" and whose door never shrinks', status: 'done' },
+        { label: '#2601 member profile: the countdown sits under the name and handle ("Training for <goal>", then the date and days left). The Shape Score row is drawn as the Coached by card is (one tile, a ring in the tier\'s colour round the award, the tier bold, the points and streak under it, a chevron on your own page); the coach card 48px; the phase chips quiet ink, so the tier\'s colour is on the rings and the one lit thing', status: 'done' },
+        { label: '#2601 someone else\'s page: Follow and Message are 32px pills in the counts\' row and face (Follow lit, Message quiet), each a 44px target; on a phone they wrap under the counts, above the bio', status: 'done' },
+        { label: '#2601 coach profiles: the Shape Score row (the member row\'s tile in the coach page\'s faces, the page\'s accent on the ring, the coach tier and points) in place of the small "Shape Score 3,060 ›". Your own opens the Score page (onOpenScore, else shape:openScore); another coach\'s only shows it; a coach with no score has none', status: 'done' },
+        { label: '#2601 review: Codex\'s P2 on 2b25d97 (a tap before the steps read answered went to Integrations) fixed in 50db182; its P2 on a447e43 (the line\'s clip could hide the Steps door) fixed in bf6116c; its P1 on bf6116c ("Shape Score" untranslated in the coach row) answered: owner, 2026-11-04, "keep it in english", the product\'s name stays English in every locale as Shape Radio and Shape Steps do. CI green on bf6116c', status: 'done' },
+        { label: 'The copy key profile:trainer.score (the old coach link\'s words) is no longer read', status: 'pending' },
+        { label: 'OWNER: on a phone, the Follow and Message pills under the counts and the coach page\'s Score row', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the marketplace directory ("Find your coach.") redesigned, in its own module, BSMarketDirectory.jsx (#2600). No migration',
       items: [
         { label: 'Owner, 2026-11-04, after the run of redesigns (Goals, Home\'s Team, the coach pages): "and these", "the marketplace"', status: 'done' },
