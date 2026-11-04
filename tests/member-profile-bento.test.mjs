@@ -253,3 +253,41 @@ test('the tiles module stands alone: no import back into the client, no window g
   assert.doesNotMatch(BENTO_SRC, /\p{Extended_Pictographic}/u);
   assert.match(CLIENT, /import \{ BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards \} from '\.\/BSMemberBento\.jsx';/);
 });
+
+// Owner, 2026-11-04, of the Shape Score row, the Log activity / Edit profile tiles and the Coached by card:
+// "make these sit better together. they each look out of place", then "idk if its the colors or what".
+// The Score row was a bordered strip with a gold spine, a mono caps label and its own →, beside a lit tile
+// and a quiet coach tile. Now it is drawn as the coach card is, and Log activity is the one lit tile.
+test('the Shape Score row and the Coached by card are one kind of tile; Log activity is the one lit thing', () => {
+  signedOut();
+  const nodes = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true }).nodes();
+  const [score] = withAttr(nodes, 'data-member-score');
+  const [coachWrap] = withAttr(nodes, 'data-member-coach');
+  const coach = [coachWrap.props.children].flat(3).find((n) => n && n.type === 'button');
+  assert.ok(coach, 'the coach card opens the coach');
+  const s = score.props.style;
+  const k = coach.props.style;
+  for (const prop of ['borderRadius', 'background', 'border', 'boxShadow', 'minHeight', 'padding', 'gap', 'alignItems']) {
+    assert.deepEqual(s[prop], k[prop], `the Score row's ${prop} is not the coach card's`);
+  }
+  assert.equal(s.borderRadius, 14, 'the tiles\' radius');
+  assert.equal(s.minHeight, 48);
+  assert.equal(s.boxShadow === undefined || !/inset 3px 0 0/.test(String(s.boxShadow)), true, 'the gold spine is back');
+  // Its words: a label then the bold tier, the points and the streak under them; a chevron, no →.
+  assert.match(textOf(score), /^Shape Score .+ tier1,284 pts · .+-day streak$/);
+  assert.doesNotMatch(textOf(score), /→/);
+  const kids = [score.props.children].flat(4).filter(Boolean);
+  const icons = (n) => (n && typeof n === 'object' ? (named('BSMpIcon')(n) ? [n] : [n.props && n.props.children].flat(5).flatMap(icons)) : []);
+  assert.deepEqual(kids.flatMap(icons).map((n) => n.props.name), ['award', 'chevron'], 'the ring\'s mark and the chevron');
+  assert.equal(score.props['aria-label'], `Shape Score: ${textOf(score).replace(/^Shape Score /, '').replace(/tier(?=1,284)/, 'tier · ')}`, 'a screen reader hears it whole');
+  // The phase chips are quiet ink; the tier's colour stays on the rings and Log activity.
+  const [phase] = withAttr(nodes, 'data-member-phase');
+  const chips = [phase.props.children].flat(3).filter((n) => n && n.props && n.props.style && n.props.style.borderRadius === 99);
+  assert.ok(chips.length >= 1, 'the phase lost its chips');
+  const [log] = withAttr(nodes, 'data-member-log');
+  const rgb = (hex) => { const h = String(hex).replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', '); };
+  const tier = rgb(log.props.style.background);
+  assert.match(tier, /^\d+, \d+, \d+$/, 'the tier colour reads as a hex colour');
+  for (const chip of chips) assert.ok(!chip.props.style.background.includes(tier), `a chip is in the tier's colour again (${chip.props.style.background})`);
+  assert.equal(log.props.style.backgroundImage, bento.BS_MP_SHEEN, 'Log activity is still the lit tile');
+});

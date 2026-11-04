@@ -19179,11 +19179,13 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         const ptsLabel = pts != null ? `${Number(pts).toLocaleString(bsDateLocale())} ${tr('score:unit.pts', { defaultValue: 'pts' })}` : null;
         // A sample's tier can arrive in capitals ("PEAK"): the line reads it as a name.
         const tierLabel = String(tierName).charAt(0).toUpperCase() + String(tierName).slice(1).toLowerCase();
-        const metaBits = [
-          tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierLabel }),
+        // The Shape Score row's two lines: the tier, then the points and the streak.
+        const scoreTierWords = tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierLabel });
+        const scoreFigures = [
           ptsLabel,
           Number(streakEff) > 0 ? tr('score:board.streak', { defaultValue: '{n}-day streak', n: streakEff }) : null,
         ].filter(Boolean).join(' · ');
+        const metaBits = [scoreTierWords, scoreFigures].filter(Boolean).join(' · ');
         const whoLine = [handle, city].filter(Boolean).join(' · ');
         const aboutLine = [pronouns, memberAge == null ? '' : `${memberAge}`].filter(Boolean).join(' · ');
         const heroStart = bsProfileStartLine(customEff && customEff.startLine);
@@ -19201,7 +19203,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         const phaseChips = (
           <span data-member-phase="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 1 }}>
             {blockEff ? <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{blockEff}</span> : null}
-            {phaseParts.map((p, i) => <span key={i} style={{ padding: '0 6px', borderRadius: 99, background: bsTHexA(c, tTheme.isLight ? 0.2 : 0.22), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 650, lineHeight: 1.45 }}>{p}</span>)}
+            {/* Quiet ink chips: the tier's colour stays on the rings and the one lit tile (owner, 2026-11-04,
+                of this block: "idk if its the colors or what"). */}
+            {phaseParts.map((p, i) => <span key={i} style={{ padding: '0 6px', borderRadius: 99, background: bsTHexA(INK, tTheme.isLight ? 0.08 : 0.1), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 650, lineHeight: 1.45 }}>{p}</span>)}
           </span>
         );
         // The tier ridge over the cover (owner, 2026-11-03: "this top section should show the tier line
@@ -19318,15 +19322,30 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                       On someone else's page it shows their score and opens nothing: the Score page shows only the
                       reader's own standing, so a tap would put the reader's figures where theirs were (Codex P1 on
                       #2599). */}
+                  {/* It is drawn as the Coached by card is (owner, 2026-11-04, of the Score row, the tiles and the
+                      coach card: "make these sit better together. they each look out of place", "idk if its the
+                      colors or what"): the same quiet tile, a 30px ring on the left (the tier's colour round the
+                      award, as the coach's ring holds their initials), a label then the bold words, the figures
+                      under them, and the same quiet chevron. Log activity stays the one lit tile. */}
                   {metaBits ? (() => {
                     const scoreBody = (
                       <>
-                        <span style={{ flex: 'none', fontFamily: tTheme.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Shape Score</span>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3, color: bsTHexA(INK, 0.78), overflowWrap: 'anywhere' }}>{metaBits}</span>
-                        {isSelf ? <span aria-hidden style={{ flex: 'none', color: c, fontSize: 16, lineHeight: 1 }}>→</span> : null}
+                        <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: c }}>
+                          <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK }}>
+                            <BSMpIcon name="award" size={13} stroke={2.2} />
+                          </span>
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ lineHeight: 1.25, overflowWrap: 'anywhere' }}>
+                            <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>Shape Score</span>{' '}
+                            <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{scoreTierWords}</span>
+                          </span>
+                          {scoreFigures ? <span style={{ marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, lineHeight: 1.3, color: bsTHexA(INK, 0.62), fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{scoreFigures}</span> : null}
+                        </span>
+                        {isSelf ? <span aria-hidden style={{ flex: 'none', color: bsTHexA(INK, 0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
                       </>
                     );
-                    const rowStyle = { display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '7px 12px 7px 14px', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.14)}`, boxShadow: `inset 3px 0 0 ${c}`, background: bsTHexA(INK, 0.03), textAlign: 'left', color: INK };
+                    const rowStyle = { ...bsMpTile(tTheme, INK), borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: INK };
                     return isSelf ? (
                       <button type="button" data-tour="hero-score" data-member-meta="" data-member-score=""
                         onClick={typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
@@ -19364,7 +19383,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <div data-member-coach="" style={{ marginTop: 10, display: 'flex' }}>
                   {showCoachLink ? (
                     <button type="button" onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })}
-                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px 5px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
+                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px 5px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
                       <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
                         <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 10.5, fontWeight: 700 }}>{coachInitEff}</span>
                       </span>
