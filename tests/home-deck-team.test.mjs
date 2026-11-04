@@ -292,18 +292,36 @@ test('This week: a day a button with five bars, Train · Food · Protein · Step
   assert.ok(barsOf(list[3]).every((x) => x.props.on === true));
   assert.equal(list[3].props.style.background, THEME.INK);
   assert.ok(list.every((b) => b.props.style.minHeight >= 44), 'a day is a 44 px target');
-  // A day opens the calendar on that day; Month → opens the month.
+  // A tap picks a day in place, never straight into the calendar (owner, 2026-11-04: "when i click on any
+  // day on week view for client home page it immediatly takes me to month calendar"); today is picked
+  // first, and the line under the strip says how the picked day went.
+  assert.equal(list[3].props['aria-pressed'], true, 'today is picked first');
+  assert.match(d.text, /○ Train · ✓ Food · ○ Protein · ○ Steps · ○ Check-in/, 'today\'s line: its bars marked');
   list[1].props.onClick();
+  assert.equal(opened.length, 0, 'a first tap opens nothing');
+  d.render();
+  const picked = days(d);
+  assert.equal(picked[1].props['aria-pressed'], true);
+  assert.equal(picked[3].props['aria-pressed'], false);
+  assert.match(picked[1].props.style.boxShadow, /^inset 0 0 0 1\.5px /, 'the picked day is ringed');
+  assert.equal(picked[3].props.style.background, THEME.INK, 'today keeps its ink');
+  assert.match(d.text, /– Train · ✓ Food · × Protein · ✓ Steps · × Check-in/, 'the picked day\'s line');
+  // The picked day tapped again, or its → under the strip, opens the calendar on that day.
+  picked[1].props.onClick();
   assert.equal(opened.length, 1);
   assert.ok(opened[0] instanceof Date);
   assert.equal(opened[0].toDateString(), new Date(2026, 9, 20).toDateString());
+  const door = d.nodes().find((n) => n.type === 'button' && n.props['data-bs-home-open-day'] != null);
+  assert.equal(door.props['data-bs-home-open-day'], GRID.week[1]);
+  assert.ok(door.props.style.minHeight >= 44, 'the → is a 44 px target');
+  door.props.onClick();
+  assert.equal(opened.length, 2);
+  assert.equal(opened[1].toDateString(), new Date(2026, 9, 20).toDateString());
   d.nodes().find((n) => n.type === 'button' && textOf(n) === 'Month →').props.onClick();
   assert.equal(months, 1);
-  // The head: This week., the ISO week and its span; the key under the days.
+  // The head: This week., the ISO week and its span.
   assert.match(d.text, /This week\./);
   assert.match(d.text, /Wk 43 · Oct 19–25/);
-  assert.match(d.text, /Each day/);
-  assert.match(d.text, /Train · Food · Protein · Steps · Check-in/);
 });
 
 test('This week with Check-ins off draws four bars, and an unread week marks no day missed', () => {

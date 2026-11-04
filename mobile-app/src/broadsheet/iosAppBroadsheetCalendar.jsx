@@ -440,16 +440,41 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     </div>
   );
 
+  // Month | Weeks as two words, no box (owner, 2026-11-04: "make these boxes look different and smaller,
+  // looks weird below icons above"): the lit one in ink over the accent's 2px rule, the other quiet. Each
+  // is still a 44px tap.
+  const viewTabs = (style = null) => (
+    <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'flex', alignItems: 'center', gap: 14, ...style }}>
+      {[['month', tr('calendar:view.month', { defaultValue: 'Month' }), 'M3.5 5.5h17M3.5 5.5v14h17v-14M3.5 10.5h17M3.5 15h17M9 10.5v9M15 10.5v9'], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' }), 'M4 6h16M4 12h16M4 18h16']].map(([k, l, d]) => {
+        const on = view === k;
+        return (
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{
+            minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', color: on ? t.INK : t.INK50,
+            fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+            transition: 'color 160ms ease',
+          }}>
+            <span data-cal-tab={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, paddingBottom: 3, borderBottom: `2px solid ${on ? t.ACCENT : 'transparent'}` }}>
+              <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+              {l}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <BSPageCal>
       <BSPageHeaderCal
-        // A client's calendar names whose it is; the coach's or member's own has no kicker (owner, 2026-11-04:
-        // "and remove this" of "Section · Calendar").
+        // No "Section · Calendar" eyebrow on your own calendar (owner, 2026-11-04: "remove this from month
+        // calendar page"); a coach reading a client's keeps whose it is.
         kicker={forClient
           ? tr('calendar:client.kicker', { defaultValue: 'Calendar · {name}', name: clientName || tr('calendar:client.fallbackName', { defaultValue: 'Client' }) })
-          : undefined}
+          : null}
         trailing={trailing}
         onBack={onBack}
+        backTrailing={onBack ? viewTabs() : null}
       />
       {forClient && (
         <div style={{ padding: `4px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
@@ -457,22 +482,15 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         </div>
       )}
 
-      {/* Month | Weeks — the compact chips the coach pages' filters use (owner, 2026-11-04: the calendar
-          in the new look): 34px to see, 44px to tap, the pick solid ink, each with its small mark. */}
-      <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ padding: `6px ${t.padX}px ${useServer && view === 'month' ? 0 : 4}px`, display: 'flex', gap: 8 }}>
-        {[['month', tr('calendar:view.month', { defaultValue: 'Month' }), 'M3.5 5.5h17M3.5 5.5v14h17v-14M3.5 10.5h17M3.5 15h17M9 10.5v9M15 10.5v9'], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' }), 'M4 6h16M4 12h16M4 18h16']].map(([k, l, path]) => {
-          const on = view === k;
-          return (
-            <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)}
-              style={{ flexShrink: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 12px', boxSizing: 'border-box', border: `1px solid ${on ? t.INK : t.INK50}`, borderRadius: 4, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>
-                {l}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Month | Weeks (viewTabs, above; owner, 2026-11-04: "condense these tabs"). With a Back it rides
+          the right of the back row, so the month starts a row higher (owner, 2026-11-04: "move the calendar higher on page,
+          feel free to move back tab somewhere that fits better"; the ← keeps its one place on every page,
+          tests/back-placement.test.mjs). Without one it takes its own row. */}
+      {!onBack && (
+        <div style={{ padding: `2px ${t.padX}px ${useServer && view === 'month' ? 0 : 4}px` }}>
+          {viewTabs()}
+        </div>
+      )}
 
       {/* In Weeks, each day from today on carries its own ＋ Add. A client's calendar adds nothing:
           an event added here would land on the coach's own calendar. */}
