@@ -295,8 +295,9 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     scheduledAt: typeof ev.scheduledAt === 'string' && ev.scheduledAt ? ev.scheduledAt : null,
     status: ev.status || null,
     reschedulable: ev.reschedulable !== false,
-    // false: another coach's booking with this client, shown in a shared client's calendar only.
-    mine: ev.mine !== false,
+    // false: another coach's booking with this client, shown in a shared client's calendar only; or a
+    // session the viewer is booked into as the client (asClient), which a coach cannot manage as coach.
+    mine: ev.mine !== false && !ev.asClient,
     // The zone the route placed `date`/`time` in (its response names it). A reschedule
     // hands it back, so the wall clock it keeps is read on the clock it was shown on.
     zone: zone || null,

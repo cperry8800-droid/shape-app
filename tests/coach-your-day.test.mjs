@@ -76,7 +76,7 @@ test('the page draws one Your day: a To do lane on the rail, the folded to-do un
   // The folded to-do: one line under its session, a 44px target that opens the client's file.
   const fold = sec.slice(sec.indexOf('{folded && ('));
   assert.match(fold, /data-rail-todo=\{folded\.severity\} onClick=\{\(\) => openClientFile\(folded\.clientId, folded\.name\)\}/);
-  assert.match(fold, /minHeight: 44, margin: '-12px 0 -8px', padding: '12px 0 8px'/);
+  assert.match(fold, /minHeight: 44, margin: '0 0 -8px', padding: '0 0 8px'/);
   // Every button in the list keeps a 44px target.
   for (const b of sec.match(/<button [^>]*?style=\{\{[^\n]*/g) || []) {
     if (/style=\{LINK\}|\.\.\.LINK/.test(b)) continue;
@@ -113,4 +113,18 @@ test('the calendar\'s mapper keeps a booking\'s start instant, so a started sess
   const mapper = CAL.slice(CAL.indexOf('function _bsMapServerCalEvent('), CAL.indexOf('\n}\n', CAL.indexOf('function _bsMapServerCalEvent(')));
   assert.match(mapper, /scheduledAt: typeof ev\.scheduledAt === 'string' && ev\.scheduledAt \? ev\.scheduledAt : null,/);
   assert.match(CAL, /const sessionStarted = Number\.isFinite\(Date\.parse\(event\.scheduledAt\)\)/);
+});
+
+test('Your day\'s detail sheet: no coach actions on the coach\'s own client booking, and no overlapping targets', () => {
+  // Codex P2s on #2607. A coach booked as someone's client gets that session from /api/calendar with
+  // asClient: true; the mapper makes it not theirs to manage, so BSEventSheet offers no coach actions.
+  const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
+  assert.match(CAL, /mine: ev\.mine !== false && !ev\.asClient,/);
+  assert.match(CAL, /\(role === 'trainer' \|\| role === 'nutritionist'\) && event\.mine !== false;/);
+  // A session with a folded to-do: its target stops at its words, and the to-do's starts under them.
+  const at = PROS.indexOf('{/* YOUR DAY — To do and the Schedule as one list');
+  const sec = PROS.slice(at, PROS.indexOf('{/* SHORTCUTS', at));
+  assert.match(sec, /margin: folded \? '-8px 0 0' : '-8px 0', padding: folded \? '8px 0 0' : '8px 0'/);
+  const todo = sec.slice(sec.indexOf('data-rail-todo={folded.severity}'));
+  assert.match(todo, /minHeight: 44, margin: '0 0 -8px', padding: '0 0 8px'/, 'the to-do reaches up over the session again');
 });

@@ -1931,6 +1931,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     if (!b || !Sheet || !sheet || typeof sheet.open !== 'function') { goCalendar(); return; }
     const mapEv = typeof window !== 'undefined' ? window.bsMapServerCalEvent : null;
     const live = !!(b.raw && mapEv);
+    // A session the coach is booked into as someone's client (asClient) maps with mine: false, so the
+    // sheet offers no coach actions on it (Codex P2 on #2607; the mapper reads it).
     const event = live ? mapEv(b.raw, t, b.rawZone) : {
       id: `sample-${b.time}-${b.title}`, source: 'sample', editable: false,
       date: selDate ? _ds(selDate) : null, day: selDate ? selDate.getDate() : null,
@@ -2264,7 +2266,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                           {/* The session's own details on a tap (owner, 2026-11-04: "when i click on the activity here
                               on home page it should take be to details regarding that activity, no month calendar"). */}
                           <button type="button" data-rail-open="" onClick={() => openBooking(b)}
-                            style={{ display: 'block', width: '100%', minHeight: 44, margin: '-8px 0', padding: '8px 0', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit' }}>
+                            style={{ display: 'block', width: '100%', minHeight: 44, margin: folded ? '-8px 0 0' : '-8px 0', padding: folded ? '8px 0 0' : '8px 0', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit' }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
                               {isNext && chip(tr('coach:rail.nextTag', { defaultValue: 'Next' }), heat, heatText)}
@@ -2273,9 +2275,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                             <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</span>
                           </button>
                           {folded && (
-                            // A 44px target over a one-line note: it reaches into the row's padding and the line above.
+                            // A 44px target over a one-line note, under the session's own target (which then stops at
+                            // its words), never over it (Codex P2 on #2607); it reaches into the row's bottom padding.
                             <button type="button" data-rail-todo={folded.severity} onClick={() => openClientFile(folded.clientId, folded.name)}
-                              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, margin: '-12px 0 -8px', padding: '12px 0 8px', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: sevText(folded.severity) }}>
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, margin: '0 0 -8px', padding: '0 0 8px', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: sevText(folded.severity) }}>
                               <span aria-hidden style={{ width: 6, height: 6, flexShrink: 0, borderRadius: 999, background: SEV_HUE[folded.severity] || t.INK70 }} />
                               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folded.directive}</span>
                               <span aria-hidden style={{ flexShrink: 0 }}>›</span>
