@@ -764,7 +764,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     navSlide(intent === 'next-tab' ? 'l' : 'r');
     setTab(next);
   };
-  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, onNavGesture };
+  navJumpRef.current = { navPush, goSettings, goEditProfile, goIntegrations, goCycle, goScore, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
 
   // A notified person's profile closes on any other navigation (BS_NAV_EVENTS), so nothing moves
@@ -801,6 +801,13 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     const open = () => navJumpRef.current.goSettings();
     window.addEventListener('shape:openProfile', open);
     return () => window.removeEventListener('shape:openProfile', open);
+  }, []);
+  // A profile's Shape Score row opens the Shape Score page from wherever the profile is (owner, 2026-11-04:
+  // "there should also be a link to shape score page on profiles"), so no host has to thread a prop in.
+  React.useEffect(() => {
+    const open = () => { setShowSettings(false); navJumpRef.current.goScore(); };
+    window.addEventListener('shape:openScore', open);
+    return () => window.removeEventListener('shape:openScore', open);
   }, []);
 
   // The Goal page's "Primary goal · Edit" card (and anywhere else that wants the
@@ -3084,7 +3091,7 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   );
 }
 
-function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
+function BSHomeWorkoutPreview({ workout = null, day = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
   const t = useBS();
   const tr = useShapeTr();
   const rust = t.RUST;
@@ -3101,9 +3108,11 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
     { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
     { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
   ];
-  // "Today · Thu Jun 4 · 5:45 PM" — the workout is today's session. Weekday/month
-  // tokens follow the selected UI language (i18n date-locale rule).
-  const _wd = new Date();
+  // "Today · Thu Jun 4 · 5:45 PM" for today's session; another day's (`day`, the day picked in Home's This
+  // week) reads its own date with no Today (Codex P1 on #2599: a Saturday session read "Today · Wed").
+  // Weekday/month tokens follow the selected UI language (i18n date-locale rule).
+  const _wd = day instanceof Date && !isNaN(day) ? day : new Date();
+  const _wdToday = (() => { const n = new Date(); return _wd.getFullYear() === n.getFullYear() && _wd.getMonth() === n.getMonth() && _wd.getDate() === n.getDate(); })();
   const _dateLoc = bsDateLocale();
   const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
   const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
@@ -3129,7 +3138,7 @@ function BSHomeWorkoutPreview({ workout = null, onBack, onMove = () => {}, onSta
       </div>
 
       <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('home:when.today', { defaultValue: 'Today' })} · {_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
+        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_wdToday ? <>{tr('home:when.today', { defaultValue: 'Today' })} · </> : null}{_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: t.ACCENT }}>.</span></div>
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
       </div>
@@ -4882,9 +4891,11 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       onUnfiled={() => { const id = previewMeal && previewMeal.id; if (id != null) setMealLogged((prev) => { const n = { ...prev }; delete n[id]; return n; }); }} />;
   }
   if (showWorkoutPreview) {
-    // `true` is today's session (Your move); a workout is the one Team opened, the picked day's.
-    const shownWorkout = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : selWorkout;
-    return <BSHomeWorkoutPreview workout={shownWorkout} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
+    // `true` is today's session (Your move); { workout, day } is the one Team opened, the picked day's, with
+    // its date (Codex P1 on #2599).
+    const pv = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : null;
+    const shownWorkout = pv ? pv.workout : selWorkout;
+    return <BSHomeWorkoutPreview workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
       setShowWorkoutPreview(false);
       // The trainer who wrote the session (the plan read's coachId), in their own thread; signed in with no
       // such paid trainer, the chats; the signed-out preview's sample coach.
@@ -5220,7 +5231,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         return (
           <BSHomeTeam tour="hero-home" coaches={teamCoaches} notes={notes}
             dayLabel={`${_dowShort(pickDate)} ${pickDate.getDate()}`} today={pickToday}
-            workout={!pickToday ? (pw && pw.title ? { title: pw.title, meta: pwMeta, time: pwTimed ? fmtAt(bsFocusMin(pw.time) ?? 540) : null, onStart: () => setShowWorkoutPreview(pw),
+            workout={!pickToday ? (pw && pw.title ? { title: pw.title, meta: pwMeta, time: pwTimed ? fmtAt(bsFocusMin(pw.time) ?? 540) : null, onStart: () => setShowWorkoutPreview({ workout: pw, day: pickDate }),
               coachId: sample ? 'sample-trainer' : (pw.coachId ?? null) } : null)
               : selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: _wkTimed ? fmtAt(WORKOUT_AT) : null, onStart: () => setShowWorkoutPreview(true),
               // Who wrote it (the plan read's trainer id): Team files it under that trainer. The sample's is Jordan's.
@@ -19227,15 +19238,21 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} variant="coach" ownerPhoto={avPhoto} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
                   onMessage={hasMessage && !isSelf ? () => onMsg(person) : null}>
                   {bio ? <p data-member-bio="" style={{ margin: '2px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
-                  {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live
-                      there); a host with no way there gets the words alone (Codex P2 on #2546). */}
-                  {isSelf && typeof onOpenScore === 'function' ? (
-                    <button type="button" data-tour="hero-score" data-member-meta="" onClick={onOpenScore} style={{ display: 'block', margin: '8px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: bsTHexA(INK, 0.7), cursor: 'pointer' }}>
-                      {metaBits} <span aria-hidden style={{ color: c }}>›</span>
+                  {/* The Shape Score, as a row on every member's page (owner, 2026-11-04: "there should also be a
+                      link to shape score page on profiles"): the tier · points · streak, opening the Shape Score
+                      page. Your own page opens it through its host where the host has a way (onOpenScore); every
+                      other page, a visitor's included, through shape:openScore, which each app's root answers, so
+                      the row never does nothing (Codex P2 on #2546). */}
+                  {metaBits ? (
+                    <button type="button" data-tour={isSelf ? 'hero-score' : undefined} data-member-meta="" data-member-score=""
+                      onClick={isSelf && typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
+                      aria-label={['Shape Score', metaBits].join(': ')}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '7px 12px 7px 14px', boxSizing: 'border-box', borderRadius: 12, border: `1px solid ${bsTHexA(INK, 0.14)}`, boxShadow: `inset 3px 0 0 ${c}`, background: bsTHexA(INK, 0.03), textAlign: 'left', cursor: 'pointer', color: INK }}>
+                      <span style={{ flex: 'none', fontFamily: tTheme.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>Shape Score</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3, color: bsTHexA(INK, 0.78), overflowWrap: 'anywhere' }}>{metaBits}</span>
+                      <span aria-hidden style={{ flex: 'none', color: c, fontSize: 16, lineHeight: 1 }}>→</span>
                     </button>
-                  ) : (
-                    <p data-member-meta="" style={{ margin: '8px 0 0', fontSize: 12.5, color: bsTHexA(INK, 0.66) }}>{metaBits}</p>
-                  )}
+                  ) : null}
                   {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
                       not read on the light papers). */}
                   {heroStartState ? (

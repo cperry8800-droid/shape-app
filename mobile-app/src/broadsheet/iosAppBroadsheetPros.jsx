@@ -1529,7 +1529,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openProfile', onSettingsEvt);
     window.addEventListener('shape:proAvailability', onAvail);
     window.addEventListener('shape:proSoundtracks', onSound);
-    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
+    // A profile's Shape Score row (shape:openScore) opens the Score page, as the client's does.
+    const onScore = () => { navJumpRef.current.navPush(); setShowSettings(false); setStoreView('score'); setTab('store'); };
+    window.addEventListener('shape:openScore', onScore);
+    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); window.removeEventListener('shape:openScore', onScore); };
   }, []);
   // ⚠ Every early return has to carry the search takeover too — see the same
   // note in the client shell. BSUniversalSearch is a SIBLING overlay driven by
@@ -7909,7 +7912,10 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     window.addEventListener('shape:openProfile', onSettingsEvt);
     window.addEventListener('shape:proAvailability', onAvail);
     window.addEventListener('shape:proSoundtracks', onSound);
-    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); };
+    // A profile's Shape Score row (shape:openScore) opens the Score page, as the client's does.
+    const onScore = () => { navJumpRef.current.navPush(); setShowSettings(false); setStoreView('score'); setTab('store'); };
+    window.addEventListener('shape:openScore', onScore);
+    return () => { window.removeEventListener('shape:openProSettings', onSettingsEvt); window.removeEventListener('shape:openProfile', onSettingsEvt); window.removeEventListener('shape:proAvailability', onAvail); window.removeEventListener('shape:proSoundtracks', onSound); window.removeEventListener('shape:openScore', onScore); };
   }, []);
   // ⚠ Same rule as the trainer shell + the client shell: every early return
   // carries the search takeover, or ⌕ is a dead control on that page.
