@@ -383,7 +383,7 @@ test('Steps under the strip opens the Shape Steps page, in the picked day\'s lin
   // Home hands This week the old tile's door: the page once steps have synced, else Integrations.
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   const mount = client.slice(client.indexOf('<BSHomeWeekBars'), client.indexOf('</BSHomeDeck>'));
-  assert.match(mount, /onSteps=\{\(\) => \{\s*if \(stepsToday\.hasData\) \{ setStepsHistory\(true\); return; \}\s*try \{ window\.dispatchEvent\(new CustomEvent\('shape:openIntegrations'\)\); \} catch \(e\) \{\}\s*\}\}/);
+  assert.match(mount, /onSteps=\{\(\) => \{\s*if \(stepsToday\.hasData \|\| !stepsToday\.known\) \{ setStepsHistory\(true\); return; \}\s*try \{ window\.dispatchEvent\(new CustomEvent\('shape:openIntegrations'\)\); \} catch \(e\) \{\}\s*\}\}/);
   assert.match(client, /\{stepsHistory && <BSStepsHistory onClose=\{\(\) => setStepsHistory\(false\)\} \/>\}/, 'the page is still mounted');
 });
 

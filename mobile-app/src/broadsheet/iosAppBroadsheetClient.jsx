@@ -5158,8 +5158,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()}
           // Steps under the strip is the Shape Steps page's door again (owner, 2026-11-04: "yes put it back
           // on this week steps"), as Week so far's tile was: the page once steps have synced, else Integrations.
+          // Until the steps read answers, the page (it reads them itself): a member whose steps sync is never
+          // sent to Integrations by a tap in the first second (Codex P2 on #2601).
           onSteps={() => {
-            if (stepsToday.hasData) { setStepsHistory(true); return; }
+            if (stepsToday.hasData || !stepsToday.known) { setStepsHistory(true); return; }
             try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
           }}
               picked={pickedDay} onPick={setPickedDay} />
@@ -30560,11 +30562,14 @@ function useBSStepsToday() {
     return () => { on = false; };
   }, [signedIn]);
   const hasData = signedIn ? !!(steps && steps.ever) : true;
+  // `known`: the read has answered. Until it does (or when it failed) hasData is false for a member whose
+  // steps do sync, so nothing should take that as "never synced" (Codex P2 on #2601).
+  const known = signedIn ? steps !== null : true;
   const todayKnown = signedIn ? !!(steps && steps.today != null) : true;
   const val = signedIn ? (steps && steps.today != null ? steps.today : 0) : 7240;
   const pct = Math.max(2, Math.min(100, Math.round((val / TARGET) * 100)));
   const hit = todayKnown && val >= TARGET;
-  return { hasData, todayKnown, val, goal: TARGET, pct, hit };
+  return { hasData, known, todayKnown, val, goal: TARGET, pct, hit };
 }
 
 // TODAY nudge — the check-in on Home. `variant` is REQUIRED: an omitted or mistyped one renders
