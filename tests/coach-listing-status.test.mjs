@@ -432,8 +432,12 @@ test('app: the backend door and the marketplace\'s word for a deep link to a coa
   assert.match(backend, /fetch\(`\$\{apiBaseUrl\}\/api\/coach\/listing`, \{\s+method: 'POST',/);
   const market = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
   assert.match(market, /if \(hit\) \{ setOpen\(hit\); setOpenNo\(null\); setDeepMiss\(false\); \} else setDeepMiss\(true\);\s+if \(onCoachConsumed\) onCoachConsumed\(\);/);
-  assert.match(market, /\{deepMiss \? \(\s+<div role="status"[\s\S]{0,400}tr\('marketplace:dir\.coachNotOpen'/);
-  assert.match(market, /onClick=\{\(\) => setDeepMiss\(false\)\}/);
+  // The directory draws in its own module (2026-11-04 redesign): the marketplace hands it the miss
+  // and its dismiss, and the view says so.
+  assert.match(market, /deepMiss=\{deepMiss\} onDeepMissDismiss=\{\(\) => setDeepMiss\(false\)\}/);
+  const view = read('mobile-app/src/broadsheet/BSMarketDirectory.jsx');
+  assert.match(view, /\{deepMiss \? \(\s+<div role="status"[\s\S]{0,400}tr\('marketplace:dir\.coachNotOpen'/);
+  assert.match(view, /<button type="button" onClick=\{onDeepMissDismiss\} aria-label=\{tr\('marketplace:dir\.coachNotOpenDismiss'/);
 });
 
 test('app: a profile\'s listing lookup, by owner or by id, finds only a listed row, the marketplace\'s predicate (Codex P1 on #2484)', async () => {
