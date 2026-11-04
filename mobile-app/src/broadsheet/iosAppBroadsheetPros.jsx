@@ -30,7 +30,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -2111,14 +2111,15 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           and Up next "flow and look better together": "this one", the timeline). A dotted line in the role's
           heat drops from the deck into the card's left rail, where the time to it counts down under a pulsing
           dot; the booking, who it is and what the coach does about it sit to its right. The card is the
-          deck's width (both 10px in from the page) with the same raised look, its rail's corner warmed by the
-          heat. The buttons are round and keep 44 to tap. Condensed with the deck (owner, 2026-11-04: "a little
+          deck's width (both 10px in from the page) and the deck's own box, colour and all (owner, 2026-11-04, of
+          its corner warmed by the heat: "color of this box doesn't match"); the heat stays on the dot, the
+          dotted line and Up next's words. The buttons are round and keep 44 to tap. Condensed with the deck (owner, 2026-11-04: "a little
           more condensed"): the rail 64px, the countdown 22px, the padding a step in, and the buttons 36px
           pills, each still a 44px target (it reaches 4px past the pill, over the card's padding). */}
       {upB && (
         <div style={{ margin: '0 10px' }}>
           <div aria-hidden data-up-link="" style={{ marginLeft: 31, width: 0, height: 10, borderLeft: `2px dotted ${heat}` }} />
-          <div data-up-next="" style={{ ...bsProPlate(t, heat), display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)' }}>
+          <div data-up-next="" style={{ ...bsRaised(t), display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)' }}>
             <div data-up-rail="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '10px 4px', borderRight: `1px solid ${t.INK}1f` }}>
               <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
               {upIn != null && (

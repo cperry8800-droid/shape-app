@@ -63,7 +63,9 @@ test('Up next hangs from the deck: a dotted line into its rail, the countdown th
   assert.ok(PROS.includes('<BSProDeckWeek dense t={t}') && PROS.includes('<BSProDeckSegments dense t={t}'), 'Today\'s week and bar are not dense');
   // The dotted line from the deck, in the role's heat, into the rail's middle (the rail is 64px wide).
   assert.match(wrap, /data-up-link="" style=\{\{ marginLeft: 31, width: 0, height: 10, borderLeft: `2px dotted \$\{heat\}` \}\}/);
-  assert.match(card, /\.\.\.bsProPlate\(t, heat\), display: 'grid', gridTemplateColumns: '64px minmax\(0, 1fr\)'/);
+  // The deck's own box, with no warm corner (owner, 2026-11-04: "color of this box doesn't match").
+  assert.match(card, /data-up-next="" style=\{\{ \.\.\.bsRaised\(t\), display: 'grid', gridTemplateColumns: '64px minmax\(0, 1fr\)'/);
+  assert.match(KIT, /data-pro-deck=""[^\n]*\.\.\.bsRaised\(t\) \}\}>/, 'the deck is not bsRaised(t) either');
   // The rail: the pulse (still under Reduce Motion), the countdown, or a booking under way's start time.
   const rail = card.slice(card.indexOf('data-up-rail=""'), card.indexOf("tr('coach:today.upNextAt'"));
   assert.match(rail, /\.\.\.\(sdReduced \? null : \{ animation: 'bsLivePulse/);
