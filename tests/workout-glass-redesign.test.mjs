@@ -335,6 +335,8 @@ test('Workout log: no card and no queue; a glass card per exercise, the current 
   assert.equal(sections.length, 3);
   assert.deepEqual(sections.map((x) => x.props['data-ws-move']), ['now', '', '']);
   assert.match(sections[0].props.style.boxShadow, /inset 0 1px 0/, 'the current exercise is raised');
+  // And says so in words, not by its lift alone (session:player.now, which the old log drew there too).
+  assert.deepEqual(sections.map((x) => ofData(flatten(x.props.children), 'data-ws-now').map(textOf)), [['NOW'], [], []]);
   assert.equal(textOf(flatten(sections[1].props.children).find((x) => x.type === 'button')), 'Barbell row2 × 8 · 155 lb');
   // Done on the row's own set logs it, and the row reads ✓.
   s.press((nodes) => nodes.filter((x) => x.type === 'section')[1] && flatten(nodes.filter((x) => x.type === 'section')[1].props.children).find((x) => x.props && x.props['aria-label'] === 'Mark set 1 done'));

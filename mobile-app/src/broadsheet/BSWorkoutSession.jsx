@@ -313,7 +313,7 @@ export function BSWorkoutSession({ session: S }) {
           // The current exercise's card is raised in the log; every other one sits on glass.
           <section key={rowMoveIdx} aria-labelledby={`bs-log-move-${rowMoveIdx}`} data-ws-move={cur ? 'now' : ''} style={{ ...(cur ? bsRaised(t, heat) : glass(18)), borderRadius: 18, padding: '2px 12px 12px', marginBottom: 10 }}>
             <button id={`bs-log-move-${rowMoveIdx}`} onClick={() => S.goMove(rowMoveIdx)} style={{ ...btn0, width: '100%', textAlign: 'left', display: 'block', padding: '10px 0 0', color: INK }}>
-              <span style={{ display: 'block', fontFamily: HEAD, fontSize: 16.5, fontWeight: 700, letterSpacing: '-0.02em', color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rowMove.m || tr('session:player.namePlaceholder')}</span>
+              <span style={{ display: 'block', fontFamily: HEAD, fontSize: 16.5, fontWeight: 700, letterSpacing: '-0.02em', color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rowMove.m || tr('session:player.namePlaceholder')}{cur && <span data-ws-now="" style={{ marginLeft: 8, ...kick(t, 7.5, heat, { fontWeight: 700 }), ...glowT(heat) }}>{tr('session:player.now')}</span>}</span>
               <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50 }}>{rowMove.s || `${rowMove.sets} × ${rowMove.reps || '—'}`}{rowMove.l ? ` · ${rowMove.l}` : ''}</span>
             </button>
             {setRowsFor(rowMove, rowMoveIdx, `bs-log-move-${rowMoveIdx}`)}
