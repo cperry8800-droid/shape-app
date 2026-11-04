@@ -30,7 +30,7 @@ const view = stripComments(fs.readFileSync(NEW, 'utf8'));
 const market = stripComments(fs.readFileSync(MKT, 'utf8'));
 
 // Every component in the module: each names its window globals first.
-const COMPONENTS = ['BSMarketDirectory', 'MktDirFace', 'MktDirPrice', 'MktDirSearch', 'MktDirSwitch', 'MktDirChip', 'MktDirSection', 'MktDirMeta', 'MktDirScore', 'MktDirFeature', 'MktDirTile', 'MktDirRow', 'MktDirPlanRow', 'MktDirApply'];
+const COMPONENTS = ['BSMarketDirectory', 'MktDirFace', 'MktDirPrice', 'MktDirSearch', 'MktDirSwitch', 'MktDirChip', 'MktDirSection', 'MktDirMeta', 'MktDirScore', 'MktDirFeature', 'MktDirTile', 'MktDirFull', 'MktDirRow', 'MktDirPlanRow', 'MktDirApply'];
 // What the redesign retired from the marketplace module (the old section head, track row, listing row
 // and combo card): declaring one there again is the old directory coming back.
 const RETIRED = ['MktSectionHead', 'MktTrackRow', 'MktRow', 'MktComboCard'];
@@ -306,6 +306,30 @@ test('a coach with no standing reads a dim New where the tier goes, never a rung
   assert.equal(tier.props['data-mkt-tier'], 'none');
   assert.equal(textOf(tier), 'New');
   assert.doesNotMatch(textOf(d.nodes()[0]), /Certified|Pro\b|Elite|Master|Icon/, 'no rung is invented');
+});
+
+// Owner, 2026-11-04: "if they are at capacity for new clients, which they have the options to toggle on or
+// off, have a little symbol or something that shows that so clients would know before click on them".
+test('a coach at capacity reads At capacity over a dimmed face, on the list and on This week; one taking clients reads nothing', () => {
+  const Row = ofType(drive(BSMarketDirectory, { list: [CARD()], browsing: true }), 'MktDirRow')[0].type;
+  const full = drive(Row, { card: CARD({ atCapacity: true }), perMonth: PER_MONTH });
+  const pill = ofType(full, 'MktDirFull');
+  assert.equal(pill.length, 1);
+  assert.equal(drive(pill[0].type, pill[0].props).text, 'At capacity', 'the listing\'s own words');
+  const face = full.nodes().find((n) => n.props && n.props.children && n.props.children.type && n.props.children.type.name === 'MktDirFace');
+  assert.equal(face.props.style.opacity, 0.55, 'the face is dimmed');
+  const open = drive(Row, { card: CARD({ atCapacity: false }), perMonth: PER_MONTH });
+  assert.equal(ofType(open, 'MktDirFull').length, 0);
+  const Tile = ofType(drive(BSMarketDirectory, { roster: [CARD()] }), 'MktDirTile')[0].type;
+  assert.equal(ofType(drive(Tile, { card: CARD({ atCapacity: true }), perMonth: PER_MONTH }), 'MktDirFull').length, 1);
+  assert.equal(ofType(drive(Tile, { card: CARD(), perMonth: PER_MONTH }), 'MktDirFull').length, 0);
+});
+
+test('the marketplace reads a coach\'s capacity by the server\'s rule, once, for the listing and the cards', () => {
+  assert.match(market, /function mktRowAtCapacity\(c\) \{\n\s+return !!\(c && c\.at_capacity && \(!c\.capacity_resume_at \|\| new Date\(c\.capacity_resume_at\)\.getTime\(\) > Date\.now\(\)\)\);/);
+  assert.match(market, /const rowAtCapacity = mktRowAtCapacity\(coach\);/);
+  const card = market.slice(market.indexOf('const mktDirCard = (c, n = null) => {'), market.indexOf('const feature = cotw && cotwProfile'));
+  assert.match(card, /atCapacity: mktRowAtCapacity\(c\),/);
 });
 
 test('the list is the cards two across; a miss is one raised card', () => {

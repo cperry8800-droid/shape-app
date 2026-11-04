@@ -315,12 +315,33 @@ function MktDirTile({ card, perMonth }) {
           <MktDirMeta nutri={card.nutri} roleWord={mktDirRoleWord(tr, card.nutri)} parts={[card.tier]} size={12} />
           <MktDirMeta nutri={card.nutri} parts={[card.loc]} size={12} />
         </span>
+        {card.atCapacity ? <span style={{ display: 'block' }}><MktDirFull /></span> : null}
         <span style={{ marginTop: 'auto', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
           <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, color: t.INK70, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{card.rating}</span>
           <MktDirPrice rate={card.rate} perMonth={perMonth} size={15.5} />
         </span>
       </span>
     </button>
+  );
+}
+
+// "At capacity" as a small pill: a dark slot, an amber ring for a dot, the words in mono. On the list's
+// cards over the face, and on This week's tiles under the place.
+function MktDirFull({ style = null }) {
+  const { useBS } = window;
+  const t = useBS();
+  const tr = useShapeTr();
+  const amber = t.AMBER || '#d8a23a';
+  return (
+    <span data-mkt-full="" style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+      background: t.isLight ? '#fbf8f1' : 'rgba(10,9,8,0.85)', border: `1px solid ${bsDashA(amber, 0.7)}`,
+      fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.isLight ? t.INK : amber,
+      ...style,
+    }}>
+      <span aria-hidden="true" style={{ flex: 'none', width: 7, height: 7, borderRadius: '50%', border: `1.5px solid ${amber}`, boxSizing: 'border-box' }} />
+      {tr('marketplace:listing.atCapacity', { defaultValue: 'At capacity' })}
+    </span>
   );
 }
 
@@ -332,7 +353,10 @@ function MktDirTile({ card, perMonth }) {
 // Certified, which reads as a credential, so the marketplace names none: mktCoachTier). Along the foot
 // their name, role · credential, place · vetted, and their rating beside their rate. Their listing's
 // cover, when they have one, lies faint behind it. One button; a column, so the face sits at the top
-// (a button centres what it holds).
+// (a button centres what it holds). A coach who has turned off new clients reads At capacity on a pill
+// over their dimmed face, so a member knows before they tap (owner, 2026-11-04: "if they are at capacity
+// for new clients … have a little symbol or something that shows that"); their listing offers the
+// waiting list.
 function MktDirRow({ card, perMonth }) {
   const { useBS } = window;
   const t = useBS();
@@ -371,7 +395,8 @@ function MktDirRow({ card, perMonth }) {
         </span>
       )}
       <span style={{ position: 'relative', display: 'flex', justifyContent: 'center', padding: '30px 10px 0' }}>
-        <MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={80} />
+        <span style={{ display: 'block', opacity: card.atCapacity ? 0.55 : 1 }}><MktDirFace photo={card.photo} name={card.name} nutri={card.nutri} size={80} /></span>
+        {card.atCapacity ? <MktDirFull style={{ position: 'absolute', left: '50%', bottom: -9, transform: 'translateX(-50%)' }} /> : null}
       </span>
       <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '26px 12px 12px', background: `linear-gradient(transparent, ${t.isLight ? 'rgba(251,248,241,0.96)' : 'rgba(10,9,8,0.92)'} 40%)` }}>
         <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.name}</span>
