@@ -16472,8 +16472,9 @@ function bsProfileDistLabel(t, km) {
 // `previewCustom` is Customize's live preview (BSProfileCustomizer.jsx): the editor's drafts as a profile_custom
 // doc, read in place of the stored one, so the page shows them before they are saved. The editor renders the
 // page as a visitor does (not isSelf) and lets no tap through but Back and the tabs, so a preview writes nothing.
-// A post a member who does not follow its author can see: public, or for Shape's members (community).
-function bsPostSeenByStranger(p) { const v = String((p && p.privacy) || 'community'); return v === 'public' || v === 'community'; }
+// A post a member who does not follow its author can see: public, on the profile for everyone (profile), or for
+// Shape's members (community). It reads the mapped post's label (Public, Profile, Community…) or a raw tier.
+function bsPostSeenByStranger(p) { const v = String((p && p.privacy) || 'community').toLowerCase(); return v === 'public' || v === 'profile' || v === 'community'; }
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null, previewCustom = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.

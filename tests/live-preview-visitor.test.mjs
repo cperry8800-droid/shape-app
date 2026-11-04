@@ -13,15 +13,25 @@ const BACKEND = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js
 
 const terrain = CLIENT.slice(CLIENT.indexOf('function BSTerrainProfile({'), CLIENT.indexOf('\nfunction ', CLIENT.indexOf('function BSTerrainProfile({') + 20));
 
-test('a post keeps who may see it, and only public or community posts are a stranger\'s', () => {
+test('a mapped post\'s privacy label is read, and only public, profile and community posts are a stranger\'s', () => {
+  // Codex P2 on #2615 (b2c9058): communityPostFromRow's label (Public, Community…) is what a post carries, and a
+  // lowercase-only check dropped every visible post; the profile tier is shown to everyone on the profile.
   const row = BACKEND.slice(BACKEND.indexOf('function communityPostFromRow'), BACKEND.indexOf('\n}\n', BACKEND.indexOf('function communityPostFromRow')));
-  assert.match(row, /\n\s*privacy,\n/, 'the mapped post drops its privacy');
+  assert.equal((row.match(/\n\s*privacy[,:]/g) || []).length, 1, 'one privacy on the mapped post');
+  const expr = row.match(/\n\s*privacy: (privacy === 'public'[\s\S]*?'Community'),\n/);
+  assert.ok(expr, 'the label mapping moved');
+  const label = new Function('privacy', `return ${expr[1]};`);
   const src = CLIENT.slice(CLIENT.indexOf('function bsPostSeenByStranger'), CLIENT.indexOf('\n', CLIENT.indexOf('function bsPostSeenByStranger')));
   const seen = new Function(`${src}; return bsPostSeenByStranger;`)();
-  assert.equal(seen({ privacy: 'public' }), true);
-  assert.equal(seen({ privacy: 'community' }), true);
+  for (const v of ['public', 'profile', 'community']) {
+    assert.equal(seen({ privacy: label(v) }), true, `${v} → ${label(v)}`);
+    assert.equal(seen({ privacy: v }), true, `raw ${v}`);
+  }
   assert.equal(seen({}), true, 'a post with no level is the default, community');
-  for (const v of ['followers', 'friends', 'private']) assert.equal(seen({ privacy: v }), false, v);
+  for (const v of ['followers', 'friends', 'private']) {
+    assert.equal(seen({ privacy: label(v) }), false, `${v} → ${label(v)}`);
+    assert.equal(seen({ privacy: v }), false, `raw ${v}`);
+  }
   assert.match(CLIENT, /bsProfileCardFromPost, bsPostSeenByStranger,/, 'not on window for the coach page');
 });
 

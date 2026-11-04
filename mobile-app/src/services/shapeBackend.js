@@ -2750,9 +2750,6 @@ function communityPostFromRow(row) {
   return {
     id: row.id,
     author_id: row.author_id || null,
-    // Who may see it (public · community · followers · friends · private): a live preview in Customize shows
-    // only what a member who does not follow the author would (Codex P2 on #2615).
-    privacy,
     created_at: row.created_at || null,
     // ⚠ WHEN THE WORKOUT HAPPENED, WHICH IS NOT WHEN THE POST WAS MADE. Auto
     // posters used to collapse the two onto `created_at`; a card dating a
@@ -2791,6 +2788,8 @@ function communityPostFromRow(row) {
     // ⚠ THE EDIT SHEET SAVES THIS BACK through privacyToDb, so every stored tier
     // needs a label that maps to itself. 'followers' and 'friends' read as
     // 'Community' here, and editing such a post widened it to every member.
+    // A live preview reads this label too (bsPostSeenByStranger): Public, Profile and Community are a
+    // stranger's; Followers, Friends and Private are not.
     privacy: privacy === 'public' ? 'Public' : privacy === 'private' ? 'Private' : privacy === 'profile' ? 'Profile'
       : privacy === 'followers' ? 'Followers' : privacy === 'friends' ? 'Friends' : 'Community',
     workout: row.activity_type || 'Workout',
