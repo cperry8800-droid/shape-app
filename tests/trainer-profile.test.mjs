@@ -1654,3 +1654,49 @@ test('⚠ the coach\'s own page reads their doc again when Nora\'s account setup
     await m.unmount();
   } finally { window.shapeDb.getUserGoals = realGet; }
 });
+
+// Owner, 2026-11-04, of Log a session, Post a workout video and Log activity on the coach's own page:
+// "these are not wired properly". In the signed-out demo each went straight to sign-up; each now opens
+// the composer, which asks for an account only to post or upload (iosAppBroadsheetClient.jsx's
+// BSLogActivitySheet, pinned below).
+test('the coach\'s own page opens the composer from Activity, Replays and the Studio, the demo too, asking for no account', async () => {
+  reset({ me: null });
+  const client = asClient();
+  const had = { sheet: window.BSLogActivitySheet, req: window.bsRequireAccount };
+  const opened = [];
+  const asked = [];
+  window.BSLogActivitySheet = ({ startKind, onClose }) => {
+    opened.push(startKind || 'any');
+    return React.createElement('button', { type: 'button', 'data-probe-composer': '', onClick: onClose }, 'composer');
+  };
+  window.bsRequireAccount = (label) => { asked.push(label); return false; };
+  try {
+    const m = await mount(demoPage());
+    const open = async (sel, kind) => {
+      await click(document.querySelector(sel));
+      assert.ok(document.querySelector('[data-probe-composer]'), `${kind}: no composer`);
+      await click(document.querySelector('[data-probe-composer]'));
+    };
+    await click(document.querySelector('[data-profile-tab="activity"]'));
+    await open('[data-log-activity]', 'Log activity');
+    await click(document.querySelector('[data-profile-tab="replays"]'));
+    await click(button(/Log a session/));
+    assert.ok(document.querySelector('[data-probe-composer]'), 'Log a session: no composer');
+    await click(document.querySelector('[data-probe-composer]'));
+    await click(document.querySelector('[data-profile-tab="studio"]'));
+    await open('[data-post-video]', 'Post a workout video');
+    assert.deepEqual(opened, ['any', 'workout', 'video'], 'each opens the composer on its own kind');
+    assert.deepEqual(asked, [], 'opening it asks for no account');
+    await m.unmount();
+  } finally { window.BSLogActivitySheet = had.sheet; window.bsRequireAccount = had.req; client.restore(); }
+});
+
+test('the composer asks for an account before it posts or uploads, and sends nothing without one', () => {
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  const sheet = src.slice(src.indexOf('function BSLogActivitySheet('), src.indexOf('function BSLogActivitySheet(') + 20000);
+  const gate = "if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;";
+  const submit = sheet.slice(sheet.indexOf('const submit = async () => {'));
+  assert.ok(submit.indexOf(gate) > 0 && submit.indexOf(gate) < submit.indexOf('createPost'), 'a post is sent before the account is asked for');
+  const onFile = sheet.slice(sheet.indexOf('const onFile = async'));
+  assert.ok(onFile.indexOf(gate) > 0 && onFile.indexOf(gate) < onFile.indexOf('ShapeCoachMedia?.upload') && onFile.indexOf(gate) < onFile.indexOf('uploadPhoto'), 'a file is uploaded before the account is asked for');
+});

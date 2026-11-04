@@ -617,6 +617,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const leftAt = React.useRef(null);
   const pageRef = React.useRef(null);
   const scrollerOf = () => (pageRef.current && pageRef.current.closest ? pageRef.current.closest('.bs-scroll') : null);
+  // The composer opens on the coach's own page, the signed-out demo too (owner, 2026-11-04, of Log a
+  // session, Post a workout video and Log activity: "these are not wired properly"; each went straight
+  // to sign-up): it asks for an account only to post or to upload (BSLogActivitySheet).
   const [showLog, setShowLog] = React.useState(false);
   // A person tapped in an activity card's likers sheet opens their profile over this page, and Back
   // returns to the same spot here, as the member profile does with its followers (the coach page
@@ -865,10 +868,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
                 onWork={() => setSheet({ kind: 'work' })} onMessage={() => onMessage && onMessage(person)}
                 onDescribe={isSelf && editReady ? () => openEdit('programs') : null}
-                onPostVideo={isSelf ? () => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog('video'); } : null} />
+                onPostVideo={isSelf ? () => setShowLog('video') : null} />
             ) : tabNow === 'activity' ? (
               <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first}
-                onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }}
+                onLog={() => setShowLog(true)}
                 ctx={cardSheets && W.BSActivityCard ? {
                   t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
                   actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
@@ -903,7 +906,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               ) : (
                 <ReplaysTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
                   onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })}
-                  onLog={(kind) => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(kind || true); }} />
+                  onLog={(kind) => setShowLog(kind || true)} />
               )}
             </div>
             )}
@@ -1569,12 +1572,14 @@ function ActivityFeed({ t, tr, ACC, ink, DISPLAY, MONO, gutter, cards, isSelf, f
       {/* No heading: the tab is already named Activity, and each card carries the coach's name in its byline
           (it read "{name}'s activity" under the Activity tab). On their own page, Log activity. */}
       {isSelf ? (
+        // Its words sit on the button's lower edge, so the first post follows close under them while the
+        // tap stays 44 tall (owner, 2026-11-04: "reduce the gap between these").
         <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-          <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button>
+          <button type="button" data-log-activity="" onClick={onLog} style={{ minHeight: 44, display: 'flex', alignItems: 'flex-end', padding: '0 0 2px', border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>＋ {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</button>
         </div>
       ) : null}
       {cards.length ? (
-        <div style={{ marginTop: 6 }}>
+        <div style={{ marginTop: isSelf ? 0 : 6 }}>
           {list.map((a, i) => (Card ? (
             <div key={a.key || i} data-activity-card="">
               {/* Every other post in glass, as the Wall's and the member profile's (owner, 2026-11-04: "every

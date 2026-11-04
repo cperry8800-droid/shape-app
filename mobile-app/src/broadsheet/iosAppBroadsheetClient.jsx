@@ -17292,7 +17292,10 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
 
   const onFile = async (e, setUrl, asVideo) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
-    if (!file) return; setUpBusy(true);
+    if (!file) return;
+    // The composer opens signed out too (a coach's demo page): an upload is where it asks for an account.
+    if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;
+    setUpBusy(true);
     try {
       let url;
       if (asVideo) { const r = await window.ShapeCoachMedia?.upload?.(file); url = r?.url; }
@@ -17316,6 +17319,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
 
   const submit = async () => {
     if (!canPost) return;
+    // ... and posting: nothing is sent without one.
+    if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;
     setBusy(true);
     try {
       const base = { channel: 'COMMUNITY', privacy: vis };
