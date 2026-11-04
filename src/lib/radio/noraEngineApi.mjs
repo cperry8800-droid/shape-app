@@ -2,47 +2,26 @@
 // what the engine reports, against the SERVICE-ROLE client. The route
 // (src/app/api/radio/nora/engine/route.ts) only checks the engine's token and maps to HTTP.
 //
-//   engineJob(db, { now })          the set due now or next: its programme and a signed link to
-//                                   each song's file, or { set: null }
-//   setJob(db, set, { now })        that job for one set
+//   setJob(db, set, { now })        one of Nora's sets for the engine: its programme and a signed
+//                                   link to each song's file
 //   signSources(db, programme, ttl) the signed links alone (a rotation block's too)
 //   recordEngineEvent(db, body, { now })  a set or rotation block started / a song played / it
 //                                   ended or failed
 //
-// On Shape's own station the engine asks src/lib/radio/rotation.mjs instead (?mode=station),
-// which hands out Nora's sets through setJob and fills the time between them.
-//
-// ⚠ NOTHING GOES ON THE AIR WITHOUT THE LICENCES. The engine is handed a set only while the owner's
-// licence confirmation stands AND the set is published (which the schedule does only then); a
-// withdrawal takes effect at the engine's next poll, not at the next hourly sync.
+// What plays when is src/lib/radio/rotation.mjs's (the engine's ?mode=station questions): it hands
+// out Nora's sets through setJob and fills the time between them, and holds the licence gate (a
+// withdrawal stops what plays at the engine's next check, not at the next hourly sync).
 // ⚠ THE PLAY LOG IS THE LICENCE REPORT'S SOURCE. Each played song is logged with its title, artist,
 // album, label and ISRC copied from the library at that moment, so a song removed later still
 // reports as what was played.
 
-import { ensureProgramme, readLicensed } from './noraSetStore.mjs';
+import { ensureProgramme } from './noraSetStore.mjs';
 import { LIBRARY_BUCKET, cleanText, isUuid } from './library.mjs';
 import { performanceReport } from './listens.mjs';
 
-export const CONNECT_WINDOW_MS = 10 * 60000;   // a set is handed out this long before it starts
-const OVERRUN_MS = 10 * 60000;                  // and until this long after its planned end
+const OVERRUN_MS = 10 * 60000;                  // a set's links outlast its planned end by this
 const LINK_TTL_MIN_SEC = 3600;
 export const ENGINE_EVENTS = Object.freeze(['started', 'song', 'ended', 'failed']);
-
-export async function engineJob(db, { now }) {
-  const lic = await readLicensed(db);
-  if (lic.error) return { status: 503, body: { error: 'read_failed' } };
-  if (!lic.licensed) return { status: 200, body: { nowMs: now, set: null, reason: 'unlicensed' } };
-
-  const { data: sets, error } = await db.from('nora_sets').select('id,starts_at,duration_min,published,host_kind')
-    .eq('host_kind', 'nora').eq('published', true)
-    .gt('starts_at', new Date(now - 7 * 3600000).toISOString()).lte('starts_at', new Date(now + CONNECT_WINDOW_MS).toISOString())
-    .order('starts_at', { ascending: true }).limit(20);
-  if (error) return { status: 503, body: { error: 'read_failed' } };
-  const set = (sets || []).find((s) => Date.parse(s.starts_at) + s.duration_min * 60000 + OVERRUN_MS > now);
-  if (!set) return { status: 200, body: { nowMs: now, set: null } };
-
-  return setJob(db, set, { now });
-}
 
 /** A signed link to each song of a programme, lasting `ttlSec`. */
 export async function signSources(db, programme, ttlSec) {
@@ -54,7 +33,7 @@ export async function signSources(db, programme, ttlSec) {
   for (const id of ids) {
     const path = pathOf.get(id);
     // A song deleted since the plan: the engine refuses a programme with a missing source, so the
-    // station falls back (radio.co's AutoDJ, or Shape's standby) instead of airing a hole.
+    // station falls back to its standby loop instead of airing a hole.
     if (!path) return { status: 409, body: { error: 'song_missing', trackId: id } };
     const { data, error: sErr } = await db.storage.from(LIBRARY_BUCKET).createSignedUrl(path, ttlSec);
     if (sErr || !data || !data.signedUrl) return { status: 503, body: { error: 'sign_failed' } };
@@ -154,8 +133,8 @@ export function monthRange(month) {
 /**
  * Every song the engine played in a month (Nora's sets and, on Shape's own station, its rotation),
  * as CSV, in the order SoundExchange's report of use asks for its per-play fields, each with its
- * performances: the listeners who heard any part of it (src/lib/radio/listens.mjs). Blank where
- * Shape's own station was not measuring (radio.co's plays). Every play, a page at a time.
+ * performances: the listeners who heard any part of it (src/lib/radio/listens.mjs; blank before the
+ * station's first recorded start). Every play, a page at a time.
  */
 export async function playsCsv(db, month, { now = Date.now() } = {}) {
   const range = monthRange(month);

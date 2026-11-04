@@ -262,19 +262,24 @@ test('⚠ every play of the month, a page at a time, each with its performances;
   assert.ok(Math.abs(r.totals.tuningHours - hours) < 1e-6, `${r.totals.tuningHours} vs ${hours}`);
 });
 
-test('⚠ radio.co\'s plays are not measured (blank), Shape\'s own are (zero is a count); before the migration, all blank', async () => {
+test('⚠ a play is measured from the station\'s first recorded start (zero is a count); before it, or before the migration, blank (Codex, #2586)', async () => {
   nextId = 1;
   const t = NOV + 86400000;
   const log = [ev('song', t, 'set'), ev('ended', t + 200000, 'set'), ev('song', t + 9000000, 'set'), ev('ended', t + 9200000, 'set'), ev('song', t + 9500000, BLK), ev('ended', t + 9700000, BLK)];
   const firstBoot = t + 5000000;
   const db = fakeDb({ nora_engine_log: log, radio_listens: [listen(1, BOOT1, firstBoot, 1, t + 9100000, t + 9150000)] });
   const r = await performanceReport(db, monthRange('2026-11'), { now: NOW });
-  assert.deepEqual(r.plays.map((p) => p.performances), [null, 1, 0], 'radio.co\'s set, then her set and a block on Shape\'s own');
+  // Before the first start that kept a session, Shape can't tell nobody from not recording: blank,
+  // never a 0 that would under-report. From that start on, nobody listening is 0.
+  assert.deepEqual(r.plays.map((p) => p.performances), [null, 1, 0], 'a set before the station recorded anything, a set heard once, a block nobody heard');
   assert.equal(r.totals.measuredPlays, 2);
+  // A play inside that first start, before its first listener, was recorded and nobody heard it: 0.
+  const early = fakeDb({ nora_engine_log: [ev('song', firstBoot + 1000, BLK), ev('ended', firstBoot + 200000, BLK)], radio_listens: [listen(1, BOOT1, firstBoot, 1, t + 9100000, t + 9150000)] });
+  assert.deepEqual((await performanceReport(early, monthRange('2026-11'), { now: NOW })).plays.map((p) => p.performances), [0]);
   const before = await performanceReport(fakeDb({ nora_engine_log: log }, { missing: ['radio_listens'] }), monthRange('2026-11'), { now: NOW });
   assert.equal(before.ok, true);
   assert.deepEqual(before.plays.map((p) => p.performances), [null, null, null]);
-  assert.deepEqual([before.totals.tuningHours, before.totals.sessions], [null, null]);
+  assert.deepEqual([before.totals.tuningHours, before.totals.sessions, before.totals.measuredPlays], [null, null, 0], 'nothing measured before the migration');
   // Any other fault is no report, never a report of nothing.
   assert.deepEqual(await performanceReport(fakeDb({ nora_engine_log: log }, { fail: ['select:radio_listens'] }), monthRange('2026-11'), { now: NOW }), { ok: false, error: 'read_failed' });
   assert.deepEqual(await performanceReport(fakeDb({}, { fail: ['select:nora_engine_log'] }), monthRange('2026-11'), { now: NOW }), { ok: false, error: 'read_failed' });

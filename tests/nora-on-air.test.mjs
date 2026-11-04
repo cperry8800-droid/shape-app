@@ -1,4 +1,4 @@
-// Shape Radio on radio.co, and the website and app while Nora is the DJ: what listeners are told
+// Shape Radio, the website and the app while Nora is the DJ: what listeners are told
 // is playing (src/lib/radio/noraOnAir.mjs: only what has been heard, with its album; only while
 // her engine is on the air), connecting the station (src/lib/radio/station.mjs), and the booth
 // treating her own set as hers rather than a guest's.
@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HEARD_LAG_SEC, heardNow, noraOnAir } from '../src/lib/radio/noraOnAir.mjs';
-import { checkStation, radioCoStatusUrl, stationIdOf } from '../src/lib/radio/station.mjs';
 import { boothLabel } from '../public/newdesign/booth/noraBoothState.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -104,18 +103,9 @@ test('the route asks for her set first, and any fault there falls through to the
   assert.ok(!/next|upcoming/i.test(read('src/lib/radio/noraOnAir.mjs').split('export async function noraOnAir')[1].replace(/\/\/.*$/gm, '')));
 });
 
-test('connecting radio.co: https, a radio.co stream, a station id; its public status is the now-playing source', () => {
-  const ok = checkStation({ streamUrl: ' https://s5.radio.co/s0a1b2c3d4/listen ', stationId: 's0a1b2c3d4' });
-  assert.deepEqual(ok, { ok: true, value: { provider: 'http', stream_url: 'https://s5.radio.co/s0a1b2c3d4/listen', now_playing_url: 'https://public.radio.co/stations/s0a1b2c3d4/status' } });
-  assert.equal(checkStation({ streamUrl: 'http://s5.radio.co/x/listen', stationId: 's0a1b2c3d4' }).error, 'stream_https');
-  assert.equal(checkStation({ streamUrl: 'https://evil.example/listen', stationId: 's0a1b2c3d4' }).error, 'stream_not_radio_co');
-  assert.equal(checkStation({ streamUrl: 'https://notradio.co.evil.example/x', stationId: 's0a1b2c3d4' }).error, 'stream_not_radio_co');
-  assert.equal(checkStation({ streamUrl: 'https://u:p@s5.radio.co/x', stationId: 's0a1b2c3d4' }).error, 'stream_url');
-  assert.equal(checkStation({ streamUrl: 'https://s5.radio.co/x', stationId: '../x' }).error, 'station_id');
-  assert.equal(stationIdOf(radioCoStatusUrl('s0a1b2c3d4')), 's0a1b2c3d4');
-  assert.equal(stationIdOf('https://elsewhere/x'), null);
+test('the station card\'s actions check the admin first', () => {
   const actions = read('src/app/dashboard/radio/actions.ts');
-  for (const fn of ['connectStation', 'disconnectStation']) {
+  for (const fn of ['connectOwnStation', 'disconnectStation']) {
     const body = actions.slice(actions.indexOf(`export async function ${fn}`));
     const gate = body.indexOf('requireAdminUser()');
     assert.ok(gate > 0 && gate < body.indexOf('createAdminClient()'), `${fn}: the admin check first`);

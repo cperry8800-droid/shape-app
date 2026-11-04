@@ -22,7 +22,7 @@
 // knee above −0.9 dBFS, so a blend of two loud songs never clips.
 //
 // ⚠ A SONG THAT IS NOT LOADED IS SILENCE HERE, and the engine never lets that reach the air: it
-// stops the set (the station's AutoDJ takes over) rather than broadcast a hole (engine.mjs).
+// stops the set (the station's standby loop takes over) rather than broadcast a hole (engine.mjs).
 //
 // PURE: no I/O, no clock. Deterministic.
 

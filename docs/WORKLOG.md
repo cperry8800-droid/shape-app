@@ -154,7 +154,7 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 
 **Planned next**
 - Nora as a Shape Radio DJ, Phase 2 on
-  ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)), once a station provider signs.
+  ([`REVIEW-2026-09-29-nora-dj.md`](REVIEW-2026-09-29-nora-dj.md)), once Shape's station is up.
 
 ## History
 

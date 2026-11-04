@@ -1,20 +1,21 @@
-// engine.mjs — Nora's engine: at each of her sets it fetches the programme she planned, loads the
-// songs just ahead of when they play, mixes them (mixer.mjs) in real time and broadcasts the mix
-// live into the station (radio.co's live input), then hangs up so the station's AutoDJ resumes.
-// On Shape's own station (NORA_MODE=station) it is the station's music around the clock: her sets
-// and, between them, the rotation Shape plans (src/lib/radio/rotation.mjs), on one open stream.
+// engine.mjs — Nora's engine: Shape's own station's music around the clock (services/station). It
+// plays her sets at their times and, between them, the rotation Shape plans
+// (src/lib/radio/rotation.mjs), on one open stream: for each, it fetches the programme, loads the
+// songs just ahead of when they play, and mixes them (mixer.mjs) in real time into the station.
+// (Its other mode, Nora's sets alone into radio.co's live input, was taken out with radio.co:
+// owner, 2026-11-04, "yes remove radio.co".)
 //
 //   runSet(job, deps, opts)  one set or rotation block, start to finish (or to a safe stop)
-//   pollOnce(state, deps)    radio.co's service loop's step: is a set due, and is it already running?
-//   runStation(deps)         Shape's own station's service loop
+//   runStation(deps)         the station's service loop
 //
 // Everything outside the process comes in through `deps` (the Shape API, the decoder, the output,
 // the clock), so tests run a whole set against fakes in milliseconds (tests/nora-engine.test.mjs);
 // main.mjs wires the real ones.
 //
-// ⚠ IT FAILS TO THE AUTODJ, NEVER TO SILENCE. A song that cannot be loaded in time, an output that
-// dies, a programme that does not check out: the engine stops the set and hangs up, the station
-// falls back to its own rotation, and the failure is reported. It never fills a hole with nothing.
+// ⚠ IT FAILS TO THE STANDBY LOOP, NEVER TO SILENCE. A song that cannot be loaded in time, an output
+// that dies, a programme that does not check out: the engine stops the segment and hangs up, the
+// station's server moves listeners to its standby loop, and the failure is reported. It never
+// fills a hole with nothing.
 // ⚠ IT KEEPS SHAPE'S CLOCK, NOT ITS OWN. The API returns the server's time; the engine starts the
 // set at that clock's `startsAt`, and a restarted engine joins mid-set at the right point.
 
@@ -25,8 +26,6 @@ export const BLOCK_SEC = 0.25;          // rendered per write
 export const LEAD_SEC = 1.5;            // how far ahead of the wall clock the output is kept
 export const LOAD_AHEAD_SEC = 90;       // a song is loaded this long before it plays
 export const DEADLINE_SEC = 2;          // a song not loaded by this long before it plays stops the set
-export const CONNECT_EARLY_SEC = 120;   // the engine picks a set up this long before it starts
-// Shape's own station (runStation):
 export const PREFETCH_SEC = 120;        // the next segment is asked for, and its first songs loaded, this long before the end
 export const CHECK_EVERY_SEC = 60;      // while a segment plays, Shape is asked this often whether it goes on
 export const PAD_MAX_SEC = 25;          // a gap up to this long between segments is bridged with silence; a longer one goes to standby
@@ -48,8 +47,8 @@ const sleep = (deps, ms) => (ms > 0 ? deps.sleep(ms) : Promise.resolve());
  * @param {(event: object) => Promise<void>} deps.report
  * @param {(item: object) => Promise<void>} [deps.announce]  the station's song title (best effort)
  * @param {(msg: string) => void} [deps.log]
- * @param {object} [opts]  station mode (runStation): without them, a set opens its own output and
- *                         hangs up at the end, exactly as on radio.co
+ * @param {object} [opts]  runStation's: without a line (tests), a set opens its own output and
+ *                         closes it at the end
  * @param {{out: object | null, writtenTo: number | null}} [opts.line]  the station's stream, kept
  *        open from one segment to the next: `writtenTo` is Shape's time the audio sent reaches
  * @param {() => number} [opts.until]  where the segment ends early, in its own seconds (Infinity: it does not)
@@ -122,7 +121,7 @@ export async function runSet(job, deps, opts = {}) {
         line.writtenTo = startMs + x * 1000;
       }
     } else {
-      // A new stream starts writing a little ahead, as it then stays; radio.co's input at the start.
+      // A new stream starts writing a little ahead, as it then stays (without a line, at the start).
       await sleep(deps, (-from - (line ? LEAD_SEC : 0)) * 1000);
     }
   }
@@ -245,37 +244,7 @@ function fadeOut(pcm, t, cut) {
 }
 
 /**
- * The service loop's step: ask Shape for the set due now or next; run it if it is within
- * CONNECT_EARLY_SEC and not already running. `state.running` holds the set id being played.
- */
-export async function pollOnce(state, deps) {
-  if (state.running) return { action: 'busy', setId: state.running };
-  const localAtFetchMs = deps.now();
-  let res;
-  try { res = await deps.fetchJob(); } catch (e) { return { action: 'error', error: String(e && e.message) }; }
-  if (!res || !res.set) return { action: 'idle' };
-  const serverNowMs = Number(res.nowMs);
-  const untilStart = (Date.parse(res.set.startsAt) - serverNowMs) / 1000;
-  if (untilStart > CONNECT_EARLY_SEC) return { action: 'waiting', setId: res.set.id, inSec: untilStart };
-  if (state.done && state.done.has(res.set.id)) return { action: 'done', setId: res.set.id };
-  state.running = res.set.id;
-  const job = { set: res.set, programme: res.programme, sources: res.sources, serverNowMs, localAtFetchMs };
-  // A set that lost its connection is picked up again on the next poll (it rejoins where the set
-  // is by then); one that finished, or failed for any other reason, is not retried.
-  const result = runSet(job, deps).then((r) => {
-    state.running = null;
-    if (r.ok || r.reason !== 'output_failed') (state.done ||= new Set()).add(res.set.id);
-    return r;
-  }, (e) => {
-    state.running = null;
-    (state.done ||= new Set()).add(res.set.id);
-    return { ok: false, reason: `crashed: ${e && e.message}`, played: [] };
-  });
-  return { action: 'started', setId: res.set.id, result };
-}
-
-/**
- * Shape's own station (NORA_MODE=station): the engine IS the station's music, around the clock.
+ * Shape's own station: the engine IS the station's music, around the clock.
  * It keeps one stream open and plays whatever Shape hands it (src/lib/radio/rotation.mjs), back to
  * back: Nora's sets at their times, and the rotation between them. It asks for each next segment,
  * and loads its first songs, PREFETCH_SEC before the current one ends, so they meet without a gap;

@@ -1,6 +1,7 @@
 # Shape Radio's station
 
-Shape's own radio station. It replaces radio.co. Members hear the songs uploaded on
+Shape's own radio station: Shape Radio streams from nowhere else (radio.co was taken out on
+2026-11-04). Members hear the songs uploaded on
 **Admin → Nora's library** (`/dashboard/radio`), around the clock:
 
 - **Nora's sets** play at the times set on that page.
@@ -12,8 +13,8 @@ Shape's own radio station. It replaces radio.co. Members hear the songs uploaded
   music as soon as it returns.
 
 Every song played is logged for the monthly SoundExchange report (**Admin → Nora's library →
-Play reports**). The same licences are needed as with radio.co: SoundExchange, ASCAP, BMI, SESAC,
-GMR, and PRS and PPL for the UK. Nothing plays until they are confirmed on that page.
+Play reports**). The licences needed: SoundExchange, ASCAP, BMI, SESAC, GMR, and PRS and PPL for
+the UK. Nothing plays until they are confirmed on that page.
 
 ## What runs
 
@@ -21,7 +22,7 @@ GMR, and PRS and PPL for the UK. Nothing plays until they are confirmed on that 
 |---|---|
 | `icecast` | the stream server listeners connect to (`/live`), with the standby loop as its fallback |
 | `standby` | the standby loop (`standby/standby.sh`) |
-| `engine` | Nora's engine (`../nora-engine`) with `NORA_MODE=station`: it plays the station |
+| `engine` | Nora's engine (`../nora-engine`): it plays the station |
 | `caddy` | HTTPS for the station's address, with a certificate it gets and renews itself |
 
 ## Setting it up
@@ -31,8 +32,9 @@ GMR, and PRS and PPL for the UK. Nothing plays until they are confirmed on that 
    192 kbps, so 100 people listening around the clock is about 6 TB a month.
 2. **A name.** Add a DNS `A` record, for example `radio.theshapecommunity.com`, pointing at the
    server. Open ports 80 and 443.
-3. **Run the migrations** `supabase-migrations/2026-11-03-radio-rotation.sql`, then
-   `2026-11-03-radio-listens.sql`, on Supabase (after the three in `../nora-engine/README.md`).
+3. **Run the migrations** on Supabase, in this order: `2026-10-11-radio-library.sql`,
+   `2026-10-11-nora-dj-sets.sql`, `2026-10-11-nora-engine-log.sql`, `2026-11-03-radio-rotation.sql`,
+   `2026-11-03-radio-listens.sql` (all in `supabase-migrations/`).
 4. **The engine token.** If the Shape project on Vercel has no `NORA_ENGINE_TOKEN` yet, make one
    (`openssl rand -hex 32`), add it there and redeploy.
 5. **On the server**, copy this folder (or clone the repository) and fill in `.env`:
@@ -77,10 +79,9 @@ Once the station answers at its address (`curl -sI https://<STATION_HOST>/live` 
 The website and the app then play it, and their "now playing" names the song from Shape's own
 plan: Nora's set while she plays, the rotation between her sets. The same panel shows what the
 rotation is playing and when the engine last reported. **Disconnect** takes the website and app
-off the station; the radio.co form there switches back to radio.co.
+off the station.
 
-Don't run Nora's engine for radio.co at the same time as this one: both would play her sets and
-log them twice.
+Run one engine only: two would both play her sets and log them twice.
 
 ## Members only, and only where the licences reach
 
@@ -114,9 +115,9 @@ hours (aggregate tuning hours).
 - The station signs in on these calls with `NORA_ENGINE_TOKEN`, and names each start of itself
   on them. Shape refuses a call without both.
 
-**Privacy:** the station's server sees each listener's IP address and device, as radio.co did.
-When you switch, the subprocessors page (`public/subprocessors.html`) should name your station's
-host in radio.co's place.
+**Privacy:** the station's server sees each listener's IP address and device. Once it runs, the
+subprocessors page (`public/subprocessors.html`) should name your station's host in radio.co's
+place (radio.co was never connected).
 
 ## Testing it here
 

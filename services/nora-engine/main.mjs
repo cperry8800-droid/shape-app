@@ -1,22 +1,18 @@
-// main.mjs — Nora's engine as a service: polls Shape for her next set and plays it into the
-// station's live input (radio.co), or, with NORA_MODE=station, plays Shape's own station around the
-// clock. The logic is in engine.mjs; this file wires the real world to it: fetch for the Shape API,
-// ffmpeg for decoding the songs and for the live stream.
+// main.mjs — Nora's engine as a service: plays Shape's own station (services/station) around the
+// clock, her sets and the rotation between them. The logic is in engine.mjs; this file wires the
+// real world to it: fetch for the Shape API, ffmpeg for decoding the songs and for the live stream.
 //
 // Environment (README.md says where each comes from):
 //   SHAPE_URL           https://www.theshapecommunity.com
 //   NORA_ENGINE_TOKEN   the same secret as the Shape app's NORA_ENGINE_TOKEN
-//   NORA_MODE           optional: `station` on Shape's own station (services/station); unset on radio.co
 //   NORA_STREAM_URL     the station's live input, icecast://user:password@host:port/mount
 //                       (or a file path to record a set instead, for a test)
 //   NORA_BITRATE        optional, default 192k
-//   NORA_LEGACY_ICECAST optional, 1 for a server that takes only the old SOURCE method
 //   NORA_ICECAST_TLS    optional, 1 when the server's title updates (admin/metadata) need https
 //   FFMPEG              optional, default ffmpeg
-//   NORA_POLL_SEC       optional, default 20
 
 import { spawn } from 'node:child_process';
-import { pollOnce, runStation, SAMPLE_RATE } from './engine.mjs';
+import { runStation, SAMPLE_RATE } from './engine.mjs';
 
 const env = (k, d) => (process.env[k] && process.env[k].trim()) || d;
 const SHAPE_URL = env('SHAPE_URL', '').replace(/\/+$/, '');
@@ -24,10 +20,7 @@ const TOKEN = env('NORA_ENGINE_TOKEN', '');
 const STREAM_URL = env('NORA_STREAM_URL', '');
 const BITRATE = env('NORA_BITRATE', '192k');
 const FFMPEG = env('FFMPEG', 'ffmpeg');
-const POLL_MS = Number(env('NORA_POLL_SEC', '20')) * 1000;
-const LEGACY = env('NORA_LEGACY_ICECAST', '') === '1';
 const TLS = env('NORA_ICECAST_TLS', '') === '1';
-const STATION = env('NORA_MODE', '') === 'station';
 const API_TIMEOUT_MS = 20000;
 
 const log = (msg) => console.log(`${new Date().toISOString()} ${msg}`);
@@ -119,11 +112,11 @@ export function decode(url, { ffmpeg = FFMPEG, timeoutMs = 120000 } = {}) {
 }
 
 /** The live output: ffmpeg encoding MP3 into the station's Icecast input (or into a file). */
-export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BITRATE, legacy = LEGACY } = {}) {
+export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BITRATE } = {}) {
   const live = /^icecast:\/\//.test(target);
   const args = ['-hide_banner', '-v', 'error', '-f', 'f32le', '-ar', String(SAMPLE_RATE), '-ac', '2', '-i', '-',
     '-c:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3'];
-  if (live) args.push('-content_type', 'audio/mpeg', '-ice_name', 'Shape Radio', '-ice_description', STATION ? 'Shape Radio' : 'DJ set · Nora', ...(legacy ? ['-legacy_icecast', '1'] : []));
+  if (live) args.push('-content_type', 'audio/mpeg', '-ice_name', 'Shape Radio', '-ice_description', 'Shape Radio');
   else args.push('-y');
   args.push(target);
   const p = spawn(ffmpeg, args, { stdio: ['pipe', 'ignore', 'pipe'] });
@@ -135,7 +128,7 @@ export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BIT
     // ⚠ A WRITE SETTLES WHEN FFMPEG EXITS, not only on 'drain'. A station that refuses the source
     // or drops the line kills ffmpeg while the pipe is full; waiting on 'drain' alone hung the
     // engine for good (measured against a stand-in Icecast input) instead of handing back to the
-    // AutoDJ.
+    // standby loop.
     write(pcm) {
       if (!alive) return Promise.resolve(false);
       const buf = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
@@ -161,7 +154,7 @@ export function openOutput({ ffmpeg = FFMPEG, target = STREAM_URL, bitrate = BIT
 
 /**
  * Icecast's title update for a live source: GET /admin/metadata on the same server, with the
- * source's own credentials. null for a file target. "Artist - Title", the form radio.co shows.
+ * source's own credentials. null for a file target. "Artist - Title", the form Icecast shows.
  */
 export function metadataRequest(target, item, { tls = TLS } = {}) {
   if (!/^icecast:\/\//.test(target)) return null;
@@ -197,7 +190,6 @@ const reporter = createReporter({ send: (event) => api('POST', event), log });
 export const realDeps = {
   now: () => Date.now(),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-  fetchJob: () => api('GET'),
   fetchStationJob: ({ after, skip }) => stationAsk({ after, skip }),
   checkSegment: ({ kind, id, skip }) => stationAsk({ check: `${kind}:${id}`, skip }),
   report: (event) => reporter.report(event),
@@ -212,21 +204,8 @@ async function main() {
     console.error('Set SHAPE_URL, NORA_ENGINE_TOKEN and NORA_STREAM_URL (see README.md).');
     process.exit(2);
   }
-  if (STATION) {
-    log(`Shape Radio's station: playing ${SHAPE_URL}'s rotation and Nora's sets into ${redact(STREAM_URL)}`);
-    await runStation(realDeps);
-    return;
-  }
-  log(`Nora's engine: polling ${SHAPE_URL} every ${POLL_MS / 1000} s; streaming to ${redact(STREAM_URL)}`);
-  const state = { running: null, done: new Set() };
-  for (;;) {
-    const step = await pollOnce(state, realDeps);
-    if (step.action === 'started') {
-      log(`set ${step.setId}: on the air`);
-      step.result.then((r) => log(`set ${step.setId}: ${r.ok ? 'finished' : `stopped (${r.reason})`}, ${r.played.length} songs`));
-    } else if (step.action === 'error') log(`could not reach Shape: ${step.error}`);
-    await realDeps.sleep(POLL_MS);
-  }
+  log(`Shape Radio's station: playing ${SHAPE_URL}'s rotation and Nora's sets into ${redact(STREAM_URL)}`);
+  await runStation(realDeps);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

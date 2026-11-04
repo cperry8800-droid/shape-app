@@ -38,10 +38,10 @@ export async function GET() {
   // same class as the station route's own false 200, one route over.
   const { data, error } = await supabase
     .from('radio_station')
-    .select('provider, now_playing_url')
+    .select('provider')
     .eq('id', 1)
     .maybeSingle();
-  const cfg = error ? {} : { provider: data?.provider, nowPlayingUrl: data?.now_playing_url };
+  const cfg = error ? {} : { provider: data?.provider };
   // Shape's own station (services/station): between her sets it plays the rotation Shape planned,
   // so the song comes from that plan, on the same rules as hers (only what has been heard, and
   // only a song the engine reported playing). Off the rotation, its provider names nothing: the

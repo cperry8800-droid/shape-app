@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { checkOwnStation, checkStation, probeStream, engineQuiet, ENGINE_QUIET_MS, OWN_PROVIDER, OWN_MOUNT } from '../src/lib/radio/station.mjs';
+import { checkOwnStation, probeStream, engineQuiet, ENGINE_QUIET_MS, OWN_PROVIDER, OWN_MOUNT } from '../src/lib/radio/station.mjs';
 import { MAX_TRACK_SEC } from '../src/lib/radio/library.mjs';
 import { rotationOnAir, HEARD_LAG_SEC } from '../src/lib/radio/noraOnAir.mjs';
 
@@ -29,8 +29,6 @@ test('⚠ Shape\'s own stream: https, its own name, the /live mount, nothing els
     'https://radio.theshapecommunity.com/standby': 'stream_not_live',
     'https://radio.theshapecommunity.com/live/': 'stream_not_live',
     'https://radio.theshapecommunity.com/': 'stream_not_live',
-    'https://s5.radio.co/live': 'stream_is_radio_co',
-    'https://radio.co/live': 'stream_is_radio_co',
     'https://203.0.113.9/live': 'stream_host',
     'https://[::1]/live': 'stream_host',
     'https://localhost/live': 'stream_host',
@@ -40,8 +38,6 @@ test('⚠ Shape\'s own stream: https, its own name, the /live mount, nothing els
     '': 'stream_url',
   };
   for (const [url, error] of Object.entries(refused)) assert.deepEqual(checkOwnStation({ streamUrl: url }), { ok: false, error }, url);
-  // radio.co's own path is unchanged.
-  assert.equal(checkStation({ streamUrl: 'https://s5.radio.co/s0a1b2c3d4/listen', stationId: 's0a1b2c3d4' }).value.provider, 'http');
 });
 
 test('⚠ the stream is asked before it is saved: only an answer with audio passes, headers only', async () => {
@@ -257,10 +253,15 @@ test('⚠ the dashboard saves Shape\'s own station only after checking it and he
   assert.ok(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), `in order: ${order.join(', ')}`);
   const panel = read('src/app/dashboard/radio/StationPanel.tsx');
   assert.match(panel, /<form action=\{connectOwnStation\}/);
-  assert.match(panel, /<form action=\{connectStation\}/);
+  // radio.co was taken out (owner, 2026-11-04): Shape's own station is the only one.
+  assert.ok(!/radio\.co|\bconnectStation\b|\bcheckStation\b/i.test(panel.replace(/^\s*\/\/.*$/gm, '')), 'no radio.co on the card');
+  assert.ok(!/export async function connectStation\b|\bcheckStation\b/.test(actions));
+  const station = read('src/lib/radio/station.mjs');
+  assert.ok(!/export function checkStation|radioCoStatusUrl|stationIdOf/.test(station));
   assert.match(panel, /rotationOnAir\(db, \{ now \}\)/);
   const page = read('src/app/dashboard/radio/NoraSets.tsx');
   assert.match(page, /<StationPanel station=\{station\.data \?\? null\} \/>/);
-  for (const k of ['station_unreachable', 'station_not_audio', 'station_stream_not_live', 'station_stream_is_radio_co', 'station_stream_host']) assert.match(page, new RegExp(`${k}: '`), k);
+  for (const k of ['station_unreachable', 'station_not_audio', 'station_stream_not_live', 'station_stream_host']) assert.match(page, new RegExp(`${k}: '`), k);
   assert.match(page, /own_station_connected: '/);
+  assert.ok(!/radio\.co/i.test(page.replace(/^\s*\/\/.*$/gm, '')), 'nothing on the page names radio.co');
 });

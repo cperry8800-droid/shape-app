@@ -1,4 +1,4 @@
-// Nora's engine on Shape's own station (services/nora-engine, NORA_MODE=station): runStation keeps
+// Nora's engine on Shape's own station (services/nora-engine): runStation keeps
 // one stream open and plays what Shape hands it back to back, asks ahead for what follows and
 // loads it in time, bridges a short gap with silence and hands a long one (or any failure) to the
 // station's standby loop, cuts a rotation block where one of Nora's sets now starts, stops when
@@ -264,7 +264,7 @@ test('⚠ handed segments that are already over, again and again, it pauses rath
   assert.equal(h.outputs.length, 0);
 });
 
-test('the radio.co mode is unchanged: a set opens its own output and hangs up at the end', LIMIT, async () => {
+test('without a line (the tests\' own), a set opens its own output and closes it at the end', LIMIT, async () => {
   let clock = 2_000_000, opened = 0, closed = 0;
   const job = segment('set', S1, clock + 5000, [TA]);
   const r = await runSet({ ...job, serverNowMs: clock, localAtFetchMs: clock }, {

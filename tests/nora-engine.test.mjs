@@ -11,12 +11,12 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createMixer, envelopeAt, softClip } from '../services/nora-engine/mixer.mjs';
-import { pollOnce, runSet, SAMPLE_RATE } from '../services/nora-engine/engine.mjs';
+import { runSet, SAMPLE_RATE } from '../services/nora-engine/engine.mjs';
 import { announce, decode, metadataRequest, openOutput } from '../services/nora-engine/main.mjs';
 import { analyzeTrack } from '../public/newdesign/booth/trackAnalysis.mjs';
 import { profileTrack } from '../src/lib/radio/trackProfile.mjs';
 import { planSet } from '../src/lib/radio/noraPlanner.mjs';
-import { engineJob, monthRange, playsCsv, recordEngineEvent } from '../src/lib/radio/noraEngineApi.mjs';
+import { monthRange, playsCsv, recordEngineEvent, setJob } from '../src/lib/radio/noraEngineApi.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -162,9 +162,18 @@ function harness({ startInSec = 5, decodeFails = [], writeFailsAt = null, decode
   let written = 0, closed = 0;
   const startsAt = new Date(clock + startInSec * 1000).toISOString();
   const job = { set: { id: SET_ID, startsAt }, programme: PROGRAMME, sources: { [T1]: 'u1', [T2]: 'u2' }, serverNowMs: clock, localAtFetchMs: clock };
+  // ⚠ This sleep never yields to the event loop, so a test's own timeout cannot stop an engine
+  // that waits forever (a song it will never get): the fake clock stops it an hour past the set.
+  // It throws as it is called, not from its promise: the engine races a sleep against a load that
+  // has already settled, and a rejected sleep there would go unseen.
+  const stopAt = Date.parse(startsAt) + (PROGRAMME.endsSec + 3600) * 1000;
   const deps = {
     now: () => clock,
-    sleep: async (ms) => { clock += ms; },
+    sleep: (ms) => {
+      clock += ms;
+      if (clock > stopAt) throw new Error('the engine is still waiting an hour after the set ended');
+      return Promise.resolve();
+    },
     decode: async (url) => {
       loads.push({ url, at: clock });
       if (decodeDelayMs) clock += decodeDelayMs;
@@ -263,31 +272,6 @@ test('⚠ it fails to the AutoDJ, never to silence', LIMIT, async () => {
   assert.deepEqual(await runSet(bad.job, bad.deps), { ok: false, reason: 'missing_source', played: [] });
 });
 
-test('the service loop: waits, starts once, and retries only a dropped connection', LIMIT, async () => {
-  const h = harness({ startInSec: 600 });
-  const state = { running: null, done: new Set() };
-  const reply = (startsInSec) => ({ nowMs: h.clock, set: { id: SET_ID, startsAt: new Date(h.clock + startsInSec * 1000).toISOString() }, programme: PROGRAMME, sources: { [T1]: 'u1', [T2]: 'u2' } });
-  let next = reply(600);
-  const deps = { ...h.deps, fetchJob: async () => next };
-  assert.equal((await pollOnce(state, deps)).action, 'waiting');
-  next = reply(60);
-  const started = await pollOnce(state, deps);
-  assert.equal(started.action, 'started');
-  assert.equal((await pollOnce(state, deps)).action, 'busy');
-  assert.equal((await started.result).ok, true);
-  next = reply(-30);
-  assert.equal((await pollOnce(state, deps)).action, 'done', 'a finished set is not played twice');
-  // A dropped connection is picked up again.
-  const s2 = { running: null, done: new Set() };
-  let writes = 0;
-  const dropping = { ...deps, fetchJob: async () => reply(-5), openOutput: () => ({ write: async () => ++writes < 3, close: async () => {} }) };
-  const first = await pollOnce(s2, dropping);
-  assert.equal((await first.result).reason, 'output_failed');
-  assert.equal((await pollOnce(s2, { ...dropping, openOutput: h.deps.openOutput })).action, 'started');
-  assert.equal((await pollOnce({ running: null }, { ...deps, fetchJob: async () => { throw new Error('offline'); } })).action, 'error');
-  assert.equal((await pollOnce({ running: null }, { ...deps, fetchJob: async () => ({ nowMs: 0, set: null }) })).action, 'idle');
-});
-
 // ── The real ffmpeg wiring ─────────────────────────────────────────────────────────────────
 function wav(samples) {
   const pcm = Buffer.alloc(samples.length * 4);
@@ -363,8 +347,8 @@ test('ffmpeg decodes a song and streams the mix into an Icecast input', { ...LIM
   await rec.close();
   assert.ok(statSync(join(dir, 'set.mp3')).size > 10000);
   // The station's title updates go to the same server, as the source, never naming a next song.
-  const meta = metadataRequest('icecast://source:p%40ss@live.radio.co:8000/s0a1b2c3d4', { artist: 'Daft Punk', title: 'One More Time' });
-  assert.equal(meta.url, 'http://live.radio.co:8000/admin/metadata?mount=%2Fs0a1b2c3d4&mode=updinfo&song=Daft%20Punk%20-%20One%20More%20Time');
+  const meta = metadataRequest('icecast://source:p%40ss@icecast:8000/live', { artist: 'Daft Punk', title: 'One More Time' });
+  assert.equal(meta.url, 'http://icecast:8000/admin/metadata?mount=%2Flive&mode=updinfo&song=Daft%20Punk%20-%20One%20More%20Time');
   assert.equal(meta.auth, `Basic ${Buffer.from('source:p@ss').toString('base64')}`);
   assert.equal(metadataRequest('/tmp/set.mp3', { title: 'x' }), null, 'a recording to a file has no title to update');
   assert.equal(metadataRequest('icecast://u:p@h:1/m', { title: 'x' }, { tls: true }).url.slice(0, 8), 'https://');
@@ -424,23 +408,19 @@ const shapeTables = (over = {}) => ({
   ...over,
 });
 
-test('the engine is handed the set due next, with a link to each song that outlives the set', LIMIT, async () => {
-  const r = await engineJob(fakeDb(shapeTables()), { now: NOW });
+test('one of her sets for the engine: its programme, with a link to each song that outlives the set', LIMIT, async () => {
+  // (Which set plays when, and the licence gate, are the station's: src/lib/radio/rotation.mjs,
+  // tests/radio-rotation.test.mjs. radio.co's own set-picking, engineJob, was taken out with it.)
+  const SETROW = shapeTables().nora_sets[0];
+  const r = await setJob(fakeDb(shapeTables()), SETROW, { now: NOW });
   assert.equal(r.status, 200);
   assert.deepEqual([r.body.set.id, r.body.nowMs, r.body.programme], [SET_ID, NOW, PROGRAMME]);
   assert.deepEqual(Object.keys(r.body.sources).sort(), [T1, T2].sort());
   const ttl = Number(/ttl=(\d+)/.exec(r.body.sources[T1])[1]);
   assert.ok(ttl >= 5 * 60 + PROGRAMME.endsSec + 3600, `the link lasts the set plus an hour (${ttl} s)`);
-  // ⚠ Without the licences, nothing; an unpublished set, nothing; too early, nothing.
-  assert.deepEqual((await engineJob(fakeDb(shapeTables({ nora_dj_settings: [{ id: 1, licences_confirmed_at: null }] })), { now: NOW })).body, { nowMs: NOW, set: null, reason: 'unlicensed' });
-  assert.equal((await engineJob(fakeDb(shapeTables({ nora_sets: [{ ...shapeTables().nora_sets[0], published: false }] })), { now: NOW })).body.set, null);
-  assert.equal((await engineJob(fakeDb(shapeTables()), { now: Date.parse('2026-10-12T17:30:00Z') })).body.set, null);
-  // A set that is over is not handed out again.
-  assert.equal((await engineJob(fakeDb(shapeTables()), { now: Date.parse('2026-10-12T19:30:00Z') })).body.set, null);
-  // A song deleted since the plan: refused, so the AutoDJ plays rather than a set with a hole.
-  const gone = await engineJob(fakeDb(shapeTables({ radio_tracks: [shapeTables().radio_tracks[0]] })), { now: NOW });
+  // A song deleted since the plan: refused, so the station's standby loop plays rather than a set with a hole.
+  const gone = await setJob(fakeDb(shapeTables({ radio_tracks: [shapeTables().radio_tracks[0]] })), SETROW, { now: NOW });
   assert.deepEqual([gone.status, gone.body.error, gone.body.trackId], [409, 'song_missing', T2]);
-  assert.equal((await engineJob(fakeDb(shapeTables(), { fail: ['select:nora_dj_settings'] }), { now: NOW })).status, 503);
 });
 
 test('the play log keeps what was played, as it was, and only songs the set planned', LIMIT, async () => {
@@ -472,7 +452,7 @@ test('the play report: one month, CSV, formulas defused', LIMIT, async () => {
   assert.equal(r.count, 1);
   const lines = r.body.trim().split('\r\n');
   assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Actual total performances,Nora set,Rotation block');
-  // Her set before Shape's own station measured anything (radio.co's): no count, blank.
+  // No session recorded yet: not measured, blank (never a 0 that would under-report).
   assert.equal(lines[1], `2026-10-12T18:00:00.000Z,"X, the Band","'=HYPERLINK(""x"")",USRC17607839,"Say ""hi""",,,${SET_ID},`);
   assert.equal((await playsCsv(db, 'oct')).status, 400);
 });

@@ -43,7 +43,6 @@ services:
     environment:
       SHAPE_URL: ${SHAPE_URL:-https://www.theshapecommunity.com}
       NORA_ENGINE_TOKEN: ${NORA_ENGINE_TOKEN:?set it in .env}
-      NORA_MODE: station
       NORA_STREAM_URL: icecast://source:${ICECAST_SOURCE_PASSWORD:?set it in .env}@icecast:8000/live
       NORA_BITRATE: ${NORA_BITRATE:-192k}
 

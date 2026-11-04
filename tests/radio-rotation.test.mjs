@@ -368,7 +368,7 @@ test('⚠ the play log takes a block: only songs it planned, copied as they were
   assert.equal(db._t.nora_engine_log.at(-1).block_id, BLK);
 });
 
-test('the play report lists the rotation\'s plays beside her sets\', and still reads before the migration', LIMIT, async () => {
+test('the play report lists the rotation\'s plays beside her sets\', and still reads before the migrations (blank)', LIMIT, async () => {
   const log = [
     { event: 'song', played_at: '2026-11-03T10:00:00.000Z', artist: 'A', title: 'a', isrc: null, album: null, label: null, set_id: SET, block_id: null },
     { event: 'song', played_at: '2026-11-03T11:00:00.000Z', artist: 'B', title: 'b', isrc: null, album: null, label: null, set_id: null, block_id: BLK },
@@ -376,9 +376,9 @@ test('the play report lists the rotation\'s plays beside her sets\', and still r
   const r = await playsCsv(fakeDb({ nora_engine_log: log }), '2026-11');
   const lines = r.body.trim().split('\r\n');
   assert.equal(lines[0], 'Played at (UTC),Featured artist,Sound recording title,ISRC,Album title,Marketing label,Actual total performances,Nora set,Rotation block');
-  // No session yet: her set is not measured (blank); a block is Shape's own, and nobody heard it (0).
+  // No session yet: the station has recorded nothing, so neither play is measured (blank, never 0).
   assert.equal(lines[1], `2026-11-03T10:00:00.000Z,A,a,,,,,${SET},`);
-  assert.equal(lines[2], `2026-11-03T11:00:00.000Z,B,b,,,,0,,${BLK}`);
+  assert.equal(lines[2], `2026-11-03T11:00:00.000Z,B,b,,,,,,${BLK}`);
   const before = await playsCsv(fakeDb({ nora_engine_log: [log[0]] }, { noBlockColumn: true, missing: ['radio_listens'] }), '2026-11');
   assert.equal(before.status, 200);
   assert.equal(before.body.trim().split('\r\n')[1], `2026-11-03T10:00:00.000Z,A,a,,,,,${SET},`);
@@ -390,15 +390,17 @@ test('the admin\'s engine panel shows her sets\' reports, never the rotation\'s 
 });
 
 // ── The route and the migration ────────────────────────────────────────────────────────────
-test('the route: the engine\'s token before anything, ?mode=station to the rotation, and a malformed check refused', LIMIT, () => {
+test('the route: the engine\'s token before anything, only ?mode=station (to the rotation), and a malformed check refused', LIMIT, () => {
   const route = read('src/app/api/radio/nora/engine/route.ts');
   const get = route.slice(route.indexOf('export async function GET'), route.indexOf('export async function POST'));
   assert.ok(get.indexOf('if (refused) return refused;') < get.indexOf('createAdminClient()'));
-  assert.match(get, /if \(q\.get\('mode'\) === 'station'\)/);
+  // radio.co's engine (no ?mode=station) is refused: radio.co was taken out (2026-11-04).
+  const refuse = get.indexOf("if (q.get('mode') !== 'station') return NextResponse.json({ error: 'mode' }, { status: 400, headers: NO_STORE });");
+  assert.ok(refuse > get.indexOf('if (refused) return refused;') && refuse < get.indexOf('createAdminClient()'));
   assert.match(get, /stationCheck\(db, \{ now, skip, \.\.\.\(check\[1\] === 'set' \? \{ setId: check\[2\] \} : \{ blockId: check\[2\] \}\) \}\)/);
   assert.match(get, /else if \(q\.has\('check'\)\) r = \{ status: 400, body: \{ error: 'check' \} \};/);
   assert.match(get, /else r = await stationJob\(db, \{ now, after: q\.get\('after'\), skip \}\);/);
-  assert.match(get, /r = await engineJob\(createAdminClient\(\), \{ now \}\);/, 'radio.co\'s engine is answered as before');
+  assert.ok(!/engineJob/.test(route));
 });
 
 test('the migration: idempotent, service role only, one block per start, a log row a set\'s or a block\'s', LIMIT, () => {

@@ -203,8 +203,11 @@ const missingTable = (e) => !!e && (e.code === '42P01' || e.code === 'PGRST205')
 
 /**
  * Every song played in [fromIso, toIso), each with its performances, and the range's totals.
- * `performances` is null for a play before Shape's own station was measuring (radio.co's, or before
- * the first listener reached it); a rotation block is always Shape's own.
+ * Every play is Shape's own station's (radio.co was taken out, 2026-11-04). ⚠ A PLAY IS MEASURED ONLY
+ * FROM THE STATION'S FIRST RECORDED START (Codex, #2586): from the start of the first run of the
+ * station that kept a session, nobody listening is 0; before it (or before
+ * 2026-11-03-radio-listens.sql) Shape can't tell nobody from not recording, and `performances` is
+ * null (blank), never a 0 that would under-report.
  */
 export async function performanceReport(db, [fromIso, toIso], { now }) {
   const from = Date.parse(fromIso), to = Date.parse(toIso);
@@ -245,12 +248,9 @@ export async function performanceReport(db, [fromIso, toIso], { now }) {
   const windows = playWindows(ev.rows);
   const spans = sessionSpans(rows, nextBoot, { now });
   const plays = ev.rows.filter((r) => r.event === 'song' && Date.parse(r.played_at) >= from && Date.parse(r.played_at) < to);
-  const counted = plays.map((r) => {
-    const at = Date.parse(r.played_at);
-    return measured && (!!r.block_id || (firstBoot != null && at >= firstBoot));
-  });
   const counts = countPerformances(plays.map((r) => windows.get(r)
     || { start: Date.parse(r.played_at), end: Date.parse(r.played_at) + (MAX_TRACK_SEC + HEARD_LAG_SEC) * 1000 }), spans);
+  const counted = plays.map((r) => measured && firstBoot != null && Date.parse(r.played_at) >= firstBoot);
   const out = plays.map((r, i) => ({ ...r, performances: counted[i] ? counts[i] : null }));
   const inRange = spans.filter((s) => s.start < to && s.end > from);
   return {

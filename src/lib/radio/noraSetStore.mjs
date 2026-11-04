@@ -127,11 +127,10 @@ export async function readPlayable(db) {
 
 /**
  * Plan a set from the library, the plays before it and any already planned after it (Shape's own
- * rotation, src/lib/radio/rotation.mjs). `externalHistory` is the station's other plays (radio.co's
- * own rotation) in the same shape, when the caller has them.
+ * rotation, src/lib/radio/rotation.mjs).
  * Returns { programme, problems } without storing anything.
  */
-export async function draftProgramme(db, set, { externalHistory = [] } = {}) {
+export async function draftProgramme(db, set) {
   const endsAt = new Date(Date.parse(set.starts_at) + Number(set.duration_min) * 60000).toISOString();
   const [lib, hist, fut] = await Promise.all([
     readPlayable(db),
@@ -139,7 +138,7 @@ export async function draftProgramme(db, set, { externalHistory = [] } = {}) {
     readFuture(db, endsAt, { excludeSetId: set.id }),
   ]);
   if (lib.error || hist.error || fut.error) return { error: 'read_failed' };
-  const history = [...hist.history, ...(Array.isArray(externalHistory) ? externalHistory : [])];
+  const history = hist.history;
   const future = fut.future;
   const programme = planSet({ tracks: lib.tracks, set: { id: set.id, startsAt: set.starts_at, durationMin: set.duration_min }, history, future });
   return { programme, problems: checkProgramme(programme, history, { future }), libraryCount: lib.tracks.length };
@@ -150,14 +149,14 @@ export async function draftProgramme(db, set, { externalHistory = [] } = {}) {
  * stored wins (the table's key is the set), so the cron and the engine can both ask.
  * ⚠ A plan that breaks a rule is never stored.
  */
-export async function ensureProgramme(db, setId, opts = {}) {
+export async function ensureProgramme(db, setId) {
   const got = await db.from('nora_set_programmes').select('programme').eq('set_id', setId).maybeSingle();
   if (got.error) return { error: 'read_failed' };
   if (got.data) return { programme: got.data.programme, stored: true };
   const { data: set, error } = await db.from('nora_sets').select('id,starts_at,duration_min,host_kind').eq('id', setId).maybeSingle();
   if (error) return { error: 'read_failed' };
   if (!set || set.host_kind !== 'nora') return { error: 'not_a_nora_set' };
-  const draft = await draftProgramme(db, set, opts);
+  const draft = await draftProgramme(db, set);
   if (draft.error) return draft;
   if (draft.problems.length) return { error: 'plan_breaks_rules', problems: draft.problems };
   if (!draft.programme.items.length) return { error: 'empty_library' };

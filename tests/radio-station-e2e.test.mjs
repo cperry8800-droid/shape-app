@@ -1,5 +1,5 @@
 // Shape Radio's own station, end to end against a REAL Icecast (services/station): the station's
-// config as entrypoint.sh writes it, the standby loop, and Nora's engine (NORA_MODE=station, real
+// config as entrypoint.sh writes it, the standby loop, and Nora's engine (real
 // ffmpeg) playing a block a stand-in Shape hands it, heard by one listener who stays connected the
 // whole time: the loop before the music, the music, the loop after it, and no silence between.
 //
@@ -236,7 +236,7 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
 
     // 4. The engine, on the station.
     const engine = run('node', [join(ROOT, 'services/nora-engine/main.mjs')], {
-      SHAPE_URL: `http://127.0.0.1:${shapePort}`, NORA_ENGINE_TOKEN: TOKEN, NORA_MODE: 'station',
+      SHAPE_URL: `http://127.0.0.1:${shapePort}`, NORA_ENGINE_TOKEN: TOKEN,
       NORA_STREAM_URL: `icecast://source:${SOURCE_PW}@127.0.0.1:${port}/live`,
     });
     const titles = [];

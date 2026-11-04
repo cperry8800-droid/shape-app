@@ -96,8 +96,8 @@ export default {
       find: '    row = { block_id: blk.id };', replace: '    row = {};' },
     { name: '⚠ the report drops the rotation\'s column', file: API,
       find: 'r.set_id, r.block_id].map(csvCell)', replace: 'r.set_id, null].map(csvCell)' },
-    { name: 'before the migration the report fails', file: API,
-      find: "  if (error && error.code === '42703') ({ data, error }", replace: "  if (false) ({ data, error }" },
+    { name: 'before the migration the report fails', file: 'src/lib/radio/listens.mjs',
+      find: "  if (ev.error && ev.error.code === '42703') ev = await readEvents(", replace: '  if (false) ev = await readEvents(' },
     // ── the engine's station loop ──
     { name: '⚠ the next segment is asked for only at the end (a gap at every hand-over)', file: ENG,
       find: '      if (!fetching && endSec - t <= PREFETCH_SEC) {', replace: '      if (!fetching && endSec - t <= 0) {' },
@@ -133,7 +133,7 @@ export default {
       find: ".select('event,played_at,title,artist,detail').not('set_id', 'is', null).order(", replace: ".select('event,played_at,title,artist,detail').order(" },
     { name: 'segments already over, again and again, spin the loop', file: ENG,
       find: '      if (overAgain) await deps.sleep(RETRY_SEC[0] * 1000);\n', replace: '' },
-    { name: 'radio.co mode: a set never hangs up', file: ENG,
+    { name: 'without a line, a set never hangs up', file: ENG,
       find: '  if (!line) {\n    try { await out.close(); }', replace: '  if (false) {\n    try { await out.close(); }' },
     // ── the line to Shape ──
     { name: 'an empty skip is sent', file: MAIN,

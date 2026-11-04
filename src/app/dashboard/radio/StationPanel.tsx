@@ -1,14 +1,15 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rotationOnAir } from '@/lib/radio/noraOnAir.mjs';
-import { OWN_PROVIDER, engineQuiet, stationIdOf } from '@/lib/radio/station.mjs';
+import { OWN_PROVIDER, engineQuiet } from '@/lib/radio/station.mjs';
 import { listeningNow } from '@/lib/radio/listens.mjs';
-import { connectOwnStation, connectStation, disconnectStation } from './actions';
+import { connectOwnStation, disconnectStation } from './actions';
 
-// The station card on Nora's page (./NoraSets.tsx): where Shape Radio streams from, Shape's own
-// station (services/station) or radio.co, and, on Shape's own, what its rotation is playing and
-// what the engine last said. Server-rendered; the forms are server actions (./actions.ts).
+// The station card on Nora's page (./NoraSets.tsx): Shape's own station (services/station), where
+// Shape Radio streams from, what its rotation is playing, what the engine last said, and who is
+// listening. Server-rendered; the forms are server actions (./actions.ts). radio.co was taken out
+// (owner, 2026-11-04: "yes remove radio.co").
 
-type Station = { provider: string | null; stream_url: string | null; now_playing_url: string | null } | null;
+type Station = { provider: string | null; stream_url: string | null } | null;
 type LogRow = { event: string; played_at: string; title: string | null; artist: string | null; detail: string | null; logged_at: string };
 
 const when = (iso: string) =>
@@ -23,7 +24,6 @@ export default async function StationPanel({ station }: { station: Station }) {
   const db = createAdminClient();
   const now = Date.now();
   const own = station?.provider === OWN_PROVIDER && !!station?.stream_url;
-  const radioCo = station?.provider === 'http' && !!station?.stream_url;
 
   // The rotation's reports (block rows) and the engine's latest word on anything. Before
   // 2026-11-03-radio-rotation.sql there is no block column: the panel says nothing of a rotation.
@@ -49,11 +49,6 @@ export default async function StationPanel({ station }: { station: Station }) {
         {own ? (
           <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
             <span className="text-neutral-200 break-all">Shape’s own station · streaming {station!.stream_url}</span>
-            <form action={disconnectStation}><button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-3 py-1 text-xs hover:border-neutral-500">Disconnect</button></form>
-          </div>
-        ) : radioCo ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
-            <span className="text-neutral-200 break-all">radio.co · streaming {station!.stream_url}{stationIdOf(station!.now_playing_url) ? ` · station ${stationIdOf(station!.now_playing_url)}` : ''}</span>
             <form action={disconnectStation}><button type="submit" className="rounded-full border border-neutral-700 text-neutral-300 px-3 py-1 text-xs hover:border-neutral-500">Disconnect</button></form>
           </div>
         ) : (
@@ -103,15 +98,6 @@ export default async function StationPanel({ station }: { station: Station }) {
         Saved only once the stream answers with audio. Its engine plays Nora’s sets at her times and the rotation between them.
       </div>
 
-      <form action={connectStation} className="grid grid-cols-1 md:grid-cols-[2fr_1fr_auto] gap-2 items-end">
-        <label className="flex flex-col gap-1 text-xs text-neutral-500">Or radio.co: its Stream URL (radio.co → your station → Share / Stream URL)
-          <input name="stream_url" required placeholder="https://s5.radio.co/s0a1b2c3d4/listen" defaultValue={radioCo ? station!.stream_url ?? '' : ''} className={input} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-neutral-500">Station ID
-          <input name="station_id" required placeholder="s0a1b2c3d4" defaultValue={stationIdOf(station?.now_playing_url) ?? ''} className={input} />
-        </label>
-        <button type="submit" className="rounded-full border border-neutral-600 text-neutral-200 px-4 py-1.5 text-sm">Use radio.co</button>
-      </form>
     </div>
   );
 }

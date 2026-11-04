@@ -23,8 +23,6 @@ export default {
       find: "  if (u.username || u.password || u.search || u.hash || u.port) return { ok: false, error: 'stream_url' };\n  if (u.pathname !== OWN_MOUNT)", replace: '  if (u.pathname !== OWN_MOUNT)' },
     { name: 'any path is taken', file: ST,
       find: "  if (u.pathname !== OWN_MOUNT) return { ok: false, error: 'stream_not_live' };\n", replace: '' },
-    { name: 'a radio.co address is taken as Shape\'s own', file: ST,
-      find: "  if (/(^|\\.)radio\\.co$/.test(host)) return { ok: false, error: 'stream_is_radio_co' };\n", replace: '' },
     { name: '⚠ an address or a local name is taken', file: ST,
       find: "  if (!/^[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,}$/.test(host) || /(^|\\.)(localhost|local|internal)$/.test(host)) {", replace: '  if (false) {' },
     { name: '⚠ a stream that answers with anything is taken', file: ST,
@@ -86,7 +84,7 @@ export default {
       find: '      if (rotation) return NextResponse.json({ ...rotation, simulated: false },', replace: '      if (rotation) return NextResponse.json(rotation,' },
     // ── the dashboard ──
     { name: '⚠ Shape\'s own station is saved without hearing it answer', file: ACT,
-      find: '  const probed = await probeStream(checked.value.stream_url);\n  if (!probed.ok) failed(probed.error);\n', replace: '' },
+      find: '  const probed = await probeStream(streamWithTicket(checked.value.stream_url, probeTicket.ticket));\n  if (!probed.ok) failed(probed.error);\n', replace: '' },
     { name: 'a non-admin can point the station', file: ACT,
       find: "export async function connectOwnStation(formData: FormData): Promise<void> {\n  await requireAdminUser();\n", replace: 'export async function connectOwnStation(formData: FormData): Promise<void> {\n' },
     // ── the stream's cross-origin header ──
