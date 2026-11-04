@@ -44,7 +44,9 @@ test('app: the link opens Nora\'s sheet; an error\'s kind and words go with the 
 });
 
 test('app: an empty menu on Eat asks what to eat, today or on the day shown', () => {
-  const eat = between(APP, '{effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (', '{/* Tonight\'s prep for tomorrow');
+  // Eat makes the line and its Day view (BSEatDay.jsx) draws it under the menu (owner, 2026-11-04: "C for eat").
+  const eat = between(APP, 'const _eatEmpty = effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) ? (', ') : null;');
+  assert.ok(APP.includes('empty={_eatEmpty}'), 'the Day view draws the empty menu\'s line');
   // ⚠ Not before the plan read answers: a signed-in member's menu is empty until it does. And only
   // when it answered for meals: a failed read says it could not load instead (plan-read-failed).
   assert.match(between(APP, 'const [eatPlanRead, setEatPlanRead] = useStateBSC(false);', '}, [eatPlanReads]);'), /read = bsPlanPartRead\(p, 'meals'\);[\s\S]*\} finally \{\n\s+if \(!cancelled\) \{ setEatPlanRead\(read\); setEatPlanFailed\(!read\); setEatPlanRetrying\(false\); \}/);

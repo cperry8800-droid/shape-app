@@ -81,7 +81,8 @@ import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
 import { bsMpTealOf, bsMpGlass, bsMpGradText, bsMpGlow, BSMpPaneLabel, BSMpVinyl } from './BSMemberBento.jsx';
-import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
+import { BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
+import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
@@ -106,7 +107,7 @@ import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
 import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
-import { BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
+import { BSFocusTitle, BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -5531,14 +5532,6 @@ function BSCoachPreparing({ role, coaching, onOpenSession }) {
   );
 }
 
-// A day of this week (0 = Monday) as BSWeekStrip shows it: the weekday in the reader's language and this
-// week's date ("Fri 6"), for a head that names the day the strip has picked.
-function bsEatStripDay(idx) {
-  const now = new Date();
-  const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(now.getDate() - ((now.getDay() + 6) % 7) + idx);
-  return `${bsWeekdayName(idx, 'short')} ${d.getDate()}`;
-}
-
 function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -5580,20 +5573,6 @@ function BSWeekStrip({ activeIdx, onSelect, restFlags = [], onMonth }) {
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-// Section header: teal kicker, big serif title, optional right-aligned action.
-function BSTrackHeader({ kicker, title, actionLabel, onAction }) {
-  const t = useBS();
-  return (
-    <div style={{ padding: `18px ${t.padX}px 0` }}>
-      <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 5 }}>{kicker}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <div style={{ fontFamily: t.HEAD || t.DISPLAY, fontWeight: t.HEAD ? 700 : t.W.display, fontSize: 21, letterSpacing: '-0.03em', color: t.INK, lineHeight: 1 }}>{title}</div>
-        {actionLabel && <button onClick={onAction} style={{ background: 'transparent', border: 0, color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap' }}>{actionLabel} →</button>}
       </div>
     </div>
   );
@@ -14411,128 +14390,87 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   })();
   const _eatFmtNow = bsFmt12(`${_eatNowD.getHours()}:${String(_eatNowD.getMinutes()).padStart(2, '0')}`);
 
-  return (
-    <BSPage>
-      <BSPageHeader
-        kicker={`${bsEatProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} · ${tr('common:unit.weekN', { defaultValue: 'Week {n}', n: bsProgramWeek() })}`}
-        title={cur.title}
-        trailing={<BSHeaderTools onProfile={onProfile} />}
-      />
-
-      <BSNutritionTopTabs active="eat" onChange={setView} />
-
-      <BSCleanType t={tClean}>
-      <BSWeekStrip activeIdx={day} onSelect={setDay} restFlags={PROGRAM.map(p => p.tag === 'REST')} onMonth={goCalendar} />
-
+  // ── THE DAY VIEW'S TOP (BSEatDay.jsx, owner 2026-11-04: "C for eat"): the head, the week, the day as an
+  // orbit with Fuel left, the next meal and the menu, drawn from what this page reads and through its own
+  // doors. The plan's notices under the week (a coach's Adjust, a nutritionist preparing the plan, a read
+  // that failed), the morning swap, the menu's rows and its empty line are made here and handed in.
+  const _eatNotices = (
+    <>
       <BSCoachAdjustBanner detail={bsEatProgram.detail} kind="nutrition" />
 
       {bsEatSignedIn && eatPlanRead && !liveMealDays && eatCoaching && <BSCoachPreparing role="nutritionist" coaching={eatCoaching} />}
       {bsEatSignedIn && eatPlanFailed && !liveMealDays && <BSPlanReadFailed part="meals" busy={eatPlanRetrying} onRetry={() => { setEatPlanRetrying(true); setEatPlanReads((n) => n + 1); }} />}
+    </>
+  );
+  // The morning swap (Phase 2): a made-ahead meal that was not prepped last night, and a quick
+  // recipe for it this morning, for today only.
+  const _eatMorning = morningSwap ? (
+    <div style={{ padding: `18px ${t.padX}px 0` }}>
+      <BSMorningSwapCard meal={{ title: morningSwap.meal.title, slot: morningSwap.slot }} recipe={morningSwap.recipe} busy={morningBusy}
+        onSwap={() => doMorningSwap(morningSwap)} onKeep={() => keepMorningMeal(morningSwap)} />
+    </div>
+  ) : null;
+  // The menu's rows: each meal at its time, its stamps, its shop list and its door.
+  const _eatRows = effMeals.map((m) => {
+    const logged = m.state === 'done';
+    const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
+    // A meal the member planned, or swapped for the day (Phase 2), says so instead.
+    const swapped = !m._own && !m._daySwap && !!mealOverrides[m._baseTitle];
+    const ownMark = m._daySwap ? tr('nutrition:planDay.daySwapped', { defaultValue: 'Swapped for today' })
+      : m._own ? tr('nutrition:planDay.yours', { defaultValue: 'Planned by you' }) : null;
+    const timeLabel = bsMealSchedLabel(m) || m.tag || '';
+    // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
+    // match only, and only until it's logged (the log supersedes it).
+    // A made-ahead meal counts as prepped only when a prep covers it on this day, and on
+    // today's menu one that is not says so (bsMenuPrepState).
+    const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });
+    const stamp = (text, color) => <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{text}</span>;
+    return {
+      key: m.id,
+      time: timeLabel,
+      title: m.title,
+      sub: `${_eatMacro(m)}${isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}`,
+      extra: (swapped || ownMark || prepped || notPrepped) ? (
+        <>
+          {swapped && stamp(tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' }), t.ACCENT)}
+          {ownMark && stamp(ownMark, t.ACCENT)}
+          {prepped && stamp(tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' }), t.isLight ? '#0a8f87' : t.ACCENT)}
+          {notPrepped && stamp(tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' }), t.INK70)}
+        </>
+      ) : null,
+      note: logged ? '✓' : isNext ? tr('nutrition:eat.next', { defaultValue: 'NEXT' }) : '',
+      state: logged ? 'done' : isNext ? 'next' : '',
+      // An eaten meal needs no shopping; its tag would only add noise.
+      below: logged ? null : mealShopBelow(m),
+      onOpen: () => setPreviewMealId(m.id),
+      ariaLabel: `${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`,
+    };
+  });
+  // An empty menu offers Nora (the Ask Nora plan, step 5): the question lands in her composer for the
+  // member to send.
+  const _eatEmpty = effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) ? (
+    <div data-eat-empty style={{ padding: `4px ${t.padX}px 2px` }}>
+      <div style={{ fontFamily: tClean.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
+      {day === bsWeekdayIdx()
+        ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
+        : <BSAskNoraLink t={t} label={tr('feed:support.ask.eatOnDayLink', { defaultValue: 'Ask Nora what to eat on {day}', day: bsWeekdayName(day) })} draft={tr('feed:support.ask.eatOnDay', { defaultValue: 'What should I eat on {day}?', day: bsWeekdayName(day) })} />}
+    </div>
+  ) : null;
 
-      {/* Fuel left today (BSEatFuel.jsx), above the next meal (owner, 2026-10-22). Coach-set
-          targets (Adjust plan → Apply) win; each macro opens its own page. */}
-      <BSEatFuel calLeft={bsEatCalLeft} calTarget={bsEatCalTgt} calNow={bsEatCalNow} calPct={bsEatCalPct}
-        macros={bsEatMacros} onOpen={(k) => setMacroPage(k)} unread={bsEatFuelUnread} calTargetKnown={bsEatCoachSet('calories')}
-        // Another day picked in the strip: its own head, not "Fuel left today" over that day's figures. The
-        // day reads as the strip shows it: this week's date and the weekday in the reader's language, not the
-        // plan record's own label (a sample's dates and English initials; Codex P2 on #2599).
-        label={_eatIsToday ? null : tr('nutrition:eat.fuelOn', { defaultValue: 'Fuel · {day}', day: bsEatStripDay(day) })} />
+  return (
+    <BSPage>
+      <BSEatDay tools={<BSHeaderTools onProfile={onProfile} />} tabs={<BSNutritionTopTabs active="eat" onChange={setView} />}
+        phase={bsEatProgram.nutritionPhase} weekN={bsProgramWeek()} title={cur.title}
+        day={day} todayIdx={bsWeekdayIdx()} onDay={setDay} onMonth={goCalendar}
+        week={PROGRAM.map((dd) => ({ kcal: bsEatEaten(dd, 'kcal'), kcalGoal: bsEatCoachSet('calories') ? bsEatCalTgt : bsEatNum(dd.totals.target.cal), p: bsEatEaten(dd, 'p'), pGoal: bsEatCoachSet('protein') ? bsEatNum(bsEatCoachN.protein) : bsEatNum(dd.totals.target.p), rest: dd.tag === 'REST', planned: dd.meals.length > 0 }))}
+        fuel={{ calLeft: bsEatCalLeft, calTarget: bsEatCalTgt, calNow: bsEatCalNow, calPct: bsEatCalPct, macros: bsEatMacros, unread: bsEatFuelUnread, calTargetKnown: bsEatCoachSet('calories') }}
+        onMacro={(k) => setMacroPage(k)} notices={_eatNotices} morning={_eatMorning} empty={_eatEmpty}
+        meals={effMeals} rows={_eatRows} nowIdx={_eatNowIdx} nowText={_eatFmtNow} nowMin={_eatNowMin}
+        next={_eatNext} nextAt={_eatNextAt} ahead={_eatAhead} until={_eatUntil} prev={_eatPrev} arrivalPct={_eatPct}
+        slotOf={_eatSlot} timeOf={bsMealSchedLabel} minOf={_eatMin} fmt12={bsFmt12} macroRow={_eatMacro}
+        onOpenMeal={(id) => setPreviewMealId(id)} onSwapMeal={(id) => setSwapMealId(id)} onSwapPick={() => setSwapMealId('pick')} />
 
-      {/* The next meal — on its own, today only. Log it opens the meal, where it
-          is logged; Swap opens the swap sheet on this meal. */}
-      {_eatNext && (
-        <BSFocusLead color={t.ACCENT}
-          kicker={`${bsMealSchedLabel(_eatNext) || _eatSlot(_eatNext)} · ${_eatNextAt != null && !_eatAhead ? tr('home:focus.notLogged', { defaultValue: 'Not logged yet' }) : tr('home:focus.nextStop', { defaultValue: 'Next stop' })}`}
-          kickerRight={_eatUntil ? (_eatUntil.h > 0
-            ? tr('home:focus.inHourMin', { defaultValue: 'In {h} h {m} min', h: _eatUntil.h, m: _eatUntil.m })
-            : tr('home:focus.inMin', { defaultValue: 'In {m} min', m: _eatUntil.m })) : ''}
-          title={_eatSlot(_eatNext)}
-          sub={`${_eatNext.title} · ${_eatMacro(_eatNext)}`}>
-          {_eatPrev && (
-            <BSFocusArrival pct={_eatPct}
-              nowLabel={`${tr('home:slate.now', { defaultValue: 'Now' })} ${_eatFmtNow}`}
-              fromLabel={`${bsFmt12(`${Math.floor(_eatPrev.min / 60)}:${String(_eatPrev.min % 60).padStart(2, '0')}`)} · ${_eatPrev.label}${_eatPrev.done ? ' ✓' : ''}`}
-              toLabel={`${bsMealSchedLabel(_eatNext)} · ${_eatSlot(_eatNext)}`}
-              ariaLabel={tr('home:focus.arrivalAria', { defaultValue: 'Now {now}, between {from} and {to}', now: _eatFmtNow, from: bsFmt12(`${Math.floor(_eatPrev.min / 60)}:${String(_eatPrev.min % 60).padStart(2, '0')}`), to: bsMealSchedLabel(_eatNext) })} />
-          )}
-          <BSFocusActions
-            primary={{ label: tr('nutrition:eat.logIt', { defaultValue: 'Log it →' }), onClick: () => setPreviewMealId(_eatNext.id) }}
-            secondary={{ label: `${tr('nutrition:eat.swapTitle', { defaultValue: 'Swap' })} →`, onClick: () => setSwapMealId(_eatNext.id) }} />
-        </BSFocusLead>
-      )}
-
-      {/* The morning swap (Phase 2): a made-ahead meal that was not prepped last night, and a quick
-          recipe for it this morning, for today only. */}
-      {morningSwap && (
-        <div style={{ padding: `18px ${t.padX}px 0` }}>
-          <BSMorningSwapCard meal={{ title: morningSwap.meal.title, slot: morningSwap.slot }} recipe={morningSwap.recipe} busy={morningBusy}
-            onSwap={() => doMorningSwap(morningSwap)} onKeep={() => keepMorningMeal(morningSwap)} />
-        </div>
-      )}
-
-      {/* The menu — the day as a line: each meal at its time, on the rail, with the
-          NOW tick today; the next one is marked and carries the kcal still left.
-          Tapping a meal opens it. */}
-      {/* ⚠ THE TITLE WAS AN ENGLISH POSSESSIVE OVER A HARDCODED WEEKDAY ARRAY
-          (`${['Monday', ...][day]}'s meals`) — not even the device locale, a
-          literal list. Home already formats its weekday through bsDateLocale();
-          this was its unlocalized twin. The possessive is the catalog's to form:
-          es reads 'Comidas del lunes', de 'Mahlzeiten am Montag'. */}
-      <BSTrackHeader kicker={tr('nutrition:eat.menuKicker', { defaultValue: 'The menu' })}
-        title={day === bsWeekdayIdx()
-          ? tr('nutrition:eat.mealsToday', { defaultValue: "Today's meals" })
-          : tr('nutrition:eat.mealsOnDay', { defaultValue: "{day}'s meals", day: bsWeekdayName(day) })}
-        actionLabel={tr('nutrition:eat.swapAction', { defaultValue: 'Swap meal' })} onAction={() => setSwapMealId('pick')} />
-      <div data-tour="hero-eat" style={{ paddingTop: 4 }}>
-        <BSFocusLine
-          nowIndex={_eatNowIdx}
-          nowLabel={_eatNowIdx >= 0 ? `${tr('home:slate.now', { defaultValue: 'Now' })} · ${_eatFmtNow}` : null}
-          rows={effMeals.map((m) => {
-            const logged = m.state === 'done';
-            const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
-            // A meal the member planned, or swapped for the day (Phase 2), says so instead.
-            const swapped = !m._own && !m._daySwap && !!mealOverrides[m._baseTitle];
-            const ownMark = m._daySwap ? tr('nutrition:planDay.daySwapped', { defaultValue: 'Swapped for today' })
-              : m._own ? tr('nutrition:planDay.yours', { defaultValue: 'Planned by you' }) : null;
-            const timeLabel = bsMealSchedLabel(m) || m.tag || '';
-            // PREPPED stamp (PR C): a fresh prep record for THIS meal — exact
-            // match only, and only until it's logged (the log supersedes it).
-            // A made-ahead meal counts as prepped only when a prep covers it on this day, and on
-            // today's menu one that is not says so (bsMenuPrepState).
-            const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });
-            const stamp = (text, color) => <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color }}>{text}</span>;
-            return {
-              key: m.id,
-              time: timeLabel,
-              title: m.title,
-              sub: `${_eatMacro(m)}${isNext ? ` · ${tr('nutrition:eat.kcalLeftUpper', { defaultValue: '{kcal} KCAL LEFT', kcal: bsEatCalLeft.toLocaleString() })}` : ''}`,
-              extra: (swapped || ownMark || prepped || notPrepped) ? (
-                <>
-                  {swapped && stamp(tr('nutrition:eat.swapped', { defaultValue: 'SWAPPED' }), t.ACCENT)}
-                  {ownMark && stamp(ownMark, t.ACCENT)}
-                  {prepped && stamp(tr('cook:prep.stamp', { defaultValue: 'Prepped ✓ · just plate it' }), t.isLight ? '#0a8f87' : t.ACCENT)}
-                  {notPrepped && stamp(tr('cook:prepAhead.notPrepped', { defaultValue: 'Not prepped last night' }), t.INK70)}
-                </>
-              ) : null,
-              note: logged ? '✓' : isNext ? tr('nutrition:eat.next', { defaultValue: 'NEXT' }) : '',
-              state: logged ? 'done' : isNext ? 'next' : '',
-              // An eaten meal needs no shopping; its tag would only add noise.
-              below: logged ? null : mealShopBelow(m),
-              onOpen: () => setPreviewMealId(m.id),
-              ariaLabel: `${timeLabel} · ${m.title}${logged ? ` · ${tr('nutrition:eat.ariaLogged', { defaultValue: 'logged' })}` : isNext ? ` · ${tr('nutrition:eat.ariaNext', { defaultValue: 'next' })}` : ''}`,
-            };
-          })} />
-        {/* An empty menu offers Nora (the Ask Nora plan, step 5): the question lands in her
-            composer for the member to send. */}
-        {effMeals.length === 0 && (eatPlanRead || !bsEatSignedIn) && (
-          <div data-eat-empty style={{ padding: `4px ${t.padX}px 2px` }}>
-            <div style={{ fontFamily: tClean.BODY, fontSize: 13, color: t.INK50, lineHeight: 1.45 }}>{tr('nutrition:eat.noMealsPlanned', { defaultValue: 'No meals planned' })}</div>
-            {day === bsWeekdayIdx()
-              ? <BSAskNoraLink t={t} label={tr('feed:support.ask.eatTodayLink', { defaultValue: 'Ask Nora what to eat today' })} draft={tr('feed:support.ask.eatToday', { defaultValue: 'What should I eat today?' })} />
-              : <BSAskNoraLink t={t} label={tr('feed:support.ask.eatOnDayLink', { defaultValue: 'Ask Nora what to eat on {day}', day: bsWeekdayName(day) })} draft={tr('feed:support.ask.eatOnDay', { defaultValue: 'What should I eat on {day}?', day: bsWeekdayName(day) })} />}
-          </div>
-        )}
-      </div>
+      <BSCleanType t={tClean}>
 
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}
