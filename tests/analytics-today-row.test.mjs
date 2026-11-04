@@ -21,9 +21,10 @@ const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
 
 let snapRows = [];
 let activityRows = [];
+let sessionRows = [];
 const stubClient = {
   from: (table) => {
-    const rows = table === 'daily_health_snapshot' ? snapRows : table === 'activities' ? activityRows : [];
+    const rows = table === 'daily_health_snapshot' ? snapRows : table === 'activities' ? activityRows : table === 'workout_sessions' ? sessionRows : [];
     const q = {
       select: () => q, eq: () => q, neq: () => q, in: () => q, gte: () => q, lte: () => q, lt: () => q, gt: () => q,
       order: () => q, limit: () => q, not: () => q, is: () => q, or: () => q, filter: () => q,
@@ -126,6 +127,25 @@ test("an activity is today's by the member's own clock, as the calories are (Cod
   // A zone the runtime does not know is ignored: the UTC date is read.
   const t4 = await ticker([row(D, {})], D, { tz: 'Not/AZone', acts: [acts[1]] });
   assert.equal(t4.today_activity_type, 'ride');
+});
+
+test("the week is the member's last seven days, each session on its own day (Codex P2s on #2583)", async () => {
+  // A New York member on D. A session at 21:30 on D-1 is 01:30Z on D: it is D-1's, and the week ends on D.
+  const D = '2026-11-03';
+  snapRows = [row(D, { protein_g: 130 })];
+  activityRows = [];
+  sessionRows = [
+    { started_at: '2026-11-03T01:30:00Z', status: 'completed' }, // 21:30 on Nov 2 in New York
+    { started_at: '2026-10-28T14:00:00Z', status: 'completed' }, // Oct 28, the week's first day
+    { started_at: '2026-10-27T14:00:00Z', status: 'completed' }, // Oct 27, the day before the week
+  ];
+  try {
+    const res = await (await ROUTE.GET(new Request(`https://shape.test/api/client/analytics?date=${D}&tz=America%2FNew_York`))).json();
+    // The week is Oct 28 … Nov 3: Oct 28 and Nov 2 trained, Nov 3 (today) not yet.
+    assert.deepEqual(res.pulse.workout, [1, 0.15, 0.15, 0.15, 0.15, 1, 0.15]);
+    assert.equal(res.workouts_this_week, 2);
+    assert.equal(res.protein_hits_this_week, 1, "today's row is the week's last day");
+  } finally { sessionRows = []; }
 });
 
 test("the app's readers send the member's local day and zone", () => {
