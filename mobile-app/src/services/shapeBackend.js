@@ -2788,6 +2788,8 @@ function communityPostFromRow(row) {
     // ⚠ THE EDIT SHEET SAVES THIS BACK through privacyToDb, so every stored tier
     // needs a label that maps to itself. 'followers' and 'friends' read as
     // 'Community' here, and editing such a post widened it to every member.
+    // A live preview reads this label too (bsPostSeenByStranger): Public, Profile and Community are a
+    // stranger's; Followers, Friends and Private are not.
     privacy: privacy === 'public' ? 'Public' : privacy === 'private' ? 'Private' : privacy === 'profile' ? 'Profile'
       : privacy === 'followers' ? 'Followers' : privacy === 'friends' ? 'Friends' : 'Community',
     workout: row.activity_type || 'Workout',
