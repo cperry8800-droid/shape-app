@@ -16,7 +16,10 @@ import { stripComments } from './helpers/strip-comments.mjs';
 // are the assertions a well-meaning later sweep would break.
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+// The editor and its two option tables live in their own module since the redesign (2026-11-04); the
+// public profile's link rows and stat heroes stay in the client module, which imports the tables.
+const SRC = path.join(ROOT, 'mobile-app/src/broadsheet/BSProfileCustomizer.jsx');
+const CLIENT = path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
 const EN = path.join(ROOT, 'mobile-app/src/i18n/catalogs/en/profile.json');
 const src = fs.readFileSync(SRC, 'utf8');
 const en = JSON.parse(fs.readFileSync(EN, 'utf8'));
@@ -27,6 +30,7 @@ const en = JSON.parse(fs.readFileSync(EN, 'utf8'));
 // opens a FALSE block on `accept="image/*"` in this exact file and swallowed
 // 567,895 characters of it in an earlier guard.
 const code = stripComments(src);
+const clientCode = stripComments(fs.readFileSync(CLIENT, 'utf8'));
 
 // ⚠ THE MARKER CARRIES THE FULL SIGNATURE ON PURPOSE. extractFn brace-matches
 // from the first `{` after the marker, and for `function BSProfileCustomizer({ initial, … })`
@@ -70,7 +74,7 @@ const { BS_STAT_OPTIONS, BS_PROFILE_LINKS, bsOptLabel } = new Function(
   ].join('\n'),
 )();
 
-const EDITOR = extractFn('function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, ownerUid = null }) {');
+const EDITOR = extractFn('function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coach = false, ownerUid = null, who = null }) {');
 const EDITOR_CODE = stripComments(EDITOR);
 const ALL = [...BS_STAT_OPTIONS, ...BS_PROFILE_LINKS];
 
@@ -167,11 +171,17 @@ test('the split holds: the doc stores the key, the member reads the label', () =
     'the headline-stat picker renders a translated label');
   assert.ok(/BS_PROFILE_LINKS\.map\([\s\S]{0,1400}?bsOptLabel\(l, tr\)/.test(EDITOR_CODE),
     'the social-link rows render a translated label');
-  // The two public-profile link rows outside the editor render through it too — five
-  // call sites in all. A new surface that shows an option and skips the resolver
-  // would render English on a Spanish profile.
-  assert.equal(code.split('bsOptLabel(').length - 1, 5,
-    'five render sites — two pickers plus the three public-profile rows');
+  // The two public-profile link rows outside the editor render through it too (the
+  // client imports the resolver from the editor's module). A new surface that shows an
+  // option and skips the resolver would render English on a Spanish profile.
+  assert.equal(code.split('bsOptLabel(').length - 1, 3,
+    'the editor module: the resolver itself and the two pickers');
+  assert.equal(clientCode.split('bsOptLabel(').length - 1, 2,
+    'the client module: the two public-profile link rows');
+  assert.ok(/import \{[^}]*\bbsOptLabel\b[^}]*\} from '\.\/BSProfileCustomizer\.jsx';/.test(clientCode),
+    'the client reads the resolver from the editor module, not a copy of its own');
+  assert.ok(!/function bsOptLabel\(|const BS_(STAT_OPTIONS|PROFILE_LINKS) = \[/.test(clientCode),
+    'no second copy of the resolver or the tables in the client');
   // ⚠ NOT a file-wide `>{x.label}<` ban — the profile HERO legitimately renders a
   // `label` its caller already translated, so that shape fails on correct code.
   // What matters instead is the invariant below.
@@ -183,7 +193,7 @@ test('the picker and the profile hero name each stat through the SAME key', () =
   // hero keyed the same stat differently, a member would read one name choosing it
   // and another seeing it, one tap apart. `score` is absent from both by the same
   // brand-noun exemption, which is why it is asserted as a literal on both sides.
-  const heroes = [...code.matchAll(/stats=\{\{[\s\S]{0,900}?\}\}/g)].map((m) => m[0])
+  const heroes = [...clientCode.matchAll(/stats=\{\{[\s\S]{0,900}?\}\}/g)].map((m) => m[0])
     .filter((m) => /score: \{/.test(m));
   assert.equal(heroes.length, 2, `expected the member and coach hero stat maps, saw ${heroes.length}`);
   for (const hero of heroes) {

@@ -4,6 +4,8 @@
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/profile-cover-guard-2026-10-28.mutations.mjs --fail-on-skipped
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+// The app's editor moved to its own module with its redesign (2026-11-04).
+const APP_EDITOR = 'mobile-app/src/broadsheet/BSProfileCustomizer.jsx';
 const WEB = 'public/newdesign/livingDesktop.jsx';
 const MKT = 'public/newdesign/marketplace.jsx';
 
@@ -33,7 +35,7 @@ export default {
     { name: 'coach hero: the preview persona loses its demo cover', file: APP,
       find: '  const coverImage = demoFill\n', replace: '  const coverImage = false\n' },
     // ── the app's old editor ──
-    { name: 'app editor: a cover of any type is uploaded', file: APP,
+    { name: 'app editor: a cover of any type is uploaded', file: APP_EDITOR,
       find: "    if (!/^image\\/(jpe?g|png|webp|gif|heic|heif)$/i.test(file.type || '')) { window.__bsToast?.(tr('profile:editor.err.imageType', { defaultValue: 'Pick a JPG, PNG, WebP, GIF, HEIC or HEIF image.' }), 'err'); return; }\n    setCoverBusy(true);",
       replace: '    setCoverBusy(true);' },
     // ── the website's living profile hero ──

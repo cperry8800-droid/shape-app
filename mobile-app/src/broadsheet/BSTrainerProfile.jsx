@@ -147,14 +147,18 @@ export function BSTrainerProfile(props) {
   const { useBS, BSProvider } = window;
   const outer = useBS();
   const { person, isSelf = false } = props;
+  // Make it yours' live preview (BSMakeItYours.jsx): the editor's unsaved doc, shown in place of the
+  // stored one, on the page as a visitor sees it (not isSelf). The signed-out demo's preview is the
+  // demo coach's own page, not a sample.
+  const previewCustom = props.previewCustom || null;
   const tr = useShapeTr();
   const role = person.kind === 'NUTRI' ? 'nutritionist' : 'trainer';
   const nutri = role === 'nutritionist';
   // The demo is the coach app's own page with nobody signed in, and only that: a page opened for
   // an account, or with one signed in, is always the real one. A sample is another coach's page
   // with no account behind it.
-  const demoOn = isSelf && !person.userId && !signedInUid();
-  const sampleOn = !isSelf && !person.userId;
+  const demoOn = (isSelf || !!previewCustom) && !person.userId && !signedInUid();
+  const sampleOn = !isSelf && !previewCustom && !person.userId;
   const lb = !!(outer && outer.uMeasure && outer.uMeasure(1, 'kg').unit === 'lb');
   // Built again when the language changes (useShapeTr re-renders this on it), for the stations' names
   // and the sample's words.
@@ -222,13 +226,13 @@ export function BSTrainerProfile(props) {
     })();
     return () => { on = false; };
   }, [isSelf, ownEpoch, demoOn, customRev]);
-  const custom = demo
+  const custom = previewCustom || (demo
     ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
-    : isSelf ? own : (live && live.custom) || null;
+    : isSelf ? own : (live && live.custom) || null);
   // The coach's own page is in the colours members see (owner, 2026-10-31: "have the profile page
   // reflect whatever the coaches picked that shows public to members"). Until their own doc is read,
   // or when that read fails, those are the public read's, never the default dark.
-  const lookDoc = !demo && isSelf && !own ? ((live && live.custom) || null) : custom;
+  const lookDoc = !previewCustom && !demo && isSelf && !own ? ((live && live.custom) || null) : custom;
   const look = bsProfileLook(lookDoc && lookDoc.look) || {};
   const page = demo
     ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
@@ -989,7 +993,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         {/* Tabs */}
         {!isPrivate ? (
           <>
-            <nav ref={setTabNav} aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} className="bs-hide-scroll" style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 6px', overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
+            <nav ref={setTabNav} data-profile-tabs="" aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} className="bs-hide-scroll" style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 6px', overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
               {/* A row that still runs past the screen fades at the edge with more to show. */}
               {tabFit.more ? <span aria-hidden="true" data-profile-tab-fade="left" style={{ position: 'sticky', left: 0, zIndex: 1, flex: '0 0 20px', marginRight: -20, pointerEvents: 'none', background: `linear-gradient(to right, ${t.PAPER}, transparent)`, opacity: tabEdges.left ? 1 : 0, transition: 'opacity 160ms ease' }} /> : null}
               {tabs.map(([k, label], i) => {

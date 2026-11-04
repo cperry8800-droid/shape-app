@@ -17,6 +17,10 @@ import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
 import { bsSplitPaste, bsSplitLongStep } from '../services/clientRecipes.mjs';
 import { bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { BSLookPicker, BSLookBezel, bsLookPreviewTag, paletteOf, onColor, hexA } from './BSLookPicker.jsx';
+// The live preview's layer (the page full screen, its tap guard and the floating bar), Customize's own.
+import { bsLivePreviewLayer } from './BSProfileCustomizer.jsx';
+import { BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
+import { bsWsLed } from './bsMagazine.mjs';
 
 // ─── MAKE IT YOURS: the coach's profile editor ────────────────────────────────────────────────
 // Owner, 2026-10-27 (the R7 canvas), then 2026-11-04 (the Studio tab as the coach's work, then
@@ -65,7 +69,14 @@ import { BSLookPicker, BSLookBezel, bsLookPreviewTag, paletteOf, onColor, hexA }
 // The editor's own chrome is the app's dark editor (it does not repaint as colours change); the
 // preview card at the top is painted in the colours being picked.
 //
-// ⚠ WINDOW GLOBALS ARE READ AT CALL TIME (makePalette, ShapeCommunity, shapeDb, ShapeAuth).
+// View live preview (owner, 2026-11-04: "make sure coaches have the view live profile preview button"):
+// a lit pill under each tab's title opens the coach's real page (BSTrainerProfile, read off window: it
+// imports this module) full screen as members see it, with what is changed here and not saved yet on it
+// (withChanges over the doc as opened). Customize's layer draws it (bsLivePreviewLayer): a tap does
+// nothing but the page's Back and tabs and the bar, and nothing is read for it or written. Back to
+// editing, the page's ← and a swipe right come back here, the editor as it was, every edit kept.
+//
+// ⚠ WINDOW GLOBALS ARE READ AT CALL TIME (makePalette, ShapeCommunity, shapeDb, ShapeAuth, BSTrainerProfile).
 
 function useShapeTr() {
   const [, force] = React.useState(0);
@@ -1416,6 +1427,9 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
 // `figures`: the coach's numbers by stat key, as their page has them (coachWork.mjs bsCoachStatFigures),
 // for the headline stats' picker. `reviews` and `clips`: the demo's own sample reviews and clips.
+// The live preview's Message: drawn as members see it, never reached (the layer's guard stops the tap).
+const bsLiveNoop = () => {};
+
 export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], work = null, figures = null, reviews = null, clips = null, onClose, onSaved, onSettings = null }) {
   const tr = useShapeTr();
   // The app's gutter, so the masthead and ← Back sit where they sit on every page (owner,
@@ -1531,6 +1545,17 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState(null);
   const [leaving, setLeaving] = React.useState(false);
+  // The live preview, open over the editor (which stays mounted under it, as it was).
+  const [previewing, setPreviewing] = React.useState(false);
+  const liveOpenerRef = React.useRef(null);
+  const liveBackRef = React.useRef(null);
+  React.useEffect(() => {
+    // Focus moves to Back to editing, and comes back to View live preview.
+    if (previewing) { try { liveBackRef.current && liveBackRef.current.focus({ preventScroll: true }); } catch (e) {} return; }
+    const el = liveOpenerRef.current;
+    liveOpenerRef.current = null;
+    if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+  }, [previewing]);
   const lookChanged = !sameJson(look, seed.look);
   const wallChanged = wall !== seed.wall;
   const kitchenChanged = nutri && !sameJson(bsProfileKitchen(kitchen, owner), bsProfileKitchen(seed.kitchen, owner));
@@ -1785,8 +1810,35 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     <window.BSPinnedBar shown={pinned} ink={E.INK} background={E.BG} rule={ea(0.14)} trailing={tools}
       run={() => { if (window.bsMarkBack) window.bsMarkBack(); back(); }} />
   ) : null;
+  // ── View live preview: the coach's page as members see it, with the edits here on it, saved or not ──
+  const LivePage = window.BSTrainerProfile;
+  const openPreview = (e) => { liveOpenerRef.current = (e && e.currentTarget) || null; setPreviewing(true); };
+  const closePreview = () => { try { window.bsMarkBack && window.bsMarkBack(); } catch (e) {} setPreviewing(false); };
+  // The editor's chrome is the dark paper, so is the bar.
+  const liveT = { ...(theme || {}), isLight: false, INK: E.INK, inkRGB: '245,240,230', PAPER: E.BG, PAPER_BG: E.BG, PAPER2: E.BG2, padX: gut };
+  const livePill = LivePage ? (
+    <button type="button" data-mine-live-open="" onClick={openPreview}
+      style={{ ...bsWsLed(liveT, true), marginTop: 12, minHeight: 44, maxWidth: '100%', padding: '0 18px 0 14px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', boxSizing: 'border-box', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, lineHeight: 1.2, textAlign: 'left', boxShadow: `inset 0 1px 3px rgba(0,0,0,0.6), 0 0 16px -6px ${hexA(E.ED, 0.85)}` }}>
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flex: 'none' }}><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /></svg>
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{tr('profile:editor.live.open', { defaultValue: 'View live preview' })}</span>
+    </button>
+  ) : null;
+  let livePage = null;
+  if (previewing && LivePage) {
+    // The doc a Save would write over the doc as opened (no read: previewing reads and writes nothing), as
+    // the page will clean it. The demo's pins are its sample reviews' ids, kept as its Save keeps them.
+    const draft = bsNormalizeProfileCustom(withChanges(initial || {}), demo ? null : owner, !demo && filmChanged ? { filmBucket: 'coach-media' } : undefined);
+    if (demo && pinsChanged) { if (pins.length) draft.pinnedReviews = pins.slice(); else delete draft.pinnedReviews; }
+    const person = { who: who.name || first, kind: nutri ? 'NUTRI' : 'TRAINER', userId: demo ? null : owner, photo: who.photo || null };
+    livePage = bsLivePreviewLayer({
+      t: liveT, tClean: { ...liveT, DISPLAY: BS_CLEAN_SANS, BODY: BS_CLEAN_SANS, HEAD: BS_CLEAN_HEAD }, tr,
+      // Message as members see it (a member's page shows it); the layer stops the tap, as every other.
+      page: <LivePage person={person} previewCustom={draft} onBack={closePreview} onMessage={bsLiveNoop} />,
+      unsaved: dirty, onBack: closePreview, backRef: liveBackRef, zIndex: 100,
+    });
+  }
   const scroller = (
-    <div ref={scrollRef} onScroll={(e) => setPinned(e.currentTarget.scrollTop > 64)} onClickCapture={(e) => { const tg = e.target; tapRef.current = (tg && tg.closest && tg.closest('button, [role="button"], label, input, select')) || tg; }} className="bs-scroll" data-mine-scroll="" style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
+    <div ref={scrollRef} aria-hidden={livePage ? true : undefined} inert={livePage ? true : undefined} onScroll={(e) => setPinned(e.currentTarget.scrollTop > 64)} onClickCapture={(e) => { const tg = e.target; tapRef.current = (tg && tg.closest && tg.closest('button, [role="button"], label, input, select')) || tg; }} className="bs-scroll" data-mine-scroll="" style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden', visibility: livePage ? 'hidden' : undefined }}>
       <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) ${gut}px ${unsaved ? 24 : 40}px` }}>
         {/* The masthead row and the back row every page has: the mark and Vol·No, the tools in their pill. */}
         {window.BSMastRow ? <window.BSMastRow trailing={tools} ink={E.INK} /> : null}
@@ -1799,6 +1851,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         </div>
         <h1 style={{ margin: '18px 0 0', fontFamily: DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1.05 }}>{head[0]}<span style={{ color: E.ED }}>.</span></h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ea(0.7) }}>{head[1]}</p>
+        {livePill}
         {tab === 'colors' || tab === 'wall' ? <Preview tr={tr} look={look} wall={wall} who={{ ...who, first }} words={w} nutri={nutri} onEdit={setTab} lit={tab === 'colors'} /> : null}
         {tab === 'colors' ? <ColorsTab tr={tr} look={look} setLook={setLook} /> : null}
         {tab === 'wall' ? <WallTab tr={tr} look={look} setLook={setLook} wall={wall} setWall={(u) => { setWall(u); setErr(null); }} choices={photos} uploading={uploading} onUpload={onUpload} noUpload={demo ? demoNoUpload : null} /> : null}
@@ -1837,7 +1890,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const body = (
     <div data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, overflow: 'hidden', background: E.BG, color: E.INK, colorScheme: 'dark', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
       {scroller}
-      {pinnedBar}
+      {livePage ? null : pinnedBar}
+      {livePage}
     </div>
   );
   const el = Dark && theme ? (
