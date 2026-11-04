@@ -95,7 +95,10 @@ test('⚠ NO VOICE CALL IN THE APP IS ROOT-RELATIVE ANY MORE: the composer, the 
   // Each call site names its context and hands over the app locale.
   assert.match(CLIENT, /ShapeSupport\.transcribe;[\s\S]{0,400}stt\(blob, \{ filename: 'nora\.webm', context: 'nora', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
   assert.match(CLIENT, /ShapeSupport\.transcribeNote;[\s\S]{0,400}stt\(blob, \{ filename: 'note\.webm', context: 'meal', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
-  assert.match(CLIENT, /ShapeSupport\.transcribeNote;[\s\S]{0,400}stt\(blob, \{ filename: 'list\.webm', context: 'grocery', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
+  // The grocery list's spoken add lives in its page's module since the redesign (BSGroceryList.jsx, 2026-11-04).
+  const GROCERY = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryList.jsx', import.meta.url), 'utf8'));
+  assert.ok(!/fetch\(['"]\/api\/nutrition\/voice/.test(GROCERY), 'the grocery dictation still posts to a root-relative /api/nutrition/voice');
+  assert.match(GROCERY, /ShapeSupport\.transcribeNote;[\s\S]{0,400}stt\(blob, \{ filename: 'list\.webm', context: 'grocery', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
   // …and the backend exposes both clients.
   assert.match(BACKEND, /window\.ShapeSupport = \{\n  ask: askSupportBot,\n  transcribe: transcribeVoice,\n  transcribeNote,/);
 });

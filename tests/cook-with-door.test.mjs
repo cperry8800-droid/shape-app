@@ -311,9 +311,11 @@ test('the door is absent for a dish with no written method', () => {
 test('every "Cook this" door has the second door beside it', () => {
   // Derived, not enumerated: whatever the count of solo cook doors is, each one
   // is answered. A fourth added later without its companion fails here rather
-  // than shipping the original defect on a new screen.
-  const solo = SRC_BARE.match(/tr\('cook:cta',/g) || [];
-  const second = SRC_BARE.match(/<BSCookWithDoor\b/g) || [];
+  // than shipping the original defect on a new screen. The meal page is its own
+  // module since its redesign (BSMealPage.jsx, 2026-11-04), so it is read with the client.
+  const doors = SRC_BARE + stripComments(readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', 'BSMealPage.jsx'), 'utf8'));
+  const solo = doors.match(/tr\('cook:cta',/g) || [];
+  const second = doors.match(/<BSCookWithDoor\b/g) || [];
   assert.ok(solo.length >= 3, `expected the known solo cook doors, found ${solo.length}`);
   assert.equal(second.length, solo.length,
     `${solo.length} "Cook this" doors but ${second.length} "Cook with something else" doors`);

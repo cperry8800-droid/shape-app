@@ -399,7 +399,7 @@ const PARTIAL = new Set([
   'Client::BSClientLibrary', 'Client::BSLibraryDetail',
   'Client::BSClientFeed', 'Client::BSClientTrain',
   'Client::BSHomeWorkoutPreview', 'Client::BSLiveBoostSheet', 'Client::BSLogActivitySheet',
-  'Client::BSMealPreview', 'Client::BSPostCommentsSheet',
+  'Client::BSPostCommentsSheet',
   'Client::BSProfileExtras', 'Client::BSProfilePlaylists',
   'Client::BSShapeKitchenRecipe',
   // The coach storefront lifted out of BSSignalCoachProfile (2026-10-27) took its literal price
@@ -455,6 +455,14 @@ const PARTIAL = new Set([
   // station.creditTrainer / station.creditNutritionist. It MOVED FILES 2026-10-25
   // (iosAppBroadsheetClient.jsx → BSGoals.jsx) with the Goals page; the key follows the file.
   'BSGoals::BSGoalsContract',
+  // ⚠ BSMealPreview MOVED FILES 2026-11-04 (iosAppBroadsheetClient.jsx → BSMealPage.jsx) with its
+  // redesign (owner: "B for meal page"); the key follows the file. The walk sees the same ten literals it
+  // did (Score, the three section heads, ♡ Save / ✓ Saved, Log Now, One tap, Ate as planned, the photo's
+  // alt), so partStrings does not move; the four figure labels sit in an array literal it cannot see, as
+  // they did. The section heads stayed JSX text (a
+  // BSMealSecHead child) so this walk still sees them: passed as a function argument they would have
+  // vanished from the count while staying exactly as English.
+  'BSMealPage::BSMealPreview',
   // MktComboCard and MktRow left with the directory's redesign (2026-11-04): its cards and rows are
   // BSMarketDirectory.jsx's now, fully covered.
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
@@ -1085,7 +1093,8 @@ test('an export wrapper does not hide a component, and a class is a component', 
 test('the shipped tree answers the way the derivation claims', () => {
   const byKey = new Map(inventory().map((r) => [r.key, r]));
   // BSGrocery reaches the translator only as `trG` — the CodeRabbit finding.
-  assert.ok(byKey.get('Client::BSGrocery').tr > 0, 'BSGrocery holds a translator (trG) and must not read as uncovered');
+  // (Its own module since its redesign, 2026-11-04: BSGroceryList.jsx.)
+  assert.ok(byKey.get('BSGroceryList::BSGrocery').tr > 0, 'BSGrocery holds a translator (trG) and must not read as uncovered');
   // The two marketplace cards never CALL tr — they inject it into a module-scope
   // helper that cannot hold a hook. A call-only count read them as uncovered.
   // Exactly one: the `tr` handed to bsmRoleWord. The BINDING (`const tr = …`) and

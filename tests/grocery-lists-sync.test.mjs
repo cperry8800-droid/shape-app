@@ -608,10 +608,12 @@ test('every writer goes through the store: no whole-document write of the lists 
   // before the next edit is made on it (Codex P1 on #2433).
   assert.match(CLIENT, /const openGroceryRecord = selectedGroceryList && selectedGroceryList\.id\s*\? recipeLists\.find\(\(l\) => l && l\.id === selectedGroceryList\.id\) : null;\s*const activeGroceryList = openGroceryRecord\s*\? \{ \.\.\.bsNormalizeGroceryList\(openGroceryRecord\),/);
   // The grocery screen holds its ticks by item name and works out the ticked rows on every render, so
-  // another device's edit to the open list keeps each tick on its item (Codex P2 on #2433).
-  assert.match(CLIENT, /const \[gotNames, setGotNames\] = useStateBSC\(\(\) => bsReadGotItems\(_gStore, _gListKey\)\);[\s\S]{0,200}const checked = bsGroceryCheckedKeys\(list\.aisles, gotNames\);/);
-  assert.match(CLIENT, /const next = bsToggleGot\(list\.aisles, gotNames, item\);\s*setGotNames\(next\);\s*bsSaveGotItems\(_gStore, _gListKey, next\);/);
-  assert.doesNotMatch(CLIENT, /useStateBSC\(readChecked\)/, 'no tick state keyed by row');
+  // another device's edit to the open list keeps each tick on its item (Codex P2 on #2433). The screen is
+  // its own module since its redesign (BSGroceryList.jsx, 2026-11-04).
+  const GROCERY = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSGroceryList.jsx'), 'utf8');
+  assert.match(GROCERY, /const \[gotNames, setGotNames\] = React\.useState\(\(\) => bsReadGotItems\(_gStore, _gListKey\)\);[\s\S]{0,200}const checked = bsGroceryCheckedKeys\(list\.aisles, gotNames\);/);
+  assert.match(GROCERY, /const next = bsToggleGot\(list\.aisles, gotNames, item\);\s*setGotNames\(next\);\s*bsSaveGotItems\(_gStore, _gListKey, next\);/);
+  assert.doesNotMatch(CLIENT + GROCERY, /useStateBSC\(readChecked\)|useState\(readChecked\)/, 'no tick state keyed by row');
   // The open list deleted elsewhere closes on the Eat page (Codex P1 on #2433).
   assert.match(CLIENT, /const gone = new Set\(before\.filter\(\(l\) => l && !grocLocalRef\.current\.some\(\(n\) => n && n\.id === l\.id\)\)\.map\(\(l\) => l\.id\)\);\s*if \(gone\.size\) setSelectedGroceryList\(\(sel\) => \(sel && gone\.has\(sel\.id\) \? null : sel\)\);/);
   // The sign-out generation guards both stores, and every sign-out bumps it before its scrub (Codex P1 on

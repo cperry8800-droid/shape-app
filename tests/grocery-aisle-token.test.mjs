@@ -29,16 +29,21 @@ import { stripComments } from './helpers/strip-comments.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
 const src = fs.readFileSync(SRC, 'utf8');
+const SRC_TEXT = src;
 
 // ⚠ EVERY SOURCE ASSERTION BELOW READS THE COMMENT-STRIPPED FILE. The rationale
 // written at each site quotes the very calls these tests ban; this repo has paid
 // for that trap twice already in this wave.
 const code = stripComments(src);
+// The Grocery page is its own module since its redesign (owner, 2026-11-04: "actually C for grocery
+// list"): its add, its spoken add, the coach card's add, its aisle labels and its share text are read there.
+const grocerySrc = fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryList.jsx'), 'utf8');
+const grocery = stripComments(grocerySrc);
 
 // ── Extract the pure half by brace-matching the SHIPPED source ──────────────
 // ⚠ The marker is the FULL declaration head — a bare name would match a call
 // site and the body scan would start at the wrong brace.
-function extractFn(marker) {
+function extractFn(marker, src = SRC_TEXT) {
   const at = src.indexOf(marker);
   assert.notEqual(at, -1, `marker not found in the shipped source: ${marker}`);
   assert.equal(src.indexOf(marker, at + 1), -1, `marker is ambiguous: ${marker}`);
@@ -191,7 +196,7 @@ test('every BS_AISLE_KEY key is authored in every shipped catalog', () => {
 
 test('the add-item lookup compares the TOKEN, never the label', () => {
   // This is the comparison that would fork a duplicate aisle per added item.
-  const finds = [...code.matchAll(/const findAisle = [^\n]+/g)].map((m) => m[0]);
+  const finds = [...(code + '\n' + grocery).matchAll(/const findAisle = [^\n]+/g)].map((m) => m[0]);
   assert.ok(finds.length >= 2, `only ${finds.length} findAisle lookups found — the pattern is broken, not the tree`);
   for (const f of finds) {
     assert.match(f, /a\.aisle === /, 'the aisle lookup stopped comparing the stored token');
@@ -214,7 +219,7 @@ test('nothing that STORES or KEYS an aisle stores a label', () => {
   // record is not a caught one. Excluding braces instead still refuses a vars
   // object (which has no `items:` sibling and cannot be reached across a `}`)
   // while admitting any call shape a writer might wrap the token in.
-  const recs = [...code.matchAll(/\{\s*aisle:\s*([^{}]*?),\s*items:/g)].map((m) => m[1].trim());
+  const recs = [...(code + '\n' + grocery).matchAll(/\{\s*aisle:\s*([^{}]*?),\s*items:/g)].map((m) => m[1].trim());
   assert.ok(recs.length >= 3, 'the aisle-record writers vanished — re-point this guard');
   for (const v of recs) {
     assert.doesNotMatch(v, /bsAisleLabel/, 'a saved aisle record stores the translated label instead of the token');
@@ -229,17 +234,20 @@ test('nothing that STORES or KEYS an aisle stores a label', () => {
 });
 
 test('every place a member READS an aisle routes through bsAisleLabel', () => {
-  // The render sites: Shop by aisle's strip (each stop, and so its aria-label), the
-  // aisle being walked and the next one (2026-10-11 — these replaced the old
-  // collapsible checklist headers), the Eat door's meta line, and the builder's keys
-  // and aisle heads.
+  // The render sites: Grocery's aisle slots (each one, and so its aria-label), the
+  // aisle being walked and the next one — all three through the page's one labelOf
+  // (BSGroceryList.jsx, the owner's C, 2026-11-04) — the Eat door's meta line, and
+  // the builder's keys and aisle heads.
   const sites = [
-    [/const name = bsAisleLabel\(list\.aisles\[s\.ai\]\.aisle, TG\)/, "Shop by aisle's strip of aisles"],
-    [/const label = bsAisleLabel\(list\.aisles\[cur\.ai\]\.aisle, TG\)/, 'the aisle being walked'],
-    [/>\{bsAisleLabel\(list\.aisles\[next\.ai\]\.aisle, TG\)\}</, 'the next aisle'],
-    [/map\(a => bsAisleLabel\(a\.aisle, TA\)\)/, "the Eat tab's shop-list door"],
+    [/const labelOf = \(ai\) => bsAisleLabel\(list\.aisles\[ai\]\.aisle, TG\);/, 'the aisle label every Grocery site reads'],
+    [/key: `\$\{s\.ai\}`, label: labelOf\(s\.ai\)/, "Grocery's aisle slots"],
+    [/aisle: labelOf\(s\.ai\), count: s\.left/, "each aisle slot's aria-label"],
+    [/const label = labelOf\(cur\.ai\);/, 'the aisle being walked'],
+    [/>\{labelOf\(next\.ai\)\}</, 'the next aisle'],
   ];
-  for (const [re, what] of sites) assert.match(code, re, `${what} renders the raw token instead of the label`);
+  for (const [re, what] of sites) assert.match(grocery, re, `${what} renders the raw token instead of the label`);
+  assert.doesNotMatch(grocery, />\{list\.aisles\[[^\]]+\]\.aisle\}</, 'the Grocery page renders a raw aisle token');
+  assert.match(code, /map\(a => bsAisleLabel\(a\.aisle, TA\)\)/, "the Eat tab's shop-list door renders the raw token instead of the label");
   // The builder (BSGroceryBuilder.jsx since its redesign, 2026-10-29): its aisle keys, and the head of
   // each aisle its items are listed under (which replaced the per-item aisle line).
   const builder = stripComments(fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryBuilder.jsx'), 'utf8'));
@@ -257,7 +265,7 @@ test('the share text upper-cases with a locale, and the door does not lower-case
   // dotless i class this repo has already paid for. These two lines are the only
   // places a case transform ever touched an aisle name, and now that the name is
   // translated they are the only places it could corrupt one.
-  const share = code.split('\n').find((l) => l.includes('bsAisleLabel(a.aisle, TG)'));
+  const share = grocery.split('\n').find((l) => l.includes('bsAisleLabel(a.aisle, TG)'));
   assert.ok(share, 'the share-text line is gone — re-point this guard');
   assert.match(share, /toLocaleUpperCase\(bsDateLocale\(\)\)/, 'the share text upper-cases translated text without a locale');
   assert.doesNotMatch(share, /\.toUpperCase\(\)/, 'the share text still calls the locale-insensitive toUpperCase()');
@@ -286,7 +294,7 @@ test("a member-created list's first typed item lands in a KEYED aisle", () => {
   // picker, auto-sorted by bsBuilderAisleFor). So the marker carries the line
   // ABOVE to name BSGrocery's — the one that does not — while still ending at
   // the opening brace extractFn matches from.
-  const add = extractFn("  const [newQty, setNewQty] = useStateBSC('');\n  const addItem = () => {");
+  const add = extractFn("  const [newQty, setNewQty] = React.useState('');\n  const addItem = () => {", grocerySrc);
   assert.match(add, /aisles\[0\]/, 'addItem no longer files into aisles[0] — re-check whether the seeded aisle is still reachable');
   assert.doesNotMatch(stripComments(add), /bsGroceryAisleFor/,
     'addItem now classifies: good, and this guard should be re-pointed at where the seeded aisle can still surface');
