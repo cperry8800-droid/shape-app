@@ -123,6 +123,11 @@ test('the Home bar is muted only on the measured key, and its speaker says what 
   assert.match(bar, /if \(key === 'resume'\) return <BSNowPlayingMuted onTurnOn=\{\(\) => r\.setPaused\(false\)\}/,
     'the muted bar no longer follows the deck\'s key, or its Tune in no longer unmutes');
   assert.match(bar, /<BSSpeakerGlyph on=\{key === 'pause'\} \/>/, 'the live bar\'s speaker no longer reads the measured key');
+  // Every control on the slim box is 44 wide and 44 tall to tap, the votes included (Codex on #2581).
+  for (const m of bar.matchAll(/<button[\s\S]*?style=\{\{([\s\S]*?)\}\}/g)) {
+    const style = m[1];
+    if (/minWidth|width:/.test(style)) assert.match(style, /(?:minWidth|width): 44\b/, `a control under 44 wide: ${style.slice(0, 80)}`);
+  }
   const muted = stripComments(braced(RADIO, 'function BSNowPlayingMuted({ onTurnOn, onOpen }) {'));
   assert.match(muted, /<BSSpeakerGlyph on=\{false\}/, 'the muted bar\'s Tune in lost its speaker');
 });

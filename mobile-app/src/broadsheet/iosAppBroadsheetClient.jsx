@@ -5175,10 +5175,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       <BSMasthead
         compact
         thinRule
-        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close): 300px wide sets its
-        // letters 17px tall (SHAPE's were 22, and CLUB SHAPE at 22 runs past a phone), shrinking on a
-        // narrower one; the margins keep the letters' middle, and the masthead's height, where they were.
-        title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '23px auto 16px', width: 'min(300px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
+        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), condensed (owner,
+        // 2026-11-03: "lets condense the Club Shape at the top for coaches and member accounts", then
+        // "make the club shape masthead more condensed"): 200px wide sets its letters about 11px tall,
+        // with 4px above and 2px below, so the masthead is some 40px shorter. It was 300px wide with
+        // 23px above and 16px below.
+        title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(200px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<BSHeaderTools onProfile={onProfile} />}
         showDoubleRule={false}
         showDotTexture={false}
