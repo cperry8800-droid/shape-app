@@ -1414,6 +1414,47 @@ test('the tabs set smaller until the row holds them, down to 11.5px; a row that 
   }
 });
 
+// Owner, 2026-11-04, of the editor: "with correct masthead as well", and of the masthead, the mark and
+// Vol·No at the left, ✦ ⌕ ⚙ in the pill at the right. The tools are on this page as on every page;
+// each leaves the editor first, and with changes not yet saved a tap asks as Back does.
+test('Make it yours: the masthead carries the tools, and a tool with unsaved changes asks first', async () => {
+  const had = { BSSearchCorner: window.BSSearchCorner, BSSettingsCorner: window.BSSettingsCorner };
+  const sent = [];
+  window.BSSearchCorner = ({ close }) => React.createElement('button', { type: 'button', 'data-nora-corner': '', onClick: () => { close(); sent.push('nora'); } }, '✦');
+  window.BSSettingsCorner = ({ onClick }) => React.createElement('button', { type: 'button', 'data-bs-settings-corner': '', onClick }, '⚙');
+  let settings = 0;
+  try {
+    reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });
+    const m = await mount(page({ isSelf: true, onOpenSettings: () => { settings += 1; } }));
+    await click(button(/^Make it yours$/));
+    const mine = () => document.querySelector('[data-make-it-yours]');
+    const pill = mine().querySelector('[data-mine-scroll] [data-bs-mast-pill]');
+    assert.ok(pill, 'the page\'s masthead row has the tool pill');
+    assert.ok(pill.querySelector('[data-nora-corner]') && pill.querySelector('[data-bs-settings-corner]'), '✦ ⌕ and ⚙ in it');
+    const bar = mine().querySelector('[data-bs-pinned-bar]');
+    assert.ok(bar.querySelector('[data-bs-pin-back]') && bar.querySelector('[data-bs-mast-pill]'), 'the pinned bar: ←, the mark and the tools');
+    assert.ok(bar.hasAttribute('inert'), 'out of reach until the page scrolls');
+
+    // Unsaved: ⚙ asks, and runs once the coach leaves without saving.
+    await click([...mine().querySelectorAll('[data-make-it-yours] button')].find((b) => /^About me$/.test(b.textContent)));
+    await type(document.querySelector('[data-about-where]'), 'Brooklyn');
+    await click(mine().querySelector('[data-mine-scroll] [data-bs-settings-corner]'));
+    assert.ok(mine(), 'the editor stays open');
+    assert.match(m.text(), /You haven't saved these changes\./);
+    assert.equal(settings, 0, 'nothing opened yet');
+    await click(document.querySelector('[data-leave-mine]'));
+    assert.ok(!mine(), 'left');
+    assert.equal(settings, 1, 'then Settings');
+
+    // Nothing changed: ✦ leaves the editor and goes on at once.
+    await click(button(/^Make it yours$/));
+    await click(mine().querySelector('[data-mine-scroll] [data-nora-corner]'));
+    assert.ok(!mine(), 'closed');
+    assert.deepEqual(sent, ['nora']);
+    await m.unmount();
+  } finally { Object.assign(window, had); }
+});
+
 test('Make it yours, About me: years past 60 as the only edit still show the save bar, and save says why', async () => {
   // Codex P2 on #2540: the doc drops a 75, so with nothing else changed nothing read as changed.
   reset({ me: 'u-maya', custom: null, stored: { look: { paper: 'dark', accent: 'teal' } } });

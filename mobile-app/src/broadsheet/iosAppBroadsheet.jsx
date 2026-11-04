@@ -891,14 +891,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   // shadow (the Wall's magazine look, owner 2026-10-24). Slides in only once
   // scrolled past the page's own masthead.
   const MastCorner = (typeof window !== 'undefined' && window.BSMastCorner) || null;
-  const pinBackButton = () => (
-    <button type="button" data-bs-pin-back="" onClick={runPinBack}
-      aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
-        width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0,
-        display: 'grid', placeItems: 'center', background: 'transparent', border: 0, cursor: 'pointer',
-        color: t.INK, fontSize: 18, lineHeight: 1,
-      }}><span aria-hidden>←</span></button>
-  );
+  const pinBackButton = () => <BSPinBackButton run={runPinBack} />;
   const mastReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pinnedMast = mast ? (
     // ⚠ `data-bs-pinned-mast` IS AN ANCHOR, NOT DECORATION. This bar hangs OVER
@@ -2327,6 +2320,47 @@ function BSBackButton({ onClick, label = null, style, ink = null, disabled = fal
   );
 }
 
+// The pinned bar's ← : drawn in the bar's 34px row and reaching 44px with negative margins, so the bar
+// keeps its height. ONE BUTTON for every pinned bar, BSPage's and a takeover's own (Make it yours, Codex
+// P1 on #2595), so the ← on a scrolled page is the same element in the same place wherever it is
+// (tests/back-placement.test.mjs). `run` is the bar's own Back, which marks itself (BSPage's runPinBack
+// does). It is no swipe target: a swipe finds the page's own ← Back (data-bs-back), which this is not.
+function BSPinBackButton({ run, ink = null }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  return (
+    <button type="button" data-bs-pin-back="" onClick={run}
+      aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
+        width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0,
+        display: 'grid', placeItems: 'center', background: 'transparent', border: 0, cursor: 'pointer',
+        color: ink || t.INK, fontSize: 18, lineHeight: 1,
+      }}><span aria-hidden>←</span></button>
+  );
+}
+
+// A takeover's pinned masthead: BSPage's bar for a full-screen layer with a scroller of its own (Make it
+// yours, the goal sheets). Once the layer's own masthead has scrolled away (`shown`), it slides in with the
+// chrome's ←, the mark and Vol·No, and the layer's tools, so they stay in sight down the page (owner,
+// 2026-11-04). It is inert until then. `run` is the layer's Back; the layer owns the scroll and says when.
+function BSPinnedBar({ shown, run = null, trailing = null, ink = null, background = null, rule = null }) {
+  const t = useBS();
+  const reduced = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return (
+    <div data-bs-pinned-bar="" aria-hidden={!shown} inert={!shown} style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4,
+      padding: `max(calc(12px + env(safe-area-inset-top, 0px)), var(--bs-notch-floor, 0px)) ${t.padX}px 11px`,
+      background: background || t.PAPER, color: ink || t.INK, borderBottom: `1px solid ${rule || t.RULE}`,
+      transform: shown ? 'translateY(0)' : 'translateY(-110%)', opacity: shown ? 1 : 0, pointerEvents: shown ? 'auto' : 'none',
+      transition: reduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
+        {run ? <BSPinBackButton run={run} ink={ink} /> : null}
+        <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={trailing} ink={ink} /></div>
+      </div>
+    </div>
+  );
+}
+
 // THE back slot: the row directly under the masthead row, ← Back flush left at the gutter, the
 // page's eyebrow or status on the right (BS_BACK_ROW_* above). Every page that has a Back draws it
 // here — BSDetailHeader, BSMasthead and BSPageHeader's onBack, and the hand-built headers — so it is
@@ -2579,7 +2613,7 @@ function BSNavGestures() {
 }
 
 Object.assign(window, {
-  BSContext, BSProvider, useBS, BSBackButton, BSBackRow, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
+  BSContext, BSProvider, useBS, BSBackButton, BSBackRow, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,

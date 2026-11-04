@@ -17,13 +17,14 @@
 export {
   STUDIO_KIT, STUDIO_WORDS, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H,
 } from './studioKit.mjs';
-export { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit } from './coachWork.mjs';
+export { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit } from './coachWork.mjs';
 export { bsCoachPronoun, bsCoachFirstName } from './coachPronoun.mjs';
 export { bsTrainerDemo, bsTrainerSampleOf } from './trainerDemo.mjs';
 export { bsNutritionistDemo, bsNutritionistSampleOf } from './nutritionistDemo.mjs';
 export {
   bsProfileLook, bsProfileCover, bsProfileStudio, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable,
   bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, bsProfileBizCard, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS,
+  bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
 } from './profileCustom.mjs';
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
