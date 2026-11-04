@@ -5,11 +5,15 @@
 // the real English score and store catalogs.
 //
 // - Score (A): the ladder is the page's one picture of the tiers (top rung first, the member's rung
-//   and the next one named on it, a ✓ on each rung reached), under a plate that says what the next
-//   rung unlocks. The old Tiers and Rewards tabs are gone; the record is Ledger and Points.
-// - Store (B): a ruled balance (Available, Worth), then "Closest to you": the nearest unlocked
-//   things out of reach by points to go, one per variant group, which a tap jumps to. The balance's
-//   own Closest box is gone (owner, 2026-10-26: "drop the closest box, keep the row").
+//   and the next one named on it, a ✓ on each rung reached). The old Tiers and Rewards tabs are gone;
+//   the record is Ledger and Points. Over it since 2026-11-04 ("B for shape score") is one raised card:
+//   the score, the rung as a badge, the verdict, and the climb to the next rung as 24 dots with what
+//   it unlocks.
+// - Store (B): the balance, then "Closest to you": the nearest unlocked things out of reach by points
+//   to go, one per variant group, which a tap jumps to. The balance's own Closest box is gone (owner,
+//   2026-10-26: "drop the closest box, keep the row"). Since 2026-11-04 ("option C for shape store but
+//   use this at top instead of 2 boxes") the balance is a wallet card (Available with the rung, Worth
+//   under a hairline) and the nearest things are lit rows with a 16-cell strip.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -108,6 +112,27 @@ test('Score: the ladder runs top rung first, names the member\'s rung and the ne
   } finally { await s.unmount(); }
 });
 
+// Owner, 2026-11-04: "B for shape score". The number and its rung as one raised card, the climb to the
+// next rung as 24 dots under a hairline, with how far in and what the next rung unlocks.
+test('Score: one raised card holds the score, the rung as a badge, the verdict and the climb in 24 dots', async () => {
+  world();
+  const s = await mount(React.createElement(MOD.BSShapeScorePage, { profile: P.client, onBack() {}, onOpenStore() {} }));
+  try {
+    const card = s.host.querySelector('[data-score-card]');
+    assert.ok(card, 'no score card');
+    assert.equal(card.querySelector('[data-score-tier]').textContent, 'Tempo');
+    assert.match(card.textContent, /Tempo, and climbing\./);
+    // 1,840 is 1,090 into Tempo's 1,250 (750 to 2,000): 0.872 of 24 dots is 21.
+    const dots = [...card.querySelectorAll('[data-score-track] > span')];
+    assert.equal(dots.length, 24);
+    assert.equal(dots.filter((d) => d.dataset.on === '1').length, 21);
+    const next = card.querySelector('[data-score-next]').textContent.replace(/\s+/g, ' ');
+    assert.match(next, /Tempo · 750Form · 2,000/);
+    assert.match(next, /1,090 into the tier — 160 from Form\./);
+    assert.match(next, /Form unlocks: Free coach workout or plan/);
+  } finally { await s.unmount(); }
+});
+
 // The member's departments, the products a member can buy, and the one entry a product shows under
 // (a merch product's variants share their base name: "Shape Cap · Black" is "Shape Cap").
 const MEMBER_CATS = ['Shape Merch', 'Training', 'Nutrition', 'Shape Perks'];
@@ -120,11 +145,12 @@ function closestRail(host) {
   const head = [...host.querySelectorAll('[data-bst-head="mag"]')].find((h) => /Closest to you/.test(h.textContent));
   if (!head) return null;
   return buttonsIn(head.parentElement).map((b) => {
-    const spans = [...b.querySelectorAll(':scope > span')];
-    const name = spans[1].textContent.trim();
-    const m = spans[2].textContent.match(/^([\d,]+) to go$/);
-    assert.ok(m, `${name}: the card says no points to go ("${spans[2].textContent}")`);
-    return { b, name, gap: Number(m[1].replace(/,/g, '')) };
+    const name = b.querySelector('[data-closest-name]').textContent.trim();
+    const said = b.querySelector('[data-closest-gap]').textContent;
+    const m = said.match(/^([\d,]+) to go$/);
+    assert.ok(m, `${name}: the row says no points to go ("${said}")`);
+    const cells = [...b.querySelectorAll('[data-closest-strip] > span')];
+    return { b, name, gap: Number(m[1].replace(/,/g, '')), cells: cells.length, lit: cells.filter((c) => c.dataset.on === '1').length };
   });
 }
 
@@ -133,7 +159,11 @@ test('Store: the balance is Available and Worth, at the points rate; what it is 
   const s = await storePage();
   try {
     const txt = s.text();
-    assert.match(txt, new RegExp(`Available900ptsWorth\\$${(900 / MOD.BS_SHAPE_PTS_PER_USD).toFixed(2).replace('.', '\\.')}150 pts = \\$1`));
+    // The wallet card: Available with the member's rung, the points, then Worth at the rate.
+    const wallet = s.host.querySelector('[data-store-wallet]');
+    assert.ok(wallet, 'the balance is not the wallet card');
+    assert.equal(wallet.textContent.replace(/\s+/g, ' '), `AvailableTempo900ptsWorth · 150 pts = $1$${(900 / MOD.BS_SHAPE_PTS_PER_USD).toFixed(2)}`);
+    assert.equal(wallet.querySelector('[data-store-tier]').textContent, 'Tempo');
     // No Closest box: "Closest" is read only as the row's head.
     assert.doesNotMatch(txt.replace(/Closest to you/g, ''), /Closest/);
     assert.ok(closestRail(s.host).length > 0);
@@ -173,6 +203,12 @@ test('Store: Closest to you lists the nearest unlocked things out of reach by po
     assert.ok(rail && rail.length > 0 && rail.length <= 4, `rail of ${rail && rail.length}`);
     assert.equal(new Set(rail.map((c) => c.name)).size, rail.length, 'a variant group shows twice');
     for (let i = 1; i < rail.length; i++) assert.ok(rail[i].gap >= rail[i - 1].gap, 'not by points to go');
+    // Each row's strip lights the share of its price the balance covers, in 16 cells.
+    for (const c of rail) {
+      const cost = 900 + c.gap;
+      assert.equal(c.cells, 16);
+      assert.equal(c.lit, Math.round((900 / cost) * 16), `${c.name}: the strip lights ${c.lit} of 16`);
+    }
     // Each card is a real, unlocked product the member can buy, its gap read off the catalogue.
     for (const c of rail) {
       const ps = BUYABLE.filter((p) => entryName(p) === c.name);
