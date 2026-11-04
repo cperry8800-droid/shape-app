@@ -337,6 +337,67 @@ test('the editor: a target typed and not yet read is unsaved, and Save reads it 
   } finally { await m.close(); delete W.ShapeCoachPlans; delete W.bsAskConfirm; }
 });
 
+test('the editor: an unsaved draft is kept on this device and comes back when the plan opens again (Codex on #2594)', async () => {
+  const { mealDraftKey } = await import('../mobile-app/src/services/mealBuilderEdit.mjs');
+  const { mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
+  W.localStorage.clear();
+  W.ShapeAuth = { getCachedState: () => ({ user: { id: 'nutri-1' } }) };
+  const key = mealDraftKey('nutri-1', 'plan-1');
+  const plan3 = { ...PLAN, detail: { ...PLAN.detail, revision: 3 } };
+  const gone = NORA.days[0].slots[0].id;
+  const calls = [];
+  W.ShapeCoachPlans = { update: async (body) => { calls.push(body); return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail, revision: 4 } }; } };
+  let m = await mount({ plan: plan3, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    await m.click(m.q(`[data-meal-remove="${gone}"]`));
+    const kept = JSON.parse(W.localStorage.getItem(key));
+    assert.equal(kept.revision, 3, 'kept with the revision it was made on');
+    assert.ok(!kept.doc.days[0].slots.some((x) => x.id === gone));
+    assert.match(m.text(), /Draft kept on this device/);
+  } finally { await m.close(); }
+  // Taken away without a word (a notification, a page opened over Plans): it is all still there.
+  const plan5 = { ...PLAN, detail: { ...PLAN.detail, revision: 5 } };
+  m = await mount({ plan: plan5, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    assert.ok(!m.q(`[data-meal-remove="${gone}"]`), 'the draft, not the stored plan');
+    assert.match(m.text(), /Draft kept on this device/);
+    W.bsAskConfirm = async () => false;
+    assert.equal(await mayLeave(W), false, 'and it is unsaved work');
+    await m.click(m.q('[data-meal-save]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(calls[0].expectedRevision, 3, 'the draft\'s own revision, so a plan changed since is refused, not written over');
+    assert.ok(!calls[0].detail.mealBuilder.days[0].slots.some((x) => x.id === gone));
+    assert.equal(W.localStorage.getItem(key), null, 'saved: dropped');
+  } finally { await m.close(); delete W.bsAskConfirm; }
+  // Leaving without saving drops it; another account's draft is never read, nor one written for it.
+  m = await mount({ plan: PLAN, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    await m.click(m.q(`[data-meal-remove="${gone}"]`));
+    assert.ok(W.localStorage.getItem(key));
+    W.bsAskConfirm = async () => true;
+    await m.click(m.q('[data-back]'));
+    assert.equal(W.localStorage.getItem(key), null, 'left without saving: dropped');
+  } finally { await m.close(); delete W.bsAskConfirm; }
+  W.localStorage.setItem(mealDraftKey('other', 'plan-1'), JSON.stringify({ name: 'Theirs', doc: NORA, revision: 9 }));
+  m = await mount({ plan: PLAN, ownerId: 'nutri-1', onClose: () => {} });
+  try { assert.equal(m.q('input[aria-label="Plan name"]').value, PLAN.name, 'another account\'s draft stays theirs'); } finally { await m.close(); }
+  W.ShapeAuth = { getCachedState: () => ({ user: { id: 'someone-else' } }) };
+  m = await mount({ plan: PLAN, ownerId: 'nutri-1', onClose: () => {} });
+  try {
+    await m.click(m.q(`[data-meal-remove="${gone}"]`));
+    assert.equal(W.localStorage.getItem(key), null, 'the account changed: nothing kept under the old one');
+  } finally { await m.close(); delete W.ShapeAuth; delete W.ShapeCoachPlans; W.localStorage.clear(); }
+});
+
+test('a kept draft is read back only when it is one', async () => {
+  const { readMealDraft, mealDraftKey } = await import('../mobile-app/src/services/mealBuilderEdit.mjs');
+  assert.deepEqual(readMealDraft(JSON.stringify({ name: 'A', doc: NORA, revision: 2 })), { name: 'A', doc: NORA, revision: 2 });
+  for (const bad of [null, '', '{', JSON.stringify({ doc: NORA }), JSON.stringify({ name: 'A', doc: { days: [] } }), JSON.stringify({ name: 'A' })]) assert.equal(readMealDraft(bad), null, String(bad));
+  assert.equal(readMealDraft(JSON.stringify({ name: 'A', doc: NORA })).revision, 0);
+  assert.notEqual(mealDraftKey('a', 'p'), mealDraftKey('b', 'p'), 'per account');
+  assert.notEqual(mealDraftKey('a', 'p'), mealDraftKey('a', 'q'), 'per plan');
+});
+
 test('the editor: a name emptied and saved is the plan\'s own again, in the field too (Codex on #2594)', async () => {
   const calls = [];
   W.ShapeCoachPlans = { update: async (body) => { calls.push(body); return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }; } };

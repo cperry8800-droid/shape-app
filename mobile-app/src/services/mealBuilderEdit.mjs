@@ -101,3 +101,24 @@ export function assignmentDays(M, doc) {
   const edits = doc.groceryEdits && typeof doc.groceryEdits === 'object' && Object.keys(doc.groceryEdits).length ? doc.groceryEdits : null;
   return M.buildMealAssignment(doc, { scale: 1, groceryEdits: edits }).days;
 }
+
+// ── The unsaved draft, kept on this device (Codex on #2594) ──
+// Whatever takes the coach away (a tab, a swipe, a notification, a page opened over Plans), nothing is
+// lost: the editor keeps its unsaved document here, per account and plan, as the workout editor keeps
+// its own (coachWorkoutDraftKey), with the revision it was made on. Opening the plan again restores it;
+// a save, or leaving without saving, drops it.
+
+/** Where a plan's unsaved draft is kept on this device. */
+export function mealDraftKey(uid, planId) {
+  return `shape.coach.meal-draft.v1:${encodeURIComponent(uid || 'preview')}:${encodeURIComponent(planId || '')}`;
+}
+
+/** A kept draft read back: { name, doc, revision }, or null when there is none or it is not one. */
+export function readMealDraft(raw) {
+  try {
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object' || typeof d.name !== 'string') return null;
+    const doc = mealBuilderDoc({ mealBuilder: d.doc });
+    return doc ? { name: d.name, doc, revision: Number(d.revision) || 0 } : null;
+  } catch (e) { return null; }
+}

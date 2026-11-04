@@ -64,6 +64,7 @@ const ROWS = () => [
 
 function stubBackend(rows = ROWS()) {
   const calls = { list: 0, update: [], create: [] };
+  W.localStorage.clear(); // the meal editor keeps unsaved drafts here: none carries into the next test
   W.ShapeAuth = { getCachedState: () => ({ user: { id: 'nutri-1' } }) };
   W.ShapeCoachPlans = {
     // A fresh array each read, as a fetch answers.

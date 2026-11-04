@@ -1,6 +1,6 @@
 import React from 'react';
 import '../../../public/newdesign/dashMealCore.js'; // → window.DashMeals, the website builder's core
-import { mealBuilderDoc, dayMeals, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta } from '../services/mealBuilderEdit.mjs';
+import { mealBuilderDoc, dayMeals, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta, mealDraftKey, readMealDraft } from '../services/mealBuilderEdit.mjs';
 import { holdLeave } from '../services/leaveGuard.mjs';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, useBSClean, BSCleanType } from './bsCleanType.jsx';
 
@@ -40,13 +40,20 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   const t = useBSClean();
   const tr = useShapeTr();
   const M = typeof window !== 'undefined' ? window.DashMeals : null;
-  const start = mealBuilderDoc(plan && plan.detail);
+  // ⚠ AN UNSAVED DRAFT IS KEPT ON THIS DEVICE (Codex on #2594), per account and plan, as the workout
+  // editor keeps its own: whatever takes the coach away (a tab, a swipe, a notification, a page opened
+  // over Plans), opening the plan again brings it back. It names the revision it was made on.
+  const draftKey = plan && plan.id && ownerId ? mealDraftKey(ownerId, plan.id) : null;
+  const [kept] = React.useState(() => { if (!draftKey) return null; try { return readMealDraft(window.localStorage.getItem(draftKey)); } catch (e) { return null; } });
+  const start = kept ? kept.doc : mealBuilderDoc(plan && plan.detail);
   const [doc, setDoc] = React.useState(() => (start ? JSON.parse(JSON.stringify(start)) : null));
-  const [name, setName] = React.useState((plan && plan.name) || '');
+  const [name, setName] = React.useState(() => (kept ? kept.name : (plan && plan.name) || ''));
+  const revRef = React.useRef(kept ? kept.revision : Number(plan && plan.detail && plan.detail.revision) || 0);
+  const [stored, setStored] = React.useState(!!kept);
   const [dayIdx, setDayIdx] = React.useState(0);
   const [picker, setPicker] = React.useState(null); // { mode: 'swap', mealId, label } | { mode: 'add', slot }
   const [query, setQuery] = React.useState('');
-  const [dirty, setDirty] = React.useState(false);
+  const [dirty, setDirty] = React.useState(!!kept);
   const [status, setStatus] = React.useState(''); // '' | saving | saved | error
   const [err, setErr] = React.useState('');
   // Targets are typed as text and read on blur, so a half-typed "18" never becomes the day's target.
@@ -64,11 +71,24 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   onScreen.current = { doc, name };
   const keepSaving = (s) => (s === 'saving' ? s : '');
   const change = (next) => { if (next !== doc) { setDoc(next); setDirty(true); setStatus(keepSaving); } };
-  const askLeave = async () => !window.bsAskConfirm || !!(await window.bsAskConfirm({
-    title: tr('coach:mealEditor.leaveTitle', { defaultValue: 'Leave without saving?' }),
-    message: tr('coach:mealEditor.leaveMsg', { defaultValue: 'Your changes to this plan are not saved.' }),
-    confirmLabel: tr('coach:mealEditor.leave', { defaultValue: 'Leave without saving' }),
-  }));
+  const dropDraft = () => { if (draftKey) { try { window.localStorage.removeItem(draftKey); } catch (e) { /* storage unavailable */ } } setStored(false); };
+  // Kept while unsaved, and only for the account that opened it.
+  React.useEffect(() => {
+    if (!draftKey || !dirty || !doc) return;
+    if ((window.ShapeAuth?.getCachedState?.()?.user?.id || null) !== ownerId) return;
+    try { window.localStorage.setItem(draftKey, JSON.stringify({ name, doc, revision: revRef.current })); setStored(true); }
+    catch (e) { setStored(false); }
+  }, [draftKey, dirty, doc, name]);
+  // "Leave without saving" is the coach's word to drop it.
+  const askLeave = async () => {
+    const ok = !window.bsAskConfirm || !!(await window.bsAskConfirm({
+      title: tr('coach:mealEditor.leaveTitle', { defaultValue: 'Leave without saving?' }),
+      message: tr('coach:mealEditor.leaveMsg', { defaultValue: 'Your changes to this plan are not saved.' }),
+      confirmLabel: tr('coach:mealEditor.leave', { defaultValue: 'Leave without saving' }),
+    }));
+    if (ok) dropDraft();
+    return ok;
+  };
   // A target typed but not yet read (it is read on blur) is unsaved too (Codex on #2594): a swipe
   // straight after typing must not drop it.
   const typing = !!doc && Object.keys(targetText).some((k) => String(targetText[k] == null ? '' : targetText[k]) !== String(doc.targets[k] == null ? '' : doc.targets[k]));
@@ -127,14 +147,16 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     try {
       const row = await window.ShapeCoachPlans.update({
         id: plan.id, name: savedName, ...(ownerId ? { expectedOwnerId: ownerId } : {}),
-        // The revision it opened (the saved row's, once saved): a plan changed on the website since is
-        // refused with the route's words, and this document stays here, never written over it.
-        expectedRevision: Number(plan.detail && plan.detail.revision) || 0,
+        // The revision it was made on (a kept draft's own; the saved row's once saved): a plan changed on
+        // the website since is refused with the route's words, and this document stays, never written over it.
+        expectedRevision: revRef.current,
         // The route merges `detail` over the stored one, so only the document is replaced.
         meta: mealPlanMeta(M, toSave), detail: { mealBuilder: toSave },
       });
       const unchanged = onScreen.current.doc === sent.doc && onScreen.current.name === sent.name;
-      if (unchanged) { setDirty(false); if (name !== savedName) setName(savedName); }
+      const nextRev = Number(row && row.detail && row.detail.revision);
+      if (Number.isFinite(nextRev) && nextRev > 0) revRef.current = nextRev;
+      if (unchanged) { setDirty(false); dropDraft(); if (name !== savedName) setName(savedName); }
       setStatus(unchanged ? 'saved' : '');
       onSaved(row);
       return row;
@@ -193,7 +215,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   const floor = doc.constraints && doc.constraints.proteinFloor;
   const statusText = status === 'saving' ? tr('coach:mealEditor.saving', { defaultValue: 'Saving…' })
     : status === 'saved' ? tr('coach:mealEditor.saved', { defaultValue: 'Saved' })
-    : unsaved ? tr('coach:mealEditor.unsaved', { defaultValue: 'Unsaved changes' }) : '';
+    : unsaved ? (stored ? tr('coach:workoutEditor.localDraft', { defaultValue: 'Draft kept on this device' }) : tr('coach:mealEditor.unsaved', { defaultValue: 'Unsaved changes' })) : '';
   const targetKeys = [
     ['kcal', tr('coach:mealEditor.kcal', { defaultValue: 'Calories' })],
     ['p', tr('coach:mealEditor.protein', { defaultValue: 'Protein g' })],
