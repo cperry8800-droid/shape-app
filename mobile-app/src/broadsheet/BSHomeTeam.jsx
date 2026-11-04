@@ -60,7 +60,7 @@ export function BSHomeTeam(props) {
 // The section itself, off what Home hands it. The tests draw it directly.
 //   coaches   [{ role, name, conversationId, providerId, photo }]   the ones the member pays
 //   notes     [{ role, text, who }]                           their weekly notes
-//   workout   { title, meta, time, onStart } | null           today's session
+//   workout   { title, meta, time, onStart, coachId } | null  today's session, and the trainer who wrote it
 //   meal      { slot, time, title, onLog } | null             the next meal not logged
 //   fuel      { left, pct } | null                            food left today, and the share eaten
 export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal = null, fuel = null, unread = {}, next = null, dayLabel = '', showFindCoach = false, onFindCoach, onCoaches, onCalendar, tour }) {
@@ -68,9 +68,16 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   const tr = useShapeTr();
   const trainers = coaches.filter((c) => c.role !== 'nutritionist');
   const nutris = coaches.filter((c) => c.role === 'nutritionist');
-  const trainer = trainers[0] || null;
+  // ⚠ TODAY'S SESSION IS ITS OWN TRAINER'S (Codex P2 on #2583): a member may pay two trainers, and the
+  // session goes on the card of the one who wrote it (the plan read's coachId), with that trainer's Message.
+  // A session no paid trainer wrote (the member's own, or a trainer's no longer paid) is Today's workout, on
+  // no coach's card.
+  const sessionCoach = workout && workout.coachId != null
+    ? trainers.find((c) => c.providerId != null && String(c.providerId) === String(workout.coachId)) || null
+    : null;
+  const trainer = sessionCoach || trainers[0] || null;
   const nutri = nutris[0] || null;
-  const extras = [...trainers.slice(1), ...nutris.slice(1)];
+  const extras = [...trainers.filter((c) => c !== trainer), ...nutris.slice(1)];
   // Each coach's weekly note on their own card. A note signed with a coach's name is theirs; an unsigned
   // one, or one whose name matches no coach here (a name read that failed), goes to the first of its role.
   // A second coach of a role never shows the first's note.
@@ -184,14 +191,23 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
         <span style={{ ...mono, marginLeft: 'auto', color: t.INK50 }}>{[dayLabel, count ? tr('home:team.coaches', { defaultValue: '{count, plural, one {# coach} other {# coaches}}', count }) : null].filter(Boolean).join(' · ')}</span>
       </div>
 
-      {/* The trainer, with today's call; or the session alone with no trainer. */}
-      {trainer ? (
-        <div data-team-coach="trainer" style={{ marginTop: 10 }}>
-          {head(trainer, tr('home:focus.todaysCall', { defaultValue: 'Today’s call' }), workout && workout.time)}
-          {sessionCard(message(trainer), noteOf(trainer, true))}
-        </div>
-      ) : workout ? (
-        <div data-team-coach="none-session" style={{ marginTop: 10 }}>
+      {/* The trainer, with today's call when the session is theirs; a session no paid trainer wrote stands
+          on its own as Today's workout. */}
+      {trainer ? (() => {
+        const note = noteOf(trainer, true);
+        return (
+          <div data-team-coach="trainer" style={{ marginTop: 10 }}>
+            {/* Their card holds today's call: their session, or "No session today" when there is none at all;
+                a session someone else wrote stands below, and their card keeps the note and Message. */}
+            {head(trainer, sessionCoach || !workout ? tr('home:focus.todaysCall', { defaultValue: 'Today’s call' }) : (note ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null), sessionCoach ? workout.time : null)}
+            {sessionCoach || !workout ? sessionCard(message(trainer), note)
+              : note ? <div style={card}>{quote(note)}<div style={{ marginTop: 12 }}>{message(trainer)}</div></div>
+                : <div style={{ marginTop: 8 }}>{message(trainer)}</div>}
+          </div>
+        );
+      })() : null}
+      {workout && !sessionCoach ? (
+        <div data-team-coach="none-session" style={{ marginTop: trainer ? 16 : 10 }}>
           {plainHead(tr('home:team.workout', { defaultValue: 'Today’s workout' }), workout.time)}
           {sessionCard(null)}
         </div>

@@ -5175,7 +5175,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         return (
           <BSHomeTeam tour="hero-home" coaches={teamCoaches} notes={notes}
             dayLabel={`${_dowShort(_now)} ${_now.getDate()}`}
-            workout={selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: fmtAt(WORKOUT_AT), onStart: () => setShowWorkoutPreview(true) } : null}
+            workout={selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: fmtAt(WORKOUT_AT), onStart: () => setShowWorkoutPreview(true),
+              // Who wrote it (the plan read's trainer id): Team files it under that trainer. The sample's is Jordan's.
+              coachId: sample ? 'sample-trainer' : (selWorkout.coachId ?? null) } : null}
             meal={nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
             fuel={fuel}
             showFindCoach={!teamCoaches.length && coachesKnown}

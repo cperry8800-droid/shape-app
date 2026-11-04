@@ -290,7 +290,7 @@ const MAYA = { role: 'nutritionist', name: 'Maya Patel', conversationId: 'c-m', 
 const TEAM = (over = {}) => ({
   coaches: [JORDAN, MAYA],
   notes: [{ role: 'nutritionist', text: 'Five plates. Three logged before noon.', who: 'Maya Patel' }],
-  workout: { title: 'Lower Push — Peak', meta: '54 min · 6 moves', time: '9:00 AM', onStart: () => {} },
+  workout: { title: 'Lower Push — Peak', meta: '54 min · 6 moves', time: '9:00 AM', onStart: () => {}, coachId: 7 },
   meal: { slot: 'Lunch', time: '12:40', title: 'bowl + rice', onLog: () => {} },
   fuel: { left: 532, pct: 75 },
   unread: { 'dm:c-m': 2 },
@@ -381,7 +381,7 @@ test('a paid coach whose name could not be read is offered by role, and a second
       { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9 },
       { role: 'nutritionist', name: null, conversationId: null, providerId: 3 },
       { role: 'trainer', name: null, conversationId: 'c-y', providerId: 10 },
-    ], onCoaches: () => {} }));
+    ], onCoaches: () => {}, workout: { ...TEAM().workout, coachId: 9 } }));
     assert.deepEqual(messages(d).map((b) => b.props['aria-label']), ['Message your trainer', 'Message your nutritionist', 'Message your trainer']);
     assert.match(textOf(coachBlock(d, 'trainer')), /^TrainerTrainer · Today’s call/, 'the role stands for the name');
     assert.deepEqual(d.nodes().filter(fn('BSHtFace')).map((f) => f.props.initials), ['T', 'N', 'T'], 'and for the face\'s initials');
@@ -421,6 +421,31 @@ test("each coach's weekly note is on their own card: the trainer's over the sess
   assert.match(textOf(unsigned.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /Unsigned\./);
   const samOnly = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM], notes: [notes[0]] }));
   assert.doesNotMatch(textOf(samOnly.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /hips first/, "Sam's note went to Jordan's card");
+});
+
+// A member may pay two trainers: today's session is the card of the one who wrote it, with their Message
+// (Codex P2 on #2583); a session no paid trainer wrote is Today's workout, on no coach's card.
+test("today's session goes on the card of the trainer who wrote it, and the member's own on no coach's", () => {
+  const SAM = { role: 'trainer', name: 'Sam Strong', conversationId: 'c-s', providerId: 8, photo: null };
+  const ev = listen('shape:openConversation');
+  try {
+    const d = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM, MAYA], workout: { ...TEAM().workout, coachId: 8 } }));
+    const card = coachBlock(d, 'trainer');
+    assert.match(textOf(card), /^Sam Strong/, "Sam wrote it, so Sam's card carries it, though Jordan is the earlier");
+    assert.match(textOf(card), /Today’s call[\s\S]*Lower Push — Peak/);
+    assert.match(textOf(coachBlock(d, 'extra')), /^Jordan Chen/, 'Jordan is the second trainer\'s row');
+    assert.doesNotMatch(textOf(coachBlock(d, 'extra')), /Lower Push/);
+    const msg = d.nodes().find((n) => n.type === 'button' && n.props['data-team-message'] && card && textOf(card).includes(textOf(n)) && n.props['aria-label'] === 'Message Sam Strong');
+    assert.ok(msg, "the session's Message is Sam's");
+    msg.props.onClick();
+    assert.deepEqual(ev.got, [{ conversationId: 'c-s', name: 'Sam Strong' }]);
+  } finally { ev.off(); }
+  // The member's own workout (no coach), or a trainer no longer paid: Today's workout, on no card.
+  for (const coachId of [null, 99]) {
+    const own = drive(T.BSHomeTeamView, TEAM({ workout: { ...TEAM().workout, coachId } }));
+    assert.doesNotMatch(textOf(coachBlock(own, 'trainer')), /Lower Push|Today’s call/, `a session by ${coachId} is filed under Jordan`);
+    assert.match(textOf(coachBlock(own, 'none-session')), /^Today’s workout.*Lower Push — Peak/);
+  }
 });
 
 test('Team\'s next session opens the calendar on its day', () => {

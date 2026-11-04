@@ -15,6 +15,7 @@ import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesig
 // Relative, as workoutDocument.mjs above: the route's test harnesses resolve a relative module themselves.
 import { sharedWeekOneOf } from '../../../../lib/coach-client-legs.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
+import { bsNormalizeListingMedia } from '../../../../../public/newdesign/listingMedia.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -172,6 +173,7 @@ export async function GET(request: Request) {
       // The trainer who wrote it, by name (filled below): a member may pay two (owner, 2026-10-16), so
       // the plan-level `coach` cannot credit every workout. Null for their own, or a name not read.
       coach: null as string | null,
+      coachId: null as number | null,
       // Adjust-regeneration generation stamp (spec #1707) — the deck skips
       // display-time scaling for rows the regeneration already rewrote.
       adjustGen: Number((payload as Record<string, unknown> | null)?.adjustGen) || null,
@@ -283,15 +285,16 @@ export async function GET(request: Request) {
     trainerIds.length ? supabase.from('trainers').select('id, name, owner_id, listing_media').in('id', trainerIds) : Promise.resolve({ data: [] }),
     nutriIds.length ? supabase.from('nutritionists').select('id, name, owner_id, listing_media').in('id', nutriIds) : Promise.resolve({ data: [] }),
   ]);
-  type CoachRow = { id: number; name: string | null; owner_id?: string | null; listing_media?: { portrait?: unknown } | null };
+  type CoachRow = { id: number; name: string | null; owner_id?: string | null; listing_media?: unknown };
   const rowsOf = (res: { data: unknown }) => (res.data ?? []) as CoachRow[];
   const nameMap = (res: { data: unknown }) => new Map(rowsOf(res).map((r) => [String(r.id), r.name ?? null]));
   const trainerName = nameMap(trNames);
   const nutriName = nameMap(nuNames);
-  const portraitOf = (r: CoachRow) => {
-    const p = r.listing_media && typeof r.listing_media === 'object' ? r.listing_media.portrait : null;
-    return typeof p === 'string' && /^https:\/\//.test(p.trim()) ? p.trim() : null;
-  };
+  // ⚠ A COACH WRITES listing_media THEMSELVES (Codex P1 on #2583): a bare https check would let a tracking
+  // pixel load on every paying member's Home. The marketplace's own gate decides: an image in the coach's
+  // own folder of our coach-media bucket, or nothing.
+  const portraitOf = (r: CoachRow) =>
+    (typeof r.owner_id === 'string' && r.owner_id ? bsNormalizeListingMedia(r.listing_media, r.owner_id).portrait : null) || null;
   // A face is a nicety: a failed avatar read leaves the card on the coach's initials, never the plan.
   const photoOf = new Map<string, string | null>();
   for (const [role, res] of [['trainer', trNames], ['nutritionist', nuNames]] as const) {
@@ -323,6 +326,9 @@ export async function GET(request: Request) {
   for (const w of workouts) {
     const id = trainerByWorkout.get(w.id);
     w.coach = id != null ? trainerName.get(String(id)) ?? null : null;
+    // Its trainer's listing id too, so Home's Team files the session under the trainer who wrote it, not the
+    // first of two (Codex P2 on #2583). Null for the member's own workout.
+    w.coachId = id ?? null;
   }
   // The plan-level name stays the first coached workout's trainer, as it was.
   const trainerId = (cwRows ?? []).find((w) => w.trainer_id != null)?.trainer_id ?? null;
