@@ -52,7 +52,7 @@ const PROS = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBr
 });
 
 const { cleanMealBrief, pickMeals, buildMealDoc } = await import('../src/lib/ai/mealDraft.mjs');
-const { dietIsGuide } = await import('../mobile-app/src/services/nutritionAssign.mjs');
+const { dietIsGuide, nutritionNotAMenu } = await import('../mobile-app/src/services/nutritionAssign.mjs');
 const brief = cleanMealBrief({ goalPhase: 'cut', days: 3 });
 const DOC = buildMealDoc(brief, pickMeals(brief), 'mp-web');
 const ROWS = () => [
@@ -272,4 +272,60 @@ test('a diet guide offers no Assign on its row, and Assign refuses one and sends
     assert.ok(![...host.querySelectorAll('button')].some((b) => /Assign & notify/.test(b.textContent)), 'no assign action');
     assert.equal(sent.length, 0, 'nothing sent');
   } finally { await React.act(async () => root.unmount()); host.remove(); delete W.ShapeAssign; delete W.bsAskConfirm; }
+});
+
+test('a nutrition program is never a menu, whatever its lines say now (Codex on #2594)', async () => {
+  const one = { buildType: 'program', blocks: [{ id: 'b0', text: 'Week 1 — Reset & habits' }] };
+  assert.equal(nutritionNotAMenu(one), 'program', 'edited down to one week line');
+  assert.equal(nutritionNotAMenu({ buildType: 'program', blocks: [] }), 'program', 'no lines at all');
+  assert.equal(nutritionNotAMenu({ buildType: 'program', blocks: [{ id: 'b0', text: 'Breakfast — Oats · 420 kcal' }] }), 'program', 'a meal line typed into a program');
+  assert.equal(nutritionNotAMenu(GUIDE), 'diet');
+  assert.equal(nutritionNotAMenu({ ...GUIDE, days: WEEK }), null, 'a diet with every day written is a menu');
+  assert.equal(nutritionNotAMenu({ buildType: 'mealplan', blocks: [{ id: 'b0', text: 'Breakfast — Oats · 420 kcal' }] }), null);
+  assert.equal(nutritionNotAMenu({ buildType: 'program', mealBuilder: DOC }), null, 'a builder document is a meal plan');
+  assert.equal(nutritionNotAMenu(null), null);
+
+  // A saved program's row offers no Assign.
+  stubBackend();
+  const m = await mount();
+  try {
+    await tab(m, 'Programs');
+    assert.ok([...m.host.querySelectorAll('button')].some((b) => /Habit reset/.test(b.textContent)), 'the program is listed');
+    assert.equal(m.host.querySelector('button[aria-label="Assign Habit reset to a client"]'), null, 'no Assign on it');
+  } finally { await m.close(); }
+
+  // And the Assign page, reached another way, refuses one with a single week line and sends nothing.
+  const sent = [];
+  W.ShapeAssign = { clients: async () => [{ userId: 'cl-9', name: 'Sam Rivera' }], mealPlan: async (b) => { sent.push(b); return { ok: true }; } };
+  W.bsAskConfirm = async () => true;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  try {
+    await React.act(async () => { root.render(React.createElement(PROS.BSProAssignPage, { role: 'nutritionist', plan: { id: 'np-1', name: 'Habit reset', meta: 'program · 1 week', detail: one }, preferClientUid: 'cl-9', onBack() {}, onDone() {} })); });
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.match(host.textContent, /This program describes weeks, not meals\./);
+    assert.ok(![...host.querySelectorAll('button')].some((b) => /Assign & notify/.test(b.textContent)), 'no assign action');
+    assert.equal(sent.length, 0, 'nothing sent');
+  } finally { await React.act(async () => root.unmount()); host.remove(); delete W.ShapeAssign; delete W.bsAskConfirm; }
+});
+
+test('Nora\'s open request is let go once answered, so coming back to Plans does not open it again (Codex on #2594)', async () => {
+  const calls = stubBackend();
+  let consumed = 0;
+  const m = await mount({ openPlanRequest: { planId: 'nd-1', nonce: 21 }, onOpenConsumed: () => { consumed += 1; } });
+  try {
+    assert.ok([...m.host.querySelectorAll('textarea, input')].some((i) => i.value === 'Keto week'), 'opened');
+    assert.equal(consumed, 1, 'let go once');
+  } finally { await m.close(); }
+  // A plan the library does not hold: let go once it has said so, not on the first read.
+  let missing = 0;
+  const before = calls.list;
+  const m2 = await mount({ openPlanRequest: { planId: 'missing', nonce: 22 }, onOpenConsumed: () => { missing += 1; } });
+  try {
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(calls.list - before, 2, 'read once more first');
+    assert.equal(missing, 1);
+    assert.match(m2.text(), /That plan isn't in your library yet/);
+  } finally { await m2.close(); }
 });

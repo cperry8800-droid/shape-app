@@ -461,10 +461,11 @@ test('app: the trainer shell answers shape:openCoachPlan and the Programs screen
   const trainer = src.slice(src.indexOf('function BSTrainerAppInner('), src.indexOf('function BSNutritionistApp('));
   assert.match(trainer, /window\.addEventListener\('shape:openCoachPlan', onOpenPlan\)/);
   assert.match(trainer, /setOpenPlanRequest\(\{ planId, clientId, nonce: Date\.now\(\) \}\);\s*setTab\('programs'\);/);
-  assert.match(trainer, /<BSTrainerPrograms sheet=\{sheet\} initialTab=\{programInitialTab\} openPlanRequest=\{openPlanRequest\} \/>/);
+  // Answered, the shell lets go of it, or coming back to Programs would open it again (Codex on #2594).
+  assert.match(trainer, /<BSTrainerPrograms sheet=\{sheet\} initialTab=\{programInitialTab\} openPlanRequest=\{openPlanRequest\} onOpenConsumed=\{\(\) => setOpenPlanRequest\(null\)\} \/>/);
   const programs = src.slice(src.indexOf('function BSTrainerPrograms('), src.indexOf('const rememberPlan = (row) =>', src.indexOf('function BSTrainerPrograms(')));
-  assert.match(programs, /const row = serverPlans\.find\(\(p\) => p\.id === req\.planId\);\s*if \(row\) \{ openHandled\.current = req\.nonce; if \(req\.clientId\) setAssignPrefer\(\{ planId: row\.id, clientId: req\.clientId \}\); setEditingPlan\(row\); return; \}/);
-  assert.match(programs, /refreshLibrary\(\); return; \}/, 'one more read before it says it cannot find it');
+  assert.match(programs, /const row = serverPlans\.find\(\(p\) => p\.id === req\.planId\);[^\n]*\n\s*(\/\/[^\n]*\n\s*)?if \(row\) \{ openHandled\.current = req\.nonce; if \(req\.clientId\) setAssignPrefer\(\{ planId: row\.id, clientId: req\.clientId \}\); setEditingPlan\(row\); onOpenConsumed\(\); return; \}/);
+  assert.match(programs, /refreshLibrary\(\); return; \}\n\s*openHandled\.current = req\.nonce;\n\s*onOpenConsumed\(\);\n\s*setLibraryError\(/, 'one more read before it says it cannot find it, and then it lets go');
 });
 
 // ── the website card ────────────────────────────────────────────────────────────

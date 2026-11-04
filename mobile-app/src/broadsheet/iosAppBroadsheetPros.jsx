@@ -13,7 +13,7 @@ import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
 import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
 import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
-import { dietIsGuide } from '../services/nutritionAssign.mjs';
+import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookable.mjs';
@@ -1574,7 +1574,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSTrainerToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} onWatchLive={(c) => setLiveWatch(c)} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSTrainerClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
-    programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} />,
+    programs: <BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="trainer" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
@@ -4182,12 +4182,14 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // meal branch (:144), so the preview has always shown a nutrition week block
   // as weeks. Assign was the one surface that fabricated, purely because of the
   // `!isNutri` gate above — preview, Assign and Start-this-plan now agree.
-  const isNutriWeekBlock = isNutri && weekBlockShape;
-  // ⚠ A DIET GUIDE IS NOT A MENU EITHER (Codex on #2594). Options for each meal and foods to favour
-  // and avoid would land as meals ("Foods to avoid" on the Eat tab), and assigning archives the
-  // client's real menu. A diet is assigned only when every day is a menu the coach wrote
-  // (services/nutritionAssign.mjs); otherwise this says so and sends nothing.
-  const isDietGuide = isNutri && dietIsGuide(plan && plan.detail);
+  // ⚠ A NUTRITION PROGRAM IS NEVER A MENU, and nor is a diet guide (Codex on #2594). A program is
+  // weeks whatever its lines say now: one edited down to a single week line is still not a menu of
+  // one. A diet's options for each meal and foods to favour and avoid would land as meals ("Foods
+  // to avoid" on the Eat tab). Assigning archives the client's real menu, so both say what they are
+  // and send nothing (services/nutritionAssign.mjs); a diet with every day written is a menu.
+  const notAMenu = isNutri ? nutritionNotAMenu(plan && plan.detail) : null;
+  const isNutriWeekBlock = isNutri && (weekBlockShape || notAMenu === 'program');
+  const isDietGuide = notAMenu === 'diet';
   // What the arc carries that ISN'T a week — the builder's trailing
   // "Grocery + prep guide". Ruling 7: dropped from delivery, but NEVER silently.
   // It is redundant rather than impossible: bsBuildPlanGrocery already derives
@@ -6835,7 +6837,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   );
 }
 
-function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } = {}) {
+function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const tClean = useBSProClean();
   const tr = useShapeTr();
@@ -6895,9 +6897,11 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null } =
     const req = openPlanRequest;
     if (!req || !req.planId || openHandled.current === req.nonce || !serverPlans) return;
     const row = serverPlans.find((p) => p.id === req.planId);
-    if (row) { openHandled.current = req.nonce; if (req.clientId) setAssignPrefer({ planId: row.id, clientId: req.clientId }); setEditingPlan(row); return; }
+    // Answered, the shell lets go of it, or coming back to Programs would open it again (Codex on #2594).
+    if (row) { openHandled.current = req.nonce; if (req.clientId) setAssignPrefer({ planId: row.id, clientId: req.clientId }); setEditingPlan(row); onOpenConsumed(); return; }
     if (openRetried.current !== req.nonce) { openRetried.current = req.nonce; refreshLibrary(); return; }
     openHandled.current = req.nonce;
+    onOpenConsumed();
     setLibraryError(tr('coach:plans.openMissing', { defaultValue: "That program isn't in your library yet. Try again in a moment." }));
   }, [openPlanRequest, serverPlans, refreshLibrary]);
   const rememberPlan = (row) => {
@@ -7974,7 +7978,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
-    plans:    <BSNutriPlans sheet={sheet} openPlanRequest={openPlanRequest} />,
+    plans:    <BSNutriPlans sheet={sheet} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
@@ -8103,7 +8107,7 @@ function BSProPlansTabBar({ active, onChange }) {
   );
 }
 
-function BSNutriPlans({ openPlanRequest = null } = {}) {
+function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const tClean = useBSProClean();
   const tr = useShapeTr();
@@ -8278,10 +8282,13 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
       // Nora's client rides to Assign, as the trainer's (#2227): it starts on them.
       setAssignPrefer(req.clientId ? { planId: row.id, clientId: req.clientId } : null);
       openRow(row);
+      // ⚠ Answered: the shell lets go of it, or coming back to Plans would open it again (Codex on #2594).
+      onOpenConsumed();
       return;
     }
     if (openRetried.current !== req.nonce) { openRetried.current = req.nonce; refreshLibrary(); return; }
     openHandled.current = req.nonce;
+    onOpenConsumed();
     flash(tr('coach:plans.openMissingPlan', { defaultValue: "That plan isn't in your library yet. Try again in a moment." }));
   }, [openPlanRequest, serverPlans, refreshLibrary]);
 
@@ -8496,10 +8503,11 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
         ) : (
         <div style={{ marginTop: 2 }}>
           {!nutriPrograms.filter((r) => libMatch(r.n)).length && libSearchMiss}
+          {/* A program is weeks, never a menu: no Assign on a saved one's row. */}
           {nutriPrograms.filter((r) => libMatch(r.n)).map((r, i) => (
             <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
               onOpen={() => openCard(r, 'program')}
-              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+              onAssign={nutritionNotAMenu(r.detail) ? undefined : () => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
         )}
@@ -8524,7 +8532,7 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
           {diets.filter((r) => libMatch(r.n)).map((r, i) => (
             <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
               onOpen={() => openCard(r, 'diet')}
-              onAssign={dietIsGuide(r.detail) ? undefined : () => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+              onAssign={nutritionNotAMenu(r.detail) ? undefined : () => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
         )}
