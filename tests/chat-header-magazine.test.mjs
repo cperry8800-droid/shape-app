@@ -34,9 +34,32 @@ test('the magazine teal is the Wall\'s, on both papers', () => {
   assert.equal(STORY.bsWsHead({ HEADLINE: 'Oswald', DISPLAY: 'Saira' }), 'Saira');
 });
 
+// The owner's C for the top of the Wall (2026-11-04): the lens, the count of who is online and the type chips
+// are lit chips. On dark paper the one lit is framed and lettered in the bright teal and glows in a dark slot;
+// on light paper it takes the deeper teal, in a faint ink wash, with no glow.
+test('the Wall\'s lit chip, on both papers', () => {
+  const dark = { isLight: false, INK: '#f1ece1', INK70: 'ink70' };
+  const light = { isLight: true, INK: '#14110e', INK70: 'ink70' };
+  const on = STORY.bsWsLed(dark, true), off = STORY.bsWsLed(dark, false);
+  assert.equal(on.color, '#34d6c5');
+  assert.equal(on.border, '1px solid #34d6c5');
+  assert.equal(on.textShadow, '0 0 8px rgba(52, 214, 197, 0.8)');
+  assert.equal(on.background, 'rgba(0,0,0,0.45)');
+  assert.equal(off.color, 'ink70');
+  assert.equal(off.border, '1px solid rgba(241, 236, 225, 0.12)');
+  assert.equal(off.textShadow, 'none');
+  const lon = STORY.bsWsLed(light, true);
+  assert.equal(lon.color, '#0a7a72', 'small teal text on cream takes the deeper teal');
+  assert.equal(lon.textShadow, 'none', 'no glow on light paper');
+  assert.equal(lon.background, 'rgba(20, 17, 14, 0.05)');
+});
+
 test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s flat cut', () => {
   const rail = CLIENT.slice(CLIENT.indexOf('{railPeople.map((p, i) => {'), CLIENT.indexOf('{/* The way BACK, in place'));
-  assert.match(rail, /<BSFacetAvatar flat size=\{40\} c=\{t\.INK\} dotC=\{p\.activity === 'cooking' \? \(t\.AMBER \|\| '#d8a23a'\) : magAccent\} initial=\{bsInitials\(p\.name\)\} photo=\{pPhoto\} showRank=\{false\} live=\{!!p\.live\} activity=\{p\.activity\} BG=\{t\.PAPER\} \/>/);
+  // A member keeps the facet; a coach is a circle in the coach's colour (owner, 2026-11-04: "keep the facet
+  // avatars for clients and circle avatar for coaches").
+  assert.match(rail, /\{p\.role === 'trainer' \|\| p\.role === 'nutritionist'\s*\? <BSRailCoachFace size=\{46\} box=\{40\} ring=\{p\.role === 'nutritionist' \? '#a07a2e' : '#c0533b'\}/);
+  assert.match(rail, /: <BSFacetAvatar flat size=\{40\} c=\{t\.INK\} dotC=\{p\.activity === 'cooking' \? \(t\.AMBER \|\| '#d8a23a'\) : magAccent\} initial=\{bsInitials\(p\.name\)\} photo=\{pPhoto\} showRank=\{false\} live=\{!!p\.live\} activity=\{p\.activity\} BG=\{t\.PAPER\} \/>\}/);
   assert.doesNotMatch(rail, /railTierColor/, 'no tier colour in the rail');
   // The live story's byline face is the same flat cut, and so are a Wall story's: its byline, the
   // faces of who reacted, and the comments under it (the classic card keeps its tier gems).
@@ -53,8 +76,8 @@ test('the rail and the Wall\'s faces keep the faceted shape in the magazine\'s f
   assert.match(facet, /\{!flat && <div style=\{\{ position: 'absolute', inset: 0, borderRadius: '27%', background: 'linear-gradient\(135deg, rgba\(255,255,255,0\.28\)/);
   // The flat cut's dot defaults to the magazine's teal (amber at the stove); the gem keeps its teal.
   assert.match(facet, /const dotColor = dotC \|\| \(activity === 'cooking' \? COOK : flat \? bsWsAccent\(t\) : '#34d6c5'\);/);
-  // The online line's dot is still and teal.
-  assert.match(CLIENT, /<span aria-hidden style=\{\{ width: 6, height: 6, borderRadius: 3, background: magAccent \}\} \/>/);
+  // The online count is a lit slot (the owner's C, 2026-11-04), its dot teal and still.
+  assert.match(CLIENT, /<span data-bs-rail-count="" style=\{\{[^}]*\.\.\.bsWsLed\(t, true\) \}\}>\s*<span aria-hidden style=\{\{ width: 6, height: 6, borderRadius: 3, background: magAccent,/);
 });
 
 test('no section strip and no role tabs: the title is the switch, on the Wall\'s 12px edge', () => {
@@ -77,7 +100,8 @@ test('Team\'s Coaches / Friends row is an index, ink against grey, centred on th
   assert.doesNotMatch(sub, /borderBottom|position: 'absolute'|magAccent \}/, 'no underline');
   // Team's Coaches / Friends sits centred on the page ("center these on page").
   assert.match(CLIENT, /<div style=\{\{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 \}\}>\s*\{selectors\.map\(sec => bsSubTab\(/);
-  assert.match(CLIENT, /onClick=\{\(\) => switchFeedMode\(k\)\} aria-pressed=\{on\}[\s\S]{0,400}color: on \? t\.INK : t\.INK50[\s\S]{0,200}background: magAccent \}\} \/>\}/);
+  // The Wall's lens is a pair of lit chips (the owner's C, 2026-11-04), each in a 44px target.
+  assert.match(CLIENT, /onClick=\{\(\) => switchFeedMode\(k\)\} aria-pressed=\{on\}\s*style=\{\{ display: 'inline-flex', alignItems: 'center', minHeight: 44,[\s\S]{0,200}<span data-led=\{on \? 'on' : 'off'\}[^>]*\.\.\.bsWsLed\(t, on\) \}\}>\{label\}<\/span>/);
 });
 
 // Owner, 2026-10-24: "make the team list match the new design too". The Team list (Coaches and Friends)

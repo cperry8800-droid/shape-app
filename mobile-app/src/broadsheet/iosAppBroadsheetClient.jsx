@@ -85,7 +85,7 @@ import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './B
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow, useBSLiveRow, useBSLiveMinutes } from './BSWallLive.jsx';
-import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
+import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, BSWallTypes, bsWsAccent, bsWsHead, bsWsLed } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
@@ -16045,6 +16045,26 @@ function bsChannelColor(name) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return BS_CHANNEL_PALETTE[h % BS_CHANNEL_PALETTE.length];
 }
+// A coach's face on the Wall's online rail: a round photo (or initials) inside a ring of the coach's colour,
+// trainer rust or nutritionist gold, with the same still corner dot as a member's facet when the coach is
+// in a workout or at the stove. A member keeps BSFacetAvatar's faceted shape beside it.
+// `box` is the room it takes in the row: a facet's corners reach past its box, so the circle is drawn a little
+// larger than the box it stands in, and the names under the row stay on one line.
+function BSRailCoachFace({ size = 46, box = 40, ring, dotC, active = false, initial = '', photo }) {
+  const t = useBS();
+  const src = bsValidPhoto(photo);
+  const inner = size - 6;
+  const dot = Math.max(8, Math.round(size * 0.24));
+  return (
+    <span data-rail-face="coach" aria-hidden style={{ position: 'relative', display: 'inline-block', width: size, height: size, margin: (box - size) / 2, borderRadius: '50%', border: `2px solid ${ring}`, padding: 1, boxSizing: 'border-box' }}>
+      {src
+        ? <img src={src} alt="" style={{ width: inner, height: inner, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+        : <span style={{ width: inner, height: inner, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(t.INK, 0.08), fontFamily: t.DISPLAY, fontSize: Math.round(size * 0.34), fontWeight: 600, color: t.INK70 }}>{initial || '•'}</span>}
+      {active && <span style={{ position: 'absolute', right: -2, bottom: -2, width: dot, height: dot, borderRadius: '50%', background: dotC, border: `2px solid ${t.PAPER}` }} />}
+    </span>
+  );
+}
+
 function BSFacetAvatar({ size = 72, c = '#34d6c5', initial = 'S', name = '', photo, rank = 'I', tierLabel = '', tierPos = 'bottom', editable = false, onEdit, showRank = true, live = false, online, activity, onClick, label, BG, INK, flat = false, dotC = null }) {
   const tr = useShapeTr();
   // The pulsing ring = online now (`live`). The corner DOT is a SEPARATE "active
@@ -25424,22 +25444,18 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 match new feed wall design"); tapping it opens the places. */}
             <BSChatPlaceTitle label={placeLabel} open={placesOpen} onOpen={() => setPlacesOpen(true)} buttonRef={placesTitleRef} />
           </div>
-          {/* The feed's viewing lens rides the title row, right-aligned (owner
-              call 2026-07-14) — page-level control, out of the chip stack.
-              flexWrap: on narrow phones (≲375px) the lens drops to its own line
-              under the title instead of squeezing it (CodeRabbit P2).
-              Custom buttons, not bsSubTab (owner call 2026-07-14 evening): bigger/
-              bolder for presence, text hugging the button bottom so the labels
-              sit on the Community title's baseline instead of floating. */}
+          {/* The feed's viewing lens rides the title row (owner call 2026-07-14), a page-level control out of
+              the chip stack; flexWrap drops it under the title on a narrow phone rather than squeezing it.
+              Since the owner's C for the top of the Wall (2026-11-04) it is a pair of lit chips (bsWsLed), the
+              lens shown framed and lettered in the teal, each in a 44px target. */}
           {tab === 'feed' && filter === 'COMMUNITY' && (
-            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexShrink: 0 }}>
+            <div data-bs-wall-lens="" style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
               {[['universal', tr('feed:lens.universal', { defaultValue: 'Universal' })], ['following', tr('feed:lens.following', { defaultValue: 'Following' })]].map(([k, label]) => {
                 const on = feedMode === k;
                 return (
                   <button key={k} onClick={() => switchFeedMode(k)} aria-pressed={on}
-                    style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-end', minHeight: 38, padding: '8px 0 6px', background: 'transparent', border: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: on ? t.INK : t.INK50, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    {label}
-                    {on && <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: magAccent }} />}
+                    style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer' }}>
+                    <span data-led={on ? 'on' : 'off'} style={{ display: 'inline-block', padding: '7px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap', ...bsWsLed(t, on) }}>{label}</span>
                   </button>
                 );
               })}
@@ -25456,8 +25472,11 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       {railOn && railPeople.length > 0 && (
       <div style={{ padding: `4px ${t.padX}px 0` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magAccent }} />
-            <span style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted, fontWeight: 700 }}>{tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}</span>
+            {/* How many are online, in a lit slot (the owner's C, 2026-11-04), its dot glowing on dark paper. */}
+            <span data-bs-rail-count="" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 9px', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800, ...bsWsLed(t, true) }}>
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: magAccent, boxShadow: t.isLight ? 'none' : `0 0 8px ${magAccent}` }} />
+              {tr('feed:rail.onlineNow', { defaultValue: '{count, number} online now', count: liftingNow })}
+            </span>
             {/* Signed-in AND signed-out (owner call, 2026-08-27): the preview is
                 where this is reachable at all — a signed-in member sees no rail
                 until live presence is non-empty. A demo tap persists to the
@@ -25481,10 +25500,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               return (
                 <button key={p.userId || i} onClick={() => (p.activity ? setBoostFor({ ...p, photoUrl: pPhoto, _profile: railProfile }) : setOpenProfile(railProfile))} style={{ flex: '0 0 auto', width: 54, background: 'transparent', border: 0, cursor: 'pointer', padding: 0, textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    {/* The faceted shape stays, in the magazine's flat cut (owner, 2026-10-24: "keep the same facet
-                        shape but … go with the new design"): an ink frame, no glow, and a still dot, red in a
-                        workout and amber at the stove. */}
-                    <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />
+                    {/* A member keeps the faceted shape, in the magazine's flat cut (owner, 2026-10-24: "keep the same
+                        facet shape but … go with the new design"): an ink frame, no glow, and a still dot, teal in a
+                        workout and amber at the stove. A coach is a circle in a ring of the coach's colour (owner,
+                        2026-11-04: "keep the facet avatars for clients and circle avatar for coaches"). */}
+                    {p.role === 'trainer' || p.role === 'nutritionist'
+                      ? <BSRailCoachFace size={46} box={40} ring={p.role === 'nutritionist' ? '#a07a2e' : '#c0533b'} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} active={!!(p.activity || p.live)} initial={bsInitials(p.name)} photo={pPhoto} />
+                      : <BSFacetAvatar flat size={40} c={t.INK} dotC={p.activity === 'cooking' ? (t.AMBER || '#d8a23a') : magAccent} initial={bsInitials(p.name)} photo={pPhoto} showRank={false} live={!!p.live} activity={p.activity} BG={t.PAPER} />}
                   </div>
                   <span style={{ display: 'block', fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 11, marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.INK70 }}>{p.name.split(' ')[0]}</span>
                 </button>
