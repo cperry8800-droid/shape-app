@@ -128,6 +128,8 @@ export function bsCustFormOf(init, { filmKey, promptOpts }) {
     prompts: Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: promptOpts[0].id, a: '' }],
     coverUrl: (init.cover && init.cover.image) || '',
     pick: null,
+    // A tap on Keep in view (the cover's crop, look.focus); null until one.
+    focusPick: null,
     // Normalise on the way IN: a doc stored before the split carries English, and a
     // picker comparing tokens would match no chip and silently reset the member's pin.
     // The label helpers take the translator; the TOKEN is what the picker compares
@@ -279,7 +281,7 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const filmRef = useRef(null);
   // A field's setter, taking a value or an updater as useState's does.
   const setF = (k) => (v) => setForm((p) => ({ ...p, [k]: typeof v === 'function' ? v(p[k]) : v }));
-  const { bio, songUrl, songLabel, links, prompts, coverUrl, pick, pinKind, pinTitle, pinNote, pinMetric, heroStats, line, startTitle, startDate, wall, shelf, film, biz, pins } = form;
+  const { bio, songUrl, songLabel, links, prompts, coverUrl, pick, focusPick, pinKind, pinTitle, pinNote, pinMetric, heroStats, line, startTitle, startDate, wall, shelf, film, biz, pins } = form;
   const setBio = setF('bio'), setSongUrl = setF('songUrl'), setSongLabel = setF('songLabel'), setLinks = setF('links'), setPrompts = setF('prompts');
   const setCoverUrl = setF('coverUrl'), setPinKind = setF('pinKind'), setPinTitle = setF('pinTitle'), setPinNote = setF('pinNote');
   // The look, as the website editor reads it (#2611): the pick (a tap), else the saved look, else the
@@ -288,10 +290,11 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const look = { ...initLook, paper: (pick && pick.paper) || initLook.paper || seedPaper, accent: (pick && pick.accent) || initLook.accent || seedAccent };
   const setLook = (next) => setForm((p) => ({ ...p, pick: { paper: next.paper, accent: next.accent } }));
   const pickChanged = !!pick && (pick.paper !== initLook.paper || pick.accent !== initLook.accent);
-  // TODO(#2611): the cover-crop chips ("Keep in view": top / center / bottom, saved as look.focus) go on
-  // Photos & film under the cover once #2611 lands the member crop map (BS_MEMBER_FOCUS); until then
-  // nothing here changes the focus, and Save writes `look` only for a pick.
-  const focusChanged = false;
+  // What stays in view in a member's cover (look.focus, #2611's member crop map, BS_MEMBER_FOCUS): set on
+  // Photos & film under the cover, by the same rule as the pick. The page crops to the middle until one is
+  // saved, so a tap on the crop it already has is no change. A coach's page here reads no crop.
+  const focusNow = focusPick || initLook.focus || 'center';
+  const focusChanged = !coach && !!focusPick && focusPick !== (initLook.focus || 'center');
   const setPinMetric = setF('pinMetric'), setHeroStats = setF('heroStats'), setLine = setF('line'), setStartTitle = setF('startTitle'), setStartDate = setF('startDate');
   const setWall = setF('wall'), setShelf = setF('shelf'), setFilm = setF('film'), setBiz = setF('biz'), setPins = setF('pins');
 
@@ -434,7 +437,8 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const uploading = wallBusy || coverBusy || filmBusy;
   const areaDirty = (key) => {
     if (!key || key === 'signal') return false;
-    if (key === 'colors') return pickChanged || focusChanged;
+    if (key === 'colors') return pickChanged;
+    if (key === 'photos' && focusChanged) return true;
     if (key === 'photos' && uploading) return true;
     const was = key === 'practice' ? { ...base, pins: basePins } : base;
     return JSON.stringify(areaFields(key, form)) !== JSON.stringify(areaFields(key, was));
@@ -467,7 +471,9 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     // `look` only when it was picked here (or its focus changed: #2611), over whatever else the stored
     // look holds; an untouched panel writes none. The old `accent` hex and `climbBg` ride through
     // `...stored` as the doc has them.
-    if (key === 'colors' && (pickChanged || focusChanged)) doc.look = { ...(bsProfileLook(stored.look) || {}), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}) };
+    if (key === 'colors' && pickChanged) doc.look = { ...(bsProfileLook(stored.look) || {}), paper: pick.paper, accent: pick.accent };
+    // The crop, the same way: over the stored look, its paper and accent kept.
+    if (key === 'photos' && focusChanged) doc.look = { ...(bsProfileLook(stored.look) || {}), focus: focusPick };
     // Normalize only THIS role's film key against its bucket; the other role's film key
     // isn't named here, so it passes through byte-identical.
     const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
@@ -645,16 +651,26 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     <div key="cover">
       {head(tr('profile:editor.cover.label', { defaultValue: 'Cover image' }))}
       <div data-cust-cover="" style={{ position: 'relative', height: coverUrl ? 140 : 88, borderRadius: 18, overflow: 'hidden', boxSizing: 'border-box', background: coverUrl ? '#111' : wellBg, border: coverUrl ? 0 : `1px solid ${ink(0.12)}`, boxShadow: coverUrl ? (light ? `0 10px 22px -14px ${ink(0.45)}` : '0 12px 24px -14px rgba(0,0,0,0.9)') : wellIn }}>
-        {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+        {coverUrl && <img src={coverUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', objectPosition: (!coach && W.BS_MEMBER_FOCUS && W.BS_MEMBER_FOCUS[focusNow]) || undefined }} />}
         <input ref={coverRef} type="file" accept="image/*" onChange={onCoverFile} style={{ display: 'none' }} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 10 }}>
           <button type="button" className="bs-cust-btn bs-cust-press" onClick={() => !coverBusy && coverRef.current && coverRef.current.click()} disabled={coverBusy} style={{ ...coverPill, cursor: coverBusy ? 'wait' : 'pointer', ...(coverUrl ? null : { background: ink(light ? 0.06 : 0.09), boxShadow: 'none' }) }}>{coverBusy ? tr('profile:log.uploading', { defaultValue: 'Uploading…' }) : coverUrl ? tr('profile:editor.cover.replace', { defaultValue: 'Replace' }) : tr('profile:editor.cover.upload', { defaultValue: 'Upload cover' })}</button>
           {coverUrl && <button type="button" className="bs-cust-btn bs-cust-press" onClick={() => setCoverUrl('')} style={{ ...coverPill, cursor: 'pointer' }}>{tr('profile:action.remove', { defaultValue: 'Remove' })}</button>}
         </div>
       </div>
-      {/* TODO(#2611): the cover-crop chips go here, under the cover: "Keep in view" (profile:mine.keepInView)
-          with Top / Center / Bottom (profile:mine.focusTop / focusCenter / focusBottom), saved as look.focus
-          through the member crop map #2611 adds (BS_MEMBER_FOCUS). Wire focusChanged above when it lands. */}
+      {/* Keep in view: what the profile's cover keeps in its crop (look.focus), a member's only. */}
+      {!coach && coverUrl ? (
+        <div data-cust-focus="" role="group" aria-label={tr('profile:mine.keepInView', { defaultValue: 'Keep in view' })} style={{ marginTop: 14 }}>
+          <div style={{ ...hintS, marginBottom: 8 }}>{tr('profile:mine.keepInView', { defaultValue: 'Keep in view' })}</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {[['top', tr('profile:mine.focusTop', { defaultValue: 'Top' })], ['center', tr('profile:mine.focusCenter', { defaultValue: 'Center' })], ['bottom', tr('profile:mine.focusBottom', { defaultValue: 'Bottom' })]].map(([k, label]) => (
+              <button key={k} type="button" data-cust-focus-pick={k} aria-pressed={focusNow === k} className="bs-cust-btn bs-cust-press" onClick={() => setForm((p) => ({ ...p, focusPick: k }))} style={chip(focusNow === k)}>
+                {focusNow === k ? <BSMpIcon name="check" size={15} stroke={2.6} /> : null}{label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
   // The colours: the shared look panel (BSLookPicker, Make it yours' Colors page): a Shape look, a
@@ -1102,8 +1118,9 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   // The drafts are every area's fields over the doc as last saved, the look only when it was picked here
   // (the doc a Save of every area would write, never written: nothing here calls saveUserGoals). The page
   // is the client's own (BSTerrainProfile for a member, BSSignalCoachProfile for a coach: the page this
-  // editor's coach doc is read by), opened as a visitor's (not isSelf), in the profile's look as the coach
-  // profile paints its own (a BSProvider of the paper and accent). A tap on it does nothing but its Back
+  // editor's coach doc is read by), opened as a visitor's (not isSelf). The member page paints itself in
+  // the draft's look (#2611: its paper, accent and crop, as a visitor sees them), so nothing here wraps it;
+  // the coach page here reads no look, as for its visitors. A tap on it does nothing but its Back
   // and its tabs (LIVE_PASS), so Follow, Message, a like or a sheet can't write from a preview. Its Back
   // and a swipe right (the page's Back, as on every BSPage) come back here, as Back to editing does.
   const anyDirty = TILES.some(areaDirty);
@@ -1112,46 +1129,17 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     const uid = ownerUid || W.ShapeAuth?.getCachedState?.()?.user?.id || null;
     let draft = { ...saved };
     for (const k of TILES) if (k !== 'signal' && k !== 'colors') Object.assign(draft, areaFields(k, form));
-    if (pickChanged || focusChanged) draft.look = { ...(bsProfileLook(saved.look) || {}), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}) };
+    if (pickChanged || focusChanged) draft.look = { ...(bsProfileLook(saved.look) || {}), ...(pickChanged ? { paper: pick.paper, accent: pick.accent } : {}), ...(focusChanged ? { focus: focusPick } : {}) };
     // As a Save would store it (the wall, the cover and the film bound to the owner); a signed-out preview
     // has no owner, and the page drops what it can't bind as it renders.
     if (uid) draft = bsNormalizeProfileCustom(draft, uid, { filmBucket: filmRoleBucket, filmKey });
     const livePerson = { who: name || initials, init: initials, kind: (who && who.kind) || (coach ? 'TRAINER' : 'CLIENT'), userId: uid, photo: photo || null };
-    const page = <LiveProfile person={livePerson} previewCustom={draft} onBack={closePreview} />;
+    // Message as a member opening the page sees it; the layer stops the tap, as every other.
+    const page = <LiveProfile person={livePerson} previewCustom={draft} onBack={closePreview} onMessage={liveNoop} />;
+    // The ground under the page: the draft's paper when the member page paints in one, else the editor's.
     const lookNow = bsProfileLook(draft.look) || {};
-    const LookProvider = W.BSProvider;
-    const painted = LookProvider && (lookNow.paper || lookNow.accent);
-    const livePaper = painted ? paletteOf(lookNow.paper || seedPaper, lookNow.accent || seedAccent).PAPER_BG : BG;
-    const liveUnsaved = tr('profile:editor.live.unsaved', { defaultValue: 'Not saved yet' });
-    const edge = Math.max(10, gutter - 8);
-    livePage = (
-      <div data-cust-live="" role="dialog" aria-modal="true" aria-label={anyDirty ? `${liveTitle} · ${liveUnsaved}` : liveTitle} onClickCapture={liveGuard}
-        style={{ position: 'absolute', inset: 0, zIndex: 221, background: livePaper, overflow: 'hidden', '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85) }}>
-        {painted ? (
-          <LookProvider paperMode={lookNow.paper || seedPaper} accentKey={lookNow.accent || seedAccent} densityKey={tTheme.densityKey} borderKey={tTheme.borderKey}
-            weightKey={tTheme.weightKey} textScaleKey={tTheme.textScaleKey} textureKey={tTheme.textureKey} textureColor={tTheme.textureColor}>
-            {page}
-          </LookProvider>
-        ) : page}
-        {/* The bar floats over the page at its foot, in the editor's own colours: what this is, and the way
-            back. At the foot, the page's top (its masthead, Back, cover and name) shows as a visitor sees it;
-            over the masthead, the row's corner buttons showed past the bar's ends. The page keeps room under
-            its end for a tab bar, which the bar takes. */}
-        <div data-cust-live-bar="" style={{ position: 'absolute', zIndex: 70, bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', left: edge, right: edge }}>
-          <BSCleanType t={tClean}><div className={motion ? 'bs-cust-in' : undefined} style={{ ...plate(), borderRadius: 18, minHeight: 56, padding: '6px 6px 6px 14px', display: 'flex', alignItems: 'center', gap: 10, boxSizing: 'border-box' }}>
-            <BSGlassEdge t={tTheme} />
-            <span data-cust-live-state={anyDirty ? 'unsaved' : 'saved'} style={{ flex: '1 1 0', minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: BS_CLEAN_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: INK, overflowWrap: 'anywhere' }}>{liveTitle}</span>
-              {anyDirty ? <span style={{ display: 'block', marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, lineHeight: 1.25, color: TEAL, textShadow: light ? 'none' : `0 0 8px ${hexA(TEAL, 0.7)}`, overflowWrap: 'anywhere' }}>{liveUnsaved}</span> : null}
-            </span>
-            <button ref={liveBackRef} type="button" data-cust-live-back="" className="bs-cust-btn bs-cust-primary" onClick={closePreview}
-              style={{ flex: '0 1 auto', maxWidth: '62%', minHeight: 44, padding: '6px 14px', borderRadius: 999, border: 0, background: TEAL, color: onTeal, cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 700, lineHeight: 1.15, textAlign: 'center', overflowWrap: 'anywhere', boxShadow: primaryGlow(TEAL) }}>
-              {tr('profile:editor.live.back', { defaultValue: 'Back to editing' })}
-            </button>
-          </div></BSCleanType>
-        </div>
-      </div>
-    );
+    const livePaper = !coach && lookNow.paper ? paletteOf(lookNow.paper, lookNow.accent || seedAccent).PAPER_BG : BG;
+    livePage = bsLivePreviewLayer({ t: tTheme, tClean, tr, page, unsaved: anyDirty, paper: livePaper, onBack: closePreview, backRef: liveBackRef, motion });
   }
 
   return createPortal(
@@ -1171,11 +1159,55 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   );
 }
 
+// The live preview's Message: drawn as visitors see it, never reached (liveGuard stops the tap).
+const liveNoop = () => {};
+
 // What a tap may reach on the live preview: its own bar, the page's Back (the row's and the pinned bar's)
-// and its tabs. Anything else (Follow, Message, a like, a sheet, a link) is stopped before it lands.
-const LIVE_PASS = '[data-cust-live-bar], [data-bs-back], [data-bs-pin-back], [data-terrain-tabs]';
+// and its tabs (a member's, the Signal page's, a coach page's). Anything else (Follow, Message, Work with, a
+// like, a sheet, a link) is stopped before it lands.
+const LIVE_PASS = '[data-cust-live-bar], [data-bs-back], [data-bs-pin-back], [data-terrain-tabs], [data-profile-tabs]';
 function liveGuard(e) {
   const el = e && e.target;
   if (el && typeof el.closest === 'function' && el.closest(LIVE_PASS)) return;
   if (e) { e.preventDefault(); e.stopPropagation(); }
+}
+
+// ── The live preview's layer: a profile page full screen, the tap guard over it, and the floating bar ──
+// Shared by Customize and Make it yours (BSMakeItYours.jsx), so a member's and a coach's preview read and
+// behave alike. `page` is the profile page with the drafts in; `t` the editor's theme (the bar is in the
+// editor's colours, raised and lit); `unsaved` says "Not saved yet" under "Preview"; `onBack` is Back to
+// editing (the page's own Back, and so a swipe right, should call it too); `backRef` takes the focus.
+// The bar floats over the page at its foot: at the foot, the page's top (its masthead, Back, cover and
+// name) shows as a visitor sees it; over the masthead, the row's corner buttons showed past the bar's
+// ends. The page keeps room under its end for a tab bar, which the bar takes.
+export function bsLivePreviewLayer({ t = {}, tClean = null, tr, page, unsaved = false, paper = null, onBack, backRef = null, motion = true, zIndex = 221 }) {
+  bsCustCss();
+  const light = !!t.isLight;
+  const INK = t.INK || '#f5f0e6';
+  const TEAL = bsWsAccent(t);
+  const title = tr('profile:editor.live.title', { defaultValue: 'Preview' });
+  const unsavedWord = tr('profile:editor.live.unsaved', { defaultValue: 'Not saved yet' });
+  const edge = Math.max(10, (t.padX || 22) - 8);
+  const bar = (
+    <div className={motion ? 'bs-cust-in' : undefined} style={{ ...bsRaised(t), borderRadius: 18, minHeight: 56, padding: '6px 6px 6px 14px', display: 'flex', alignItems: 'center', gap: 10, boxSizing: 'border-box' }}>
+      <BSGlassEdge t={t} />
+      <span data-cust-live-state={unsaved ? 'unsaved' : 'saved'} style={{ flex: '1 1 0', minWidth: 0 }}>
+        <span style={{ display: 'block', fontFamily: BS_CLEAN_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: INK, overflowWrap: 'anywhere' }}>{title}</span>
+        {unsaved ? <span style={{ display: 'block', marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, lineHeight: 1.25, color: TEAL, textShadow: light ? 'none' : `0 0 8px ${hexA(TEAL, 0.7)}`, overflowWrap: 'anywhere' }}>{unsavedWord}</span> : null}
+      </span>
+      <button ref={backRef} type="button" data-cust-live-back="" className="bs-cust-btn bs-cust-primary" onClick={onBack}
+        style={{ flex: '0 1 auto', maxWidth: '62%', minHeight: 44, padding: '6px 14px', borderRadius: 999, border: 0, background: TEAL, color: onColor(TEAL), cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 700, lineHeight: 1.15, textAlign: 'center', overflowWrap: 'anywhere', boxShadow: `0 12px 28px -12px ${hexA(TEAL, 0.85)}, inset 0 1px 0 rgba(255,255,255,0.35)` }}>
+        {tr('profile:editor.live.back', { defaultValue: 'Back to editing' })}
+      </button>
+    </div>
+  );
+  return (
+    <div data-cust-live="" role="dialog" aria-modal="true" aria-label={unsaved ? `${title} · ${unsavedWord}` : title} onClickCapture={liveGuard}
+      style={{ position: 'absolute', inset: 0, zIndex, background: paper || t.PAPER_BG || t.PAPER || '#0f0e0c', overflow: 'hidden', '--cust-teal': TEAL, '--cust-glow': hexA(TEAL, 0.85) }}>
+      {page}
+      <div data-cust-live-bar="" style={{ position: 'absolute', zIndex: 70, bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))', left: edge, right: edge }}>
+        {tClean ? <BSCleanType t={tClean}>{bar}</BSCleanType> : bar}
+      </div>
+    </div>
+  );
 }

@@ -572,7 +572,9 @@ test('View live preview opens the real profile page as visitors see it, with the
         assert.ok(page, `${who}: the area's pill opened no profile page`);
         // The page as a visitor sees it: not the owner's, no Message, the owner's account, the draft in.
         assert.ok(!page.props.isSelf && !page.props.meMode, `${who}: the preview is the owner's own view`);
-        assert.equal(page.props.onMessage, undefined, `${who}: the preview can message`);
+        // Message drawn as a visitor sees it, and reaching nothing (the guard below stops the tap too).
+        assert.equal(typeof page.props.onMessage, 'function', `${who}: the preview has no Message`);
+        assert.equal(page.props.onMessage(), undefined);
         assert.equal(page.props.person.userId, 'u-me');
         assert.equal(page.props.person.who, 'Quinn Harper');
         assert.equal(page.props.previewCustom.bio, 'Draft bio', `${who}: the draft is not in the preview`);
@@ -598,7 +600,7 @@ test('View live preview opens the real profile page as visitors see it, with the
         const guard = liveOf(d).props.onClickCapture;
         const tap = (match) => { const e = { stopped: 0, target: { closest: (sel) => (match && sel.includes(match) ? {} : null) }, preventDefault() { this.stopped += 1; }, stopPropagation() { this.stopped += 1; } }; guard(e); return e.stopped; };
         assert.equal(tap(null), 2, `${who}: a tap on the page went through`);
-        for (const pass of ['[data-bs-back]', '[data-bs-pin-back]', '[data-terrain-tabs]', '[data-cust-live-bar]']) assert.equal(tap(pass), 0, `${who}: ${pass} was stopped`);
+        for (const pass of ['[data-bs-back]', '[data-bs-pin-back]', '[data-terrain-tabs]', '[data-profile-tabs]', '[data-cust-live-bar]']) assert.equal(tap(pass), 0, `${who}: ${pass} was stopped`);
         // The page's own Back (and so a swipe right, which takes it) comes back to About with the draft kept.
         page.props.onBack();
         withSurface(() => d.render());
@@ -613,29 +615,66 @@ test('View live preview opens the real profile page as visitors see it, with the
       } finally { world.restore(); }
     }
 
-    // A look picked and not saved: the page is painted in it (a BSProvider of its paper and accent), and the
-    // pick is still there after Back.
+    // A look picked and not saved: the member page paints itself in it (#2611: the page hands its look's theme
+    // on through BSContext, as a visitor sees it), so the preview adds no wrap of its own; the pick is still
+    // there after Back.
     const world = editorWorld({ base: {} });
+    const hadCtx = globalThis.BSContext, hadLookTheme = globalThis.bsLookTheme;
+    function ThemeProvider({ children }) { return children; }
+    globalThis.BSContext = { Provider: ThemeProvider };
+    globalThis.bsLookTheme = (outer, look) => ({ ...outer, paperMode: look.paper, accentKey: look.accent });
     try {
       const d = openEditor({ ...world.props });
       openRow(d, 'colors');
       d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'bone', accent: 'rust' });
       withSurface(() => d.render());
       openLive(d, 'area');
-      const provider = d.nodes().find(named('BSProvider'));
-      assert.ok(provider, 'the picked look is not painted');
-      assert.equal(provider.props.paperMode, 'bone');
-      assert.equal(provider.props.accentKey, 'rust');
-      assert.equal(provider.props.children.type, globalThis.BSTerrainProfile, 'the page is not inside the look');
+      assert.equal(d.nodes().filter(named('BSProvider')).length, 0, 'the preview paints over the page\'s own look');
       assert.deepEqual(pageOf(d).props.previewCustom.look, { paper: 'bone', accent: 'rust' });
+      const drawn = withSurface(() => drive(pageOf(d).type, pageOf(d).props));
+      const root = drawn.nodes()[0];
+      assert.equal(root.type, ThemeProvider, 'the member page is not in its look');
+      assert.equal(root.props.value.paperMode, 'bone', 'the page is not painted in the picked paper');
       assert.equal(barState(d).props['data-cust-live-state'], 'unsaved');
       pageOf(d).props.onBack();
       withSurface(() => d.render());
       assert.equal(areaOf(d), 'colors');
       assert.deepEqual(d.nodes().find(named('BSLookPicker')).props.look, { paper: 'bone', accent: 'rust' }, 'Back lost the pick');
       assert.equal(world.writes.length, 0, 'previewing a look wrote it');
-    } finally { world.restore(); }
+    } finally {
+      world.restore();
+      if (hadCtx === undefined) delete globalThis.BSContext; else globalThis.BSContext = hadCtx;
+      if (hadLookTheme === undefined) delete globalThis.bsLookTheme; else globalThis.bsLookTheme = hadLookTheme;
+    }
   } finally { if (hadProvider === undefined) delete globalThis.BSProvider; else globalThis.BSProvider = hadProvider; }
+});
+
+// #2611's member crop map (BS_MEMBER_FOCUS): Keep in view under the cover, on Photos & film, by the pick's
+// rule. A tap that changes the crop is saved as look.focus over the stored look; the crop it already has is
+// no change; a coach's page reads no crop, so a coach is not asked.
+test('Keep in view sets the cover\'s crop on Photos & film, written over the stored look only when changed', async () => {
+  const base = { cover: { image: 'https://x.supabase.co/storage/v1/object/public/community-photos/u-me/c.jpg' }, look: { paper: 'bone', accent: 'rust' } };
+  const world = editorWorld({ base });
+  try {
+    const d = openEditor({ initial: base, ...world.props });
+    openRow(d, 'photos');
+    const chips = () => d.nodes().filter((n) => n.props && n.props['data-cust-focus-pick'] != null);
+    assert.deepEqual(chips().map((n) => n.props['data-cust-focus-pick']), ['top', 'center', 'bottom']);
+    assert.deepEqual(chips().filter((n) => n.props['aria-pressed']).map((n) => n.props['data-cust-focus-pick']), ['center'], 'the page\'s own crop is not shown');
+    for (const n of chips()) assert.ok(n.props.style.minHeight >= 44, 'a crop chip under 44px');
+    chips().find((n) => n.props['data-cust-focus-pick'] === 'center').props.onClick();
+    withSurface(() => d.render());
+    assert.equal(saveOf(d).props.disabled, true, 'the crop it already has reads as a change');
+    chips().find((n) => n.props['data-cust-focus-pick'] === 'top').props.onClick();
+    withSurface(() => d.render());
+    assert.equal(saveOf(d).props.disabled, false, 'a new crop is not a change');
+    await pressSave(d);
+    assert.equal(world.writes.length, 1);
+    assert.deepEqual(world.writes[0][1].look, { paper: 'bone', accent: 'rust', focus: 'top' }, 'the crop did not go over the stored look');
+  } finally { world.restore(); }
+  const coach = openEditor({ coach: true, initial: base });
+  openRow(coach, 'photos');
+  assert.equal(coach.nodes().filter((n) => n.props && n.props['data-cust-focus'] != null).length, 0, 'a coach is asked for a crop their page does not read');
 });
 
 test('the editor\'s motion is gentle, and none of it runs under reduced motion', () => {

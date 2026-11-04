@@ -31302,8 +31302,10 @@ Object.assign(window, {
   BSShapeScorePage,
   BSShapeStorePage,
   BSPublicProfile,
-  // The two profile pages, for Customize's live preview (BSProfileCustomizer.jsx reads them at call time).
-  BSTerrainProfile, BSSignalCoachProfile,
+  // The profile pages, for the live previews (Customize's, BSProfileCustomizer.jsx, and Make it yours',
+  // BSMakeItYours.jsx, which BSTrainerProfile.jsx imports, so it can't import the page back), and the
+  // member cover's crop map, for Customize's Keep in view. Each reads them at call time.
+  BSTerrainProfile, BSSignalCoachProfile, BSTrainerProfile, BS_MEMBER_FOCUS,
   // The coach storefront, shared with the trainer profile (BSTrainerProfile.jsx).
   useBSCoachCommerce,
   BSCoachCoachingBlock,
