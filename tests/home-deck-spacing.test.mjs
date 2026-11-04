@@ -44,14 +44,29 @@ test('the stats ticker is thin: 5px above and below its line, a 9px notch', () =
   assert.match(ticker, /fontSize: 10, letterSpacing: '0\.12em'/);
 });
 
-test('the calendar: no Section · Calendar eyebrow on your own; Month | Weeks a compact track, each tab still a 44px tap', () => {
+test('the calendar: no Section · Calendar eyebrow on your own; Month | Weeks two quiet words beside ← Back', () => {
   // A coach reading a client's calendar keeps whose it is; your own has no eyebrow.
   assert.match(CAL, /kicker=\{forClient\s*\? tr\('calendar:client\.kicker'[^]*?\)\s*: null\}/);
   assert.doesNotMatch(CAL, /calendar:view\.kicker/);
-  const tabs = between(CAL, '<div role="tablist" aria-label={tr(\'calendar:view.label\'', '</div>\n      </div>');
-  assert.match(tabs, /maxWidth: 260, margin: '0 auto'/);
-  assert.match(tabs, /data-cal-track="" style=\{\{ position: 'absolute', left: 0, right: 0, top: 6, bottom: 6,/);
+  // Two words, no box (owner, 2026-11-04: "make these boxes look different and smaller, looks weird below
+  // icons above"): the lit one in ink over the accent's rule; each a 44px tap.
+  const tabs = between(CAL, 'const viewTabs = (style = null) => (', '\n  );\n');
+  assert.doesNotMatch(tabs, /data-cal-track|borderRadius: 10/, 'the switch is a box again');
   assert.match(tabs, /role="tab" aria-selected=\{on\}/);
-  assert.match(tabs, /position: 'relative', minHeight: 44, padding: 0,/);
-  assert.match(tabs, /width: '100%', height: 26, borderRadius: 8,/);
+  assert.match(tabs, /minHeight: 44, padding: 0, border: 0, background: 'transparent'/);
+  assert.match(tabs, /color: on \? t\.INK : t\.INK50/);
+  assert.match(tabs, /borderBottom: `2px solid \$\{on \? t\.ACCENT : 'transparent'\}`/);
+  // With a Back, it rides the right of the back row and the month starts a row higher (owner, 2026-11-04:
+  // "move the calendar higher on page, feel free to move back tab somewhere that fits better"); the ←
+  // keeps its one place. Without one, the switch takes its own row.
+  assert.match(CAL, /backTrailing=\{onBack \? viewTabs\(\) : null\}/);
+  assert.match(CAL, /\{!onBack && \(\s*<div style=\{\{ padding: `2px \$\{t\.padX\}px[^`]*` \}\}>\s*\{viewTabs\(\)\}/);
+});
+
+test('coach Today: the deck\'s sessions follow the day picked in the strip', () => {
+  // Owner, 2026-11-04: "click on different weeks on coaches profile home doesnt change anything".
+  const PROS = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8'));
+  assert.match(PROS, /const doneSel = bookings\.filter\(\(b\) => b\.state === 'done'\)\.length;/);
+  assert.match(PROS, /\{calendarReady && bookings\.length > 0 && \(\s*<BSProDeckSegments t=\{t\} done=\{doneSel\} total=\{bookings\.length\}/);
+  assert.match(PROS, /onSelectDay=\{setSelDay\}/);
 });

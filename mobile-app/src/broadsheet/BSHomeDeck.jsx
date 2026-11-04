@@ -264,6 +264,14 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
   })() : null;
   const span = week.length ? `${fmtDay(week[0], { month: 'short', day: 'numeric' })}–${fmtDay(week[6], dayOf(week[0]).getMonth() === dayOf(week[6]).getMonth() ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}` : '';
   const mono = { fontFamily: BS_DECK_MONO, fontWeight: 700, textTransform: 'uppercase' };
+  // A tap picks a day in place; the picked day's line under the strip says how it went, and a second tap
+  // (or its →) opens the calendar on it (owner, 2026-11-04: "when i click on any day on week view for
+  // client home page it immediatly takes me to month calendar"). Today is picked until another is.
+  const [picked, setPicked] = React.useState(null);
+  const pickIdx = g ? (picked != null && picked >= 0 && picked < week.length ? picked : g.today) : null;
+  const pickIso = pickIdx != null ? week[pickIdx] : null;
+  const openDay = (iso) => { if (iso && typeof onDay === 'function') onDay(dayOf(iso)); };
+  const mark = { hit: '✓', miss: '×', ahead: '○', rest: '–' };
   return (
     // Condensed (owner, 2026-11-04: "the week calendar can be condensed a little to create more space"): the
     // head's Month keeps its 44px tap without standing the row 44px tall, the days 52px (from 64), the bars
@@ -279,12 +287,15 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 6 }}>
         {(week.length ? week : Array.from({ length: 7 }, () => null)).map((iso, i) => {
           const today = g && i === g.today;
+          const isPicked = g && i === pickIdx;
           const states = rows.map((k) => (g && g[k] ? g[k][i] : null));
           const label = iso ? `${fmtDay(iso, { weekday: 'long', month: 'long', day: 'numeric' })}: ${rows.map((k, j) => (states[j] ? `${names[k]} ${word[states[j]]}` : null)).filter(Boolean).join(', ')}` : '';
           return (
-            <button key={iso || i} type="button" data-bs-home-day={iso || ''} aria-label={label} aria-current={today ? 'date' : undefined}
-              onClick={() => { if (iso && typeof onDay === 'function') onDay(dayOf(iso)); }}
-              style={{ minWidth: 0, minHeight: 52, padding: '4px 0 5px', border: 0, borderRadius: 8, background: today ? t.INK : 'transparent', color: today ? t.PAPER : t.INK, cursor: iso ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <button key={iso || i} type="button" data-bs-home-day={iso || ''} aria-label={label} aria-current={today ? 'date' : undefined} aria-pressed={iso ? !!isPicked : undefined}
+              onClick={() => { if (!iso) return; if (isPicked) openDay(iso); else setPicked(i); }}
+              style={{ minWidth: 0, minHeight: 52, padding: '4px 0 5px', border: 0, borderRadius: 8, background: today ? t.INK : 'transparent', color: today ? t.PAPER : t.INK,
+                // The picked day, when it is not today, is ringed (today keeps its ink).
+                boxShadow: isPicked && !today ? `inset 0 0 0 1.5px ${t.INK70}` : 'none', cursor: iso ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.1em', color: today ? t.PAPER : t.INK70 }}>{iso ? fmtDay(iso, { weekday: 'short' }) : ''}</span>
               <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{iso ? dayOf(iso).getDate() : ''}</span>
               <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 11 }}>
@@ -294,10 +305,25 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
           );
         })}
       </div>
-      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, padding: '0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
-        <span>{tr('home:week.barsKey', { defaultValue: 'Each day' })}</span>
-        <span style={{ color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rows.map((k) => names[k]).join(' · ')}</span>
-      </div>
+      {/* The picked day's line: its date as the door to the calendar, then each bar's name marked as it went
+          (✓ hit, × missed, ○ to come, – rest day). An unread week keeps the key. */}
+      {pickIso ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '0 0 0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
+          <button type="button" data-bs-home-open-day={pickIso} onClick={() => openDay(pickIso)}
+            aria-label={fmtDay(pickIso, { weekday: 'long', month: 'long', day: 'numeric' })}
+            style={{ flex: 'none', minHeight: 44, margin: '-12px 0', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 8.5, letterSpacing: '0.12em', color: t.ACCENT, whiteSpace: 'nowrap' }}>
+            {fmtDay(pickIso, { weekday: 'short' })} {dayOf(pickIso).getDate()} →
+          </button>
+          <span aria-hidden="true" style={{ minWidth: 0, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {rows.map((k) => { const st = g[k] ? g[k][pickIdx] : null; return `${st && mark[st] ? mark[st] + ' ' : ''}${names[k]}`; }).join(' · ')}
+          </span>
+        </div>
+      ) : (
+        <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, padding: '0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
+          <span>{tr('home:week.barsKey', { defaultValue: 'Each day' })}</span>
+          <span style={{ color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rows.map((k) => names[k]).join(' · ')}</span>
+        </div>
+      )}
     </section>
   );
 }

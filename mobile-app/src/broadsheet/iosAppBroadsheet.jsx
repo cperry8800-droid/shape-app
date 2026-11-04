@@ -1423,7 +1423,10 @@ function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
 }
 
 // Compact page header (non-masthead, for inner tabs)
-function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
+// `backTrailing` rides the right of the back row (as an eyebrow does on BSBackRow), so a page can lift a
+// control up beside its ← without moving the ← (the calendar's Month | Weeks, owner 2026-11-04: "move the
+// calendar higher on page").
+function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34, backTrailing = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
   return (
@@ -1438,7 +1441,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
       {/* Universal back slot — own row, flush left, under the masthead row. */}
-      {onBack && <BSBackRow onBack={onBack} />}
+      {onBack && <BSBackRow onBack={onBack} trailing={backTrailing} />}
       {kicker && (
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 600 }}>
           {kicker}

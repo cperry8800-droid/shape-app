@@ -1922,6 +1922,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId, bookingClientName(upB))]
     : [tr('coach:today.openCalendar', { defaultValue: 'Open calendar' }), () => goCalendar()];
   const doneToday = todayBookings.filter((b) => b.state === 'done').length;
+  // The picked day's done count, for the deck's segments.
+  const doneSel = bookings.filter((b) => b.state === 'done').length;
   const toScheduleList = Array.isArray(toSchedule) ? toSchedule : [];
   const todoCount = triageRows.length + toScheduleList.length;
   const rosterReady = !coachSignedIn || rosterStatus === 'ready';
@@ -2031,9 +2033,12 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           label={tr('coach:rail.thisWeek', { defaultValue: 'This week' })}
           monthLabel={tr('coach:rail.monthView', { defaultValue: 'Month view →' })} onMonth={goCalendar}
           todayAria={tr('coach:rail.todayAria', { defaultValue: 'today' })} />
-        {calendarReady && todayBookings.length > 0 && (
-          <BSProDeckSegments t={t} done={doneToday} total={todayBookings.length}
-            left={`${isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} ${doneToday} / ${todayBookings.length}`}
+        {/* The picked day's sessions, so a day tapped in the strip changes what the deck shows (owner,
+            2026-11-04: "click on different weeks on coaches profile home doesnt change anything"): its done
+            count of its bookings, with the open hours on today. The lede above stays today's. */}
+        {calendarReady && bookings.length > 0 && (
+          <BSProDeckSegments t={t} done={doneSel} total={bookings.length}
+            left={`${isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} ${doneSel} / ${bookings.length}`}
             right={isToday && dayShape.openHours != null ? `${tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} ${dayShape.openHours}` : null} />
         )}
       </BSProDeck>
