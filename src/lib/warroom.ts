@@ -622,6 +622,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Home and the calendar spaced; Home\'s week picks a day in place; coach Today\'s deck follows the day (#2593). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "there is some overlap with new home design and shape radio box, can we move the graph down a little", "the week calendar can be condensed a little", of the ticker "thin this bar slightly", of the calendar "remove this from month calendar page" (Section · Calendar), "condense these tabs", "move the calendar higher on page, feel free to move back tab somewhere that fits better", "make these boxes look different and smaller", "when i click on any day on week view for client home page it immediatly takes me to month calendar" and "click on different weeks on coaches profile home doesnt change anything"', status: 'done' },
+        { label: '#2593 Home: the climb 22px under the radio box; the week\'s days 52px, bars 11px; the ticker (shared with coach Today) 5px above and below. A day tapped picks it in place (ringed, today keeps its ink), the line under the strip marks how it went (✓ × ○ –), and the picked day tapped again or its "Tue 3 →" opens the calendar on it. Calendar: no eyebrow on your own (a client\'s keeps whose); Month | Weeks two quiet words on the right of the back row (BSPageHeader backTrailing), the ← in its one place. Coach Today: the deck\'s sessions count the picked day. tests/home-deck-spacing.test.mjs (5); home-deck-team and back-placement updated; the harness walks backTrailing', status: 'done' },
+        { label: '#2593 review: Codex\'s P2 on f966e72 (Month\'s 44px box hung onto the day grid, which took its lowest 6px) fixed in 4aca428, with the picked day\'s → kept off the days too, measured with elementFromPoint; Codex clean on 4aca428. CI green', status: 'done' },
+      ],
+    },
+    {
       section: 'App: the member profile\'s Signals, Climb and Music tabs as glass instruments, option B (#2591). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of the profile\'s Signals, Climb and Music tabs: "these sections need updated designs/looks"; of every design "creative futuristic and unique"; of three built in the app (A bento tiles, B glass instruments, C poster cards) "ok go with B"', status: 'done' },
