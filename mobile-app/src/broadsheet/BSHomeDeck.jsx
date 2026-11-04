@@ -116,6 +116,11 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
     big = fmt(read.nowKg);
     unitWord = tr('home:goal.now', { defaultValue: '{unit} now', unit });
     action = link(tr('home:climb.addNumber', { defaultValue: 'Add a number to track it →' }));
+  } else if (st.kind === 'target') {
+    big = fmt(read.targetKg);
+    unitWord = unit;
+    line = [tr('home:goal.target', { defaultValue: 'Goal' }), tr('home:goal.noWeighIns', { defaultValue: 'No weigh-ins yet.' })].join(' · ');
+    action = link(tr('home:goal.weighIn', { defaultValue: 'Weigh in →' }));
   } else if (st.kind === 'words') {
     big = `“${words}”`;
     action = link(tr('home:climb.addNumber', { defaultValue: 'Add a number to track it →' }));

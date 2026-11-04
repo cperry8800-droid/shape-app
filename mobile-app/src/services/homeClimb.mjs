@@ -11,6 +11,8 @@
 //   'reached'  the latest weigh-in at or past the target;
 //   'start'    a target and weigh-ins, but nothing walked yet or no target with a start (the route
 //              with no line on it);
+//   'target'   a target with no weigh-in yet: the target, and the way to the first weigh-in (Codex P2
+//              on #2583: a member who had set a target read "No goal yet", or "Add a number" with one);
 //   'words'    a goal in words only, with no weight numbers (owner, 2026-11-03: "Add a number to
 //              track it");
 //   'none'     no goal at all.
@@ -25,6 +27,7 @@ export function bsHomeClimbState({ read = null, words = '', weightGoal = false }
     return { kind: 'progress', pct, early: r.paceKgWk == null };
   }
   if (hasWeights) return { kind: 'start', pct: 0, early: r.paceKgWk == null };
+  if (weightGoal && r.targetKg != null) return { kind: 'target', pct: 0, early: true };
   if (String(words || '').trim()) return { kind: 'words', pct: 0, early: false };
   return { kind: 'none', pct: 0, early: false };
 }

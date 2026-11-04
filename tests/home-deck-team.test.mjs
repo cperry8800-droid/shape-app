@@ -71,7 +71,10 @@ test('the climb\'s state: progress, reached, a start with no target, words alone
   assert.deepEqual(C.bsHomeClimbState({ read: { ...read, reached: true }, weightGoal: true }), { kind: 'reached', pct: 100, early: false });
   assert.equal(C.bsHomeClimbState({ read: { nowKg: 77.6, targetKg: null, paceKgWk: -0.2 }, weightGoal: true }).kind, 'start', 'weigh-ins, no target');
   assert.equal(C.bsHomeClimbState({ read, words: 'Run a race', weightGoal: false }).kind, 'words', 'not a weight goal: its words');
-  assert.equal(C.bsHomeClimbState({ read: { nowKg: null, targetKg: 75 }, words: 'Lose fat', weightGoal: true }).kind, 'words', 'no weigh-in yet');
+  // A target and no weigh-in yet (Codex P2 on #2583): the target, with or without words, never "No goal yet".
+  assert.deepEqual(C.bsHomeClimbState({ read: { nowKg: null, targetKg: 75 }, words: 'Lose fat', weightGoal: true }), { kind: 'target', pct: 0, early: true });
+  assert.equal(C.bsHomeClimbState({ read: { nowKg: null, targetKg: 75 }, weightGoal: true }).kind, 'target');
+  assert.equal(C.bsHomeClimbState({ read: { nowKg: null, targetKg: null }, words: 'Lose fat', weightGoal: true }).kind, 'words', 'words and no number: its words');
   assert.equal(C.bsHomeClimbState({ read: null, words: '  ', weightGoal: true }).kind, 'none');
   assert.equal(C.bsHomeClimbState().kind, 'none');
 });
@@ -162,7 +165,7 @@ test('the climb is keyboard-operable: a progress climb is a focusable button ope
   assert.equal(opened.length, 2);
 }));
 
-test('the climb says only what it can: reached, a start with no target, words alone, nothing set, or still reading', () => withPounds(() => {
+test('the climb says only what it can: reached, a start with no target, a target with no weigh-in, words alone, nothing set, or still reading', () => withPounds(() => {
   const opened = [];
   const onOpen = () => opened.push(1);
   const tap = (d) => climbLinks(d)[0].props.onClick({ stopPropagation() {} });
@@ -197,6 +200,15 @@ test('the climb says only what it can: reached, a start with no target, words al
   const fresh = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: {}, weighIns: [] } }));
   assert.equal(climbOf(fresh).props['data-bs-home-climb'], 'words');
   assert.match(fresh.text, /“Lose fat”/);
+  // A target set and no weigh-in yet (Codex P2 on #2583): the target, and the first weigh-in, never "No goal yet".
+  for (const primary of ['', 'fat_loss']) {
+    const target = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary, overall: { unit: 'lb', target: 165 }, weighIns: [] }, onOpen }));
+    assert.equal(climbOf(target).props['data-bs-home-climb'], 'target', `${primary || 'no words'}: the target`);
+    assert.match(target.text, /165\.0lb/);
+    assert.match(target.text, /Goal · No weigh-ins yet\./);
+    assert.doesNotMatch(target.text, /No goal yet|Add a number/);
+    assert.equal(textOf(climbLinks(target)[0]), 'Weigh in →');
+  }
   // Nothing set: the door sets one, the flag an empty outline.
   const none = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: '', overall: {}, weighIns: [] }, onOpen }));
   assert.equal(climbOf(none).props['data-bs-home-climb'], 'none');
