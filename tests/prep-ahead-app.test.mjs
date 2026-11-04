@@ -288,9 +288,9 @@ test('the shell, the notification list and Eat are wired to the same pieces', ()
   // own day plan (Phase 2).
   assert.ok(CLIENT.includes('const prepTonightGroups = prepLive && viewYmd === todayYmd && new Date(prepNow).getHours() >= 15 && Array.isArray(prepEntries)'));
   assert.ok(CLIENT.includes('const prepLive = !!(liveMealDays || myDays);'));
-  // Home's agenda reads a made-ahead meal's "Prepped ✓" by the same per-day rule, under Eat's meal id,
-  // a ticked meal included (Phase 2).
-  assert.ok(CLIENT.includes("ahead: m.planMealId && (BS_MAKE_AHEAD.has(m.prepSlug) || m.prepNightBefore) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,"));
+  // Home's day line, which read a made-ahead meal's "Prepped ✓", left Home with Today's call (#2583: the
+  // line only fed it). Eat's menu keeps the mark (bsMenuPrepState above); a live meal keeps Eat's meal id.
+  assert.ok(!CLIENT.includes('const lineRows = ('), "Home's day line is back: give it the prepped mark again");
   assert.ok(CLIENT.includes("planMealId: meal.id != null && meal.id !== '' ? String(meal.id) : `live-${i}-${j}`,"));
   // Both settings screens offer the switch.
   assert.ok(CLIENT.includes("['meal_prep', 'Prep reminders', 'The night before a meal that needs it']"));
