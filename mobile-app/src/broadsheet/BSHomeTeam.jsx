@@ -78,11 +78,14 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
     : null;
   const trainer = sessionCoach || trainers[0] || null;
   // The day's meals and food left go on the card of the nutritionist who wrote the meal plan (Codex P2 on
-  // #2583: a member may pay two), with that nutritionist's Message; with none of theirs named, the first.
+  // #2583: a member may pay two), with that nutritionist's Message; with no author named, the first. A plan
+  // by a nutritionist no longer paid is Fuel left today on no coach's card, as a session no paid trainer
+  // wrote is (Codex P2 on #2583): never under another nutritionist, with their Message.
   const mealCoach = mealCoachId != null
     ? nutris.find((c) => c.providerId != null && String(c.providerId) === String(mealCoachId)) || null
     : null;
   const nutri = mealCoach || nutris[0] || null;
+  const fuelOrphan = mealCoachId != null && !mealCoach;
   const extras = [...trainers.filter((c) => c !== trainer), ...nutris.filter((c) => c !== nutri)];
   // Each coach's weekly note on their own card. A note carrying a coach's listing id is that coach's (Codex
   // P2 on #2583: two coaches may share a name, and a name lookup may fail); one without an id falls back to
@@ -227,12 +230,19 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       ) : null}
 
       {/* The nutritionist, with their note and the food left; or the food left alone. */}
-      {nutri ? (
-        <div data-team-coach="nutritionist" style={{ marginTop: 16 }}>
-          {head(nutri, noteOf(nutri, true) ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null)}
-          {noteOf(nutri, true) || hasFuel ? <div data-team-card="fuel" style={card}>{fuelBody(noteOf(nutri, true))}{fuelButtons(message(nutri))}</div> : <div style={{ marginTop: 8 }}>{message(nutri)}</div>}
-        </div>
-      ) : hasFuel ? (
+      {nutri ? (() => {
+        const note = noteOf(nutri, true);
+        const fuelHere = hasFuel && !fuelOrphan;
+        return (
+          <div data-team-coach="nutritionist" style={{ marginTop: 16 }}>
+            {head(nutri, note ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null)}
+            {fuelHere ? <div data-team-card="fuel" style={card}>{fuelBody(note)}{fuelButtons(message(nutri))}</div>
+              : note ? <div style={card}>{quote(note)}<div style={{ marginTop: 12 }}>{message(nutri)}</div></div>
+                : <div style={{ marginTop: 8 }}>{message(nutri)}</div>}
+          </div>
+        );
+      })() : null}
+      {hasFuel && (!nutri || fuelOrphan) ? (
         <div data-team-coach="none-fuel" style={{ marginTop: 16 }}>
           {plainHead(tr('home:team.fuel', { defaultValue: 'Fuel left today' }))}
           <div data-team-card="fuel" style={card}>{fuelBody(null)}{fuelButtons(null)}</div>

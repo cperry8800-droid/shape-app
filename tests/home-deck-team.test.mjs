@@ -510,8 +510,18 @@ test("the day's meals go on the card of the nutritionist who wrote the plan, wit
     msg.props.onClick();
     assert.deepEqual(ev.got, [{ conversationId: 'c-n', name: 'Nia Noor' }]);
   } finally { ev.off(); }
-  // No author named, or one no longer paid: the first nutritionist, as before.
-  for (const mealCoachId of [null, 99]) assert.match(textOf(coachBlock(drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null }], mealCoachId })), 'nutritionist')), /^Maya Patel/);
+  // No author named: the first nutritionist, as before.
+  const NIA2 = { role: 'nutritionist', name: 'Nia Noor', conversationId: 'c-n', providerId: 4, photo: null };
+  const unnamed = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA2], mealCoachId: null }));
+  assert.match(textOf(coachBlock(unnamed, 'nutritionist')), /^Maya Patel[\s\S]*kcal left/);
+  // A plan by a nutritionist no longer paid (Codex P2 on #2583): Fuel left today on no coach's card, and the
+  // paid nutritionists keep only their own Message, never those meals.
+  const former = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA2], mealCoachId: 99 }));
+  assert.match(textOf(coachBlock(former, 'none-fuel')), /kcal left/);
+  assert.doesNotMatch(textOf(coachBlock(former, 'nutritionist')), /kcal left|Log /);
+  assert.ok(former.nodes().some((n) => n.type === 'button' && n.props['aria-label'] === 'Message Maya Patel'), "Maya's Message stays hers");
+  const fuelCard = coachBlock(former, 'none-fuel');
+  assert.ok(!former.nodes().some((n) => n.type === 'button' && n.props['data-team-message'] && textOf(fuelCard).includes(textOf(n)) && /Maya|Nia/.test(n.props['aria-label'] || '')), 'no coach\'s Message on those meals');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /mealCoachId=\{sample \? 'sample-nutritionist' : \(\(livePlan && livePlan\.meals && livePlan\.meals\.coachId\) \?\? null\)\}/);
 });
