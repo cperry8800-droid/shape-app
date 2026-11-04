@@ -835,28 +835,80 @@ export const bsAboutListProblem = (about) => {
   return null;
 };
 export const bsLinkProblem = (links) => BS_PROFILE_LINK_KEYS.find((k) => String(links[k] || '').trim() && !bsProfileLinkHref(k, String(links[k]).trim())) || null;
+// ── About me's look (owner, 2026-11-04: "update design of this page") ───────────────────────────
+// Six numbered parts, each a head over the ledger rule, then one quiet card that holds its fields:
+// the fields are the card's rows, without boxes of their own, divided by hairlines. The row being
+// typed in takes the editor's teal spine on its left (ABOUT_CSS), so a field with no border still
+// shows where the caret is. The story and the answers grow with what is written, with no handle.
+const ABOUT_HAIR = ea(0.1);
+const ABOUT_CARD = { borderRadius: 12, background: E.BG2, border: `1px solid ${ea(0.12)}`, overflow: 'hidden' };
+const ABOUT_BARE = { width: '100%', boxSizing: 'border-box', minHeight: 44, margin: 0, padding: 0, border: 0, borderRadius: 0, background: 'transparent', color: E.INK, fontFamily: BODY, fontSize: 16, outline: 'none' };
+const ABOUT_CSS = `[data-mine-about] input::placeholder,[data-mine-about] textarea::placeholder{color:${ea(0.36)}}`
+  + `[data-mine-about] [data-about-cell]{transition:box-shadow 140ms ease,background-color 140ms ease}`
+  + `[data-mine-about] [data-about-cell]:focus-within{box-shadow:inset 3px 0 0 ${E.ED};background-color:${ea(0.025)}}`
+  + `[data-mine-about] button:focus-visible{outline:2px solid ${E.ED};outline-offset:2px}`
+  + `@media (prefers-reduced-motion:reduce){[data-mine-about] [data-about-cell]{transition:none}}`;
+const aboutLabel = { display: 'block', fontSize: 12.5, lineHeight: 1.3, color: ea(0.6) };
+const aboutX = { flex: 'none', width: 44, height: 44, padding: 0, border: 0, borderRadius: 10, background: 'transparent', color: ea(0.55), fontSize: 20, lineHeight: 1, cursor: 'pointer' };
+const aboutAdd = { ...smallBtn, width: '100%', minHeight: 46, borderRadius: 12, borderStyle: 'dashed', color: ea(0.85) };
+
+// A part's head: its number in the teal, its name, a count at the right, and the ledger rule.
+function AboutHead({ n, title, right = null, first = false }) {
+  return (
+    <div data-about-head="" style={{ marginTop: first ? 22 : 32, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+        <span aria-hidden style={{ flex: 'none', fontFamily: MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', color: E.ED }}>{String(n).padStart(2, '0')}</span>
+        <h2 style={{ flex: 1, minWidth: 0, margin: 0, fontFamily: DISPLAY, fontSize: 18, fontWeight: 600, lineHeight: 1.2, color: E.INK }}>{title}</h2>
+        {right != null ? <span style={{ flex: 'none', fontFamily: MONO, fontSize: 11, color: ea(0.55), fontVariantNumeric: 'tabular-nums' }}>{right}</span> : null}
+      </div>
+      <div aria-hidden style={{ marginTop: 8, height: 2, background: `linear-gradient(90deg, ${ea(0.7)}, ${E.ED})` }} />
+    </div>
+  );
+}
+
+// A textarea as tall as what is in it (and never shorter than minHeight), so the page scrolls, not it.
+function GrowText({ value, minHeight = 84, style, ...rest }) {
+  const ref = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.max(minHeight, el.scrollHeight)}px`;
+  }, [value, minHeight]);
+  return <textarea ref={ref} value={value} {...rest} style={{ ...ABOUT_BARE, display: 'block', lineHeight: 1.5, ...style, minHeight, overflow: 'hidden', resize: 'none' }} />;
+}
+
 // One of the coach's lists (owner, 2026-11-03: "certificates, accolades, things like that"): a row is
 // what it is, then what it was or who gave it, then the year, each row removable, eight at most.
 function AboutList({ kind, tr, rows, setRows, titlePh, detailPh, addLabel }) {
   const setRow = (i, k, v) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
-  const inp = { ...field, fontSize: 16 };
+  const sub = { ...ABOUT_BARE, minHeight: 38, fontSize: 14.5, color: ea(0.82) };
   return (
     <div data-about-list={kind}>
-      {rows.map((r, i) => (
-        <div key={i} data-about-item="" style={{ marginTop: i ? 10 : 0, padding: 12, borderRadius: 12, background: E.BG2, border: `1px solid ${ea(0.14)}` }}>
-          <input data-about-item-title="" value={r.title} maxLength={BS_ABOUT_ITEM_MAX} onChange={(e) => setRow(i, 'title', e.target.value)}
-            aria-label={tr('profile:mine.itemTitle', { defaultValue: 'What it is' })} placeholder={titlePh} style={{ ...inp, background: E.BG }} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 88px', gap: 8, marginTop: 8 }}>
-            <input data-about-item-detail="" value={r.detail} maxLength={BS_ABOUT_ITEM_MAX} onChange={(e) => setRow(i, 'detail', e.target.value)}
-              aria-label={tr('profile:mine.itemDetail', { defaultValue: 'From or where' })} placeholder={detailPh} style={{ ...inp, background: E.BG }} />
-            <input data-about-item-year="" inputMode="numeric" value={r.year} onChange={(e) => setRow(i, 'year', e.target.value.replace(/\D/g, '').slice(0, 4))}
-              aria-label={tr('profile:mine.itemYear', { defaultValue: 'Year' })} placeholder={tr('profile:mine.itemYear', { defaultValue: 'Year' })} style={{ ...inp, background: E.BG }} />
-          </div>
-          <button type="button" data-about-item-remove="" onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))} style={{ ...smallBtn, marginTop: 8, border: 0, padding: 0, color: ea(0.7) }}>{tr('profile:mine.qaRemove', { defaultValue: 'Remove' })}</button>
+      {rows.length ? (
+        <div style={ABOUT_CARD}>
+          {rows.map((r, i) => (
+            <div key={i} data-about-item="" data-about-cell="" style={{ padding: '2px 0 6px 14px', borderTop: i ? `1px solid ${ABOUT_HAIR}` : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <input data-about-item-title="" value={r.title} maxLength={BS_ABOUT_ITEM_MAX} onChange={(e) => setRow(i, 'title', e.target.value)}
+                  aria-label={tr('profile:mine.itemTitle', { defaultValue: 'What it is' })} placeholder={titlePh}
+                  style={{ ...ABOUT_BARE, flex: 1, minWidth: 0, fontFamily: DISPLAY, fontSize: 16, fontWeight: 600 }} />
+                <button type="button" data-about-item-remove="" onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label={tr('profile:mine.qaRemove', { defaultValue: 'Remove' })} style={aboutX}><span aria-hidden>×</span></button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 72px', alignItems: 'center', marginRight: 14 }}>
+                <input data-about-item-detail="" value={r.detail} maxLength={BS_ABOUT_ITEM_MAX} onChange={(e) => setRow(i, 'detail', e.target.value)}
+                  aria-label={tr('profile:mine.itemDetail', { defaultValue: 'From or where' })} placeholder={detailPh} style={sub} />
+                <input data-about-item-year="" inputMode="numeric" value={r.year} onChange={(e) => setRow(i, 'year', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  aria-label={tr('profile:mine.itemYear', { defaultValue: 'Year' })} placeholder={tr('profile:mine.itemYear', { defaultValue: 'Year' })}
+                  style={{ ...sub, minHeight: 28, paddingLeft: 10, borderLeft: `1px solid ${ABOUT_HAIR}`, textAlign: 'right', fontFamily: MONO, fontSize: 13.5, fontVariantNumeric: 'tabular-nums' }} />
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      ) : null}
       {rows.length < BS_ABOUT_LIST_MAX ? (
-        <button type="button" data-about-item-add="" onClick={() => setRows((prev) => [...prev, { title: '', detail: '', year: '' }])} style={{ ...smallBtn, marginTop: rows.length ? 12 : 0 }}>＋ {addLabel}</button>
+        <button type="button" data-about-item-add="" onClick={() => setRows((prev) => [...prev, { title: '', detail: '', year: '' }])} style={{ ...aboutAdd, marginTop: rows.length ? 8 : 0 }}>＋ {addLabel}</button>
       ) : null}
     </div>
   );
@@ -864,80 +916,117 @@ function AboutList({ kind, tr, rows, setRows, titlePh, detailPh, addLabel }) {
 
 function AboutTab({ tr, about, setAbout, prompts, setPrompts, links, setLinks, headLinks = false, setHeadLinks = () => {} }) {
   const set = (k, v) => setAbout((a) => ({ ...a, [k]: v }));
-  const inp = { ...field, fontSize: 16 };
-  const area = { ...field, minHeight: 132, padding: '10px 12px', fontSize: 16, lineHeight: 1.5, resize: 'vertical', display: 'block' };
-  const lab = { display: 'block', marginTop: 12, marginBottom: 6, fontSize: 13, color: ea(0.75) };
   const howLabel = { online: tr('profile:mine.howOnline', { defaultValue: 'Online' }), in_person: tr('profile:mine.howInPerson', { defaultValue: 'In person' }), both: tr('profile:mine.howBoth', { defaultValue: 'Both' }) };
   const setPrompt = (i, k, v) => setPrompts((prev) => prev.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
   const unused = BS_COACH_PROMPTS.find((o) => !prompts.some((p) => bsPromptToken(p.q) === o.id));
+  const hair = `1px solid ${ABOUT_HAIR}`;
+  const storyShare = Math.min(1, about.story.length / BS_ABOUT_STORY_MAX);
   return (
     <div data-mine-about="">
-      <Eyebrow right={`${about.story.length} / ${BS_ABOUT_STORY_MAX}`}>{tr('profile:mine.story', { defaultValue: 'Your story' })}</Eyebrow>
-      <textarea data-about-story="" value={about.story} maxLength={BS_ABOUT_STORY_MAX} rows={6} onChange={(e) => set('story', e.target.value)}
-        placeholder={tr('profile:mine.storyPh', { defaultValue: 'How you started, who you coach best, and what a client can expect.' })} style={area} />
+      <style>{ABOUT_CSS}</style>
 
-      <Eyebrow>{tr('profile:mine.details', { defaultValue: 'The details' })}</Eyebrow>
-      <label style={{ ...lab, marginTop: 0 }} htmlFor="mine-about-years">{tr('profile:mine.years', { defaultValue: 'Years coaching' })}</label>
-      <input id="mine-about-years" data-about-years="" inputMode="numeric" value={about.years} onChange={(e) => set('years', e.target.value.replace(/\D/g, '').slice(0, 2))} style={{ ...inp, width: 96 }} />
-      <div style={lab}>{tr('profile:mine.how', { defaultValue: 'How you coach' })}</div>
-      <div role="group" aria-label={tr('profile:mine.how', { defaultValue: 'How you coach' })} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {BS_ABOUT_HOW.map((k) => {
-          const on = about.how === k;
-          return <button key={k} type="button" data-about-how={k} aria-pressed={on} onClick={() => set('how', on ? '' : k)}
-            style={{ ...smallBtn, borderRadius: 999, padding: '0 16px', background: on ? E.INK : 'transparent', color: on ? E.BG : E.INK, border: on ? 0 : smallBtn.border }}>{howLabel[k]}</button>;
-        })}
+      <AboutHead first n={1} title={tr('profile:mine.story', { defaultValue: 'Your story' })} />
+      <div data-about-cell="" style={ABOUT_CARD}>
+        <GrowText data-about-story="" value={about.story} maxLength={BS_ABOUT_STORY_MAX} rows={5} minHeight={140} onChange={(e) => set('story', e.target.value)}
+          aria-label={tr('profile:mine.story', { defaultValue: 'Your story' })}
+          placeholder={tr('profile:mine.storyPh', { defaultValue: 'How you started, who you coach best, and what a client can expect.' })} style={{ padding: '12px 14px 6px' }} />
+        {/* How much of the story's room is used: a hairline that fills, and the count. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px 12px' }}>
+          <span aria-hidden style={{ flex: 1, height: 2, borderRadius: 2, background: ea(0.08), overflow: 'hidden' }}>
+            <span style={{ display: 'block', width: `${storyShare * 100}%`, height: '100%', background: storyShare >= 0.95 ? E.WARN : E.ED }} />
+          </span>
+          <span data-about-story-count="" style={{ flex: 'none', fontFamily: MONO, fontSize: 11, color: ea(0.55), fontVariantNumeric: 'tabular-nums' }}>{about.story.length} / {BS_ABOUT_STORY_MAX}</span>
+        </div>
       </div>
-      <label style={lab} htmlFor="mine-about-where">{tr('profile:mine.where', { defaultValue: 'Where you coach' })}</label>
-      <input id="mine-about-where" data-about-where="" value={about.where} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('where', e.target.value)} placeholder={tr('profile:mine.wherePh', { defaultValue: 'City, gym or area' })} style={inp} />
-      <label style={lab} htmlFor="mine-about-languages">{tr('profile:mine.languages', { defaultValue: 'Languages you coach in' })}</label>
-      <input id="mine-about-languages" data-about-languages="" value={about.languages} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('languages', e.target.value)} placeholder={tr('profile:mine.languagesPh', { defaultValue: 'English, Spanish' })} style={inp} />
 
-      <Eyebrow right={`${about.accolades.length} / ${BS_ABOUT_LIST_MAX}`}>{tr('profile:mine.accolades', { defaultValue: 'Accolades' })}</Eyebrow>
+      <AboutHead n={2} title={tr('profile:mine.details', { defaultValue: 'The details' })} />
+      <div style={ABOUT_CARD}>
+        <div data-about-cell="" style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 54, padding: '0 14px' }}>
+          <label htmlFor="mine-about-years" style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex', alignItems: 'center', fontSize: 15, color: E.INK, cursor: 'text' }}>{tr('profile:mine.years', { defaultValue: 'Years coaching' })}</label>
+          <input id="mine-about-years" data-about-years="" inputMode="numeric" value={about.years} onChange={(e) => set('years', e.target.value.replace(/\D/g, '').slice(0, 2))} 
+            style={{ ...ABOUT_BARE, width: 64, minHeight: 40, flex: 'none', borderRadius: 9, border: `1px solid ${ea(0.16)}`, background: E.BG, textAlign: 'center', fontFamily: DISPLAY, fontSize: 18, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }} />
+        </div>
+        <div style={{ padding: '12px 14px 14px', borderTop: hair }}>
+          <div style={{ ...aboutLabel, marginBottom: 8 }}>{tr('profile:mine.how', { defaultValue: 'How you coach' })}</div>
+          {/* One of three, or none: the lit one taps off again. */}
+          <div role="group" aria-label={tr('profile:mine.how', { defaultValue: 'How you coach' })} style={{ display: 'grid', gridTemplateColumns: `repeat(${BS_ABOUT_HOW.length}, minmax(0, 1fr))`, gap: 3, padding: 3, borderRadius: 999, background: E.BG, border: `1px solid ${ea(0.14)}` }}>
+            {BS_ABOUT_HOW.map((k) => {
+              const on = about.how === k;
+              return <button key={k} type="button" data-about-how={k} aria-pressed={on} onClick={() => set('how', on ? '' : k)}
+                style={{ minHeight: 38, minWidth: 0, padding: '0 6px', border: 0, borderRadius: 999, background: on ? E.INK : 'transparent', color: on ? E.BG : ea(0.8), fontFamily: DISPLAY, fontSize: 14, lineHeight: 1.15, fontWeight: on ? 600 : 400, cursor: 'pointer' }}>{howLabel[k]}</button>;
+            })}
+          </div>
+        </div>
+        <div data-about-cell="" style={{ padding: '10px 14px 2px', borderTop: hair }}>
+          <label htmlFor="mine-about-where" style={aboutLabel}>{tr('profile:mine.where', { defaultValue: 'Where you coach' })}</label>
+          <input id="mine-about-where" data-about-where="" value={about.where} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('where', e.target.value)} placeholder={tr('profile:mine.wherePh', { defaultValue: 'City, gym or area' })} style={{ ...ABOUT_BARE, minHeight: 40 }} />
+        </div>
+        <div data-about-cell="" style={{ padding: '10px 14px 2px', borderTop: hair }}>
+          <label htmlFor="mine-about-languages" style={aboutLabel}>{tr('profile:mine.languages', { defaultValue: 'Languages you coach in' })}</label>
+          <input id="mine-about-languages" data-about-languages="" value={about.languages} maxLength={BS_ABOUT_FACT_MAX} onChange={(e) => set('languages', e.target.value)} placeholder={tr('profile:mine.languagesPh', { defaultValue: 'English, Spanish' })} style={{ ...ABOUT_BARE, minHeight: 40 }} />
+        </div>
+      </div>
+
+      <AboutHead n={3} title={tr('profile:mine.accolades', { defaultValue: 'Accolades' })} right={`${about.accolades.length} / ${BS_ABOUT_LIST_MAX}`} />
       <AboutList kind="accolades" tr={tr} rows={about.accolades} setRows={(fn) => setAbout((a) => ({ ...a, accolades: fn(a.accolades) }))}
         titlePh={tr('profile:mine.accoladePh', { defaultValue: 'Coach of the Year, a meet won, a feature' })}
         detailPh={tr('profile:mine.accoladeFromPh', { defaultValue: 'Who gave it, or where' })}
         addLabel={tr('profile:mine.accoladeAdd', { defaultValue: 'Add an accolade' })} />
 
-      <Eyebrow right={`${about.education.length} / ${BS_ABOUT_LIST_MAX}`}>{tr('profile:mine.education', { defaultValue: 'Education and training' })}</Eyebrow>
+      <AboutHead n={4} title={tr('profile:mine.education', { defaultValue: 'Education and training' })} right={`${about.education.length} / ${BS_ABOUT_LIST_MAX}`} />
       <AboutList kind="education" tr={tr} rows={about.education} setRows={(fn) => setAbout((a) => ({ ...a, education: fn(a.education) }))}
         titlePh={tr('profile:mine.educationPh', { defaultValue: 'A degree, a course or a mentorship' })}
         detailPh={tr('profile:mine.educationFromPh', { defaultValue: 'School or teacher' })}
         addLabel={tr('profile:mine.educationAdd', { defaultValue: 'Add a degree or course' })} />
       {/* Certificates are the ones Shape verified, not typed here (owner, 2026-11-03: "certificates"). */}
-      <p data-about-certs-note="" style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>{tr('profile:mine.certsNote', { defaultValue: 'Your certificates show on About me once Shape has verified them.' })}</p>
+      <p data-about-certs-note="" style={{ display: 'flex', alignItems: 'flex-start', gap: 9, margin: '12px 2px 0', fontSize: 13, lineHeight: 1.45, color: ea(0.66) }}>
+        <span aria-hidden style={{ flex: 'none', width: 18, height: 18, marginTop: 1, boxSizing: 'border-box', borderRadius: 99, border: `1px solid ${E.ED}`, color: E.ED, display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 700 }}>✓</span>
+        <span>{tr('profile:mine.certsNote', { defaultValue: 'Your certificates show on About me once Shape has verified them.' })}</span>
+      </p>
 
-      <Eyebrow right={`${prompts.length} / ${BS_PROMPTS_MAX}`}>{tr('profile:mine.qa', { defaultValue: 'Questions members ask' })}</Eyebrow>
+      <AboutHead n={5} title={tr('profile:mine.qa', { defaultValue: 'Questions members ask' })} right={`${prompts.length} / ${BS_PROMPTS_MAX}`} />
       {prompts.map((p, i) => {
         const tok = bsPromptToken(p.q);
         const known = BS_COACH_PROMPTS.some((o) => o.id === tok);
         return (
-          <div key={i} data-about-prompt="" style={{ marginTop: i ? 12 : 0, padding: 12, borderRadius: 12, background: E.BG2, border: `1px solid ${ea(0.14)}` }}>
-            <select aria-label={tr('profile:mine.qaQuestion', { defaultValue: 'Question {n}', n: i + 1 })} value={tok} onChange={(e) => setPrompt(i, 'q', e.target.value)} style={{ ...inp, background: E.BG }}>
-              {BS_COACH_PROMPTS.map((o) => <option key={o.id} value={o.id}>{bsPromptLabel(o.id, tr)}</option>)}
-              {known ? null : <option value={tok}>{bsPromptLabel(tok, tr)}</option>}
-            </select>
-            <textarea data-about-answer="" value={p.a} maxLength={BS_PROMPT_A_MAX} rows={3} onChange={(e) => setPrompt(i, 'a', e.target.value)}
-              aria-label={tr('profile:mine.qaAnswer', { defaultValue: 'Answer {n}', n: i + 1 })} placeholder={tr('profile:editor.ph.promptAnswer', { defaultValue: 'Your answer…' })} style={{ ...area, minHeight: 84, marginTop: 8, background: E.BG }} />
-            <button type="button" data-about-prompt-remove="" onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))} style={{ ...smallBtn, marginTop: 8, border: 0, padding: 0, color: ea(0.7) }}>{tr('profile:mine.qaRemove', { defaultValue: 'Remove' })}</button>
+          <div key={i} data-about-prompt="" data-about-cell="" style={{ ...ABOUT_CARD, marginTop: i ? 10 : 0 }}>
+            {/* The question is the card's head: pick it, then answer under the hairline. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, paddingLeft: 14 }}>
+              <span style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex' }}>
+                <select aria-label={tr('profile:mine.qaQuestion', { defaultValue: 'Question {n}', n: i + 1 })} value={tok} onChange={(e) => setPrompt(i, 'q', e.target.value)}
+                  style={{ ...ABOUT_BARE, appearance: 'none', WebkitAppearance: 'none', paddingRight: 22, fontFamily: DISPLAY, fontSize: 15.5, fontWeight: 600, textOverflow: 'ellipsis', cursor: 'pointer' }}>
+                  {BS_COACH_PROMPTS.map((o) => <option key={o.id} value={o.id}>{bsPromptLabel(o.id, tr)}</option>)}
+                  {known ? null : <option value={tok}>{bsPromptLabel(tok, tr)}</option>}
+                </select>
+                <svg aria-hidden width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={E.ED} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', right: 4, top: '50%', marginTop: -6, pointerEvents: 'none' }}><path d="m6 9 6 6 6-6" /></svg>
+              </span>
+              <button type="button" data-about-prompt-remove="" onClick={() => setPrompts((prev) => prev.filter((_, j) => j !== i))}
+                aria-label={tr('profile:mine.qaRemove', { defaultValue: 'Remove' })} style={aboutX}><span aria-hidden>×</span></button>
+            </div>
+            <div aria-hidden style={{ height: 1, margin: '0 14px', background: ABOUT_HAIR }} />
+            <GrowText data-about-answer="" value={p.a} maxLength={BS_PROMPT_A_MAX} rows={3} minHeight={88} onChange={(e) => setPrompt(i, 'a', e.target.value)}
+              aria-label={tr('profile:mine.qaAnswer', { defaultValue: 'Answer {n}', n: i + 1 })} placeholder={tr('profile:editor.ph.promptAnswer', { defaultValue: 'Your answer…' })} style={{ padding: '10px 14px 12px' }} />
           </div>
         );
       })}
       {prompts.length < BS_PROMPTS_MAX ? (
-        <button type="button" data-about-prompt-add="" onClick={() => setPrompts((prev) => [...prev, { q: (unused || BS_COACH_PROMPTS[0]).id, a: '' }])} style={{ ...smallBtn, marginTop: prompts.length ? 12 : 0 }}>＋ {tr('profile:mine.qaAdd', { defaultValue: 'Add a question' })}</button>
+        <button type="button" data-about-prompt-add="" onClick={() => setPrompts((prev) => [...prev, { q: (unused || BS_COACH_PROMPTS[0]).id, a: '' }])} style={{ ...aboutAdd, marginTop: prompts.length ? 8 : 0 }}>＋ {tr('profile:mine.qaAdd', { defaultValue: 'Add a question' })}</button>
       ) : null}
 
-      <Eyebrow>{tr('profile:mine.socials', { defaultValue: 'Your socials' })}</Eyebrow>
-      {BS_PROFILE_LINK_KEYS.map((k) => (
-        <div key={k} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', alignItems: 'center', gap: 10, marginTop: 8 }}>
-          <label htmlFor={`mine-link-${k}`} style={{ fontSize: 14, color: ea(0.8) }}>{bsLinkName(k, tr)}</label>
-          <input id={`mine-link-${k}`} data-about-link={k} value={links[k] || ''} maxLength={BS_LINK_MAX} onChange={(e) => setLinks((l) => ({ ...l, [k]: e.target.value }))}
-            autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url"
-            placeholder={k === 'website' ? tr('profile:editor.ph.linkSite', { defaultValue: 'yoursite.com' }) : `@${tr('profile:editor.ph.linkHandle', { defaultValue: 'you' })}`} style={inp} />
-        </div>
-      ))}
+      <AboutHead n={6} title={tr('profile:mine.socials', { defaultValue: 'Your socials' })} />
+      <div style={ABOUT_CARD}>
+        {BS_PROFILE_LINK_KEYS.map((k, i) => (
+          <div key={k} data-about-cell="" style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', alignItems: 'center', gap: 10, padding: '0 14px', borderTop: i ? hair : 0 }}>
+            <label htmlFor={`mine-link-${k}`} style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'center', fontSize: 14, color: ea(0.72) }}>{bsLinkName(k, tr)}</label>
+            <input id={`mine-link-${k}`} data-about-link={k} value={links[k] || ''} maxLength={BS_LINK_MAX} onChange={(e) => setLinks((l) => ({ ...l, [k]: e.target.value }))}
+              autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url"
+              placeholder={k === 'website' ? tr('profile:editor.ph.linkSite', { defaultValue: 'yoursite.com' }) : `@${tr('profile:editor.ph.linkHandle', { defaultValue: 'you' })}`} style={{ ...ABOUT_BARE, minHeight: 50 }} />
+          </div>
+        ))}
+      </div>
       {/* The head shows them too, if the coach chooses (owner, 2026-11-03). Off unless turned on. */}
       <button type="button" role="switch" aria-checked={headLinks} data-about-head-links="" onClick={() => setHeadLinks(!headLinks)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%', minHeight: 48, marginTop: 12, padding: '0 2px', border: 0, background: 'transparent', color: E.INK, cursor: 'pointer', textAlign: 'left', fontFamily: BODY, fontSize: 14.5 }}>
+        style={{ ...ABOUT_CARD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%', minHeight: 54, marginTop: 10, padding: '0 14px', color: E.INK, cursor: 'pointer', textAlign: 'left', fontFamily: BODY, fontSize: 15 }}>
         <span>{tr('profile:mine.socialsInHead', { defaultValue: 'Show them at the top of your page' })}</span>
         <span aria-hidden style={{ flex: 'none', width: 42, height: 24, borderRadius: 999, background: headLinks ? E.ED : ea(0.22), position: 'relative', transition: 'background 160ms ease' }}>
           <span style={{ position: 'absolute', top: 3, left: headLinks ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: headLinks ? E.ON_ED : E.INK, transition: 'left 160ms ease' }} />
@@ -1156,7 +1245,7 @@ function KitchenTab({ tr, look, kitchen, setKitchen, startSection = null, owner,
 }
 
 // ── The editor ──────────────────────────────────────────────────────────────────────────────
-export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], programs = [], onClose, onSaved }) {
+export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null, initial = null, startTab = 'colors', startSection = null, who = {}, words = null, photos = [], programs = [], onClose, onSaved, onSettings = null }) {
   const tr = useShapeTr();
   // The app's gutter, so the masthead and ← Back sit where they sit on every page (owner,
   // 2026-10-31); the chrome's hook is on window before any page renders.
@@ -1297,7 +1386,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (badLink) { setTab('about'); setErr(tr('profile:mine.errLink', { defaultValue: 'Check {network}: a handle like @you, or an address starting with https://', network: bsLinkName(badLink, tr) })); return; }
     // The demo also says which keys were changed here, so its page keeps only those over its own
     // sample (whose station names follow the language; Codex P2 on #2486).
-    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged }); return; }
+    if (demo) { onSaved && onSaved(bsNormalizeProfileCustom(withChanges(initial || {}), null), { look: lookChanged, cover: wallChanged, studio: studioChanged, kitchen: kitchenChanged, about: aboutChanged, prompts: promptsChanged, links: linksChanged, headLinks: headLinksChanged }); thenTool(); return; }
     const uid = owner;
     if (!uid || signedInUid() !== uid) { setErr(tr('profile:mine.errSignIn', { defaultValue: 'Sign in to save your page.' })); return; }
     if (uploading) { setErr(tr('profile:mine.errBusy', { defaultValue: 'Hang on, your photo is still uploading.' })); return; }
@@ -1319,10 +1408,29 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     setBusy(false);
     if (!res || res.error) { setErr((res && res.error && res.error.message) || tr('profile:mine.errSave', { defaultValue: "Couldn't save. Nothing changed; try again." })); return; }
     onSaved && onSaved(clean);
+    thenTool();
   };
   // A recipe still being written is unsaved work too (Codex P2 on #2497): leaving asks first.
   const unsaved = dirty || recipeOpen;
-  const back = () => { if (unsaved) setLeaving(true); else onClose && onClose(); };
+  // The masthead's tools (✦ Nora, ⌕ Search, ⚙ Settings) are on this page as on every page (owner,
+  // 2026-11-04: "with correct masthead as well"). Each leaves the editor first. With changes not yet
+  // saved, a tap asks as Back does, and the tool runs once the coach saves or leaves without saving.
+  const toolRef = React.useRef(null);
+  const runTool = (k) => {
+    if (k === 'settings' && typeof onSettings === 'function') { onSettings(); return; }
+    const name = k === 'nora' ? 'shape:openNora' : k === 'search' ? 'shape:openSearch' : 'shape:openProfile';
+    try { window.dispatchEvent(new window.CustomEvent(name)); } catch (e) {}
+  };
+  const thenTool = () => { const k = toolRef.current; toolRef.current = null; if (k) setTimeout(() => runTool(k), 0); };
+  const leaveNow = () => { onClose && onClose(); thenTool(); };
+  const guardTool = (e) => {
+    const b = e.target && e.target.closest ? e.target.closest('button') : null;
+    if (!unsaved || !b) return;
+    e.preventDefault(); e.stopPropagation();
+    toolRef.current = b.hasAttribute('data-nora-corner') ? 'nora' : b.hasAttribute('data-bs-settings-corner') ? 'settings' : 'search';
+    setLeaving(true);
+  };
+  const back = () => { toolRef.current = null; if (unsaved) setLeaving(true); else onClose && onClose(); };
 
   const head = {
     colors: [tr('profile:mine.colorsTitle', { defaultValue: 'Your colors' }), tr('profile:mine.colorsSub', { defaultValue: 'Pick from Shape’s papers and accents. Your whole page follows.' })],
@@ -1349,11 +1457,41 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     const over = hit.getBoundingClientRect().bottom + 12 - bar.getBoundingClientRect().top;
     if (over > 0) root.scrollTop += over;
   }, [unsaved]);
-  const el = (
-    <div ref={scrollRef} onClickCapture={(e) => { const tg = e.target; tapRef.current = (tg && tg.closest && tg.closest('button, [role="button"], label, input, select')) || tg; }} className="bs-scroll" data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, background: E.BG, color: E.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
+  // The pinned masthead (BSPage's, on this takeover of its own): once the page's own masthead has
+  // scrolled 64px away, a bar slides in with ← (the page's Back has gone under it), the mark and Vol·No,
+  // and the tools, so they stay in sight down the page (owner, 2026-11-04).
+  const [pinned, setPinned] = React.useState(false);
+  const reduced = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const Search = window.BSSearchCorner, Settings = window.BSSettingsCorner;
+  const corner = window.BS_HEADER_AVATAR || 34;
+  const tools = Search || Settings ? (
+    <span data-mine-tools="" onClickCapture={guardTool} style={{ display: 'flex', alignItems: 'center', gap: window.BS_CORNER_GAP || 8 }}>
+      {Search ? <Search size={corner} ink={E.INK} close={() => onClose && onClose()} /> : null}
+      {Settings ? <Settings size={corner} ink={E.INK} onClick={() => { onClose && onClose(); setTimeout(() => runTool('settings'), 0); }} /> : null}
+    </span>
+  ) : null;
+  const pinnedBar = (
+    <div data-mine-pinned-mast="" aria-hidden={!pinned} inert={!pinned} style={{
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4,
+      padding: `max(calc(12px + env(safe-area-inset-top, 0px)), var(--bs-notch-floor, 0px)) ${gut}px 11px`,
+      background: E.BG, color: E.INK, borderBottom: `1px solid ${ea(0.14)}`,
+      transform: pinned ? 'translateY(0)' : 'translateY(-110%)', opacity: pinned ? 1 : 0, pointerEvents: pinned ? 'auto' : 'none',
+      transition: reduced ? 'none' : 'transform 200ms ease, opacity 200ms ease',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
+        <button type="button" data-bs-pin-back="" onClick={back} aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
+          width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0, display: 'grid', placeItems: 'center',
+          background: 'transparent', border: 0, cursor: 'pointer', color: E.INK, fontSize: 18, lineHeight: 1,
+        }}><span aria-hidden>←</span></button>
+        <div style={{ flex: 1, minWidth: 0 }}>{window.BSMastRow ? <window.BSMastRow trailing={tools} ink={E.INK} /> : null}</div>
+      </div>
+    </div>
+  );
+  const scroller = (
+    <div ref={scrollRef} onScroll={(e) => setPinned(e.currentTarget.scrollTop > 64)} onClickCapture={(e) => { const tg = e.target; tapRef.current = (tg && tg.closest && tg.closest('button, [role="button"], label, input, select')) || tg; }} className="bs-scroll" data-mine-scroll="" style={{ position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden' }}>
       <div style={{ padding: `calc(${window.BS_MAST_TOP_CSS || '12px'}) ${gut}px ${unsaved ? 24 : 40}px` }}>
-        {/* The masthead row and the back row every page has. No corner: it would leave an unsaved draft. */}
-        {window.BSMastRow ? <window.BSMastRow trailing={null} ink={E.INK} /> : null}
+        {/* The masthead row and the back row every page has: the mark and Vol·No, the tools in their pill. */}
+        {window.BSMastRow ? <window.BSMastRow trailing={tools} ink={E.INK} /> : null}
         {window.BSBackRow ? <window.BSBackRow onBack={back} ink={E.INK}
           trailing={<span style={{ fontFamily: MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: E.ED }}>{tr('profile:mine.eyebrow', { defaultValue: 'Your page' })}</span>} /> : null}
         <div style={{ marginTop: 8 }}>
@@ -1379,7 +1517,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
           {leaving ? <p style={{ margin: '0 0 6px', fontSize: 13, color: ea(0.8) }}>{tr('profile:mine.leaveAsk', { defaultValue: "You haven't saved these changes." })}</p> : <p style={{ margin: '0 0 6px', fontSize: 12.5, color: ea(0.6) }}>{demo ? tr('profile:mine.demoNote', { defaultValue: 'A sample page: your changes show here until you leave. Sign in to save yours.' }) : tr('profile:mine.saveNote', { defaultValue: 'Members see it as soon as you save.' })}</p>}
           {err ? <p role="alert" style={{ margin: '0 0 8px', fontSize: 13.5, color: E.ERR }}>{err}</p> : null}
           <div style={{ display: 'flex', gap: 8 }}>
-            {leaving ? <button type="button" data-leave-mine="" onClick={() => onClose && onClose()} style={{ ...smallBtn, flex: '1.5 1 0px', minWidth: 0, minHeight: 40, padding: '6px 12px', borderRadius: 999, lineHeight: 1.15 }}>{tr('profile:mine.leave', { defaultValue: 'Leave without saving' })}</button> : null}
+            {leaving ? <button type="button" data-leave-mine="" onClick={leaveNow} style={{ ...smallBtn, flex: '1.5 1 0px', minWidth: 0, minHeight: 40, padding: '6px 12px', borderRadius: 999, lineHeight: 1.15 }}>{tr('profile:mine.leave', { defaultValue: 'Leave without saving' })}</button> : null}
             <button type="button" data-save-mine="" onClick={save} disabled={busy || uploading}
               style={{ flex: '1 1 0px', minWidth: 0, minHeight: 40, padding: '6px 12px', borderRadius: 999, border: 0, background: E.ED, color: E.ON_ED, fontFamily: DISPLAY, fontSize: 14, fontWeight: 600, lineHeight: 1.15, cursor: busy ? 'default' : 'pointer', opacity: busy || uploading ? 0.6 : 1 }}>
               {busy ? tr('profile:mine.saving', { defaultValue: 'Saving…' }) : tr('profile:mine.save', { defaultValue: 'Save' })}
@@ -1389,5 +1527,18 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       ) : null}
     </div>
   );
+  // The editor's chrome is the app's dark paper whatever paper the app is on, so the shared masthead
+  // pieces (the pill, ✦'s teal, the mark) are drawn on the dark palette here, at the reader's own
+  // density and text size.
+  const Dark = window.BSProvider;
+  const body = (
+    <div data-make-it-yours="" style={{ position: 'absolute', inset: 0, zIndex: 225, overflow: 'hidden', background: E.BG, color: E.INK, colorScheme: 'dark', fontFamily: BODY, WebkitFontSmoothing: 'antialiased' }}>
+      {scroller}
+      {pinnedBar}
+    </div>
+  );
+  const el = Dark && theme ? (
+    <Dark paperMode="dark" accentKey="teal" densityKey={theme.densityKey} borderKey={theme.borderKey} weightKey={theme.weightKey} textScaleKey={theme.textScaleKey}>{body}</Dark>
+  ) : body;
   return host ? createPortal(el, host) : el;
 }

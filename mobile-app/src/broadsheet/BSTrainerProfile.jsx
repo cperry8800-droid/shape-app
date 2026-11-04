@@ -689,7 +689,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     const photos = demo ? demo.photos : [media.cover, ...(gallery.map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
     return <BSMakeItYours role={role} demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} startSection={editSection} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
       programs={programs.map((pr) => ({ id: pr.id, name: pr.name }))}
-      onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
+      onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} onSettings={onOpenSettings} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
   if (page === 'business') return <BSCoachBusinessPage role={role} tab="money" onBack={() => setPage(null)} />;
