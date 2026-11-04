@@ -17,9 +17,10 @@ const MAIN = 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx';
 const GUIDE = 'mobile-app/src/services/nutritionAssign.mjs';
 const PLANS_ROUTE = 'src/app/api/coach/plans/route.ts';
 const LEAVE = 'mobile-app/src/services/leaveGuard.mjs';
+const WEB_MEALS = 'public/newdesign/dashMealBuilder.jsx';
 
 export default {
-  test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs tests/coach-plans-api.test.mjs',
+  test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs tests/coach-plans-api.test.mjs tests/coach-builder-layouts.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── the builder document's edits ──
@@ -41,15 +42,15 @@ export default {
     { name: 'the picker ignores what the plan leaves out', file: EDITOR,
       find: '    const foods = foodsFor(M, doc, query);', replace: '    const foods = M.searchFoods(query, null);' },
     { name: 'Save writes the whole stored detail back', file: EDITOR,
-      find: '        meta: mealPlanMeta(M, doc), detail: { mealBuilder: doc },', replace: '        meta: mealPlanMeta(M, doc), detail: { ...(plan.detail || {}), mealBuilder: doc },' },
+      find: '        meta: mealPlanMeta(M, toSave), detail: { mealBuilder: toSave },', replace: '        meta: mealPlanMeta(M, toSave), detail: { ...(plan.detail || {}), mealBuilder: toSave },' },
     { name: 'Save does not name the account', file: EDITOR,
       find: "        id: plan.id, name: savedName, ...(ownerId ? { expectedOwnerId: ownerId } : {}),", replace: '        id: plan.id, name: savedName,' },
     { name: 'Assign does not save changes first', file: EDITOR,
-      find: '    const row = dirty ? await save() : { ...plan,', replace: '    const row = false ? await save() : { ...plan,' },
+      find: '    const row = unsaved ? await save() : { ...plan,', replace: '    const row = false ? await save() : { ...plan,' },
     { name: 'Assign goes on after a failed save', file: EDITOR,
       find: '    if (row) onAssign(row);', replace: '    onAssign(row || plan);' },
     { name: 'Back with changes leaves without asking', file: EDITOR,
-      find: '    if (dirty && !(await askLeave())) return;', replace: '    if (false && !(await askLeave())) return;' },
+      find: '    if (unsaved && !(await askLeave())) return;', replace: '    if (false && !(await askLeave())) return;' },
     { name: 'a target out of range stays in its box', file: EDITOR,
       find: '    if (next === doc) setTargetText((s) => ({ ...s, [k]: doc.targets[k] }));', replace: '    if (next === doc) {}' },
     // ── the Plans page ──
@@ -205,13 +206,24 @@ export default {
     { name: 'an older screen\'s release drops the newer guard', file: LEAVE,
       find: '  return () => { if (w[KEY] === ask) delete w[KEY]; };', replace: '  return () => { delete w[KEY]; };' },
     { name: 'the editor holds no guard while unsaved', file: EDITOR,
-      find: '  React.useEffect(() => (dirty ? holdLeave(window, askLeave) : undefined), [dirty]);', replace: '' },
+      find: '  React.useEffect(() => (unsaved ? holdLeave(window, askLeave) : undefined), [unsaved]);', replace: '' },
     { name: 'an emptied name stays blank after Save', file: EDITOR,
       find: '{ setDirty(false); if (name !== savedName) setName(savedName); }', replace: '{ setDirty(false); }' },
     { name: 'the nutritionist\'s tab bar switches without asking', file: PROS,
       find: '<BSTabBar active={tab} onChange={(k) => { mayLeave(window).then((ok) => { if (ok) setTab(k); }); }} tabs={[', replace: '<BSTabBar active={tab} onChange={setTab} tabs={[' },
     { name: 'a swipe to the next tab leaves without asking', file: PROS,
       find: '  const onNavGesture = (intent) => { mayLeave(window).then((ok) => { if (ok) stepNav(intent); }); };', replace: '  const onNavGesture = (intent) => stepNav(intent);' },
+    // ── review round 7 (Codex on 3304662) ──
+    { name: 'a typed target is not unsaved', file: EDITOR,
+      find: '  const unsaved = dirty || typing;', replace: '  const unsaved = dirty;' },
+    { name: 'Save leaves a typed target unread', file: EDITOR,
+      find: '    Object.keys(targetText).forEach((k) => { toSave = setTarget(toSave, k, targetText[k]); });\n', replace: '' },
+    { name: 'the website\'s save names no revision', file: WEB_MEALS,
+      find: '...(persisted.current?{expectedRevision:revRef.current}:{}),', replace: '' },
+    { name: 'the website keeps the revision it opened after a save', file: WEB_MEALS,
+      find: 'revRef.current=Number(data.plan.detail&&data.plan.detail.revision)||0;', replace: '' },
+    { name: 'the website hands the library no revision', file: WEB_MEALS,
+      find: 'doc:value.doc,revision:revRef.current});', replace: 'doc:value.doc});' },
     { name: 'the root switches coach apps without asking', file: MAIN,
       find: '      mayLeave(window).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);', replace: '      Promise.resolve(true).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);' },
     { name: 'the trainer shell never lets go of Nora\'s open', file: PROS,

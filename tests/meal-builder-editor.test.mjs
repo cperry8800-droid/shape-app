@@ -309,6 +309,34 @@ test('the editor: while it has unsaved changes it holds the leave guard the tab 
   delete W.ShapeCoachPlans; delete W.bsAskConfirm;
 });
 
+test('the editor: a target typed and not yet read is unsaved, and Save reads it (Codex on #2594)', async () => {
+  const { mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
+  const asked = [];
+  W.bsAskConfirm = async (o) => { asked.push(o.title); return false; };
+  const calls = [];
+  W.ShapeCoachPlans = { update: async (body) => { calls.push(body); return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }; } };
+  const m = await mount({ plan: PLAN, onClose: () => {} });
+  try {
+    await m.type(m.q('[data-meal-target="p"]'), '177');
+    assert.equal(await mayLeave(W), false, 'typed, not blurred: a swipe asks');
+    assert.deepEqual(asked, ['Leave without saving?']);
+    assert.match(m.text(), /Unsaved changes/);
+    await m.click(m.q('[data-meal-save]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(calls.length, 1, 'Save is open to it');
+    assert.equal(calls[0].detail.mealBuilder.targets.p, 177, 'and saves the typed target');
+    asked.length = 0;
+    assert.equal(await mayLeave(W), true, 'saved: nothing to ask');
+    assert.equal(asked.length, 0);
+    // A typed target out of range goes back to the one it had, as on blur, and is not saved as unsaved work.
+    await m.type(m.q('[data-meal-target="kcal"]'), '300');
+    await m.click(m.q('[data-meal-save]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(m.q('[data-meal-target="kcal"]').value, String(NORA.targets.kcal));
+    assert.equal(calls[1].detail.mealBuilder.targets.kcal, NORA.targets.kcal);
+  } finally { await m.close(); delete W.ShapeCoachPlans; delete W.bsAskConfirm; }
+});
+
 test('the editor: a name emptied and saved is the plan\'s own again, in the field too (Codex on #2594)', async () => {
   const calls = [];
   W.ShapeCoachPlans = { update: async (body) => { calls.push(body); return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }; } };

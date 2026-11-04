@@ -69,13 +69,17 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     message: tr('coach:mealEditor.leaveMsg', { defaultValue: 'Your changes to this plan are not saved.' }),
     confirmLabel: tr('coach:mealEditor.leave', { defaultValue: 'Leave without saving' }),
   }));
+  // A target typed but not yet read (it is read on blur) is unsaved too (Codex on #2594): a swipe
+  // straight after typing must not drop it.
+  const typing = !!doc && Object.keys(targetText).some((k) => String(targetText[k] == null ? '' : targetText[k]) !== String(doc.targets[k] == null ? '' : doc.targets[k]));
+  const unsaved = dirty || typing;
   const close = async () => {
-    if (dirty && !(await askLeave())) return;
+    if (unsaved && !(await askLeave())) return;
     onClose();
   };
   // ⚠ The tab bar is under this editor (Codex on #2594): while it has unsaved changes, a tab tap or a
   // jump elsewhere asks the same question Back does (services/leaveGuard.mjs), never drops them.
-  React.useEffect(() => (dirty ? holdLeave(window, askLeave) : undefined), [dirty]);
+  React.useEffect(() => (unsaved ? holdLeave(window, askLeave) : undefined), [unsaved]);
 
   const head = (trailing) => (
     <>
@@ -111,7 +115,12 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     if (status === 'saving') return null;
     if (!window.ShapeCoachPlans?.update) { setStatus('error'); setErr(tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' })); return null; }
     setStatus('saving'); setErr('');
-    const sent = { doc, name };
+    // A target still being typed is read now, as its blur would (a tap on Save may not blur it first).
+    let toSave = doc;
+    Object.keys(targetText).forEach((k) => { toSave = setTarget(toSave, k, targetText[k]); });
+    if (toSave !== doc) setDoc(toSave);
+    setTargetText({ ...toSave.targets });
+    const sent = { doc: toSave, name };
     // An emptied name is saved as the plan's own, and the field shows it again: never "Saved" over a
     // blank the plan doesn't have (Codex on #2594).
     const savedName = name.trim() || plan.name;
@@ -122,7 +131,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
         // refused with the route's words, and this document stays here, never written over it.
         expectedRevision: Number(plan.detail && plan.detail.revision) || 0,
         // The route merges `detail` over the stored one, so only the document is replaced.
-        meta: mealPlanMeta(M, doc), detail: { mealBuilder: doc },
+        meta: mealPlanMeta(M, toSave), detail: { mealBuilder: toSave },
       });
       const unchanged = onScreen.current.doc === sent.doc && onScreen.current.name === sent.name;
       if (unchanged) { setDirty(false); if (name !== savedName) setName(savedName); }
@@ -135,7 +144,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     }
   };
   const assign = async () => {
-    const row = dirty ? await save() : { ...plan, name: name.trim() || plan.name, detail: { ...(plan.detail || {}), mealBuilder: doc } };
+    const row = unsaved ? await save() : { ...plan, name: name.trim() || plan.name, detail: { ...(plan.detail || {}), mealBuilder: doc } };
     if (row) onAssign(row);
   };
 
@@ -184,7 +193,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   const floor = doc.constraints && doc.constraints.proteinFloor;
   const statusText = status === 'saving' ? tr('coach:mealEditor.saving', { defaultValue: 'Saving…' })
     : status === 'saved' ? tr('coach:mealEditor.saved', { defaultValue: 'Saved' })
-    : dirty ? tr('coach:mealEditor.unsaved', { defaultValue: 'Unsaved changes' }) : '';
+    : unsaved ? tr('coach:mealEditor.unsaved', { defaultValue: 'Unsaved changes' }) : '';
   const targetKeys = [
     ['kcal', tr('coach:mealEditor.kcal', { defaultValue: 'Calories' })],
     ['p', tr('coach:mealEditor.protein', { defaultValue: 'Protein g' })],
@@ -255,7 +264,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
           ) : null}
 
           {err ? <p role="alert" style={{ margin: '14px 0 0', fontFamily: BS_CLEAN_SANS, fontSize: 13, color: t.RUST || '#c0533b' }}>{err}</p> : null}
-          <button type="button" data-meal-save="" onClick={save} disabled={status === 'saving' || !dirty} style={{ ...primaryBtn(t, status === 'saving' || !dirty), marginTop: 22 }}>{status === 'saving' ? tr('coach:mealEditor.saving', { defaultValue: 'Saving…' }) : tr('coach:mealEditor.save', { defaultValue: 'Save' })}</button>
+          <button type="button" data-meal-save="" onClick={save} disabled={status === 'saving' || !unsaved} style={{ ...primaryBtn(t, status === 'saving' || !unsaved), marginTop: 22 }}>{status === 'saving' ? tr('coach:mealEditor.saving', { defaultValue: 'Saving…' }) : tr('coach:mealEditor.save', { defaultValue: 'Save' })}</button>
           <button type="button" data-meal-assign="" onClick={assign} disabled={status === 'saving'} style={{ ...quietBtn(t, status === 'saving'), marginTop: 10 }}>{tr('coach:mealEditor.assign', { defaultValue: 'Assign to a client' })}</button>
         </BSCleanType>
       </section>
