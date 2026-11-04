@@ -1215,3 +1215,47 @@ test('every language\'s sample words fit the caps the profile doc cuts at', () =
     }
   }
 });
+
+// The Shape Score row on a coach's page, as on a member's (owner, 2026-11-04: "Add the Shape Score row to
+// coach profiles too"; it was a small "Shape Score 3,100 ›" on the coach's own page only).
+test('a coach\'s page has the Shape Score row: theirs opens the Score page, another coach\'s only shows it', async () => {
+  const row = () => document.querySelector('[data-coach-score]');
+  // A visitor: the row shows Nadia's score and opens nothing.
+  reset();
+  let m = await mount(page());
+  assert.ok(row(), 'no Shape Score row on a coach\'s page');
+  assert.equal(row().tagName, 'DIV', 'a visitor\'s row is a door');
+  assert.equal(row().getAttribute('role'), 'group');
+  assert.match(row().getAttribute('aria-label'), /^Shape Score: (.+ tier · )?3,100 pts$/);
+  assert.match(row().textContent, /^Shape Score.*3,100 pts$/);
+  assert.equal(row().querySelectorAll('svg').length, 1, 'a chevron where nothing opens');
+  assert.doesNotMatch(m.text(), /Shape Score 3,100 ›/, 'the old link is back');
+  await m.unmount();
+  // Her own page: a door to the Score page, through the host's way there, else shape:openScore.
+  reset({ me: 'u-nadia', stored: {} });
+  let opened = 0;
+  m = await mount(page({ isSelf: true, onOpenScore: () => { opened += 1; } }));
+  assert.equal(row().tagName, 'BUTTON');
+  assert.equal(row().querySelectorAll('svg').length, 2, 'the award and the chevron');
+  await click(row());
+  assert.equal(opened, 1);
+  await m.unmount();
+  const sent = [];
+  const hear = () => sent.push('shape:openScore');
+  window.addEventListener('shape:openScore', hear);
+  try {
+    m = await mount(page({ isSelf: true }));
+    await click(row());
+    assert.deepEqual(sent, ['shape:openScore'], 'with no host way there, the event both coach apps answer');
+    await m.unmount();
+  } finally { window.removeEventListener('shape:openScore', hear); }
+  // A coach with no score (no Shape account behind the page): no row.
+  const prev = window.ShapeProfiles.getPublicProfile;
+  window.ShapeProfiles.getPublicProfile = async (...a) => { const p = await prev(...a); return p ? { ...p, points: undefined } : p; };
+  try {
+    reset();
+    m = await mount(page());
+    assert.equal(row(), null, 'a row with no score');
+    await m.unmount();
+  } finally { window.ShapeProfiles.getPublicProfile = prev; }
+});
