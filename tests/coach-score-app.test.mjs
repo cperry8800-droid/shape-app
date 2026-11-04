@@ -287,7 +287,8 @@ test('the Shape Store, for a coach, spends the member ledger\'s balance and leav
   const s = await mount(React.createElement(MOD.BSShapeStorePage, { profile: P.trainer, onBack() {}, onOpenScore() {} }));
   try {
     assert.deepEqual(st.paths, ['/api/client/score'], 'the Store read the coach score for its balance');
-    assert.match(s.text(), /Available900/, 'the balance is the ledger\'s spendable balance');
+    // The wallet card names the rung between its label and the balance (2026-11-04).
+    assert.match(s.text(), /Available(?:[A-Z][a-z]+)?900pts/, 'the balance is the ledger\'s spendable balance');
     assert.deepEqual(window.ShapeScore, { points: 2370, tier: 'Elite' });
   } finally { await s.unmount(); }
 });

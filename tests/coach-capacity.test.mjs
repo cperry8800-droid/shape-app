@@ -637,7 +637,12 @@ test('the app gates intros on capacity as the calendar read it, not the catalogu
   const i = market.indexOf('  const rowAtCapacity = ');
   const j = market.indexOf('  const [wl, setWl] = useStateBSM2(null);', i);
   assert.ok(i > 0 && j > i, 'the listing\'s capacity lines');
-  const listing = new Function('coach', 'availCap', 'saleProviderRole', 'saleProviderId', `${market.slice(i, j)}\nreturn atCapacity;`);
+  // The row's rule is one function the listing and the directory's cards share: lift it with them.
+  const f = market.indexOf('function mktRowAtCapacity(c) {');
+  const g = market.indexOf('\n}\n', f) + 3;
+  assert.ok(f > 0 && g > f, 'the row\'s capacity rule');
+  const rule = market.slice(f, g);
+  const listing = new Function('coach', 'availCap', 'saleProviderRole', 'saleProviderId', `${rule}\n${market.slice(i, j)}\nreturn atCapacity;`);
   const open = { at_capacity: false, capacity_resume_at: null };
   const full = { at_capacity: true, capacity_resume_at: null };
   assert.equal(listing(open, null, 'trainer', 7), false, 'the row stands in until the read answers');
@@ -646,6 +651,12 @@ test('the app gates intros on capacity as the calendar read it, not the catalogu
   assert.equal(listing(full, { key: 'trainer:7', at: false }, 'trainer', 7), false, 'reopened after the marketplace loaded');
   assert.equal(listing(open, { key: 'trainer:8', at: true }, 'trainer', 7), false, 'another coach\'s answer is not this one\'s');
   assert.equal(listing(open, { key: 'nutritionist:7', at: true }, 'trainer', 7), false, 'nor another role\'s');
+  // src/lib/capacity.ts's rule: a resume date still ahead keeps them full, one gone by opens them.
+  const rowRule = new Function(`${rule}\nreturn mktRowAtCapacity;`)();
+  assert.equal(rowRule({ at_capacity: true, capacity_resume_at: new Date(Date.now() + 864e5).toISOString() }), true);
+  assert.equal(rowRule({ at_capacity: true, capacity_resume_at: new Date(Date.now() - 864e5).toISOString() }), false);
+  assert.equal(rowRule({ at_capacity: false, capacity_resume_at: null }), false);
+  assert.equal(rowRule(null), false);
   // The intro gate reads that state.
   assert.match(market.slice(j), /const introClosed = atCapacity && !introsAtCap && wl\?\.status !== 'invited';/);
   // The full profile takes the listing's answer; opened any other way, the row decides.
