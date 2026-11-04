@@ -24,11 +24,11 @@ export default {
     { name: 'the tempo heard ignores the rate', file: AIR,
       find: 'Math.round(bpm * (Number(item.rate) || 1) * 100) / 100', replace: 'Math.round(bpm * 100) / 100' },
     { name: '⚠ a set whose engine stopped is still called hers', file: AIR,
-      find: "    if (!last || !['started', 'song'].includes(last.event)) continue;", replace: "    if (!last) continue;" },
+      find: "  if (['started', 'song'].includes(last.event)) return true;", replace: '  return true;' },
     { name: 'an unpublished set is called hers', file: AIR,
       find: "    .eq('host_kind', 'nora').eq('published', true)\n    .lte(", replace: "    .eq('host_kind', 'nora')\n    .lte(" },
     { name: 'the album is dropped', file: AIR,
-      find: '      album: heard.item.album || null,', replace: '      album: null,' },
+      find: '      album: heard.item.album || null,\n      isNora: true,', replace: '      album: null,\n      isNora: true,' },
     { name: 'the route asks the station first', file: ROUTE,
       find: '    const nora = await noraOnAir(createAdminClient(), { now: Date.now() });\n    if (nora)', replace: '    const nora = null as unknown as Record<string, unknown> | null;\n    if (nora)' },
     // ── both surfaces ──

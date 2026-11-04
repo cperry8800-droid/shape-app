@@ -84,7 +84,7 @@ export default {
       find: '      if (rotation) return NextResponse.json({ ...rotation, simulated: false },', replace: '      if (rotation) return NextResponse.json(rotation,' },
     // ── the dashboard ──
     { name: '⚠ Shape\'s own station is saved without hearing it answer', file: ACT,
-      find: '  const probed = await probeStream(checked.value.stream_url);\n  if (!probed.ok) failed(probed.error);\n', replace: '' },
+      find: '  const probed = await probeStream(streamWithTicket(checked.value.stream_url, probeTicket.ticket));\n  if (!probed.ok) failed(probed.error);\n', replace: '' },
     { name: 'a non-admin can point the station', file: ACT,
       find: "export async function connectOwnStation(formData: FormData): Promise<void> {\n  await requireAdminUser();\n", replace: 'export async function connectOwnStation(formData: FormData): Promise<void> {\n' },
     // ── the stream's cross-origin header ──
