@@ -16472,6 +16472,8 @@ function bsProfileDistLabel(t, km) {
 // `previewCustom` is Customize's live preview (BSProfileCustomizer.jsx): the editor's drafts as a profile_custom
 // doc, read in place of the stored one, so the page shows them before they are saved. The editor renders the
 // page as a visitor does (not isSelf) and lets no tap through but Back and the tabs, so a preview writes nothing.
+// A post a member who does not follow its author can see: public, or for Shape's members (community).
+function bsPostSeenByStranger(p) { const v = String((p && p.privacy) || 'community'); return v === 'public' || v === 'community'; }
 function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = null, meMode = false, onOpenSettings = () => {}, onOpenScore = null, previewCustom = null }) {
   // Only render Message affordances where the HOST actually wired a handler
   // (it dismisses this profile before opening the thread) — no dead buttons.
@@ -16523,7 +16525,12 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
   const customRev = useBSUserGoalsRev(BS_PROFILE_CUSTOM_KINDS);
   React.useEffect(() => { let on = true; if (isSelf) { (async () => { try { const d = await window.shapeDb?.getUserGoals?.('profile_custom'); if (on && d) setCustom(d); } catch (e) {} })(); } return () => { on = false; }; }, [isSelf, customRev]);
   React.useEffect(() => { if (!isSelf && live && live.custom) setCustom(live.custom); }, [isSelf, live]);
-  const isPrivate = !!(live && (live.can_view === false || (live.can_view == null && live.is_public === false)));
+  // Customize's live preview is the page as a member who does not follow you sees it (Codex P2 on #2615): the
+  // owner's own read unlocks their private fields and posts, so the preview keeps only what a stranger gets.
+  const asVisitor = !!previewCustom;
+  const isPrivate = !!(live && (asVisitor
+    ? (live.is_public === false || live.visibility === 'friends' || live.visibility === 'private')
+    : (live.can_view === false || (live.can_view == null && live.is_public === false))));
   // For your OWN profile, tier + points come from the SAME live-score source as
   // the Me-page Score card + Settings (the client score profile, live when signed
   // in, demo otherwise) — so tier name, gem color, climb levels, and the score
@@ -16828,8 +16835,8 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
     // — the SAME rich cards + session details as the community/chat feed, so the two
     // never diverge and every profile shows ITS OWN activities (not one hardcoded
     // persona). Honest-data: a signed-in real profile shows only real activity.
-    const cards = (photoPosts || []).map((p) => bsProfileCardFromPost(p, 'Client')).filter(Boolean);
-    if (isSelf && realFeed && realFeed.length) {
+    const cards = (photoPosts || []).filter((p) => !asVisitor || bsPostSeenByStranger(p)).map((p) => bsProfileCardFromPost(p, 'Client')).filter(Boolean);
+    if (isSelf && !asVisitor && realFeed && realFeed.length) {
       return [...cards, ...realFeed.map((it, i) => itToCard({ ...it, _k: `it-${i}` }))];
     }
     if (signedIn) return cards;
@@ -31136,7 +31143,7 @@ Object.assign(window, {
   // And the client pieces the coach profile reads at call time (BSTrainerProfile.jsx), the
   // Kitchen's recipe page among them (a nutritionist's dishes and plates open it).
   bsGutter, useBSPinnedMastTop, useBSPresence, useBSProfilePhoto, bsInitials, bsIsUserOnline,
-  bsProfileCardFromPost, BSLogActivitySheet, BSShapeKitchenRecipe,
+  bsProfileCardFromPost, bsPostSeenByStranger, BSLogActivitySheet, BSShapeKitchenRecipe,
   // The member profile's activity card and its sheets, for the coach profile's activity feed.
   BSActivityCard, useBSCardSheets,
   BSNotifiedPerson,

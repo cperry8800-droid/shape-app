@@ -2750,6 +2750,9 @@ function communityPostFromRow(row) {
   return {
     id: row.id,
     author_id: row.author_id || null,
+    // Who may see it (public · community · followers · friends · private): a live preview in Customize shows
+    // only what a member who does not follow the author would (Codex P2 on #2615).
+    privacy,
     created_at: row.created_at || null,
     // ⚠ WHEN THE WORKOUT HAPPENED, WHICH IS NOT WHEN THE POST WAS MADE. Auto
     // posters used to collapse the two onto `created_at`; a card dating a

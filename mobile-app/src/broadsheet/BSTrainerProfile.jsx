@@ -295,7 +295,7 @@ function useTabEdges(nav, on) {
   return edges;
 }
 
-function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = null, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null }) {
+function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = null, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null, previewCustom = null }) {
   const W = window;
   const t = W.useBS();
   const tr = useShapeTr();
@@ -556,9 +556,16 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   React.useEffect(() => {
     if (!feedAuthor || !W.ShapeCommunity?.listByAuthor) return undefined;
     let on = true;
-    W.ShapeCommunity.listByAuthor(feedAuthor, { withPhotoOnly: false }).then((r) => { if (on) setPosts(Array.isArray(r && r.data) ? r.data : []); }).catch(() => {});
+    // The live preview from Make it yours shows only the posts a member who does not follow this coach sees
+    // (Codex P2 on #2615): the coach's own read also returns their followers-, friends- and private-only posts.
+    W.ShapeCommunity.listByAuthor(feedAuthor, { withPhotoOnly: false }).then((r) => {
+      if (!on) return;
+      const all = Array.isArray(r && r.data) ? r.data : [];
+      const seen = previewCustom && typeof W.bsPostSeenByStranger === 'function' ? all.filter(W.bsPostSeenByStranger) : all;
+      setPosts(seen);
+    }).catch(() => {});
     return () => { on = false; };
-  }, [feedAuthor, postsNonce]);
+  }, [feedAuthor, postsNonce, !!previewCustom]);
   // Their programs (the public preview of each), the workouts they posted on video, and the sessions
   // they logged without one (a session with a video is a workout, and keeps its sets).
   const postCards = nutri || demo ? [] : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Trainer') : null)).filter(Boolean);
