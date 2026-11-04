@@ -40,6 +40,11 @@ printf '%s' "$SHAPE_URL" | grep -Eq '^(https://[A-Za-z0-9.-]+|http://(127\.0\.0\
 printf '%s' "${NORA_ENGINE_TOKEN:-}" | grep -Eq '^[A-Za-z0-9._~-]{32,}$' \
   || fail 'NORA_ENGINE_TOKEN must be the engine token (32 or more characters), the same as in Vercel'
 STATION_TOKEN=$NORA_ENGINE_TOKEN
+# ⚠ A SECOND BEFORE NAMING THIS START (Codex, #2582). Shape orders the station's starts by the
+# second each was named in, and a session the last start left open ends at the next one. A restart
+# inside the same second would share it, and the earlier start's open sessions would never end. A
+# start begins after the one before it ended, so waiting a second puts its second after that one's.
+sleep 1
 BOOT="$(date -u +%s).$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s' "$BOOT" | grep -Eq '^[0-9]{9,11}\.[0-9a-f]{16}$' || fail 'could not name this start of the station'
 LISTENER_AUTH_URL="$SHAPE_URL/api/radio/pass?boot=$BOOT"

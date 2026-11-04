@@ -52,7 +52,12 @@ test('⚠ the server\'s config: the listeners\' mount falls back to the standby 
   assert.equal(auth[1], auth[2], 'one start, named on both');
   assert.ok(Math.abs(Number(auth[1].split('.')[0]) - Date.now() / 1000) < 60, 'named by its own time');
   assert.equal(auth[3], FAKE_ENGINE, 'the engine\'s token');
-  assert.notEqual(render(GOOD).xml.match(/boot=([0-9a-f.]+)/)[1], auth[1], 'each start its own name');
+  // ⚠ Each start its own name, in a later second than the one before (Codex, #2582): Shape closes a
+  // start's open sessions at the next start, found by its second.
+  const next = render(GOOD).xml.match(/boot=([0-9a-f.]+)/)[1];
+  assert.notEqual(next, auth[1], 'each start its own name');
+  assert.ok(Number(next.split('.')[0]) > Number(auth[1].split('.')[0]), `a restart is named in a later second: ${auth[1]} then ${next}`);
+  assert.match(read('services/station/icecast/entrypoint.sh'), /\nsleep 1\nBOOT="\$\(date -u \+%s\)\./, 'a second before naming each start');
   assert.ok(!/<authentication/.test(mount('/standby')));
   const outside = r.xml.replace(/<mount[\s\S]*?<\/mount>/g, '').replace(/<!--[\s\S]*?-->/g, '');
   assert.ok(!/<http-headers>/.test(outside), 'no top-level header block to double it');

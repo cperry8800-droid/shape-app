@@ -117,6 +117,8 @@ export default {
       find: 'LISTENER_AUTH_URL="$SHAPE_URL/api/radio/pass?boot=$BOOT"', replace: 'LISTENER_AUTH_URL="$SHAPE_URL/api/radio/pass"' },
     { name: 'the station starts with no token, or one that breaks its config', file: ENTRY,
       find: "printf '%s' \"${NORA_ENGINE_TOKEN:-}\" | grep -Eq '^[A-Za-z0-9._~-]{32,}$' \\\n  || fail 'NORA_ENGINE_TOKEN must be the engine token (32 or more characters), the same as in Vercel'\n", replace: '' },
+    { name: '⚠ two starts in one second share it (the earlier one\'s open sessions never end)', file: ENTRY,
+      find: 'sleep 1\nBOOT="$(date -u +%s).', replace: 'BOOT="$(date -u +%s).' },
     { name: 'every start of the station has the same name', file: ENTRY,
       find: "BOOT=\"$(date -u +%s).$(od -An -N8 -tx1 /dev/urandom | tr -d ' \\n')\"", replace: 'BOOT="1793318400.0123456789abcdef"' },
   ],
