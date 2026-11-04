@@ -103,6 +103,31 @@ test('leaving nutrition waits for edits made while its save is in flight',async(
   assert.equal(writes[0].id,writes[1].id);assert.equal(writes[1].detail.mealBuilder.targets.p,180);assert.equal(left,1);
 });
 
+test('the website meal builder names the revision it opened, then the one each save returns (Codex on #2594)',async()=>{
+  const copy=coachTemplateCopy(DashMeals.demoMealTemplates()[0]);
+  const template={...copy,id:'7c1e4a52-3b1d-4f0e-9a6b-1d2e3f4a5b6c',detail:{...copy.detail,revision:4}};
+  const writes=[];const saved=[];
+  globalThis.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);writes.push({method:opts.method,...body});return {ok:true,json:async()=>({plan:{...body,detail:{...body.detail,revision:(body.expectedRevision||0)+1}}})};};
+  await mount(DmbBuilder,template,{onSaved(v){saved.push(v);}});
+  await input('Daily Protein g target','181');
+  await click('← Library');
+  assert.equal(writes[0].method,'PATCH');
+  assert.equal(writes[0].expectedRevision,4,'the revision it opened');
+  await input('Daily Protein g target','182');
+  await click('← Library');
+  assert.equal(writes[1].expectedRevision,5,'then the one its save returned');
+  assert.equal(saved[saved.length-1].revision,6,'handed to the library, so reopening names it');
+});
+test('a new meal plan\'s first save names no revision',async()=>{
+  const template=coachTemplateCopy(DashMeals.demoMealTemplates()[0]);const writes=[];
+  globalThis.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);writes.push({method:opts.method,...body});return {ok:true,json:async()=>({plan:{...body,detail:{...body.detail,revision:1}}})};};
+  await mount(DmbBuilder,template);
+  await input('Daily Protein g target','183');
+  await click('← Library');
+  assert.equal(writes[0].method,'POST');
+  assert.ok(!('expectedRevision' in writes[0]));
+});
+
 test('the actual client preview offers safe coach demonstrations without autoplay',async()=>{
   root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(WorkoutCard,{workout:{title:'Strength',coach:'Coach',exercises:[{name:'Squat',video:'https://shape.test/squat.mp4'},{name:'Invalid',video:'javascript:alert(1)'}]},interactive:false})));

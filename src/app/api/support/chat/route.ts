@@ -110,9 +110,10 @@ type SupportAction =
 // The form a page says is open, reduced to a known form, step and filled keys.
 type FormCtx = { kind: string; step: number; filled: string[] };
 // `kind: 'coach_plan'` → the website follows `url`; the app opens the plan by id.
-// `planKind: 'meal_plan'`: a nutritionist's draft (draft_meal_plan), which the app lists under
-// Plans but cannot open; its card says it is edited in the website builder.
-type ProposalOpen = { kind: 'coach_plan'; planKind?: 'meal_plan'; planId: string; clientId?: string; url: string };
+// `planKind: 'meal_plan'`: a nutritionist's draft (draft_meal_plan, draft_nutrition_program), which
+// the app opens on Plans in its own editor. A program or diet carries no `url`: the website's meal
+// builder lists only its own documents.
+type ProposalOpen = { kind: 'coach_plan'; planKind?: 'meal_plan'; planId: string; clientId?: string; url?: string };
 
 type OpenAIContentPart = { type?: string; text?: string };
 type OpenAIOutputItem = {
@@ -322,7 +323,7 @@ const TOOLS = [
 
 // The write tools that DRAFT a confirm-required change (vs. read tools that
 // answer inline). Kept in sync with the registry's Tier-1/Tier-2 actions.
-const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'draft_meal_plan', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder', 'set_up_account']);
+const WRITE_TOOLS = new Set(['log_meal', 'set_client_goal', 'assign_workout', 'draft_workout', 'draft_meal_plan', 'draft_nutrition_program', 'assign_meal_plan', 'set_program_detail', 'add_review_note', 'reschedule_session', 'log_weigh_in', 'log_water', 'check_habit', 'set_reminder', 'set_up_account']);
 
 // ── Member-only tools (memory) ────────────────────────────────────────────────
 // Appended to the tool list ONLY for a verified member (computeMembership,
@@ -509,8 +510,9 @@ const TRAINER_TOOLS = [
   },
 ];
 // A nutritionist's or dietitian's turn: Nora drafts meal plans from Shape's meal library
-// (the Ask Nora plan, step 5; src/lib/ai/mealDraft.mjs). Offered to an account holding a
-// nutrition role, as the registry gates draft_meal_plan.
+// (the Ask Nora plan, step 5; src/lib/ai/mealDraft.mjs), and programs and diets with the plan
+// builder's own generator (src/lib/ai/nutritionDraft.mjs). Offered to an account holding a
+// nutrition role, as the registry gates draft_meal_plan and draft_nutrition_program.
 const NUTRITION_TOOLS = [
   {
     type: 'function',
@@ -537,12 +539,36 @@ const NUTRITION_TOOLS = [
     },
     strict: false,
   },
+  {
+    type: 'function',
+    name: 'draft_nutrition_program',
+    description:
+      "DRAFT a nutrition PROGRAM or a DIET for the NUTRITIONIST, the two kinds their Plans page keeps beside meal plans. kind 'program': a multi-week arc, a line a week saying what to work on (habits, routine, macros), with no meals. kind 'diet': options for each meal and the foods to favour and avoid. Use whenever they ask you to draft, build, create, write or make a program or a diet (a keto diet, a 6-week reset program). The server drafts every line with the plan builder's own generator and shows a card to review; it is saved UNPUBLISHED to their programs or diets in the Shape app for them to edit there (a program is published, never assigned to a client; a diet is assigned only once each day has a menu written), nothing is saved until they confirm, and it is never assigned to a client from here. A plan of days of meals with calories is a meal plan: use draft_meal_plan for that.",
+    parameters: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', enum: ['program', 'diet'], description: "'program' for a week-by-week arc; 'diet' for options per meal." },
+        request: { type: 'string', description: "What they asked for, in their own words, e.g. 'a 6-week habit reset for busy parents'." },
+        name: { type: 'string', description: 'A name for it, only if they gave one.' },
+        goal: { type: 'string', enum: ['Cut', 'Maintain', 'Lean bulk', 'Performance'], description: "The goal as they said or plainly meant; 'Maintain' if they did not say." },
+        diet: { type: 'string', enum: ['Omnivore', 'Vegetarian', 'Vegan', 'Pescatarian'], description: "The diet as they said it; 'Omnivore' if they did not say." },
+        weeks: { type: 'integer', description: "A program's length in weeks (2-12), only if they said." },
+        kcal: { type: 'integer', description: 'Daily calories, only if they gave a number.' },
+        clientName: { type: 'string', description: "The client's name as they said it, if it is for a client." },
+        clientId: { type: 'string', description: "The client's id from find_client." },
+      },
+      required: ['kind', 'request'],
+      additionalProperties: false,
+    },
+    strict: false,
+  },
 ];
 const NUTRITION_PROMPT_NOTE = [
   'MEAL PLAN DRAFTING: You CAN draft meal plans for this nutritionist — the one exception to "never invent a meal", because every meal comes from Shape\'s meal library, not from you.',
   'When they ask you to draft, build, create, write or make a meal plan, call draft_meal_plan with what they said: the goal phase, daily targets only if they gave numbers, days in the rotation, the meals of the day, what to leave out, the most prep minutes. For a client, find_client first; never guess one.',
   "The server picks each meal and adds up the macros: never name a meal or state a number it did not return. Targets they did not give are the builder's defaults for the phase, and the card says which. Shape's library is small (about two dozen dishes), so say they can swap in their own foods in the builder.",
-  'Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it to a client. You never assign it from here. Say that, never that it is done.',
+  'Nothing is saved until they confirm; it is saved unpublished to their meal plans, and the card opens it in the builder, where they edit it and assign it to a client: the Plans page in the Shape app, or the meal builder on the website. You never assign it from here. Say that, never that it is done.',
+  "PROGRAMS AND DIETS: When they ask you to draft, build, create, write or make a nutrition program (what to work on week by week) or a diet (options for each meal, foods to favour and avoid), call draft_nutrition_program with kind 'program' or 'diet' and their request in their own words, passing the goal, the diet, the weeks and the calories only as they said them. The server writes every line with the plan builder's generator: never write a line, a meal or a number of your own, and if the card says it is a template, say so. It is saved unpublished to their programs or diets on the Plans page of the Shape app, where they edit it and publish or assign it; a program holds no meals, so it is never put on a client's Eat tab. Say that, never that it is done.",
 ].join(' ');
 // "Talk to a person" (the Ask Nora plan, step 5): the button under the chat panels that draw
 // cards, for a signed-in account. Nora points to it; she cannot press it.
@@ -1090,6 +1116,13 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean, d
     if (name === 'set_up_account') {
       const budget = await countBudget(actor.supabase, actor.user.id, 'account_setup');
       if (!budget.allowed) return { result: { error: 'daily_budget', message: budgetReply('account_setup', budget.resetSeconds) }, actions: [] };
+    }
+    // A program or diet asks the plan builder's generator (a model call) for its card: counted against
+    // the account's AI drafting budget (`draft_program`, the one /api/ai/draft-program counts), before
+    // the preview, so a script cannot draft them all day.
+    if (name === 'draft_nutrition_program') {
+      const budget = await countBudget(actor.supabase, actor.user.id, 'draft_program');
+      if (!budget.allowed) return { result: { error: 'daily_budget', message: budgetReply('draft_program', budget.resetSeconds) }, actions: [] };
     }
     const res = await proposeChange({
       registry: serverRegistry,

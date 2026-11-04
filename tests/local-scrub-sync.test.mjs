@@ -296,14 +296,18 @@ function withWindow(run) {
   try { return run({ store, listeners }); } finally { globalThis.window = prev; }
 }
 
-test('sign-out removes account-owned coach workout drafts while keeping device preferences', async () => {
+test('sign-out removes account-owned coach workout and meal-plan drafts while keeping device preferences', async () => {
   const { shapeScrubLocalUserContent } = await import('../public/newdesign/localScrub.mjs');
+  const { mealDraftKey } = await import('../mobile-app/src/services/mealBuilderEdit.mjs');
   withWindow(({ store }) => {
     store.set('shape.coach.workout-draft.v1:coach-a:new-program', '{"note":"private cue"}');
     store.set('shape.coach.workout-draft.v1:coach-b:plan-id', '{"video":"private media"}');
+    // A nutritionist's unsaved meal plan, as the app's editor keeps it (Codex on #2594).
+    store.set(mealDraftKey('nutri-a', 'plan-1'), '{"name":"Private cut","doc":{}}');
     store.set('shape.locale', 'fr');
     shapeScrubLocalUserContent({ broadcast: false });
     assert.equal([...store.keys()].some(key => key.startsWith('shape.coach.workout-draft.')), false);
+    assert.equal([...store.keys()].some(key => key.startsWith('shape.coach.meal-draft.')), false, 'the meal-plan draft goes too');
     assert.equal(store.get('shape.locale'), 'fr');
   });
 });

@@ -1288,7 +1288,9 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       </div>
       {onBack && <BSBackRow onBack={onBack} />}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
-        {flank}{word(228)}{flank}
+        {/* A size up from 228 (owner, 2026-11-04: "make the club shape a little larger on home pages");
+            it still gives way on a narrow phone, the flanks keeping at least 10px. */}
+        {flank}{word(262)}{flank}
       </div>
       {dateline && (
         <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
@@ -1692,8 +1694,10 @@ function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
   const rows = Array.isArray(items) ? items : [];
   if (!rows.length) return null; // no metrics → no ticker strip (e.g. signed-in, no live data)
   return (
-    <div style={{
-      position: 'relative',
+    // 10px in from each side, the width of the deck and the panels under it on every Home (owner,
+    // 2026-11-04: "make this ticker box the same width as the boxes below it on all home pages").
+    <div data-bs-ticker="" style={{
+      position: 'relative', margin: '0 10px',
       background: t.INK, color: t.PAPER,
       clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)',
       borderLeft: `3px solid ${t.ACCENT}`,

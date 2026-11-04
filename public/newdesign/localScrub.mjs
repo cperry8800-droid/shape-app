@@ -110,6 +110,7 @@ export const SHAPE_SCRUB_KEYS = [
 // match these prefixes.
 export const SHAPE_SCRUB_PREFIXES = [
   'shape:coach-note-draft:', 'shape.coach.workout-draft.', // account-owned coach plans, cues and media
+  'shape.coach.meal-draft.', // a nutritionist's unsaved meal plan, kept by the app's editor (mealBuilderEdit.mjs)
   'shape.chat.v2.',       // per-user chat threads
   'shape.dashGoals.',     // per-client goal drafts
   'shape.habits.',        // same-day habit completion (health behavior)

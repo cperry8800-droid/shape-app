@@ -1,6 +1,6 @@
 // Mutation spec for Nora's meal-plan drafts (the Ask Nora plan, step 5): the planner over
 // Shape's meal library, draft_meal_plan's save and guarded undo, its role gate, the chat
-// route's gate, the website builder that opens the saved draft, and the app's card and Plans. Every one must be killed.
+// route's gate, the website builder that opens the saved draft, and the app's card, shells and Plans. Every one must be killed.
 // Run from the repo root:
 //   node scripts/mutate.mjs --spec tests/mutations/ai-meal-draft-2026-10-08.mutations.mjs --fail-on-skipped
 const CORE = 'src/lib/ai/mealDraft.mjs';
@@ -36,18 +36,18 @@ export default {
       find: "(yesterday[j] === f.id ? 15 : 0)", replace: '0' },
     // ── the action ──
     { name: 'the card is not told it is a meal plan', file: ACT,
-      find: "      open: { kind: 'coach_plan', planKind: 'meal_plan', planId: planId,", replace: "      open: { kind: 'coach_plan', planId: planId," },
+      find: "      open: { kind: 'coach_plan', planKind: 'meal_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(", replace: "      open: { kind: 'coach_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(" },
     { name: 'a draft is saved published', file: ACT,
       find: "      meta: days + '-day rotation · ' + p.brief.targets.kcal + ' kcal', published: false,",
       replace: "      meta: days + '-day rotation · ' + p.brief.targets.kcal + ' kcal', published: true," },
     { name: 'a named client is not checked', file: ACT,
-      find: "    if (input.clientId || input.clientName) {\n      await requireOnClient(ctx, input.clientId);\n      clientId = input.clientId;",
-      replace: "    if (input.clientId || input.clientName) {\n      clientId = input.clientId;" },
+      find: "    if (input.clientId || input.clientName) {\n      await requireOnClient(ctx, input.clientId);\n      clientId = input.clientId;\n      who = input.clientName ? clipText(input.clientName, 60) : 'this client';\n    }\n    var picked = pickMeals(brief);",
+      replace: "    if (input.clientId || input.clientName) {\n      clientId = input.clientId;\n      who = input.clientName ? clipText(input.clientName, 60) : 'this client';\n    }\n    var picked = pickMeals(brief);" },
     { name: 'undo deletes a published plan', file: ACT,
-      find: ".eq('kind', 'meal_plan').eq('published', false)\n      .contains('detail', detail)",
-      replace: ".eq('kind', 'meal_plan')\n      .contains('detail', detail)" },
+      find: "    var detail = mealDraftDetail(plan.confirmedPayload || {}).detail;\n    var res = await ctx.supabase.from('coach_plans').delete()\n      .eq('id', plan.beforeState.planId).eq('owner_id', ctx.actor.id).eq('kind', 'meal_plan').eq('published', false)\n",
+      replace: "    var detail = mealDraftDetail(plan.confirmedPayload || {}).detail;\n    var res = await ctx.supabase.from('coach_plans').delete()\n      .eq('id', plan.beforeState.planId).eq('owner_id', ctx.actor.id).eq('kind', 'meal_plan')\n" },
     { name: 'undo deletes an edited plan that still contains the draft', file: ACT,
-      find: "      .contains('detail', detail).containedBy('detail', detail)", replace: "      .contains('detail', detail)" },
+      find: "      .contains('detail', detail).containedBy('detail', detail)\n      .select('id');\n    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone. It has been edited, published or removed in the builder.');", replace: "      .contains('detail', detail)\n      .select('id');\n    if (res.error || !Array.isArray(res.data) || !res.data.length) throw new Error('Changed since — nothing undone. It has been edited, published or removed in the builder.');" },
     { name: 'a trainer may draft meal plans', file: ACT,
       find: "  name: 'draft_meal_plan',\n  roles: ['nutritionist', 'dietitian'],",
       replace: "  name: 'draft_meal_plan',\n  roles: ['nutritionist', 'dietitian', 'trainer']," },
@@ -61,11 +61,13 @@ export default {
     { name: 'the builder gives up on a plan the first read missed', file: WEB,
       find: '    if (openRetried.current !== openPlan) { openRetried.current = openPlan; setRefresh((n) => n + 1); return; }\n', replace: '' },
     { name: 'Plans hides the builder\'s documents again', file: PROS,
-      find: " || p.detail.buildType === 'mealplan' || !!p.detail.mealBuilder)", replace: " || p.detail.buildType === 'mealplan')" },
-    { name: 'the app opens its own editor on a builder document', file: PROS,
-      find: "onOpen={() => (p.web ? flash(tr('coach:plans.webBuilderOnly', { defaultValue: 'Edit and assign this one in the meal builder on the Shape website.' })) : openDraft('mealplan'))}",
-      replace: "onOpen={() => openDraft('mealplan')}" },
-    { name: 'the app card opens a meal plan in a shell', file: CLIENT,
-      find: "{status === 'done' && open && open.planKind !== 'meal_plan' && (", replace: "{status === 'done' && open && (" },
+      find: "    .filter(p => !p.id || kindOf(p) === 'mealplan')", replace: "    .filter(p => !p.id || !p.detail || p.detail.buildType === 'mealplan')" },
+    // The app opens a builder document in its own editor (owner, 2026-11-04); it used to send them to the website.
+    { name: 'a builder document opens in the draft editor', file: PROS,
+      find: "    if (mealBuilderDoc(row.detail)) { setBuilderPlan(row); return; }\n", replace: '' },
+    { name: 'the app card no longer names a nutrition plan', file: CLIENT,
+      find: "clientId: open.clientId || null, planKind: open.planKind || null } }", replace: "clientId: open.clientId || null } }" },
+    { name: 'the trainer shell opens its program editor on a meal plan', file: PROS,
+      find: "      if (!planId || e.detail.planKind === 'meal_plan') return;", replace: '      if (!planId) return;' },
   ],
 };

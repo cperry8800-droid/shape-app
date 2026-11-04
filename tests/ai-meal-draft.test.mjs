@@ -260,15 +260,27 @@ test('the website builder opens ?plan= once the library holds it; the app lists 
   assert.match(open, /if \(found\) \{ openedPlan\.current = openPlan; setView\(\{ template: found \}\); return; \}/);
   assert.match(open, /if \(openRetried\.current !== openPlan\) \{ openRetried\.current = openPlan; setRefresh\(\(n\) => n \+ 1\); return; \}/, 'read once more before saying it is missing');
   const P = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
-  // ⚠ Codex, #2260: the card no longer dispatches an open for a meal plan, so neither shell
-  // listens for one; a dual-role trainer's shell would have opened its program editor on it.
+  // The app opens it (owner, 2026-11-04: "can only be edited and assigned on the website, not in the
+  // app … fix these and make them possible"). The card names it a nutrition plan (planKind), the
+  // nutritionist shell answers, and a dual-role trainer's shell leaves it alone (Codex, #2260).
   const nutri = P.slice(P.indexOf('function BSNutritionistAppInner('), P.indexOf('function BSNutriToday('));
-  assert.doesNotMatch(nutri, /shape:openCoachPlan/);
+  assert.match(nutri, /if \(typeof d\.planId !== 'string' \|\| !d\.planId \|\| d\.planKind !== 'meal_plan'\) return;/);
+  // The client Nora drafted it for rides along to Assign (Codex on #2594), as the trainer's does.
+  // A meal plan open with unsaved changes is asked first (services/leaveGuard.mjs, Codex on #2594).
+  assert.match(nutri, /const clientId = typeof d\.clientId === 'string' && d\.clientId \? d\.clientId : null;\s*(\/\/[^\n]*\n\s*)?mayLeave\(window\)\.then\(\(ok\) => \{\s*if \(!ok\) return;\s*navJumpRef\.current\.navPush\(\);\s*setOpenPlanRequest\(\{ planId: d\.planId, clientId, nonce: Date\.now\(\) \}\);\s*setTab\('plans'\);/);
+  assert.match(nutri, /<BSNutriPlans sheet=\{sheet\} openPlanRequest=\{openPlanRequest\} onOpenConsumed=\{\(\) => setOpenPlanRequest\(null\)\} \/>/);
+  const trainer = P.slice(P.indexOf('function BSTrainerAppInner('), P.indexOf('function BSNutritionistApp('));
+  assert.match(trainer, /if \(!planId \|\| e\.detail\.planKind === 'meal_plan'\) return;/, 'not a program: the trainer shell never opens it');
   // ⚠ Codex, #2260: Plans filtered the builder's documents out, so a confirmed draft vanished.
   const plans = P.slice(P.indexOf('function BSNutriPlans('), P.indexOf('function ', P.indexOf('function BSNutriPlans(') + 10));
-  assert.match(plans, /\.filter\(p => !p\.id \|\| !p\.detail \|\| p\.detail\.buildType === 'mealplan' \|\| !!p\.detail\.mealBuilder\)/);
-  assert.match(plans, /web: !!\(p\.detail && p\.detail\.mealBuilder\)/);
-  assert.match(plans, /onOpen=\{\(\) => \(p\.web \? flash\(tr\('coach:plans\.webBuilderOnly'/, 'Open says where it is edited, never the app editor on another document');
-  assert.match(plans, /onAssign=\{\(\) => \(p\.web \? flash\(tr\('coach:plans\.webBuilderOnly'/, 'Assign too: the app assigns another document');
-  assert.match(plans, /meta=\{p\.web \? `\$\{p\.meta\} · \$\{tr\('coach:plans\.webBuilder'/);
+  assert.match(plans, /const kindOf = \(p\) => \(p && p\.detail && !p\.detail\.mealBuilder && \(p\.detail\.buildType === 'program' \|\| p\.detail\.buildType === 'diet'\) \? p\.detail\.buildType : 'mealplan'\);/, 'a builder document is always a meal plan');
+  assert.match(plans, /\.filter\(p => !p\.id \|\| kindOf\(p\) === 'mealplan'\)/);
+  // Its own editor, and Assign on its own document.
+  assert.match(plans, /if \(mealBuilderDoc\(row\.detail\)\) \{ setBuilderPlan\(row\); return; \}/);
+  assert.match(plans, /if \(builderPlan\) return <BSMealBuilderEditor key=\{builderPlan\.id\} plan=\{builderPlan\}/);
+  assert.match(plans, /onOpen=\{\(\) => openCard\(p, 'mealplan'\)\}/);
+  assert.doesNotMatch(plans, /webBuilderOnly/, 'no row sends them to the website');
+  const assign = P.slice(P.indexOf('function BSProAssignPage('), P.indexOf('\nfunction ', P.indexOf('function BSProAssignPage(') + 10));
+  assert.match(assign, /const days = builderDoc \? bsMealBuilderWeek\(window\.DashMeals, builderDoc\) : bsPlanWeek\(plan\.detail\)/);
+  assert.match(assign, /if \(builderDoc && !window\.DashMeals\) throw new Error/, 'never an empty menu for want of the builder');
 });

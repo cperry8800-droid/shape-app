@@ -72,7 +72,15 @@ export async function PATCH(request: Request) {
   const revision = Number(oldDetail.revision) || 0;
   const supplied = body.detail && typeof body.detail === 'object' ? body.detail as Record<string, unknown> : null;
   const expected = body.expectedRevision ?? supplied?.revision;
-  if (current.kind !== 'meal_plan' && ((revision > 0 && expected == null) || (expected != null && Number(expected) !== revision))) {
+  // ⚠ A MEAL PLAN IS HELD TO A REVISION ONLY WHEN ITS WRITER NAMES ONE (Codex on #2594). The website's
+  // builder autosaves without one and is unchanged; the app's editors name the revision they opened, so
+  // a plan changed elsewhere since is refused, never replaced. Every meal-plan write moves it on.
+  const mealPlan = current.kind === 'meal_plan';
+  const mealExpected = mealPlan ? body.expectedRevision : undefined;
+  const conflict = mealPlan
+    ? mealExpected != null && Number(mealExpected) !== revision
+    : (revision > 0 && expected == null) || (expected != null && Number(expected) !== revision);
+  if (conflict) {
     return NextResponse.json({ error: 'This plan changed on another device. Keep your draft, refresh the library, and review the latest version.', code: 'revision_conflict' }, { status: 409 });
   }
   const patch: Record<string, unknown> = {};
@@ -81,9 +89,9 @@ export async function PATCH(request: Request) {
   if (typeof body.price === 'string') patch.price = clean(body.price, 32);
   if (typeof body.published === 'boolean') patch.published = body.published;
   const detail = supplied ? { ...oldDetail, ...supplied } : oldDetail;
-  patch.detail = current.kind === 'meal_plan' ? detail : { ...normalizeWorkoutDetail(detail, { name: patch.name || current.name }), revision: revision + 1 };
+  patch.detail = mealPlan ? { ...detail, revision: revision + 1 } : { ...normalizeWorkoutDetail(detail, { name: patch.name || current.name }), revision: revision + 1 };
   let update = supabase.from('coach_plans').update(patch).eq('id', id).eq('owner_id', user.id);
-  if (current.kind !== 'meal_plan') update = oldDetail.revision == null ? update.is('detail->>revision', null) : update.eq('detail->>revision', String(revision));
+  if (!mealPlan || mealExpected != null) update = oldDetail.revision == null ? update.is('detail->>revision', null) : update.eq('detail->>revision', String(revision));
   const { data, error } = await update.select(SELECT).maybeSingle();
   if (error) return dbError(error, 'coach plans write', 500);
   if (!data) return NextResponse.json({ error: 'This plan changed while saving. Your draft is retained; reload before retrying.', code: 'revision_conflict' }, { status: 409 });
