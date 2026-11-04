@@ -69,6 +69,7 @@ test('no page draws its own Back: every one goes through the shared row', () => 
     ['iosAppBroadsheetPros.jsx', "coach:schedule.runDone", 'Done, once a scheduled run is in'],
     ['iosAppBroadsheetProviderApply.jsx', 'Back to marketplace →', 'the application\'s sent screen'],
     ['BSLiveWorkoutWatch.jsx', "coach:live.stopWatching", 'Stop watching, at the foot of the live view'],
+    ['BSProfileCustomizer.jsx', "profile:editor.live.back", 'Back to editing, on the live preview\'s bar'],
   ];
   const found = [];
   for (const f of readdirSync(DIR).filter((x) => x.endsWith('.jsx'))) {

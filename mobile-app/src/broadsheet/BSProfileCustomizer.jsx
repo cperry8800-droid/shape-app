@@ -1198,7 +1198,7 @@ export function bsLivePreviewLayer({ t = {}, tClean = null, tr, page, unsaved = 
         <span style={{ display: 'block', fontFamily: BS_CLEAN_HEAD, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, color: INK, overflowWrap: 'anywhere' }}>{title}</span>
         {unsaved ? <span style={{ display: 'block', marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 600, lineHeight: 1.25, color: TEAL, textShadow: light ? 'none' : `0 0 8px ${hexA(TEAL, 0.7)}`, overflowWrap: 'anywhere' }}>{unsavedWord}</span> : null}
       </span>
-      <button ref={backRef} type="button" data-cust-live-back="" className="bs-cust-btn bs-cust-primary" onClick={onBack}
+      <button ref={backRef} type="button" data-cust-live-back="" data-bs-back="" className="bs-cust-btn bs-cust-primary" onClick={onBack}
         style={{ flex: '0 1 auto', maxWidth: '62%', minHeight: 44, padding: '6px 14px', borderRadius: 999, border: 0, background: TEAL, color: onColor(TEAL), cursor: 'pointer', fontFamily: BS_CLEAN_SANS, fontSize: 15, fontWeight: 700, lineHeight: 1.15, textAlign: 'center', overflowWrap: 'anywhere', boxShadow: `0 12px 28px -12px ${hexA(TEAL, 0.85)}, inset 0 1px 0 rgba(255,255,255,0.35)` }}>
         {tr('profile:editor.live.back', { defaultValue: 'Back to editing' })}
       </button>
