@@ -114,7 +114,8 @@ export function bsProCatalogFacts(meta, tr) {
   // A fact breaks only between facts ("4.9" kept with its ★).
   const stats = [clients, rating ? `${rating} ★` : null].filter(Boolean).map((f) => f.replace(/ /g, ' '));
   const lenText = len ? `${len.n} ${len.unit}` : null;
-  return { len, line: [lenText, stats.length ? stats.join(' · ') : rest].filter(Boolean).join(' · ') };
+  // The plan's own facts (kcal, RPE, diet) stay beside its stats (Codex P2 on #2612).
+  return { len, line: [lenText, rest, stats.length ? stats.join(' · ') : null].filter(Boolean).join(' · ') };
 }
 // A line's rating keeps its ★ ("4.9 ★" never splits).
 const keepStar = (x) => String(x || '').replace(/ ★/g, ' ★');

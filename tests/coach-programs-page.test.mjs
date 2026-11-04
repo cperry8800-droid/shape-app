@@ -268,3 +268,17 @@ test('composer, nutritionist: a custom goal reaches Nora\'s request the same way
     assert.equal(sent[0].goal, 'Gut health');
   } finally { await m.close(); W.ShapeAI = undefined; }
 });
+
+test('a plan\'s line keeps its own facts beside who is on it and the rating (Codex P2 on #2612)', async () => {
+  const CAT = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSProCatalog.jsx'), {
+    registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
+  });
+  const tr = (_k, o) => String((o && o.defaultValue) || '').replace(/\{count, plural, one \{# client\} other \{# clients\}\}/, `${o.count} clients`);
+  const nutri = CAT.bsProCatalogFacts('4 weeks · 2,100 kcal · 12 on it · 4.9 ★', tr).line.replace(/ /g, ' ');
+  assert.match(nutri, /^4 WK · 2,100 kcal · 12 clients · 4\.9 ★$/, nutri);
+  const trainer = CAT.bsProCatalogFacts('8 weeks · RPE 8 · used by 31', tr).line.replace(/ /g, ' ');
+  assert.match(trainer, /RPE 8/, 'the trainer\'s RPE is dropped again');
+  assert.match(trainer, /31 clients/);
+  // With no stats the line is as before: the length, then the rest.
+  assert.equal(CAT.bsProCatalogFacts('4 weeks · program · vegan · draft', tr).line.replace(/\u00a0/g, ' '), '4 WK · program · vegan · draft');
+});
