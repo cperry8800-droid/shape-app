@@ -15625,7 +15625,6 @@ function bsInjectFollowChipCss() {
 // Terrain (member) and Signal (coach) profiles. Counts are public.
 function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips', children = null }) {
   const tr = useShapeTr();
-  const tFB = useBS();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
   // 'ledger' = the Terrain "Route Card" treatment (zero-box, line-only heat):
   // one mono stat line, Follow as a heat-tint chip / Message as ink+underline.
@@ -15708,10 +15707,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
   // reads it, so it must not sit in the temporal dead zone).
   const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
   // ── Coach-look variant (the member profile in the coach profile's look, owner 2026-10-31): the
-  // counts as one quiet line in the clean face, then Follow and Message, Follow filled in the profile's
-  // accent (`c`) with the ink or paper that reads on it. Follow and Message are the member profile's
-  // tiles (BSMemberBento.jsx, owner 2026-11-04: "go with c but dont change the look or design of
-  // followers, following part"), so the counts line is as it was and only the two buttons changed.
+  // counts as one quiet line in the clean face (owner 2026-11-04: "dont change the look or design of
+  // followers, following part"), with Follow and Message as small pills in that same row (below), Follow
+  // filled in the profile's accent (`c`) with the ink or paper that reads on it.
   if (variant === 'coach') {
     const DISPLAY = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
     const onC = bsReadableOn(c);
@@ -15722,6 +15720,17 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     );
     const firstName = String(name || '').trim().split(/\s+/)[0] || name;
     const following = fs === 'following', requested = fs === 'requested';
+    // Follow and Message ride in the counts' own row (owner, 2026-11-04: "also move the [Follow] up to
+    // where followers, following are", then "and make smaller to hit the look of that section of page"):
+    // small pills in the counts' face and size, Follow lit in the profile's colour (quiet once you follow
+    // or asked), Message quiet beside it. Each is a 44px target round a 32px pill. Where the row has no
+    // room after the counts, they wrap under them, still above the bio.
+    const pill = (lit) => ({
+      display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 13px', borderRadius: 99, boxSizing: 'border-box',
+      maxWidth: '100%', whiteSpace: 'nowrap', fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 650, lineHeight: 1,
+      ...(lit ? { background: c, border: `1px solid ${c}`, color: onC } : { background: bsTHexA(INK, 0.07), border: `1px solid ${bsTHexA(INK, 0.14)}`, color: INK }),
+    });
+    const pillBtn = { minHeight: 44, minWidth: 44, maxWidth: '100%', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' };
     return (
       <div data-follow-coach="">
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 16 }}>
@@ -15732,29 +15741,26 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
           {isSelf && reqCount > 0 ? (
             <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>
           ) : null}
-        </div>
-        {children}
-        {!isSelf ? (
-          /* Follow is the lit tile and Message a quiet one, laid out exactly as Log activity and Edit
-             profile are on your own page (owner, 2026-11-04: "make the follow and message buttons match
-             too"): Follow over three fifths, Message the compact tile over two, 44px, 10px apart. The
-             tiles keep the weights they are written with (BSCleanType), the counts above keep theirs. */
-          <BSCleanType t={tFB}>
-            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
-              <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested}
-                style={{ ...bsMpAction({ t: tFB, INK, c, onC, lit: !(following || requested) }), gridColumn: typeof onMessage === 'function' ? 'auto' : '1 / -1', minHeight: 44, cursor: busy ? 'default' : 'pointer' }}>
-                <BSMpIconBox name={following ? 'check' : requested ? 'clock' : 'plus'} ink={following || requested ? INK : onC} />
-                <span>{following ? tr('profile:follow.following', { defaultValue: 'Following' }) : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}</span>
+          {!isSelf ? (
+            <div data-follow-actions="" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: '100%' }}>
+              <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested} style={{ ...pillBtn, cursor: busy ? 'default' : 'pointer' }}>
+                <span data-follow-pill="" style={pill(!(following || requested))}>
+                  <BSMpIcon name={following ? 'check' : requested ? 'clock' : 'plus'} size={13} stroke={2.4} />
+                  <span>{following ? tr('profile:follow.following', { defaultValue: 'Following' }) : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}</span>
+                </span>
               </button>
               {typeof onMessage === 'function' ? (
-                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...bsMpAction({ t: tFB, INK, c, onC, compact: true }), minHeight: 44 }}>
-                  <BSMpIconBox name="chat" ink={INK} size={20} />
-                  <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}</span>
+                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...pillBtn, minWidth: 0 }}>
+                  <span data-follow-pill="" style={pill(false)}>
+                    <BSMpIcon name="chat" size={13} stroke={2.2} />
+                    <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}</span>
+                  </span>
                 </button>
               ) : null}
             </div>
-          </BSCleanType>
-        ) : null}
+          ) : null}
+        </div>
+        {children}
         {sheet && <BSFollowListSheet kind={sheet} uid={uid} name={name} c={c} INK={INK} BG={BG} coach={coach} self={isSelf} ownerPhoto={ownerPhoto} onClose={() => setSheet(null)} onOpenProfile={onOpenProfile} />}
       </div>
     );

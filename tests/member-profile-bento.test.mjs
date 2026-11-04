@@ -49,48 +49,50 @@ test('the counts line is as it was: three words on one line, no tiles', () => {
   }
 });
 
-test('on someone else\'s page Follow is the lit tile and Message a quiet one beside it', () => {
+test('on someone else\'s page Follow and Message are small pills in the counts\' row: Follow lit, Message quiet', () => {
+  // Owner, 2026-11-04: "also move the [Follow] up to where followers, following are", "and make smaller to
+  // hit the look of that section of page", then of Message, "same thing for the message box".
   signedInAs('u-me');
   const d = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', INK, BG: '#100d0a', name: 'Priya Shah', variant: 'coach', onMessage() {} });
-  const [toggle] = withAttr(d.nodes(), 'data-follow-toggle');
-  const [message] = withAttr(d.nodes(), 'data-follow-message');
-  assert.equal(toggle.props.style.background, '#34d6c5');
-  assert.equal(toggle.props.style.backgroundImage, bento.BS_MP_SHEEN, 'the lit tile lost its sheen');
-  assert.equal(toggle.props.style.borderRadius, 14);
-  // Condensed (owner, 2026-11-04: "condense these"): the icon beside the words, one row.
-  assert.equal(toggle.props.style.flexDirection, 'row');
-  assert.notEqual(message.props.style.background, '#34d6c5', 'Message is lit');
-  assert.equal(message.props.style.backgroundImage, undefined, 'Message has the sheen');
-  assert.match(message.props.style.border, /^1px solid rgba\(/, 'Message is not the quiet tile');
-  assert.equal(message.props.style.borderRadius, 14);
-  const [grid] = withAttr(d.nodes(), 'data-follow-actions');
-  assert.equal(grid.props.style.gridAutoRows, 'minmax(44px, auto)', 'the tiles are not condensed');
-  // Laid out exactly as Log activity and Edit profile are on your own page (owner, 2026-11-04: "make the
-  // follow and message buttons match too"): Follow three fifths, Message the compact tile over two.
-  assert.equal(grid.props.style.gridTemplateColumns, 'minmax(0, 3fr) minmax(0, 2fr)', 'Follow and Message are not laid out as your own tiles');
-  assert.equal(grid.props.style.gap, 10, 'Follow and Message lost the room between them');
-  assert.equal(toggle.props.style.gridColumn, 'auto');
-  signedOut();
-  const ownNodes = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true }).nodes();
-  const [ownGrid] = withAttr(ownNodes, 'data-member-actions');
-  const [edit] = withAttr(ownNodes, 'data-member-edit');
-  for (const prop of ['gridTemplateColumns', 'gridAutoRows', 'gap', 'marginTop']) assert.deepEqual(grid.props.style[prop], ownGrid.props.style[prop], `the grid's ${prop} is not your own page's`);
-  // (Their colours are each drawn from their own ink: the two renders here have different inks.)
-  for (const prop of ['fontSize', 'fontWeight', 'padding', 'gap', 'borderRadius', 'alignItems', 'overflowWrap']) assert.deepEqual(message.props.style[prop], edit.props.style[prop], `Message's ${prop} is not Edit profile's`);
-  const iconSize = (btn) => [btn.props.children].flat(3).find(named('BSMpIconBox')).props.size;
-  assert.equal(iconSize(message), iconSize(edit), 'Message\'s icon square is not Edit profile\'s');
-  signedInAs('u-me');
-  // With no Message, Follow takes the row.
-  const alone = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
-  assert.equal(withAttr(alone.nodes(), 'data-follow-toggle')[0].props.style.gridColumn, '1 / -1');
-  // Following is a quiet tile with a check, and says so once (no ✓ in the words beside the icon).
+  const nodes = d.nodes();
+  const [toggle] = withAttr(nodes, 'data-follow-toggle');
+  const [message] = withAttr(nodes, 'data-follow-message');
+  const pillOf = (btn) => [btn.props.children].flat(3).find((n) => n && n.props && n.props['data-follow-pill'] !== undefined);
+  const fp = pillOf(toggle);
+  const mp = pillOf(message);
+  // In the counts' row: the actions sit in the row that holds the three counts.
+  const [actions] = withAttr(nodes, 'data-follow-actions');
+  const row = nodes.find((n) => n && n.props && [n.props.children].flat(3).includes(actions));
+  assert.ok(row, 'Follow and Message left the counts\' row');
+  assert.equal([row.props.children].flat(3).filter((n) => n && n.props && n.props['data-follow-count'] !== undefined).length, 3, 'the row lost its counts');
+  // Small: 32px pills in the counts' face, each a 44px target.
+  const [cnt] = withAttr(nodes, 'data-follow-count');
+  for (const p of [fp, mp]) {
+    assert.equal(p.props.style.height, 32);
+    assert.equal(p.props.style.borderRadius, 99);
+    assert.equal(p.props.style.fontFamily, cnt.props.style.fontFamily, 'a pill is not in the counts\' face');
+    assert.ok(p.props.style.fontSize <= cnt.props.style.fontSize, 'a pill\'s words are bigger than the counts\'');
+  }
+  for (const btn of [toggle, message]) assert.equal(btn.props.style.minHeight, 44, 'a pill is under 44 to tap');
+  assert.equal(toggle.props.style.minWidth, 44);
+  assert.equal(toggle.props.style.background, 'transparent', 'the target is drawn, not the pill');
+  // Follow lit in the profile's colour, Message quiet.
+  assert.equal(fp.props.style.background, '#34d6c5');
+  assert.notEqual(mp.props.style.background, '#34d6c5', 'Message is lit');
+  assert.match(mp.props.style.border, /^1px solid rgba\(/, 'Message is not the quiet pill');
+  assert.ok(!nodes.some(named('BSMpIconBox')), 'a tile\'s icon square is back');
+  // Following is a quiet pill with a check, and says so once (no ✓ in the words beside the icon).
   const src = fnBody('function BSFollowBlock(');
-  assert.match(src, /lit: !\(following \|\| requested\)/);
+  assert.match(src, /style=\{pill\(!\(following \|\| requested\)\)\}/);
   assert.match(src, /name=\{following \? 'check' : requested \? 'clock' : 'plus'\}/);
   assert.doesNotMatch(src.slice(src.indexOf("if (variant === 'coach')"), src.indexOf('// ── Ledger variant')), /`✓ \$\{tr\('profile:follow\.following'/);
+  // With no Message, Follow alone.
+  const alone = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
+  assert.equal(withAttr(alone.nodes(), 'data-follow-toggle').length, 1);
+  assert.equal(withAttr(alone.nodes(), 'data-follow-message').length, 0);
 });
 
-test('the counts sit right under the photo, above the bio; a visitor\'s Follow stays under the bio', () => {
+test('the counts sit right under the photo, above the bio; a visitor\'s Follow and Message ride in the counts\' row', () => {
   // Owner, 2026-11-04: "move the followers, following row above the bio just below picture on profile".
   signedOut();
   const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
@@ -114,14 +116,14 @@ test('the counts sit right under the photo, above the bio; a visitor\'s Follow s
   const startAt = body.indexOf('data-member-start');
   assert.ok(nameAt > -1 && startAt > nameAt && startAt < body.indexOf('<BSFollowBlock '), 'the countdown sits in the name\'s block, before the counts');
   assert.ok(body.indexOf('data-member-bio') > body.indexOf('<BSFollowBlock '), 'the bio is above the counts again');
-  // In the block: the counts, then what the host put inside, then a visitor's Follow and Message.
+  // In the block: the counts with a visitor's Follow and Message in their row, then what the host put inside.
   signedInAs('u-me');
   const v = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', INK, name: 'Priya Shah', variant: 'coach', onMessage() {}, children: { type: 'p', props: { 'data-host-bio': '', children: 'bio' } } });
   const vn = v.nodes();
   const [count] = withAttr(vn, 'data-follow-count');
   const [bio] = withAttr(vn, 'data-host-bio');
   const [buttons] = withAttr(vn, 'data-follow-actions');
-  assert.ok(vn.indexOf(count) < vn.indexOf(bio) && vn.indexOf(bio) < vn.indexOf(buttons), 'the order is not counts, bio, Follow');
+  assert.ok(vn.indexOf(count) < vn.indexOf(buttons) && vn.indexOf(buttons) < vn.indexOf(bio), 'the order is not counts with Follow, then the bio');
   // With no one to count, the bio still shows.
   signedOut();
   const none = drive(mod.BSFollowBlock, { userId: null, isSelf: false, name: '', variant: 'coach', children: 'the bio' });
