@@ -1,6 +1,6 @@
 // tests/coach-programs-calm.test.mjs
 //
-// Redrawn in direction A, the Instrument (owner, 2026-11-03): Nora's line on the deck, the kinds as tabs,
+// Redrawn in direction A, the Instrument (owner, 2026-11-03): From scratch on the deck, the kinds as tabs,
 // Most popular as a plate with one block in the role's heat, and the rows as a numbered ledger. The rule
 // below still holds: one ink, the teal for links and text actions, the role's colour in one place.
 //
@@ -28,10 +28,11 @@ test('a row is a ledger row: led by its number, its actions teal text, no colour
   assert.doesNotMatch(row, /bsProSwatch/, 'the coloured square is back on the rows');
 });
 
-test('Nora\'s line, the search and the tabs are ink and hairlines, not fills of the role or tan', () => {
-  const create = fn('function bsProCreateButtons(');
-  assert.match(create, /data-create="nora"[^\n]*background: 'transparent', color: t\.INK70,/, 'Nora\'s line reads as a command line');
+test('From scratch, the search and the tabs are ink and hairlines, not fills of the role or tan', () => {
+  const create = fn('function bsProCreateButton(');
   assert.match(create, /data-create="scratch"[^\n]*border: `1px solid \$\{t\.INK30\}`, background: 'transparent'/);
+  // Nora drafts from the masthead's ✦, not a line on the page (owner, 2026-11-04).
+  assert.doesNotMatch(PROS, /data-create="nora"|coach:plans\.draftWithNora/, 'Nora\'s draft line is back on Programs or Plans');
   const search = fn('function bsProLibrarySearch(');
   assert.match(search, /border: `1px solid \$\{t\.RULE\}`, background: 'transparent'/);
   assert.doesNotMatch(search, /PAPER2/);

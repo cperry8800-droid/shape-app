@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "Не удалось загрузить ваши списки.",
   "grocery.clientsFailed": "Не удалось загрузить клиентов.",
   "plans.clientsCount": "{count, plural, one {# клиент} few {# клиента} many {# клиентов} other {# клиента}}",
-  "plans.draftWithNora": "✦ Черновик с Nora",
   "plans.fromScratch": "＋ С нуля",
   "plans.noMatch": "Ничего не найдено по запросу «{query}».",
   "plans.searchAria": "Поиск по вашей библиотеке",

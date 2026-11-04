@@ -967,8 +967,8 @@ test('their activity: a tab of its own, last, with what they posted that the oth
   m = await mount(page({ isSelf: true }));
   assert.deepEqual(tabNames(), ['Her day', 'About me', 'The studio', 'Replays', 'Activity'], 'all five on their own page, Activity last');
   assert.ok(tabSizes().every((x) => x === '13px'), 'more than three tabs set smaller');
-  // Five can't fit a phone at a size worth reading: a tab never shrinks below its words, and the row
-  // scrolls sideways instead of cutting a name to "…".
+  // A tab never shrinks below its words: the row sets them smaller to fit (useTabFit), and one that still
+  // can't fit scrolls sideways instead of cutting a name to "…".
   const nav = document.querySelector('nav[aria-label="Profile sections"]');
   assert.equal(nav.style.overflowX, 'auto', 'the row scrolls');
   for (const b of nav.querySelectorAll('button')) {
@@ -1365,8 +1365,9 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
   let m = await mount(page());
   assert.ok(!button(/^About me$/), 'no empty tab for members');
   // Each tab keeps to one line (owner, 2026-10-31: "make this fit on one line"); three or fewer read at
-  // 15px, more at 13px with 4px sides. With About me and Activity (#2541) the coach's own page has five,
-  // which no phone fits whole, so a tab keeps its words and the row scrolls sideways.
+  // 15px, more at 13px with 5px sides and a hairline between two (owner, 2026-11-04). Where the row lays
+  // out, the tabs set smaller until it holds them (the next test); jsdom lays nothing out, so they
+  // keep their size here.
   const tabStyle = () => [...document.querySelectorAll('[data-profile-tab]')].map((b) => [b.style.fontSize, b.style.padding, b.style.whiteSpace, b.style.flex].join(' '));
   const few = tabStyle();
   assert.ok(few.length >= 1 && few.length <= 3, `the member's tabs: ${few.length}`);
@@ -1376,12 +1377,54 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
   m = await mount(page({ isSelf: true }));
   const five = tabStyle();
   assert.equal(five.length, 5, "the coach's own page: the day, About me, the studio, replays, Activity");
-  for (const st of five) assert.equal(st, '13px 0px 4px nowrap 1 0 auto');
+  for (const st of five) assert.equal(st, '13px 0px 5px nowrap 1 0 auto');
+  assert.equal(document.querySelectorAll('[data-profile-tab-rule]').length, 4, 'a hairline between each two tabs, none at the ends');
+  assert.ok(!document.querySelector('[data-profile-tab-fade]'), 'no fade on a row that is not known to run over');
   await click(button(/^About me$/));
   assert.match(m.text(), /Tell members who you are: your story, how you coach, and where to find you\./);
   await click(document.querySelector('[data-about-edit]'));
   assert.ok(document.querySelector('[data-mine-about]'), 'Write About me opens Make it yours on About me');
   await m.unmount();
+});
+
+test('the tabs set smaller until the row holds them, down to 11.5px; a row that still runs over fades at its edge', async () => {
+  // Owner, 2026-11-04: "these tabs are also going off page". jsdom lays nothing out, so the row's widths
+  // are stood in for: each tab's words take 0.6em a letter (0.66em set bold, as the picked one is), its
+  // sides 10px, a hairline 1px.
+  const P = window.HTMLElement.prototype;
+  const saved = ['clientWidth', 'scrollWidth'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]);
+  // Her day (picked), About me, The studio, Replays, Activity: 359px at 12px, 371px at 12.5px.
+  let room = 360;
+  const need = (nav) => 12 + [...nav.querySelectorAll('[data-profile-tab]')].reduce((w, b) => w + b.textContent.length * (b.style.fontWeight === '600' ? 0.66 : 0.6) * parseFloat(b.style.fontSize) + 10, 0)
+    + nav.querySelectorAll('[data-profile-tab-rule]').length;
+  Object.defineProperty(P, 'clientWidth', { configurable: true, get() { return this.tagName === 'NAV' ? room : 0; } });
+  Object.defineProperty(P, 'scrollWidth', { configurable: true, get() { return this.tagName === 'NAV' ? Math.max(room, need(this)) : 0; } });
+  try {
+    reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
+    let m = await mount(page({ isSelf: true }));
+    const nav = document.querySelector('nav[aria-label="Profile sections"]');
+    const sizes = () => [...nav.querySelectorAll('[data-profile-tab]')].map((b) => parseFloat(b.style.fontSize));
+    const s = sizes();
+    assert.equal(s.length, 5);
+    assert.deepEqual(s, [12, 12, 12, 12, 12], 'the largest half point that fits: 12.5 needs 366px of 360');
+    assert.ok(need(nav) <= room, 'the row holds them');
+    assert.ok(!nav.querySelector('[data-profile-tab-fade]'), 'no fade on a row that fits');
+    // Picking a longer tab sets it bold: 361px at 12px, so the row is fitted again (Codex P2 on #2590).
+    await click(button(/^The studio$/));
+    assert.deepEqual(sizes(), [11.5, 11.5, 11.5, 11.5, 11.5], 'fitted again for the bold pick');
+    assert.ok(need(nav) <= room, 'the row still holds them');
+    await m.unmount();
+    // Too narrow even at 11.5px: the row keeps 11.5 and scrolls, with a fade on the side there is more.
+    room = 200;
+    m = await mount(page({ isSelf: true }));
+    const nav2 = document.querySelector('nav[aria-label="Profile sections"]');
+    assert.ok([...nav2.querySelectorAll('[data-profile-tab]')].every((b) => b.style.fontSize === '11.5px'));
+    assert.equal(nav2.querySelector('[data-profile-tab-fade="right"]').style.opacity, '1', 'more to the right');
+    assert.equal(nav2.querySelector('[data-profile-tab-fade="left"]').style.opacity, '0', 'nothing to the left yet');
+    await m.unmount();
+  } finally {
+    for (const [k, d] of saved) { if (d) Object.defineProperty(P, k, d); else delete P[k]; }
+  }
 });
 
 test('Make it yours, About me: years past 60 as the only edit still show the save bar, and save says why', async () => {

@@ -2,7 +2,7 @@
 // nutritionist, and its editor BSMakeItYours.jsx, in the real broadsheet chrome, against scripted
 // profile, listing, availability, booking and feed backends, reading the real English catalogs and
 // the real Shape Kitchen. The design is the owner's of 2026-10-27 ("lets do something different for
-// nutritionists"): the trainer profile's style, with "Her kitchen" (no floor plan) and "Plate notes"
+// nutritionists"): the trainer profile's style, with "My kitchen" (no floor plan) and "Plate notes"
 // (a day of meals, stepped through); and of 2026-10-29: "It will be their own recipes", with the
 // plate, the staples and the recipes all kept and organized.
 //
@@ -216,19 +216,22 @@ test('a nutritionist has their kitchen and plate notes, never the studio or repl
   reset();
   let m = await mount(page());
   assert.ok(button(/^Her day$/));
-  for (const re of [/^Her kitchen$/, /^Plate notes$/, /^The studio$/, /^Replays$/]) assert.ok(!button(re), String(re));
+  for (const re of [/^My kitchen$/, /^Plate notes$/, /^The studio$/, /^Replays$/]) assert.ok(!button(re), String(re));
   await m.unmount();
   // A studio and a workout on a nutritionist's doc and feed show nothing; a kitchen and a meal do.
   reset({ custom: { studio: { kind: 'gym', items: [{ t: 'rack', x: 10, y: 10, w: 60, h: 40, st: { title: 'Rack', note: '' } }] }, kitchen: KITCHEN }, posts: [workout, meal()] });
   m = await mount(page());
-  assert.ok(button(/^Her kitchen$/) && button(/^Plate notes$/));
+  assert.ok(button(/^My kitchen$/) && button(/^Plate notes$/));
   assert.ok(!button(/^The studio$/) && !button(/^Replays$/));
   await m.unmount();
-  // The tab follows the pronouns they wrote, else their first name.
-  for (const [pronouns, label] of [['he/him', 'His kitchen'], ['they/them', 'Their kitchen'], ['', "Nadia's kitchen"]]) {
+  // The tab is My kitchen, in the coach's voice as About me, whatever pronouns they wrote and never
+  // their name (owner, 2026-11-04: "just have it say my kitchen", "not persons name").
+  for (const pronouns of ['he/him', 'they/them', '']) {
     reset({ pronouns, custom: { kitchen: KITCHEN } });
     m = await mount(page());
-    assert.ok(button(new RegExp(`^${label}$`)), label);
+    assert.ok(button(/^My kitchen$/), pronouns || 'no pronouns');
+    assert.ok(!button(/kitchen$/i) || button(/kitchen$/i) === button(/^My kitchen$/), 'one kitchen tab');
+    assert.ok(![...document.querySelectorAll('[data-profile-tab]')].some((b) => /Nadia/.test(b.textContent) && /kitchen/i.test(b.textContent)), 'the name on the kitchen tab');
     await m.unmount();
   }
   // A trainer with a kitchen on their doc gets no kitchen tab.
@@ -240,7 +243,7 @@ test('a nutritionist has their kitchen and plate notes, never the studio or repl
   // Their own page always shows all three, with a way to fill the kitchen.
   reset({ me: 'u-nadia', stored: {} });
   m = await mount(page({ isSelf: true }));
-  await click(button(/^Her kitchen$/));
+  await click(button(/^My kitchen$/));
   assert.match(m.text(), /Show members your recipes, the plate you teach and what is always in your kitchen\./);
   assert.ok(button(/^Fill your kitchen$/));
   await click(button(/^Plate notes$/));
@@ -251,7 +254,7 @@ test('a nutritionist has their kitchen and plate notes, never the studio or repl
 test('her kitchen: one part at a time, her recipes first, then her plate and her staples; a visitor sees only the parts with something in them', async () => {
   reset({ custom: { kitchen: KITCHEN } });
   let m = await mount(page());
-  await click(button(/^Her kitchen$/));
+  await click(button(/^My kitchen$/));
   assert.deepEqual([...document.querySelectorAll('[data-kitchen-section]')].map((b) => b.textContent), ['Recipes2', 'Plate', 'Staples3'], 'the three parts, with how much is in each');
   assert.equal(section('recipes').getAttribute('aria-pressed'), 'true', 'it opens on the recipes');
   assert.ok(!document.querySelector('[data-kitchen-plate]') && !document.querySelector('[data-kitchen-staples]'), 'one part at a time');
@@ -280,7 +283,7 @@ test('her kitchen: one part at a time, her recipes first, then her plate and her
   // Only staples: no parts to pick from, the staples straight away.
   reset({ custom: { kitchen: { staples: KITCHEN.staples } } });
   m = await mount(page());
-  await click(button(/^Her kitchen$/));
+  await click(button(/^My kitchen$/));
   assert.ok(!document.querySelector('[data-kitchen-section]'));
   assert.ok(document.querySelector('[data-kitchen-staples]'));
   await m.unmount();
@@ -289,7 +292,7 @@ test('her kitchen: one part at a time, her recipes first, then her plate and her
 test('a recipe opens with its numbers, her note, the ingredients and the method, and cooks in Shape\'s cook mode', async () => {
   reset({ custom: { kitchen: KITCHEN } });
   const m = await mount(page());
-  await click(button(/^Her kitchen$/));
+  await click(button(/^My kitchen$/));
   await click(document.querySelector('[data-recipe="r1"]'));
   const sheet = () => document.querySelector('[data-own-recipe="r1"]');
   assert.ok(sheet(), 'the recipe, over the page');
@@ -312,7 +315,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
   try {
     reset({ custom: { kitchen: KITCHEN } });
     let m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(document.querySelector('[data-recipe="r1"]'));
     const add = () => document.querySelector('[data-recipe-list]');
     assert.equal(add().textContent, 'Add the ingredients to my grocery list');
@@ -327,7 +330,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
     assert.equal(add().textContent, '✓ On your grocery list, under Eat');
     await m.unmount();
     m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(document.querySelector('[data-recipe="r1"]'));
     await click(add());
     assert.equal(g.received[1].id, g.received[0].id, 'sent again, the same list');
@@ -335,7 +338,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
     // Signed out: asked for an account, and nothing is saved.
     reset({ me: null, custom: { kitchen: KITCHEN } });
     m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(document.querySelector('[data-recipe="r2"]'));
     await click(add());
     assert.deepEqual(g.asked.slice(-1), ['add to your grocery list']);
@@ -344,7 +347,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
     // On her own page she can cook it, but not send it to a grocery list.
     reset({ me: 'u-nadia', stored: { kitchen: KITCHEN } });
     m = await mount(page({ isSelf: true }));
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(document.querySelector('[data-recipe="r1"]'));
     assert.ok(document.querySelector('[data-cook-recipe]') && !add());
     await m.unmount();
@@ -356,7 +359,7 @@ test('a member picks staples and adds them to their own grocery lists as one lis
   try {
     reset({ custom: { kitchen: KITCHEN } });
     let m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(section('staples'));
     const add = document.querySelector('[data-add-staples]');
     assert.ok(add.disabled, 'nothing picked, nothing to add');
@@ -381,7 +384,7 @@ test('a member picks staples and adds them to their own grocery lists as one lis
     // Signed out: asked for an account, and nothing is saved.
     reset({ me: null, custom: { kitchen: KITCHEN } });
     m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(section('staples'));
     await click(document.querySelectorAll('[data-staple]')[1]);
     await click(document.querySelector('[data-add-staples]'));
@@ -391,7 +394,7 @@ test('a member picks staples and adds them to their own grocery lists as one lis
     // On their own page the staples are shown, not offered.
     reset({ me: 'u-nadia', stored: { kitchen: KITCHEN } });
     m = await mount(page({ isSelf: true }));
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(section('staples'));
     assert.ok(!document.querySelector('button[data-staple]') && !document.querySelector('[data-add-staples]'));
     assert.equal(document.querySelectorAll('[data-staple]').length, 3);
@@ -408,7 +411,7 @@ test('a bigger pick of long staple names is its own list', async () => {
       { n: 'Unsweetened almond milk, vanilla', g: 'fridge' },
     ] } } });
     const m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(document.querySelectorAll('[data-staple]')[0]);
     await click(document.querySelectorAll('[data-staple]')[1]);
     await click(document.querySelector('[data-add-staples]'));
@@ -436,7 +439,7 @@ test('her kitchen has no floor plan, even with one saved: the tab opens on her r
   for (const studio of [kitchenPlan, { ...kitchenPlan, kind: 'blank' }]) {
     reset({ custom: { kitchen: KITCHEN, studio } });
     const m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     for (const sel of ['[data-kitchen-plan]', '[data-studio-plan]', '[data-station]', '[data-piece]', '[data-spot-row]']) assert.ok(!document.querySelector(sel), `${studio.kind}: ${sel} is drawn`);
     assert.doesNotMatch(m.text(), /Tap a number, or a lit spot|The test kitchen|One pan most nights/);
     assert.ok(section('recipes'), 'the three parts lead the tab');
@@ -473,7 +476,7 @@ test('staples: a card per place they live; Pick all picks the group, then clears
   try {
     reset({ custom: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }, { n: 'Spinach', g: 'fridge' }, { n: 'Oats', g: 'pantry' }] } } });
     const m = await mount(page());
-    await click(button(/^Her kitchen$/));
+    await click(button(/^My kitchen$/));
     assert.deepEqual([...document.querySelectorAll('[data-staple-group-pick]')].map((b) => b.getAttribute('data-staple-group-pick')), ['fridge'], 'only a group of more than one');
     await click(document.querySelector('[data-staple-group-pick="fridge"]'));
     assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
@@ -488,7 +491,7 @@ test('on her own page there is no Draw your kitchen, and Make it yours\'s kitche
   const studio = { kind: 'kitchen', where: '', items: [{ t: 'range', x: 40, y: 40, w: 30, h: 34, st: { title: 'Stove', note: '' } }] };
   reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] }, studio } });
   const m = await mount(page({ isSelf: true }));
-  await click(button(/^Her kitchen$/));
+  await click(button(/^My kitchen$/));
   assert.ok(!document.querySelector('[data-kitchen-plan-empty]'), 'Draw your kitchen is back');
   assert.ok(!document.querySelector('[data-kitchen-fill="layout"]'));
   assert.doesNotMatch(m.text(), /Draw your kitchen/);
@@ -504,7 +507,7 @@ test('on her own page there is no Draw your kitchen, and Make it yours\'s kitche
 test('on her own page each empty part says what goes there and opens Make it yours on it', async () => {
   reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
   const m = await mount(page({ isSelf: true }));
-  await click(button(/^Her kitchen$/));
+  await click(button(/^My kitchen$/));
   assert.deepEqual([...document.querySelectorAll('[data-kitchen-section]')].map((b) => b.getAttribute('data-kitchen-section')), ['recipes', 'plate', 'staples'], 'all three parts');
   assert.match(m.text(), /Write the recipes you give clients\./);
   await click(section('plate'));
@@ -513,7 +516,7 @@ test('on her own page each empty part says what goes there and opens Make it you
   assert.ok(document.querySelector('[data-mine-part="plate"]'), 'Make it yours, on the plate');
   await click(document.querySelector("[data-make-it-yours] [data-bs-back]"));
   // Back lands where she left: her kitchen, on the plate (owner, 2026-10-30).
-  assert.equal(button(/^Her kitchen$/).getAttribute('aria-pressed'), 'true', 'still on her kitchen');
+  assert.equal(button(/^My kitchen$/).getAttribute('aria-pressed'), 'true', 'still on her kitchen');
   assert.equal(section('plate').getAttribute('aria-pressed'), 'true', 'still on the plate');
   await click(section('recipes'));
   await click(document.querySelector('[data-kitchen-fill="recipes"]'));
@@ -888,7 +891,7 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   assert.equal(world.byIdFor, 52);
   assert.match(m.text(), /Rae hasn't set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples\./);
   assert.ok(!document.querySelector('img[alt="Rae\'s wall photo"]'), 'no sample wall photo: their colours');
-  await click(button(/^Rae's kitchen$/));
+  await click(button(/^My kitchen$/));
   assert.equal(document.querySelectorAll('[data-recipe]').length, 6, 'six recipes');
   await click(document.querySelector('[data-recipe]'));
   assert.ok(document.querySelectorAll('[data-recipe-ingredients] li').length > 3 && document.querySelectorAll('[data-recipe-method] li').length > 3, 'each written out in full');
@@ -915,7 +918,7 @@ test('a sample nutritionist\'s page reads in the reader\'s language: rules, stap
     const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
     reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
     const m = await mount(page({ person: rae }));
-    await click(button(/^Rae's kitchen$/));
+    await click(button(/^My kitchen$/));
     assert.ok(m.text().includes(de['sample.nutri.dish.plant.0']), 'a recipe note in German');
     assert.ok(m.text().includes('Crispy tofu grain bowl'), 'the recipe keeps the catalog\'s name');
     await click(section('plate'));
@@ -943,7 +946,7 @@ test('a sample\'s staples added in German and in English make the same grocery l
   const addTwo = async () => {
     reset({ me: 'u-me', byId: raeRow, slots: [] });
     const m = await mount(page({ person: rae }));
-    await click(button(/^Rae's kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(section('staples'));
     const chips = [...document.querySelectorAll('[data-staple]')];
     await click(chips[0]);
@@ -980,7 +983,7 @@ test('a sample\'s staples picked in German and added after a switch to English a
     const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
     reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
     const m = await mount(page({ person: rae }));
-    await click(button(/^Rae's kitchen$/));
+    await click(button(/^My kitchen$/));
     await click(section('staples'));
     const chips = [...document.querySelectorAll('[data-staple]')];
     await click(chips[0]);

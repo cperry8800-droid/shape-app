@@ -516,7 +516,7 @@ const NUTRITION_TOOLS = [
     type: 'function',
     name: 'draft_meal_plan',
     description:
-      "DRAFT a meal plan for the NUTRITIONIST from their brief. The server picks every meal from Shape's meal library (with the library's own macros) to come close to the daily targets, varies it across the days, and shows a card to review. It is saved UNPUBLISHED to their meal plans for them to edit and assign in the builder; nothing is saved until they confirm, and it is never assigned to a client from here. Pass only what they said: the goal phase, daily targets they gave as numbers, how many days in the rotation, which meals of the day, what to leave out (allergens, foods), and the most prep minutes per meal.",
+      "DRAFT a meal plan for the NUTRITIONIST from their brief. Use whenever they ask you to draft, build, create, write or make a meal plan, for a client or for their library. The server picks every meal from Shape's meal library (with the library's own macros) to come close to the daily targets, varies it across the days, and shows a card to review. It is saved UNPUBLISHED to their meal plans for them to edit and assign in the builder; nothing is saved until they confirm, and it is never assigned to a client from here. Pass only what they said: the goal phase, daily targets they gave as numbers, how many days in the rotation, which meals of the day, what to leave out (allergens, foods), and the most prep minutes per meal.",
     parameters: {
       type: 'object',
       properties: {
@@ -540,7 +540,7 @@ const NUTRITION_TOOLS = [
 ];
 const NUTRITION_PROMPT_NOTE = [
   'MEAL PLAN DRAFTING: You CAN draft meal plans for this nutritionist — the one exception to "never invent a meal", because every meal comes from Shape\'s meal library, not from you.',
-  'When they ask you to draft, build, write or make a meal plan, call draft_meal_plan with what they said: the goal phase, daily targets only if they gave numbers, days in the rotation, the meals of the day, what to leave out, the most prep minutes. For a client, find_client first; never guess one.',
+  'When they ask you to draft, build, create, write or make a meal plan, call draft_meal_plan with what they said: the goal phase, daily targets only if they gave numbers, days in the rotation, the meals of the day, what to leave out, the most prep minutes. For a client, find_client first; never guess one.',
   "The server picks each meal and adds up the macros: never name a meal or state a number it did not return. Targets they did not give are the builder's defaults for the phase, and the card says which. Shape's library is small (about two dozen dishes), so say they can swap in their own foods in the builder.",
   'Nothing is saved until they confirm; it is saved unpublished to their meal plans and opens in the website builder, where they edit it and assign it to a client. You never assign it from here. Say that, never that it is done.',
 ].join(' ');

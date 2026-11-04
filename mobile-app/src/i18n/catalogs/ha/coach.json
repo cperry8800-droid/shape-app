@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "An kasa loda jerin sunayenka.",
   "grocery.clientsFailed": "An kasa loda abokan cinikinka.",
   "plans.clientsCount": "{count, plural, one {abokin ciniki #} other {abokan ciniki #}}",
-  "plans.draftWithNora": "✦ Tsara tare da Nora",
   "plans.fromScratch": "＋ Daga farko",
   "plans.noMatch": "Babu abin da ya dace da “{query}”.",
   "plans.searchAria": "Nemi a cikin ɗakin karatunka",

@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "Deine Listen konnten nicht geladen werden.",
   "grocery.clientsFailed": "Deine Klienten konnten nicht geladen werden.",
   "plans.clientsCount": "{count, plural, one {# Klient} other {# Klienten}}",
-  "plans.draftWithNora": "✦ Mit Nora entwerfen",
   "plans.fromScratch": "＋ Von Grund auf",
   "plans.noMatch": "Nichts passt zu „{query}“.",
   "plans.searchAria": "Deine Bibliothek durchsuchen",

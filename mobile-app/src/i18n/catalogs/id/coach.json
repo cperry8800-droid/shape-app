@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "Tidak bisa memuat daftarmu.",
   "grocery.clientsFailed": "Tidak bisa memuat klienmu.",
   "plans.clientsCount": "{count, plural, other {# klien}}",
-  "plans.draftWithNora": "✦ Susun bersama Nora",
   "plans.fromScratch": "＋ Dari nol",
   "plans.noMatch": "Tidak ada yang cocok dengan “{query}”.",
   "plans.searchAria": "Cari di pustakamu",

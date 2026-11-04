@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "Không tải được danh sách của bạn.",
   "grocery.clientsFailed": "Không tải được khách hàng của bạn.",
   "plans.clientsCount": "{count, plural, other {# khách hàng}}",
-  "plans.draftWithNora": "✦ Soạn cùng Nora",
   "plans.fromScratch": "＋ Từ đầu",
   "plans.noMatch": "Không có kết quả cho “{query}”.",
   "plans.searchAria": "Tìm trong thư viện của bạn",

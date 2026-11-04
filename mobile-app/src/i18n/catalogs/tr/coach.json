@@ -1294,7 +1294,6 @@
   "grocery.loadFailed": "Listelerin yüklenemedi.",
   "grocery.clientsFailed": "Danışanların yüklenemedi.",
   "plans.clientsCount": "{count, plural, other {# danışan}}",
-  "plans.draftWithNora": "✦ Nora ile taslak",
   "plans.fromScratch": "＋ Sıfırdan",
   "plans.noMatch": "“{query}” ile eşleşen bir şey yok.",
   "plans.searchAria": "Kitaplığında ara",
