@@ -360,10 +360,15 @@ function LoginSeg({ options, value, onChange, labelledBy, ariaLabel }) {
   );
 }
 
-// Option A, "Spotlight glass": the card stands right of centre, where the photograph's beam lands. Pseudo-classes
-// (focus, autofill, hover) and the phone layout need a stylesheet, so the look lives here.
+// Option A, "Spotlight glass": the card stands in the middle of the screen (owner, 2026-11-04: "center this box
+// on screen"; it stood right of centre, where the photograph's beam lands). Pseudo-classes (focus, autofill, hover)
+// and the phone layout need a stylesheet, so the look lives here.
 function LoginStyles() {
   return <style>{`
+/* Anybody for Club Shape in the title: the login page mounts no site header, which is what requests it elsewhere.
+   The URL is pageShell's own (ShapeMobileStyles), both axes named, so a page that has both fetches it once. */
+@import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap');
+@font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
 .lgA-page{position:relative;min-height:100vh;display:flex;flex-direction:column;overflow:hidden;font-family:${sans};color:#f2ede4}
 .lgA-head{position:relative;z-index:10;padding:26px 72px}
 .lgA-row{max-width:1320px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px}
@@ -376,7 +381,7 @@ function LoginStyles() {
 .lgA-legal{display:flex;gap:24px}
 .lgA-sitefoot a:hover{color:#f2ede4}
 
-.lgA-card{position:relative;width:100%;max-width:408px;margin-left:clamp(0px,30vw,520px);padding:30px 32px 24px;border-radius:18px;
+.lgA-card{position:relative;width:100%;max-width:408px;padding:30px 32px 24px;border-radius:18px;
   background:linear-gradient(180deg,rgba(18,16,14,.66) 0%,rgba(10,9,8,.74) 100%);
   backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15);
   border:1px solid rgba(242,237,228,.12);
@@ -384,7 +389,8 @@ function LoginStyles() {
 .lgA-edge{position:absolute;top:-1px;left:28px;right:28px;height:1px;background:linear-gradient(90deg,transparent,#34d6c5 30%,#34d6c5 70%,transparent);opacity:.8}
 .lgA-eyebrow{font-family:${mono};font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#34d6c5;margin-bottom:12px}
 .lgA-title{font-family:${serif};font-size:38px;font-weight:400;letter-spacing:-.025em;line-height:1.02;margin:0 0 8px;color:#f2ede4}
-.lgA-title em{font-style:italic;font-weight:400;color:#34d6c5}
+/* Club Shape in the website's own display face, as the homepage's headings set their teal words (index.html h1 em). */
+.lgA-title em{font-family:'Anybody','Anybody Fallback',system-ui,sans-serif;font-style:normal;font-weight:500;font-variation-settings:'wdth' 90;letter-spacing:-.01em;color:#34d6c5}
 .lgA-sub{font-family:${sans};font-size:14px;line-height:1.5;color:rgba(242,237,228,.62);margin:0 0 20px;max-width:32ch}
 .lgA-form{display:flex;flex-direction:column;gap:16px;margin-top:20px}
 .lgA-field{display:flex;flex-direction:column}
@@ -438,7 +444,6 @@ function LoginStyles() {
 .lgA-foot a{color:#f2ede4;font-weight:500;transition:color .15s}
 .lgA-foot a:hover{color:#34d6c5}
 
-@media (max-width:1100px){.lgA-card{margin-left:0}}
 @media (max-width:640px){
   .lgA-head{padding:18px 20px}
   .lgA-mark .shape-brand-logo{height:36px!important}
