@@ -74,6 +74,7 @@ import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
 import { BSWorkoutSession } from './BSWorkoutSession.jsx';
+import { BSSessionFinish } from './BSSessionFinish.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
@@ -32165,7 +32166,13 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const [restEnd, setRestEnd] = useStateBSC(draft?.restEnd || null);   // absolute deadline survives view changes and recovery
   const [restTotal, setRestTotal] = useStateBSC(draft?.restTotal || 0); // coach-authored duration, never a default prescription
   const [restAfterSet, setRestAfterSet] = useStateBSC(draft?.restAfterSet || 0); // which set number just finished
-  const [reviewFeel, setReviewFeel] = useStateBSC(draft?.reviewFeel ?? null);
+  // Enjoyment 1-5, the finish pop-up's second rating (owner, 2026-11-04: "ranks workout from level of
+  // difficulty to enjoyment/satisfication"), saved as `summary.enjoyment`. Skippable like the effort:
+  // null = skipped, never 0. It replaced the three-way "The vibe" (`reviewFeel`, which nothing read and
+  // nothing writes now). A draft from before still restores, its `reviewFeel` simply unread: three
+  // buckets are not a 1-5 rating, so the old answer is never mapped onto one (the effort's reasoning,
+  // below). A submission already frozen with it retries exactly as it was frozen.
+  const [enjoyment, setEnjoyment] = useStateBSC(() => (Number.isInteger(draft?.enjoyment) && draft.enjoyment >= 1 && draft.enjoyment <= 5 ? draft.enjoyment : null));
   // Session RPE 1-10 — a GENUINE post-session rating, the primary input to
   // session RPE load (SPEC-guardrails.md §3.1). This replaced a three-way
   // easy/moderate/hard control: three qualitative buckets are a different
@@ -32457,12 +32464,12 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     return bsStoreWorkoutDraft(window.localStorage, identity.userId, { ...identity, moves, openMode, setInputs, completed, setLogs, moveIdx,
       view, guideStep, hrSamples: hrSamplesRef.current, restEnd, restTotal, restAfterSet, activeSetKey, setStartedAt, lastSetEndedAt,
       timedMode, elapsedSeconds: completing && completedAtRef.current != null ? completedAtRef.current : Math.max(0, Math.floor((Date.now() - elapsedStart) / 1000)),
-      completing, endedAt: endedAtRef.current, sessionRpe, reviewFeel, manualMinutes, shareToFeed, pendingSubmission: pendingSubmissionRef.current });
+      completing, endedAt: endedAtRef.current, sessionRpe, enjoyment, manualMinutes, shareToFeed, pendingSubmission: pendingSubmissionRef.current });
   };
   React.useEffect(() => {
     const ok = draftRef.current?.();
     setDraftWarning(ok === false ? tr('session:player.storageFailed') : '');
-  }, [now, moves, setInputs, completed, setLogs, moveIdx, timedMode, completing, sessionRpe, reviewFeel, manualMinutes, shareToFeed, view, guideStep, restEnd, activeSetKey]);
+  }, [now, moves, setInputs, completed, setLogs, moveIdx, timedMode, completing, sessionRpe, enjoyment, manualMinutes, shareToFeed, view, guideStep, restEnd, activeSetKey]);
   React.useEffect(() => {
     const persist = () => draftRef.current?.();
     window.addEventListener('pagehide', persist);
@@ -32621,7 +32628,7 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
         title: title || tr('session:player.liveSession'), workout: 'workout',
         durationSeconds: loggedDurationSec, sessionRpe,
         durationAnswer: !askDuration ? 'not_prompted' : (answered ? 'confirmed' : 'declined'),
-        setLogs, hr, sensorSamples, summary: { prescription: identity.prescription, reviewFeel, startedAt: identity.startedAt, endedAt: endedAtRef.current },
+        setLogs, hr, sensorSamples, summary: { prescription: identity.prescription, enjoyment, startedAt: identity.startedAt, endedAt: endedAtRef.current },
         privacy: shareToFeed ? null : 'private',
         // The audience the toggle named. The save re-reads the setting and never goes
         // wider than this (CodeRabbit on #2511): a change on another device mid-session
@@ -32669,14 +32676,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   const plates = bsPlates(activeLoad);
   const perSide = (() => { const v = (Number(activeLoad) - 45) / 2; return Number.isFinite(v) && v > 0 ? v : null; })();
   const plateColor = { 45: t.RUST, 35: t.AMBER, 25: t.BLUE, 10: teal, 5: t.GREEN, 2.5: t.INK50 };
-  // ═══ THE BAND tokens — the fixed-dark instrument (Cockpit/Split spec,
-  // 2026-07-14). #0b0f0f on EVERY paper — the same machine everywhere, like
-  // the launch wire — so these are deliberate literals, not theme tokens.
-  // Heat inside the band = the #1575 live-effort engine on the BRIGHT ramp
-  // base (the deep light-paper teal has no glow headroom on near-black).
-  const bandHeat = (!bsSdReduced() && effort) ? BS_EFFORT_RAMP[effort.zone] : '#38e0cc';
-  const BAND = { bg: '#0b0f0f', cream: '#f4ede0', dim: 'rgba(244,237,224,0.55)', dim35: 'rgba(244,237,224,0.35)', hair: 'rgba(244,237,224,0.14)' };
-  const bandEyebrow = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' };
   const moveAllDone = (i) => Array.from({ length: moves[i].sets }).every((_, si) => completed[`${i}-${si}`]);
 
   const viewControlRef = React.useRef(null);
@@ -32694,154 +32693,27 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     logSet(activeIdx);
   };
 
-  // ═══ THE COMPLETION SCREEN ═══
-  // Fixed-dark like the band — the same machine on every paper. Effort leads;
-  // the duration question appears ONLY when the wall-clock timer is not
-  // credible on its own. Edit returns to the workout; Save is the only write.
-  // `session_rpe_prompted` fires once after a confirmed save.
-  if (completing) {
-    const rpeColor = (n) => (n <= 4 ? '#4fd18b' : n <= 7 ? '#e8a33c' : '#e8674c');
-    const sectionHead = { ...bandEyebrow, fontSize: 9, color: BAND.dim };
-    return (
-      <BSPage noSwipe mast={false}>
-        <div style={{ minHeight: '100%', background: BAND.bg, padding: `46px ${t.padX}px 40px` }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <button
-              onClick={() => { if (submissionPending) { endWorkout(); return; } setElapsedStart(Date.now() - (completedAtRef.current || 0) * 1000); setCompleting(false); completedAtRef.current = null; endedAtRef.current = null; setSaveError(''); }}
-              style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}
-            >{submissionPending ? tr('session:player.pause') : tr('session:player.editWorkout')}</button>
-            <span style={{ ...bandEyebrow, color: BAND.dim35 }}>{tr('session:player.completeEyebrow')}</span>
-          </div>
+  // ═══ THE FINISH POP-UP (BSSessionFinish.jsx) ═══
+  // The owner's ask (2026-11-04): "at the end of each workout, have a pop up appear where the client
+  // ranks workout from level of difficulty to enjoyment/satisfication". The workout stays drawn and the
+  // sheet rises over it: how hard (session RPE) and how much they enjoyed it lead, then the duration
+  // question ONLY when the wall-clock timer is not credible on its own, the share toggle and Save.
+  // Edit closes it back to the workout; Save is the only write. `session_rpe_prompted` fires once
+  // after a confirmed save. The sheet only draws: every value and handler here is BSSession's.
+  const finishSheet = completing ? <BSSessionFinish finish={{
+    title, doneSets, totalSets, clock: fmt(elapsedSec), heat,
+    sessionRpe, setSessionRpe, enjoyment, setEnjoyment,
+    askDuration, timerImplausible, prefillOffered, timerMinutes, durationAnswered,
+    shownMinutes, setManualMinutes, minutesMin: SESSION_MINUTES_MIN, minutesMax: SESSION_MINUTES_MAX,
+    shareToFeed, toggleShare: () => setShareToFeed((v) => !v), shareAudience,
+    pending: submissionPending, saveState, saveError,
+    onSave: () => finishAndExit({ answered: durationAnswered }),
+    // Back to the workout: the clock resumes from where it was latched, and nothing is saved. While a
+    // submission is pending the workout is frozen, so this is Pause & exit instead.
+    onEdit: () => { if (submissionPending) { endWorkout(); return; } setElapsedStart(Date.now() - (completedAtRef.current || 0) * 1000); setCompleting(false); completedAtRef.current = null; endedAtRef.current = null; setSaveError(''); },
+  }} /> : null;
 
-          <div style={{ marginTop: 22, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>
-            {title || tr('session:player.sessionDone')}
-          </div>
-          <div style={{ marginTop: 7, ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>
-            {/* ⚠ ONE SENTENCE, NOT FOUR JSX CHILDREN — word order moves. */}
-            {tr('session:player.completeMeta', { done: doneSets, total: totalSets, clock: fmt(elapsedSec) })}
-          </div>
-
-          <fieldset disabled={submissionPending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-          {/* THE EFFORT — the primary action. One tap, and skippable: a skipped
-              rating is NULL, not a guess, and the session simply drops out of
-              load maths rather than being scored as easy. */}
-          <div style={{ marginTop: 30 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-              <div style={sectionHead}>{tr('session:player.effortQ')}</div>
-              <div style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{tr('session:player.effortScale')}</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 4 }}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
-                const on = sessionRpe === n;
-                const c = rpeColor(n);
-                return (
-                  <button
-                    key={n}
-                    onClick={() => setSessionRpe(on ? null : n)}
-                    aria-label={tr('session:player.effortAria', { n })}
-                    aria-pressed={on}
-                    style={{ borderRadius: 5, border: `1px solid ${on ? c : BAND.hair}`, borderBottom: on ? `3px solid ${c}` : `1px solid ${BAND.hair}`, background: on ? bsTHexA(c, 0.16) : 'transparent', color: on ? c : BAND.dim, cursor: 'pointer', padding: '15px 0', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', minHeight: 44 }}
-                  >{n}</button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Duration is asked for at BOTH ends of implausibility — the timer is
-              wall-clock, so it can be far too short (never ran) or far too long
-              (finished hours after they stopped). Never silently accepted, and
-              never shown on a normal-length session. */}
-          {askDuration && (
-            <div style={{ marginTop: 26 }}>
-              <div style={{ ...sectionHead, marginBottom: 9 }}>{tr(timerImplausible ? 'session:player.howLongReally' : 'session:player.howLong')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={SESSION_MINUTES_MIN}
-                  max={SESSION_MINUTES_MAX}
-                  value={shownMinutes}
-                  onChange={(e) => setManualMinutes(e.target.value)}
-                  aria-label={tr('session:player.durationAria')}
-                  placeholder="—"
-                  style={{ width: 104, borderRadius: 5, border: `1px solid ${BAND.hair}`, background: 'rgba(244,237,224,0.05)', color: BAND.cream, padding: '13px 11px', fontFamily: t.MONO, fontSize: 14, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
-                />
-                <span style={{ ...bandEyebrow, fontSize: 9, color: BAND.dim }}>{tr('session:player.minutes')}</span>
-              </div>
-              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: BAND.dim35 }}>
-                {!timerImplausible
-                  ? tr('session:player.timerDidntRun')
-                  : prefillOffered
-                    ? tr('session:player.timerRan', { min: timerMinutes })
-                    : tr('session:player.timerImplausible', { min: timerMinutes })}
-              </div>
-              {/* Honest about the consequence rather than silently dropping the
-                  session from the maths. Only for the over-ceiling case: that is
-                  the one the core actually excludes without a confirmation. */}
-              {timerImplausible && !durationAnswered && (
-                <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: '#e8a33c' }}>
-                  {tr('session:player.blankExcluded')}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div style={{ marginTop: 26 }}>
-            <div style={{ ...sectionHead, marginBottom: 9 }}>{tr('session:player.vibe')}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              {/* ⚠ THESE THREE LABELS ARE INVISIBLE TO THE RATCHET. Copy declared in a
-                  data table and rendered by reference is not attributed to the
-                  component — the inventory's own stated limit — so they never
-                  appeared in its count of this surface. Keyed off the stable id,
-                  never the English word. */}
-              {[['loved', '#4fd18b'], ['ok', '#e8a33c'], ['nope', '#e8674c']].map(([key, c]) => {
-                const label = tr('session:player.vibe.' + key);
-                const on = reviewFeel === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setReviewFeel(on ? null : key)}
-                    aria-pressed={on}
-                    style={{ borderRadius: 5, border: `1px solid ${on ? c : BAND.hair}`, borderLeft: on ? `3px solid ${c}` : `1px solid ${BAND.hair}`, background: on ? bsTHexA(c, 0.14) : 'transparent', cursor: 'pointer', padding: '14px 6px', textAlign: 'center', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: on ? c : BAND.dim, minHeight: 44 }}
-                  >{label}</button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Privacy sits with the save, not two screens away — this is the tap
-              that decides whether the session posts publicly. */}
-          <div style={{ marginTop: 26 }}>
-            <button
-              onClick={() => setShareToFeed((v) => !v)}
-              aria-pressed={shareToFeed}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 5, border: `1px solid ${shareToFeed ? bandHeat : BAND.hair}`, borderLeft: shareToFeed ? `3px solid ${bandHeat}` : `1px solid ${BAND.hair}`, background: shareToFeed ? bsTHexA(bandHeat, 0.1) : 'transparent', cursor: 'pointer', textAlign: 'left', minHeight: 44 }}
-            >
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: BAND.cream }}>{shareAudience === 'friends' ? tr('session:player.shareToggleFriends') : tr('session:player.shareToggle')}</span>
-                <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: BAND.dim35 }}>{shareAudience === 'friends' ? tr('session:player.shareSubFriends') : tr('session:player.shareSub')}</span>
-              </span>
-              <span aria-hidden style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, background: shareToFeed ? bandHeat : BAND.hair, position: 'relative', transition: 'background 0.15s' }}>
-                <span style={{ position: 'absolute', top: 3, left: shareToFeed ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: '#fff', transition: 'left 0.15s' }} />
-              </span>
-            </button>
-          </div>
-
-          </fieldset>
-          <div style={{ marginTop: 30 }}>
-            <button
-              disabled={saveState === 'saving'} onClick={() => finishAndExit({ answered: durationAnswered })}
-              style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: bandHeat, color: '#04211c', cursor: 'pointer', padding: '17px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', minHeight: 44 }}
-            >{saveState === 'saving' ? tr('session:player.saving') : saveState === 'error' ? tr('session:player.retrySave') : tr('session:player.saveFinish')}</button>
-            {saveError && <p role="alert" style={{ color: '#e8a33c', fontSize: 14, lineHeight: 1.4 }}>{saveError}</p>}
-            {saveError && submissionPending && <p style={{ color: BAND.dim, fontSize: 13 }}>{tr('session:player.retrySame')}</p>}
-          </div>
-        </div>
-      </BSPage>
-    );
-  }
-
-  if (viewChooser) return (
+  if (viewChooser && !completing) return (
     <BSPage noSwipe mast={false}>
       <div style={{ padding: `46px ${t.padX}px 120px`, minHeight: '100%', boxSizing: 'border-box', background: t.PAPER, color: t.INK }}>
         <button onClick={endWorkout} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.INK, cursor: 'pointer', padding: 0 }}>{tr('session:player.pause')}</button>
@@ -32896,7 +32768,10 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // The owner's B (2026-11-04: "B for all of them", "the training ones i mean"): a raised card for
   // what is now, glass for the rest. The view only draws; every value and handler below is this
   // component's, so a view change, a pause or a recovery keeps the workout exactly as it was.
-  return <BSWorkoutSession session={{
+  // The finish pop-up rides beside the view, never in its place: the view stays mounted under it, so
+  // opening or closing the sheet keeps the page where it was.
+  return <>
+  <BSWorkoutSession session={{
     view, openChooser: () => setViewChooser(true), viewControlRef, viewWarning,
     title, moves, move, moveIdx, openMode, cue, clip, clipSheet,
     goMove: (i) => { setMoveIdx(i); setGuideStep('prepare'); },
@@ -32918,7 +32793,9 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     sug: _bsSug, fillSug: _bsFillSuggestion, perSide, plates, plateColor, activeLoad, loadUnit: identity.loadUnit,
     primaryLabel, primaryAction: activeIdx != null ? primarySetAction : nextOrFinish,
     openCompletion, endWorkout, discardWorkout, elapsedSec, fmt, heat,
-  }} />;
+  }} />
+  {finishSheet}
+  </>;
 }
 
 // ═══════════════════════════════════════════════════════════

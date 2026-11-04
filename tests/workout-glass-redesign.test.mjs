@@ -212,16 +212,18 @@ function session(view, props = {}) {
   ROWS.set('shapeClientWorkoutView:member-b', view);
   const left = [];
   const p = drive(BSSession, { moves: MOVES(), onBack: () => left.push(true), ...props });
-  const root = () => p.nodes()[0];
+  // BSSession returns the view with the finish pop-up beside it (null until the workout ends).
+  const named = (name) => p.nodes().find((n) => typeof n.type === 'function' && n.type.name === name);
+  const root = () => named('BSWorkoutSession');
   const v = () => {
-    assert.equal(root().type.name, 'BSWorkoutSession', `BSSession drew ${root().type.name || root().type}, not the view`);
+    assert.ok(root(), `BSSession drew ${String(p.nodes()[0] && (p.nodes()[0].type.name || p.nodes()[0].type))}, not the view`);
     return drive(root().type, root().props);
   };
   // Press a control in the drawn view, then let the player re-render.
   const press = (pick) => { const n = pick(v().nodes()); assert.ok(n, 'no such control'); n.props.onClick({ preventDefault() {}, stopPropagation() {} }); p.render(); };
   const byText = (label) => (nodes) => buttons(nodes).find((b) => textOf(b).trim() === label);
   const type = (label, value) => { const el = labelled(v().nodes(), label); assert.ok(el, `no field ${label}`); el.props.onChange({ target: { value } }); p.render(); };
-  return { p, root, v, press, byText, type, left };
+  return { p, root, named, v, press, byText, type, left };
 }
 
 // Focus is the owner's C with every set on the card (2026-11-04: "Do C but have all required sets appear at same
@@ -364,11 +366,16 @@ test('Guided coach: 01 Prepare raised, 02 folded; Ready for this set raises 02 a
 test('Change view opens the chooser, and End workout early the finish step', () => {
   const s = session('focus');
   s.press(s.byText('Change view'));
-  assert.notEqual(s.root().type.name, 'BSWorkoutSession');
+  assert.equal(s.root(), undefined, 'the chooser replaces the view');
   assert.match(textOf({ props: { children: s.p.nodes() } }), /Choose your workout view/);
+  // End early opens the finish pop-up OVER the view, which stays drawn under it.
   const e = session('focus');
+  assert.equal(e.named('BSSessionFinish'), undefined, 'no pop-up while the workout runs');
   e.press(e.byText('End workout early'));
-  assert.match(textOf({ props: { children: e.p.nodes() } }), /How hard was that\?/);
+  assert.ok(e.root(), 'the view is still drawn');
+  const finish = e.named('BSSessionFinish');
+  assert.ok(finish, 'the finish pop-up');
+  assert.match(drive(finish.type, finish.props).text, /How hard was that\?/);
 });
 
 test('an open session names its move, offers the swap names, and adds a move', () => {
