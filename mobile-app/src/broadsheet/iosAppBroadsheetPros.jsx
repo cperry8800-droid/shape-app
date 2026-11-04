@@ -4,7 +4,7 @@ const { ShapeVideoPlayer, ShapeVideoLink } = createMobileVideoComponents(React);
 import { bsHrChart } from '../services/workoutExperience.mjs';
 import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
-import { bsProMin, bsProDurationFromSub, bsProDayShape, bsProAttentionBudget } from '../services/proLedger.mjs';
+import { bsProMin, bsProDurationFromSub, bsProDayShape, bsProTodoFor, bsProFoldTodos } from '../services/proLedger.mjs';
 import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
 import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, bsDraftMode, bsDraftFromResponse, bsMealPlanTemplate, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
@@ -30,7 +30,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -38,8 +38,8 @@ import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMete
 const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(path, init) : fetch(path, init)) };
 // Two coach surfaces share ONE severity engine (bsRowSeverity — prefers the
 // live getTriageFeed `_sig`, else the local status scorer) reading ONE roster
-// (useBSProRoster): BSProToday's THE WIRE (today's attention budget, capped at
-// 3 rows via bsProAttentionBudget) and BSProRosterView (the full ranked book,
+// (useBSProRoster): BSProToday's Your day (the to-dos on one rail with the day's
+// sessions) and BSProRosterView (the full ranked book,
 // every client grouped red -> amber -> green with search + phase filters).
 // iosAppBroadsheetPros.jsx — Trainer & Nutritionist roles in Broadsheet style.
 // Lighter pass: 4 tabs each — Today, Clients, Plans/Pubs, Me.
@@ -1616,14 +1616,11 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// BSProToday — the Assignment Rail (both editions, one component)
-// §A.1–A.9 of docs/superpowers/specs/2026-07-04-coach-ledger-redesign-design.md:
-// masthead → dateline → bulletins (live/review) → THE LEAD (verdict) → week
-// strip → THE RAIL (booking ledger + NOW tick + gaps) → THE WIRE (attention
-// budget) → INSIDE. (doors) → radio + footer. ONE breathing tick per page
-// (the LIVE bulletin dot, else the NOW tick); attention budget caps the WIRE
-// at 3 rows (bsProAttentionBudget); the LEAD block keeps `data-tour="hero-today"`
-// (the coach onboarding tour anchors to it).
+// BSProToday — coach Home (both editions, one component): masthead → ticker →
+// Shape Radio → the Today deck (the day's line, the week, the session bar) →
+// live bulletin → Up next → Your day (To do and the day's sessions on one rail)
+// → Shortcuts → footer. The deck's title keeps `data-tour="hero-today"` (the
+// coach onboarding tour anchors to it).
 // ═══════════════════════════════════════════════════════════
 function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, onOpenReviews, onWidgetOpen = () => {}, onOpenHabits = () => {}, onOpenScore = () => {}, onWatchLive = () => {}, tweaks = {}, setTweak = () => {} }) {
   const t = useBSProClean();
@@ -1817,19 +1814,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     .filter(({ sig }) => sig && FLAG_WORDS[sig.sev])
     .sort((a, b) => (a.sig.rank ?? 9) - (b.sig.rank ?? 9))
     .map(({ c, sig }) => ({ clientId: c.userId || null, name: c.n, severity: sig.sev, directive: sig.directive || sig.label || '' }));
-  const budget = bsProAttentionBudget(triageRows, bookingsWithDuration);
-  // Demoted-client rail anchoring — SAME clientId-first / exact-name-match rule
-  // bsProAttentionBudget uses internally (never substring/.includes()), so a
-  // demoted client who IS booked today still gets their ⚑ mark on that rail row.
-  const normName = (s) => String(s || '').trim().toLowerCase();
-  const demotedAnchorFor = (rawIdx) => {
-    const b = bookingsWithDuration[rawIdx];
-    if (!b) return null;
-    return budget.demoted.find((dt) => (
-      (dt.clientId && b.clientId && dt.clientId === b.clientId) ||
-      (normName(dt.name) && (normName(b.client) === normName(dt.name) || normName(b.title) === normName(dt.name)))
-    )) || null;
-  };
+  // A session's client's to-do (bsProTodoFor: by client id, else the exact name).
+  const todoFor = (b) => bsProTodoFor(triageRows, b);
   const calendarMessage = calendarStatus === 'error' ? tr('coach:today.calendarUnavailable', { defaultValue: 'Could not load your schedule. Check your connection and retry.' }) : tr('coach:common.loading', { defaultValue: 'Loading…' });
   const activeCount = roster.filter((c) => c.active !== false).length;
   const flaggedTotal = roster.filter((c) => c.active !== false && FLAG_WORDS[(bsRowSeverity(c, role) || {}).sev]).length;
@@ -1933,6 +1919,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     : upIsReview ? [tr('coach:today.openReviews', { defaultValue: 'Open reviews' }), () => onOpenReviews()]
     : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId, bookingClientName(upB))]
     : [tr('coach:today.openCalendar', { defaultValue: 'Open calendar' }), () => goCalendar()];
+  // Up next's buttons: a 44px target round a 36px pill.
+  const upHit = { minHeight: 44, minWidth: 0, display: 'flex', alignItems: 'center', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' };
+  const upPill = { flex: 1, minWidth: 0, height: 36, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 10px', borderRadius: 99, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden' };
   const doneToday = todayBookings.filter((b) => b.state === 'done').length;
   const toScheduleList = Array.isArray(toSchedule) ? toSchedule : [];
   const todoCount = triageRows.length + toScheduleList.length;
@@ -1971,11 +1960,14 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   const [showAllPaid, setShowAllPaid] = useStateBSP(false);
   const paidShown = showAllPaid ? toScheduleList : toScheduleList.slice(0, TODO_MAX);
   const paidMore = toScheduleList.length - paidShown.length;
-  const todoShown = triageRows.slice(0, Math.max(0, TODO_MAX - paidShown.length));
-  const todoMore = triageRows.length - todoShown.length;
+  // Today's open sessions take their client's to-do in (the first one each); the rest sit in the lane.
+  const { foldAt, anytime: anytimeTodos } = bsProFoldTodos(triageRows, bookings, { today: isToday });
+  const todoShown = anytimeTodos.slice(0, Math.max(0, TODO_MAX - paidShown.length));
+  const todoMore = anytimeTodos.length - todoShown.length;
+  const laneShown = toSchedule === false || toScheduleList.length > 0 || anytimeTodos.length > 0;
 
   // The day's schedule: finished sessions fold on today; the NOW line sits before the next one.
-  const TIME_COL = 66;
+  const TIME_COL = 58;
   const doneRows = bookings.filter((b) => b.state === 'done');
   const foldDone = isToday && doneRows.length > 0 && !showDone;
   const doneNames = doneRows.map((b) => String(b.client || b.title || '').split(/[\s·:]+/).filter(Boolean)[0]).filter(Boolean).join(', ');
@@ -2048,22 +2040,24 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           segment bar. The strip picks the day the date, the deck's line and bar, and the Schedule below show
           (owner, 2026-11-04); Up next and To do are today's standing list whatever day it picks (the
           2026-10-31 question, "are to dos and tasks supposed to be updating when you choose a different
-          day"). The onboarding tour anchors here. */}
-      <BSProDeck t={t} role={role} tour="hero-today" title={tr('coach:today.title', { defaultValue: 'Today' })}
+          day"). The onboarding tour anchors here. A step tighter than the other coach decks, and 16px clear of
+          Shape Radio over it (owner, 2026-11-04, of Today and Up next: "can we make these a little more
+          condensed on home page with a tad more spacing [from] shape radio"): `dense`. */}
+      <BSProDeck dense t={t} role={role} tour="hero-today" title={tr('coach:today.title', { defaultValue: 'Today' })}
         aside={<span style={bsDeckEyebrow(bsDeckTeal(t))}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}>
-        <p style={{ ...bsProLede(deckT), padding: `0 ${t.padX}px` }}>
+        <p style={{ ...bsProLede(deckT), margin: '3px 0 0', fontSize: 13, padding: `0 ${t.padX}px` }}>
           {headLead ? <b style={{ fontWeight: 600, color: deckT.INK }}>{headLead} </b> : null}{dayRest}
         </p>
         {coachSignedIn && calendarStatus === 'error' && <div style={{ padding: `0 ${t.padX}px` }}><button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={{ ...LINK, color: bsDeckTeal(t) }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>}
         <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={rosterStatus} onRetry={retryRoster} /></div>
         {/* THIS WEEK — the day strip, at the top under Today. */}
-        <BSProDeckWeek t={t} role={role} dates={dates} todayIdx={todayIdx} selDay={selDay} onSelectDay={setSelDay} dayWord={dayWord}
+        <BSProDeckWeek dense t={t} role={role} dates={dates} todayIdx={todayIdx} selDay={selDay} onSelectDay={setSelDay} dayWord={dayWord}
           counts={weekCounts}
           label={tr('coach:rail.thisWeek', { defaultValue: 'This week' })}
           monthLabel={tr('coach:rail.monthView', { defaultValue: 'Month view →' })} onMonth={goCalendar}
           todayAria={tr('coach:rail.todayAria', { defaultValue: 'today' })} />
         {calendarReady && dayBookings.length > 0 && (
-          <BSProDeckSegments t={t} done={isToday || dayPast ? doneDay : 0} total={dayBookings.length}
+          <BSProDeckSegments dense t={t} done={isToday || dayPast ? doneDay : 0} total={dayBookings.length}
             left={isToday || dayPast
               ? `${isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} ${doneDay} / ${dayBookings.length}`
               : `${tr('coach:today.booked', { defaultValue: 'BOOKED' })} ${dayBookings.length}`}
@@ -2117,118 +2111,118 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           and Up next "flow and look better together": "this one", the timeline). A dotted line in the role's
           heat drops from the deck into the card's left rail, where the time to it counts down under a pulsing
           dot; the booking, who it is and what the coach does about it sit to its right. The card is the
-          deck's width (both 10px in from the page) with the same raised look, its rail's corner warmed by the
-          heat. The buttons are round and keep 44 to tap. */}
+          deck's width (both 10px in from the page) and the deck's own box, colour and all (owner, 2026-11-04, of
+          its corner warmed by the heat: "color of this box doesn't match"); the heat stays on the dot, the
+          dotted line and Up next's words. The buttons are round and keep 44 to tap. Condensed with the deck (owner, 2026-11-04: "a little
+          more condensed"): the rail 64px, the countdown 22px, the padding a step in, and the buttons 36px
+          pills, each still a 44px target (it reaches 4px past the pill, over the card's padding). */}
       {upB && (
         <div style={{ margin: '0 10px' }}>
-          <div aria-hidden data-up-link="" style={{ marginLeft: 36, width: 0, height: 14, borderLeft: `2px dotted ${heat}` }} />
-          <div data-up-next="" style={{ ...bsProPlate(t, heat), display: 'grid', gridTemplateColumns: '74px minmax(0, 1fr)' }}>
-            <div data-up-rail="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '14px 4px', borderRight: `1px solid ${t.INK}1f` }}>
+          <div aria-hidden data-up-link="" style={{ marginLeft: 31, width: 0, height: 10, borderLeft: `2px dotted ${heat}` }} />
+          <div data-up-next="" style={{ ...bsRaised(t), display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)' }}>
+            <div data-up-rail="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '10px 4px', borderRight: `1px solid ${t.INK}1f` }}>
               <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
               {upIn != null && (
-                <div data-up-countdown="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
-                  <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 26, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${Math.floor(upIn / 60)}:${String(upIn % 60).padStart(2, '0')}`}</span>
+                <div data-up-countdown="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${Math.floor(upIn / 60)}:${String(upIn % 60).padStart(2, '0')}`}</span>
                   <span style={{ fontFamily: BS_DECK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:today.toGo', { defaultValue: 'to go' })}</span>
                 </div>
               )}
               {/* A booking already under way has no countdown: its start time stands in the rail. */}
               {upIn == null && <span style={{ fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: t.INK70, textAlign: 'center' }}>{fmtAt(upB.time)}</span>}
             </div>
-            <div style={{ minWidth: 0, padding: '14px 16px 16px 14px' }}>
+            <div style={{ minWidth: 0, padding: '10px 14px 12px 12px' }}>
               <div style={{ fontFamily: BS_DECK_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: heatText }}>
                 {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}
               </div>
-              <div style={{ marginTop: 6, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
+              <div style={{ marginTop: 4, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
               <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
-              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-                <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 99, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
-                {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 99, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
+                <button type="button" data-up-btn="" onClick={upPrimary[1]} style={{ ...upHit, margin: '-4px 0' }}><span style={{ ...upPill, background: t.INK, color: t.PAPER }}>{upPrimary[0]}</span></button>
+                {upIsPerson && <button type="button" data-up-btn="" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ ...upHit, margin: '-4px 0' }}><span style={{ ...upPill, border: `1px solid ${t.INK50}`, color: t.INK }}>{tr('coach:today.message', { defaultValue: 'Message' })}</span></button>}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* TO DO — paid sessions to book, then the flagged clients, most urgent first: a numbered ledger, each
-          row led by its number and its severity's dot. */}
-      <section aria-label={tr('coach:today.todo', { defaultValue: 'To do' })} style={{ padding: `24px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <h2 style={H2}>{tr('coach:today.todo', { defaultValue: 'To do' })}{rosterReady ? bsProCount(t, todoCount, sevText('red')) : null}</h2>
-          <button type="button" onClick={() => onWidgetOpen('clients')} style={LINK}>{tr('coach:today.allClients', { defaultValue: 'All clients →' })}</button>
-        </div>
-        <div data-todo-ledger="" style={{ marginTop: 4, ...bsProLedgerTop(t) }}>
-        {(toSchedule === false || toSchedule.length > 0) && (
-          <div data-to-schedule="" style={{ padding: '10px 0', borderBottom: `1px solid ${t.RULE}` }}>
-            <div style={{ fontFamily: BS_DECK_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: heatText }}>
-              {toSchedule === false
-                ? tr('coach:today.toScheduleFailed', { defaultValue: "Paid sessions to schedule couldn't load." })
-                : tr('coach:today.toScheduleHead', { defaultValue: 'TO SCHEDULE · {count}', count: toSchedule.length })}
-            </div>
-            {toSchedule !== false && paidShown.map((p) => (
-              <div key={p.purchaseId} data-paid={p.purchaseId} style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                <span style={bsProLedgerNo(t)}>{bsProNo(paidShown.indexOf(p))}</span>
-                <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 999, border: `2px solid ${heat}`, boxSizing: 'border-box' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.clientName}</div>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70, marginTop: 2 }}>
-                    {tr('coach:today.toSchedulePaid', { defaultValue: 'Paid {date}', date: new Date(p.paidAt).toLocaleDateString(loc, { month: 'short', day: 'numeric' }) })}
-                  </div>
-                </div>
-                <button type="button" onClick={() => setSchedFor({ n: p.clientName, userId: p.clientId })}
-                  style={{ flexShrink: 0, minHeight: 44, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, borderRadius: 6, padding: '0 14px', fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  {tr('coach:today.toScheduleBook', { defaultValue: 'BOOK' })}
-                </button>
-              </div>
-            ))}
-            {paidMore > 0 && <button type="button" onClick={() => setShowAllPaid(true)} style={LINK}>{tr('coach:today.seeAllTodo', { defaultValue: 'See all {count} →', count: toScheduleList.length })}</button>}
-          </div>
-        )}
-        {todoShown.map((w, i) => (
-          <div key={w.clientId || w.name || i} data-todo={w.severity} style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${t.RULE}` }}>
-            <span style={bsProLedgerNo(t)}>{bsProNo(paidShown.length + i)}</span>
-            <span aria-hidden style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 999, background: SEV_HUE[w.severity] || t.INK70 }} />
-            <button type="button" onClick={() => openClientFile(w.clientId)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, minHeight: 60, padding: '10px 0', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{w.name}</span>
-                  {chip(FLAG_WORDS[w.severity], SEV_HUE[w.severity] || t.INK70, sevText(w.severity))}
-                </span>
-                <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{w.directive}</span>
-              </span>
-              <span aria-hidden style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 22, lineHeight: 1, color: t.INK50 }}>›</span>
-            </button>
-          </div>
-        ))}
-        {todoMore > 0 && (
-          <button type="button" onClick={() => onWidgetOpen('clients')} style={{ ...LINK, width: '100%', borderBottom: `1px solid ${t.RULE}` }}>{tr('coach:today.seeAllTodo', { defaultValue: 'See all {count} →', count: triageRows.length })}</button>
-        )}
-        {rosterReady && todoCount === 0 && toSchedule !== false && (
-          <div style={{ borderBottom: `1px solid ${t.RULE}`, padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70 }}>{tr('coach:today.todoClear', { defaultValue: 'Nothing to do — everyone is on track.' })}</div>
-        )}
-        </div>
-      </section>
-
-      {/* SCHEDULE — the selected day, time-ordered: done rows fold, NOW sits before the next one, gaps say open. */}
-      <section aria-label={tr('coach:rail.schedule', { defaultValue: 'Schedule' })} style={{ padding: `22px ${t.padX}px 0` }}>
+      {/* YOUR DAY — To do and the Schedule as one list (owner, 2026-11-04, of the two: "also can we combine these?
+          figure out a design to show both condensed more together to take up less space"). One head (what
+          needs you as a count, the day, Calendar) over one time rail:
+          - TO DO, the rail's first lane: what needs the coach that no session on the rail carries (paid
+            sessions to book, then the flagged clients, most urgent first), each a compact row;
+          - then the day's sessions by time, a session's client's to-do folded under it as one line that opens
+            their file (so nobody is listed twice); done rows fold, NOW sits before the next, gaps say open.
+          To do is today's whatever day is picked (2026-10-31): only today's sessions take a to-do in; on
+          another day each flagged client's session keeps its chip, and every to-do sits in the lane. */}
+      <section data-day-list="" aria-label={tr('coach:today.dayList', { defaultValue: 'Your day' })} style={{ padding: `20px ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h2 style={H2}>{tr('coach:rail.schedule', { defaultValue: 'Schedule' })}</h2>
+          <h2 style={H2}>{tr('coach:today.dayList', { defaultValue: 'Your day' })}{rosterReady ? bsProCount(t, todoCount, sevText('red')) : null}</h2>
           <span style={{ flex: 1, minWidth: 0, fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 600, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           <button type="button" onClick={goCalendar} style={LINK}>{tr('coach:shortcut.calendar', { defaultValue: 'Calendar' })}</button>
         </div>
+        {(laneShown || (rosterReady && todoCount === 0 && toSchedule !== false)) && (
+          <div data-todo-lane="" style={{ marginTop: 4, display: 'grid', gridTemplateColumns: `${TIME_COL}px minmax(0, 1fr)`, columnGap: 12 }}>
+            <span style={{ paddingTop: 13, textAlign: 'right', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: todoCount ? sevText('red') : t.INK70 }}>{tr('coach:today.todo', { defaultValue: 'To do' })}</span>
+            <div style={{ minWidth: 0, borderLeft: `2px dashed ${t.RULE}`, paddingLeft: 12 }}>
+              {(toSchedule === false || toSchedule.length > 0) && (
+                <div data-to-schedule="">
+                  <div style={{ padding: '11px 0 3px', fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: heatText }}>
+                    {toSchedule === false
+                      ? tr('coach:today.toScheduleFailed', { defaultValue: "Paid sessions to schedule couldn't load." })
+                      : tr('coach:today.toScheduleHead', { defaultValue: 'TO SCHEDULE · {count}', count: toSchedule.length })}
+                  </div>
+                  {toSchedule !== false && paidShown.map((p) => (
+                    <div key={p.purchaseId} data-paid={p.purchaseId} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, borderBottom: `1px solid ${t.HAIR}` }}>
+                      <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, border: `2px solid ${heat}`, boxSizing: 'border-box' }} />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{p.clientName}</span>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{tr('coach:today.toSchedulePaid', { defaultValue: 'Paid {date}', date: new Date(p.paidAt).toLocaleDateString(loc, { month: 'short', day: 'numeric' }) })}</span>
+                      </span>
+                      <button type="button" onClick={() => setSchedFor({ n: p.clientName, userId: p.clientId })}
+                        style={{ flexShrink: 0, minHeight: 44, display: 'flex', alignItems: 'center', border: 0, background: 'transparent', padding: 0, cursor: 'pointer' }}>
+                        <span style={{ height: 30, display: 'flex', alignItems: 'center', border: `1px solid ${t.INK50}`, color: t.INK, borderRadius: 6, padding: '0 12px', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tr('coach:today.toScheduleBook', { defaultValue: 'BOOK' })}</span>
+                      </button>
+                    </div>
+                  ))}
+                  {paidMore > 0 && <button type="button" onClick={() => setShowAllPaid(true)} style={LINK}>{tr('coach:today.seeAllTodo', { defaultValue: 'See all {count} →', count: toScheduleList.length })}</button>}
+                </div>
+              )}
+              {todoShown.map((w, i) => (
+                <button key={w.clientId || w.name || i} type="button" data-todo={w.severity} onClick={() => openClientFile(w.clientId, w.name)}
+                  style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', background: 'transparent', border: 0, borderBottom: `1px solid ${t.HAIR}`, cursor: 'pointer', textAlign: 'left', color: t.INK }}>
+                  <span aria-hidden style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 999, background: SEV_HUE[w.severity] || t.INK70 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK }}>{w.name}</span>
+                      {chip(FLAG_WORDS[w.severity], SEV_HUE[w.severity] || t.INK70, sevText(w.severity))}
+                    </span>
+                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{w.directive}</span>
+                  </span>
+                  <span aria-hidden style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 18, lineHeight: 1, color: t.INK50 }}>›</span>
+                </button>
+              ))}
+              {todoMore > 0 && <button type="button" onClick={() => onWidgetOpen('clients')} style={LINK}>{tr('coach:today.seeAllTodo', { defaultValue: 'See all {count} →', count: anytimeTodos.length })}</button>}
+              {rosterReady && todoCount === 0 && toSchedule !== false && (
+                <div style={{ padding: '12px 0', fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK70 }}>{tr('coach:today.todoClear', { defaultValue: 'Nothing to do — everyone is on track.' })}</div>
+              )}
+            </div>
+          </div>
+        )}
         <div
           onClick={(e) => { if (e.target && e.target.closest && e.target.closest('button')) return; goCalendar(); }}
-          style={{ marginTop: 4, cursor: 'pointer' }}
+          style={{ cursor: 'pointer' }}
         >
           {isToday && doneRows.length > 0 && (
-            <button type="button" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)} style={{ width: '100%', minHeight: 48, display: 'flex', alignItems: 'center', gap: 10, border: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', color: t.INK70 }}>
+            <button type="button" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, border: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', color: t.INK70 }}>
               <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>{tr('coach:rail.doneEarlier', { defaultValue: '✓ {count} done earlier', count: doneRows.length })}</span>
               <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doneNames}</span>
               <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: t.INK }}>{showDone ? tr('coach:rail.hide', { defaultValue: 'Hide' }) : tr('coach:rail.show', { defaultValue: 'Show' })}</span>
             </button>
           )}
           {(() => {
-            // Raw-index preservation: dayShape.nowSlot, dayShape.gaps[].afterIdx, budget.inline[].bookingIdx
-            // and the demoted anchor all key off the RAW booking index, so the fold never re-indexes `i`.
+            // Raw-index preservation: dayShape.nowSlot, dayShape.gaps[].afterIdx and foldAt all key off the
+            // RAW booking index, so the fold never re-indexes `i`.
             const indexed = bookings.map((b, rawIdx) => ({ b, rawIdx }));
             const visible = foldDone ? indexed.filter(({ b }) => b.state !== 'done') : indexed;
             const shownIdx = new Set(visible.map((v) => v.rawIdx));
@@ -2240,21 +2234,31 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                 {visible.map(({ b, rawIdx }) => {
                   const done = b.state === 'done';
                   const isNext = isToday && b === upB;
-                  const inlineFlag = budget.inline.find((x) => x.bookingIdx === rawIdx);
-                  const flagHit = inlineFlag || (!inlineFlag ? demotedAnchorFor(rawIdx) : null);
+                  // The to-do folded into this session (today's open sessions), else its client's flag alone.
+                  const folded = foldAt.get(rawIdx) || null;
+                  const flagHit = folded || todoFor(b);
                   const gap = dayShape.gaps.find((g) => g.afterIdx === rawIdx);
                   return (
                     <React.Fragment key={rawIdx}>
                       {dayShape.nowSlot === rawIdx && isToday && nowLine}
                       <div data-rail-row={done ? 'done' : isNext ? 'next' : ''} style={{ display: 'grid', gridTemplateColumns: `${TIME_COL}px minmax(0, 1fr)`, columnGap: 12 }}>
-                        <span style={{ paddingTop: 14, textAlign: 'right', fontFamily: t.MONO, fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isNext ? t.INK : t.INK70 }}>{fmtAt(b.time)}</span>
-                        <div style={{ padding: '12px 0 12px 14px', borderLeft: isNext ? `3px solid ${heat}` : `2px solid ${t.RULE}` }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ paddingTop: 11, textAlign: 'right', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isNext ? t.INK : t.INK70 }}>{fmtAt(b.time)}</span>
+                        <div style={{ minWidth: 0, padding: '8px 0 8px 12px', borderLeft: isNext ? `3px solid ${heat}` : `2px solid ${t.RULE}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
                             {isNext && chip(tr('coach:rail.nextTag', { defaultValue: 'Next' }), heat, heatText)}
                             {flagHit && FLAG_WORDS[flagHit.severity] && chip(FLAG_WORDS[flagHit.severity], SEV_HUE[flagHit.severity], sevText(flagHit.severity))}
                           </div>
-                          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</div>
+                          <div style={{ marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</div>
+                          {folded && (
+                            // A 44px target over a one-line note: it reaches into the row's padding and the line above.
+                            <button type="button" data-rail-todo={folded.severity} onClick={() => openClientFile(folded.clientId, folded.name)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, margin: '-12px 0 -8px', padding: '12px 0 8px', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: sevText(folded.severity) }}>
+                              <span aria-hidden style={{ width: 6, height: 6, flexShrink: 0, borderRadius: 999, background: SEV_HUE[folded.severity] || t.INK70 }} />
+                              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{folded.directive}</span>
+                              <span aria-hidden style={{ flexShrink: 0 }}>›</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                       {gap && gapRow(gap)}

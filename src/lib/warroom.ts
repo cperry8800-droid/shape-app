@@ -622,6 +622,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Train C with A\'s round Start; Eat C with A\'s raised boxes and B\'s week; coach Home tighter, To do and the Schedule as one Your day (#2605). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of three designs each built in the app: Train "C for train for but incorporate this button if you can" (A\'s round Start), "and then C for next part" (On deck); Eat "C for eat but these 2 boxes with a faint border similiar to optoin A", "amd use this weekly calendar im c option for eat" (B\'s tiles), and of C\'s Next stop and meals "and this for for eat"; coach Home "can we make these a little more condensed on home page with a tad more spacing shape radio", "color of this box doesn\'t match" (Up next), and of To do and the Schedule "also can we combine these?", then "your day version"', status: 'done' },
+        { label: '#2605 Train (BSTrainDay.jsx): the burned week over the day tiles, today\'s move with the RPE gauge and A\'s rust ignition Start (a dashed Rest disc on a rest day), the program on a numbered trace, On deck as lit date rings, the links as lit rows (Find a coach as before: not for a member who pays a trainer)', status: 'done' },
+        { label: '#2605 Eat (BSEatDay.jsx): B\'s week tiles and C\'s 24-hour fuel dial, each in a raised box with A\'s edge; C\'s Next stop card and meals timeline. Fuel left still reads "—" before the plan loads; shape.designPreview, BSTrackHeader and bsEatStripDay are gone', status: 'done' },
+        { label: '#2605 coach Home: the Today deck dense (16px under Shape Radio, the title 26px, the days 46px); Up next tighter (rail 64px, 36px pills on 44px targets) in the deck\'s own box (bsRaised, no warm corner); Your day: one head and one time rail, a To do lane first, a client\'s to-do folded under their session today (bsProFoldTodos), so nobody is listed twice', status: 'done' },
+        { label: '#2605 review: Codex clean on 41d51d3. The full suite on the combined tree failed home-deck-spacing (the deck\'s old literals), fixed in 41d51d3; CI green on 41d51d3', status: 'done' },
+        { label: 'Another session built coach Today\'s To do + Schedule as tabs (BSProAgendaTabs, #2604); the owner said "your day version" here, and #2604 holds its tabs until the owner answers there', status: 'pending' },
+        { label: 'At 320px Eat\'s and Train\'s day tiles are 35px wide (45px at 390px); BSFocusHead and the client\'s BSFocusCountdown import are unused; bsProAttentionBudget has no caller in the app', status: 'pending' },
+        { label: 'OWNER: on a phone, Train, Eat and coach Home on both papers', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: no eyebrow on a detail page\'s Back row (#2603). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of the grey "MORNING CHECK-IN · HISTORY" at the right of ← Back: "also remove these eyebrow headers"', status: 'done' },

@@ -1365,6 +1365,7 @@
   "today.openReviews": "Değerlendirmeleri aç",
   "today.seeAllTodo": "Tümünü gör ({count}) →",
   "today.title": "Bugün",
+  "today.dayList": "Günün",
   "today.todo": "Yapılacaklar",
   "today.todoClear": "Yapılacak bir şey yok — herkes yolunda.",
   "today.upNextAt": "Sıradaki · {time}",

@@ -71,19 +71,21 @@ export const bsDeckEyebrow = (color) => ({ fontFamily: BS_DECK_MONO, fontSize: 1
 // along the top, the title in Saira light with the role's full stop, an aside on its baseline, and what the
 // page puts in it. A step tighter (owner, 2026-11-04: "condense
 // these boxes slightly"): 12px over and 14px under (16 and 18 before), the title 30px (34), the week's days
-// 54px tall (64), the gauges 28px (32).
-export function BSProDeck({ t, role, title, aside, tour, label, children, stopColor }) {
+// 54px tall (64), the gauges 28px (32). `dense` is a step tighter again, for coach Home's Today (owner,
+// 2026-11-04, of Today and Up next: "can we make these a little more condensed on home page with a tad more
+// spacing [from] shape radio"): 10px over and 12px under, the title 26px, and 16px clear of what is above.
+export function BSProDeck({ t, role, title, aside, tour, label, children, stopColor, dense = false }) {
   const d = bsProDeckTheme(t);
   // The full stop: the role's heat, or what the page asks (the member's calendar takes teal).
   const heat = stopColor || bsProDeckHeat(role);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-pro-deck="" data-glass="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ color: d.INK, padding: '12px 0 14px', margin: '6px 10px 0', ...bsRaised(t) }}>
+    <section data-pro-deck="" data-glass="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ color: d.INK, padding: dense ? '10px 0 12px' : '12px 0 14px', margin: dense ? '16px 10px 0' : '6px 10px 0', ...bsRaised(t) }}>
       <BSGlassEdge t={t} />
       <div style={{ padding: `0 ${t.padX}px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         {/* The title keeps its width (up to most of the row) and the aside wraps beside it, so a long line
             ("4 published · 40 clients on them") never cuts the title to "Pla…". */}
-        <h1 data-tour={tour} style={{ margin: 0, flexShrink: 0, maxWidth: '72%', fontFamily: BS_GAUGE_FACE, fontSize: 30, fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.05, color: d.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <h1 data-tour={tour} style={{ margin: 0, flexShrink: 0, maxWidth: '72%', fontFamily: BS_GAUGE_FACE, fontSize: dense ? 26 : 30, fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.05, color: d.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title}<span aria-hidden="true" style={{ color: heat }}>.</span>
         </h1>
         {aside ? <div data-deck-aside="" style={{ flex: '0 1 auto', minWidth: 0, display: 'flex', justifyContent: 'flex-end', textAlign: 'right' }}>{aside}</div> : null}
@@ -96,12 +98,13 @@ export function BSProDeck({ t, role, title, aside, tour, label, children, stopCo
 
 // The week on the deck: seven day buttons, each with its sessions as up to three rising bars. The
 // picked day is the cream tile with bars in the role's heat; today, when not picked, is ringed; days
-// gone by sit back. `counts` is the number of bookings each weekday holds (0=Mon).
-export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, counts, dayWord, label, monthLabel, onMonth, todayAria }) {
+// gone by sit back. `counts` is the number of bookings each weekday holds (0=Mon). `dense` (coach Home's
+// Today): the days 46px tall, their bars 10px.
+export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, counts, dayWord, label, monthLabel, onMonth, todayAria, dense = false }) {
   const d = bsProDeckTheme(t);
   const heat = bsProDeckHeat(role);
   return (
-    <div data-deck-week="" role="group" aria-label={label} style={{ padding: `6px ${t.padX - 6}px 0` }}>
+    <div data-deck-week="" role="group" aria-label={label} style={{ padding: `${dense ? 2 : 6}px ${t.padX - 6}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 6px' }}>
         <span style={bsDeckEyebrow(d.INK70)}>{label}</span>
         {onMonth && <button type="button" onClick={onMonth} style={{ minHeight: 40, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(d.TEAL) }}>{monthLabel}</button>}
@@ -117,13 +120,13 @@ export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, c
           return (
             <button key={idx} type="button" aria-pressed={on} onClick={() => onSelectDay(day.getDate())}
               aria-label={`${dayWord(day, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${todayAria}` : ''}`}
-              style={{ minWidth: 0, height: 54, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${d.RULE}` : 0, borderRadius: 9, background: on ? d.INK : 'transparent', color: on ? d.PAPER : d.INK, opacity: past && !on ? 0.6 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 0, cursor: 'pointer' }}>
+              style={{ minWidth: 0, height: dense ? 46 : 54, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${d.RULE}` : 0, borderRadius: 9, background: on ? d.INK : 'transparent', color: on ? d.PAPER : d.INK, opacity: past && !on ? 0.6 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 0, cursor: 'pointer' }}>
               <span style={{ maxWidth: '100%', overflow: 'hidden', fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? d.PAPER : d.INK70, whiteSpace: 'nowrap' }}>{dayWord(day, { weekday: 'short' })}</span>
-              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, fontWeight: 400, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{day.getDate()}</span>
-              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 12 }}>
+              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: dense ? 16 : 17, fontWeight: 400, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{day.getDate()}</span>
+              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: dense ? 10 : 12 }}>
                 {n === 0
                   ? <span style={{ width: 4, height: 2, borderRadius: 1, background: on ? `${d.PAPER}55` : d.RULE }} />
-                  : [5, 8, 12].slice(0, n).map((h, k) => <span key={k} style={{ width: 4, height: h, borderRadius: 1, background: on ? heat : d.INK50 }} />)}
+                  : (dense ? [4, 7, 10] : [5, 8, 12]).slice(0, n).map((h, k) => <span key={k} style={{ width: 4, height: h, borderRadius: 1, background: on ? heat : d.INK50 }} />)}
               </span>
             </button>
           );
@@ -134,17 +137,17 @@ export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, c
 }
 
 // The day as a segment bar: one segment a session (twelve at most, then in proportion), the done ones
-// in teal, with what it reads on either side under it.
-export function BSProDeckSegments({ t, done, total, left, right }) {
+// in teal, with what it reads on either side under it. `dense` (coach Home's Today): 8px over it, not 10.
+export function BSProDeckSegments({ t, done, total, left, right, dense = false }) {
   const d = bsProDeckTheme(t);
   const segs = Math.min(12, Math.max(1, total));
   const filled = total > 12 ? Math.round((done / total) * 12) : done;
   return (
-    <div data-deck-segments="" style={{ padding: `10px ${t.padX}px 0` }}>
+    <div data-deck-segments="" style={{ padding: `${dense ? 8 : 10}px ${t.padX}px 0` }}>
       <div aria-hidden="true" style={{ display: 'grid', gridTemplateColumns: `repeat(${segs}, minmax(0, 1fr))`, gap: 3 }}>
         {Array.from({ length: segs }).map((_, i) => <span key={i} style={{ height: 6, borderRadius: 1, background: i < filled ? d.TEAL : d.RULE }} />)}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: dense ? 4 : 5 }}>
         <span style={bsDeckEyebrow(d.INK70)}>{left}</span>
         {right ? <span style={bsDeckEyebrow(d.INK70)}>{right}</span> : null}
       </div>

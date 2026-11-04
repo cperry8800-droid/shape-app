@@ -1365,6 +1365,7 @@
   "today.openReviews": "Abrir revisiones",
   "today.seeAllTodo": "Ver los {count} →",
   "today.title": "Hoy",
+  "today.dayList": "Tu día",
   "today.todo": "Pendientes",
   "today.todoClear": "Nada pendiente — todos van bien.",
   "today.upNextAt": "Siguiente · {time}",

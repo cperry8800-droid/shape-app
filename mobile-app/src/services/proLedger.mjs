@@ -81,6 +81,34 @@ export function bsProAttentionBudget(triage = [], bookings = [], max = 3) {
   return { lead, leadAnchor: leadIdx >= 0 ? leadIdx : null, inline, wires, demoted };
 }
 
+// Coach Home's Your day (owner, 2026-11-04, of To do and the Schedule: "also can we combine these? figure out
+// a design to show both condensed more together to take up less space"). A session's client is matched to
+// their to-do by client id when both carry one, else by the exact name: the booking's client (or title)
+// without its "New:" or a " · review" after it, never a substring.
+export function bsProBookingWho(b) {
+  return String((b && (b.client || b.title)) || '').replace(/^\s*new:\s*/i, '').split(/\s+·\s+/)[0].trim();
+}
+export function bsProTodoFor(triage = [], b) {
+  if (!b) return null;
+  const norm = (s) => String(s || '').trim().toLowerCase();
+  return triage.find((w) => (w.clientId && b.clientId)
+    ? w.clientId === b.clientId
+    : (!!norm(w.name) && norm(w.name) === norm(bsProBookingWho(b)))) || null;
+}
+// On today, each open session (not done) takes in its client's to-do, the first session of theirs only;
+// `foldAt` maps a booking's index to the to-do it carries, and `anytime` is what no session carries, in
+// the triage's order. On another day nothing folds: To do is today's.
+export function bsProFoldTodos(triage = [], bookings = [], { today = true } = {}) {
+  const foldAt = new Map();
+  if (today) bookings.forEach((b, i) => {
+    if (!b || b.state === 'done') return;
+    const w = bsProTodoFor(triage, b);
+    if (w && ![...foldAt.values()].includes(w)) foldAt.set(i, w);
+  });
+  const folded = new Set(foldAt.values());
+  return { foldAt, anytime: triage.filter((w) => !folded.has(w)) };
+}
+
 export function bsProLeadVerdict({ signedIn, sessions = 0, firstLabel = null, top = null } = {}) {
   if (!signedIn) return null; // signed-out demo narratives are authored at the call site
   if (top) return `${top.name} first — ${top.directive}`;
