@@ -710,7 +710,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('home:mornings.eyebrow', { defaultValue: 'Morning check-in · history' })}
+      <BSDetailHeader onBack={onBack}
         title={<>{tr('home:mornings.titlePre', { defaultValue: 'Your' })} <span>{tr('home:mornings.titleWord', { defaultValue: 'mornings.' })}</span></>} />
       <div data-bs-mornings="" style={{ paddingTop: 4 }}>
         {/* The example is said in the note's ink, marked by an amber rule beside it (amber is no text colour). */}

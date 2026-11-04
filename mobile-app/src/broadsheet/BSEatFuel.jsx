@@ -134,7 +134,6 @@ export function BSEatMacroPage({ k, name, color, v, g, meals = [], week = [], da
   return (
     <BSPage>
       <BSDetailHeader onBack={onBack}
-        eyebrow={dayIdx === todayIdx ? tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' }) : (week[dayIdx] && week[dayIdx].d) || ''}
         title={name} />
 
       <section data-eat-macro-hero="" style={{ padding: `0 ${t.padX}px` }}>

@@ -5879,7 +5879,6 @@ function BSRecipePreview({ recipe, dayLabel, onBack, onAddGrocery, groceryAdded 
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={`Recipe of the day · ${dayLabel}`}
         title={r.title}
       />
 
@@ -5931,7 +5930,6 @@ function BSDayBriefPreview({ day, onBack, onMealClick, onRecipeClick }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={`Day brief · ${day.d}`}
         title={day.headline}
       />
 
@@ -10778,11 +10776,7 @@ function BSShapeKitchenRecipe({ recipe, onBack, onAddGrocery, groceryAdded }) {
   if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} />;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={(() => {
-        const a = bsRecipeAttribution(r);
-        if (!a) return 'RECIPE';
-        return a.kind === 'authored' ? `${a.role ? `${a.role} · ` : ''}${a.name}` : a.name;
-      })()} kicker="Shape Kitchen" title={r.title} />
+      <BSDetailHeader onBack={onBack} kicker="Shape Kitchen" title={r.title} />
 
       <BSKitchenCard recipe={r} no={_no} />
 
@@ -25447,7 +25441,9 @@ function BSNoraProposal({ a, t }) {
     } catch (e) { setErr(String(e?.message || tr('feed:support.proposal.undoFailed', { defaultValue: 'Could not undo.' }))); setStatus('done'); }
   };
   const openPlan = () => {
-    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null } })); } catch (e) {}
+    // planKind says whose shell answers: a trainer's program, or a nutritionist's meal plan, program
+    // or diet (planKind 'meal_plan'), each opened in the app's own editor.
+    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null, planKind: open.planKind || null } })); } catch (e) {}
   };
   return (
     <div style={{ width: '100%', border: `1px solid ${ac}55`, background: `${ac}0f`, borderRadius: 14, padding: 12, marginTop: 8 }}>
@@ -25489,16 +25485,13 @@ function BSNoraProposal({ a, t }) {
           <button onClick={confirm} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{status === 'error' ? tr('feed:support.proposal.tryAgain', { defaultValue: 'Try again' }) : tr('feed:support.proposal.confirm', { defaultValue: 'Confirm' })}</button>
         )}
         {status === 'busy' && <span style={{ fontFamily: mono, fontSize: 9, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{tr('feed:support.proposal.applying', { defaultValue: 'Applying…' })}</span>}
-        {/* A meal plan Nora drafted is the website builder's document: the app's editor keeps
-            another shape, so the card says where it is instead of opening a screen that cannot
-            show it (Codex, #2260). It is listed under Plans. */}
+        {/* A meal plan Nora drafted is the website builder's document, and the app opens it in its
+            own editor for it (BSMealBuilderEditor; owner, 2026-11-04), so every saved plan's card
+            opens it. It used to say to edit it on the website (Codex, #2260). */}
         {status === 'done' && setupCard && (
           <span data-nora-setup-saved style={{ flexBasis: '100%', fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.setup.saved', { defaultValue: 'Saved to your account. You can change any of it in Settings.' })}</span>
         )}
-        {status === 'done' && open && open.planKind === 'meal_plan' && (
-          <span data-nora-meal-saved style={{ fontFamily: t.BODY, fontSize: 12, color: muted, lineHeight: 1.4 }}>{tr('feed:support.proposal.mealPlanSaved', { defaultValue: 'Saved to your meal plans. Edit and assign it in the meal builder on the Shape website.' })}</span>
-        )}
-        {status === 'done' && open && open.planKind !== 'meal_plan' && (
+        {status === 'done' && open && (
           <button onClick={openPlan} style={{ border: 0, background: ac, color: '#06231f', borderRadius: 999, padding: '7px 14px', fontFamily: mono, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('feed:support.proposal.openBuilder', { defaultValue: 'Open in builder' })} →</button>
         )}
         {status === 'done' && auditId && (
@@ -27062,7 +27055,7 @@ function BSNoraMemoryPage({ onBack }) {
   const when = (iso) => { try { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) { return ''; } };
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Nora" kicker="Memory" title={<>What Nora<br/>remembers.</>} />
+      <BSDetailHeader onBack={onBack} kicker="Memory" title={<>What Nora<br/>remembers.</>} />
       <div style={{ padding: `4px ${t.padX}px 30px` }}>
         <BSNoraThreadCard />
         {notes === null ? (
@@ -27227,7 +27220,7 @@ function BSNotifyPrefs({ onBack, role }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('settings:notifyPrefs.eyebrow', { defaultValue: 'Section · Notifications' })} kicker={tr('settings:section.notifications', { defaultValue: 'Notifications' })} title={<>{tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })}<br/>{tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}</>} />
+      <BSDetailHeader onBack={onBack} kicker={tr('settings:section.notifications', { defaultValue: 'Notifications' })} title={<>{tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })}<br/>{tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}</>} />
       {settings === null ? (
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:notifyPrefs.loading', { defaultValue: 'Loading…' })}</div>
       ) : (
@@ -27419,7 +27412,7 @@ function BSSessionsScreen({ onBack }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Section · Bookings" kicker="Coaching" title={<>Your<br/>sessions.</>} />
+      <BSDetailHeader onBack={onBack} kicker="Coaching" title={<>Your<br/>sessions.</>} />
       {sessions === null && (
         <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
       )}
@@ -28151,7 +28144,7 @@ function BSCycleCalendarPage({ onBack }) {
 
   return (
     <BSPage tabBarHeight={0}>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('cycle:cal.eyebrow', { defaultValue: 'Tracking · Private' })}
+      <BSDetailHeader onBack={onBack}
         title={<>{tr('cycle:optIn.titlePre', { defaultValue: 'The' })} <span style={{ fontStyle: 'italic', color: heat }}>{tr('cycle:optIn.titleAccent', { defaultValue: 'Cycle.' })}</span></>} />
 
       {register}
@@ -29518,7 +29511,7 @@ function BSWeeklyCheckin({ onBack }) {
   const numIn = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: `1px solid ${t.RULE}`, background: t.PAPER, borderRadius: 8, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, outline: 'none', textAlign: 'center' };
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={`Week of ${(window.ShapeCheckins && window.ShapeCheckins.weekOf()) || ''}`} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
+      <BSDetailHeader onBack={onBack} kicker="Weekly check-in" title={<>How did the<br/>week go?</>} />
       <div style={{ padding: '8px 0 28px' }}>
         {doneWeek && (
           <div style={{ ...card, borderLeft: `3px solid ${teal}`, background: `${teal}10`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: teal, fontWeight: 700 }}>Already checked in this week — saving again updates it.</div>
@@ -30639,7 +30632,7 @@ function BSScoreRecordPage({ onBack, tier }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Shape Score" kicker={tr('score:record.title', { defaultValue: 'The Record' })} title={tr('score:record.title', { defaultValue: 'The Record' })} />
+      <BSDetailHeader onBack={onBack} kicker={tr('score:record.title', { defaultValue: 'The Record' })} title={tr('score:record.title', { defaultValue: 'The Record' })} />
 
       {preview && (
         <div style={{ margin: `0 ${t.padX}px 4px`, padding: '8px 10px', border: `1px solid ${bsTHexA(heat, 0.4)}`, borderRadius: 6, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: heat }}>
@@ -30843,7 +30836,6 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={isCoach ? tr('score:coach.eyebrow', { defaultValue: 'Your coach standing' }) : tr('score:page.eyebrow', { defaultValue: 'Your standing' })}
         title={<>{tr('score:page.titleA', { defaultValue: 'Shape' })} <span style={{ color: tierText }}>{tr('score:page.titleB', { defaultValue: 'Score.' })}</span></>}
         trailing={<button onClick={onOpenStore} style={pillBtn}>{tr('score:storeBtn', { defaultValue: 'Store' })} <span aria-hidden>→</span></button>}
       />
@@ -31449,7 +31441,6 @@ function BSShapeStorePage({ onBack, onOpenScore, profile = SHAPE_SCORE_PROFILES.
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('store:page.eyebrow', { defaultValue: 'Store' })}
         kicker="Shape Store"
         title={<>{tr('store:page.titleA', { defaultValue: 'Gear &' })} <span style={{ color: bsTierText(t, profile.tier) }}>{tr('store:page.titleB', { defaultValue: 'perks.' })}</span></>}
         trailing={<button onClick={onOpenScore} style={{ minHeight: 36, padding: '0 14px', borderRadius: 999, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('store:page.score', { defaultValue: 'Score' })} <span aria-hidden>→</span></button>}
@@ -31826,7 +31817,7 @@ function BSTierClaimShip({ t, reward, busy, notice, onBack, onConfirm }) {
   const ok = bsShipValid(f) && !busy;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('store:unlocked.eyebrow', { defaultValue: 'Unlocked' })} kicker={reward.name}
+      <BSDetailHeader onBack={onBack} kicker={reward.name}
         title={<>{tr('store:unlocked.shipTitleA', { defaultValue: 'Where do we' })}<br/>{tr('store:unlocked.shipTitleB', { defaultValue: 'send it?' })}</>} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>
@@ -31858,7 +31849,7 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
   const canPlace = lines.length > 0 && validShip && !short && !busy;
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={tr('store:page.eyebrow', { defaultValue: 'Store' })} kicker={tr('store:checkout.kicker', { defaultValue: 'Checkout' })} title={<>{tr('store:checkout.titleA', { defaultValue: 'Your' })}<br/>{tr('store:checkout.titleB', { defaultValue: 'cart.' })}</>} />
+      <BSDetailHeader onBack={onBack} kicker={tr('store:checkout.kicker', { defaultValue: 'Checkout' })} title={<>{tr('store:checkout.titleA', { defaultValue: 'Your' })}<br/>{tr('store:checkout.titleB', { defaultValue: 'cart.' })}</>} />
       <div style={{ padding: `4px ${t.padX}px 0` }}>
         {lines.length === 0 ? (
           <div style={{ padding: '28px 0', textAlign: 'center', fontFamily: t.BODY, fontSize: 14, color: t.INK70 }}>
@@ -31976,7 +31967,7 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════
 function bsNoDetailBar() { return null; }
 
-function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = false }) {
+function BSDetailHeader({ onBack, kicker, title, trailing, noCorner = false }) {
   const t = useBS();
   const BSMastRow = window.BSMastRow;
   // Inside a BSPage the header scrolls away, and the page's pinned bar takes ← and the title in
@@ -31985,12 +31976,14 @@ function BSDetailHeader({ onBack, eyebrow, kicker, title, trailing, noCorner = f
   const titleRef = (window.useBSDetailBar || bsNoDetailBar)(title, onBack);
   const pin = titleRef ? null : { position: 'sticky', top: 0, zIndex: 2 };
   // Standing masthead row first (logo + Vol·No + the search/avatar corners —
-  // the strip that opens every page), then the back + eyebrow row.
+  // the strip that opens every page), then ← Back on its own (owner, 2026-11-04, of the grey line at
+  // its right, "MORNING CHECK-IN · HISTORY": "also remove these eyebrow headers"; a page's title says
+  // what it is, and what an eyebrow carried besides is on the page: a recipe's credit on its card, the
+  // burned week's dates on its days).
   return (
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px`, background: t.PAPER, ...pin }}>
       {BSMastRow && <BSMastRow trailing={noCorner ? null : <BSMeCorner />} />}
-      <BSBackRow onBack={onBack} style={{ marginBottom: 2 }}
-        trailing={eyebrow ? <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{eyebrow}</span> : null} />
+      <BSBackRow onBack={onBack} style={{ marginBottom: 2 }} />
       {kicker && <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 700, marginBottom: 8 }}>{kicker}</div>}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div ref={titleRef || undefined} style={{ fontFamily: t.DISPLAY, fontSize: 30, lineHeight: 0.96, fontWeight: t.W.display, letterSpacing: '-0.035em', color: t.INK }}>{title}</div>
@@ -32069,7 +32062,6 @@ function BSWorkoutPreview({ program, coach = '', onBack, onStart }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('session:train.previewEyebrow', { defaultValue: 'Preview · Read-only' })}
         title={program.headline}
       />
 
@@ -35955,7 +35947,6 @@ function BSContactPage({ onBack }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Support"
         kicker="Contact"
         title={<>Get in<br/>touch.</>}
         trailing={<BSAvatar init="S" size={36} fill={t.ACCENT} ink={t.PAPER} />}
@@ -37133,7 +37124,6 @@ function BSPricingPage({ onBack }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Pricing"
         kicker="Membership"
         title={<>Five dollars<br/>a month.</>}
         trailing={<BSAvatar init="$" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -37237,7 +37227,6 @@ function BSTermsPage({ onBack, onContact }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Legal"
         kicker="Terms of service"
         title={<>Terms of<br/>service.</>}
         trailing={<BSAvatar init="T" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -37327,7 +37316,6 @@ function BSPrivacyPage({ onBack, onContact }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Legal"
         kicker="Privacy policy"
         title={<>Privacy<br/>policy.</>}
         trailing={<BSAvatar init="P" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -37387,7 +37375,6 @@ function BSDataCompliancePage({ onBack, onContact }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Legal"
         kicker="Data & compliance"
         title={<>Data &amp;<br/>compliance.</>}
         trailing={<BSAvatar init="D" size={36} fill={t.INK} ink={t.PAPER} />}
@@ -37472,7 +37459,7 @@ function BSCodeOfConductPage({ onBack, onContact }) {
   ];
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <BSDetailHeader onBack={onBack} kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.</div>
@@ -37501,7 +37488,7 @@ function BSConsumerHealthPage({ onBack, onContact }) {
   ];
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <BSDetailHeader onBack={onBack} kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.</div>
@@ -37527,7 +37514,7 @@ function BSSubprocessorsPage({ onBack, onContact }) {
   ];
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow="Legal" kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
+      <BSDetailHeader onBack={onBack} kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
       <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
         <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The third parties that help run Shape — each engaged to use your data only to provide its service, on the basis stated for it.</div>
@@ -37562,7 +37549,6 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow="Support"
         kicker="Help center"
         title={<>Help<br/>center.</>}
         trailing={<BSAvatar init="?" size={36} fill={t.ACCENT} ink={t.INK} />}

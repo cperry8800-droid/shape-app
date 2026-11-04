@@ -156,7 +156,6 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
     <BSPage>
       <BSDetailHeader
         onBack={onBack}
-        eyebrow={tr('common:notifications.eyebrow', { defaultValue: 'Section · Activity' })}
         kicker={tr('common:notifications.kicker', { defaultValue: 'Notifications' })}
         title={<>{tr('common:notifications.titleTop', { defaultValue: 'Your' })}<br/>{tr('common:notifications.titleBottom', { defaultValue: 'updates.' })}</>}
       />

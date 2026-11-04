@@ -94,10 +94,6 @@ function useBSBurnWeek() {
 }
 
 const connect = () => { try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) { /* no listener */ } };
-const rangeOf = (monday) => {
-  const f = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' });
-  try { return f.formatRange(dateOf(monday), dateOf(bsHwShift(monday, 6))); } catch (e) { return `${f.format(dateOf(monday))} – ${f.format(dateOf(bsHwShift(monday, 6)))}`; }
-};
 
 export function BSTrainBurn({ onOpen = null }) {
   const t = window.useBS();
@@ -190,7 +186,7 @@ export function BSTrainBurnPage({ onBack }) {
   const short = new Intl.DateTimeFormat(locale(), { day: 'numeric', month: 'short' });
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} eyebrow={rangeOf(monday)} title={tr('session:burn.title', { defaultValue: 'Burned this week' })} />
+      <BSDetailHeader onBack={onBack} title={tr('session:burn.title', { defaultValue: 'Burned this week' })} />
       <section data-train-burn-hero="" aria-busy={loading || undefined} style={{ padding: `0 ${t.padX}px` }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
           <span style={{ fontFamily: t.DISPLAY, fontSize: 44, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{hasTotal ? num(week.total) : '—'}</span>

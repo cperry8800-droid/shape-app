@@ -500,7 +500,8 @@ test('a macro\'s page: what is left, the day\'s meals by it, the week against th
     const order = d.nodes();
     const head = order.find((n) => typeof n.type === 'function' && n.type.name === 'BSDetailHeader');
     assert.equal(head.props.title, 'Protein');
-    assert.equal(head.props.eyebrow, 'Fuel left today', 'today\'s page says so');
+    // No eyebrow over the title (owner, 2026-11-04: "also remove these eyebrow headers"); the week below marks the day.
+    assert.equal(head.props.eyebrow, undefined);
     assert.match(d.text, /2g left/);
     assert.match(d.text, /128 of 130 g · 98%/);
     // The meals, each with its grams of this macro, and a door to the meal.
@@ -528,7 +529,7 @@ test('a macro\'s page: what is left, the day\'s meals by it, the week against th
     assert.match(over.text, /11g over/);
     assert.doesNotMatch(over.text, /-\d+g left/);
     const overHead = over.nodes().find((n) => typeof n.type === 'function' && n.type.name === 'BSDetailHeader');
-    assert.equal(overHead.props.eyebrow, 'T 20');
+    assert.equal(overHead.props.eyebrow, undefined);
   } finally {
     for (const [name, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[name]; else globalThis[name] = v; }
   }

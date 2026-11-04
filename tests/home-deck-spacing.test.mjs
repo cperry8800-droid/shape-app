@@ -80,3 +80,28 @@ test('coach Today: the deck\'s sessions follow the day picked in the strip', () 
   assert.match(PROS, /\{calendarReady && dayBookings\.length > 0 && \(\s*<BSProDeckSegments t=\{t\} done=\{isToday \|\| dayPast \? doneDay : 0\} total=\{dayBookings\.length\}/);
   assert.match(PROS, /onSelectDay=\{setSelDay\}/);
 });
+
+// Owner, 2026-11-04: "make this ticker box the same width as the boxes below it on all home pages. also
+// make the club shape a littile larger on home pages".
+test('the ticker is 10px in from each side, as the deck and panels under it on every Home', () => {
+  const ticker = between(CHROME, 'function BSTicker(', '\n}\n');
+  assert.match(ticker, /<div data-bs-ticker="" style=\{\{\n\s+position: 'relative', margin: '0 10px',/);
+  // The boxes it lines up with: member Home's deck and morning panel, coach Today's deck.
+  assert.match(DECK, /margin: radio \? '10px 10px 0' : '6px 10px 0'/);
+  const CHECKIN = readFileSync(new URL('../mobile-app/src/broadsheet/BSCheckinCard.jsx', import.meta.url), 'utf8');
+  assert.match(CHECKIN, /<section data-bs-morning="" style=\{\{ margin: '10px 10px 4px'/);
+  const INSTR = readFileSync(new URL('../mobile-app/src/broadsheet/BSProInstrument.jsx', import.meta.url), 'utf8');
+  assert.match(INSTR, /<section data-pro-deck="" data-glass=""[^>]*margin: '6px 10px 0'/);
+  // Coach Today's Shape Radio box, between the ticker and the deck, is 10px in too (its own 8 and 2).
+  const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
+  assert.match(PROS, /<div style=\{\{ margin: '12px 2px 0' \}\}>\n\s+<BSNowPlaying onOpen=\{goRadio\} \/>/);
+  const RADIO = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url), 'utf8');
+  assert.match(RADIO, /margin: '12px 8px 4px', borderRadius: 14,/);
+});
+
+test('the Club Shape wordmark on the Home flag is a size up, 262px, and still gives way on a narrow phone', () => {
+  const flag = between(CHROME, 'function BSMastLayout(', '\nfunction BSMasthead(');
+  assert.match(flag, /\{flank\}\{word\(262\)\}\{flank\}/);
+  assert.match(flag, /<div style=\{\{ flex: `0 1 \$\{width\}px`, width, minWidth: 0 \}\}>/, 'it shrinks');
+  assert.match(flag, /flex: '1 1 0', minWidth: 10,/, 'the flanks keep 10px');
+});

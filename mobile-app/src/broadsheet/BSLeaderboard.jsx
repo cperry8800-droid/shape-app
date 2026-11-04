@@ -200,7 +200,6 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
   const shell = (children) => (
     <BSPage>
       <BSDetailHeader onBack={onBack}
-        eyebrow={coach ? tr('score:board.eyebrowCoach', { defaultValue: 'Section · Practice' }) : tr('score:board.eyebrow', { defaultValue: 'Section · Community' })}
         kicker="Shape Score" title={<>{title}</>} />
       {controls}
       {children}
