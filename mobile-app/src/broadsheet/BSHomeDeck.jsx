@@ -131,13 +131,15 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   return (
     // ⚠ THE CLIMB IS A DOOR FOR EVERY HAND (Codex P2 on #2583): a state with its own link (reached, start
     // only, words, none) keeps that link as the keyboard's way in; a climb with none (progress) is itself a
-    // button, focusable and opened with Enter or Space, named by what it shows.
-    <div data-bs-home-climb={st.kind} data-tour={tour || undefined} onClick={typeof onOpen === 'function' ? onOpen : undefined}
-      {...(typeof onOpen === 'function' && !action ? {
+    // button, focusable and opened with Enter or Space, named by what it shows. A climb still reading (or
+    // whose read failed) shows nothing yet and is no door at all: an unnamed button in the tab order
+    // otherwise (Codex P2 on #2583).
+    <div data-bs-home-climb={st.kind} data-tour={tour || undefined} onClick={typeof onOpen === 'function' && st.kind !== 'loading' ? onOpen : undefined}
+      {...(typeof onOpen === 'function' && !action && st.kind === 'progress' && aria ? {
         role: 'button', tabIndex: 0, 'aria-label': aria || undefined,
         onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } },
       } : null)}
-      style={{ position: 'relative', margin: '8px 0 0', cursor: typeof onOpen === 'function' ? 'pointer' : 'default' }}>
+      style={{ position: 'relative', margin: '8px 0 0', cursor: typeof onOpen === 'function' && st.kind !== 'loading' ? 'pointer' : 'default' }}>
       <svg role="img" aria-label={aria} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
         <polygon points={bsClimbRidge()} fill={`rgba(${t.inkRGB || '245,240,230'},0.07)`} />
         <polyline points={bsClimbPath(walked ? pct / 100 : 0, 1)} fill="none" stroke={faint} strokeWidth="1.4" strokeDasharray="3 4" strokeLinecap="round" />

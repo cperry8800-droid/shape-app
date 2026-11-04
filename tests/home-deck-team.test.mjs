@@ -153,6 +153,13 @@ test('the climb is keyboard-operable: a progress climb is a focusable button ope
   const words = climbOf(drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'race', overall: {}, weighIns: [] }, onOpen: () => {} })));
   assert.equal(words.props.role, undefined, 'a button around a link');
   assert.equal(words.props.tabIndex, undefined);
+  // Still reading (or a read that failed): nothing to name, so no door at all (Codex P2 on #2583).
+  const reading = climbOf(drive(D.BSHomeClimbView, GOAL_PROPS({ data: null, onOpen: () => opened.push(1) })));
+  assert.equal(reading.props['data-bs-home-climb'], 'loading');
+  assert.equal(reading.props.role, undefined, 'an unnamed button in the tab order');
+  assert.equal(reading.props.tabIndex, undefined);
+  assert.equal(reading.props.onClick, undefined);
+  assert.equal(opened.length, 2);
 }));
 
 test('the climb says only what it can: reached, a start with no target, words alone, nothing set, or still reading', () => withPounds(() => {
