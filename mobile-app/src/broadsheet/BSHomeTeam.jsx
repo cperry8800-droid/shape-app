@@ -71,10 +71,18 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   const trainer = trainers[0] || null;
   const nutri = nutris[0] || null;
   const extras = [...trainers.slice(1), ...nutris.slice(1)];
-  const noteOf = (c) => {
-    const mine = notes.filter((n) => (n.role === 'nutritionist') === (c.role === 'nutritionist'));
-    return (c.name && mine.find((n) => n.who && n.who === c.name)) || mine[0] || null;
+  // Each coach's weekly note on their own card. A note signed with a coach's name is theirs; an unsigned
+  // one, or one whose name matches no coach here (a name read that failed), goes to the first of its role.
+  // A second coach of a role never shows the first's note.
+  const sameRole = (a, b) => (a.role === 'nutritionist') === (b.role === 'nutritionist');
+  const noteOf = (c, first) => {
+    const mine = notes.filter((n) => sameRole(n, c));
+    const own = c.name ? mine.find((n) => n.who && n.who === c.name) : null;
+    if (own || !first) return own || null;
+    const named = coaches.filter((k) => k !== c && sameRole(k, c) && k.name).map((k) => k.name);
+    return mine.find((n) => !n.who || !named.includes(n.who)) || null;
   };
+  const quote = (note) => <div data-team-note="" style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK }}>&ldquo;{note.text}&rdquo;</div>;
   const roleWord = (role) => (role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' }));
   const openThread = (c) => {
     if (!c.conversationId) { if (typeof onCoaches === 'function') onCoaches(); return; }
@@ -118,8 +126,9 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       {right ? <span style={{ ...mono, marginLeft: 'auto', color: t.INK50 }}>{right}</span> : null}
     </div>
   );
-  const sessionCard = (withMessage) => (
+  const sessionCard = (withMessage, note = null) => (
     <div data-team-card="session" style={card}>
+      {note ? <div style={{ paddingBottom: 10, marginBottom: 10, borderBottom: `1px solid ${t.HAIR || t.RULE}` }}>{quote(note)}</div> : null}
       {workout ? (
         <>
           <div style={{ fontFamily: BS_GAUGE_FACE, fontSize: 21, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK }}>{workout.title}</div>
@@ -139,7 +148,7 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   );
   const fuelBody = (note) => (
     <>
-      {note ? <div style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK }}>&ldquo;{note.text}&rdquo;</div> : null}
+      {note ? quote(note) : null}
       {(fuel && fuel.left != null) || meal ? (
         <div style={{ marginTop: note ? 10 : 0, paddingTop: note ? 10 : 0, borderTop: note ? `1px solid ${t.HAIR || t.RULE}` : 0, display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           {fuel && fuel.left != null ? (
@@ -179,7 +188,7 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       {trainer ? (
         <div data-team-coach="trainer" style={{ marginTop: 10 }}>
           {head(trainer, tr('home:focus.todaysCall', { defaultValue: 'Today’s call' }), workout && workout.time)}
-          {sessionCard(message(trainer))}
+          {sessionCard(message(trainer), noteOf(trainer, true))}
         </div>
       ) : workout ? (
         <div data-team-coach="none-session" style={{ marginTop: 10 }}>
@@ -191,8 +200,8 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
       {/* The nutritionist, with their note and the food left; or the food left alone. */}
       {nutri ? (
         <div data-team-coach="nutritionist" style={{ marginTop: 16 }}>
-          {head(nutri, noteOf(nutri) ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null)}
-          {noteOf(nutri) || hasFuel ? <div data-team-card="fuel" style={card}>{fuelBody(noteOf(nutri))}{fuelButtons(message(nutri))}</div> : <div style={{ marginTop: 8 }}>{message(nutri)}</div>}
+          {head(nutri, noteOf(nutri, true) ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null)}
+          {noteOf(nutri, true) || hasFuel ? <div data-team-card="fuel" style={card}>{fuelBody(noteOf(nutri, true))}{fuelButtons(message(nutri))}</div> : <div style={{ marginTop: 8 }}>{message(nutri)}</div>}
         </div>
       ) : hasFuel ? (
         <div data-team-coach="none-fuel" style={{ marginTop: 16 }}>
@@ -201,13 +210,19 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
         </div>
       ) : null}
 
-      {/* A second coach of a role: a row with their note's line and Message. */}
-      {extras.map((c) => (
-        <div key={`${c.role}:${c.providerId ?? c.name}`} data-team-coach="extra" style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>{head(c, null)}</div>
-          {message(c)}
-        </div>
-      ))}
+      {/* A second coach of a role: a row with Message, and their own note under it when they wrote one. */}
+      {extras.map((c) => {
+        const note = noteOf(c, false);
+        return (
+          <div key={`${c.role}:${c.providerId ?? c.name}`} data-team-coach="extra" style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>{head(c, note ? tr('home:team.weeklyNote', { defaultValue: 'This week’s note' }) : null)}</div>
+              {message(c)}
+            </div>
+            {note ? <div style={{ ...card, marginTop: 8 }}>{quote(note)}</div> : null}
+          </div>
+        );
+      })}
 
       {next ? (
         <button type="button" data-team-next="" onClick={() => { if (typeof onCalendar === 'function') onCalendar(new Date(next.at)); }}

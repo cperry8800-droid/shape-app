@@ -5,14 +5,13 @@ import { saveAccountDocPatch } from '../../../public/newdesign/settingsSync.mjs'
 import { isEmailType, emailOnByDefault } from '../../../public/newdesign/notificationSurfaces.mjs';
 import { createPortal } from 'react-dom';
 import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM, RECIPE_GOALS, recipeNeeds, recipeMatchesDiet, bsRecipeAttribution, bsAllergenNoteText } from './shapeKitchenData.js';
-import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WEEK_DOT_ORDER, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
+import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
 import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsMoveBlocks, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsLogSetLabel } from '../services/workoutSession.mjs';
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
 import { bsSdSplitUnit, bsSdFigure, bsSdFigureText, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat, bsSdRankStats } from '../services/sessionLedger.mjs';
 import { bsIbTiles, bsIbTileKind, bsIbSetTable, bsIbSplitTable, bsIbZoneSegments, bsIbTileDetail, bsIbSetRowsFor } from '../services/instrumentBoard.mjs';
-import { bsHomeSlateSort, bsHomeTimeMinutes } from '../services/homeSlate.mjs';
 import { bsTierRidgeGeom } from '../services/tierRidge.mjs';
 import { bsScoreStanding, bsPeakCheckpoint } from '../services/scoreStanding.mjs';
 import { bsPaceSplits } from '../services/paceSplits.mjs';
@@ -103,7 +102,7 @@ import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
 import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
-import { BSFocusHead, BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
+import { BSFocusTitle, BSFocusLead, BSFocusArrival, BSFocusCountdown, BSFocusActions, BSFocusLine, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
 import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -4561,9 +4560,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Once ANY live plan exists every card follows it — a demo workout next to a
   // live day log would claim a session that isn't assigned.
   const selWorkout = liveWeek ? liveWeek.workoutByIdx[selIdx] : bsClientWorkoutForDay(selIdx);
-  const _selDelta = selIdx - todayIdx;
-  const upNextLabel = _selDelta === 0 ? tr('home:when.today', { defaultValue: 'Today' }) : _selDelta === 1 ? tr('home:when.tomorrow', { defaultValue: 'Tomorrow' }) : _selDelta === -1 ? tr('home:when.yesterday', { defaultValue: 'Yesterday' })
-    : weekDates[selIdx].toLocaleDateString(_dateLoc, { weekday: 'long' });
   const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
@@ -4759,10 +4755,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       title: it.title, sub: it.sub, state: it.state, last: i === day.length - 1,
     }));
   });
-  const WEEK_DOTS_BY_IDX = BS_CLIENT_WEEK_DEMO.map((day) => {
-    const kinds = new Set(day.map((it) => it.kind));
-    return BS_CLIENT_WEEK_DOT_ORDER.filter((k) => kinds.has(k)).map((k) => BS_KIND_COLOR[k]);
-  });
   const selDay = weekDates[selIdx].getDate(); // day-of-month for display strings
   const selYmd = bsLocalDay(weekDates[selIdx].getTime());
   const dataDay = 20 + selIdx;
@@ -4900,6 +4892,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSYourMornings onBack={() => setMorningsPage(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
   }
 
+  // ⚠ NOT DRAWN ON HOME SINCE 2026-11-03: Today's call came off Home (the owner's Home preview), so the
+  // engine's move shows nowhere on Home; Shape Daily and the pushes still carry it. Kept, with its tests,
+  // while the owner decides whether it comes back as a row (War Room).
   // "Today · your move" — ONE clear next move. The signal engine's top action
   // leads when it has a real flag (the RIGHT move, not just the next chronological
   // item); otherwise it synthesizes from the day's plan (workout → unlogged meals
@@ -4982,14 +4977,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     };
   })();
 
-  // ── FOCUS (owner, 2026-10-11, off the C · Focus board) ─────────────────
-  // Home in the Focus order: the next stop on its own, a few numbers at a
-  // glance, the day as a line, and the rest of the page behind links. The data
-  // is the slate's own: the same rows, the same lead (todayDirective), the same
-  // NOW. What moved is only where each thing sits.
+  // ── THE DAY'S TIMES (Team's session and next meal read them) ──────────────
   // ⚠ NO HOOK MAY BE CALLED HERE OR BELOW — the early-return overlays above make
   // any hook from this point conditional (Rules of Hooks).
-  const _focusTeal = t.isLight ? '#0a8f87' : '#34d6c5';
   // Coach-scheduled times (24h minutes) drive the displayed time, the order and
   // the NOW tick — the same defaults the slate always used.
   const _wkAt = (selWorkout && selWorkout.time && selWorkout.time !== '—') ? selWorkout.time : '09:00';
@@ -5015,161 +5005,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         : slot === 'snack' ? tr('home:slot.snack', { defaultValue: 'Snack' })
           : tr('home:slot.dinner', { defaultValue: 'Dinner' });
   };
-  const _nextWord = tr('home:focus.next', { defaultValue: 'Next' });
-  // THE LINE — the day's timed run-sheet: meals, training, coach pushes. Home no longer
-  // draws it (2026-10-22); the next stop's arrival bar reads its stops. Ordering
-  // is bsHomeSlateSort's alone (timed rows ascending by their displayed time,
-  // untimed after, source order kept). Habits are not stops on the line; they
-  // have their own link below.
-  // ⚠ THE LEAD'S OWN ROW STAYS ON THE LINE, marked Next, with no second control:
-  // the lead carries the action, the line carries the place in the day.
-  const lineRows = (() => {
-    const rows = [];
-    selMeals.forEach((m) => {
-      const logged = !!mealLogged[m.id];
-      const isLead = !!(todayDirective && todayDirective.heroMealId === m.id);
-      rows.push({
-        key: `meal-${m.id}`,
-        time: fmtAt(mealMinutes(m)),
-        _min: mealMinutes(m),
-        stop: slotLabel(m),
-        done: logged,
-        tag: isLead ? _nextWord : tr('home:tag.meal', { defaultValue: 'Meal' }), tagColor: _focusTeal,
-        title: m.title,
-        // PREPPED (PR C): the short form on the dense line — the full "just plate
-        // it" phrase lives on the Eat course row.
-        status: [fmtAt(mealMinutes(m)), m.kcal ? `${m.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })}` : null,
-          bsMenuPrepState({
-            meal: m, logged, entries: prepEntries, viewYmd: selYmd, todayYmd: bsLocalDay(Date.now()), now: Date.now(),
-            ahead: m.planMealId && (BS_MAKE_AHEAD.has(m.prepSlug) || m.prepNightBefore) ? { date: selYmd, mealId: m.planMealId, title: m.title, slug: m.prepSlug } : null,
-          }).prepped ? tr('cook:prep.stampShort', { defaultValue: 'Prepped ✓' }) : null,
-        ].filter(Boolean).join(' · '),
-        // The design board's line: a logged stop is done (kcal ✓), the lead is
-        // Next, the rest carry their kcal; tapping a stop opens the meal.
-        state: logged ? 'done' : isLead ? 'next' : '',
-        // A lead whose time has passed is not "Next" — the lead above already
-        // says it is not logged yet.
-        note: [isLead && !logged && mealMinutes(m) > bsNowMin ? _nextWord : null, m.kcal ? `${m.kcal}${logged ? ' ✓' : ''}` : (logged ? '✓' : null)].filter(Boolean).join(' · '),
-        onOpen: () => setPreviewMeal(m),
-        ariaLabel: `${m.title}, ${slotLabel(m)}, ${logged ? tr('home:aria.logged', { defaultValue: 'logged' }) : tr('home:aria.notLogged', { defaultValue: 'not logged' })}`,
-      });
-    });
-    // TRAINING row — a quiet Start → link when it is not the lead (training stays
-    // one tap); rest day → the Active-recovery row.
-    const workoutIsLead = !!(todayDirective && todayDirective.leadIsWorkout);
-    if (selWorkout) {
-      rows.push({
-        key: 'slate-training',
-        time: fmtAt(WORKOUT_AT),
-        _min: WORKOUT_AT,
-        stop: selWorkout.title,
-        tag: workoutIsLead ? _nextWord : tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.RUST,
-        title: selWorkout.title,
-        status: [fmtAt(WORKOUT_AT), _wkShortMeta].filter(Boolean).join(' · '),
-        state: workoutIsLead ? 'next' : '',
-        color: t.RUST,
-        note: workoutIsLead ? _nextWord : tr('home:tag.training', { defaultValue: 'Training' }),
-        right: workoutIsLead ? undefined : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button onClick={(e) => { e.stopPropagation(); goTrain?.(); }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{tr('home:action.start', { defaultValue: 'Start →' })}</button>
-            <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 12, color: t.INK50 }}>›</span>
-          </div>
-        ),
-        onOpen: () => setShowWorkoutPreview(true),
-        ariaLabel: `${selWorkout.title}, ${tr('home:aria.training', { defaultValue: 'training' })}, ${_wkShortMeta}`,
-      });
-    } else {
-      rows.push({
-        key: 'slate-training',
-        time: '',
-        tag: tr('home:tag.training', { defaultValue: 'Training' }), tagColor: t.GREEN,
-        title: tr('home:slate.activeRecovery', { defaultValue: 'Active recovery' }),
-        status: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
-        sub: tr('home:slate.restDayMeta', { defaultValue: 'Rest day · walk + mobility' }),
-        color: t.GREEN,
-        right: undefined,
-        onOpen: undefined,
-        ariaLabel: tr('home:slate.activeRecoveryAria', { defaultValue: 'Active recovery, rest day' }),
-      });
-    }
-    // COACH rows — pushed items from coach_pushed_items.
-    (coachFeed.items || []).forEach((it) => {
-      const p = it.payload || {};
-      const isMeal = it.kind === 'meal';
-      const meta = isMeal
-        ? [p.time, p.kcal != null ? p.kcal + ' ' + tr('home:unit.kcal', { defaultValue: 'kcal' }) : null, p.protein != null ? p.protein + tr('home:unit.gProtein', { defaultValue: 'g P' }) : null].filter(Boolean).join(' · ')
-        : [p.time, p.sets, p.reps, p.tempo && (tr('home:coach.tempo', { defaultValue: 'Tempo' }) + ' ' + p.tempo)].filter(Boolean).join(' · ');
-      rows.push({
-        key: `coach-${it.id}`,
-        time: p.time || '',
-        // Its minutes, as the meal and training rows carry theirs, so a timed coach item can be Today's
-        // call's next stop (Codex P2 on #2424). An untimed one has none.
-        _min: bsHomeTimeMinutes(p.time),
-        tag: tr('home:tag.coach', { defaultValue: 'Coach' }), tagColor: isMeal ? _focusTeal : t.RUST,
-        title: p.name || (isMeal ? tr('home:coach.mealFrom', { defaultValue: 'Meal from your coach' }) : tr('home:coach.workoutFrom', { defaultValue: 'Workout from your coach' })),
-        status: [meta, p.cue || p.note].filter(Boolean).join(' · '),
-        note: tr('home:tag.coach', { defaultValue: 'Coach' }),
-        color: isMeal ? undefined : t.RUST,
-        right: undefined,
-        onOpen: undefined,
-        ariaLabel: isMeal ? tr('home:coach.ariaMeal', { defaultValue: 'Coach-pushed meal: {name}', name: p.name || '' }) : tr('home:coach.ariaWorkout', { defaultValue: 'Coach-pushed workout: {name}', name: p.name || '' }),
-      });
-    });
-    return bsHomeSlateSort(rows);
-  })();
-  // THE NEXT STOP — todayDirective, presented: a meal reads as its slot ("Lunch")
-  // with the dish beneath; the workout as itself; an engine, habits or done lead
-  // keeps its own head. Timed leads carry a countdown and an arrival bar.
-  const focusLead = (() => {
-    if (!todayDirective) return null;
-    const meal = todayDirective.leadMeal;
-    if (meal) {
-      const at = mealMinutes(meal);
-      // A meal whose time has passed and is not logged says so, rather than
-      // calling a stop behind the clock "next".
-      return {
-        at, color: _focusTeal,
-        kicker: `${fmtAt(at)} · ${at <= bsNowMin ? tr('home:focus.notLogged', { defaultValue: 'Not logged yet' }) : tr('home:focus.nextStop', { defaultValue: 'Next stop' })}`,
-        title: slotLabel(meal),
-        sub: [meal.title, meal.kcal > 0 ? `${meal.kcal} ${tr('home:unit.kcal', { defaultValue: 'kcal' })} · ${meal.p}P · ${meal.c}C · ${meal.f}F` : null].filter(Boolean).join(' · '),
-        to: `${fmtAt(at)} · ${slotLabel(meal)}`,
-        secondary: { label: tr('home:focus.viewMeal', { defaultValue: 'View meal →' }), onClick: () => setPreviewMeal(meal) },
-        action: [`${tr('common:nav.eat', { defaultValue: 'Eat' })} →`, () => goEat()],
-      };
-    }
-    if (todayDirective.leadIsWorkout && selWorkout) {
-      return {
-        at: WORKOUT_AT, color: t.RUST,
-        kicker: `${fmtAt(WORKOUT_AT)} · ${tr('home:lead.railHeader', { defaultValue: 'Your move' })}`,
-        title: selWorkout.title,
-        sub: _wkShortMeta,
-        to: `${fmtAt(WORKOUT_AT)} · ${selWorkout.title}`,
-        action: [`${tr('common:nav.train', { defaultValue: 'Train' })} →`, () => goTrain?.()],
-      };
-    }
-    // TODAY'S CALL (owner, 2026-10-22): the engine's move leads with its reason, and the day's next
-    // timed stop still ahead (a meal not logged, or the session) rides under it as the countdown and
-    // the arrival bar, so the reason and the clock read together.
-    const nextStop = todayDirective.engine ? lineRows.find((r) => typeof r._min === 'number' && r._min > bsNowMin && !r.done) : null;
-    return {
-      at: nextStop ? nextStop._min : null, color: todayDirective.c,
-      kicker: todayDirective.done ? tr('home:lead.headerDone', { defaultValue: 'Today · done' }) : tr('home:lead.header', { defaultValue: 'Today · your move' }),
-      title: todayDirective.head,
-      sub: todayDirective.sub,
-      to: nextStop ? `${fmtAt(nextStop._min)} · ${nextStop.stop || nextStop.title}` : undefined,
-    };
-  })();
-  const focusUntil = focusLead ? bsFocusUntil(focusLead.at, bsNowMin) : null;
-  const focusMeta = focusUntil
-    ? (focusUntil.h > 0
-      ? tr('home:focus.inHourMin', { defaultValue: 'In {h} h {m} min', h: focusUntil.h, m: focusUntil.m })
-      : tr('home:focus.inMin', { defaultValue: 'In {m} min', m: focusUntil.m }))
-    : upNextLabel;
-  // The arrival bar runs only toward a stop still ahead of the clock.
-  const focusPrev = focusLead && focusLead.at != null && focusLead.at > bsNowMin
-    ? bsFocusPrevStop(lineRows.filter((r) => typeof r._min === 'number').map((r) => ({ min: r._min, label: r.stop || r.title, done: !!r.done })), focusLead.at)
-    : null;
-  const focusPct = focusPrev ? bsFocusArrival(focusPrev.min, focusLead.at, bsNowMin) : null;
+  // Today's call and the day's line left Home (owner, 2026-11-03, the Home preview: "remove this" of Today's
+  // call, the session on the trainer's Team card instead). fmtAt, mealMinutes and slotLabel stay for Team.
 
   // ── ANTI-ACCRETION CONTRACT ────────────────────────────────────────────
   // Do not add a plate. If it can't be a row, it lives on a tab and gets at

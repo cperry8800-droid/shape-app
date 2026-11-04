@@ -221,12 +221,9 @@ test('the weekly notes are the paid coaches\' alone', () => {
   assert.deepEqual(H.bsHomePaidBanners(banners, coaches).map((b) => b.id), ['a', 'c']);
   assert.deepEqual(H.bsHomePaidBanners(banners, []), [], 'no coach paid, no note');
   assert.deepEqual(H.bsHomePaidBanners(null, coaches), []);
-  // Home draws its notes through it, and a timed coach item carries its minutes onto the line, so
-  // Today's call can count down to it.
+  // Home's Team draws its notes through it (Today's call and the day's line left Home, 2026-11-03).
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const banners = bsHomePaidBanners\(coachFeed\.banners, planCoaches\);/);
-  assert.match(client, /key: `coach-\$\{it\.id\}`,\n\s+time: p\.time \|\| '',\n(\s+\/\/.*\n)*\s+_min: bsHomeTimeMinutes\(p\.time\),/);
-  assert.match(client, /const nextStop = todayDirective\.engine \? lineRows\.find\(\(r\) => typeof r\._min === 'number' && r\._min > bsNowMin && !r\.done\) : null;/);
 });
 
 test('the coaches are the ones the plan read says the member pays, trainers first', () => {

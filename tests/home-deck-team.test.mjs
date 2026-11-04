@@ -394,6 +394,35 @@ test('a paid coach whose name could not be read is offered by role, and a second
   } finally { ev.off(); }
 });
 
+// Every coach's weekly note stays on Home (the old From your coaches showed both roles'): each on its
+// own coach's card, the trainer's over today's session, and a second coach of a role never shows the
+// first's. An unsigned note, or one signed with a name no coach here carries, is the first's.
+test("each coach's weekly note is on their own card: the trainer's over the session, a second coach's on their row", () => {
+  const SAM = { role: 'trainer', name: 'Sam Strong', conversationId: 'c-s', providerId: 8, photo: null };
+  const notes = [
+    { role: 'trainer', text: 'Sam here: hips first this week.', who: 'Sam Strong' },
+    { role: 'trainer', text: 'Jordan: three sets, then stop.', who: 'Jordan Chen' },
+    { role: 'nutritionist', text: 'Five plates.', who: 'Maya Patel' },
+  ];
+  const d = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, SAM], notes }));
+  const noteIn = (block) => (block ? d.nodes().filter((n) => n.props && n.props['data-team-note'] != null && block.props && textOf(block).includes(textOf(n))).map(textOf) : []);
+  assert.deepEqual(noteIn(coachBlock(d, 'trainer')), ['“Jordan: three sets, then stop.”'], "the trainer's own note, over the session");
+  assert.deepEqual(noteIn(coachBlock(d, 'nutritionist')), ['“Five plates.”']);
+  assert.deepEqual(noteIn(coachBlock(d, 'extra')), ['“Sam here: hips first this week.”'], "the second trainer's note on their own row");
+  // The trainer's note sits above the session in its card.
+  const session = d.nodes().find((n) => n.props && n.props['data-team-card'] === 'session');
+  assert.ok(textOf(session).indexOf('Jordan: three sets') < textOf(session).indexOf("I'll train today"), 'the note is under the session');
+  // A second coach with no note of their own shows none: never the first's.
+  const quiet = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, SAM], notes: [notes[1]] }));
+  assert.equal(quiet.nodes().filter((n) => n.props && n.props['data-team-note'] != null).length, 1, "the first trainer's note showed twice");
+  assert.doesNotMatch(textOf(quiet.nodes().find((n) => n.props && n.props['data-team-coach'] === 'extra')), /three sets/);
+  // An unsigned note is the first trainer's; one signed by Sam is never Jordan's.
+  const unsigned = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM], notes: [{ role: 'trainer', text: 'Unsigned.', who: null }] }));
+  assert.match(textOf(unsigned.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /Unsigned\./);
+  const samOnly = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, SAM], notes: [notes[0]] }));
+  assert.doesNotMatch(textOf(samOnly.nodes().find((n) => n.props && n.props['data-team-coach'] === 'trainer')), /hips first/, "Sam's note went to Jordan's card");
+});
+
 test('Team\'s next session opens the calendar on its day', () => {
   const opened = [];
   const next = { at: Date.parse('2026-10-24T13:00:00Z'), providerName: 'Jordan Chen', providerRole: 'trainer' };
