@@ -439,14 +439,41 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
     </div>
   );
 
+  // Month | Weeks as two words, no box (owner, 2026-11-04: "make these boxes look different and smaller,
+  // looks weird below icons above"): the lit one in ink over the accent's 2px rule, the other quiet. Each
+  // is still a 44px tap.
+  const viewTabs = (style = null) => (
+    <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'flex', alignItems: 'center', gap: 14, ...style }}>
+      {[['month', tr('calendar:view.month', { defaultValue: 'Month' }), 'M3.5 5.5h17M3.5 5.5v14h17v-14M3.5 10.5h17M3.5 15h17M9 10.5v9M15 10.5v9'], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' }), 'M4 6h16M4 12h16M4 18h16']].map(([k, l, d]) => {
+        const on = view === k;
+        return (
+          <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{
+            minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', color: on ? t.INK : t.INK50,
+            fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+            transition: 'color 160ms ease',
+          }}>
+            <span data-cal-tab={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, paddingBottom: 3, borderBottom: `2px solid ${on ? t.ACCENT : 'transparent'}` }}>
+              <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+              {l}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <BSPageCal>
       <BSPageHeaderCal
+        // No "Section · Calendar" eyebrow on your own calendar (owner, 2026-11-04: "remove this from month
+        // calendar page"); a coach reading a client's keeps whose it is.
         kicker={forClient
           ? tr('calendar:client.kicker', { defaultValue: 'Calendar · {name}', name: clientName || tr('calendar:client.fallbackName', { defaultValue: 'Client' }) })
-          : tr('calendar:view.kicker', { defaultValue: 'Section · Calendar' })}
+          : null}
         trailing={trailing}
         onBack={onBack}
+        backTrailing={onBack ? viewTabs() : null}
       />
       {forClient && (
         <div style={{ padding: `4px ${t.padX}px 0`, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.6 }}>
@@ -454,32 +481,15 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         </div>
       )}
 
-      {/* Month | Weeks — a quiet segmented switch (owner, 2026-10-30: "redesign look of
-          these"). The solid ink pill it replaces was the loudest thing on the page, louder than
-          the month it switches; now the lit view is a raised paper tab on a faint track, with a
-          small grid or list mark so the two read apart at a glance. */}
-      <div style={{ padding: `10px ${t.padX}px ${useServer && view === 'month' ? 0 : 10}px` }}>
-        <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, padding: 3, borderRadius: 11, background: `rgba(${t.inkRGB || '127,127,127'},${t.isLight ? 0.06 : 0.08})` }}>
-          {[['month', tr('calendar:view.month', { defaultValue: 'Month' }), 'M3.5 5.5h17M3.5 5.5v14h17v-14M3.5 10.5h17M3.5 15h17M9 10.5v9M15 10.5v9'], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' }), 'M4 6h16M4 12h16M4 18h16']].map(([k, l, d]) => {
-            const on = view === k;
-            return (
-              <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{
-                minHeight: 38, padding: '0 4px', borderRadius: 8, border: 0, cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                // Light papers raise the lit tab in paper; dark ones in a lighter ink wash, so the
-                // lit tab always sits above its track rather than sinking below it.
-                background: on ? (t.isLight ? t.PAPER : `rgba(${t.inkRGB || '127,127,127'},0.16)`) : 'transparent', color: on ? t.INK : t.INK70,
-                boxShadow: on && t.isLight ? `inset 0 0 0 1px ${t.RULE}, 0 1px 3px rgba(0,0,0,0.08)` : 'none',
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-                transition: 'background 160ms ease, color 160ms ease',
-              }}>
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
-                {l}
-              </button>
-            );
-          })}
+      {/* Month | Weeks (viewTabs, above; owner, 2026-11-04: "condense these tabs"). With a Back it rides
+          the right of the back row, so the month starts a row higher (owner, 2026-11-04: "move the calendar higher on page,
+          feel free to move back tab somewhere that fits better"; the ← keeps its one place on every page,
+          tests/back-placement.test.mjs). Without one it takes its own row. */}
+      {!onBack && (
+        <div style={{ padding: `2px ${t.padX}px ${useServer && view === 'month' ? 0 : 4}px` }}>
+          {viewTabs()}
         </div>
-      </div>
+      )}
 
       {/* In Weeks, each day from today on carries its own ＋ Add. A client's calendar adds nothing:
           an event added here would land on the coach's own calendar. */}
