@@ -303,18 +303,23 @@ export async function GET(request: Request) {
   const ownersNeedingAvatar = [...new Set([...rowsOf(trNames), ...rowsOf(nuNames)]
     .filter((r) => !portraitOf(r) && typeof r.owner_id === 'string' && r.owner_id)
     .map((r) => r.owner_id as string))];
+  // The profile photo as the marketplace reads it (Codex P2 on #2583): get_public_profile's avatar, the
+  // client_identity photo the app's picker writes as a small square JPEG data URL. profiles.avatar_url is
+  // not that photo. Only a raster image's data URL is a face: it loads nothing from anywhere, and a coach
+  // writes that field themselves, so a URL there (a tracking pixel) is no face. One read per coach without a
+  // portrait, each on its own: a failed read leaves that card on the coach's initials, never the plan.
   const avatarOf = new Map<string, string>();
-  if (ownersNeedingAvatar.length) {
+  const isFace = (a: unknown): a is string =>
+    typeof a === 'string' && a.length <= 400_000 && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(a);
+  await Promise.all(ownersNeedingAvatar.map(async (owner) => {
     try {
-      const { data } = await supabase.rpc('get_display_names', { p_ids: ownersNeedingAvatar });
-      for (const row of (data ?? []) as Array<{ user_id: string; avatar_url: string | null }>) {
-        const a = typeof row.avatar_url === 'string' ? row.avatar_url.trim() : '';
-        if (/^https:\/\//.test(a)) avatarOf.set(row.user_id, a);
-      }
+      const { data } = await supabase.rpc('get_public_profile', { p_user_id: owner });
+      const row = (Array.isArray(data) ? data[0] : data) as { avatar?: unknown } | null;
+      if (row && isFace(row.avatar)) avatarOf.set(owner, row.avatar);
     } catch (e) {
       console.error('[client/plan] coach avatar read failed:', e instanceof Error ? e.message : e);
     }
-  }
+  }));
   const coachPhoto = (role: 'trainer' | 'nutritionist', id: number) => {
     const key = `${role}:${id}`;
     const own = photoOf.get(key);

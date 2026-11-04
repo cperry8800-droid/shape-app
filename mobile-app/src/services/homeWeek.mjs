@@ -321,8 +321,9 @@ export function bsHomeCoachesOf(plan) {
     const c = plan && plan[part] && plan[part].coaching;
     const list = c && Array.isArray(c.coaches) ? c.coaches : [];
     for (const k of list) {
-      // `photo`: the listing's portrait or the coach's profile photo, when the plan read found one (https only).
-      const photo = k && typeof k.photo === 'string' && /^https:\/\//.test(k.photo) ? k.photo : null;
+      // `photo`: the listing's portrait (https, through the marketplace's gate) or the coach's profile photo
+      // (the picker's JPEG as a data URL), when the plan read found one; anything else is no photo.
+      const photo = k && typeof k.photo === 'string' && /^(?:https:\/\/|data:image\/(?:jpeg|png|webp);base64,)/.test(k.photo) ? k.photo : null;
       if (k && (k.name || k.providerId != null)) out.push({ role, name: k.name ? String(k.name) : null, conversationId: k.conversationId || null, providerId: k.providerId ?? null, photo });
     }
   };

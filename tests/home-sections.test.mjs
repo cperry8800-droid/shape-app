@@ -228,15 +228,17 @@ test('the weekly notes are the paid coaches\' alone', () => {
 
 test('the coaches are the ones the plan read says the member pays, trainers first', () => {
   const plan = {
-    meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3 }] } },
+    meals: { coaching: { coaches: [{ name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3, photo: 'data:image/jpeg;base64,/9j/4AAQ' }, { name: 'Lee Vector', conversationId: 'c-l', providerId: 4, photo: 'data:image/svg+xml;base64,PHN2Zz4=' }] } },
     training: { coaching: { coaches: [{ name: 'Jordan Chen', conversationId: 'c-j', providerId: 7, photo: 'https://cdn.example/j.jpg' }, { name: null, conversationId: 'c-x', providerId: 9, photo: 'javascript:alert(1)' }, { name: null }] } },
   };
   assert.deepEqual(H.bsHomeCoachesOf(plan), [
-    // The face on the Team card: the plan read's photo, https only.
+    // The face on the Team card: the plan read's photo, a listing portrait (https) or the profile photo the
+    // picker wrote (a raster data URL); anything else is no photo.
     { role: 'trainer', name: 'Jordan Chen', conversationId: 'c-j', providerId: 7, photo: 'https://cdn.example/j.jpg' },
     // Paid, but the listing's name couldn't be read: still a coach (Codex P2 on #2424).
     { role: 'trainer', name: null, conversationId: 'c-x', providerId: 9, photo: null },
-    { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3, photo: null },
+    { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: 'c-m', providerId: 3, photo: 'data:image/jpeg;base64,/9j/4AAQ' },
+    { role: 'nutritionist', name: 'Lee Vector', conversationId: 'c-l', providerId: 4, photo: null },
   ]);
   assert.deepEqual(H.bsHomeCoachesOf({ training: { coaching: null }, meals: {} }), [], 'no coach, or a read that failed');
   assert.deepEqual(H.bsHomeCoachesOf(null), []);

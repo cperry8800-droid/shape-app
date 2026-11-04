@@ -678,8 +678,8 @@ test('the plan read names every coach of a role, and credits each workout to the
 
 // The member Home's Team cards show each coach's face (owner, 2026-11-03: "once signed in to real account,
 // and coaches are selected, they should appear"): the listing's portrait, else the coach's profile photo,
-// the two the marketplace shows; the portrait through the marketplace's own gate, the photo https only, and a
-// failed avatar read leaves the plan whole.
+// the two the marketplace shows; the portrait through the marketplace's own gate, the photo as the picker wrote
+// it (a raster data URL), and a failed avatar read leaves the plan whole.
 test("the plan read carries each paid coach's face: the listing portrait, else their profile photo", async () => {
   const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   // A coach writes listing_media themselves, so the marketplace's gate decides (Codex P1 on #2583): an image
@@ -709,17 +709,21 @@ test("the plan read carries each paid coach's face: the listing portrait, else t
     nutritionists: [{ id: 3, name: 'Nia Nutrition', owner_id: 'o3', listing_media: null }],
     conversations: [],
   };
-  const rpcs = { get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: id, avatar_url: id === 'o8' ? 'https://cdn.example/sam.jpg' : id === 'o3' ? 'http://plain.example/nia.jpg' : null })) };
+  // The profile photo is get_public_profile's avatar, as the marketplace reads it (Codex P2 on #2583): the
+  // picker's JPEG as a data URL. A URL there is no face (a coach writes that field), nor is an SVG.
+  const JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==';
+  const AVATAR = { o8: JPEG, o9: 'https://pixel.example/track.gif', o3: 'data:image/svg+xml;base64,PHN2Zz4=' };
+  const rpcs = { get_public_profile: ({ p_user_id }) => [{ user_id: p_user_id, avatar: AVATAR[p_user_id] ?? null }] };
   const db = fakeSupabase({ tables, rpcs });
   const { body } = await (await load(db)).GET(new Request('https://x/api/client/plan'));
-  assert.deepEqual(body.training.coaching.coaches.map((c) => c.photo), [OWN('o7'), 'https://cdn.example/sam.jpg', null],
+  assert.deepEqual(body.training.coaching.coaches.map((c) => c.photo), [OWN('o7'), JPEG, null],
     "the portrait in the coach's own folder; a portrait anywhere else (a tracking pixel, another coach's file) is no portrait, so the profile photo or nothing");
-  assert.equal(body.meals.coaching.coaches[0].photo, null, 'a photo that is not https is no photo: the card keeps the initials');
-  const asked = db._calls.filter((c) => c.rpc === 'get_display_names');
-  assert.equal(asked.length, 1, 'one avatar read for every coach without a portrait');
-  assert.deepEqual([...asked[0].args.p_ids].sort(), ['o3', 'o8', 'o9'], 'a coach with a portrait costs no avatar read');
+  assert.equal(body.meals.coaching.coaches[0].photo, null, 'a photo that is not a raster image is no photo: the card keeps the initials');
+  const asked = db._calls.filter((c) => c.rpc === 'get_public_profile');
+  assert.deepEqual(asked.map((c) => c.args.p_user_id).sort(), ['o3', 'o8', 'o9'], 'one read per coach without a portrait; a coach with a portrait costs none');
+  assert.equal(db._calls.filter((c) => c.rpc === 'get_display_names').length, 0, 'profiles.avatar_url is not the photo the marketplace shows');
   // A failed avatar read is a face missing, never the plan: the coaches and their names stand.
-  const failed = (await (await load(fakeSupabase({ tables, rpcs, fail: ['rpc:get_display_names'] }))).GET(new Request('https://x/api/client/plan'))).body;
+  const failed = (await (await load(fakeSupabase({ tables, rpcs, fail: ['rpc:get_public_profile'] }))).GET(new Request('https://x/api/client/plan'))).body;
   assert.deepEqual(failed.training.coaching.coaches.map((c) => [c.name, c.photo]), [['Tom Trainer', OWN('o7')], ['Sam Strong', null], ['Pat Planted', null]]);
   const thrown = (await (await load({ ...fakeSupabase({ tables }), rpc: async () => { throw new Error('offline'); } })).GET(new Request('https://x/api/client/plan'))).body;
   assert.equal(thrown.meals.coaching.coaches[0].name, 'Nia Nutrition', 'a thrown avatar read lost the plan');
@@ -764,7 +768,7 @@ test('the app names every coach of a role: the preparing card, the setup board, 
   assert.match(client, /name: board\.setByName \|\| \(trainersMany \? null : trainer\) \|\|/);
   // Home's weekly notes: one per coach, not one per role, each signed with its coach's name or the
   // role alone, never a demo byline (Fable on this PR); the feed reads the names.
-  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push\(\{ role: 'trainer', text: b\.text, who: b\.provider_name \|\| null \}\);/);
+  assert.match(client, /for \(const b of banners\) if \(b\.provider_role !== 'nutritionist'\) notes\.push\(\{ role: 'trainer', text: b\.text, who: b\.provider_name \|\| null, providerId: b\.provider_id \?\? null \}\);/);
   assert.ok(!/who: b\.provider_name \|\| '(Jordan Chen|Dr\. Maya Patel)'/.test(client));
   const backend = read('mobile-app/src/services/shapeBackend.js');
   assert.match(backend, /banners: banners\.map\(\(b\) => \(\{ \.\.\.b, provider_name: \(b\.provider_role === 'nutritionist' \? nutriNames : trainerNames\)\.get\(String\(b\.provider_id\)\) \|\| null \}\)\),/);
