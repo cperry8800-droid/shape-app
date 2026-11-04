@@ -159,7 +159,11 @@ test('the app profile climb flies the next tier on the tier ridge\'s target', ()
   assert.match(src, /targetC: last \? c : bsTierColor\(nextName\),/, 'the tier ridge\'s target is the next tier\'s colour')
   assert.match(src, /baseC: last \? bsTierColor\(NM\[0\]\) : c \}/, 'the base is their own tier, or the first rung at the top')
   assert.match(src, /<path data-ridge-flag="" d="[^"]+" fill=\{tierClimb\.targetC \|\| c\} \/>/, 'the cover\'s summit flag flies the next tier')
-  assert.match(src, /<circle cx=\{xs\[2\]\} cy=\{ys\[2\]\} r="4\.5" fill="none" stroke=\{climbCfg\.targetC \|\| c\} /, 'the target ring flies the member\'s own tier again')
+  // The Climb tab's target is a reticle since 2026-11-04 (owner, of the tabs' designs: "ok go with B"):
+  // its ring, its ticks and its centre all take the next tier's colour.
+  assert.match(src, /const tgtC = climbCfg\.targetC \|\| c;/, 'the target no longer takes the next tier\'s colour')
+  assert.match(src, /<g stroke=\{tgtC\} strokeWidth="1\.6" fill="none" strokeLinecap="round">\s*<circle cx=\{xs\[2\]\} cy=\{ys\[2\]\} r="9" \/>/, 'the target ring flies the member\'s own tier again')
+  assert.match(src, /<circle cx=\{xs\[2\]\} cy=\{ys\[2\]\} r="2\.4" fill=\{tgtC\} \/>/, 'the target\'s centre left the next tier\'s colour')
   // The ridge's own ladder for the Shape Score aspect.
   assert.match(src, /NM = \['Raw', 'Tempo', 'Form', 'Peak', 'Legend'\];/)
 })
