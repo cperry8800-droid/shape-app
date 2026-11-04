@@ -69,6 +69,7 @@ test('no page draws its own Back: every one goes through the shared row', () => 
     ['iosAppBroadsheetPros.jsx', "coach:schedule.runDone", 'Done, once a scheduled run is in'],
     ['iosAppBroadsheetProviderApply.jsx', 'Back to marketplace →', 'the application\'s sent screen'],
     ['BSLiveWorkoutWatch.jsx', "coach:live.stopWatching", 'Stop watching, at the foot of the live view'],
+    ['BSProfileCustomizer.jsx', "profile:editor.live.back", 'Back to editing, on the live preview\'s bar'],
   ];
   const found = [];
   for (const f of readdirSync(DIR).filter((x) => x.endsWith('.jsx'))) {
@@ -86,7 +87,9 @@ test('no page draws its own Back: every one goes through the shared row', () => 
 test('the pinned bar\'s ← is one button, the chrome\'s, on every pinned bar', () => {
   // Codex P1 on #2595: Make it yours drew its own copy of BSPage's pinned ← for its own pinned bar.
   // BSPage's bar and a takeover's (BSPinnedBar) both draw BSPinBackButton; no other file writes its marker.
-  const hits = readdirSync(DIR).filter((f) => f.endsWith('.jsx') && f !== 'iosAppBroadsheet.jsx' && read(f).includes('data-bs-pin-back'));
+  // A file that writes the marker draws one; a selector that only reads it (Customize's live preview lets
+  // a tap on the pinned ← through) draws nothing.
+  const hits = readdirSync(DIR).filter((f) => f.endsWith('.jsx') && f !== 'iosAppBroadsheet.jsx' && /data-bs-pin-back\s*=|['"]data-bs-pin-back['"]\s*:/.test(read(f)));
   assert.deepEqual(hits, [], 'a pinned ← drawn outside the chrome');
   const chrome = CHROME.match(/<button\b[^>]*data-bs-pin-back/g) || [];
   assert.equal(chrome.length, 1, 'one pinned ← in the chrome');

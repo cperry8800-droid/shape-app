@@ -478,3 +478,49 @@ test('a nutritionist\'s page shows them too, with a nutritionist\'s stats; the c
   assert.deepEqual($$('[data-coach-stat]').map((s) => s.textContent), ['7Years coaching']);
   await m.unmount();
 });
+
+// Owner, 2026-11-04: "i just mean make sure coaches have the view live profile preview button". Make it yours
+// opens the coach's real page as members see it, with the edits not saved yet on it, under Customize's
+// floating bar; Back to editing and the page's ← come back with every edit kept, and nothing is written.
+test('Make it yours → View live preview opens the coach\'s page with a draft on it, writes nothing, and comes back with it', async () => {
+  window.BSTrainerProfile = BSTrainerProfile;
+  const follows = [];
+  const hadFollows = window.ShapeFollows;
+  window.ShapeFollows = { ...hadFollows, toggle: async (...a) => { follows.push(a); return { isFollowing: true }; } };
+  try {
+    reset({ me: 'u-maya', stored: { about: { years: 7 } }, custom: { about: { years: 7 } } });
+    const m = await mount(page({ isSelf: true }));
+    await click(button(/^Make it yours$/));
+    await editorTab('Spotlight');
+    await type($('[data-pin-title]'), 'Three plates on the squat');
+    const open = $('[data-make-it-yours] [data-mine-live-open]');
+    assert.ok(open, 'no View live preview in Make it yours');
+    assert.equal(open.textContent, 'View live preview');
+    await click(open);
+    // The page as members see it (not the coach's own: no Make it yours on it), the draft on it.
+    const live = $('[data-cust-live]');
+    assert.ok(live, 'the preview did not open');
+    assert.match(live.querySelector('[data-coach-highlight]').textContent, /Three plates on the squat/, 'the draft is not on the page');
+    assert.ok(![...live.querySelectorAll('button')].some((b) => /^Make it yours$/.test(b.textContent)), 'the preview is the coach\'s own page');
+    assert.equal($('[data-cust-live-state]').getAttribute('data-cust-live-state'), 'unsaved');
+    assert.match($('[data-cust-live-bar]').textContent, /Preview.*Not saved yet.*Back to editing/);
+    assert.equal($('[data-mine-scroll]').style.visibility, 'hidden', 'the editor shows through');
+    // A tap on Follow is stopped; nothing is saved.
+    const follow = [...live.querySelectorAll('button')].find((b) => /^\+?\s*Follow$/.test(b.textContent.trim()));
+    if (follow) await click(follow);
+    assert.equal(follows.length, 0, 'a tap on the preview followed');
+    assert.equal(world.saved, null, 'previewing saved');
+    // Back to editing: the editor as it was, the draft kept.
+    await click($('[data-cust-live-back]'));
+    assert.ok(!$('[data-cust-live]'), 'Back to editing left the preview open');
+    assert.equal($('[data-pin-title]').value, 'Three plates on the squat', 'Back to editing lost the draft');
+    assert.ok($('[data-save-mine]'), 'the draft no longer reads as unsaved');
+    // The page's own ← (a swipe right takes it) comes back the same way.
+    await click($('[data-make-it-yours] [data-mine-live-open]'));
+    await click($('[data-cust-live] [data-bs-back-row] [data-bs-back]'));
+    assert.ok(!$('[data-cust-live]'), 'the page\'s ← left the preview open');
+    assert.equal($('[data-pin-title]').value, 'Three plates on the squat');
+    assert.equal(world.saved, null);
+    await m.unmount();
+  } finally { window.ShapeFollows = hadFollows; delete window.BSTrainerProfile; }
+});

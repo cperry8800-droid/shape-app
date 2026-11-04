@@ -15,7 +15,10 @@ import {
 // record, so this pins BOTH surfaces: the store keeps a token, the screen reads
 // a label, and the website's fallback tables cannot drift from the canonical.
 
+// The app's side is two files: the profiles that render the record (the client module) and the
+// editor that writes it (its own module since the 2026-11-04 redesign).
 const MOBILE = path.join('mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
+const MOBILE_EDITOR = path.join('mobile-app', 'src', 'broadsheet', 'BSProfileCustomizer.jsx');
 const WEB = path.join('public', 'newdesign', 'livingDesktop.jsx');
 
 // ⚠ Strip comments first — the rationale written at each site quotes the very
@@ -26,7 +29,7 @@ const WEB = path.join('public', 'newdesign', 'livingDesktop.jsx');
 // runs to the next `*/` hundreds of lines away, so the assertions then pass
 // vacuously over source that is not there. The shared helper is line-oriented for
 // exactly that reason and carries the measurement.
-const mob = stripComments(fs.readFileSync(MOBILE, 'utf8'));
+const mob = stripComments(fs.readFileSync(MOBILE, 'utf8')) + '\n' + stripComments(fs.readFileSync(MOBILE_EDITOR, 'utf8'));
 const web = stripComments(fs.readFileSync(WEB, 'utf8'));
 
 const ALL_PROMPTS = [...BS_PROFILE_PROMPTS, ...BS_COACH_PROMPTS];
