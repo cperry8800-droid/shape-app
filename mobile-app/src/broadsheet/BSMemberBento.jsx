@@ -135,7 +135,10 @@ export function BSMemberShelfCards({ shelf, head, INK, c, onC, t, bleed = 0, gut
     </span>
   );
   const title = (s) => <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontFamily: BS_CLEAN_HEAD, fontSize: 12.5, fontWeight: 650, lineHeight: 1.22, color: INK, overflowWrap: 'anywhere' }}>{s.title}</span>;
-  const when = (s) => (s.when ? <span style={{ alignSelf: upright ? 'center' : 'flex-start', padding: '2px 7px', borderRadius: 99, background: (t && t.SURFACE_STRONG) || hexA(INK, 0.08), fontFamily: BS_CLEAN_SANS, fontSize: 10.5, fontWeight: 600, color: hexA(INK, 0.66), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{s.when}</span> : null);
+  // The date is the member's own words (up to 20 characters, "September 2026"), so its chip stays inside a
+  // third of a narrow phone: no wider than its card, wrapping rather than running into the next one
+  // (Codex P2 on #2585).
+  const when = (s) => (s.when ? <span data-shelf-when="" style={{ alignSelf: upright ? 'center' : 'flex-start', maxWidth: '100%', boxSizing: 'border-box', padding: '2px 7px', borderRadius: 10, background: (t && t.SURFACE_STRONG) || hexA(INK, 0.08), fontFamily: BS_CLEAN_SANS, fontSize: 10.5, fontWeight: 600, lineHeight: 1.3, color: hexA(INK, 0.66), fontVariantNumeric: 'tabular-nums', whiteSpace: 'normal', overflowWrap: 'anywhere', textAlign: upright ? 'center' : 'left' }}>{s.when}</span> : null);
   return (
     <div style={{ paddingTop: 8 }}>
       <span data-shelf-head="clean" style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: `0 ${inset}px 10px` }}>

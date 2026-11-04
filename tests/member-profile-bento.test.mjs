@@ -188,6 +188,14 @@ test('the shelf\'s cards: the head split at " · ", the proudest lit, each date 
     assert.equal(grid(k).display, 'grid');
     assert.equal(grid(k).overflowX, undefined, `${k} moments scroll sideways`);
   }
+  // A long date (the member's own words, up to 20 characters) stays inside its card, three across on a
+  // narrow phone: no wider than the card, and it wraps (Codex P2 on #2585).
+  const long = drive(bento.BSMemberShelfCards, { shelf: [0, 1, 2].map((i) => ({ title: `m${i}`, when: 'September 2026 · Q3' })), head: 'The shelf', INK, c: '#c0533b', onC: '#fff', t: { isLight: false } });
+  for (const chip of withAttr(long.nodes(), 'data-shelf-when')) {
+    assert.equal(chip.props.style.maxWidth, '100%', 'a date chip can run wider than its card');
+    assert.notEqual(chip.props.style.whiteSpace, 'nowrap', 'a date chip cannot wrap');
+    assert.equal(chip.props.style.overflowWrap, 'anywhere');
+  }
   // A head with no " · " is the head alone.
   const plain = drive(bento.BSMemberShelfCards, { shelf, head: 'Étagère', INK, c: '#c0533b', onC: '#fff', t: { isLight: true } });
   assert.equal(textOf(withAttr(plain.nodes(), 'data-shelf-head')[0]), 'Étagère');
