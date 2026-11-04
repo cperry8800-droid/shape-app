@@ -2103,26 +2103,38 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         ? React.createElement(window.BSLiveBoostSheet, { person: boostFor, onClose: () => setBoostFor(null) })
         : null}
 
-      {/* UP NEXT — today's next booking on the plate, round and raised (owner, 2026-11-04: "round and
-          popping, almost 3d"): the role's heat as a glow, the time to it as a countdown, and what the coach
-          does about it. The buttons are round too, and keep 44 to tap. */}
+      {/* UP NEXT — today's next booking, hung from the deck (owner, 2026-11-04, of three ways to make the deck
+          and Up next "flow and look better together": "this one", the timeline). A dotted line in the role's
+          heat drops from the deck into the card's left rail, where the time to it counts down under a pulsing
+          dot; the booking, who it is and what the coach does about it sit to its right. The card is the
+          deck's width (both 10px in from the page) with the same raised look, its rail's corner warmed by the
+          heat. The buttons are round and keep 44 to tap. */}
       {upB && (
-        <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, ...bsProPlate(t, heat), padding: '14px 16px 14px 15px' }}>
-          <span aria-hidden style={{ position: 'absolute', right: 22, top: 16, width: 7, height: 7, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
-          <div style={{ paddingRight: 24, fontFamily: BS_DECK_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: heatText }}>
-            {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}
-          </div>
-          {upIn != null && (
-            <div data-up-countdown="" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 40, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${Math.floor(upIn / 60)}:${String(upIn % 60).padStart(2, '0')}`}</span>
-              <span style={{ fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:today.toGo', { defaultValue: 'to go' })}</span>
+        <div style={{ margin: '0 10px' }}>
+          <div aria-hidden data-up-link="" style={{ marginLeft: 36, width: 0, height: 14, borderLeft: `2px dotted ${heat}` }} />
+          <div data-up-next="" style={{ ...bsProPlate(t, heat), display: 'grid', gridTemplateColumns: '74px minmax(0, 1fr)' }}>
+            <div data-up-rail="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '14px 4px', borderRight: `1px solid ${t.INK}1f` }}>
+              <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
+              {upIn != null && (
+                <div data-up-countdown="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 26, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${Math.floor(upIn / 60)}:${String(upIn % 60).padStart(2, '0')}`}</span>
+                  <span style={{ fontFamily: BS_DECK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:today.toGo', { defaultValue: 'to go' })}</span>
+                </div>
+              )}
+              {/* A booking already under way has no countdown: its start time stands in the rail. */}
+              {upIn == null && <span style={{ fontFamily: BS_DECK_MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: t.INK70, textAlign: 'center' }}>{fmtAt(upB.time)}</span>}
             </div>
-          )}
-          <div style={{ marginTop: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
-          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 14, border: 0, background: t.INK, color: t.PAPER, boxShadow: `inset 0 1px 0 rgba(255,255,255,${t.isLight ? 0.18 : 0.6}), 0 8px 16px -10px rgba(0,0,0,0.7)`, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
-            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 14, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+            <div style={{ minWidth: 0, padding: '14px 16px 16px 14px' }}>
+              <div style={{ fontFamily: BS_DECK_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: heatText }}>
+                {tr('coach:today.upNextAt', { defaultValue: 'Up next · {time}', time: fmtAt(upB.time) })}
+              </div>
+              <div style={{ marginTop: 6, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
+              <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
+                <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 99, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
+                {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 99, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+              </div>
+            </div>
           </div>
         </div>
       )}

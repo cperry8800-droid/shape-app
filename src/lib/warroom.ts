@@ -638,6 +638,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'App: Habits as option A, the Library as option C, Recipes as option B, coach Today\'s Up next as a timeline, Shape Radio on its own line on Home (#2598). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of three designs each built in the app: Habits "go with A", the Library "C for library", Recipes ("and new recipe design") "B for menu", and of coach Today\'s deck and Up next ("make these 2 sections flow and look better together", "same here" for the nutritionist) "this one"', status: 'done' },
+        { label: '#2598 Habits: today\'s points in a ring of a segment per habit (lit once kept; the progressbar, reading "+3 of 9 pts today"; 96px at 320) with the add keys beside it; every habit a glass row carrying this week from hpWeek; Week | Month two quiet words. tests/habits-dial.test.mjs (4, mounted)', status: 'done' },
+        { label: '#2598 Library: each list\'s count lit in a dark slot in its kind\'s colour, the kind as an edge, its items between their own lit " · ", its uses only when it carries a count; New grocery list a teal capsule. tests/grocery-library-scoreboard.test.mjs (4)', status: 'done' },
+        { label: '#2598 Recipes: Today\'s board as a hero (course chip, credit, minutes and kcal as figures) and a pair; the time tabs as pills, the count wrapping under the time when narrow. BSRecipeBox stays in the client (recipe-menu-parity reads its helpers there). tests/kitchen-board-hero.test.mjs (3)', status: 'done' },
+        { label: '#2598 coach Today: Up next at the deck\'s width, hung from it by a dotted line in the role\'s heat into a left rail holding the pulse and the countdown (or a booking under way\'s start time); trainers and nutritionists alike. tests/coach-up-next.test.mjs pins it', status: 'done' },
+        { label: '#2598 member Home: Shape Radio out of the climb\'s deck, on its own line above it (owner: "take the shape radio box out of the new climb box above it so its on its own line"); BSHomeDeck still takes it as radio and draws it before the band, its edges on the deck\'s 10px. tests/home-deck-team.test.mjs updated', status: 'done' },
+        { label: '#2598 review: Codex\'s P2 on c8eb393 (the Habits add keys did not wrap, so "Tambah hal untuk dilakukan" and "Aggiungi qualcosa da evitare" ran out of the key at 320px) fixed in c2d25e4, measured in the app; Codex clean on c2d25e4 and on d1a96c3 (the radio). CI green', status: 'done' },
+        { label: 'OWNER: on a phone, the four pages on both papers', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Make it yours\' About me, Your goal and the primary-goal picker redesigned, each with the standard masthead; one pinned ← for every pinned bar (#2595). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of the coach editor\'s About me: "update design of this page", "with correct masthead as well", "mast head needs to be the same as current ones, with rotating triangles"; of the goal sheet, "the your goal page needs to have updated design"; of the goal picker, "improve this, needs new layout"', status: 'done' },

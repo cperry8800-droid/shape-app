@@ -8031,22 +8031,62 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
 
       {/* Today's board — three pro-authored dishes, one from each of the first
           three courses, different tomorrow. Only on the unfiltered menu, and
-          ABOVE the time tabs, so the list a tab picks starts right under it. */}
-      {board.length > 0 ? (
-        <div style={{ padding: `18px ${t.padX}px 0` }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('nutrition:kitchen.boardTitle', { defaultValue: "Today's board" })}</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{tr('nutrition:kitchen.boardSub', { defaultValue: 'Different tomorrow' })}</div>
-          </div>
-          {board.map((r) => (
-            <button key={bsSkSlug(r.title)} type="button" onClick={() => onOpenRecipe(r)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 0, borderTop: `2px solid ${t.INK}`, padding: '11px 0 13px', cursor: 'pointer' }}>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: t.W.display, letterSpacing: '-0.02em', lineHeight: 1.1, color: t.INK }}>{r.title}</span>
-              {r.blurb ? <span style={{ display: 'block', marginTop: 5, fontSize: 12.5, lineHeight: 1.4, color: t.INK70 }}>{r.blurb}</span> : null}
-              <span style={{ display: 'block', marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>{creditOf(r)} · {r.time} · {r.kcal} kcal</span>
+          ABOVE the time tabs, so the list a tab picks starts right under it.
+          ⚠ AS A HERO AND A PAIR (owner, 2026-11-04: "and new recipe design", then of
+          three built in the app "B for menu"): the first pick a large raised card,
+          its course as a chip in its diet's colour, its credit, its title and line,
+          and its minutes and kcal as figures; the other two a pair of smaller cards
+          under it. Each is one button that opens the recipe, as the rows were. */}
+      {board.length > 0 ? (() => {
+        const [hero, ...rest] = board;
+        const dietOf = (r) => BS_SK_DIET_COLOR[r.diet] || teal;
+        const courseChip = (r, c) => {
+          const ci = bsKmCourseIndex(r);
+          if (ci < 0) return null;
+          return <span style={{ display: 'inline-flex', alignItems: 'center', flex: 'none', minHeight: 22, padding: '0 9px', borderRadius: 99, border: `1px solid ${bsTHexA(c, 0.5)}`, color: c, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{COURSE_SHORT[BS_KM_COURSES[ci].key]}</span>;
+        };
+        // The minutes as a figure and its unit ("10 min" → 10, MIN); a time that is not a number stays whole.
+        const tm = String(hero.time || '').match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+        const [mins, unit] = tm ? [tm[1], tm[2]] : [String(hero.time || ''), ''];
+        const hc = dietOf(hero);
+        const figLabel = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 };
+        return (
+          <div data-km-board="" style={{ padding: `18px ${t.padX}px 0` }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('nutrition:kitchen.boardTitle', { defaultValue: "Today's board" })}</div>
+              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>{tr('nutrition:kitchen.boardSub', { defaultValue: 'Different tomorrow' })}</div>
+            </div>
+            <button type="button" data-km-hero="" onClick={() => onOpenRecipe(hero)} style={{ ...bsMpGlass(t, t.INK, { radius: 22 }), width: '100%', minHeight: 214, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'stretch', gap: 10, padding: 18, textAlign: 'left', cursor: 'pointer', color: t.INK }}>
+              <span aria-hidden style={{ position: 'absolute', inset: 0, background: `radial-gradient(120% 90% at 100% 0%, ${bsTHexA(hc, 0.34)}, transparent 55%), radial-gradient(90% 80% at 0% 100%, ${bsTHexA(teal, 0.16)}, transparent 60%)`, pointerEvents: 'none' }} />
+              <span style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'auto', minWidth: 0 }}>
+                {courseChip(hero, hc)}
+                <span style={{ marginLeft: 'auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{creditOf(hero)}</span>
+              </span>
+              <span style={{ position: 'relative', display: 'block', fontFamily: t.DISPLAY, fontSize: 27, fontWeight: t.W.display, letterSpacing: '-0.025em', lineHeight: 1.05, color: t.INK }}>{hero.title}</span>
+              {hero.blurb ? <span style={{ position: 'relative', display: 'block', fontSize: 13, lineHeight: 1.4, color: t.INK70 }}>{hero.blurb}</span> : null}
+              <span style={{ position: 'relative', display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: '4px 18px', marginTop: 4 }}>
+                <span><span style={{ fontFamily: t.MONO, fontSize: 30, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{mins}</span>{unit ? <span style={figLabel}> {unit}</span> : null}</span>
+                <span><span style={{ fontFamily: t.MONO, fontSize: 30, fontWeight: 700, color: hc, fontVariantNumeric: 'tabular-nums' }}>{hero.kcal}</span><span style={{ ...figLabel, textTransform: 'lowercase' }}> {tr('nutrition:kitchen.rdKcal', { defaultValue: 'Kcal' })}</span></span>
+              </span>
             </button>
-          ))}
-        </div>
-      ) : null}
+            {rest.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 10 }}>
+                {rest.map((r) => {
+                  const dc = dietOf(r);
+                  return (
+                    <button key={bsSkSlug(r.title)} type="button" onClick={() => onOpenRecipe(r)} style={{ ...bsMpGlass(t, t.INK, { radius: 18 }), minHeight: 138, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, padding: 14, textAlign: 'left', cursor: 'pointer', color: t.INK }}>
+                      <span aria-hidden style={{ position: 'absolute', top: -40, right: -40, width: 110, height: 110, borderRadius: 99, background: `radial-gradient(circle, ${bsTHexA(dc, 0.28)}, ${bsTHexA(dc, 0)} 70%)`, pointerEvents: 'none' }} />
+                      <span style={{ position: 'relative' }}>{courseChip(r, dc)}</span>
+                      <span style={{ position: 'relative', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: t.W.display, letterSpacing: '-0.015em', lineHeight: 1.15, color: t.INK }}>{r.title}</span>
+                      <span style={{ position: 'relative', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: t.INK50 }}>{r.time} · {r.kcal} kcal</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        );
+      })() : null}
 
       {/* ⚠ THE TIME TABS FILTER IN PLACE; THEY DO NOT JUMP (owner, 2026-10-18:
           "when i click on these filters, dont have it move me down on screen to
@@ -8057,20 +8097,22 @@ function BSRecipeBox({ recipes, onOpenRecipe, onSendToGrocery, onChangeView, onP
           Four equal cells, centred: nothing runs off the edge at any width.
           The anchor is the row's own place in the page (pickCourse reads it). */}
       <div ref={tabsAnchorRef} data-km-tabs-anchor="" aria-hidden style={{ height: 10 }} />
-      <div style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, borderBottom: `1px solid ${t.RULE}`, padding: `8px ${t.padX}px` }}>
-        <div role="group" aria-label={tr('nutrition:kitchen.cookingTime', { defaultValue: 'Cooking time' })} style={{ display: 'flex', justifyContent: 'center', gap: 4, maxWidth: 480, margin: '0 auto' }}>
+      <div style={{ position: 'sticky', top: stickyTop, zIndex: 3, background: t.PAPER, padding: `8px ${t.padX}px` }}>
+        <div role="group" aria-label={tr('nutrition:kitchen.cookingTime', { defaultValue: 'Cooking time' })} style={{ display: 'flex', justifyContent: 'center', gap: 6, maxWidth: 480, margin: '0 auto' }}>
           {BS_KM_COURSES.map((c, i) => {
             const n = courses[i].rows.length;
             const on = picked === i;
             return (
+              // A pill each (owner, 2026-11-04, option B): the time and its count on one line, the pick in ink.
+              // On a narrow phone the count drops under the time rather than cutting its words.
               <button key={c.key} type="button" aria-pressed={on} disabled={!n} onClick={() => pickCourse(i)} style={{
-                flex: '1 1 0px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
-                minHeight: 44, padding: '6px 4px', borderRadius: 4, border: 0, cursor: n ? 'pointer' : 'default',
-                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK70 : t.INK30),
-                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.15,
+                flex: '1 1 0px', minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', alignContent: 'center', justifyContent: 'center', gap: '1px 5px',
+                minHeight: 44, padding: '4px 4px', borderRadius: 99, border: `1px solid ${on ? t.INK : t.RULE}`, cursor: n ? 'pointer' : 'default',
+                background: on ? t.INK : 'transparent', color: on ? t.PAPER : (n ? t.INK : t.INK30),
+                fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', lineHeight: 1.2,
               }}>
-                <span>{COURSE_SHORT[c.key]}</span>
-                <span style={{ fontSize: 8.5, fontWeight: 700, opacity: on ? 0.75 : 1, color: on ? t.PAPER : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{COURSE_SHORT[c.key]}</span>
+                <span style={{ flex: 'none', fontSize: 8.5, fontWeight: 700, color: on ? bsTHexA(t.PAPER, 0.7) : t.INK50, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
               </button>
             );
           })}

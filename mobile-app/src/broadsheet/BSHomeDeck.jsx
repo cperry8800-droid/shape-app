@@ -39,20 +39,30 @@ function bsHdDate(iso, opts) {
 
 // The deck: a round, raised box in the paper's own colour (bsProDeckTheme, bsRaised; owner, 2026-11-04:
 // "make sure the glassy look matches the print color", "this doesnt go together now"), inset from the
-// page's edges, handing its theme to what it holds so the radio's box and the climb read on it. The paper's accent reads on it
-// as it is; it was lifted toward white while the band was dark on a light paper.
+// page's edges, handing its theme to what it holds so the climb and the week read on it. The paper's accent
+// reads on it as it is; it was lifted toward white while the band was dark on a light paper.
+// ⚠ SHAPE RADIO STANDS ABOVE THE DECK, ON ITS OWN LINE (owner, 2026-11-04: "take the shape radio box out of
+// the new climb box above it so its on its own line"). It is still handed in as `radio`, so Home keeps one
+// place that says what leads the page, but it is drawn before the band, outside its theme, its edges on
+// the deck's (its own 8px margin and 2px more make the deck's 10px).
 export function BSHomeDeck({ radio = null, children }) {
   const t = window.useBS();
   const d = bsProDeckTheme(t);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-bs-home-deck="" data-glass="" style={{ color: d.INK, padding: '2px 0 16px', margin: '6px 10px 0', ...bsRaised(t) }}>
+    <section data-bs-home-deck="" data-glass="" style={{ color: d.INK, padding: '2px 0 16px', margin: radio ? '10px 10px 0' : '6px 10px 0', ...bsRaised(t) }}>
       <BSGlassEdge t={t} />
-      {radio}
       {children}
     </section>
   );
-  return Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;
+  const deck = Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;
+  if (!radio) return deck;
+  return (
+    <React.Fragment>
+      <div data-bs-home-radio="" style={{ margin: '0 2px' }}>{radio}</div>
+      {deck}
+    </React.Fragment>
+  );
 }
 
 // ── THE CLIMB ────────────────────────────────────────────────────────────────────────────────────
