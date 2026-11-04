@@ -154,7 +154,9 @@ test('the activity feed is as it was: the Wall\'s cards, under the photos and th
   assert.ok(at > 0);
   const activity = body.slice(at, body.indexOf('{showCustomizer &&', at));
   assert.match(activity, /<BSProfileExtras [^>]*\bclean\b/);
-  assert.match(activity, /<div key=\{a\.key \|\| i\} style=\{\{ margin: '0 -8px' \}\}>\s*<BSActivityCard a=\{a\} ctx=\{profileCtx\} onAuthorPage isLast=\{i === feedEff\.length - 1\} pagePad=\{0\} variant="magazine" \/>/);
+  // Every other post in glass, as the Wall's (owner, 2026-11-04: "every other post gets the glassy look …
+  // apply these changes to profile activity feeds as well").
+  assert.match(activity, /<div key=\{a\.key \|\| i\} style=\{\{ margin: '0 -8px' \}\}>\s*<BSActivityCard a=\{a\} ctx=\{profileCtx\} onAuthorPage isLast=\{i === feedEff\.length - 1\} pagePad=\{0\} variant="magazine" glass=\{i % 2 === 1\} \/>/);
   assert.doesNotMatch(activity, /bsMp|BSMp|BSMember/, 'the feed took a tile');
 });
 

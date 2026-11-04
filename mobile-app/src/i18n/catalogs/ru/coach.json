@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "В среднем {kcal} ккал",
   "editor.nightBefore": "ГОТОВИТЬ НАКАНУНЕ",
   "editor.nightBeforeShape": "ГОТОВИТСЯ НАКАНУНЕ · РЕЦЕПТ SHAPE",
-  "editor.nightBeforeAria": "Готовить {name} накануне"
+  "editor.nightBeforeAria": "Готовить {name} накануне",
+  "today.dayEmpty": "{day}: ничего не запланировано.",
+  "today.dayDoneOf": "{day}: готово {done} из {total, plural, one {# занятия} few {# занятий} many {# занятий} other {# занятия}}.",
+  "today.dayDoneOfNutri": "{day}: готово {done} из {total, plural, one {# консультации} few {# консультаций} many {# консультаций} other {# консультации}}.",
+  "today.dayBooked": "{day}: {total, plural, one {# занятие} few {# занятия} many {# занятий} other {# занятия}} в плане.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# консультация} few {# консультации} many {# консультаций} other {# консультации}} в плане.",
+  "today.booked": "В ПЛАНЕ"
 }

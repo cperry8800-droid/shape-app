@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Avg {kcal} kcal",
   "editor.nightBefore": "PREP THE NIGHT BEFORE",
   "editor.nightBeforeShape": "PREPPED THE NIGHT BEFORE · SHAPE RECIPE",
-  "editor.nightBeforeAria": "Prep {name} the night before"
+  "editor.nightBeforeAria": "Prep {name} the night before",
+  "today.dayEmpty": "{day}: nothing booked.",
+  "today.dayDoneOf": "{day}: {done} of {total, plural, one {# session} other {# sessions}} done.",
+  "today.dayDoneOfNutri": "{day}: {done} of {total, plural, one {# consult} other {# consults}} done.",
+  "today.dayBooked": "{day}: {total, plural, one {# session} other {# sessions}} booked.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# consult} other {# consults}} booked.",
+  "today.booked": "BOOKED"
 }

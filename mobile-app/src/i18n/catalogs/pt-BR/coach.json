@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Média {kcal} kcal",
   "editor.nightBefore": "PREPARAR NA NOITE ANTERIOR",
   "editor.nightBeforeShape": "PREPARADO NA NOITE ANTERIOR · RECEITA SHAPE",
-  "editor.nightBeforeAria": "Preparar {name} na noite anterior"
+  "editor.nightBeforeAria": "Preparar {name} na noite anterior",
+  "today.dayEmpty": "{day}: nada agendado.",
+  "today.dayDoneOf": "{day}: {done} de {total, plural, one {# sessão} other {# sessões}} feitas.",
+  "today.dayDoneOfNutri": "{day}: {done} de {total, plural, one {# consulta} other {# consultas}} feitas.",
+  "today.dayBooked": "{day}: {total, plural, one {# sessão agendada} other {# sessões agendadas}}.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# consulta agendada} other {# consultas agendadas}}.",
+  "today.booked": "AGENDADAS"
 }

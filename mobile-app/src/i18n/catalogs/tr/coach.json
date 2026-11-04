@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Ort. {kcal} kcal",
   "editor.nightBefore": "ÖNCEKİ AKŞAM HAZIRLA",
   "editor.nightBeforeShape": "ÖNCEKİ AKŞAM HAZIRLANIR · SHAPE TARİFİ",
-  "editor.nightBeforeAria": "{name} önceki akşam hazırlansın"
+  "editor.nightBeforeAria": "{name} önceki akşam hazırlansın",
+  "today.dayEmpty": "{day}: planlanmış bir şey yok.",
+  "today.dayDoneOf": "{day}: {total, plural, other {# seansın}} {done} tanesi bitti.",
+  "today.dayDoneOfNutri": "{day}: {total, plural, other {# görüşmenin}} {done} tanesi bitti.",
+  "today.dayBooked": "{day}: {total, plural, other {# seans}} planlandı.",
+  "today.dayBookedNutri": "{day}: {total, plural, other {# görüşme}} planlandı.",
+  "today.booked": "PLANLI"
 }

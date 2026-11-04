@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Moy. {kcal} kcal",
   "editor.nightBefore": "À PRÉPARER LA VEILLE",
   "editor.nightBeforeShape": "PRÉPARÉ LA VEILLE · RECETTE SHAPE",
-  "editor.nightBeforeAria": "Préparer {name} la veille"
+  "editor.nightBeforeAria": "Préparer {name} la veille",
+  "today.dayEmpty": "{day} : rien de prévu.",
+  "today.dayDoneOf": "{day} : {done} sur {total, plural, one {# séance} other {# séances}} terminées.",
+  "today.dayDoneOfNutri": "{day} : {done} sur {total, plural, one {# consultation} other {# consultations}} terminées.",
+  "today.dayBooked": "{day} : {total, plural, one {# séance prévue} other {# séances prévues}}.",
+  "today.dayBookedNutri": "{day} : {total, plural, one {# consultation prévue} other {# consultations prévues}}.",
+  "today.booked": "PRÉVUES"
 }

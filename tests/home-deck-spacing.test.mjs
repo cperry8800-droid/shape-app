@@ -73,7 +73,10 @@ test('the calendar: no Section · Calendar eyebrow on your own; Month | Weeks tw
 test('coach Today: the deck\'s sessions follow the day picked in the strip', () => {
   // Owner, 2026-11-04: "click on different weeks on coaches profile home doesnt change anything".
   const PROS = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8'));
-  assert.match(PROS, /const doneSel = bookings\.filter\(\(b\) => b\.state === 'done'\)\.length;/);
-  assert.match(PROS, /\{calendarReady && bookings\.length > 0 && \(\s*<BSProDeckSegments t=\{t\} done=\{doneSel\} total=\{bookings\.length\}/);
+  // #2592 met #2593 here, both on this note: the deck reads the picked day's bookings (dayBookings), its
+  // done count on today or a day gone by, and BOOKED with the count for a day ahead.
+  assert.match(PROS, /const dayBookings = isToday \? todayBookings : bookings;/);
+  assert.match(PROS, /const doneDay = dayBookings\.filter\(\(b\) => b\.state === 'done'\)\.length;/);
+  assert.match(PROS, /\{calendarReady && dayBookings\.length > 0 && \(\s*<BSProDeckSegments t=\{t\} done=\{isToday \|\| dayPast \? doneDay : 0\} total=\{dayBookings\.length\}/);
   assert.match(PROS, /onSelectDay=\{setSelDay\}/);
 });
