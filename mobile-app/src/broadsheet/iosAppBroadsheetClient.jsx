@@ -116,7 +116,7 @@ const { useState: useStateBSC } = React;
 const {
   useBS, BSBackRow, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
-  BSTabBar, BSFooter, BSLogo, BSPlate, BSSettingsCorner,
+  BSTabBar, BSFooter, BSLogo, BSPlate, BSSettingsCorner, BSMastToolPill,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
   BSRadioProvider, useBSRadio, BSRadioPrompt, BSRadioScreen, BSNowPlaying,
   BSMarketplaceScreen,
@@ -5174,18 +5174,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   return (
     <BSPage>
       <BSMasthead
-        compact
-        thinRule
-        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), condensed (owner,
-        // 2026-11-03: "lets condense the Club Shape at the top for coaches and member accounts", then
-        // "make the club shape masthead more condensed"): 200px wide sets its letters about 11px tall,
-        // with 4px above and 2px below, so the masthead is some 40px shorter. It was 300px wide with
-        // 23px above and 16px below.
+        layout="flag"
+        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), unchanged: the
+        // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(200px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<BSHeaderTools onProfile={onProfile} />}
-        showDoubleRule={false}
-        showDotTexture={false}
-        noTopRule
+        // The dateline rides in the masthead: the edition, the day, the phase and week, the live clock.
+        dateline={{
+          edition: tr('home:dateline.edition', { defaultValue: 'CLIENTS EDITION' }),
+          editionColor: t.ACCENT,
+          date: `${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()}`,
+          extra: `${bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} ${tr('home:dateline.weekAbbr', { defaultValue: 'W' })}${isoWeek}`,
+          clock: `${String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:${String(bsNowMin % 60).padStart(2, '0')}`,
+        }}
       />
       {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
       <BSNoraHint t={t} />
@@ -5202,16 +5203,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           slate's NOW tick, so it advances while Home stays open instead of
           freezing at the render that painted it.
           The program phase + ISO week rode the masthead kickers this replaces;
-          they ride the ink-80 run now so nothing is lost. */}
-      <div style={{ padding: `6px ${t.padX}px 7px`, borderBottom: `1px solid ${t.INK}12`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-          <span style={{ color: t.ACCENT }}>{tr('home:dateline.edition', { defaultValue: 'CLIENTS EDITION' })}</span>
-          <span style={{ color: `${t.INK}80` }}> · {_dowShort(_now)} · {_monShort(_now)} {_now.getDate()} · {bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} {tr('home:dateline.weekAbbr', { defaultValue: 'W' })}{isoWeek}</span>
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: `${t.INK}80`, fontVariantNumeric: 'tabular-nums' }}>
-          {String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:{String(bsNowMin % 60).padStart(2, '0')}
-        </span>
-      </div>
+          they ride the ink-80 run now so nothing is lost. The masthead draws it
+          (its dateline prop, above). */}
 
       <BSTicker items={(() => {
         const tk = ticker || {};
@@ -15618,9 +15611,9 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               {BSLogo && <BSLogo size={16} color={INK} />}
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+            <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
-            </div>
+            </div></BSMastToolPill>
           </div>
           {/* Title row — the owner's face sits beside the label, and × close sits
               on this line, right-aligned. On my OWN list it is my face: the
@@ -15828,7 +15821,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
              activity and Edit profile are on your own page; the tiles keep the weights they are written
              with (BSCleanType), the counts above keep theirs. */
           <BSCleanType t={tFB}>
-            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(92px, auto)', gap: 8 }}>
+            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(54px, auto)', gap: 6 }}>
               <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested}
                 style={{ ...bsMpAction({ t: tFB, INK, c, onC, lit: !(following || requested) }), gridColumn: typeof onMessage === 'function' ? 'auto' : '1 / -1', minHeight: 46, cursor: busy ? 'default' : 'pointer' }}>
                 <BSMpIconBox name={following ? 'check' : requested ? 'clock' : 'plus'} ink={following || requested ? INK : onC} />
@@ -19186,9 +19179,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         // tint of the tier's colour.
         const phaseParts = String(programEff || '').split(' · ').map((x) => x.trim()).filter(Boolean);
         const phaseChips = (
-          <span data-member-phase="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 5 }}>
+          <span data-member-phase="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 3 }}>
             {blockEff ? <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{blockEff}</span> : null}
-            {phaseParts.map((p, i) => <span key={i} style={{ padding: '2px 8px', borderRadius: 99, background: bsTHexA(c, tTheme.isLight ? 0.2 : 0.22), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 650, lineHeight: 1.4 }}>{p}</span>)}
+            {phaseParts.map((p, i) => <span key={i} style={{ padding: '1px 7px', borderRadius: 99, background: bsTHexA(c, tTheme.isLight ? 0.2 : 0.22), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 650, lineHeight: 1.4 }}>{p}</span>)}
           </span>
         );
         // The tier ridge over the cover (owner, 2026-11-03: "this top section should show the tier line
@@ -19216,17 +19209,17 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   {BSLogo && <BSLogo size={16} color={WHITE} />}
                   <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+                <BSMastToolPill ink={WHITE}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={corner} ink={WHITE} />
                   {isSelf ? (
                     <button type="button" onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })}
-                      style={{ width: corner, height: corner, borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)', color: WHITE, display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      style={{ width: corner, height: corner, padding: 0, border: 0, background: 'transparent', color: WHITE, display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
+                      <span style={{ width: 26, height: 26, boxSizing: 'border-box', display: 'grid', placeItems: 'center', borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></span>
                     </button>
                   ) : null}
                   {/* A visitor's ⚙ opens their own profile, as on the coach page. */}
                   <BSSettingsCorner size={corner} ink={WHITE} onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} />
-                </div>
+                </div></BSMastToolPill>
               </div>
               {!meMode ? (
                 <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
@@ -19305,7 +19298,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   (BSCleanType), the counts above keep theirs. */}
               <BSCleanType t={tTheme}>
               {isSelf ? (
-                <div data-member-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridAutoRows: 'minmax(92px, auto)', gap: 8 }}>
+                <div data-member-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridAutoRows: 'minmax(54px, auto)', gap: 6 }}>
                   <button type="button" data-member-log="" onClick={() => setShowLog(true)} style={{ ...bsMpAction({ t: tTheme, INK, c, onC, lit: true }), gridColumn: 'span 2' }}>
                     <BSMpIconBox name="plus" ink={onC} />
                     <span>{tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</span>
@@ -19313,7 +19306,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   {/* The host's own editor when it has one (Settings → Public profile: the name and initials;
                       Codex P2 on #2546), else the profile's; the ✎ above always opens the profile's. */}
                   <button type="button" data-member-edit="" onClick={() => { if (typeof onEdit === 'function') onEdit(); else setShowCustomizer(true); }} style={bsMpAction({ t: tTheme, INK, c, onC, compact: true })}>
-                    <BSMpIconBox name="pencil" ink={INK} size={34} />
+                    <BSMpIconBox name="pencil" ink={INK} size={26} />
                     <span>{tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })}</span>
                   </button>
                 </div>
@@ -19322,22 +19315,25 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   never a made-up coach on someone else's real profile. A wide tile: the coach's initials in
                   a ring of their colour, their name, the phase as chips. */}
               {coachTile ? (
-                <div data-member-coach="" style={{ marginTop: 8, display: 'flex' }}>
+                <div data-member-coach="" style={{ marginTop: 6, display: 'flex' }}>
                   {showCoachLink ? (
                     <button type="button" onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })}
-                      style={{ ...bsMpTile(tTheme, INK), flex: 1, minWidth: 0, minHeight: 66, display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
-                      <span aria-hidden style={{ flex: 'none', width: 42, height: 42, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
-                        <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 13.5, fontWeight: 700 }}>{coachInitEff}</span>
+                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 18, flex: 1, minWidth: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px 7px 8px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
+                      <span aria-hidden style={{ flex: 'none', width: 36, height: 36, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
+                        <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 12, fontWeight: 700 }}>{coachInitEff}</span>
                       </span>
+                      {/* One line for who (owner, 2026-11-04: "condense these"): "Coached by" and the name, then the phase. */}
                       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{capFirst(tr('profile:terrain.coachedBy', { defaultValue: 'coached by' }))}</span>
-                        <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{coachNameEff}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>
+                          <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{capFirst(tr('profile:terrain.coachedBy', { defaultValue: 'coached by' }))}</span>{' '}
+                          <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em' }}>{coachNameEff}</span>
+                        </span>
                         {phaseLine ? phaseChips : null}
                       </span>
-                      <span aria-hidden style={{ flex: 'none', color: bsTHexA(INK, 0.4) }}><BSMpIcon name="chevron" size={18} stroke={2.2} /></span>
+                      <span aria-hidden style={{ flex: 'none', color: bsTHexA(INK, 0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span>
                     </button>
                   ) : (
-                    <div style={{ ...bsMpTile(tTheme, INK), flex: 1, minWidth: 0, padding: '10px 12px' }}>{phaseChips}</div>
+                    <div style={{ ...bsMpTile(tTheme, INK), borderRadius: 18, flex: 1, minWidth: 0, padding: '8px 12px' }}>{phaseChips}</div>
                   )}
                 </div>
               ) : null}
@@ -20295,13 +20291,13 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                 {BSLogo && <BSLogo size={16} color={INK} />}
                 <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+              <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
                 <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                 </button>
                 <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={onOpenSettings} />
-              </div>
+              </div></BSMastToolPill>
             </div>
           </>
         ) : (
@@ -20314,14 +20310,14 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
               <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             {isSelf
-              ? <div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
+              ? <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
                   <button onClick={() => setShowCustomizer(true)} aria-label={tr('profile:terrain.editProfileAria', { defaultValue: 'Edit public profile' })} style={bsCornerBtn(BS_HEADER_AVATAR, INK)}>
                     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
                   </button>
                   <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} />
-                </div>
-              : <BSMeCorner />}
+                </div></BSMastToolPill>
+              : <BSMastToolPill><BSMeCorner /></BSMastToolPill>}
           </div>
           <BSBackRow onBack={onBack} ink={INK}
             trailing={<Kick col={c}>{isNutri ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:coach.coach', { defaultValue: 'Coach' })}</Kick>} />
@@ -22167,7 +22163,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>Vol. 1 · No. 1</div>
           </div>
-          <BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
+          <BSMastToolPill><BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} /></BSMastToolPill>
         </div>
         {/* ⚠ BACK UNDOES THE LAST STEP, WHICH IS NOT ALWAYS "CLOSE". Once the
             sticky bar can turn the page to the comments, a Back that always
@@ -25257,7 +25253,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <BSHeaderTools onProfile={onProfile} />
+          <BSMastToolPill><BSHeaderTools onProfile={onProfile} /></BSMastToolPill>
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
@@ -29747,7 +29743,7 @@ function BSStepsHistory({ onClose }) {
             {BSLogo && <BSLogo size={16} color={t.INK} />}
             <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
-          <BSMeCorner />
+          <BSMastToolPill><BSMeCorner /></BSMastToolPill>
         </div>
         {/* ← Back where every page keeps it, then the title on its own line (was a 26px ‹ beside it). */}
         <BSBackRow onBack={onClose} />

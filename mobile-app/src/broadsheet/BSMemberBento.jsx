@@ -59,24 +59,25 @@ export function bsMpTile(t, INK) {
 // background colour, so the words the client picks to read on that colour (bsReadableOn) still read.
 export const BS_MP_SHEEN = 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.10) 100%)';
 
-// An action tile: its icon in a rounded square at the top, its words at the foot. `lit` is the one thing
-// to press (Log activity, or Follow on someone else's page) in the tier's colour; the rest are quiet
-// tiles. `compact` is the narrow tile (Edit profile beside Log activity): the icon over the words, centred.
+// An action tile: its icon in a rounded square beside its words, one condensed row (owner, 2026-11-04:
+// "condense these"). `lit` is the one thing to press (Log activity, or Follow on someone else's page) in
+// the tier's colour; the rest are quiet tiles. `compact` is the narrow tile (Edit profile beside Log
+// activity): smaller words that may wrap, hyphenated in a long language.
 export function bsMpAction({ t, INK, c, onC, lit = false, compact = false }) {
   const base = {
-    minWidth: 0, padding: compact ? '10px 8px' : '12px 14px', borderRadius: 22, display: 'flex', flexDirection: 'column',
-    justifyContent: compact ? 'center' : 'space-between', alignItems: compact ? 'center' : 'flex-start', gap: compact ? 7 : 10,
-    textAlign: compact ? 'center' : 'left', fontFamily: BS_CLEAN_HEAD, fontSize: compact ? 13 : 17, fontWeight: 700,
-    letterSpacing: '-0.01em', lineHeight: 1.15, overflowWrap: 'anywhere', hyphens: 'auto', cursor: 'pointer', boxSizing: 'border-box',
+    minWidth: 0, padding: compact ? '8px 10px' : '8px 12px', borderRadius: 18, display: 'flex', flexDirection: 'row',
+    justifyContent: 'flex-start', alignItems: 'center', gap: compact ? 8 : 10, textAlign: 'left',
+    fontFamily: BS_CLEAN_HEAD, fontSize: compact ? 13 : 16, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.15,
+    overflowWrap: 'anywhere', hyphens: 'auto', cursor: 'pointer', boxSizing: 'border-box',
   };
   return lit
-    ? { ...base, border: 0, background: c, backgroundImage: BS_MP_SHEEN, boxShadow: `0 12px 26px ${hexA(c, 0.32)}`, color: onC }
-    : { ...base, ...bsMpTile(t, INK), borderRadius: 22, color: INK };
+    ? { ...base, border: 0, background: c, backgroundImage: BS_MP_SHEEN, boxShadow: `0 10px 22px -6px ${hexA(c, 0.42)}`, color: onC }
+    : { ...base, ...bsMpTile(t, INK), borderRadius: 18, color: INK };
 }
 // The action tile's icon square, tinted from the words' own colour.
-export function BSMpIconBox({ name, ink, size = 38 }) {
+export function BSMpIconBox({ name, ink, size = 30 }) {
   return (
-    <span aria-hidden="true" style={{ width: size, height: size, borderRadius: 12, flex: 'none', display: 'grid', placeItems: 'center', background: hexA(ink, 0.12) }}>
+    <span aria-hidden="true" style={{ width: size, height: size, borderRadius: Math.round(size / 3), flex: 'none', display: 'grid', placeItems: 'center', background: hexA(ink, 0.12) }}>
       <BSMpIcon name={name} size={Math.round(size * 0.5)} stroke={2.3} />
     </span>
   );
@@ -112,33 +113,49 @@ export function BSMemberWallMosaic({ wall, onOpen, shotLabel, label, INK, t, ins
   );
 }
 
-// The shelf as award cards in a row that runs off the screen's edge, in place of 01/02/03 and the dotted
-// leaders: each moment a medal in a ring, the proudest lit in the tier's colour with its ring running to
-// teal, the title under it and the date on a chip. `head` is "The shelf · Proudest": the part before
-// " · " is the head, the rest its quiet note. `bleed` is how far the tab's body sits in from the
-// screen's edge and `gut` the page's gutter, so the row starts on the gutter and runs to the edge.
+// The shelf as award cards that fit the screen, with no sideways scroll (owner, 2026-11-04: "make items
+// on the shelf fit on page, no side scrolling"). Three moments stand three across, each a medal over its
+// title and the date on a chip; one, two or four (the shelf holds four at most, BS_SHELF_MAX) lie flat,
+// the medal beside the words, one or two to a row. The proudest's medal is lit in the tier's colour with
+// its ring running to teal. `head` is "The shelf · Proudest": the part before " · " is the head, the rest
+// its quiet note. `bleed` is how far the tab's body sits in from the screen's edge and `gut` the page's
+// gutter, so the cards line up with the gutter.
 export function BSMemberShelfCards({ shelf, head, INK, c, onC, t, bleed = 0, gut = 22 }) {
   const [headMain, ...headRest] = String(head || '').split(' · ');
   const inset = Math.max(0, gut - bleed);
   const tile = bsMpTile(t, INK), teal = bsMpTeal(t);
-  return (
-    <div style={{ paddingTop: 10 }}>
-      <span data-shelf-head="clean" style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: `0 ${inset}px 12px` }}>
-        <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', color: INK }}>{headMain}</span>
-        {headRest.length ? <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 13.5, fontWeight: 500, color: hexA(INK, 0.56) }}>{headRest.join(' · ')}</span> : null}
+  const n = shelf.length;
+  const upright = n === 3;
+  const cols = upright ? 3 : Math.min(Math.max(n, 1), 2);
+  const medal = (i, size) => (
+    <span aria-hidden="true" style={{ flex: 'none', width: size, height: size, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: i === 0 ? `conic-gradient(from 200deg, ${c}, ${teal}, ${c})` : `conic-gradient(from 200deg, ${hexA(INK, 0.38)}, ${hexA(INK, 0.1)}, ${hexA(INK, 0.38)})` }}>
+      <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${t && t.isLight ? '#ffffff' : (t && t.PAPER) || '#000000'}`, background: i === 0 ? c : (t && t.PAPER2) || hexA(INK, 0.08), backgroundImage: i === 0 ? BS_MP_SHEEN : 'none', color: i === 0 ? onC : hexA(INK, 0.8) }}>
+        <BSMpIcon name={i === 0 ? 'trophy' : 'award'} size={Math.round(size * 0.4)} stroke={2} />
       </span>
-      <div className="bs-hide-scroll" data-member-shelf="" style={{ display: 'flex', gap: 10, overflowX: 'auto', margin: `0 ${-bleed}px`, padding: `2px ${gut}px 6px`, scrollSnapType: 'x proximity', scrollPaddingLeft: gut }}>
-        {shelf.map((s, i) => (
-          <div key={i} style={{ ...tile, flex: 'none', width: 144, padding: '16px 12px 14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9, textAlign: 'center', scrollSnapAlign: 'start' }}>
-            <span aria-hidden="true" style={{ width: 70, height: 70, borderRadius: 99, padding: 3, boxSizing: 'border-box', background: i === 0 ? `conic-gradient(from 200deg, ${c}, ${teal}, ${c})` : `conic-gradient(from 200deg, ${hexA(INK, 0.38)}, ${hexA(INK, 0.1)}, ${hexA(INK, 0.38)})` }}>
-              <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `3px solid ${t && t.isLight ? '#ffffff' : (t && t.PAPER) || '#000000'}`, background: i === 0 ? c : (t && t.PAPER2) || hexA(INK, 0.08), backgroundImage: i === 0 ? BS_MP_SHEEN : 'none', color: i === 0 ? onC : hexA(INK, 0.8) }}>
-                <BSMpIcon name={i === 0 ? 'trophy' : 'award'} size={26} stroke={2} />
-              </span>
-            </span>
-            <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 34, fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 650, lineHeight: 1.22, color: INK, overflowWrap: 'anywhere' }}>{s.title}</span>
-            {s.when ? <span style={{ padding: '3px 9px', borderRadius: 99, background: (t && t.SURFACE_STRONG) || hexA(INK, 0.08), fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 600, color: hexA(INK, 0.66), fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{s.when}</span> : null}
+    </span>
+  );
+  const title = (s) => <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', fontFamily: BS_CLEAN_HEAD, fontSize: 12.5, fontWeight: 650, lineHeight: 1.22, color: INK, overflowWrap: 'anywhere' }}>{s.title}</span>;
+  // The date is the member's own words (up to 20 characters, "September 2026"), so its chip stays inside a
+  // third of a narrow phone: no wider than its card, wrapping rather than running into the next one
+  // (Codex P2 on #2585).
+  const when = (s) => (s.when ? <span data-shelf-when="" style={{ alignSelf: upright ? 'center' : 'flex-start', maxWidth: '100%', boxSizing: 'border-box', padding: '2px 7px', borderRadius: 10, background: (t && t.SURFACE_STRONG) || hexA(INK, 0.08), fontFamily: BS_CLEAN_SANS, fontSize: 10.5, fontWeight: 600, lineHeight: 1.3, color: hexA(INK, 0.66), fontVariantNumeric: 'tabular-nums', whiteSpace: 'normal', overflowWrap: 'anywhere', textAlign: upright ? 'center' : 'left' }}>{s.when}</span> : null);
+  return (
+    <div style={{ paddingTop: 8 }}>
+      <span data-shelf-head="clean" style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: `0 ${inset}px 10px` }}>
+        <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: INK }}>{headMain}</span>
+        {headRest.length ? <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 13, fontWeight: 500, color: hexA(INK, 0.56) }}>{headRest.join(' · ')}</span> : null}
+      </span>
+      <div data-member-shelf="" style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: 8, padding: `0 ${inset}px` }}>
+        {shelf.map((s, i) => (upright ? (
+          <div key={i} style={{ ...tile, borderRadius: 16, minWidth: 0, padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
+            {medal(i, 46)}{title(s)}{when(s)}
           </div>
-        ))}
+        ) : (
+          <div key={i} style={{ ...tile, borderRadius: 16, minWidth: 0, padding: '9px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            {medal(i, 40)}
+            <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>{title(s)}{when(s)}</span>
+          </div>
+        )))}
       </div>
     </div>
   );

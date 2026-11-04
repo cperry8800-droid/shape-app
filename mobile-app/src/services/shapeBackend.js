@@ -10437,7 +10437,14 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
     if (!_srcWired) { try { const s = _ac.createMediaElementSource(a); s.connect(_analyser); _analyser.connect(_ac.destination); _srcWired = true; } catch (e) {} }
     return _analyser;
   }
-  window.ShapeRadioLive = Object.assign(radioApi, { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser });
+  // The analyser only once something has built it and its context is running: it never builds or
+  // resumes one. iOS leaves an AudioContext suspended unless it is resumed inside a user's tap, and
+  // routing the <audio> through a suspended context silences the stream, so a reader in an animation
+  // frame (Home's level meter) peeks; the play tap itself calls analyser() (Codex P2 on #2585).
+  function peekAnalyser() {
+    return (_analyser && _srcWired && _ac && _ac.state === 'running') ? _analyser : null;
+  }
+  window.ShapeRadioLive = Object.assign(radioApi, { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser, peekAnalyser });
 })();
 
 // Shape Sets broadcast schedule (spec 2026-07-19). Public read — the table's RLS

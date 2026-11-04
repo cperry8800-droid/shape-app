@@ -394,12 +394,14 @@ function mktShortLoc(loc) {
 // Every window global is guarded the way the rest of this file guards them.
 // `ink` is the page's ink, which the gear is drawn in.
 function bsMktCorner(ink) {
-  return (
+  const tools = (
     <div style={{ display: 'flex', alignItems: 'center', gap: (window.BS_CORNER_GAP || 9) }}>
       {window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (window.BS_HEADER_AVATAR || 34) }) : null}
       {window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (window.BS_HEADER_AVATAR || 34), ink }) : null}
     </div>
   );
+  // The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill).
+  return window.BSMastToolPill ? React.createElement(window.BSMastToolPill, null, tools) : tools;
 }
 
 
