@@ -20,7 +20,7 @@ const LEAVE = 'mobile-app/src/services/leaveGuard.mjs';
 const WEB_MEALS = 'public/newdesign/dashMealBuilder.jsx';
 
 export default {
-  test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs tests/coach-plans-api.test.mjs tests/coach-builder-layouts.test.mjs',
+  test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs tests/coach-plans-api.test.mjs tests/coach-builder-layouts.test.mjs tests/local-scrub-sync.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── the builder document's edits ──
@@ -258,6 +258,9 @@ export default {
       find: 'DRAFT_TARGETS.includes(k) && ', replace: '' },
     { name: 'a kept target is read past the box\'s four digits', file: EDIT,
       find: ".replace(/[^\\d]/g, '').slice(0, 4)])", replace: ".replace(/[^\\d]/g, '')])" },
+    // ── review round 11 (Codex on c87b9b5) ──
+    { name: 'sign-out leaves a nutritionist\'s kept meal-plan draft', file: 'public/newdesign/localScrub.mjs',
+      find: "  'shape.coach.meal-draft.', // a nutritionist's unsaved meal plan, kept by the app's editor (mealBuilderEdit.mjs)\n", replace: '' },
     { name: 'the root switches coach apps without asking', file: MAIN,
       find: '      mayLeave(window).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);', replace: '      Promise.resolve(true).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);' },
     { name: 'the trainer shell never lets go of Nora\'s open', file: PROS,
