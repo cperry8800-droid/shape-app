@@ -48,10 +48,11 @@ W.BSBackRow = ({ onBack, trailing }) => React.createElement('div', null, React.c
 
 const PROS = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), {
   registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSNutriPlans };',
+  appendExports: 'export { BSNutriPlans, BSProAssignPage };',
 });
 
 const { cleanMealBrief, pickMeals, buildMealDoc } = await import('../src/lib/ai/mealDraft.mjs');
+const { dietIsGuide } = await import('../mobile-app/src/services/nutritionAssign.mjs');
 const brief = cleanMealBrief({ goalPhase: 'cut', days: 3 });
 const DOC = buildMealDoc(brief, pickMeals(brief), 'mp-web');
 const ROWS = () => [
@@ -203,4 +204,72 @@ test('Nora\'s client rides to Assign: the plan she drafted for them opens Assign
     await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     assert.doesNotMatch(pickedRow(m).textContent, /✓$/, 'nobody picked');
   } finally { await m.close(); delete W.ShapeAssign; }
+});
+
+test('publishing a saved row takes nothing from the page\'s chips: a row with no goal, diet or line keeps none (Codex on #2594)', async () => {
+  const OLD = { id: 'np-old', kind: 'meal_plan', name: 'Old program', meta: null, price: null, published: true, detail: { buildType: 'program', blocks: [{ id: 'b0', text: 'Week 1 — Base' }, { id: 'b1', text: 'Week 2 — Build' }] } };
+  const calls = stubBackend([...ROWS(), OLD]);
+  const m = await mount();
+  try {
+    await tab(m, 'Programs');
+    // Another plan first: it leaves Performance and Vegan in the page's chips.
+    await m.click([...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
+    await m.click(m.byText(/^CANCEL$/));
+    await m.click([...m.host.querySelectorAll('button')].find((b) => /Old program/.test(b.textContent)));
+    const nameBox = m.q('input[value="Old program"]');
+    assert.ok(nameBox, 'the old program, in the draft editor');
+    // Its name emptied: it keeps its own, not one made from the page's goal.
+    const setValue = Object.getOwnPropertyDescriptor(W.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setValue.call(nameBox, ''); nameBox.dispatchEvent(new W.Event('input', { bubbles: true })); });
+    assert.equal(nameBox.value, '');
+    await m.click(m.byText(/^Publish program →$/));
+    assert.equal(calls.update.length, 1);
+    const body = calls.update[0];
+    assert.equal(body.id, 'np-old');
+    assert.ok(!('goal' in body.detail) && !('diet' in body.detail), JSON.stringify(body.detail));
+    assert.ok(!('cals' in body.detail) && !('mealsDay' in body.detail));
+    assert.ok(!('meta' in body), 'no line built from the page\'s chips');
+    assert.equal(body.name, 'Old program');
+  } finally { await m.close(); }
+});
+
+const GUIDE = { buildType: 'diet', goal: 'Maintain', diet: 'Omnivore', blocks: [{ id: 'b0', text: 'Breakfast options — Eggs, avocado' }, { id: 'b1', text: 'Foods to avoid — Fried food' }], note: '', media: [] };
+const WEEK = Array.from({ length: 7 }, (_, dow) => ({ dow, blocks: [{ id: `d${dow}`, text: `Breakfast — Eggs and toast · 420 kcal` }, { id: `e${dow}`, text: 'Dinner — Salmon and rice · 640 kcal' }] }));
+
+test('a diet is assigned only when every day is a menu the coach wrote (Codex on #2594)', () => {
+  assert.equal(dietIsGuide(GUIDE), true, 'options and foods to avoid: a guide');
+  assert.equal(dietIsGuide({ ...GUIDE, days: WEEK }), false, 'seven written menus: a week of meals');
+  assert.equal(dietIsGuide({ ...GUIDE, days: WEEK.slice(0, 6) }), true, 'one day would serve the guide lines');
+  assert.equal(dietIsGuide({ ...GUIDE, days: WEEK.map((d, i) => (i === 3 ? { dow: 3, blocks: [] } : d)) }), true, 'a day with nothing');
+  assert.equal(dietIsGuide({ ...GUIDE, blocks: undefined }), true, 'no lines at all');
+  assert.equal(dietIsGuide({ buildType: 'mealplan', blocks: GUIDE.blocks }), false, 'a meal plan is not a diet');
+  assert.equal(dietIsGuide({ buildType: 'diet', mealBuilder: {} }), false, 'a builder document is a meal plan');
+  assert.equal(dietIsGuide(null), false);
+});
+
+test('a diet guide offers no Assign on its row, and Assign refuses one and sends nothing (Codex on #2594)', async () => {
+  const rows = [...ROWS(), { id: 'nd-week', kind: 'meal_plan', name: 'Keto week written', meta: 'diet · omnivore', price: null, published: true, detail: { ...GUIDE, days: WEEK } }];
+  stubBackend(rows);
+  const m = await mount();
+  try {
+    await tab(m, 'Diet');
+    const assignFor = (name) => m.host.querySelector(`button[aria-label="Assign ${name} to a client"]`);
+    assert.equal(assignFor('Keto week'), null, 'the guide has no Assign');
+    assert.ok(assignFor('Keto week written'), 'a diet with every day written does');
+  } finally { await m.close(); }
+
+  const sent = [];
+  W.ShapeAssign = { clients: async () => [{ userId: 'cl-9', name: 'Sam Rivera' }], mealPlan: async (b) => { sent.push(b); return { ok: true }; } };
+  W.bsAskConfirm = async () => true;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  try {
+    await React.act(async () => { root.render(React.createElement(PROS.BSProAssignPage, { role: 'nutritionist', plan: { id: 'nd-1', name: 'Keto week', meta: 'diet · omnivore', detail: GUIDE }, preferClientUid: 'cl-9', onBack() {}, onDone() {} })); });
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.ok(host.querySelector('[data-assign-diet-guide]'), 'the notice');
+    assert.match(host.textContent, /This diet is a guide, not a week of meals\./);
+    assert.ok(![...host.querySelectorAll('button')].some((b) => /Assign & notify/.test(b.textContent)), 'no assign action');
+    assert.equal(sent.length, 0, 'nothing sent');
+  } finally { await React.act(async () => root.unmount()); host.remove(); delete W.ShapeAssign; delete W.bsAskConfirm; }
 });

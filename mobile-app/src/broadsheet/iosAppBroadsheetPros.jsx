@@ -13,6 +13,7 @@ import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
 import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
 import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
+import { dietIsGuide } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookable.mjs';
@@ -4182,6 +4183,11 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
   // as weeks. Assign was the one surface that fabricated, purely because of the
   // `!isNutri` gate above — preview, Assign and Start-this-plan now agree.
   const isNutriWeekBlock = isNutri && weekBlockShape;
+  // ⚠ A DIET GUIDE IS NOT A MENU EITHER (Codex on #2594). Options for each meal and foods to favour
+  // and avoid would land as meals ("Foods to avoid" on the Eat tab), and assigning archives the
+  // client's real menu. A diet is assigned only when every day is a menu the coach wrote
+  // (services/nutritionAssign.mjs); otherwise this says so and sends nothing.
+  const isDietGuide = isNutri && dietIsGuide(plan && plan.detail);
   // What the arc carries that ISN'T a week — the builder's trailing
   // "Grocery + prep guide". Ruling 7: dropped from delivery, but NEVER silently.
   // It is redundant rather than impossible: bsBuildPlanGrocery already derives
@@ -4199,7 +4205,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     // guard, so a stale selection can never reach bsAssignMeal and it can never
     // reach the replace-confirm (which archives every published row for the
     // pair — a client's real, separately-assigned menu must survive untouched).
-    if (isNutriWeekBlock) return;
+    if (isNutriWeekBlock || isDietGuide) return;
     if (isNutri) {
       if (!(await window.bsAskConfirm({
         title: tr('coach:assign.replaceTitle', { defaultValue: 'Replace active meal plan?' }),
@@ -4430,6 +4436,8 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
     // An arc states weeks, not a menu — say so rather than promising a replace
     // that will not happen.
     ? tr('coach:assign.whenArc', { defaultValue: '{weeks, plural, one {# week} other {# weeks}} · a coaching arc, no menu', weeks: bsWeekSpan(weekUnits) })
+    : isDietGuide
+    ? tr('coach:assign.whenDiet', { defaultValue: 'A diet guide · no menu' })
     : isNutri
     ? tr('coach:assign.whenNutri', { defaultValue: 'This week · replaces their current menu from you' })
     : structuredWorkout
@@ -4446,7 +4454,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
         {/* C0 — the heading must not promise what the arc can't deliver: with the
             "Not a menu" notice below, "Put them on a menu." would contradict it. */}
-        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={isNutriWeekBlock ? tr('coach:assign.titleAArc', { defaultValue: 'No menu' }) : tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutriWeekBlock ? tr('coach:assign.titleBArc', { defaultValue: 'to assign.' }) : isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
+        <BSProActionHead eyebrow={tr('coach:assign.eyebrow', { defaultValue: 'ASSIGN' })} titleA={isNutriWeekBlock || isDietGuide ? tr('coach:assign.titleAArc', { defaultValue: 'No menu' }) : tr('coach:assign.titleA', { defaultValue: 'Put them on' })} titleB={isNutriWeekBlock || isDietGuide ? tr('coach:assign.titleBArc', { defaultValue: 'to assign.' }) : isNutri ? tr('coach:assign.titleBNutri', { defaultValue: 'a menu.' }) : tr('coach:assign.titleBTrainer', { defaultValue: 'a program.' })} accent={accent} onBack={onBack} />
         <BSProCleanType t={t}>
         {fixedClient && <BSProClientMini client={clientProp} />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginTop: 26 }}>
@@ -4524,6 +4532,12 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
                 {droppedBlocks.length > 0 && (
                   <div style={{ marginTop: 9, fontFamily: BS_PRO_SANS, fontSize: 12, letterSpacing: 0, color: t.INK50 }}>{tr('coach:assign.arcDropped', { defaultValue: 'Not delivered · {blocks}', blocks: droppedBlocks.join(' · ') })}</div>
                 )}
+              </div>
+            ) : isDietGuide ? (
+              <div data-assign-diet-guide="" style={{ marginTop: 14, borderRadius: 14, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${t.AMBER}`, background: t.PAPER2, padding: '13px 14px' }}>
+                <div style={{ fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: 0, color: t.AMBER }}>{tr('coach:assign.arcEyebrow', { defaultValue: 'Not a menu' })}</div>
+                <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{tr('coach:assign.dietTitle', { defaultValue: 'This diet is a guide, not a week of meals.' })}</div>
+                <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 11.5, lineHeight: 1.55, color: t.INK70 }}>{tr('coach:assign.dietBody', { defaultValue: "It gives options for each meal and foods to favour and avoid, so it can't go on {name}'s Eat tab as it is. Write a menu for each day in its editor, or assign a meal plan.", name: first })}</div>
               </div>
             ) : (
               <>
@@ -8192,7 +8206,7 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
     const blockLabel = type === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : type === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
     const blocks = (Array.isArray(d.blocks) ? d.blocks : []).map((b, i) => (b && typeof b === 'object' ? { id: b.id || 'b' + i, ...b } : { id: 'b' + i, text: String(b == null ? '' : b) }));
     // Its own line and figures ride along, so publishing it never writes the page's chips over them.
-    setEditDraft({ id: row.id, name: row.name, blocks: blocks.length ? blocks : [{ id: 'b0', text: '' }], note: d.note || '', media: Array.isArray(d.media) ? d.media : [], days: Array.isArray(d.days) ? d.days : undefined, blockLabel, meta: row.meta || null, cals: d.cals != null ? d.cals : null, mealsDay: d.mealsDay != null ? d.mealsDay : null });
+    setEditDraft({ id: row.id, name: row.name, blocks: blocks.length ? blocks : [{ id: 'b0', text: '' }], note: d.note || '', media: Array.isArray(d.media) ? d.media : [], days: Array.isArray(d.days) ? d.days : undefined, blockLabel, meta: row.meta || null, cals: d.cals != null ? d.cals : null, mealsDay: d.mealsDay != null ? d.mealsDay : null, goal: d.goal != null ? d.goal : null, diet: d.diet != null ? d.diet : null });
   };
   const openCard = (card, type) => (card && card.row ? openRow(card.row) : openDraft(type));
   // ⚠ `days` must survive this destructure. The editor may hand over seven
@@ -8206,11 +8220,15 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
     // A saved row is published in place, keeping its price, its line and its own figures (a program
     // Nora saved with no calories is not given the page's 2,100); its stored `days` go when the
     // editor hands back none, so a plan put back to one menu is not served the old week.
+    // ⚠ NOTHING FROM THE PAGE'S CHIPS (Codex on #2594): this editor shows no goal, diet, calories or
+    // meals-a-day, so a row that has none keeps none, never another plan's left in the page. Its name
+    // left empty is its own name, and a row with no line keeps none.
     if (editDraft && editDraft.id) {
       if (!window.ShapeCoachPlans?.update) throw new Error(tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' }));
-      const { cals: _pageCals, mealsDay: _pageMeals, ...own } = payload.detail;
-      const detail = { ...own, ...(editDraft.cals != null ? { cals: editDraft.cals } : {}), ...(editDraft.mealsDay != null ? { mealsDay: editDraft.mealsDay } : {}), days: days && days.length ? days : null };
-      const row = await window.ShapeCoachPlans.update({ id: editDraft.id, name: payload.name, meta: editDraft.meta || payload.meta, published: true, ...(accountId ? { expectedOwnerId: accountId } : {}), detail });
+      const { cals: _pageCals, mealsDay: _pageMeals, goal: _pageGoal, diet: _pageDiet, ...own } = payload.detail;
+      const kept = { cals: editDraft.cals, mealsDay: editDraft.mealsDay, goal: editDraft.goal, diet: editDraft.diet };
+      const detail = { ...own, ...Object.fromEntries(Object.entries(kept).filter(([, v]) => v != null)), days: days && days.length ? days : null };
+      const row = await window.ShapeCoachPlans.update({ id: editDraft.id, name: name || editDraft.name || payload.name, ...(editDraft.meta ? { meta: editDraft.meta } : {}), published: true, ...(accountId ? { expectedOwnerId: accountId } : {}), detail });
       rememberRow(row);
       flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
       setEditDraft(null); setDrafting(false);
@@ -8504,10 +8522,11 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
         ) : (
         <div style={{ marginTop: 2 }}>
           {!diets.filter((r) => libMatch(r.n)).length && libSearchMiss}
+          {/* A diet guide has no menu to put on a client's Eat tab: no Assign on its row. */}
           {diets.filter((r) => libMatch(r.n)).map((r, i) => (
             <BSProCatRow key={r.id || r.n} index={i} name={r.n} meta={r.meta} heat={heat} t={t}
               onOpen={() => openCard(r, 'diet')}
-              onAssign={() => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
+              onAssign={dietIsGuide(r.detail) ? undefined : () => setAssignPlan({ id: r.id || null, name: r.n, meta: r.meta, detail: r.detail || null })} />
           ))}
         </div>
         )}

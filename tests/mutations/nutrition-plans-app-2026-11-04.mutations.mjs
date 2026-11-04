@@ -14,6 +14,7 @@ const ACT = 'src/lib/ai/actions.mjs';
 const CHAT = 'src/app/api/support/chat/route.ts';
 const ROUTE = 'mobile-app/src/services/coachPlanRoute.mjs';
 const MAIN = 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx';
+const GUIDE = 'mobile-app/src/services/nutritionAssign.mjs';
 
 export default {
   test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs',
@@ -124,6 +125,29 @@ export default {
       find: '  roleNow.current = role;\n', replace: '' },
     { name: 'the root switches the shell but not Profile mode', file: MAIN,
       find: "      setTweakNow.current('role', target);\n", replace: '' },
+    // ── review round 2 (Codex on 8eec238) ──
+    { name: 'a diet guide counts as a week of meals', file: PROS,
+      find: '  const isDietGuide = isNutri && dietIsGuide(plan && plan.detail);', replace: '  const isDietGuide = false;' },
+    { name: 'Assign shows its button for a diet guide', file: PROS,
+      find: '            ) : isDietGuide ? (\n', replace: '            ) : false ? (\n' },
+    { name: 'a diet guide\'s row offers Assign', file: PROS,
+      find: 'onAssign={dietIsGuide(r.detail) ? undefined : ', replace: 'onAssign={false ? undefined : ' },
+    { name: 'a diet with an unwritten day is a week of meals', file: GUIDE,
+      find: 'day.blocks === d.blocks || ', replace: '' },
+    { name: 'a diet with an empty day is a week of meals', file: GUIDE,
+      find: ' || !Array.isArray(day.blocks) || !day.blocks.length);', replace: ');' },
+    { name: 'a meal plan is read as a diet', file: GUIDE,
+      find: "  if (!d || d.buildType !== 'diet' || d.mealBuilder) return false;", replace: '  if (!d || d.mealBuilder) return false;' },
+    { name: 'a builder document is read as a diet', file: GUIDE,
+      find: "  if (!d || d.buildType !== 'diet' || d.mealBuilder) return false;", replace: "  if (!d || d.buildType !== 'diet') return false;" },
+    { name: 'a saved row\'s publish takes the page\'s goal and diet', file: PROS,
+      find: 'const { cals: _pageCals, mealsDay: _pageMeals, goal: _pageGoal, diet: _pageDiet, ...own } = payload.detail;', replace: 'const { cals: _pageCals, mealsDay: _pageMeals, ...own } = payload.detail;' },
+    { name: 'a saved row loses its own goal and diet', file: PROS,
+      find: '      const kept = { cals: editDraft.cals, mealsDay: editDraft.mealsDay, goal: editDraft.goal, diet: editDraft.diet };', replace: '      const kept = { cals: editDraft.cals, mealsDay: editDraft.mealsDay };' },
+    { name: 'a saved row with no line is given the page\'s', file: PROS,
+      find: '...(editDraft.meta ? { meta: editDraft.meta } : {}), published: true,', replace: 'meta: editDraft.meta || payload.meta, published: true,' },
+    { name: 'a saved row\'s emptied name is made from the page\'s goal', file: PROS,
+      find: 'name: name || editDraft.name || payload.name,', replace: 'name: payload.name,' },
     { name: 'the draft is saved live', file: ACT,
       find: "      id: p.planId, kind: 'meal_plan', name: row.name, meta: row.meta, published: false,", replace: "      id: p.planId, kind: 'meal_plan', name: row.name, meta: row.meta, published: true," },
     { name: 'undo removes an edited program or diet', file: ACT,
