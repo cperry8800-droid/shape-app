@@ -11,7 +11,7 @@
 // shapeDb, so the load → pick → save path is the one production takes.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadBroadsheet, loadCarved, drive, textOf, SHIM } from './helpers/broadsheet-mount.mjs';
+import { loadBroadsheet, loadCarved, drive, textOf, flatten, SHIM } from './helpers/broadsheet-mount.mjs';
 
 globalThis.window.addEventListener = () => {};
 globalThis.window.removeEventListener = () => {};
@@ -127,6 +127,18 @@ test('a blank goal cannot be set, by the button or by Enter', async () => {
   await settle();
   assert.equal(db.saves.length, 0, 'nothing was written');
   assert.equal(radios(d).length, 13, 'the picker is still open');
+});
+
+// Codex P2 on #2595: the grid of tiles held twelve and "Your own goal" sat outside it, so a screen
+// reader did not hear the thirteen as one choice.
+test('the twelve goals and the member\'s own are one radio group', async () => {
+  const { d } = await goalsPage({ client_goals: { primaryGoal: 'muscle' }, client_identity: {} });
+  d.click('Edit');
+  const groups = d.nodes().filter((n) => n.props && n.props.role === 'radiogroup');
+  assert.equal(groups.length, 1, 'one group');
+  const inGroup = flatten(groups[0]).filter((n) => n.props && n.props.role === 'radio');
+  assert.equal(inGroup.length, 13, 'all thirteen choices inside it');
+  assert.ok(inGroup.some((n) => textOf(n).startsWith('Your own goal')), 'the own-words choice among them');
 });
 
 test('closing the picker closes the field, so it reopens on the list', async () => {

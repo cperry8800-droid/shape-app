@@ -1528,55 +1528,57 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
                 The profile mirror (client_identity.goal) takes the LABEL, not
                 the token, because get_public_profile serves that field to other
                 members on both surfaces. */}
-            <div role="radiogroup" aria-label={tr('goal:primary.titlePre', { defaultValue: 'Your primary' }) + ' ' + tr('goal:primary.titleAccent', { defaultValue: 'goal.' })}
-              style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
-              {BS_PRIMARY_GOALS.map((g) => {
-                const on = (data.primaryGoal || '') === g.id;
-                const label = bsPrimaryGoalLabel(g.id, tr);
-                return (
-                  <button key={g.id} role="radio" aria-checked={on} data-goal-tile={g.id} onClick={() => setPrimaryGoal(g.id)} style={{
-                    position: 'relative', minWidth: 0, minHeight: 96, padding: 12, boxSizing: 'border-box', borderRadius: 18, cursor: 'pointer', textAlign: 'left',
-                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12,
-                    background: on ? `radial-gradient(120% 140% at 0% 0%, ${bsDashA(D.mark.teal, D.light ? 0.12 : 0.2)}, transparent 62%), ${D.card}` : D.card,
-                    border: on ? `1.5px solid ${D.mark.teal}` : `1px solid ${D.border}`, boxShadow: on && !D.light ? `0 0 18px ${bsDashA(D.mark.teal, 0.18)}` : D.shadow,
-                    color: t.INK, fontFamily: t.DISPLAY,
-                  }}>
-                    <span style={{ fontSize: 15.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.01em', overflowWrap: 'anywhere', order: 2 }}>{label}</span>
-                    <span aria-hidden style={{ order: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                      <span style={{ width: 34, height: 34, borderRadius: 11, display: 'grid', placeItems: 'center', background: on ? bsDashA(D.mark.teal, D.light ? 0.16 : 0.22) : D.track }}>
-                        <BSGoalGlyph id={g.id} color={on ? D.text.teal : t.INK70} />
+            {/* One radiogroup holds all thirteen: the twelve tiles and the member's own goal (Codex P2 on #2595). */}
+            <div role="radiogroup" aria-label={tr('goal:primary.titlePre', { defaultValue: 'Your primary' }) + ' ' + tr('goal:primary.titleAccent', { defaultValue: 'goal.' })} style={{ marginTop: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                {BS_PRIMARY_GOALS.map((g) => {
+                  const on = (data.primaryGoal || '') === g.id;
+                  const label = bsPrimaryGoalLabel(g.id, tr);
+                  return (
+                    <button key={g.id} role="radio" aria-checked={on} data-goal-tile={g.id} onClick={() => setPrimaryGoal(g.id)} style={{
+                      position: 'relative', minWidth: 0, minHeight: 96, padding: 12, boxSizing: 'border-box', borderRadius: 18, cursor: 'pointer', textAlign: 'left',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12,
+                      background: on ? `radial-gradient(120% 140% at 0% 0%, ${bsDashA(D.mark.teal, D.light ? 0.12 : 0.2)}, transparent 62%), ${D.card}` : D.card,
+                      border: on ? `1.5px solid ${D.mark.teal}` : `1px solid ${D.border}`, boxShadow: on && !D.light ? `0 0 18px ${bsDashA(D.mark.teal, 0.18)}` : D.shadow,
+                      color: t.INK, fontFamily: t.DISPLAY,
+                    }}>
+                      <span style={{ fontSize: 15.5, fontWeight: 600, lineHeight: 1.2, letterSpacing: '-0.01em', overflowWrap: 'anywhere', order: 2 }}>{label}</span>
+                      <span aria-hidden style={{ order: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                        <span style={{ width: 34, height: 34, borderRadius: 11, display: 'grid', placeItems: 'center', background: on ? bsDashA(D.mark.teal, D.light ? 0.16 : 0.22) : D.track }}>
+                          <BSGoalGlyph id={g.id} color={on ? D.text.teal : t.INK70} />
+                        </span>
+                        {on ? <span style={{ width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d', fontSize: 12, fontWeight: 800 }}>✓</span> : null}
                       </span>
-                      {on ? <span style={{ width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d', fontSize: 12, fontWeight: 800 }}>✓</span> : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {/* A goal in the member's own words (owner, 2026-10-20: "make sure user can
-                make custom goals"). Checked while the stored goal is none of the listed
-                ones; tapping it opens the field, filled with their words. */}
-            <div style={{ marginTop: 10, borderRadius: 18, overflow: 'hidden', background: ownGoal ? `radial-gradient(120% 140% at 0% 0%, ${bsDashA(D.mark.teal, D.light ? 0.12 : 0.2)}, transparent 62%), ${D.card}` : D.card, border: ownGoal ? `1.5px solid ${D.mark.teal}` : `1px solid ${D.border}`, boxShadow: D.shadow }}>
-              <button role="radio" aria-checked={!!ownGoal} aria-expanded={customGoal != null} onClick={() => setCustomGoal(customGoal != null ? null : ownGoal)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '10px 12px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK, fontFamily: t.DISPLAY }}>
-                <span style={{ flex: 1, minWidth: 0, order: 2 }}>
-                  <span style={{ display: 'block', fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</span>
-                  {ownGoal && customGoal == null && <span data-own-goal style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 400, color: t.INK70, overflowWrap: 'anywhere' }}>{ownGoal}</span>}
-                </span>
-                <span aria-hidden style={{ order: 1, flexShrink: 0, width: 34, height: 34, borderRadius: 11, display: 'grid', placeItems: 'center', background: ownGoal ? bsDashA(D.mark.teal, D.light ? 0.16 : 0.22) : D.track }}>
-                  <BSGoalGlyph id="own" color={ownGoal ? D.text.teal : t.INK70} />
-                </span>
-                {ownGoal ? <span aria-hidden style={{ order: 3, flexShrink: 0, width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d', fontSize: 12, fontWeight: 800 }}>✓</span> : null}
-              </button>
-              {customGoal != null && (
-                <div style={{ padding: '2px 12px 12px' }}>
-                  <input data-goal-field="" autoFocus enterKeyHint="done" value={customGoal} maxLength={BS_PRIMARY_GOAL_MAX}
-                    aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
-                    placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
-                    onChange={(e) => setCustomGoal(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPrimaryGoal(ownGoalNext); } }}
-                    style={{ width: '100%', boxSizing: 'border-box', minHeight: 46, padding: '0 14px', borderRadius: 12, border: `1px solid ${D.border}`, background: D.track, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK }} />
-                  <button onClick={() => setPrimaryGoal(ownGoalNext)} disabled={!ownGoalNext} style={{ marginTop: 10, width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: ownGoalNext ? D.mark.teal : D.track, color: ownGoalNext ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ownGoalNext ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
-                </div>
-              )}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* A goal in the member's own words (owner, 2026-10-20: "make sure user can
+                  make custom goals"). Checked while the stored goal is none of the listed
+                  ones; tapping it opens the field, filled with their words. */}
+              <div style={{ marginTop: 10, borderRadius: 18, overflow: 'hidden', background: ownGoal ? `radial-gradient(120% 140% at 0% 0%, ${bsDashA(D.mark.teal, D.light ? 0.12 : 0.2)}, transparent 62%), ${D.card}` : D.card, border: ownGoal ? `1.5px solid ${D.mark.teal}` : `1px solid ${D.border}`, boxShadow: D.shadow }}>
+                <button role="radio" aria-checked={!!ownGoal} aria-expanded={customGoal != null} onClick={() => setCustomGoal(customGoal != null ? null : ownGoal)} style={{ width: '100%', boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '10px 12px', background: 'transparent', border: 0, cursor: 'pointer', textAlign: 'left', color: t.INK, fontFamily: t.DISPLAY }}>
+                  <span style={{ flex: 1, minWidth: 0, order: 2 }}>
+                    <span style={{ display: 'block', fontSize: 15.5, fontWeight: 600, letterSpacing: '-0.01em' }}>{tr('goal:primary.custom', { defaultValue: 'Your own goal' })}</span>
+                    {ownGoal && customGoal == null && <span data-own-goal style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 13.5, fontWeight: 400, color: t.INK70, overflowWrap: 'anywhere' }}>{ownGoal}</span>}
+                  </span>
+                  <span aria-hidden style={{ order: 1, flexShrink: 0, width: 34, height: 34, borderRadius: 11, display: 'grid', placeItems: 'center', background: ownGoal ? bsDashA(D.mark.teal, D.light ? 0.16 : 0.22) : D.track }}>
+                    <BSGoalGlyph id="own" color={ownGoal ? D.text.teal : t.INK70} />
+                  </span>
+                  {ownGoal ? <span aria-hidden style={{ order: 3, flexShrink: 0, width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', background: D.mark.teal, color: t.isLight ? '#fff' : '#04201d', fontSize: 12, fontWeight: 800 }}>✓</span> : null}
+                </button>
+                {customGoal != null && (
+                  <div style={{ padding: '2px 12px 12px' }}>
+                    <input data-goal-field="" autoFocus enterKeyHint="done" value={customGoal} maxLength={BS_PRIMARY_GOAL_MAX}
+                      aria-label={tr('goal:primary.customLabel', { defaultValue: 'Your goal, in your words' })}
+                      placeholder={tr('goal:primary.customPlaceholder', { defaultValue: 'e.g. Run my first 10k' })}
+                      onChange={(e) => setCustomGoal(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setPrimaryGoal(ownGoalNext); } }}
+                      style={{ width: '100%', boxSizing: 'border-box', minHeight: 46, padding: '0 14px', borderRadius: 12, border: `1px solid ${D.border}`, background: D.track, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 600, color: t.INK }} />
+                    <button onClick={() => setPrimaryGoal(ownGoalNext)} disabled={!ownGoalNext} style={{ marginTop: 10, width: '100%', minHeight: 44, borderRadius: 999, border: 0, background: ownGoalNext ? D.mark.teal : D.track, color: ownGoalNext ? (t.isLight ? '#fff' : '#04201d') : t.INK50, cursor: ownGoalNext ? 'pointer' : 'default', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('goal:primary.customSave', { defaultValue: 'Set goal' })}</button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           {window.BSPinnedBar && <window.BSPinnedBar shown={primaryPinned} trailing={bsGoalSheetTools(closePrimary)} background={t.PAPER_BG || t.PAPER} run={() => { if (window.bsMarkBack) window.bsMarkBack(); closePrimary(); }} />}
