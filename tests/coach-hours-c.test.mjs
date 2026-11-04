@@ -16,6 +16,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadRealModule } from './helpers/load-real-module.mjs';
+import { bsHoursScale } from '../mobile-app/src/services/coachHours.mjs';
 
 const require_ = createRequire(import.meta.url);
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -160,6 +161,70 @@ test('the scale fits the coach\'s hours: every hour labelled and ticked, and an 
     assert.equal(m.qa('[data-hours-tick]').length, 13, 'every hour keeps its tick');
     assert.equal(m.row(SUN).querySelectorAll('[data-hour-line]').length, 13, 'and its line through every row');
   } finally { await m.close(); }
+});
+
+// jsdom measures nothing: these hand the scale a width, change it with no React render (as turning a
+// phone does), and check the labels follow (Codex P2 on #2616).
+function stubWidth(start) {
+  const proto = W.HTMLElement.prototype;
+  const real = proto.getBoundingClientRect;
+  const box = { width: start };
+  proto.getBoundingClientRect = function () { return { width: box.width, height: 19, top: 0, left: 0, right: box.width, bottom: 19, x: 0, y: 0 }; };
+  return { box, restore: () => { proto.getBoundingClientRect = real; } };
+}
+const NARROW = 110;
+const narrowStep = String(bsHoursScale([540, 1080], { width: NARROW, locale: 'en-US' }).step);
+
+test('the scale re-reads its width when it resizes with no render (a phone turned), and lets go on close', async () => {
+  signedOut();
+  assert.notEqual(narrowStep, '1', `the case means something: ${NARROW}px can't label nine hours one by one`);
+  const w = stubWidth(260);
+  const observers = [];
+  W.ResizeObserver = class { constructor(cb) { this.cb = cb; this.els = []; this.off = false; observers.push(this); } observe(el) { this.els.push(el); } disconnect() { this.off = true; } };
+  let m = null;
+  try {
+    m = await mount();
+    const step = () => m.q('[data-hours-scale]').getAttribute('data-hours-step');
+    assert.equal(step(), '1', '260 wide: every hour labelled');
+    const ro = observers.find((o) => o.els.some((el) => m.q('[data-hours-scale]').contains(el)));
+    assert.ok(ro, 'the scale is observed');
+    w.box.width = NARROW;
+    await React.act(async () => { ro.cb([]); });
+    assert.equal(step(), narrowStep, 'narrower, the labels step out at once');
+    w.box.width = 260;
+    await React.act(async () => { ro.cb([]); });
+    assert.equal(step(), '1', 'and back when it widens');
+    await m.close(); m = null;
+    assert.equal(ro.off, true, 'the observer is let go when the page closes');
+  } finally {
+    if (m) await m.close();
+    w.restore(); delete W.ResizeObserver;
+  }
+});
+
+test('with no ResizeObserver, a window resize re-reads the scale, and the listener goes on close', async () => {
+  signedOut();
+  delete W.ResizeObserver;
+  const w = stubWidth(260);
+  const live = new Set();
+  const add = W.addEventListener, remove = W.removeEventListener;
+  W.addEventListener = function (type, fn, o) { if (type === 'resize') live.add(fn); return add.call(this, type, fn, o); };
+  W.removeEventListener = function (type, fn, o) { if (type === 'resize') live.delete(fn); return remove.call(this, type, fn, o); };
+  let m = null;
+  try {
+    m = await mount();
+    const step = () => m.q('[data-hours-scale]').getAttribute('data-hours-step');
+    assert.equal(step(), '1');
+    assert.ok(live.size >= 1, 'the page listens for resizes');
+    w.box.width = NARROW;
+    await React.act(async () => { W.dispatchEvent(new W.Event('resize')); });
+    assert.equal(step(), narrowStep, 'the labels step out after the resize');
+    await m.close(); m = null;
+    assert.equal(live.size, 0, 'no resize listener left behind');
+  } finally {
+    if (m) await m.close();
+    W.addEventListener = add; W.removeEventListener = remove; w.restore();
+  }
 });
 
 test('a long day figure widens every day slot alike, so it reads whole and the bars stay under the scale', async () => {

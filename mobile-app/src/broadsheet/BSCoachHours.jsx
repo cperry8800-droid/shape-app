@@ -274,13 +274,28 @@ function WeekGrid({ t, tr, days, setDays, disabled, accent, perWeek }) {
   // widest the week needs, 54px at least, and all share it so every row's bars line up with the scale.
   const figure = (bl) => (bl.length ? hoursFigure(m.dayMin(bl), m.locale) : '–');
   const dayW = Math.max(DAY_W, Math.ceil(Math.max(...BS_HOURS_DAYS.map(([wd]) => monoW(m.name(wd), 8.5, 0.08) + monoW(figure(days[wd] || []), 13, 0.02) + 6 + 14))));
-  // The scale's labels are as close as its measured width allows (390 wide until it is measured).
+  // The scale's labels are as close as its measured width allows (390 wide until it is measured). It is
+  // read after every render (a wider day slot narrows it) and again whenever it resizes with no render
+  // (a phone turned, a window narrowed), so the labels never keep a width they no longer have.
   const scaleRef = React.useRef(null);
   const [measured, setMeasured] = React.useState(0);
-  React.useLayoutEffect(() => {
-    const w = scaleRef.current && scaleRef.current.getBoundingClientRect ? scaleRef.current.getBoundingClientRect().width : 0;
-    if (w > 0 && Math.abs(w - measured) > 1) setMeasured(w);
-  });
+  const readScale = React.useCallback(() => {
+    const el = scaleRef.current;
+    const w = el && el.getBoundingClientRect ? el.getBoundingClientRect().width : 0;
+    if (w > 0) setMeasured((was) => (Math.abs(w - was) > 1 ? w : was));
+  }, []);
+  React.useLayoutEffect(readScale);
+  React.useEffect(() => {
+    const el = scaleRef.current;
+    const RO = window.ResizeObserver;
+    if (el && typeof RO === 'function') {
+      const ro = new RO(readScale);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+    window.addEventListener('resize', readScale);
+    return () => window.removeEventListener('resize', readScale);
+  }, [readScale]);
   const barsW = measured || PLATE_W_390 - dayW - DAY_GAP;
   const span = bsHoursSpan(days);
   const [lo, hi] = span;
