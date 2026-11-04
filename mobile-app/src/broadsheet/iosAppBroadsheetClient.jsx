@@ -88,7 +88,7 @@ import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
-import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
+import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners, bsHomeTickerShown } from '../services/homeWeek.mjs';
 import { bsPlanPartRead, bsPlanCheckinParts } from '../services/planRead.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
@@ -5079,8 +5079,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           const done = _homeHabitsDec.filter(h => (h.history || []).includes(k));
           return { done: done.length, total: _homeHabitsDec.length, pts: done.reduce((a, h) => a + Math.round(ptsOf(h)), 0) };
         })();
+        const scoreLive = !!((!bsHomeSignedIn || (homeScore && homeScore.live)) && homeScore && typeof homeScore.total === 'number');
         const all = [
-          ...((!bsHomeSignedIn || (homeScore && homeScore.live)) && homeScore && typeof homeScore.total === 'number'
+          ...(scoreLive
             ? [{ label: 'PTS', value: homeScore.total.toLocaleString('en-US'), note: homeScore.week && homeScore.week !== '+0' ? `${homeScore.week} WK` : '' }] : []),
           { label: 'CAL',  value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
           { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? tr('home:ticker.onPace', { defaultValue: 'ON PACE' }) : tr('home:ticker.buildUp', { defaultValue: 'BUILD UP' }), color: proColor },
@@ -5096,10 +5097,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         const ordered = order.map(k => all.find(i => i.label === k)).filter(Boolean);
         const extras = all.filter(i => !order.includes(i.label));
         const out = [...ordered, ...extras].filter(it => !(tickerPrefs.hidden || []).includes(it.label));
-        // Signed in with no live metrics yet → no ticker (BSTicker hides on []).
-        // The demo ticker numbers are the signed-out preview only.
-        if (bsHomeSignedIn && !(ticker && (ticker.cal != null || ticker.protein_g != null || ticker.weight_lb != null || ticker.sleep_hours != null || ticker.hrv_ms != null || ticker.resting_hr != null)) && !tkHab) return [];
-        return out.length ? out : all;
+        // Signed in with nothing live yet → no ticker (BSTicker hides on []), or the score alone when it is
+        // the only thing live (bsHomeTickerShown). The demo ticker numbers are the signed-out preview only.
+        const metricsLive = !!(ticker && (ticker.cal != null || ticker.protein_g != null || ticker.weight_lb != null || ticker.sleep_hours != null || ticker.hrv_ms != null || ticker.resting_hr != null));
+        return bsHomeTickerShown(out, all, { signedIn: bsHomeSignedIn, metricsLive, habitsLive: !!tkHab, scoreLive, hidden: tickerPrefs.hidden });
       })()} />
 
       {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The

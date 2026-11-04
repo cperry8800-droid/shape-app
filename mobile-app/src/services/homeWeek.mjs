@@ -315,6 +315,18 @@ export function bsHomeCoachesKnown(plan) {
     && Object.prototype.hasOwnProperty.call(plan.meals, 'coaching'));
 }
 
+// What Home's ticker shows. Signed out it is the preview's numbers. Signed in it shows nothing until
+// something of the member's own is live, and when that is only their score (a new account, Codex P2 on
+// #2583) the score alone, never the demo numbers the other entries stand on. `out` is `all` in the
+// member's order with their hidden entries taken out.
+export function bsHomeTickerShown(out, all, { signedIn, metricsLive, habitsLive, scoreLive, hidden } = {}) {
+  const list = Array.isArray(all) ? all : [];
+  if (signedIn && !metricsLive && !habitsLive) {
+    return scoreLive && !(Array.isArray(hidden) ? hidden : []).includes('PTS') ? list.filter((i) => i && i.label === 'PTS') : [];
+  }
+  return Array.isArray(out) && out.length ? out : list;
+}
+
 export function bsHomeCoachesOf(plan) {
   const out = [];
   const add = (part, role) => {

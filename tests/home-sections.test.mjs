@@ -339,3 +339,23 @@ test('the week\'s reads are used only in the week they were read for (Codex P2s 
   assert.match(src, /series: weekSeries, workoutsDone: bsHwOfWeek\(trained, monday\),/);
   assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);
 });
+
+test("the ticker: signed in, nothing until something is live, and the score alone when it is all that is (Codex P2 on #2583)", () => {
+  const all = [{ label: 'PTS', value: '1,240' }, { label: 'CAL', value: '1568/2100' }, { label: 'HAB', value: '3/5' }];
+  const out = [all[1], all[0], all[2]];
+  // Signed out: the preview, in the member's order.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: false }), out);
+  // Signed in, a new account whose score is live and nothing else: the score alone, never the demo numbers.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, scoreLive: true }).map((i) => i.label), ['PTS']);
+  // ...unless the member hid it; and with no score either, no ticker.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, scoreLive: true, hidden: ['PTS'] }), []);
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, scoreLive: false }), []);
+  // Something live (a metric or a habit): the member's own order, as before.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, metricsLive: true }), out);
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, habitsLive: true, scoreLive: true }), out);
+  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: true, metricsLive: true }), all, 'everything hidden reads the whole set, as it did');
+  // Home's ticker goes through it, with the score's own live flag.
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(client, /return bsHomeTickerShown\(out, all, \{ signedIn: bsHomeSignedIn, metricsLive, habitsLive: !!tkHab, scoreLive, hidden: tickerPrefs\.hidden \}\);/);
+  assert.match(client, /\.\.\.\(scoreLive\s+\? \[\{ label: 'PTS'/);
+});
