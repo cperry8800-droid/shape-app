@@ -622,6 +622,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the Shape Radio page as option E, "the horizon", with the new masthead (#2589). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "now lets redesign shape radio page. Also make sure it has new masthead", "make it futuristic and somewhat similar to what the shape radio page looks like on website", "maybe have 1 desing like that", "again being creative futuristic and unique"; of five designs built in the app (A website tiles over bars, B a console card, C the website\'s LED tile wall, D a receiver dial, E the horizon), "option e is best but can we center shape radio logo"', status: 'done' },
+        { label: '#2589 BSRadioSignalField ground="horizon": the 32 bands as a skyline of tile towers (teal, the top fifth and the peak cap hot) on a floor of light receding to a horizon, reflected on it; no towers without a signal (a dashed horizon), the floor stepping toward you only on the measured beat and never under Reduce Motion; the glow six flat steps (no gradient in the field). BSRadioScreen: the wordmark centred and larger with the mode under it, the readings in a glass dashboard, the track in Anybody capitals, Tune in one long capsule, the votes and comments one capsule, Live / Shape Sets / Nora lit tabs; the top row\'s tools in BSMastToolPill. No volume key, no new copy; tests/radio-page-horizon.test.mjs (4), the deck test in nora-radio-magazine rewritten', status: 'done' },
+        { label: '#2589 review: Codex\'s P2 on c14a298 (the floor lines ran back toward the horizon between beats, then jumped) fixed in 28a5938, the lines now advancing toward the viewer and fading at the edge, the test pinning the direction; Codex clean on 28a5938. CI green', status: 'done' },
+        { label: 'OWNER: on a phone with the station playing, the skyline moves with the music and the floor steps on the beat', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the member profile\'s tiles thinner, with more room between them (#2588). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of Log activity / Edit profile and the coach tile: "these can still be condensed. dont have to be such think bubbles, with slightly more spacing between them"', status: 'done' },

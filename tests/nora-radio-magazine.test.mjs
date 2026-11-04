@@ -45,17 +45,24 @@ test('Talk to a person: a quiet card at the foot of the talk, a rounded field, S
   assert.doesNotMatch(opener, /background: t\.PAPER,/, 'a person is the second key, never the first');
 });
 
-test('the Radio station\'s deck: square keys, the one to take in ink, the strip as words', () => {
+test('the Radio station\'s deck (option E, "the horizon"): one long key, the votes as one capsule, the channels as lit tabs', () => {
+  // Owner, 2026-11-04: "redesign shape radio page", "make it futuristic", then of five designs "option e
+  // is best but can we center shape radio logo".
   const deck = between(RADIO, 'const signedIn = bsRadioSignedIn();', 'paddingBottom: 80 + 28');
-  assert.doesNotMatch(deck, /borderRadius: 12/, 'a rounded key is back on the deck');
-  // Tune in, when it can play, is ink with the paper's text.
-  assert.match(deck, /background: act \? CREAM : 'transparent', color: act \? \(isLight \? t\.PAPER : '#050707'\) : CREAM50/);
-  // The vote keys: square, 44px, the chosen one ruled in the station's teal, never a teal wash.
-  assert.match(deck, /flex: 1, minHeight: 44, borderRadius: 0, cursor: canReact \? 'pointer' : 'default'/);
-  assert.doesNotMatch(deck, /\$\{TEAL\}1f/);
-  // The strip: Live, Shape Sets, Nora as words, aria-pressed, 44px, the chosen one in ink over teal.
+  // Tune in: one long capsule, 56px, its round 44px key lit in the station's teal only when it can play,
+  // and disabled when there is nothing to do (signed out).
+  assert.match(deck, /<button disabled=\{!act\} onClick=\{\(\) => \{ if \(act\) act\(\); \}\} style=\{\{ marginTop: 16, width: '100%', minHeight: 56, borderRadius: 999,/);
+  assert.match(deck, /width: 44, height: 44, borderRadius: 999, flex: 'none'[\s\S]*?background: act \? TEAL : 'transparent'/);
+  assert.match(deck, /<BSPlayGlyph playing=\{key === 'pause'\} size=\{16\} \/>/);
+  // The votes and the comments door: one segmented capsule, 46px keys, aria-pressed, the chosen vote in teal.
+  assert.match(deck, /aria-pressed=\{on\} disabled=\{!canReact\}/);
+  assert.equal((deck.match(/flex: 1, minHeight: 46, border: 0/g) || []).length, 2, 'a vote or the comments door left the capsule');
+  assert.match(deck, /background: on \? `\$\{TEAL\}26` : 'transparent', color: on \? TEAL : CREAM/);
+  // The strip: Live, Shape Sets, Nora as words, aria-pressed, 44px, the chosen one lit over a teal rule.
   assert.match(deck, /<button key=\{s\.key\} aria-pressed=\{s\.on\} onClick=\{s\.go\} style=\{\{ [^}]*minHeight: 44/);
-  assert.match(deck, /boxShadow: s\.on \? `inset 0 -2px 0 \$\{TEAL\}` : 'none', color: s\.on \? CREAM : CREAM50/);
+  assert.match(deck, /boxShadow: s\.on \? `inset 0 -2px 0 \$\{TEAL\}, 0 8px 16px -12px \$\{TEAL\}` : 'none',\s*\n\s*color: s\.on \? CREAM : CREAM50/);
+  // No volume key: the phone sets the volume (owner, 2026-11-03).
+  assert.doesNotMatch(deck, /volume/i);
 });
 
 test('the Radio page below the deck: magazine heads, hairline rows, a square Nora key ("update the rest of the radio page to match")', () => {
