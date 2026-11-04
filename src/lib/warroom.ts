@@ -622,6 +622,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the end-of-workout pop-up, difficulty and enjoyment rated over the finished session and stored where a coach can read them (#2614). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "at the end of each workout, have a pop up appear where the client ranks workout from level of difficulty to enjoyment/satisfication"; then "show both ratings to coaches"', status: 'done' },
+        { label: '#2614 BSSessionFinish.jsx: when a workout ends the session stays drawn and a sheet rises over it (portalled into #bs-phone-surface): "How hard was that?" 1-10 (sessionRpe, lit green/amber/red by band) and "How much did you enjoy it?" 1-5 (summary.enjoyment, teal), both skippable (null, never 0), then the duration question, the share toggle and Save & finish; the workout behind is inert and focus is held in the sheet. "The vibe" (reviewFeel) is no longer written', status: 'done' },
+        { label: '#2614 storage: workout_sessions.session_rpe and workout_sessions.summary->enjoyment, both returned by the coach\'s existing ShapeWorkoutLogs.listSessions() read under the participants policy; nothing widened. A session the member starts on their own has no provider_id, so no coach reads it (as before)', status: 'done' },
+        { label: '#2614 review: Codex P2 on 1b02de3 (keyboard focus could leave the sheet into the workout) fixed in 2fc9d37 as BSUpdateGate does (inert + aria-hidden siblings, focus held by hand for iOS 14), answered and resolved; Codex clean on 2fc9d37. Mutation round on the friends-audience spec: 45 killed, 0 survived. CI green on 2fc9d37; main (#2612, #2613) merged with the record, no reviewer read it', status: 'done' },
+        { label: 'Coaches see both ratings when the coach pages PR (Client review B) ships', status: 'pending' },
+        { label: 'OWNER: on a phone, finish a workout, rate both and save; end one early and skip both; with a hardware keyboard, Tab stays in the sheet', status: 'manual' },
+      ],
+    },
+    {
       section: 'Website: the login box in the middle of the screen; Club Shape in the website\'s Anybody (#2613). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "center this box on screen on website and change club shape font in login box to match website font"', status: 'done' },
