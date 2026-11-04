@@ -5166,11 +5166,13 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           ? [{ role: 'trainer', name: 'Jordan Chen', conversationId: null, providerId: 'sample-trainer', photo: bsDemoFace('Jordan Chen') }, { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: null, providerId: 'sample-nutritionist', photo: bsDemoFace('Dr. Maya Patel') }]
           : planCoaches;
         const notes = [];
-        if (sample) notes.push({ role: 'nutritionist', text: 'Five plates. Three logged before noon. Don’t coast through the afternoon — refill at 16:00.', who: 'Dr. Maya Patel' });
+        // Each note keeps its coach's listing id, so Team files it under that coach by id, not by a name two
+        // coaches may share or a lookup may miss (Codex P2 on #2583).
+        if (sample) notes.push({ role: 'nutritionist', text: 'Five plates. Three logged before noon. Don’t coast through the afternoon — refill at 16:00.', who: 'Dr. Maya Patel', providerId: 'sample-nutritionist' });
         else {
           const banners = bsHomePaidBanners(coachFeed.banners, planCoaches);
-          for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
-          for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });
+          for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null, providerId: b.provider_id ?? null });
+          for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null, providerId: b.provider_id ?? null });
         }
         return (
           <BSHomeTeam tour="hero-home" coaches={teamCoaches} notes={notes}

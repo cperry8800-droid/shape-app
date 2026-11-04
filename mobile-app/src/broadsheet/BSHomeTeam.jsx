@@ -59,7 +59,7 @@ export function BSHomeTeam(props) {
 
 // The section itself, off what Home hands it. The tests draw it directly.
 //   coaches   [{ role, name, conversationId, providerId, photo }]   the ones the member pays
-//   notes     [{ role, text, who }]                           their weekly notes
+//   notes     [{ role, text, who, providerId }]               their weekly notes, by coach
 //   workout   { title, meta, time, onStart, coachId } | null  today's session, and the trainer who wrote it
 //   meal      { slot, time, title, onLog } | null             the next meal not logged
 //   fuel      { left, pct } | null                            food left today, and the share eaten
@@ -78,16 +78,23 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   const trainer = sessionCoach || trainers[0] || null;
   const nutri = nutris[0] || null;
   const extras = [...trainers.filter((c) => c !== trainer), ...nutris.slice(1)];
-  // Each coach's weekly note on their own card. A note signed with a coach's name is theirs; an unsigned
-  // one, or one whose name matches no coach here (a name read that failed), goes to the first of its role.
-  // A second coach of a role never shows the first's note.
+  // Each coach's weekly note on their own card. A note carrying a coach's listing id is that coach's (Codex
+  // P2 on #2583: two coaches may share a name, and a name lookup may fail); one without an id falls back to
+  // the name; one that names no coach here goes to the first of its role. A second coach of a role never
+  // shows another coach's note.
   const sameRole = (a, b) => (a.role === 'nutritionist') === (b.role === 'nutritionist');
+  const idOf = (x) => (x && x.providerId != null ? String(x.providerId) : null);
   const noteOf = (c, first) => {
     const mine = notes.filter((n) => sameRole(n, c));
-    const own = c.name ? mine.find((n) => n.who && n.who === c.name) : null;
+    const ids = new Set(coaches.filter((k) => sameRole(k, c)).map(idOf).filter(Boolean));
+    const byId = idOf(c) ? mine.find((n) => idOf(n) === idOf(c)) : null;
+    if (byId) return byId;
+    // A note whose id is another coach's here is theirs, never this one's, whatever its name says.
+    const free = mine.filter((n) => !(idOf(n) && ids.has(idOf(n))));
+    const own = c.name ? free.find((n) => n.who && n.who === c.name) : null;
     if (own || !first) return own || null;
     const named = coaches.filter((k) => k !== c && sameRole(k, c) && k.name).map((k) => k.name);
-    return mine.find((n) => !n.who || !named.includes(n.who)) || null;
+    return free.find((n) => !n.who || !named.includes(n.who)) || null;
   };
   const quote = (note) => <div data-team-note="" style={{ fontFamily: t.DISPLAY, fontSize: 15, lineHeight: 1.4, color: t.INK }}>&ldquo;{note.text}&rdquo;</div>;
   const roleWord = (role) => (role === 'nutritionist' ? tr('home:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('home:role.trainer', { defaultValue: 'Trainer' }));

@@ -468,6 +468,26 @@ test("today's session goes on the card of the trainer who wrote it, and the memb
   }
 });
 
+// Codex P2 on #2583: a note keeps its coach's listing id, and Team files it by that id first, so two coaches
+// who share a name, or a name lookup that failed, never put one coach's advice under the other.
+test("a coach's note is filed by their listing id: same-named coaches each get their own, and a missing name never moves it", () => {
+  const A = { role: 'trainer', name: 'Alex Kim', conversationId: 'c-a', providerId: 7, photo: null };
+  const B = { role: 'trainer', name: 'Alex Kim', conversationId: 'c-b', providerId: 8, photo: null };
+  const notes = [
+    { role: 'trainer', text: 'Note from 8.', who: 'Alex Kim', providerId: 8 },
+    { role: 'trainer', text: 'Note from 7.', who: 'Alex Kim', providerId: 7 },
+  ];
+  const d = drive(T.BSHomeTeamView, TEAM({ coaches: [A, B, MAYA], notes, workout: { ...TEAM().workout, coachId: 7 } }));
+  assert.match(textOf(coachBlock(d, 'trainer')), /Note from 7\./, 'the first Alex shows the other\'s note');
+  assert.doesNotMatch(textOf(coachBlock(d, 'trainer')), /Note from 8\./);
+  assert.match(textOf(coachBlock(d, 'extra')), /Note from 8\./, 'the second Alex lost their own note');
+  assert.doesNotMatch(textOf(coachBlock(d, 'extra')), /Note from 7\./);
+  // The name lookup failed (no who): the id still files it.
+  const nameless = drive(T.BSHomeTeamView, TEAM({ coaches: [A, B], notes: [{ role: 'trainer', text: 'Only 8 wrote.', who: null, providerId: 8 }], workout: { ...TEAM().workout, coachId: 7 } }));
+  assert.doesNotMatch(textOf(coachBlock(nameless, 'trainer')), /Only 8 wrote/, 'an unnamed note fell to the first trainer');
+  assert.match(textOf(coachBlock(nameless, 'extra')), /Only 8 wrote/);
+});
+
 test('Team\'s next session opens the calendar on its day', () => {
   const opened = [];
   const next = { at: Date.parse('2026-10-24T13:00:00Z'), providerName: 'Jordan Chen', providerRole: 'trainer' };
