@@ -290,10 +290,14 @@ function _bsMapServerCalEvent(ev, t, zone = null) {
     // status so the event sheet can write real completes/reschedules through
     // /api/sessions/manage instead of toasting.
     sessionId: ev.sessionId || null,
+    // The booking's real start instant (/api/calendar sends it on every session): the sheet's Mark
+    // complete waits for it to have passed (Codex P2 on #2607: dropped here, a started session read "Done").
+    scheduledAt: typeof ev.scheduledAt === 'string' && ev.scheduledAt ? ev.scheduledAt : null,
     status: ev.status || null,
     reschedulable: ev.reschedulable !== false,
-    // false: another coach's booking with this client, shown in a shared client's calendar only.
-    mine: ev.mine !== false,
+    // false: another coach's booking with this client, shown in a shared client's calendar only; or a
+    // session the viewer is booked into as the client (asClient), which a coach cannot manage as coach.
+    mine: ev.mine !== false && !ev.asClient,
     // The zone the route placed `date`/`time` in (its response names it). A reschedule
     // hands it back, so the wall clock it keeps is read on the clock it was shown on.
     zone: zone || null,
@@ -1316,4 +1320,5 @@ function BSEventGenericBody({ event }) {
 }
 
 // Expose
-Object.assign(window, { BSSheetProvider, useBSSheet, BSToast, BSCalendarScreen, BSEventSheet });
+// bsMapServerCalEvent: coach Home's Your day opens a booking in BSEventSheet as this calendar maps it.
+Object.assign(window, { BSSheetProvider, useBSSheet, BSToast, BSCalendarScreen, BSEventSheet, bsMapServerCalEvent: _bsMapServerCalEvent });

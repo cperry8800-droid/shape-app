@@ -82,7 +82,7 @@ test('the page draws one Your day: a To do lane on the rail, the folded to-do un
   // The folded to-do: one line under its session, a 44px target that opens the client's file.
   const fold = sec.slice(sec.indexOf('{folded && ('));
   assert.match(fold, /data-rail-todo=\{folded\.severity\} onClick=\{\(\) => openClientFile\(folded\.clientId, folded\.name\)\}/);
-  assert.match(fold, /minHeight: 44, margin: '-12px 0 -8px', padding: '12px 0 8px'/);
+  assert.match(fold, /minHeight: 44, margin: '0 0 -8px', padding: '0 0 8px'/);
   // Every button in the list keeps a 44px target.
   for (const b of sec.match(/<button [^>]*?style=\{\{[^\n]*/g) || []) {
     if (/style=\{LINK\}|\.\.\.LINK/.test(b)) continue;
@@ -91,4 +91,46 @@ test('the page draws one Your day: a To do lane on the rail, the folded to-do un
   // Every to-do shows somewhere: the lane's rows, past five "See all", or folded into a session.
   assert.match(PROS, /const todoShown = anytimeTodos\.slice\(0, Math\.max\(0, TODO_MAX - paidShown\.length\)\);/);
   assert.match(sec, /\{todoMore > 0 && <button type="button" onClick=\{\(\) => onWidgetOpen\('clients'\)\} style=\{LINK\}>/);
+});
+
+test('a session in Your day opens its own details, not the month calendar', () => {
+  // Owner, 2026-11-04: "when i click on the activity here on home page it should take be to details regarding
+  // that activity, no month calendar".
+  const at = PROS.indexOf('{/* YOUR DAY — To do and the Schedule as one list');
+  const sec = PROS.slice(at, PROS.indexOf('{/* SHORTCUTS', at));
+  assert.doesNotMatch(sec, /closest\('button'\)\) return; goCalendar\(\);/, 'a tap on the schedule goes to the month again');
+  assert.match(sec, /<button type="button" data-rail-open="" onClick=\{\(\) => openBooking\(b\)\}/);
+  assert.match(sec, /data-rail-open=""[^\n]*\n\s*style=\{\{[^\n]*minHeight: 44/, 'the session\'s target is under 44');
+  // The calendar's own detail sheet: a real booking as the calendar maps it, live; the preview's sample as a sample.
+  const fn = PROS.slice(PROS.indexOf('  const openBooking = (b) => {'), PROS.indexOf('  // Up next\'s buttons'));
+  assert.match(fn, /window\.BSEventSheet/);
+  assert.match(fn, /const live = !!\(b\.raw && mapEv\);/);
+  assert.match(fn, /mapEv\(b\.raw, t, b\.rawZone\)/);
+  assert.match(fn, /onChanged: \(\) => setCalendarReload\(\(n\) => n \+ 1\)/);
+  assert.match(fn, /goCalendar\(\); return;/, 'with no sheet it does nothing');
+  assert.match(PROS, /raw: ev, rawZone: typeof r\.zone === 'string' && r\.zone \? r\.zone : null,/);
+  const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
+  assert.match(CAL, /Object\.assign\(window, \{[^}]*BSEventSheet, bsMapServerCalEvent: _bsMapServerCalEvent \}\);/);
+});
+
+test('the calendar\'s mapper keeps a booking\'s start instant, so a started session offers Mark complete', () => {
+  // Codex P2 on #2607: _bsMapServerCalEvent dropped `scheduledAt`, and BSEventSheet's Mark complete waits for it.
+  const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
+  const mapper = CAL.slice(CAL.indexOf('function _bsMapServerCalEvent('), CAL.indexOf('\n}\n', CAL.indexOf('function _bsMapServerCalEvent(')));
+  assert.match(mapper, /scheduledAt: typeof ev\.scheduledAt === 'string' && ev\.scheduledAt \? ev\.scheduledAt : null,/);
+  assert.match(CAL, /const sessionStarted = Number\.isFinite\(Date\.parse\(event\.scheduledAt\)\)/);
+});
+
+test('Your day\'s detail sheet: no coach actions on the coach\'s own client booking, and no overlapping targets', () => {
+  // Codex P2s on #2607. A coach booked as someone's client gets that session from /api/calendar with
+  // asClient: true; the mapper makes it not theirs to manage, so BSEventSheet offers no coach actions.
+  const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
+  assert.match(CAL, /mine: ev\.mine !== false && !ev\.asClient,/);
+  assert.match(CAL, /\(role === 'trainer' \|\| role === 'nutritionist'\) && event\.mine !== false;/);
+  // A session with a folded to-do: its target stops at its words, and the to-do's starts under them.
+  const at = PROS.indexOf('{/* YOUR DAY — To do and the Schedule as one list');
+  const sec = PROS.slice(at, PROS.indexOf('{/* SHORTCUTS', at));
+  assert.match(sec, /margin: folded \? '-8px 0 0' : '-8px 0', padding: folded \? '8px 0 0' : '8px 0'/);
+  const todo = sec.slice(sec.indexOf('data-rail-todo={folded.severity}'));
+  assert.match(todo, /minHeight: 44, margin: '0 0 -8px', padding: '0 0 8px'/, 'the to-do reaches up over the session again');
 });
