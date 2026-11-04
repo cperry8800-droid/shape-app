@@ -86,3 +86,23 @@ test('the page draws one Your day: a To do lane on the rail, the folded to-do un
   assert.match(PROS, /const todoShown = anytimeTodos\.slice\(0, Math\.max\(0, TODO_MAX - paidShown\.length\)\);/);
   assert.match(sec, /\{todoMore > 0 && <button type="button" onClick=\{\(\) => onWidgetOpen\('clients'\)\} style=\{LINK\}>/);
 });
+
+test('a session in Your day opens its own details, not the month calendar', () => {
+  // Owner, 2026-11-04: "when i click on the activity here on home page it should take be to details regarding
+  // that activity, no month calendar".
+  const at = PROS.indexOf('{/* YOUR DAY — To do and the Schedule as one list');
+  const sec = PROS.slice(at, PROS.indexOf('{/* SHORTCUTS', at));
+  assert.doesNotMatch(sec, /closest\('button'\)\) return; goCalendar\(\);/, 'a tap on the schedule goes to the month again');
+  assert.match(sec, /<button type="button" data-rail-open="" onClick=\{\(\) => openBooking\(b\)\}/);
+  assert.match(sec, /data-rail-open=""[^\n]*\n\s*style=\{\{[^\n]*minHeight: 44/, 'the session\'s target is under 44');
+  // The calendar's own detail sheet: a real booking as the calendar maps it, live; the preview's sample as a sample.
+  const fn = PROS.slice(PROS.indexOf('  const openBooking = (b) => {'), PROS.indexOf('  // Up next\'s buttons'));
+  assert.match(fn, /window\.BSEventSheet/);
+  assert.match(fn, /const live = !!\(b\.raw && mapEv\);/);
+  assert.match(fn, /mapEv\(b\.raw, t, b\.rawZone\)/);
+  assert.match(fn, /onChanged: \(\) => setCalendarReload\(\(n\) => n \+ 1\)/);
+  assert.match(fn, /goCalendar\(\); return;/, 'with no sheet it does nothing');
+  assert.match(PROS, /raw: ev, rawZone: typeof r\.zone === 'string' && r\.zone \? r\.zone : null,/);
+  const CAL = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetCalendar.jsx', import.meta.url), 'utf8');
+  assert.match(CAL, /Object\.assign\(window, \{[^}]*BSEventSheet, bsMapServerCalEvent: _bsMapServerCalEvent \}\);/);
+});

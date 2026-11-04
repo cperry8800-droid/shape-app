@@ -1685,6 +1685,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           sub: [ev.sub, ev.durationMin ? `${ev.durationMin}m` : null].filter(Boolean).join(' · ') || tr('coach:today.scheduled', { defaultValue: 'Scheduled' }),
           state: ev.status === 'done' ? 'done' : undefined,
           client: ev.with || '', clientId: ev.clientId || null,
+          // The calendar's own event and zone, so a tap opens its detail sheet (openBooking).
+          raw: ev, rawZone: typeof r.zone === 'string' && r.zone ? r.zone : null,
         });
       });
       Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
@@ -1919,6 +1921,24 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     : upIsReview ? [tr('coach:today.openReviews', { defaultValue: 'Open reviews' }), () => onOpenReviews()]
     : upIsPerson ? [tr('coach:today.openFile', { defaultValue: 'Open their file' }), () => openClientFile(upB.clientId, bookingClientName(upB))]
     : [tr('coach:today.openCalendar', { defaultValue: 'Open calendar' }), () => goCalendar()];
+  // A session in Your day opens the calendar's detail sheet for it (BSEventSheet, the calendar module's,
+  // read at call time): a real booking as the calendar maps it (bsMapServerCalEvent), live, so Mark
+  // complete and Reschedule work and a change re-reads the week; the preview's sample as a sample event.
+  // With no sheet to open it in, it falls back to the calendar.
+  const SAMPLE_KIND = { LIVE: 'SES', CONS: 'CON', INTK: 'CON', CHK: 'CHK', ASYN: 'REVIEW', 'F/U': 'REVIEW', PRGM: 'PLAN', PLAN: 'PLAN', ADM: 'ADMIN' };
+  const openBooking = (b) => {
+    const Sheet = typeof window !== 'undefined' ? window.BSEventSheet : null;
+    if (!b || !Sheet || !sheet || typeof sheet.open !== 'function') { goCalendar(); return; }
+    const mapEv = typeof window !== 'undefined' ? window.bsMapServerCalEvent : null;
+    const live = !!(b.raw && mapEv);
+    const event = live ? mapEv(b.raw, t, b.rawZone) : {
+      id: `sample-${b.time}-${b.title}`, source: 'sample', editable: false,
+      date: selDate ? _ds(selDate) : null, day: selDate ? selDate.getDate() : null,
+      time: b.time, kind: SAMPLE_KIND[b.tag] || 'SES', title: b.title, sub: b.sub,
+      accent: b.tagColor || heat, state: b.state,
+    };
+    sheet.open(React.createElement(Sheet, { event, role, live, onChanged: () => setCalendarReload((n) => n + 1), onClose: () => sheet.close() }));
+  };
   // Up next's buttons: a 44px target round a 36px pill.
   const upHit = { minHeight: 44, minWidth: 0, display: 'flex', alignItems: 'center', padding: 0, border: 0, background: 'transparent', cursor: 'pointer' };
   const upPill = { flex: 1, minWidth: 0, height: 36, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 10px', borderRadius: 99, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden' };
@@ -2209,10 +2229,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
             </div>
           </div>
         )}
-        <div
-          onClick={(e) => { if (e.target && e.target.closest && e.target.closest('button')) return; goCalendar(); }}
-          style={{ cursor: 'pointer' }}
-        >
+        <div>
           {isToday && doneRows.length > 0 && (
             <button type="button" aria-expanded={showDone} onClick={() => setShowDone((v) => !v)} style={{ width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, border: 0, borderTop: `1px solid ${t.RULE}`, borderBottom: `1px solid ${t.RULE}`, background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', color: t.INK70 }}>
               <span style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600 }}>{tr('coach:rail.doneEarlier', { defaultValue: '✓ {count} done earlier', count: doneRows.length })}</span>
@@ -2244,12 +2261,17 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
                       <div data-rail-row={done ? 'done' : isNext ? 'next' : ''} style={{ display: 'grid', gridTemplateColumns: `${TIME_COL}px minmax(0, 1fr)`, columnGap: 12 }}>
                         <span style={{ paddingTop: 11, textAlign: 'right', fontFamily: t.MONO, fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isNext ? t.INK : t.INK70 }}>{fmtAt(b.time)}</span>
                         <div style={{ minWidth: 0, padding: '8px 0 8px 12px', borderLeft: isNext ? `3px solid ${heat}` : `2px solid ${t.RULE}` }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
-                            {isNext && chip(tr('coach:rail.nextTag', { defaultValue: 'Next' }), heat, heatText)}
-                            {flagHit && FLAG_WORDS[flagHit.severity] && chip(FLAG_WORDS[flagHit.severity], SEV_HUE[flagHit.severity], sevText(flagHit.severity))}
-                          </div>
-                          <div style={{ marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</div>
+                          {/* The session's own details on a tap (owner, 2026-11-04: "when i click on the activity here
+                              on home page it should take be to details regarding that activity, no month calendar"). */}
+                          <button type="button" data-rail-open="" onClick={() => openBooking(b)}
+                            style={{ display: 'block', width: '100%', minHeight: 44, margin: '-8px 0', padding: '8px 0', border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: 'inherit', font: 'inherit' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: isNext ? 700 : 600, color: done ? t.INK70 : t.INK }}>{done ? '✓ ' : ''}{b.title}</span>
+                              {isNext && chip(tr('coach:rail.nextTag', { defaultValue: 'Next' }), heat, heatText)}
+                              {flagHit && FLAG_WORDS[flagHit.severity] && chip(FLAG_WORDS[flagHit.severity], SEV_HUE[flagHit.severity], sevText(flagHit.severity))}
+                            </span>
+                            <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(b)}</span>
+                          </button>
                           {folded && (
                             // A 44px target over a one-line note: it reaches into the row's padding and the line above.
                             <button type="button" data-rail-todo={folded.severity} onClick={() => openClientFile(folded.clientId, folded.name)}

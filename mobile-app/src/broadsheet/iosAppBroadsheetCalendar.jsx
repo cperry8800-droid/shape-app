@@ -1316,4 +1316,5 @@ function BSEventGenericBody({ event }) {
 }
 
 // Expose
-Object.assign(window, { BSSheetProvider, useBSSheet, BSToast, BSCalendarScreen, BSEventSheet });
+// bsMapServerCalEvent: coach Home's Your day opens a booking in BSEventSheet as this calendar maps it.
+Object.assign(window, { BSSheetProvider, useBSSheet, BSToast, BSCalendarScreen, BSEventSheet, bsMapServerCalEvent: _bsMapServerCalEvent });
