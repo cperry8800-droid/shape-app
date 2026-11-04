@@ -622,6 +622,14 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile\'s Signals, Climb and Music tabs as glass instruments, option B (#2591). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the profile\'s Signals, Climb and Music tabs: "these sections need updated designs/looks"; of every design "creative futuristic and unique"; of three built in the app (A bento tiles, B glass instruments, C poster cards) "ok go with B"', status: 'done' },
+        { label: '#2591 Signals: the streak beside a dial of the week (a wedge a day as long as its minutes against the week\'s most, today lit), the trajectory a glowing line, the disciplines a radar (each axis to its own 100, three or more) beside their figures, the lifts three readouts. Climb: Member since a chip, a glass switch and ✎, the route over a floor to the horizon, Now pulsing, the target a reticle, Tempo / Now / Form readouts. Music (BSProfilePlaylists look="glass", the member profile only): a ringed Add, an empty library a turning record, playlists as panes with 44px controls. Motion only where Reduce Motion allows; the coach profile unchanged; no new copy; the pieces in BSMemberBento.jsx; tests/member-profile-glass-tabs.test.mjs (6). Review: Codex clean on a99b672 (on open); CI green', status: 'done' },
+        { label: 'Not seen in the app: a library with playlists (the demo has none); the rows keep their old handlers', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: the Shape Radio page as option E, "the horizon", with the new masthead (#2589). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "now lets redesign shape radio page. Also make sure it has new masthead", "make it futuristic and somewhat similar to what the shape radio page looks like on website", "maybe have 1 desing like that", "again being creative futuristic and unique"; of five designs built in the app (A website tiles over bars, B a console card, C the website\'s LED tile wall, D a receiver dial, E the horizon), "option e is best but can we center shape radio logo"', status: 'done' },
