@@ -15,7 +15,10 @@ import { bsRaised } from './BSProInstrument.jsx';
 //   · Then the duration question (only when the wall-clock timer is not credible), the share toggle
 //     and Save.
 // Both ratings are skippable and nothing is pre-selected: a tap on the lit slot clears it, and a
-// skipped rating saves as NULL, never 0.
+// skipped rating saves as NULL, never 0. Stored as workout_sessions.session_rpe (difficulty) and
+// workout_sessions.summary->'enjoyment' (enjoyment); the client's coach reads both through the
+// session read the coach's review already makes (the owner, 2026-11-04: "show both ratings to
+// coaches"). tests/workout-ratings-data.test.mjs pins the path.
 // ← Edit workout (Pause & exit while a save is pending) closes the sheet back to the workout. A tap
 // on the dim does nothing, so a stray tap neither restarts the latched clock nor leaves the workout.
 //
