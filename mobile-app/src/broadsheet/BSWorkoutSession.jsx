@@ -9,7 +9,12 @@ import { bsRaised } from './BSProInstrument.jsx';
 // focus page, workout log, and guided coach", then "B for all of them", "the training ones i mean").
 // What is happening now sits on one raised card (the exercise, its cue, the set's three figures, or
 // the guided step); everything else sits on glass; the one action is held above the tab bar.
-//   · Focus: the card, Exercise details folded under it, Previous / Next, the queue.
+//   · Focus: the owner's C (2026-11-04: "Do C but have all required sets appear at same time so client can
+//     see what weight may change or reps, and then user get customize and edit results/outcome
+//     appropriately"): lit readouts (the exercise, the sets, the share done), the card with the move's set
+//     lights and every set at once, each a row of lit slots (load, reps, RPE) that show the coach's target
+//     and take what the member did, before or after it is logged, with its own ✓; Exercise details folded
+//     under it, Previous / Next as lit chips, the queue as lit rows.
 //   · Workout log: no card and no queue (the log IS the list): every exercise is a glass card of its
 //     sets, the current one raised.
 //   · Guided coach: the card carries 01 Prepare raised, 02 Perform & log folded to a line (and the
@@ -303,7 +308,7 @@ export function BSWorkoutSession({ session: S }) {
         {move.tempo && <p style={{ margin: '8px 0 0', fontFamily: SANS, fontSize: 13, color: t.INK70 }}>{tr('session:player.tempo')} · {move.tempo}</p>}
         {S.superset && <p style={{ margin: '8px 0 0', fontFamily: SANS, fontSize: 13, color: t.INK70 }}>{tr('session:player.superset')} · {S.superset}</p>}
         {S.activeIdx != null && <button onClick={S.applyRemaining} style={{ ...btn0, display: 'block', textAlign: 'left', fontFamily: SANS, fontSize: 13, fontWeight: 600, color: teal }}>{tr('session:player.applyRemaining')}</button>}
-        {table}
+        {!isFocus && table}
       </div>
     </details>
   );
@@ -376,6 +381,132 @@ export function BSWorkoutSession({ session: S }) {
       <button onClick={S.primaryAction} style={{ pointerEvents: 'auto', width: '100%', minHeight: 50, border: 0, cursor: 'pointer', borderRadius: 16, background: heat, color: onHeat, fontFamily: SANS, fontSize: 15, fontWeight: 700, boxShadow: `0 12px 28px -12px ${hexA(heat, 0.85)}, inset 0 1px 0 rgba(255,255,255,0.35)`, ...heatTrans }}>{S.primaryLabel}</button>
     </div>
   );
+  const notes = (
+    <>
+      {S.draftWarning && <p role="alert" style={{ margin: '10px 0 0', fontFamily: SANS, fontSize: 13, color: '#e8a33c' }}>{S.draftWarning}</p>}
+      {S.logStatus && <p role="status" style={{ margin: '10px 0 0', fontFamily: SANS, fontSize: 13, color: t.INK70 }}>{S.logStatus}</p>}
+    </>
+  );
+  // ── FOCUS (the owner's C, with every set on the card) ──
+  // The instruments' lit slot: a dark inset on dark paper (a faint ink wash on light), framed in the heat when
+  // on, glowing on dark paper only.
+  const ledBox = (on, c = heat) => ({ borderRadius: 10, background: t.isLight ? hexA(INK, 0.045) : 'rgba(0,0,0,0.45)', border: `1px solid ${on ? hexA(c, t.isLight ? 0.55 : 0.6) : hexA(INK, 0.12)}`, boxShadow: on && !t.isLight ? `0 0 16px -6px ${hexA(c, 0.85)}` : 'none' });
+  const glowT = (c, a = 0.65) => (t.isLight ? {} : { textShadow: `0 0 10px ${hexA(c, a)}` });
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const focusBody = isFocus ? (() => {
+    const readout = (label, value, on, key) => (
+      <div data-focus-readout={key} style={{ flex: 1, minWidth: 0, ...ledBox(on), padding: '8px 10px' }}>
+        <span style={{ display: 'block', ...kick(t, 7, t.INK50) }}>{label}</span>
+        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 16, fontWeight: 700, color: on ? heat : INK, ...tabular, ...(on ? glowT(heat) : {}) }}>{value}</span>
+      </div>
+    );
+    const lights = (
+      <span aria-hidden style={{ display: 'inline-flex', gap: 4 }}>
+        {Array.from({ length: move.sets }).map((_, i) => {
+          const done = S.completed[`${S.moveIdx}-${i}`], on = i === S.activeIdx;
+          return <span key={i} style={{ width: 14, height: 8, borderRadius: 3, boxSizing: 'border-box', background: done ? heat : (t.isLight ? hexA(INK, 0.06) : 'rgba(0,0,0,0.45)'), border: `1px solid ${done || on ? heat : hexA(INK, 0.16)}`, boxShadow: done && !t.isLight ? `0 0 8px ${hexA(heat, 0.7)}` : 'none' }} />;
+        })}
+      </span>
+    );
+    // Every set at once: the coach's target shows in each slot until the member writes what they did; a
+    // logged set stays editable in place (updateSetInput patches its log row), its ✓ lit.
+    const COLS = '34px repeat(3, minmax(0, 1fr)) 44px';
+    const setRows = (
+      <div data-focus-sets="" style={{ marginTop: 12 }}>
+        <div aria-hidden style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6, padding: '0 0 6px', ...kick(t, 7.5, t.INK50, { fontWeight: 700 }) }}>
+          <span>{tr('session:player.colSet')}</span><span>{fieldLabel('load')}</span><span>{fieldLabel('reps')}</span><span>RPE</span><span style={{ textAlign: 'center' }}>{tr('session:player.colDone')}</span>
+        </div>
+        {Array.from({ length: move.sets }).map((_, i) => {
+          const key = `${S.moveIdx}-${i}`;
+          const done = !!S.completed[key];
+          const on = i === S.activeIdx;
+          const ri = S.setInputs[key] || {};
+          const pre = S.prefill(move, i) || {};
+          const cell = (f) => {
+            const target = f === 'load' ? (pre.load || '') : f === 'reps' ? (pre.reps || '') : '';
+            return (
+              <input key={f} value={ri[f] ?? ''} onChange={(e) => S.updateSetInput(i, f, e.target.value, S.moveIdx)} placeholder={target || '—'} inputMode="decimal"
+                aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(f) })} data-focus-field={f}
+                style={{ width: '100%', minWidth: 0, minHeight: 44, boxSizing: 'border-box', ...ledBox(on), outline: 'none', color: on ? heat : INK, padding: '0 8px', fontFamily: t.MONO, fontSize: on ? 16 : 14.5, fontWeight: 700, opacity: done ? 0.7 : 1, ...tabular, ...(on ? glowT(heat) : {}) }} />
+            );
+          };
+          return (
+            <div key={i} data-focus-set={done ? 'done' : on ? 'now' : ''} style={{ display: 'grid', gridTemplateColumns: COLS, gap: 6, alignItems: 'center', marginTop: i ? 6 : 0 }}>
+              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, color: done || on ? heat : t.INK50, ...tabular, ...(on ? glowT(heat) : {}) }}>{done ? '✓' : pad2(i + 1)}</span>
+              {cell('load')}
+              {cell('reps')}
+              {cell('rpe')}
+              <button type="button" onClick={() => { if (!done) S.logSet(i, S.moveIdx); }} disabled={done}
+                aria-label={tr(done ? 'session:player.setDoneAria' : S.timedMode && S.activeSetKey !== key ? 'session:player.startSetCta' : 'session:player.markSetDoneAria', { n: i + 1 })}
+                style={{ width: 44, height: 44, padding: 0, borderRadius: 999, border: `1.5px solid ${done || on ? heat : hexA(INK, 0.2)}`, background: done ? heat : 'transparent', color: done ? onHeat : (on ? heat : t.INK50), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', boxShadow: done && !t.isLight ? `0 0 12px ${hexA(heat, 0.6)}` : 'none', ...heatTrans }}>{S.timedMode && !done && S.activeSetKey !== key ? '▶' : '✓'}</button>
+            </div>
+          );
+        })}
+        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+          <button onClick={S.addSet} aria-label={tr('session:player.addSetAria')} style={{ ...btn0, flex: 1, ...kick(t, 9, t.INK70) }}>{tr('session:player.addSet')}</button>
+          {move.sets > 1 && <button onClick={S.removeCurrentSet} aria-label={tr('session:player.removeSetAria')} style={{ ...btn0, flex: 1, ...kick(t, 9, rust) }}>{tr('session:player.removeSet')}</button>}
+          {S.openMode && <button onClick={S.addMove} aria-label={tr('session:player.addMoveAria')} style={{ ...btn0, flex: 1, ...kick(t, 9, teal) }}>{tr('session:player.addMove')}</button>}
+        </div>
+      </div>
+    );
+    const chip = (label, onClick, off, color, grow, key) => (
+      <button data-focus-step={key} onClick={onClick} disabled={off} style={{ ...btn0, flex: grow ? 1 : 'none', minWidth: 0, ...ledBox(!off && grow, color), padding: '0 14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: off ? 0.4 : 1, cursor: off ? 'default' : 'pointer', ...kick(t, 8.5, off ? t.INK50 : color), ...(grow && !off ? glowT(color, 0.5) : {}) }}>{label}</button>
+    );
+    return (
+      <>
+        <div data-focus-readouts="" style={{ marginTop: 12, display: 'flex', gap: 6 }}>
+          {readout(tr('session:build.exercisePlaceholder', { defaultValue: 'Exercise' }), `${S.moveIdx + 1}/${S.moves.length}`, true, 'exercise')}
+          {readout(tr('session:build.sets', { defaultValue: 'Sets' }), `${S.doneSets}/${S.totalSets}`, false, 'sets')}
+          {readout(tr('session:player.colDone'), `${Math.round(S.pct * 100)}%`, false, 'done')}
+        </div>
+        <div data-ws-card="" data-focus-card="" style={{ marginTop: 10, ...bsRaised(t, heat), borderRadius: 22, padding: '16px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>{nameEl}</div>
+            <span style={{ paddingTop: 9 }}>{lights}</span>
+          </div>
+          {clipBtn}
+          {focusLines}
+          <div style={{ marginTop: 14, ...kick(t, 8.5, heat), ...heatTrans }}>
+            {S.activeIdx != null ? tr(S.activeRunning ? 'session:player.setLive' : 'session:player.setUp', { n: pad2(S.activeIdx + 1) }) : tr('session:player.allSetsLogged')}
+          </div>
+          {setRows}
+          {runningLine}
+        </div>
+        {notes}
+        {rest}
+        {details}
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          {chip(tr('session:player.previous'), () => S.goMove(Math.max(0, S.moveIdx - 1)), S.moveIdx === 0, INK, false, 'prev')}
+          {chip(lastMove ? tr('session:player.lastExercise') : tr('session:player.nextNamed', { move: S.moves[S.moveIdx + 1].m }), () => { if (!lastMove) S.goMove(S.moveIdx + 1); }, lastMove, teal, true, 'next')}
+        </div>
+        <div style={{ marginTop: 22 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+            <span style={kick(t, 8.5, teal, { letterSpacing: '0.2em' })}>{tr('session:player.upNext')}</span>
+            <span style={{ fontFamily: HEAD, fontSize: 17, fontWeight: 700, color: INK, letterSpacing: '-0.02em' }}>{tr('session:player.queue')}</span>
+          </div>
+          <div data-ws-queue="" style={{ display: 'grid', gap: 6 }}>
+            {S.moves.map((mv, i) => {
+              const mDone = S.moveAllDone(i), cur = i === S.moveIdx;
+              return (
+                <button key={i} onClick={() => S.goMove(i)} data-focus-queue={cur ? 'now' : mDone ? 'done' : ''}
+                  style={{ ...btn0, width: '100%', boxSizing: 'border-box', textAlign: 'left', display: 'grid', gridTemplateColumns: '38px minmax(0, 1fr) auto', columnGap: 10, alignItems: 'center', padding: '7px 10px 7px 7px', ...glass(14), ...(cur ? { border: `1px solid ${hexA(heat, 0.55)}` } : {}), opacity: mDone ? 0.55 : 1 }}>
+                  <span style={{ ...ledBox(cur || mDone), height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11.5, fontWeight: 700, color: cur || mDone ? heat : t.INK50, ...(cur ? glowT(heat) : {}) }}>{mDone ? '✓' : pad2(i + 1)}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: SANS, fontSize: 14.5, fontWeight: 650, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mv.m}</span>
+                    <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.06em', color: t.INK50 }}>{scheme(mv)}</span>
+                  </span>
+                  {mv.l ? <span style={{ ...ledBox(false), padding: '5px 8px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 700, color: t.INK70 }}>{mv.l}</span> : <span />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {hr}
+        {endBtns}
+      </>
+    );
+  })() : null;
+
   const surface = typeof document !== 'undefined' && document.getElementById && document.getElementById('bs-phone-surface');
 
   return (
@@ -386,17 +517,20 @@ export function BSWorkoutSession({ session: S }) {
           {viewRow}
           {S.viewWarning && <p role="alert" style={{ margin: '4px 0 0', fontFamily: SANS, fontSize: 13, color: '#e8a33c' }}>{tr('session:player.view.storage')}</p>}
           {S.coachCue}
-          {strip}
-          {card}
+          {!isFocus && strip}
+          {!isFocus && card}
           {isLog && runningLine}
-          {S.draftWarning && <p role="alert" style={{ margin: '10px 0 0', fontFamily: SANS, fontSize: 13, color: '#e8a33c' }}>{S.draftWarning}</p>}
-          {S.logStatus && <p role="status" style={{ margin: '10px 0 0', fontFamily: SANS, fontSize: 13, color: t.INK70 }}>{S.logStatus}</p>}
-          {rest}
-          {details}
-          {prevNext}
-          {!isLog && queue}
-          {hr}
-          {endBtns}
+          {focusBody || (
+            <>
+              {notes}
+              {rest}
+              {details}
+              {prevNext}
+              {!isLog && queue}
+              {hr}
+              {endBtns}
+            </>
+          )}
         </div>
       </BSCleanType>
       {S.openMode && <datalist id="bs-session-move-names">{S.moveNames.map((n) => <option key={n} value={n} />)}</datalist>}
