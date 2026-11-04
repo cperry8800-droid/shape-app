@@ -1,4 +1,5 @@
 import React from 'react';
+import { bsMpGlass } from './BSMemberBento.jsx';
 // ─── FOCUS LAYOUT — the shared pieces of Home · Train · Eat · Grocery ─────────
 // Owner, 2026-10-11, off the C · Focus board: "impliment focus layout for home
 // train eat and grocery with shop by aisle and shop by meal", in the app's own
@@ -115,7 +116,9 @@ export function BSFocusLeader({ label, value, unit, note, pct, color, onOpen, ar
 
 // The lead: one next thing, on a colour spine. The title steps down in size as
 // it grows, so a long meal name wraps to two lines rather than to four.
-export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, children }) {
+// `lit` (Train, the owner's C, 2026-11-04): the lead hangs from the card above by a dotted line in its colour,
+// on a glass card whose spine is 4px and glows on dark paper. Home and Eat keep the bare spine.
+export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, children, lit = false }) {
   const t = window.useBS();
   const c = color || t.ACCENT;
   const raw = String(title == null ? '' : title).trim();
@@ -124,9 +127,14 @@ export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, chil
   // A step down (owner, 2026-10-24, of Home's and Train's leads: "make these smaller"). Eat's next
   // meal shares this lead, so it steps down with them.
   const size = head.length <= 14 ? 30 : head.length <= 24 ? 26 : 22;
+  const frame = lit
+    ? { ...bsMpGlass(t, t.INK, { radius: 18 }), margin: '0 10px 0', padding: '14px 16px 16px 20px', overflow: 'hidden' }
+    : { margin: `10px ${t.padX}px 0`, padding: '2px 0 16px 15px' };
   return (
-    <section data-tour={tour || undefined} style={{ position: 'relative', margin: `10px ${t.padX}px 0`, padding: '2px 0 16px 15px' }}>
-      <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: c }} />
+    <React.Fragment>
+    {lit ? <div aria-hidden data-focus-link="" style={{ margin: '0 0 0 36px', width: 0, height: 14, borderLeft: `2px dotted ${c}` }} /> : null}
+    <section data-tour={tour || undefined} data-focus-lead={lit ? 'lit' : 'plain'} style={{ position: 'relative', ...frame }}>
+      <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: lit ? 4 : 3, background: c, boxShadow: lit && !t.isLight ? `0 0 14px ${hexA(c, 0.8)}` : 'none' }} />
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: c }}>{kicker}</span>
         {kickerRight ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{kickerRight}</span> : null}
@@ -137,6 +145,7 @@ export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, chil
       {sub ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1.5, color: t.INK50 }}>{sub}</div> : null}
       {children}
     </section>
+    </React.Fragment>
   );
 }
 
@@ -175,15 +184,16 @@ export function BSFocusCountdown({ label, value }) {
   );
 }
 
-// One filled action (the Train "Start session →" button) and one text action.
-export function BSFocusActions({ primary, secondary, color }) {
+// One filled action (the Train "Start session →" button) and one text action. `lit` (Train's C): the filled
+// action is a capsule that glows on dark paper.
+export function BSFocusActions({ primary, secondary, color, lit = false }) {
   const t = window.useBS();
   const c = color || t.ACCENT;
   if (!primary && !secondary) return null;
   return (
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 20px', marginTop: 16 }}>
       {primary ? (
-        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} style={{ minHeight: 44, padding: '8px 14px', borderRadius: 4, border: 0, background: c, color: t.isLight ? '#ffffff' : '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{primary.label}</button>
+        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} data-focus-primary={lit ? 'lit' : 'plain'} style={{ minHeight: 44, padding: lit ? '8px 22px' : '8px 14px', borderRadius: lit ? 999 : 4, border: 0, background: c, boxShadow: lit && !t.isLight ? `0 0 22px -6px ${c}` : 'none', color: t.isLight ? '#ffffff' : '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{primary.label}</button>
       ) : null}
       {secondary ? (
         <button type="button" onClick={secondary.onClick} style={{ minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{secondary.label}</button>

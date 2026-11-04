@@ -71,6 +71,12 @@ test('the page draws one Your day: a To do lane on the rail, the folded to-do un
   // The lane sits on the same rail as the sessions (the time column), dashed, labelled To do.
   assert.match(sec, /data-todo-lane="" style=\{\{[^\n]*gridTemplateColumns: `\$\{TIME_COL\}px minmax\(0, 1fr\)`/);
   assert.match(sec, /borderLeft: `2px dashed \$\{t\.RULE\}`/);
+  // The day's sessions come first and the To do lane after them (owner, 2026-11-04: "also switch the order of
+  // these around on home page").
+  const rail = sec.indexOf('data-rail-row=');
+  const lane = sec.indexOf('<div data-todo-lane=');
+  assert.ok(rail > 0 && lane > rail, 'the To do lane is above the sessions again');
+  assert.ok(sec.indexOf("tr('coach:rail.doneEarlier'") < lane, 'the done fold is not with the sessions');
   assert.match(sec, /\{todoShown\.map\(\(w, i\) => \(\n\s*<button [^\n]*data-todo=\{w\.severity\} onClick=\{\(\) => openClientFile\(w\.clientId, w\.name\)\}/);
   assert.match(PROS, /const \{ foldAt, anytime: anytimeTodos \} = bsProFoldTodos\(triageRows, bookings, \{ today: isToday \}\);/);
   // The folded to-do: one line under its session, a 44px target that opens the client's file.

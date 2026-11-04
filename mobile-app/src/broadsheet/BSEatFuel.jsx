@@ -1,8 +1,10 @@
 import React from 'react';
-// ─── EAT · ONE MACRO'S PAGE, AND WHAT A SWAP CHANGES ─────────────────────────────────────────────
-// A macro's own page (BSEatMacroPage), opened from Fuel left's protein, carbs and fat on Eat's Day view
-// (BSEatDay.jsx), and the two rules Eat reads a swapped meal by (bsEatSwapDelta, bsEatSwappedMeal). Fuel
-// left itself was drawn here until the Day view became the orbit (owner, 2026-11-04: "C for eat"). Window
+import { BSFocusHead } from './BSFocus.jsx';
+// ─── EAT · FUEL LEFT TODAY, ONE MACRO'S PAGE, AND WHAT A SWAP CHANGES ────────────────────────────
+// Fuel left (BSEatFuel): one glass card, a ring of the day's kcal with what is left inside it and each
+// macro beside it, drawn on Eat's Day view (BSEatDay.jsx) under the week; each macro opens its own page
+// (BSEatMacroPage, below). Eat passes the figures in, coach-set targets already applied (Adjust plan →
+// Apply wins). Then the two rules Eat reads a swapped meal by (bsEatSwapDelta, bsEatSwappedMeal). Window
 // globals are read at call time and the module never imports back into the client module (the
 // BSIntegrationsPage / BSLeaderboard pattern).
 
@@ -17,6 +19,83 @@ function useShapeTr() {
   return (key, opts) => {
     const v = window.ShapeI18n?.t?.(key, opts);
     return (v == null || v === key) ? (opts?.defaultValue ?? key) : v;
+  };
+}
+
+// A colour at an alpha, for a tint behind it; a colour that isn't a 6-digit hex gets the hairline.
+const bsEfTint = (c, alpha, fallback) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? `${c}${alpha}` : fallback);
+
+// `macros` are [{ k, l, v, g, c }]: key, label, eaten, target, colour. Since the owner's pick for Eat
+// (2026-11-04: "option C for eat but use this for fuel section", of B's fuel card) one glass card: a ring of
+// the day's kcal eaten with what is left inside it, and beside it each macro as a row (its name in its colour,
+// what is left of it, a rounded bar), each row a 44px button to its own page, then what was eaten and the share.
+// ⚠ `unread`: the meal plan read hasn't answered or failed. What was eaten comes from the plan, so it
+// and what is left read "—", not 0; a target reads only when Eat has one from elsewhere (a coach's
+// Adjust: `calTargetKnown`, and a macro's `gKnown`, which keep a coach's 0 g; Codex P2 on #2453), and the
+// tiles open nothing, since their pages would show the same zeros.
+// `label`: the head's words; Eat hands the picked day's ("Fuel · Fri 6") when it is not today (owner, 2026-11-04:
+// "the change in weekly date should adjust activities"), so the head never says today over another day.
+export function BSEatFuel({ calLeft, calTarget, calNow, calPct, macros = [], onOpen, unread = false, calTargetKnown = false, label = null }) {
+  const t = window.useBS();
+  const tr = useShapeTr();
+  const dash = '—';
+  const ringPct = unread ? 0 : Math.max(0, Math.min(100, Number(calPct) || 0));
+  return (
+    <>
+      {/* Right under the week strip, so a tighter gap than a section's (owner, 2026-10-23: "reduce the
+          spacing here"). */}
+      <BSFocusHead glyph="◐" top={10} label={label || tr('nutrition:eat.fuelLeft', { defaultValue: 'Fuel left today' })}
+        meta={unread && !calTargetKnown ? dash : tr('nutrition:eat.kcalPlan', { defaultValue: '{kcal} kcal plan', kcal: calTarget.toLocaleString() })} />
+      <section data-eat-fuel="" data-eat-fuel-unread={unread ? '' : undefined} style={{ ...bsEfGlass(t), margin: '8px 10px 0', padding: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+        <span data-eat-ring="" style={{ position: 'relative', width: 112, height: 112, flex: 'none' }}>
+          <svg width="112" height="112" viewBox="0 0 112 112" aria-hidden="true" style={{ display: 'block', transform: 'rotate(-90deg)' }}>
+            <circle cx="56" cy="56" r={RING_R} fill="none" stroke={bsEfTint(t.ACCENT, '29', t.HAIR)} strokeWidth="10" />
+            <circle data-eat-ring-arc="" cx="56" cy="56" r={RING_R} fill="none" stroke={t.ACCENT} strokeWidth="10" strokeLinecap="round" strokeDasharray={`${(ringPct / 100) * RING_C} ${RING_C}`} />
+          </svg>
+          <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontFamily: t.DISPLAY, fontWeight: 600, fontSize: 28, lineHeight: 1, letterSpacing: '-0.03em', color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{unread ? dash : calLeft.toLocaleString()}</span>
+            <span style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 11, color: t.INK70 }}>{tr('nutrition:eat.kcalLeftWord', { defaultValue: 'kcal left' })}</span>
+          </span>
+        </span>
+        <span data-eat-macros="" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {macros.map((m) => {
+            const left = unread ? dash : tr('nutrition:eat.gramsLeft', { defaultValue: '{g}g left', g: Math.max(0, m.g - m.v) });
+            const pct = !unread && m.g > 0 ? Math.max(0, Math.min(100, Math.round((m.v / m.g) * 100))) : 0;
+            const of = unread ? `${dash} / ${m.gKnown ? m.g : dash}` : `${m.v} / ${m.g}`;
+            return (
+              <button key={m.k} type="button" onClick={() => !unread && onOpen && onOpen(m.k)} disabled={unread} aria-label={`${m.l} ${left} ${of}`}
+                style={{ minWidth: 0, minHeight: 44, border: 0, background: 'transparent', padding: '6px 0', boxSizing: 'border-box', textAlign: 'left', cursor: unread ? 'default' : 'pointer', font: 'inherit', color: 'inherit' }}>
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: m.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.l}</span>
+                  <span style={{ marginLeft: 'auto', flex: 'none', fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{left}</span>
+                </span>
+                <span aria-hidden style={{ display: 'block', marginTop: 5, height: 5, borderRadius: 999, background: bsEfTint(m.c, '33', t.HAIR), overflow: 'hidden' }}>
+                  <span style={{ display: 'block', width: `${pct}%`, height: '100%', borderRadius: 999, background: m.c }} />
+                </span>
+              </button>
+            );
+          })}
+          {unread ? null : <span data-eat-eaten="" style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 11.5, color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{tr('nutrition:eat.eatenPct', { defaultValue: '{eaten} eaten · {pct}%', eaten: calNow.toLocaleString(), pct: calPct })}</span>}
+        </span>
+      </section>
+    </>
+  );
+}
+
+// The ring's radius and its circumference.
+const RING_R = 44;
+const RING_C = 2 * Math.PI * RING_R;
+
+// The fuel card's glass: a soft gradient, a hairline frame and a lift (Home's bento glass, kept here so the
+// module needs nothing from the client).
+function bsEfGlass(t) {
+  const light = !!(t && t.isLight);
+  const ink = (a) => bsEfTint(t.INK, Math.round(a * 255).toString(16).padStart(2, '0'), 'rgba(127,127,127,' + a + ')');
+  return {
+    position: 'relative', boxSizing: 'border-box', borderRadius: 20, backgroundColor: 'transparent',
+    backgroundImage: light ? 'linear-gradient(160deg, rgba(255,255,255,0.94), rgba(255,255,255,0.66))' : `linear-gradient(160deg, ${ink(0.095)}, ${ink(0.03)})`,
+    border: `1px solid ${ink(light ? 0.08 : 0.11)}`,
+    boxShadow: light ? '0 1px 2px rgba(15,14,12,0.05), 0 14px 30px -20px rgba(15,14,12,0.28)' : 'inset 0 1px 0 rgba(255,255,255,0.07), 0 18px 40px -26px rgba(0,0,0,0.9)',
   };
 }
 
