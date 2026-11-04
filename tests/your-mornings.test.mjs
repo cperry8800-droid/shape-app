@@ -245,7 +245,7 @@ test('seven days are today and the six before it, in words, against the seven be
     assert.ok(!m.q(`[data-bs-mornings-day="${day(-1)}"]`), "tomorrow's row was read");
     assert.equal(m.headline('energy'), 'Most days this week: Good');
     assert.equal(m.dir('energy').getAttribute('data-bs-mornings-dir'), 'up');
-    assert.match(m.dir('energy').textContent, /^Betterthan the 7 days before$/);
+    assert.match(m.dir('energy').textContent, /^Better than the 7 days before$/, 'the chip says Better, and a reader hears what it is against');
     // A day nobody answered is an empty cell that says so.
     assert.equal(cells[5].getAttribute('aria-label'), `${new Date(2026, 9, 17, 12).toLocaleDateString('en-US', { weekday: 'short' })} 17: No answer`);
     assert.match(cells[6].getAttribute('aria-label'), /18: Good$/);
@@ -263,7 +263,7 @@ test('seven days are today and the six before it, in words, against the seven be
   } finally { m.unmount(); }
 });
 
-test('thirty days are a month of thin bars, compared with the thirty before, and the switch says which is on', async () => {
+test('thirty days are a month on one line, compared with the thirty before, and the switch says which is on', async () => {
   const d = {};
   run('energy', 59, Array.from({ length: 30 }, () => 4), d);
   run('energy', 29, Array.from({ length: 30 }, (_, i) => (i % 4 ? 8 : null)), d);
@@ -283,17 +283,52 @@ test('thirty days are a month of thin bars, compared with the thirty before, and
     assert.equal(cells.length, 30);
     assert.equal(cells[0].getAttribute('data-bs-mornings-day'), day(29));
     assert.equal(cells[29].getAttribute('data-bs-mornings-day'), TODAY);
-    // One label for the whole strip, none per bar.
-    const strip = m.q('[data-bs-mornings-strip="energy"] [role="img"]');
+    // One label for the whole line, none per day.
+    const strip = m.q('[data-bs-mornings-strip="energy"][role="img"]');
     assert.equal(strip.getAttribute('aria-label'), 'Energy, the last 30 days');
     assert.ok(cells.every((c) => !c.hasAttribute('aria-label')));
     assert.equal(m.headline('energy'), 'Most days this month: Good');
-    assert.match(m.dir('energy').textContent, /^Betterthan the 30 days before$/);
+    assert.match(m.dir('energy').textContent, /^Better than the 30 days before$/);
     // Thirty nights of 7h against none before: a headline, and no direction.
     assert.equal(m.headline('sleep'), '7h a night on average');
     assert.equal(m.dir('sleep'), null);
     await m.click(/^7 days$/);
     assert.equal(m.cells('energy').length, 7);
+  } finally { m.unmount(); }
+});
+
+// Owner, 2026-11-04: "B for mornings but include dotted line for weeks avaerage". Each check is a line over
+// a soft fill, a dot a day, and the window's average as a dotted line across it; a gap breaks the line.
+test('each check is a line with a dot a day, broken by a gap, and the week\'s average as a dotted line', async () => {
+  // Energy: Good (8 → word 3 of 5, 0.8) five days, nothing on day 2, Low (4 → word 1, 0.4) on day 1.
+  const d = run('energy', 6, [8, 8, 8, 8, null, 4, 8]);
+  env({ days: d, plan: NONE });
+  const m = await mount();
+  try {
+    const strip = m.q('[data-bs-mornings-strip="energy"]');
+    const svg = strip.querySelector('svg');
+    assert.ok(svg, 'no line');
+    // Two runs (the gap on day 2 breaks it, four days then two): a fill and a line each.
+    const paths = [...svg.querySelectorAll('path')];
+    assert.equal(paths.length, 4, 'the gap did not break the line in two');
+    assert.deepEqual(paths.map((x) => x.getAttribute('fill')), ['url(#bs-mornings-fill-energy-7)', 'url(#bs-mornings-fill-energy-7)', 'none', 'none']);
+    // The dotted average: the mean of the answered days' fullness, on the same scale as the dots.
+    const avg = svg.querySelector('[data-bs-mornings-avg-line]');
+    assert.ok(avg, 'no dotted average');
+    assert.equal(avg.getAttribute('stroke-dasharray'), '3 4');
+    const words = [8, 8, 8, 8, 4, 8].map((v) => (CARD.bsCiWordIndex(v) + 1) / 5);
+    const mean = words.reduce((a, b) => a + b, 0) / words.length;
+    const H = 64, top = 8, floor = 6;
+    assert.ok(Math.abs(Number(avg.getAttribute('y1')) - (top + (1 - mean) * (H - top - floor))) < 1e-6, 'the dotted line is not at the average');
+    // A dot a day answered (six), none for the gap; today's is the larger.
+    const dots = [...strip.querySelectorAll('[data-bs-mornings-dot]')];
+    assert.equal(dots.length, 6);
+    assert.ok(!strip.querySelector(`[data-bs-mornings-dot="${day(2)}"]`), 'the gap has a dot');
+    const today = strip.querySelector(`[data-bs-mornings-dot="${TODAY}"]`);
+    assert.equal(parseFloat(today.style.width), 12, 'today\'s dot is not the larger');
+    assert.equal(parseFloat(dots[0].style.width), 9);
+    // Seven labelled days under the line, each with its word.
+    assert.deepEqual(m.cells('energy').map((c) => c.getAttribute('aria-label').replace(/^.*: /, '')), ['Good', 'Good', 'Good', 'Good', 'No answer', 'Low', 'Good']);
   } finally { m.unmount(); }
 });
 
@@ -440,7 +475,7 @@ test('a skipped night is marked as skipped, never as no answer, and its key says
     const cells = m.cells('sleep');
     assert.equal(cells[5].getAttribute('data-bs-mornings-mark'), 'skipped');
     assert.match(cells[5].getAttribute('aria-label'), /17: Skipped$/);
-    assert.match(cells[5].textContent, /Skipped$/);
+    assert.match(cells[5].textContent, /^Skipped/);
     assert.equal(cells[4].getAttribute('data-bs-mornings-mark'), 'watch');
     assert.match(cells[3].getAttribute('aria-label'), /: No answer$/);
     assert.match(m.section('sleep').textContent, /From your watchSkipped$/, 'the marks have no key');
@@ -1175,7 +1210,7 @@ test("bsNoraOpen's close is called when the page unmounts, and a close that is n
   try { assert.ok(m.q('[data-bs-mornings-hero]')); } finally { m.unmount(); delete dom.window.bsNoraOpen; }
 });
 
-test("the page in B's look: pills for the range, each check a card under its name in its colour, the ring", async () => {
+test("the page in B's look: pills for the range, every check in one card under its name in its colour, the ring", async () => {
   // Owner, 2026-10-25: "we need to make this look less analog", then "I like B", following the paper.
   const css = (c) => { const el = document.createElement('i'); el.style.color = c; return el.style.color; };
   const fill = (c) => { const el = document.createElement('i'); el.style.background = c; return el.style.background; };
@@ -1205,12 +1240,22 @@ test("the page in B's look: pills for the range, each check a card under its nam
     await m.click(/^30 days$/);
     assert.deepEqual([...m.q('[data-bs-mornings-range]').querySelectorAll('button')].map((b) => b.getAttribute('aria-pressed')), ['false', 'true']);
     await m.click(/^7 days$/);
-    // Each check is a rounded card opening on its name, an uppercase eyebrow in its colour's text shade.
+    // One box (owner, 2026-11-04: "combine all the information into once box neatly with subtle seperates
+    // between us"): a rounded card holding every check, each opening on its name, an uppercase eyebrow in its
+    // colour's text shade, a faint hairline over each part after the first.
+    const box = m.q('[data-bs-mornings-box]');
+    assert.ok(box && box.hasAttribute('data-bs-dash-card'), 'the checks are not one card');
+    assert.equal(parseFloat(box.style.borderRadius), 20);
+    const parts = [...box.querySelectorAll(':scope > [data-bs-mornings-part]')];
+    assert.deepEqual(parts.map((x) => x.getAttribute('data-bs-mornings-part')), ['readiness', 'sleep', 'energy', 'rested', 'hunger', 'watch'], 'the watch (here its Connect door) closes the box');
+    assert.equal(parts[0].style.borderTop, '', 'a hairline over the first part');
+    assert.ok(parts.slice(1).every((x) => /^1px solid /.test(x.style.borderTop)), 'a part after the first has no hairline');
+    // What we've noticed keeps its own card above the range switch (its window is its own).
+    assert.equal(m.host.querySelectorAll('[data-bs-mornings-section][data-bs-dash-card]:not([data-bs-mornings-section="patterns"])').length, 0, 'a check is its own card again');
     const want = { readiness: D.text.teal, sleep: D.text.violet, energy: D.text.amber, rested: D.text.coral, hunger: D.text.lime };
     for (const [kind, color] of Object.entries(want)) {
       const sec = m.section(kind);
-      assert.ok(sec.hasAttribute('data-bs-dash-card'), `${kind} is not a card`);
-      assert.equal(parseFloat(sec.style.borderRadius), 20);
+      assert.ok(box.contains(sec), `${kind} is outside the box`);
       const h2 = sec.querySelector('h2');
       assert.ok(h2, `${kind} has no head`);
       assert.equal(h2.style.textTransform, 'uppercase');
