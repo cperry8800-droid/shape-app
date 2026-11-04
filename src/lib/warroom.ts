@@ -622,6 +622,27 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the end-of-workout pop-up, difficulty and enjoyment rated over the finished session and stored where a coach can read them (#2614). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "at the end of each workout, have a pop up appear where the client ranks workout from level of difficulty to enjoyment/satisfication"; then "show both ratings to coaches"', status: 'done' },
+        { label: '#2614 BSSessionFinish.jsx: when a workout ends the session stays drawn and a sheet rises over it (portalled into #bs-phone-surface): "How hard was that?" 1-10 (sessionRpe, lit green/amber/red by band) and "How much did you enjoy it?" 1-5 (summary.enjoyment, teal), both skippable (null, never 0), then the duration question, the share toggle and Save & finish; the workout behind is inert and focus is held in the sheet. "The vibe" (reviewFeel) is no longer written', status: 'done' },
+        { label: '#2614 storage: workout_sessions.session_rpe and workout_sessions.summary->enjoyment, both returned by the coach\'s existing ShapeWorkoutLogs.listSessions() read under the participants policy; nothing widened. A session the member starts on their own has no provider_id, so no coach reads it (as before)', status: 'done' },
+        { label: '#2614 review: Codex P2 on 1b02de3 (keyboard focus could leave the sheet into the workout) fixed in 2fc9d37 as BSUpdateGate does (inert + aria-hidden siblings, focus held by hand for iOS 14), answered and resolved; Codex clean on 2fc9d37. Mutation round on the friends-audience spec: 45 killed, 0 survived. CI green on 2fc9d37; main (#2612, #2613) merged with the record, no reviewer read it', status: 'done' },
+        { label: 'Coaches see both ratings when the coach pages PR (Client review B) ships', status: 'pending' },
+        { label: 'OWNER: on a phone, finish a workout, rate both and save; end one early and skip both; with a hardware keyboard, Tab stays in the sheet', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Website: the login box in the middle of the screen; Club Shape in the website\'s Anybody (#2613). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "center this box on screen on website and change club shape font in login box to match website font"', status: 'done' },
+        { label: '#2613 the login card (login.jsx, on Login.html and the apps\' sign-in) loses its right-of-centre offset (margin-left: clamp(0px, 30vw, 520px) and the 1100px rule that undid it): it stands in the middle at every width', status: 'done' },
+        { label: '#2613 Club Shape in the title is set as the homepage\'s teal heading words are (Anybody, 500, width 90, upright), in place of the italic serif; "Log in to" stays in the serif. The login page mounts no site header, so its styles request Anybody themselves, at pageShell\'s own URL', status: 'done' },
+        { label: 'Review (#2613): Codex clean on 6cfd0ea5; CI green on it, and on the War Room commit before main\'s #2611 and #2612 were merged in', status: 'done' },
+        { label: 'OWNER: the login page on the deployed site, on a phone and a desktop (seen only in headless Chromium)', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Tune the program, the Boost sheet, coach Clients C with Add a client, the Wall top B with Chat\'s switch D, Programs B with the draft composer and Assign (#2612). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of each page built in the app: Clients "C for clients" and "add a client looks good" (a message icon on every client); Programs "B for programs just reduce size of this button"; the composer "clean up filters, make them smaller, and alow for custom focuses to be used"; Assign "reduce size of header and the boxes on page"; the Wall "go with B", smaller online cards, and of the switch "last option"; Boost and Tune "update to design"', status: 'done' },

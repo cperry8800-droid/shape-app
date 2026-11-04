@@ -9,6 +9,7 @@ const SQL = 'supabase-migrations/2026-10-30-workout-friends-audience.sql';
 const RULE = 'public/newdesign/workoutPrivacy.mjs';
 const BACKEND = 'mobile-app/src/services/shapeBackend.js';
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
+const FINISH = 'mobile-app/src/broadsheet/BSSessionFinish.jsx';
 const FEED_MODE = 'mobile-app/src/services/feedMode.mjs';
 const FEED_ROUTE = 'src/app/api/community/feed/route.ts';
 const WEB_PROFILE = 'public/newdesign/livingProfilePage.jsx';
@@ -89,8 +90,8 @@ export default {
       find: "      if (share.privacy === 'friends') { setBusy(false);", replace: "      if (share.privacy === 'friends!') { setBusy(false);" },
     { name: 'app: the settings row offers two choices', file: APP,
       find: "    shareWorkoutData:  ['On', 'Friends', 'Off'],", replace: "    shareWorkoutData:  ['On', 'Off']," },
-    { name: 'app: the session toggle says "the community" to a friends member', file: APP,
-      find: "{shareAudience === 'friends' ? tr('session:player.shareToggleFriends') : tr('session:player.shareToggle')}", replace: "{tr('session:player.shareToggle')}" },
+    { name: 'app: the session toggle says "the community" to a friends member', file: FINISH,
+      find: "{F.shareAudience === 'friends' ? tr('session:player.shareToggleFriends') : tr('session:player.shareToggle')}", replace: "{tr('session:player.shareToggle')}" },
     { name: 'app: a draft\'s toggle is overwritten by the settings read', file: APP,
       find: 'if (draft?.shareToFeed == null) setShareToFeed(rule !== \'private\');', replace: "setShareToFeed(rule !== 'private');" },
     { name: 'app: an edit is seeded with the display label', file: APP,
