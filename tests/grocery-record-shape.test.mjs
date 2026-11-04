@@ -23,6 +23,8 @@ const SRC = path.join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.js
 const src = fs.readFileSync(SRC, 'utf8');
 // The Library (Eat → Library) is its own module since 2026-10-24 (BSGroceryLibrary.jsx).
 const libSrc = fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryLibrary.jsx'), 'utf8');
+// The Grocery page, and the coach's sent-list card with it, since 2026-11-04 (BSGroceryList.jsx).
+const grocerySrc = fs.readFileSync(path.join(ROOT, 'mobile-app/src/broadsheet/BSGroceryList.jsx'), 'utf8');
 
 // ── Extract the helpers by brace-matching the SHIPPED source ────────────────
 // ⚠ The marker is the FULL declaration head. A bare name would match a call site
@@ -319,9 +321,9 @@ test('an unnamed coach group carries a canonical source token into the record', 
   // translated label. Both halves are pinned here, because half of it passing is
   // the dangerous state — a heading that reads right over items that lost their
   // provenance is exactly the shape that shipped.
-  const mapLine = src.split('\n').find((l) => l.includes('setGroups(Object.keys(by)'));
+  const mapLine = grocerySrc.split('\n').find((l) => l.includes('setGroups(Object.keys(by)'));
   assert.ok(mapLine, 'the coach-review group map vanished — re-point this guard');
-  const tokLine = src.split('\n').find((l) => l.includes('const SOURCE_UNNAMED ='));
+  const tokLine = grocerySrc.split('\n').find((l) => l.includes('const SOURCE_UNNAMED ='));
   assert.ok(tokLine, 'the canonical source token vanished — re-point this guard');
 
   // Drive the real mapping line over a real grouping map.
@@ -340,7 +342,7 @@ test('an unnamed coach group carries a canonical source token into the record', 
   assert.equal(named.source, 'Tue dinner', 'a named group must carry its own authored name, not the fallback');
 
   // ...and the add path must write the TOKEN, never the raw key.
-  const addLine = src.split('\n').find((l) => l.includes('id: `coach-${Date.now()}'));
+  const addLine = grocerySrc.split('\n').find((l) => l.includes('id: `coach-${Date.now()}'));
   assert.ok(addLine, 'the coach add path vanished — re-point this guard');
   assert.match(addLine, /meals:\s*g\.source/, 'the coach add path writes the raw group key again');
 });

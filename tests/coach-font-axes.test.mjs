@@ -112,7 +112,11 @@ test('Train and Eat set their pages in the clean type, under the header, and kee
 
 test('Grocery and the Library set their pages in the clean type under the Eat tabs; the header and the sheets keep the app\'s', () => {
   // Owner, 2026-10-29: "Yes", to moving Grocery and the Library off Saira, as Day and Build a list are.
-  const grocery = fnBody('BSGrocery');
+  // Grocery is its own module since its redesign (owner, 2026-11-04: "actually C for grocery list").
+  const GROCERY = readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryList.jsx', import.meta.url), 'utf8');
+  assert.match(GROCERY, /^import \{ useBSClean, BSCleanType \} from '\.\/bsCleanType\.jsx';$/m);
+  const gFrom = GROCERY.slice(GROCERY.indexOf('export function BSGrocery('));
+  const grocery = gFrom.slice(0, gFrom.indexOf('\n}\n'));
   assert.match(grocery, /const t = useBS\(\);/, "Grocery's own t stays the app's: the header and the list picker read it");
   assert.match(grocery, /const tc = useBSClean\(\);/);
   const page = mainReturn(grocery);
@@ -130,10 +134,10 @@ test('Grocery and the Library set their pages in the clean type under the Eat ta
   assert.ok(picker.length > 200, 'the list picker is gone — re-point this guard');
   assert.doesNotMatch(picker, /\btc\./, 'the list picker keeps the app\'s type');
   // The page's own words in the clean faces, and the aisle being walked a Geist head.
-  assert.match(clean, /fontFamily: tc\.HEAD, fontSize: 28, fontWeight: 600/);
+  assert.match(grocery, /fontFamily: tc\.HEAD, fontSize: 21, fontWeight: 600/);
   assert.equal((clean.replace(picker, '').match(/fontFamily: t\.(DISPLAY|BODY)\b/g) || []).length, 0, 'a Saira line left in the Grocery body');
   assert.match(clean, /<BSCoachGroceryReview t=\{tc\}/, 'the coach\'s sent list reads the clean theme');
-  // The rows are drawn by a helper above the return; it reads the clean face too.
+  // The rows, the aisles and the meals are drawn by helpers above the return; they read the clean face too.
   assert.equal((grocery.slice(0, grocery.lastIndexOf('\n  return (')).match(/fontFamily: t\.(DISPLAY|BODY)\b/g) || []).length, 0);
 
   const LIB = readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryLibrary.jsx', import.meta.url), 'utf8');

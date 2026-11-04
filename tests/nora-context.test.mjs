@@ -287,6 +287,8 @@ test('app: the sheet sends it through the backend; shells, the client profile, a
   assert.match(APP, /React\.useEffect\(\(\) => bsNoraOpen\(\{ page: bsNoraPage\(tab\), label: noraTabLabel \}, noraOwner\.current\), \[tab, noraTabLabel\]\);/);
   assert.equal((PROS.match(/window\.bsNoraOpen\(\{ page: window\.bsNoraPage\(tab\), label: noraTabLabel \}\)/g) || []).length, 2, 'trainer and nutritionist');
   assert.match(between(PROS, 'function BSProClientFullProfilePage(', '\n}\n'), /window\.bsNoraOpen\(\{ clientId: clientUid \}\)/);
-  assert.match(between(APP, 'function BSMealPreview(', '\n}\n'), /bsNoraOpen\(\{ item: \{ kind: 'meal', title: meal\.title \} \}\)/);
+  // The meal page is its own module since its redesign (2026-11-04); it reads bsNoraOpen at call time.
+  const MEAL = read('mobile-app/src/broadsheet/BSMealPage.jsx');
+  assert.match(between(MEAL, 'export function BSMealPreview(', '\n}\n'), /bsNoraOpen\(\{ item: \{ kind: 'meal', title: meal\.title \} \}\)/);
   assert.match(between(APP, 'function BSRecipePreview(', '\n}\n'), /bsNoraOpen\(\{ item: \{ kind: 'recipe', title: r\.title \} \}\)/);
 });

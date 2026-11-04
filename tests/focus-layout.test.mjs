@@ -224,14 +224,17 @@ globalThis.ShapeIntegrations = { sendGroceryToInstacart: async (x) => { sent.pus
 const { BSGrocery, BSClientTrain, BSClientHome, BSClientEat, bsBuildPlanGrocery, BSYourMornings, BSCycleTodayChip } = await loadBroadsheet(['BSGrocery', 'BSClientTrain', 'BSClientHome', 'BSClientEat', 'bsBuildPlanGrocery', 'BSYourMornings', 'BSCycleTodayChip'], SHIM);
 const byType = (d, name) => d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === name);
 
+// The Grocery page is BSGroceryList.jsx since its redesign (owner, 2026-11-04: "actually C for grocery
+// list"): the client imports it and loadBroadsheet re-exports it. Shop by is its lit two-way switch and
+// the aisles its LED count slots.
 test('the Grocery page opens by aisle, on the first aisle with anything left', () => {
   box.clear();
   const d = drive(BSGrocery, { list: LIST() });
-  const sw = byType(d, 'BSShopBySwitch')[0];
+  const sw = byType(d, 'GroceryShopBy')[0];
   assert.ok(sw, 'no Shop by switch');
   assert.equal(sw.props.value, 'aisle');
-  const route = byType(d, 'BSFocusRoute')[0];
-  assert.deepEqual(route.props.stops.map((s) => [s.value, s.on]), [[3, true], [0, false]]);
+  const slots = byType(d, 'GroceryAisleSlots')[0];
+  assert.deepEqual(slots.props.stops.map((s) => [s.left, s.on]), [[3, true], [0, false]]);
   assert.match(d.text, /Lemon/);
   assert.match(d.text, /Kale/);
   assert.doesNotMatch(d.text, /Salmon/, 'the other aisle is not on the page');
@@ -242,7 +245,7 @@ test('shop by meal groups the same ticks by meal, and a skip takes a meal\'s ite
   sent.length = 0;
   const mealWhen = new Map([['C', { rank: 0, label: 'Today · Lunch' }], ['A', { rank: 1, label: 'Mon · Dinner' }]]);
   const d = drive(BSGrocery, { list: LIST(), mealWhen });
-  byType(d, 'BSShopBySwitch')[0].props.onChange('meal');
+  byType(d, 'GroceryShopBy')[0].props.onChange('meal');
   d.render();
   assert.equal(box.get('shape.grocery.shopBy'), 'meal', 'the choice is remembered');
   const text = d.text;

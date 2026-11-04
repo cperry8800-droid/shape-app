@@ -399,9 +399,8 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   });
 
   const mono = { fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' };
+  const visuallyHidden = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 };
   const cardName = { fontFamily: t.DISPLAY, fontSize: 11.5, fontWeight: 700, lineHeight: 1.2, letterSpacing: '0.1em', textTransform: 'uppercase' };
-  const dot = { position: 'absolute', left: '50%', top: -8, width: 5, height: 5, marginLeft: -2.5, borderRadius: 99, background: t.INK70 };
-  const stub = { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, borderRadius: 99, background: t.INK50 };
   // Each section is a card opening on its name as an eyebrow in its colour, the heading a reader hears;
   // `trail` sits at the head's right (a section's direction). A heading, so Saira (`cardName`), never
   // the mono face the figures' labels use.
@@ -413,58 +412,86 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
   );
   const card = { margin: `12px ${t.padX}px 0` };
 
-  // The strip. Seven days are seven labelled cells, the weekday over the bar and the word or figure
-  // under it, today ruled. Thirty are thin bars with one label for the strip, dated at both ends.
+  // The strip, as a line (the owner's B, 2026-11-04: "B for mornings but include dotted line for weeks
+  // avaerage"): the days' values joined by a smooth line over a soft fill in the section's colour, the
+  // window's average as a dotted line across, and a dot a day, today's larger and glowing on dark paper. A
+  // gap in the answers breaks the line; a night skipped is a hollow dot on the floor, a watch's night a dot
+  // ringed in ink. Seven days carry each day's word or figure and its weekday under its dot, each a labelled
+  // cell a reader hears; thirty are one picture, dated at both ends.
   const strip = (kind, cells) => {
     const name = kind === 'readiness' ? tr('home:mornings.readinessStrip', { defaultValue: 'Readiness' }) : NAME[kind];
     const aria = tr('home:mornings.stripAria', { defaultValue: '{name}, the last {n} days', name, n: cells.length });
-    const bar = (c, today = false) => (
-      <>
-        {c.pct > 0 ? <span style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${Math.max(8, Math.round(c.pct * 100))}%`, borderRadius: 99, background: `linear-gradient(180deg, ${c.color}, ${bsDashA(c.color, 0.55)})`, filter: today ? D.glow(c.color, 8) : 'none' }} /> : null}
-        {c.mark === 'skipped' ? <span style={stub} /> : null}
-        {c.mark === 'watch' ? <span style={dot} /> : null}
-      </>
-    );
-    if (cells.length > 7) {
-      return (
-        <div data-bs-mornings-strip={kind}>
-          <div role="img" aria-label={aria} style={{ display: 'grid', gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`, gap: 3, height: 56, paddingTop: 8 }}>
-            {cells.map((c) => <span key={c.iso} data-bs-mornings-day={c.iso} data-bs-mornings-mark={c.mark || undefined} style={{ position: 'relative', borderRadius: 99, background: D.track }}>{bar(c, c.iso === todayIso)}</span>)}
-          </div>
+    const many = cells.length > 7;
+    const accent = kind === 'readiness' ? D.mark.teal : COLOR[kind];
+    const W = 300, H = 64, padX = many ? 4 : 14, top = 8, floor = 6;
+    const xs = cells.map((_, i) => padX + (cells.length === 1 ? (W - 2 * padX) / 2 : (i * (W - 2 * padX)) / (cells.length - 1)));
+    const yOf = (pct) => top + (1 - pct) * (H - top - floor);
+    const pts = cells.map((c, i) => (c.pct > 0 ? [xs[i], yOf(c.pct)] : null));
+    const runs = [];
+    pts.forEach((pt, i) => { if (!pt) return; if (i > 0 && pts[i - 1]) runs[runs.length - 1].push(pt); else runs.push([pt]); });
+    const path = (run) => run.map((pt, i) => { if (!i) return `M${pt[0]},${pt[1]}`; const prev = run[i - 1]; const mx = (prev[0] + pt[0]) / 2; return `C${mx},${prev[1]} ${mx},${pt[1]} ${pt[0]},${pt[1]}`; }).join(' ');
+    const answered = cells.filter((c) => c.pct > 0);
+    const mean = answered.length ? answered.reduce((a, c) => a + c.pct, 0) / answered.length : null;
+    const gid = `bs-mornings-fill-${kind}-${cells.length}`;
+    const dayAria = (c) => { const weekday = dateText(c.iso, { weekday: 'short' }); return tr('home:mornings.dayAria', { defaultValue: '{day}: {value}', day: `${weekday} ${Number(c.iso.slice(8))}`, value: c.value || noAnswer }); };
+    return (
+      <div data-bs-mornings-strip={kind} role={many ? 'img' : 'group'} aria-label={aria}>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none" aria-hidden="true" style={{ display: 'block', overflow: 'visible' }}>
+          <defs><linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={accent} stopOpacity={D.light ? 0.22 : 0.32} /><stop offset="1" stopColor={accent} stopOpacity="0" /></linearGradient></defs>
+          <line x1="0" x2={W} y1={H - 1} y2={H - 1} stroke={bsDashA(t.INK, 0.1)} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          {runs.map((run, k) => (run.length > 1 ? <path key={`f${k}`} d={`${path(run)} L${run[run.length - 1][0]},${H} L${run[0][0]},${H} Z`} fill={`url(#${gid})`} /> : null))}
+          {mean != null ? <line data-bs-mornings-avg-line="" x1="0" x2={W} y1={yOf(mean)} y2={yOf(mean)} stroke={bsDashA(accent, 0.6)} strokeWidth="1.25" strokeDasharray="3 4" vectorEffect="non-scaling-stroke" /> : null}
+          {runs.map((run, k) => (run.length > 1 ? <path key={`l${k}`} d={path(run)} fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" style={{ filter: D.glow(accent, 4) }} /> : null))}
+        </svg>
+        {/* The dots as HTML over the line, so they stay round however wide the card is. */}
+        <div aria-hidden style={{ position: 'relative', height: 0 }}>
+          {cells.map((c, i) => {
+            const pt = pts[i];
+            // Thirty days carry each day's place here (seven carry it on their labelled cells below).
+            if (!pt && c.mark !== 'skipped') return many ? <span key={c.iso} data-bs-mornings-day={c.iso} style={{ position: 'absolute', left: `${(xs[i] / W) * 100}%`, width: 0, height: 0 }} /> : null;
+            const today = c.iso === todayIso;
+            const r = many ? (today ? 4 : 2.5) : (today ? 6 : 4.5);
+            const y = pt ? pt[1] : H - 4;
+            const fill = c.color || accent;
+            return (
+              <span key={c.iso} data-bs-mornings-dot={c.iso} data-bs-mornings-day={many ? c.iso : undefined} data-bs-mornings-mark={many ? (c.mark || undefined) : undefined} style={{
+                position: 'absolute', left: `calc(${(xs[i] / W) * 100}% - ${r}px)`, top: y - H - r, width: r * 2, height: r * 2, borderRadius: 99, boxSizing: 'border-box',
+                background: pt ? fill : 'transparent', border: pt ? `2px solid ${t.PAPER2 || t.PAPER}` : `1.5px solid ${t.INK50}`,
+                boxShadow: [pt && c.mark === 'watch' ? `0 0 0 1.5px ${t.INK70}` : null, today && pt && !D.light ? `0 0 10px ${fill}` : null].filter(Boolean).join(', ') || 'none',
+              }} />
+            );
+          })}
+        </div>
+        {many ? (
           <div aria-hidden style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 6, ...mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>
             <span>{dateText(cells[0].iso, { month: 'short', day: 'numeric' })}</span>
             <span>{dateText(cells[cells.length - 1].iso, { month: 'short', day: 'numeric' })}</span>
           </div>
-        </div>
-      );
-    }
-    return (
-      <div data-bs-mornings-strip={kind} role="group" aria-label={aria} style={{ display: 'grid', gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`, gap: 3 }}>
-        {cells.map((c) => {
-          const weekday = dateText(c.iso, { weekday: 'short' });
-          const day = `${weekday} ${Number(c.iso.slice(8))}`;
-          return (
-            <div key={c.iso} role="img" data-bs-mornings-day={c.iso} data-bs-mornings-mark={c.mark || undefined} data-bs-mornings-today={c.iso === todayIso ? '' : undefined} aria-label={tr('home:mornings.dayAria', { defaultValue: '{day}: {value}', day, value: c.value || noAnswer })}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, padding: '8px 0 2px', minWidth: 0 }}>
-              <span style={{ ...mono, fontSize: 8, letterSpacing: '0.1em', color: c.iso === todayIso ? t.INK : t.INK50 }}>{weekday}</span>
-              <span style={{ position: 'relative', width: 20, height: 60, borderRadius: 99, background: D.track }}>{bar(c, c.iso === todayIso)}</span>
-              <span style={{ fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', color: c.label ? t.INK : t.INK50, textAlign: 'center', lineHeight: 1.15, minHeight: 18, maxWidth: '100%', ...bsMorningsFit(c.label || '—', 7.5) }}>{c.label || '—'}</span>
-            </div>
-          );
-        })}
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))`, gap: 2, marginTop: 8 }}>
+            {cells.map((c) => (
+              <div key={c.iso} role="img" aria-label={dayAria(c)} data-bs-mornings-day={c.iso} data-bs-mornings-mark={c.mark || undefined} data-bs-mornings-today={c.iso === todayIso ? '' : undefined}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 0 }}>
+                <span style={{ fontFamily: t.MONO, fontWeight: 800, textTransform: 'uppercase', color: c.label ? t.INK70 : t.INK50, textAlign: 'center', lineHeight: 1.15, minHeight: 16, maxWidth: '100%', ...bsMorningsFit(c.label || '—', 7) }}>{c.label || '—'}</span>
+                <span style={{ ...mono, fontSize: 7.5, letterSpacing: '0.1em', color: c.iso === todayIso ? t.INK : t.INK50 }}>{dateText(c.iso, { weekday: 'narrow' })}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
-  // What the sleep strip's marks mean, when the window has any.
+  // What the sleep strip's marks mean, when the window has any: a watch's night (a dot ringed in ink) and a
+  // night skipped (a hollow dot on the floor).
   const legend = (cells) => {
     const worn = cells.some((c) => c.mark === 'watch');
     const skip = cells.some((c) => c.mark === 'skipped');
     if (!worn && !skip) return null;
-    const swatch = (style) => <span style={{ position: 'relative', display: 'inline-block', width: 8, height: 10 }}><span style={style} /></span>;
+    const swatch = (style) => <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 99, boxSizing: 'border-box', ...style }} />;
     return (
-      <div aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 8, ...mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>
-        {worn ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch({ ...dot, top: 3 })}{fromWatch}</span> : null}
-        {skip ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch(stub)}{skippedWord}</span> : null}
+      <div data-bs-mornings-legend="" aria-hidden style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', marginTop: 8, ...mono, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>
+        {worn ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch({ background: COLOR.sleep, boxShadow: `0 0 0 1.5px ${t.INK70}` })}{fromWatch}</span> : null}
+        {skip ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{swatch({ border: `1.5px solid ${t.INK50}` })}{skippedWord}</span> : null}
       </div>
     );
   };
@@ -583,39 +610,41 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     </div>
   );
 
+  // Each part of the one box (the owner, 2026-11-04: "combine all the information into once box neatly with
+  // subtle seperates between us"): its name in its colour, and at the head's right a section's direction.
   // The window's readiness: each answered morning's, and their average.
-  const readinessBlock = () => {
+  const readinessPart = () => {
     const scored = model.ready.filter(Boolean);
-    const avg = scored.length ? Math.round(scored.reduce((s, r) => s + r.score, 0) / scored.length) : null;
+    const avg = scored.length ? Math.round(scored.reduce((sum, r) => sum + r.score, 0) / scored.length) : null;
     return (
-      <BSDashCard as="section" data-bs-mornings-section="readiness" style={{ ...card, marginTop: 4 }}>
+      <div key="readiness" data-bs-mornings-section="readiness">
         {head(tr('home:mornings.readinessStrip', { defaultValue: 'Readiness' }), D.text.teal)}
-        {avg != null ? <p data-bs-mornings-avg="" style={{ margin: '0 0 12px', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>{tr('home:mornings.readinessAvg', { defaultValue: 'Averaging {score} over {n, plural, one {# morning} other {# mornings}}', score: avg, n: scored.length })}</p> : null}
+        {avg != null ? <p data-bs-mornings-avg="" style={{ margin: '0 0 12px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>{tr('home:mornings.readinessAvg', { defaultValue: 'Averaging {score} over {n, plural, one {# morning} other {# mornings}}', score: avg, n: scored.length })}</p> : null}
         {strip('readiness', cellsFor('readiness', model.cur))}
-      </BSDashCard>
+      </div>
     );
   };
 
-  // A section per check the member is asked: its headline, its direction against the window before,
-  // and its strip.
-  const section = (kind) => {
+  // A part per check the member is asked: its headline, its direction against the window before (a chip at
+  // the head's right; "than the {n} days before" is its accessible name, since every direction is against
+  // the window before), and its line.
+  const sectionPart = (kind) => {
     const h = bsMorningsHeadline(kind, model.cur);
     const dir = bsMorningsDirection(kind, model.cur, model.prev);
     const cells = cellsFor(kind, model.cur);
+    const chip = dir ? (
+      <span data-bs-mornings-dir={dir} style={{ flex: 'none', display: 'inline-flex' }}>
+        <span style={{ padding: '3px 9px', borderRadius: 999, background: bsDashA(COLOR[kind], D.light ? 0.12 : 0.16), color: TEXT[kind], fontFamily: t.BODY, fontSize: 11.5, fontWeight: 600, lineHeight: 1.2 }}>{dir === 'same' ? same : DIR[kind][dir]}</span>
+        {dir === 'same' ? null : <span style={visuallyHidden}> {vs}</span>}
+      </span>
+    ) : null;
     return (
-      <BSDashCard as="section" key={kind} data-bs-mornings-section={kind} style={card}>
-        {head(NAME[kind], TEXT[kind])}
-        <p data-bs-mornings-headline="" style={{ margin: '0 0 8px', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>{headline(kind, h)}</p>
-        {dir ? (
-          <div data-bs-mornings-dir={dir} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', margin: '0 0 6px' }}>
-            <span style={{ padding: '4px 10px', borderRadius: 999, background: bsDashA(COLOR[kind], D.light ? 0.12 : 0.16), color: TEXT[kind], fontFamily: t.BODY, fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{dir === 'same' ? same : DIR[kind][dir]}</span>
-            {/* "About the same" stands alone: the window before is what every direction is against. */}
-            {dir === 'same' ? null : <span style={{ fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{vs}</span>}
-          </div>
-        ) : null}
+      <div key={kind} data-bs-mornings-section={kind}>
+        {head(NAME[kind], TEXT[kind], chip)}
+        <p data-bs-mornings-headline="" style={{ margin: '0 0 10px', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.015em', lineHeight: 1.25, color: t.INK }}>{headline(kind, h)}</p>
         {strip(kind, cells)}
         {kind === 'sleep' ? legend(cells) : null}
-      </BSDashCard>
+      </div>
     );
   };
 
@@ -628,16 +657,16 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
     </div>
   );
   const connect = () => { try { window.dispatchEvent(new window.CustomEvent('shape:openIntegrations')); } catch (e) { /* Settings → Integrations is the other way there */ } };
-  const watchBlock = () => {
+  const watchPart = () => {
     if (!watch) return null; // signed out, or nothing read yet: `watch` is only built for a member
     if (!watch.has) {
       return (
-        <BSDashCard as="section" data-bs-mornings-watch="connect" style={card}>
+        <div key="watch" data-bs-mornings-watch="connect">
           <p style={{ margin: 0, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:mornings.watchConnectLine', { defaultValue: 'Sleep and recovery readings come from a watch.' })}</p>
           <button type="button" onClick={connect} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: t.INK, cursor: 'pointer', ...mono, letterSpacing: '0.14em' }}>
             <span style={{ borderBottom: `2px solid ${COLOR.sleep}`, paddingBottom: 2 }}>{tr('home:mornings.watchConnect', { defaultValue: 'Connect a watch' })}</span><span aria-hidden> →</span>
           </button>
-        </BSDashCard>
+        </div>
       );
     }
     const tiles = [
@@ -648,11 +677,23 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
       watch.recovery != null ? tile('recovery', tr('home:mornings.tileRecovery', { defaultValue: 'Watch recovery' }), Math.round(watch.recovery)) : null,
     ].filter(Boolean);
     return (
-      <BSDashCard as="section" data-bs-mornings-watch="on" style={card}>
+      <div key="watch" data-bs-mornings-watch="on">
         {head(tr('home:mornings.watchTitle', { defaultValue: 'Last night from your watch' }), TEXT.sleep)}
         {tiles.length
           ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>{tiles}</div>
           : <p data-bs-mornings-watchnone="" style={{ margin: 0, fontFamily: t.BODY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{tr('home:mornings.watchNone', { defaultValue: "Your watch hasn't sent last night yet." })}</p>}
+      </div>
+    );
+  };
+
+  // The one box: the window's readiness, then each check, then the watch, a faint hairline between them.
+  const theBox = () => {
+    const parts = [readinessPart(), ...kinds.map(sectionPart), watchPart()].filter(Boolean);
+    return (
+      <BSDashCard as="section" data-bs-mornings-box="" style={{ ...card, marginTop: 4, padding: '16px 16px 14px' }}>
+        {parts.map((el, i) => (
+          <div key={el.key} data-bs-mornings-part={el.key} style={i ? { marginTop: 16, paddingTop: 16, borderTop: `1px solid ${bsDashA(t.INK, D.light ? 0.08 : 0.09)}` } : null}>{el}</div>
+        ))}
       </BSDashCard>
     );
   };
@@ -682,9 +723,7 @@ export function BSYourMornings({ onBack, cycleChip = null, checkinsOn = true }) 
           <>
             {patternsBlock()}
             {rangeSwitch}
-            {readinessBlock()}
-            {kinds.map(section)}
-            {watchBlock()}
+            {theBox()}
           </>
         ) : null}
         {whoText ? <p data-bs-mornings-who="" style={{ ...note, padding: `26px ${t.padX}px 0`, fontSize: 13, color: t.INK50 }}>{whoText}</p> : null}

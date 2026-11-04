@@ -202,11 +202,12 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     // 50px of capsule, 6px above it, and under it 12px or the home indicator's inset less 10px.
     assert.equal(window.BS_TABBAR_H, 68);
     assert.equal(window.BS_TABBAR_CSS, 'calc(56px + max(12px, calc(env(safe-area-inset-bottom, 0px) - 10px)))');
-    // What stands on the tab bar stands on the same height.
-    for (const f of ['iosAppBroadsheetClient.jsx', 'iosAppBroadsheetPros.jsx']) {
+    // What stands on the tab bar stands on the same height. The live session's one action and the
+    // workout page's held Begin session are their own modules' since the owner's B (2026-11-04).
+    for (const [f, n] of [['iosAppBroadsheetClient.jsx', 1], ['iosAppBroadsheetPros.jsx', 2], ['BSWorkoutSession.jsx', 1], ['BSWorkoutDetail.jsx', 1]]) {
       const s = readFileSync(join(ROOT, 'mobile-app/src/broadsheet', f), 'utf8');
       assert.doesNotMatch(s, /bottom: \(window\.BS_TABBAR_H \|\| 64\)/, `${f}: a composer slot on the old height`);
-      assert.equal((s.match(/bottom: \(window\.BS_TABBAR_CSS \|\| window\.BS_TABBAR_H \|\| 64\)/g) || []).length, 2, f);
+      assert.equal((s.match(/bottom: \(window\.BS_TABBAR_CSS \|\| window\.BS_TABBAR_H \|\| 64\)/g) || []).length, n, f);
     }
   });
 

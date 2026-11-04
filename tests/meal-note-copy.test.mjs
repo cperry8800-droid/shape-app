@@ -20,9 +20,11 @@
 // day. The correct scope is: report the note, say nothing about the log.
 //
 // Honest limit: this is a SOURCE-TEXT guard, not a behavioural one. The copy lives as
-// inline string literals inside a ~9.7k-line component with no seam to mount, so this
-// asserts the text rather than driving the render. It is mutation-checked below
-// against a sample carrying the original defect, so it cannot be decoration.
+// inline string literals inside the meal logger's dispatch, which fires a network request
+// the mount harness does not drive, so this asserts the text rather than the render. It is
+// mutation-checked below against a sample carrying the original defect, so it cannot be
+// decoration. (The logger moved to its own module, BSMealLog.jsx, with its redesign —
+// owner, 2026-11-04: B "for logging meals and Filed" — and this guard moved with it.)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -30,12 +32,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx');
+const SRC = join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSMealLog.jsx');
 const RAW = readFileSync(SRC, 'utf8');
 
 // The dispatch runs from its declaration to the start of doLog, which is the next
 // declaration in the component. Slicing rather than regexing the whole file keeps the
-// guard from firing on unrelated copy elsewhere in a very large file.
+// guard from firing on unrelated copy elsewhere in the module.
 function sendMealNoteBody(source) {
   const start = source.indexOf('const sendMealNote = () => {');
   assert.notEqual(start, -1, 'sendMealNote must still exist — update this guard if it is renamed');

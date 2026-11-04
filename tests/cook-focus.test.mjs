@@ -527,7 +527,10 @@ function buttonTags(src) {
 }
 test('every door into cooking is tagged, so focus can come back to it', () => {
   const opens = /setCooking\(true\)|openPrep\(|onClick=\{onPrep\}|'shape:cookWith'/;
-  const doors = buttonTags(CLIENT).filter((tag) => opens.test(tag));
+  // The meal page and Grocery are their own modules since their redesign (2026-11-04): their doors
+  // (the meal's Cook this, Grocery's Prep the week) are read with the client's.
+  const carved = ['BSMealPage.jsx', 'BSGroceryList.jsx'].map((f) => stripComments(readFileSync(SRC.replace('iosAppBroadsheetClient.jsx', f), 'utf8'))).join('\n');
+  const doors = buttonTags(CLIENT + '\n' + carved).filter((tag) => opens.test(tag));
   assert.equal(doors.length, 6, 'three "Cook this", "Cook with something else", two "Prep the week"');
   for (const tag of doors) assert.match(tag, /data-bsck-door="(?:cook|with|prep)"/, `untagged door: ${tag.slice(0, 120)}`);
   const tokens = doors.map((tag) => tag.match(/data-bsck-door="([a-z-]+)"/)[1]).sort();

@@ -402,8 +402,10 @@ const CLIENT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadshe
 const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
 
 test('the grocery page sends what it shows; the send sheet sends it as the list message', () => {
-  assert.match(CLIENT, /data-bs-grocery-send="" onClick=\{\(\) => setSendOpen\(true\)\}/, 'the page has its Send to a member button');
-  assert.match(CLIENT, /\{sendOpen && <BSPostSendSheet post=\{\{ grocery: list, keep: \(it\) => !bsGrocerySkipped\(it, skipped\) \}\}/, 'what is sent leaves skipped meals\' items off');
+  // The Grocery page is its own module since its redesign (2026-11-04); the sheet is the client's.
+  const GROCERY = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSGroceryList.jsx'), 'utf8');
+  assert.match(GROCERY, /data-bs-grocery-send="" onClick=\{\(\) => setSendOpen\(true\)\}/, 'the page has its Send to a member button');
+  assert.match(GROCERY, /\{sendOpen && <BSPostSendSheet post=\{\{ grocery: list, keep: \(it\) => !bsGrocerySkipped\(it, skipped\) \}\}/, 'what is sent leaves skipped meals\' items off');
   const sheet = CLIENT.slice(CLIENT.indexOf('function BSPostSendSheet'), CLIENT.indexOf('function BSPostActions'));
   assert.match(sheet, /if \(post\.grocery\) \{[\s\S]*?const msg = bsGroceryShareMessage\(post\.grocery, post\.keep\);[\s\S]*?sendMessage\(\{ conversationId: cid, body: msg\.body, metadata: msg\.metadata \}\)/);
   assert.match(sheet, /post\.grocery \? tr\('feed:send\.titlePlaylist', \{ defaultValue: 'Send “\{name\}” to', name: post\.grocery\.name \}\)/);

@@ -36,7 +36,6 @@ import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionTo
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
 import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS } from '../services/userGoalsRefresh.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
-import { bsMealDirty, bsMealCtaLabel } from '../services/mealLoggerState.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
 import { BS_BATCH_KEY, bsReadBatch, bsWriteBatch } from '../services/cookBatchResume.mjs';
 import { bsSoloRoadmap, bsBoardRoadmap, bsRoadmapPercent, bsVisibleCookPercent } from '../services/cookRoadmap.mjs';
@@ -45,7 +44,6 @@ import { bsCookResumeStamp, bsCookResumeValid, bsCookSessionState } from '../ser
 // the dashSignals pattern: website module + mobile import + Node tests).
 import { bsMealSharePayload, bsMealMenuLines } from '../../../public/newdesign/mealShare.mjs';
 import { bsShareCardModel, bsShareCardImage, bsHeroStatIndex } from '../../../public/newdesign/shareCard.mjs';
-import { bsValidBarcode } from '../services/foodSearch.mjs';
 import { BS_COOK_TIERS, bsCookable, bsCookableFromRecipe, bsCookableFromMeal, bsCookableFromMemberRecipe, bsStepTimers, bsOfferedTimers, bsFractionalDuration, bsStepGists, bsStepIngredients, bsCookSlug, bsCookKey } from '../services/cookable.mjs';
 import { bsRecipesStore, bsRecipesList, bsRecipePointer, bsRecipesUidSync, bsSplitPaste, bsNewRecipeId, bsMyRecipeIdFrom, bsIsMyRecipeId } from '../services/clientRecipes.mjs';
 import { bsCookCommand } from '../services/cookCommands.mjs';
@@ -66,11 +64,16 @@ import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
+import { BSSettingsRoot } from './BSSettingsRoot.jsx';
 import { BSGroceryBuilder } from './BSGroceryBuilder.jsx';
+import { BSGrocery } from './BSGroceryList.jsx';
+import { BSMealPreview } from './BSMealPage.jsx';
 import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
+import { BSWorkoutSession } from './BSWorkoutSession.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
@@ -81,6 +84,8 @@ import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
 import { bsMpTealOf, bsMpGlass, bsMpGradText, bsMpGlow, BSMpPaneLabel, BSMpVinyl } from './BSMemberBento.jsx';
+// The Log meal sheet and the filed stamp (owner, 2026-11-04: B "for logging meals and Filed"), carved out.
+import { BSLogMealFlow, BSMealLogged } from './BSMealLog.jsx';
 import { BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
@@ -107,8 +112,8 @@ import { BSNoraTalk, useNoraTalk, bsNoraVoiceFail } from './BSNoraTalk.jsx';
 import { BSVoiceRecorder, BSVoiceNotePlayer } from './BSVoiceNote.jsx';
 import { bsVoiceBody, bsVoiceFromMetadata, bsVoicePreview } from '../services/voiceNote.mjs';
 import { BSSearchKitchenRecipe } from './BSSearchKitchenRecipe.jsx';
-import { BSFocusTitle, BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusLink, BSFocusRoute, BSShopBySwitch, BSFocusMealShop } from './BSFocus.jsx';
-import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsGrocerySkipped, bsGroceryByMeal, bsGroceryAisleStops, bsReadShopBy, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot, bsGroceryCheckedKeys } from '../services/focusLayout.mjs';
+import { BSFocusTitle, BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusLink, BSFocusMealShop } from './BSFocus.jsx';
+import { bsFocusMin, bsFocusArrival, bsFocusUntil, bsFocusPrevStop, bsFocusSlot, bsSaveShopBy, bsReadSkippedMeals, bsSaveSkippedMeals, bsGroceryItemKey, bsMealShopItems, bsGroceryIsGot, bsReadGotItems, bsSaveGotItems, bsToggleGot } from '../services/focusLayout.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -3093,1108 +3098,8 @@ function BSClientLibrary({ onBack, goMarket = () => {} }) {
   );
 }
 
-function BSHomeWorkoutPreview({ workout = null, day = null, onBack, onMove = () => {}, onStart = () => {}, onMessage = () => {} }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const rust = t.RUST;
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const detail = workout && workout.detail;
-  const wkTitle = (workout && workout.title) || 'Upper Pull — Peak';
-  const wkMeta = (detail && detail.meta) || '52 min · 6 moves · RPE 8 · ~420 kcal';
-  const wkNote = (detail && detail.note) || 'Peak week — tempo matters more than load. 3s eccentric on every pull. If bar speed drops, drop a rep, not the tempo.';
-  const moves = (detail && detail.moves) || [
-    { name: 'Pull-up',        scheme: '4 × 6-8 · 3 min rest', cue: 'Dead hang. Chest to bar.',      load: '42 lb', up: true },
-    { name: 'Barbell row',    scheme: '4 × 8 · 2 min rest',   cue: 'Hinge 45°, pull to sternum.',   load: '155 lb' },
-    { name: 'Chest-sup. row', scheme: '3 × 10 · 90s rest',    cue: 'Pause 1s at peak contraction.', load: '60 lb' },
-    { name: 'Face pull',      scheme: '3 × 15 · 60s rest',    cue: 'External rotation at the top.', load: '35 lb' },
-    { name: 'Incline curl',   scheme: '3 × 12 · 60s rest',    cue: 'Full stretch. 3s eccentric.',   load: '27.5 lb' },
-    { name: 'Farmer carry',   scheme: '3 × 40m · 60s rest',   cue: 'Crush grip. Ribs down.',        load: '80 lb' },
-  ];
-  // "Today · Thu Jun 4 · 5:45 PM" for today's session; another day's (`day`, the day picked in Home's This
-  // week) reads its own date with no Today (Codex P1 on #2599: a Saturday session read "Today · Wed").
-  // Weekday/month tokens follow the selected UI language (i18n date-locale rule).
-  const _wd = day instanceof Date && !isNaN(day) ? day : new Date();
-  const _wdToday = (() => { const n = new Date(); return _wd.getFullYear() === n.getFullYear() && _wd.getMonth() === n.getMonth() && _wd.getDate() === n.getDate(); })();
-  const _dateLoc = bsDateLocale();
-  const _dow = _wd.toLocaleDateString(_dateLoc, { weekday: 'short' });
-  const _mon = _wd.toLocaleDateString(_dateLoc, { month: 'short' });
-  const wkTimeLabel = (() => {
-    const [h, m] = String((workout && workout.time) || '09:00').split(':').map(Number);
-    if (Number.isNaN(h)) return '9:00 AM';
-    const ap = h >= 12 ? 'PM' : 'AM';
-    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`;
-  })();
-  const [reminded, setReminded] = useStateBSC(false);
-  const headBtn = { background: 'transparent', border: 0, cursor: 'pointer', padding: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK };
-  const footBtn = { flex: 1, padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' };
-  return (
-    <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 2px` }}>
-        <BSBackRow onBack={onBack} trailing={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: rust }}>{tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })}</span>
-          <button onClick={onMessage} style={{ ...headBtn, color: t.INK50 }}>{tr('home:action.message', { defaultValue: 'Message' })}</button>
-        </span>} />
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{_wdToday ? <>{tr('home:when.today', { defaultValue: 'Today' })} · </> : null}{_dow} {_mon} {_wd.getDate()} · {wkTimeLabel}</div>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 38, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 0.98 }}>{wkTitle}<span style={{ color: t.ACCENT }}>.</span></div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{wkMeta}</div>
-      </div>
-
-      <div style={{padding:'0 '+t.padX+'px'}}><ShapeVideoPlayer value={workout?.programVideo} title={tr('coach:video.programIntro',{defaultValue:'Program introduction'})}/><ShapeVideoPlayer value={workout?.video} title={tr('coach:video.workoutWalkthrough',{defaultValue:'Workout walkthrough'})}/></div>
-
-      {/* Coach note — Wire press credit (rust = trainer role) */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        <div style={{ borderLeft: `3px solid ${rust}`, padding: '3px 0 3px 11px' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 14, fontWeight: 500, color: t.INK, lineHeight: 1.5, letterSpacing: '-0.01em' }}>“{wkNote}”</div>
-          <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>Jordan Chen · Trainer · notes</div>
-        </div>
-      </div>
-
-      {/* Moves — the plan ledger */}
-      <BSOLHead heat={t.ACCENT} label={tr('home:workoutPreview.plan', { defaultValue: 'Plan' })} t={t} right={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: t.INK50 }}>{tr('home:workoutPreview.moves', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: moves.length })}</span>} />
-      <div style={{ padding: `2px ${t.padX}px 0` }}>
-        {moves.map((m, i) => (
-          <div key={m.name} style={{ padding: '12px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-              <span style={{ flexShrink: 0, width: 20, fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK50 }}>{String(i + 1).padStart(2, '0')}</span>
-              <span style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{m.name}</span>
-              <span aria-hidden style={{ flex: 1, minWidth: 14, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-4px)' }} />
-              <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{t.uText(m.load) || ''}{m.load && m.up ? ' +' : ''}</span>
-            </div>
-            <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.scheme}</div>
-            {m.cue && <div style={{ marginTop: 4, paddingLeft: 29, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 12.5, fontWeight: 500, color: t.INK70, letterSpacing: '-0.01em' }}>“{m.cue}”</div>}
-          </div>
-        ))}
-      </div>
-
-      {/* Quick actions — above the soundtrack */}
-      <div style={{ padding: `14px ${t.padX}px 4px`, display: 'flex', gap: 10 }}>
-        <BSSaveButton full item={{ id: 'workout:upper-pull-peak', kind: 'workout', title: 'Upper Pull — Peak', meta: '52 min · 6 moves · RPE 8', coach: 'Jordan Chen' }} />
-        <button onClick={onMove} style={footBtn}>{tr('home:workoutPreview.moveSession', { defaultValue: 'Move session' })}</button>
-        <button onClick={() => setReminded(true)} style={{ ...footBtn, ...(reminded ? { borderColor: teal, borderLeft: `3px solid ${teal}`, background: `${teal}14`, color: teal } : {}) }}>{reminded ? tr('home:workoutPreview.reminderSet', { defaultValue: '✓ Reminder set' }) : tr('home:workoutPreview.remindMe', { defaultValue: 'Remind me' })}</button>
-      </div>
-
-      {/* Pre-workout playlist — tap the play button to open it in Spotify before training */}
-      <div style={{ padding: `18px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>{tr('home:workoutPreview.soundtrack', { defaultValue: 'Soundtrack' })}</BSEyebrow>
-        <div style={{ marginTop: 2, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('home:workoutPreview.preWorkout', { defaultValue: 'Pre-workout' })}</div>
-        <BSPlaylistCard kicker="Jordan Chen · Your coach" title="Pull heavy." meta="52m · 95-138 BPM · 14 tracks" color="#1db954" spotifyUrl="https://open.spotify.com/playlist/37i9dQZF1DX76Wlfdnj7AP" tracks={[
-          { a: 'Iron Count', b: 'Tariq Osei', len: '3:38' },
-          { a: 'Chalk & Steel', b: 'Sable', len: '4:02' },
-          { a: 'Top Set', b: 'Linnea Aho', len: '3:21' },
-          { a: 'Overhand', b: 'Samyuel', len: '3:54' },
-          { a: 'Lat Spread', b: 'Mara Vance', len: '4:16' },
-          { a: 'Last Rep', b: 'Shape Radio', len: '3:45' },
-        ]} />
-      </div>
-
-      <div style={{ padding: `16px ${t.padX}px 14px` }}>
-        <button onClick={onStart} style={{ width: '100%', padding: '15px', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: teal, color: t.isLight ? '#ffffff' : '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('home:workoutPreview.begin', { defaultValue: 'Begin session →' })}</button>
-      </div>
-      <BSFooter right={tr('home:workoutPreview.eyebrow', { defaultValue: 'Preview' })} />
-    </BSPage>
-  );
-}
-
-// Stable per-ingredient id so a React list key never collides on duplicate
-// names (addFood / manual edits can produce two rows with the same name).
-let _bsIngSeq = 0;
-const bsIngId = () => `bsing-${++_bsIngSeq}`;
-
-// Real food recents — user_goals('food_recents'), cap 20, most-recent-first,
-// deduped by name. Best-effort: a failed write never blocks the add.
-async function bsLoadFoodRecents() {
-  try {
-    const doc = await window.shapeDb?.getUserGoals?.('food_recents');
-    const items = doc && Array.isArray(doc.items) ? doc.items : [];
-    return items.filter((x) => x && x.name).slice(0, 20);
-  } catch (e) { return []; }
-}
-function bsPushFoodRecent(items, f) {
-  const key = String(f.name || '').trim().toLowerCase();
-  const rest = (Array.isArray(items) ? items : []).filter((x) => String((x && x.name) || '').trim().toLowerCase() !== key);
-  return [{ name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0) }, ...rest].slice(0, 20);
-}
-
-// Barcode scan support: the BarcodeDetector API (Chrome/Android WebView) +
-// camera access. iOS WebKit ships neither BarcodeDetector nor (pre-14.3)
-// getUserMedia — those fall to the manual digits entry, honestly.
-function bsBarcodeScanSupported() {
-  try {
-    return typeof window !== 'undefined'
-      && typeof window.BarcodeDetector === 'function'
-      && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  } catch (e) { return false; }
-}
-
-// Live camera scanner for the add-food sheet. Owns the stream lifecycle
-// (unmount stops every track); polls BarcodeDetector ~3×/s on the video and
-// fires onHit ONCE with the first raw code. Camera denial / detector failure
-// degrades to onFallback (the manual digits entry) — never a dead end.
-function BSBarcodeScan({ onHit, onFallback, teal }) {
-  const t = useBS();
-  const videoRef = React.useRef(null);
-  React.useEffect(() => {
-    let stream = null, timer = null, done = false;
-    let detector = null;
-    try {
-      detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf'] });
-    } catch (e) { onFallback(); return undefined; }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then((s) => {
-        if (done) { s.getTracks().forEach((track) => track.stop()); return; }
-        stream = s;
-        const v = videoRef.current;
-        if (v) { v.srcObject = s; const p = v.play && v.play(); if (p && p.catch) p.catch(() => {}); }
-        timer = setInterval(async () => {
-          const vid = videoRef.current;
-          if (done || !vid || vid.readyState < 2) return;
-          try {
-            const hits = await detector.detect(vid);
-            const code = hits && hits[0] && hits[0].rawValue;
-            if (code && !done) { done = true; clearInterval(timer); onHit(String(code)); }
-          } catch (e) { /* per-frame detect failures are normal — keep polling */ }
-        }, 350);
-      })
-      .catch(() => { if (!done) onFallback(); });
-    return () => { done = true; if (timer) clearInterval(timer); if (stream) stream.getTracks().forEach((track) => track.stop()); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return (
-    <div style={{ marginTop: 12, position: 'relative', borderRadius: t.RADIUS_SM, overflow: 'hidden', border: `1px solid ${t.RULE}`, background: '#000' }}>
-      <video ref={videoRef} muted playsInline style={{ display: 'block', width: '100%', height: 190, objectFit: 'cover' }} />
-      <div aria-hidden style={{ position: 'absolute', left: '10%', right: '10%', top: '50%', height: 2, background: teal, opacity: 0.85, boxShadow: `0 0 12px ${teal}` }} />
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(transparent, rgba(0,0,0,0.65))' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fff' }}>Point at the barcode</span>
-      </div>
-    </div>
-  );
-}
-
-// Full meal-logging flow — opened from the home "Up next" meal card's
-// "Log now" button. One-tap "ate as planned", or adjust portion / ingredients,
-// photo, or voice; writes to the day total and shows a logged confirmation.
-function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySoFar = null, dayTargets = null, signedIn = false }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  // mode tabs removed — Adjust is the always-visible register; photo/voice are
-  // dispatch disclosures; search folds into the ADD sheet.
-  const [portion, setPortion] = useStateBSC(1);
-  const [note, setNote] = useStateBSC('');
-  const [foodQuery, setFoodQuery] = useStateBSC('');
-  const [foodResults, setFoodResults] = useStateBSC(null);   // null = idle (no live query yet)
-  const [foodStatus, setFoodStatus] = useStateBSC('idle');   // idle | searching | done | error
-  const [foodRecents, setFoodRecents] = useStateBSC(null);   // null until loaded
-  // Barcode lookup (v2) — 'scan' opens the camera (BarcodeDetector), 'enter'
-  // the manual digits input (the honest fallback where the API is absent —
-  // iOS WebKit has no BarcodeDetector).
-  const [barcodeMode, setBarcodeMode] = useStateBSC(null);      // null | 'scan' | 'enter'
-  const [barcodeDigits, setBarcodeDigits] = useStateBSC('');
-  const [barcodeStatus, setBarcodeStatus] = useStateBSC('idle'); // idle | looking | invalid | notfound | error
-  const [logged, setLogged] = useStateBSC(false);
-  const [award, setAward] = useStateBSC(null);         // {awarded, points} | null — set after log resolves
-  // Share-by-choice (spec 2026-07-12), freehand-logger parity with
-  // BSMealLogged: per-meal, default off, never auto; only a real Supabase row
-  // counts as shared. This screen has no un-log, so there's no Undo coupling —
-  // a shared post stays owner-deletable from its feed card.
-  const [sharedPostId, setSharedPostId] = useStateBSC(null);
-  const [shareBusy, setShareBusy] = useStateBSC(false);
-  const [coach, setCoach] = useStateBSC(null);         // {name, role} | null — resolved linked nutritionist/coach
-  const [showAddFood, setShowAddFood] = useStateBSC(false);
-  const [photoOpen, setPhotoOpen] = useStateBSC(false); // dispatch disclosures
-  const [voiceOpen, setVoiceOpen] = useStateBSC(false);
-  const [ings, setIngs] = useStateBSC(() => {
-    // Seed from the REAL meal being logged when its macros are known; for a
-    // signed-in account with no macro breakdown, start empty (add what you ate)
-    // — never the demo plate. The demo ingredients are the signed-out preview.
-    if (meal && Number.isFinite(Number(meal.kcal))) {
-      // ⚠ `qty` STAYS ENGLISH ON PURPOSE — it is DATA in a column whose other values
-      // are never localized: the food provider fills it with '100 g' / '250 g' / its
-      // own '1 serving' (foodSearch.mjs, a pure module with no translator), so
-      // translating only our fallback makes ONE data column bilingual — the split
-      // this cut refused for the P/C/F macro letters. The NAME fallback does
-      // translate, because it stands in for the same missing meal.title the band
-      // heading shows, and the two must not disagree on one screen.
-      return [{ id: bsIngId(), name: meal.title || tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }), qty: '1 serving', kcal: Math.round(Number(meal.kcal) || 0), p: Math.round(Number(meal.p) || 0), c: Math.round(Number(meal.c) || 0), f: Math.round(Number(meal.f) || 0), on: true }];
-    }
-    if (signedIn) return [];
-    return [
-      { id: bsIngId(), name: 'Grilled chicken breast', qty: '6 oz',  kcal: 280, p: 52, c: 0,  f: 8,  on: true },
-      { id: bsIngId(), name: 'Jasmine rice',           qty: '1 cup', kcal: 205, p: 4,  c: 45, f: 0,  on: true },
-      { id: bsIngId(), name: 'Charred broccoli',       qty: '1 cup', kcal: 55,  p: 4,  c: 11, f: 0,  on: true },
-      { id: bsIngId(), name: 'Avocado',                qty: '½',     kcal: 120, p: 2,  c: 6,  f: 11, on: true },
-      { id: bsIngId(), name: 'Tahini sauce',           qty: '2 tbsp',kcal: 90,  p: 3,  c: 3,  f: 8,  on: true },
-    ];
-  });
-  const toggle = (i) => setIngs(arr => arr.map((x, j) => (j === i ? { ...x, on: !x.on } : x)));
-  // Frozen copy of the ingredients as the sheet opened — the baseline the dirty
-  // predicate compares against (toggle / edit / add / remove all diverge from it).
-  const initialIngsRef = React.useRef(null);
-  if (initialIngsRef.current === null) initialIngsRef.current = ings.map((x) => ({ ...x }));
-
-  // Real recents — loaded once per sheet open (signed-in only; the demo
-  // catalog stays the signed-out preview).
-  React.useEffect(() => {
-    if (!signedIn || !showAddFood || foodRecents !== null) return;
-    let on = true;
-    // A late load must never clobber a list an add already updated.
-    bsLoadFoodRecents().then((items) => { if (on) setFoodRecents((cur) => (cur === null ? items : cur)); });
-    return () => { on = false; };
-  }, [signedIn, showAddFood]);
-
-  // In-flight barcode lookup — aborted on sheet close and before a new lookup,
-  // so a late OFF response can never reopen a dismissed editor or land the
-  // PREVIOUS barcode's product over the one the member is entering now.
-  const barcodeCtlRef = React.useRef(null);
-  // Closing the add sheet always ends a scan (unmounts the camera), aborts an
-  // in-flight lookup, and clears the barcode state — a reopened sheet never
-  // resumes a stale lookup.
-  React.useEffect(() => {
-    if (!showAddFood) {
-      try { barcodeCtlRef.current?.abort(); } catch (e) {}
-      barcodeCtlRef.current = null;
-      setBarcodeMode(null); setBarcodeDigits(''); setBarcodeStatus('idle');
-    }
-  }, [showAddFood]);
-
-  // Persist an added food to real recents. Centralized so BOTH add paths (＋
-  // direct and via the prefilled editor) go through it, and so an add that
-  // races the initial recents load merges with the CLOUD list instead of
-  // clobbering it with a single item. Best-effort — never blocks the add.
-  const rememberFood = async (f) => {
-    try {
-      const base = foodRecents === null ? await bsLoadFoodRecents() : foodRecents;
-      const next = bsPushFoodRecent(base, f);
-      setFoodRecents(next);
-      await window.shapeDb?.saveUserGoals?.('food_recents', { items: next });
-    } catch (e) {}
-  };
-
-  // Live food search — debounced 350 ms, in-flight aborted, min 2 chars.
-  React.useEffect(() => {
-    if (!signedIn || !showAddFood) return;
-    const q = foodQuery.trim();
-    if (q.length < 2) { setFoodResults(null); setFoodStatus('idle'); return; }
-    // Clear immediately — the previous query's rows must not stay clickable
-    // through the debounce (a member could add a food that no longer matches
-    // what they typed).
-    setFoodResults(null);
-    setFoodStatus('searching');
-    const ctl = new AbortController();
-    const timer = setTimeout(() => {
-      window.ShapeFoodSearch?.search(q, { signal: ctl.signal })
-        .then((data) => {
-          if (ctl.signal.aborted) return;
-          setFoodResults(Array.isArray(data.results) ? data.results : []);
-          setFoodStatus(data.unavailable ? 'error' : 'done');
-        })
-        .catch(() => { if (ctl.signal.aborted) return; setFoodResults([]); setFoodStatus('error'); });
-    }, 350);
-    return () => { clearTimeout(timer); ctl.abort(); };
-  }, [foodQuery, signedIn, showAddFood]);
-  // Broadcast "cooking" presence while the meal logger is open (amber dot) — and,
-  // for a PLAN/RECIPE-sourced meal, the live cooking TITLE (spec 2026-07-19).
-  // Provenance is LIVE: pivoting to freehand mid-session actively clears the
-  // row (never waits for close); the audience re-resolves per push, and a
-  // settings change re-pushes immediately via shape:liveAudienceChanged.
-  React.useEffect(() => { bsSetMyActivity('cooking'); return () => bsSetMyActivity(null); }, []);
-  const cookPayload = React.useMemo(() => bsCookingPayload(meal), [meal]);
-  const cookPushedRef = React.useRef(null);              // last-pushed MEAL KEY — fresh=true when
-  React.useEffect(() => {                                // the key changes; a re-push of the SAME
-    if (!window.ShapeLiveProgress) return undefined;     // meal must never reset started_at
-    if (cookPayload) {
-      // The ref holds a meal KEY (id, else the payload title), not a boolean, so
-      // a DIRECT swap from one eligible meal to another (A → B with no
-      // ineligible gap between renders) still restamps started_at for B.
-      const mealKey = (meal && (meal.id != null ? String(meal.id) : null)) || cookPayload.title;
-      window.ShapeLiveProgress.push(cookPayload, cookPushedRef.current !== mealKey);
-      cookPushedRef.current = mealKey;
-    } else {
-      window.ShapeLiveProgress.clear();                  // ineligible → absence, NOW
-      cookPushedRef.current = null;                      // a NEW eligible meal restarts the clock
-    }
-    // Pass the audience the settings change already resolved straight through —
-    // never let this push re-read the (possibly not-yet-persisted) settings doc.
-    const rePush = (e) => {
-      if (!cookPayload) return;
-      const vis = e && e.detail ? e.detail.visibility : undefined;
-      window.ShapeLiveProgress.push(cookPayload, false, { visOverride: vis });
-    };
-    window.addEventListener('shape:liveAudienceChanged', rePush);
-    return () => {
-      window.removeEventListener('shape:liveAudienceChanged', rePush);
-      window.ShapeLiveProgress.clear();                  // logger close → absence
-    };
-  }, [cookPayload]);
-
-  // Resolve the member's linked coach for the dispatch register — prefer the
-  // nutritionist thread, else any linked coach. No thread → coach stays null and
-  // the whole dispatch register hides (the meal-note endpoint no-ops anyway).
-  React.useEffect(() => {
-    if (!signedIn || !window.ShapeMessages?.listDirectCoachThreads) return;
-    let alive = true;
-    window.ShapeMessages.listDirectCoachThreads().then((res) => {
-      // A member's own coaches only: an account that also coaches gets its clients' threads back
-      // too (as_coach), and none of them is this member's coach.
-      const list = (Array.isArray(res) ? res : (res && res.data) || []).filter((c) => !c.as_coach);
-      if (!alive || !list.length) return;
-      const nutri = list.find((c) => c.provider_role === 'nutritionist');
-      const co = nutri || list[0];
-      const nm = co.who || co.name || co.full_name;
-      if (!nm) return;
-      setCoach({ name: nm, role: co.provider_role === 'nutritionist' ? 'nutritionist' : 'trainer' });
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [signedIn]);
-
-  // Voice note for the coach — either dictate (speech → text appended to the
-  // note) or record an audio memo that rides along with the log. Web
-  // MediaRecorder; transcription via /api/nutrition/voice. (Native mic plugin
-  // is a follow-up.)
-  const [voiceCapture, setVoiceCapture] = useStateBSC('text'); // 'text' (dictate) | 'audio' (memo)
-  const [voiceState, setVoiceState] = useStateBSC('idle');     // 'idle' | 'recording' | 'processing'
-  const [voiceError, setVoiceError] = useStateBSC('');
-  const [voiceSecs, setVoiceSecs] = useStateBSC(0);
-  const [voiceMemo, setVoiceMemo] = useStateBSC(null);         // { url, secs } recorded audio memo
-  const voiceRef = React.useRef({ rec: null, chunks: [], stream: null, timer: null, secs: 0 });
-  const fmtSecs = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const cleanupVoice = () => {
-    const v = voiceRef.current;
-    if (v.timer) { clearInterval(v.timer); v.timer = null; }
-    try { v.stream && v.stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
-    v.stream = null; v.rec = null; v.chunks = [];
-  };
-  React.useEffect(() => () => cleanupVoice(), []);
-  const removeMemo = () => { setVoiceMemo(m => { try { if (m && m.url) URL.revokeObjectURL(m.url); } catch (e) {} return null; }); };
-  const dictate = async (blob) => {
-    setVoiceState('processing');
-    try {
-      // Through the backend client (apiBaseUrl + Bearer): a root-relative
-      // fetch never reaches the backend on the NATIVE build (no same origin,
-      // no cookie). The app's locale and the meal vocabulary ride along.
-      const stt = window.ShapeSupport && window.ShapeSupport.transcribeNote;
-      if (!stt) { setVoiceError(tr('nutrition:log.errVoiceUnavailable', { defaultValue: 'Voice notes unavailable' })); return; }
-      const r = await stt(blob, { filename: 'note.webm', context: 'meal', language: window.ShapeLocale?.get?.() });
-      if (!r.ok) { setVoiceError(r.error || tr('nutrition:log.errTranscribe', { defaultValue: 'Could not transcribe' })); return; }
-      const text = String(r.transcript || '').trim();
-      if (text) { setNote(n => (n && n.trim() ? `${n.trim()} ${text}` : text)); window.__bsToast?.(tr('nutrition:log.toastAddedToNote', { defaultValue: 'Added to your note' }), 'ok'); }
-      else setVoiceError(tr('nutrition:log.errNoCatch', { defaultValue: 'Didn’t catch that — try again' }));
-    } catch (e) {
-      setVoiceError(tr('nutrition:log.errVoiceUnavailable', { defaultValue: 'Voice notes unavailable' }));
-    } finally {
-      setVoiceState('idle');
-    }
-  };
-  const startVoice = async () => {
-    setVoiceError('');
-    if (!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined')) {
-      setVoiceError(tr('nutrition:log.errVoiceUnsupported', { defaultValue: 'Voice input isn’t supported here yet' })); return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      const v = voiceRef.current;
-      v.stream = stream; v.rec = rec; v.chunks = []; v.secs = 0;
-      const captureAtStart = voiceCapture;
-      rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
-      rec.onstop = () => {
-        const secs = v.secs;
-        const blob = new Blob(v.chunks, { type: rec.mimeType || 'audio/webm' });
-        cleanupVoice();
-        if (!(blob.size > 0)) { setVoiceState('idle'); return; }
-        if (captureAtStart === 'audio') {
-          setVoiceMemo(m => { try { if (m && m.url) URL.revokeObjectURL(m.url); } catch (e) {} return { url: URL.createObjectURL(blob), secs, blob }; });
-          window.__bsToast?.(tr('nutrition:log.toastMemoAttached', { defaultValue: 'Voice memo attached' }), 'ok');
-          setVoiceState('idle');
-        } else {
-          dictate(blob);
-        }
-      };
-      rec.start();
-      setVoiceSecs(0);
-      setVoiceState('recording');
-      v.timer = setInterval(() => { v.secs += 1; setVoiceSecs(v.secs); }, 1000);
-    } catch (e) {
-      setVoiceError(tr('nutrition:log.errMicDenied', { defaultValue: 'Microphone access denied' })); cleanupVoice(); setVoiceState('idle');
-    }
-  };
-  const stopVoice = () => {
-    const v = voiceRef.current;
-    if (v.timer) { clearInterval(v.timer); v.timer = null; }
-    try { if (v.rec && v.rec.state !== 'inactive') v.rec.stop(); else { cleanupVoice(); setVoiceState('idle'); } }
-    catch (e) { cleanupVoice(); setVoiceState('idle'); }
-  };
-  const toggleVoice = () => { if (voiceState === 'recording') stopVoice(); else if (voiceState === 'idle') startVoice(); };
-
-  // Meal photo for the coach — capture (camera) or pick from the library. The
-  // image rides along with the log to the coach via /api/nutrition/meal-note.
-  // No on-device macro reading yet — Maya reviews the plate.
-  const [photo, setPhoto] = useStateBSC(null); // { url, blob }
-  const photoCamRef = React.useRef(null);
-  const photoLibRef = React.useRef(null);
-  const onPhotoPick = (e) => {
-    const file = e.target.files && e.target.files[0];
-    e.target.value = ''; // let the user re-pick the same file later
-    if (!file) return;
-    if (!/^image\//.test(file.type || '')) { window.__bsToast?.(tr('nutrition:log.toastPickImage', { defaultValue: 'Pick an image' }), 'err'); return; }
-    setPhoto(p => { try { if (p && p.url) URL.revokeObjectURL(p.url); } catch (err) {} return { url: URL.createObjectURL(file), blob: file }; });
-    window.__bsToast?.(tr('nutrition:log.toastPhotoAttached', { defaultValue: 'Photo attached' }), 'ok');
-  };
-  const removePhoto = () => setPhoto(p => { try { if (p && p.url) URL.revokeObjectURL(p.url); } catch (err) {} return null; });
-
-  // Edit / add an ingredient via a bottom sheet. editIng.index === null = new.
-  const [editIng, setEditIng] = useStateBSC(null);
-  const openEditIng = (i) => { const x = ings[i]; setEditIng({ index: i, name: x.name, qty: x.qty || '', kcal: x.kcal, p: x.p, c: x.c, f: x.f }); };
-  const openAddIng = () => setEditIng({ index: null, name: '', qty: '', kcal: '', p: '', c: '', f: '' });
-  const setEditIngField = (k, v) => setEditIng(e => (e ? { ...e, [k]: v } : e));
-  const saveEditIng = () => {
-    if (!editIng) return;
-    const name = String(editIng.name || '').trim();
-    if (!name) { window.__bsToast?.(tr('nutrition:log.toastAddName', { defaultValue: 'Add a name' }), 'err'); return; }
-    const item = {
-      name, qty: String(editIng.qty || '').trim() || '1 serving',
-      kcal: Math.max(0, Math.round(Number(editIng.kcal) || 0)), p: Math.max(0, Math.round(Number(editIng.p) || 0)),
-      c: Math.max(0, Math.round(Number(editIng.c) || 0)), f: Math.max(0, Math.round(Number(editIng.f) || 0)),
-    };
-    if (editIng.index == null) {
-      setIngs(arr => [...arr, { ...item, id: bsIngId(), on: true }]);
-      window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name }), 'ok');
-      // A search result added via the prefilled editor is still an add —
-      // recents replay what was added (with any portion edits made here).
-      if (editIng.fromSearch && signedIn) rememberFood(item);
-    }
-    else { const idx = editIng.index; setIngs(arr => arr.map((x, j) => (j === idx ? { ...x, ...item } : x))); window.__bsToast?.(tr('nutrition:log.toastIngUpdated', { defaultValue: 'Ingredient updated' }), 'ok'); }
-    setEditIng(null);
-  };
-  const deleteEditIng = () => {
-    if (editIng && editIng.index != null) { const idx = editIng.index; setIngs(arr => arr.filter((_, j) => j !== idx)); window.__bsToast?.(tr('nutrition:log.toastRemoved', { defaultValue: 'Removed' }), 'ok'); }
-    setEditIng(null);
-  };
-
-  const sum = (k) => ings.reduce((a, x) => a + (x.on ? x[k] : 0), 0);
-  const kcal = Math.round(sum('kcal') * portion);
-  const P = Math.round(sum('p') * portion);
-  const C = Math.round(sum('c') * portion);
-  const F = Math.round(sum('f') * portion);
-  // Day targets: real member targets when signed in (passed from the home ticker);
-  // the demo goals are only the signed-out preview. null target → render "/ —".
-  const CAL_GOAL = signedIn ? ((dayTargets && Number.isFinite(Number(dayTargets.cal))) ? Math.round(Number(dayTargets.cal)) : null) : 2100;
-  const P_GOAL   = signedIn ? ((dayTargets && Number.isFinite(Number(dayTargets.protein))) ? Math.round(Number(dayTargets.protein)) : null) : 165;
-  const DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
-  const hasPlanned = !!(meal && Number.isFinite(Number(meal.kcal)));
-  const dirty = bsMealDirty(portion, ings, initialIngsRef.current);
-  const ctaLabel = bsMealCtaLabel({ dirty, portion, kcal, hasPlanned }, { tr });
-  const resetToPlan = () => { setPortion(1); setIngs(initialIngsRef.current.map((x) => ({ ...x }))); };
-  const coachName = coach ? coach.name : (signedIn ? null : 'Dr. Maya');
-  const coachAccent = t.isLight ? '#a07a2e' : '#d8b25a';
-  // Real "day so far" for a signed-in account (today's snapshot, passed in); the
-  // demo base is only for the signed-out preview. Title/eyebrow/planned/time all
-  // reflect the actual meal being logged — never a hardcoded sample.
-  const dayBaseCal = signedIn ? Math.max(0, Math.round(Number(daySoFar && daySoFar.cal) || 0)) : DAY_BASE_CAL;
-  const dayBaseP = signedIn ? Math.max(0, Math.round(Number(daySoFar && daySoFar.protein) || 0)) : DAY_BASE_P;
-  const dayCal = dayBaseCal + kcal;
-  const dayP = dayBaseP + P;
-  const mealTitle = (meal && meal.title) || (signedIn ? tr('nutrition:log.mealFallback', { defaultValue: 'Meal' }) : tr('nutrition:log.mealDemoTitle', { defaultValue: 'Chicken bowl + rice' }));
-  const logTime = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  // The demo line runs through the SAME template as a real planned meal — a
-  // numbers-only key would be a second sentence for a translator to keep in step
-  // with the first, for a preview that is otherwise identical.
-  const plannedTpl = (k, p, c, f) => tr('nutrition:log.planned', { defaultValue: '{kcal} planned · {p}P · {c}C · {f}F', kcal: k, p, c, f });
-  const plannedLine = (meal && Number.isFinite(Number(meal.kcal)))
-    ? plannedTpl(Math.round(Number(meal.kcal)), Math.round(Number(meal.p) || 0), Math.round(Number(meal.c) || 0), Math.round(Number(meal.f) || 0))
-    : (signedIn ? tr('nutrition:log.addWhatYouAte', { defaultValue: 'Add what you ate to log it' }) : plannedTpl(620, 48, 72, 14));
-  const mealEyebrow = (meal && meal.tag)
-    ? tr('nutrition:log.eyebrowPlanned', { defaultValue: '{tag} · Planned', tag: meal.tag })
-    : (signedIn ? tr('nutrition:log.eyebrowFree', { defaultValue: 'Log a meal' }) : tr('nutrition:log.eyebrowDemo', { defaultValue: 'Lunch · Planned' }));
-  // On log, deliver the written note + any voice memo to the client's
-  // nutritionist (best-effort; the endpoint resolves the coach and no-ops when
-  // there's nothing to send or no coach linked).
-  const sendMealNote = () => {
-    const hasNote = !!(note && note.trim());
-    const hasMemo = !!(voiceMemo && voiceMemo.blob);
-    const hasPhoto = !!(photo && photo.blob);
-    if (!hasNote && !hasMemo && !hasPhoto) return;
-    try {
-      const fd = new FormData();
-      if (hasNote) fd.append('note', note.trim());
-      fd.append('mealTitle', mealTitle);
-      fd.append('mealSummary', `${kcal} kcal · ${P}P · ${C}C · ${F}F`);
-      if (hasMemo) fd.append('audio', voiceMemo.blob, 'memo.webm');
-      if (hasPhoto) fd.append('photo', photo.blob, photo.blob.name || 'meal.jpg');
-      // ⚠ SAY SO WHEN IT DOESN'T ARRIVE. This only ever toasted on success, so a
-      // failed dispatch was indistinguishable from having no coach — which is how
-      // a missing server function went unnoticed (2026-08-05 schema-drift audit).
-      // Having no coach stays quiet; a real delivery failure does not.
-      //
-      // ⚠ THIS DOES NOT USE window.__bsToast, AND THAT IS THE WHOLE POINT. That
-      // global is `() => {}` (iosAppBroadsheet.jsx — toasts were switched off
-      // app-wide on 2026-06-03, #938), so the first version of this fix reported
-      // every failure into a void: the route told the truth, the client branched on
-      // it correctly, and the member still saw nothing. A confirm-sheet notice is
-      // the mechanism proven to render — BSConfirmHost is mounted in both phone
-      // branches, and bsAskConfirm falls back to the platform `confirm` when the
-      // host has not mounted, so this cannot degrade back into silence.
-      const noteNotice = (title, message) => {
-        try {
-          const ask = window.bsAskConfirm;
-          if (typeof ask === 'function') {
-            // Fire-and-forget: nothing branches on the acknowledgement. The
-            // catch is not decoration — bsAskConfirm resolves through a Promise
-            // whose executor calls setState, so a throw there would surface as
-            // an unhandled rejection from a path whose whole job is to report a
-            // failure quietly.
-            Promise.resolve(ask({ notice: true, eyebrow: tr('feed:thread.yourCoach', { defaultValue: 'Your coach' }), title, message, confirmLabel: tr('nutrition:log.noticeOk', { defaultValue: 'Got it' }) })).catch(() => {});
-            return;
-          }
-        } catch (e) {}
-        try { window.__bsToast?.(title, 'warn'); } catch (e2) {}
-      };
-      // ⚠ THIS NOTICE SPEAKS ONLY FOR THE NOTE. It must never claim the meal log was
-      // saved, and must never claim it wasn't. The sentence here first read "Your meal
-      // log is saved — only the note didn't send", which is exactly backwards in the
-      // state that reaches it most: doLog() fires this dispatch and the macro write as
-      // two independent unawaited requests, and `logMealMacros` resolves to null on
-      // EVERY failure with no queue and no retry (shapeBackend.js:4979-5005) — so one
-      // offline moment, or one 402 from the requireMembership gate BOTH routes sit
-      // behind, takes down both legs and the notice asserted the one thing that had
-      // not happened. Worse, the assertion was worded to stop the member re-logging.
-      //
-      // ⚠ AND DO NOT "FIX" IT BY WARNING THAT THE LOG FAILED — three reasons, each
-      // load-bearing. (1) A null from ShapeMealLog.log means "failed" OR "never
-      // attempted": it returns null BEFORE issuing a request when signed out
-      // (shapeBackend.js:4980) and the global may be absent outright, so a warning
-      // keyed on it fires on the signed-out preview, which reaches this path — the
-      // same never-attempted class as the no_coach branch below. (2) Awaiting the log
-      // promise to find out is worse: its fetch carries no AbortController and no
-      // timeout, so a hung socket would leave this notice unrendered, which is the
-      // void-reporting bug the whole notice exists to end. (3) add_meal_macros is an
-      // ACCUMULATING upsert with no idempotency key (2026-06-29-atomic-daily-snapshot-
-      // accumulators.sql), so copy that nudges a re-log permanently double-counts the
-      // day. Report the note; stay silent on what this path cannot observe.
-      const noteFailed = () => noteNotice(
-        tr('nutrition:log.noteFailedTitle', { defaultValue: 'We couldn’t reach your coach' }),
-        tr('nutrition:log.noteFailedBody', { defaultValue: 'Your note didn’t send. Try again from your chat, or send it to them directly.' }),
-      );
-      bsApi.fetch('/api/nutrition/meal-note', { method: 'POST', body: fd, credentials: 'same-origin' })
-        .then(r => r.json().catch(() => ({})))
-        .then(d => {
-          if (!d) { noteFailed(); return; }
-          if (d.delivered) {
-            // ⚠ DELIVERED IS NOT THE SAME AS COMPLETE, AND IT IS NOT THE SAME AS
-            // COMPLETE FOR EVERY COACH. The memo/photo upload is best-effort
-            // server-side (a failed one still sends the message, body reading
-            // "recorded"/"added" instead of "attached"), and a member with two
-            // coaches can have one leg land while the other fails. Those are
-            // independent, so they are reported TOGETHER — an earlier version
-            // returned inside the attachment case and swallowed failedCount, so a
-            // member whose note reached one of two coaches was told about their
-            // photo and nothing about the coach who never got it.
-            const lostMemo = hasMemo && !d.audioAttached;
-            const lostPhoto = hasPhoto && !d.photoAttached;
-            const partial = Number(d.failedCount) > 0;
-            if (lostMemo || lostPhoto || partial) {
-              // Each clause is a WHOLE sentence fragment, and the two-slot joiner is
-              // its own key — an English " and " between translated halves would read
-              // as a bug in every locale that joins lists differently.
-              const attach = lostMemo && lostPhoto ? tr('nutrition:log.partialBoth', { defaultValue: 'the voice memo and photo didn’t upload' })
-                : lostMemo ? tr('nutrition:log.partialMemo', { defaultValue: 'the voice memo didn’t upload' })
-                : lostPhoto ? tr('nutrition:log.partialPhoto', { defaultValue: 'the photo didn’t upload' })
-                : '';
-              const some = partial ? tr('nutrition:log.partialSomeCoaches', { defaultValue: 'it only reached some of your coaches' }) : '';
-              const bits = [some, attach].filter(Boolean);
-              // Same rule as noteFailed above — the second instance of the claim, which
-              // the review did not name. Patching only the other one leaves it standing.
-              const what = bits.length > 1 ? tr('nutrition:log.partialAnd', { defaultValue: '{a} and {b}', a: bits[0], b: bits[1] }) : bits[0];
-              noteNotice(
-                tr('nutrition:log.notePartialTitle', { defaultValue: 'Your note sent — partly' }),
-                tr('nutrition:log.notePartialBody', { defaultValue: 'Your note went out, but {what}.', what }),
-              );
-              return;
-            }
-            // Fully delivered stays SILENT. A success popup is exactly the noise
-            // #938 removed, and the member already sees the meal on their log.
-            return;
-          }
-          if (d.reason === 'no_coach') return;
-          noteFailed();
-        })
-        .catch(() => { noteFailed(); });
-    } catch (e) {}
-  };
-  const doLog = () => {
-    sendMealNote();
-    // Persist the logged macros onto today's health snapshot so the Nutrition
-    // stats (today vs target, adherence) reflect real logging — server-side
-    // accumulating write; no-ops when signed out. The +10 Shape Score award
-    // ({awarded, points}) rides back on the resolved value; show it only when
-    // actually granted (first meal-log of the day), never on an already-earned day.
-    // The write rides to onLogged, so a screen showing the day's food can read it again once it lands
-    // (Home's Team fuel, Codex P2 on #2583).
-    let write = null;
-    try {
-      const r = window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F });
-      if (r && typeof r.then === 'function') {
-        write = r;
-        r.then((d) => (d && d.awardPromise) || null)
-         .then((a) => { if (a && a.awarded) setAward(a); })
-         .catch(() => {});
-      }
-    } catch (e) {}
-    onLogged(write);
-    setLogged(true);
-  };
-  const primaryBtn = { width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' };
-
-  // (DayTotals dissolved with THE TALLY station — the band carries the day
-  // readout now, honest `—` when targets are unknown, same derivations.)
-
-  const LedgerHead = ({ label, accent = teal, extra = null }) => (
-    <div style={{ padding: `16px ${t.padX}px 0` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK }}>{label}</span>
-        {extra}
-      </div>
-      <div style={{ marginTop: 4, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${accent})` }} />
-    </div>
-  );
-
-  if (logged) {
-    const calFrac = CAL_GOAL ? Math.max(0, Math.min(1, dayCal / CAL_GOAL)) : null;
-    return (
-      <BSPage mast={false}>
-        {/* THE BAND — the filed stamp (Cockpit/Split spec 2026-07-14). Fixed
-            #0b0f0f on every paper; the paper below the teal seam carries the
-            actions. Same instrument literals as the live session's band. */}
-        <div style={{ position: 'relative', background: '#0b0f0f', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 18px`, overflow: 'hidden' }}>
-          <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
-          {/* The masthead row and the back row every page has, in the band's cream. */}
-          {window.BSMastRow && <window.BSMastRow trailing={null} ink="#f4ede0" style={{ position: 'relative' }} />}
-          <BSBackRow onBack={onClose} ink="#f4ede0" style={{ position: 'relative' }}
-            trailing={<span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.filed', { defaultValue: 'Meal · Filed {time}', time: logTime })}</span>} />
-          <div style={{ position: 'relative', textAlign: 'center', marginTop: 30 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{kcal}</div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('nutrition:log.kcalLogged', { defaultValue: 'Kcal · {p}P · Logged ✓', p: P })}</div>
-            {award && award.awarded && (
-              <div style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 5, border: '1px solid rgba(56,224,204,0.5)', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#38e0cc', animation: 'bsAwardIn 180ms ease-out' }}>
-                {tr('nutrition:log.award', { defaultValue: '+{pts} · Nutrition · Shape Score', pts: award.points != null ? award.points : 10 })}
-              </div>
-            )}
-            <style>{`@keyframes bsAwardIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } } @media (prefers-reduced-motion: reduce) { [style*="bsAwardIn"] { animation: none !important; } }`}</style>
-          </div>
-          <div style={{ position: 'relative', marginTop: 24, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)' }}>{tr('nutrition:log.daySoFar', { defaultValue: 'Day so far' })}</div>
-            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(56,224,204,0.35)' }}>{dayCal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'} KCAL</span></span>
-              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#e8a13c', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(232,161,60,0.3)' }}>{dayP}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {P_GOAL != null ? P_GOAL : '—'} P</span></span>
-            </div>
-            {calFrac != null && (
-              <div aria-hidden style={{ marginTop: 11, display: 'flex', gap: 4 }}>
-                {Array.from({ length: 10 }).map((_, i) => (
-                  <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: (i + 0.5) / 10 <= calFrac ? '#38e0cc' : 'rgba(244,237,224,0.14)', boxShadow: (i + 0.5) / 10 <= calFrac ? '0 0 8px rgba(56,224,204,0.5)' : 'none' }} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        {/* The seam — the ONE band/paper boundary */}
-        <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
-        <div style={{ padding: `22px ${t.padX}px 8px` }}>
-          <button onClick={onClose} style={{ ...primaryBtn, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>{tr('nutrition:log.done', { defaultValue: 'Done →' })}</button>
-        </div>
-        {signedIn && typeof window !== 'undefined' && window.ShapeCommunity?.createPost && (
-          <div style={{ textAlign: 'center', paddingBottom: 4 }}>
-            {sharedPostId ? (
-              <div style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>{tr('nutrition:log.onTheWire', { defaultValue: '✓ On the wire · Community' })}</div>
-            ) : (
-              <button
-                disabled={shareBusy}
-                onClick={async () => {
-                  if (sharedPostId || shareBusy) return;
-                  setShareBusy(true);
-                  try {
-                    // The plate, not the ledger: this meal's post-portion macros
-                    // only. planned = a plan meal logged untouched; attribution
-                    // only when the meal really came from the plan/catalogue.
-                    const res = await window.ShapeCommunity.createPost(bsMealSharePayload({
-                      name: mealTitle, kcal, p: P, c: C, f: F, portion,
-                      planned: hasPlanned && !dirty,
-                      recipeId: (meal && meal.recipeId) || '',
-                      // Attribution comes from the meal's OWN plan coach (stamped
-                      // by bsHomeLiveWeek from /api/client/plan), never the
-                      // DM-thread `coach` state — that resolver can name a
-                      // different person or still be in flight (review P2).
-                      coach: (hasPlanned && meal && meal.coach) || '',
-                    }));
-                    if (res && res.stored === 'supabase' && res.data && res.data.id) {
-                      setSharedPostId(res.data.id);
-                      window.__bsToast?.(tr('nutrition:log.toastOnWire', { defaultValue: 'On the wire → Community' }), 'ok');
-                    } else {
-                      window.__bsToast?.(tr('nutrition:log.toastPostFailed', { defaultValue: 'Could not post — try again.' }), 'err');
-                    }
-                  } catch (e) {
-                    window.__bsToast?.(tr('nutrition:log.toastPostFailed', { defaultValue: 'Could not post — try again.' }), 'err');
-                  }
-                  setShareBusy(false);
-                }}
-                style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: shareBusy ? t.INK50 : teal }}
-              >{shareBusy ? tr('nutrition:log.posting', { defaultValue: 'Posting…' }) : tr('nutrition:log.postToWire', { defaultValue: 'Post to the wire →' })}</button>
-            )}
-          </div>
-        )}
-      </BSPage>
-    );
-  }
-
-  return (
-    <BSPage mast={false}>
-      {/* ═══ THE BAND — the one-tap + the live tally (Cockpit/Split spec,
-          2026-07-14). Fixed #0b0f0f on every paper; CORRECT THE RECORD +
-          DISPATCH stay paper below the teal seam. THE TALLY station
-          dissolved — the band IS the tally now. */}
-      <div style={{ position: 'relative', background: '#0b0f0f', padding: `62px ${t.padX}px 16px`, overflow: 'hidden' }}>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', padding: 0, minHeight: 44, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('nutrition:log.cancel', { defaultValue: '× Cancel' })}</button>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>{tr('nutrition:log.title', { defaultValue: 'Log meal' })}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(244,237,224,0.55)' }}>{logTime}</span>
-        </div>
-        <div style={{ position: 'relative', marginTop: 16 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{mealEyebrow}</div>
-          <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: '#f4ede0', lineHeight: 1.05 }}>{mealTitle}</div>
-          <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)', fontWeight: 700 }}>{plannedLine}</div>
-        </div>
-        {/* Pristine planned meal → the glowing one-tap. Adjusted → the reset
-            line. Free log → neither (unchanged gating). */}
-        {hasPlanned && !dirty && (
-          <button onClick={doLog} style={{ position: 'relative', width: '100%', marginTop: 14, textAlign: 'left', border: '1.5px solid #38e0cc', borderRadius: 8, background: 'rgba(56,224,204,0.08)', boxShadow: '0 0 18px rgba(56,224,204,0.18)', padding: '13px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('nutrition:log.oneTap', { defaultValue: 'One tap' })}</span>
-              <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 15, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#38e0cc', textShadow: '0 0 12px rgba(56,224,204,0.4)' }}>{tr('nutrition:log.ateAsPlanned', { defaultValue: 'Ate it as planned' })}</span>
-            </span>
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#38e0cc', flexShrink: 0 }}>✓</span>
-          </button>
-        )}
-        {hasPlanned && dirty && (
-          <button onClick={resetToPlan} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 14, textAlign: 'left', padding: '10px 12px', borderRadius: 5, border: '1px solid rgba(244,237,224,0.25)', background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.7)' }}>
-            <span aria-hidden style={{ fontSize: 13, color: '#38e0cc' }}>↺</span>
-            <span>{tr('nutrition:log.resetToPlan', { defaultValue: 'Adjusted — reset to plan' })}</span>
-          </button>
-        )}
-        {/* The live tally — THIS MEAL + the day, glowing (updates as the
-            record below is corrected) */}
-        <div style={{ position: 'relative', marginTop: 16, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 11, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 22, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(56,224,204,0.4)' }}>{kcal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> {tr('nutrition:log.kcalUnit', { defaultValue: 'KCAL' })}</span></span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>{P}P · {C}C · {F}F</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', color: 'rgba(244,237,224,0.55)', fontVariantNumeric: 'tabular-nums' }}>{tr('nutrition:log.dayLabel', { defaultValue: 'DAY' })} {dayCal}<span style={{ color: 'rgba(244,237,224,0.35)' }}> / {CAL_GOAL != null ? CAL_GOAL : '—'}</span></span>
-        </div>
-      </div>
-      {/* The seam — the ONE band/paper boundary */}
-      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
-
-      {/* REGISTER 1 — Correct the record */}
-      <LedgerHead label={tr('nutrition:log.correctRecord', { defaultValue: 'Correct the record' })} />
-      <div style={{ padding: `12px ${t.padX}px 4px` }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.portion', { defaultValue: 'Portion' })}</span>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, color: teal, fontVariantNumeric: 'tabular-nums' }}>{portion.toFixed(2)} <span style={{ fontSize: 13, color: t.INK50 }}>×</span></span>
-        </div>
-        <input type="range" min={0.25} max={2} step={0.25} value={portion} onChange={(e) => setPortion(parseFloat(e.target.value))} style={{ width: '100%', marginTop: 10, accentColor: teal, cursor: 'pointer' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', color: t.INK50, marginTop: 2 }}>
-          <span>¼</span><span>½</span><span>1×</span><span>1½</span><span>2×</span>
-        </div>
-
-        <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.ingredients', { defaultValue: 'Ingredients · tap to toggle' })}</div>
-        <div style={{ marginTop: 4 }}>
-          {ings.map((x, i) => (
-            <div key={x.id || x.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === ings.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-              <button onClick={() => toggle(i)} aria-pressed={x.on} aria-label={x.on ? tr('nutrition:log.excludeAria', { defaultValue: 'Exclude {name}', name: x.name }) : tr('nutrition:log.includeAria', { defaultValue: 'Include {name}', name: x.name })} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 4, border: `1px solid ${x.on ? teal : t.RULE}`, background: x.on ? teal : 'transparent', color: '#04201d', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>{x.on ? '✓' : ''}</button>
-              <div style={{ flex: 1, minWidth: 0, opacity: x.on ? 1 : 0.4 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{x.name}</div>
-                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.foodMeta', { defaultValue: '{qty} · {kcal} kcal · {p}P', qty: x.qty, kcal: Math.round(x.kcal * portion), p: Math.round(x.p * portion) })}</div>
-              </div>
-              <button onClick={() => openEditIng(i)} style={{ flexShrink: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>{tr('nutrition:log.edit', { defaultValue: 'Edit' })}</button>
-            </div>
-          ))}
-        </div>
-        <button onClick={() => setShowAddFood(true)} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: t.RADIUS_SM, border: `1px dashed ${t.RULE}`, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.addFoodCta', { defaultValue: '＋ Add — search foods or enter manually' })}</button>
-      </div>
-
-      {/* REGISTER 2 — Dispatch to coach (hidden when signed in with no linked coach) */}
-      {(coach || !signedIn) && (
-        <>
-          <LedgerHead label={tr('nutrition:log.dispatchTo', { defaultValue: 'Dispatch to {coach}', coach: coachName })} accent={coachAccent} extra={<span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.optional', { defaultValue: 'Optional' })}</span>} />
-          <div style={{ padding: `10px ${t.padX}px 4px` }}>
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={tr('nutrition:log.notePlaceholder', { defaultValue: 'Felt a bit hungry still · swapped rice for sweet potato…' })} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 0 9px', border: 0, borderBottom: `2px solid ${bsTHexA(t.INK, 0.28)}`, borderRadius: 0, background: 'transparent', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, fontStyle: 'italic', outline: 'none', resize: 'vertical' }} />
-            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              {[['photo', tr('nutrition:log.photoTab', { defaultValue: '⊡ Photo' }), photoOpen, () => { setPhotoOpen((v) => !v); setVoiceOpen(false); }, !!photo],
-                ['voice', tr('nutrition:log.voiceTab', { defaultValue: '● Voice' }), voiceOpen, () => { setVoiceOpen((v) => !v); setPhotoOpen(false); }, !!voiceMemo]].map(([k, label, open, onTap, attached]) => (
-                <button key={k} onClick={onTap} aria-pressed={open} style={{ flex: 1, minHeight: 44, padding: '10px 8px', borderRadius: t.RADIUS_SM, cursor: 'pointer', border: `1px solid ${open || attached ? coachAccent : t.RULE}`, background: open ? `${coachAccent}14` : 'transparent', color: open || attached ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                  {label}{attached ? ' ✓' : ''}
-                </button>
-              ))}
-            </div>
-
-            {photoOpen && (
-              <div style={{ marginTop: 10 }}>
-                <input ref={photoCamRef} type="file" accept="image/*" capture="environment" onChange={onPhotoPick} style={{ display: 'none' }} />
-                <input ref={photoLibRef} type="file" accept="image/*" onChange={onPhotoPick} style={{ display: 'none' }} />
-                {photo ? (
-                  <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, overflow: 'hidden', position: 'relative' }}>
-                    <img src={photo.url} alt={tr('nutrition:log.yourMealAlt', { defaultValue: 'Your meal' })} style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'cover' }} />
-                    <button onClick={removePhoto} aria-label={tr('nutrition:log.removePhoto', { defaultValue: 'Remove photo' })} style={{ position: 'absolute', top: 10, right: 10, width: 30, height: 30, borderRadius: 999, border: 0, background: 'rgba(0,0,0,0.55)', color: '#fff', cursor: 'pointer', fontSize: 16, fontWeight: 700, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 12px 8px', background: 'linear-gradient(transparent, rgba(0,0,0,0.62))', color: '#fff', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700 }}>{tr('nutrition:log.sendsTo', { defaultValue: 'Sends to {coach} when you log', coach: coachName })}</div>
-                  </div>
-                ) : (
-                  <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '34px 16px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 30 }}>⊡</div>
-                    <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('nutrition:log.snapOrUpload', { defaultValue: 'Snap or upload' })}</div>
-                    <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('nutrition:log.reviewsPlate', { defaultValue: '{coach} reviews your plate', coach: coachName })}</div>
-                  </div>
-                )}
-                <div style={{ marginTop: 12, display: 'flex', gap: 10 }}>
-                  <button onClick={() => photoCamRef.current && photoCamRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#04201d', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{photo ? tr('nutrition:log.retake', { defaultValue: 'Retake' }) : tr('nutrition:log.takePhoto', { defaultValue: 'Take photo' })}</button>
-                  <button onClick={() => photoLibRef.current && photoLibRef.current.click()} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.upload', { defaultValue: 'Upload' })}</button>
-                </div>
-              </div>
-            )}
-
-            {voiceOpen && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-                  {[['text', tr('nutrition:log.voiceToText', { defaultValue: 'Voice to text' })], ['audio', tr('nutrition:log.voiceRecord', { defaultValue: 'Voice record' })]].map(([k, l]) => {
-                    const on = voiceCapture === k;
-                    return (
-                      <button key={k} onClick={() => { if (voiceState !== 'idle') return; setVoiceCapture(k); setVoiceError(''); }} aria-pressed={on} style={{
-                        flex: 1, padding: '9px 8px', borderRadius: t.RADIUS_SM, cursor: 'pointer',
-                        border: `1px solid ${on ? teal : t.RULE}`, background: on ? `${teal}14` : 'transparent',
-                        color: on ? t.INK : t.INK50, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                      }}>{l}</button>
-                    );
-                  })}
-                </div>
-                <div style={{ borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '24px 16px', textAlign: 'center' }}>
-                  {voiceCapture === 'audio' && voiceMemo && voiceState !== 'recording' ? (
-                    <div>
-                      <audio src={voiceMemo.url} controls style={{ width: '100%' }} />
-                      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{tr('nutrition:log.memo', { defaultValue: 'Memo · {len}', len: fmtSecs(voiceMemo.secs) })}</span>
-                        <button onClick={removeMemo} style={{ background: 'transparent', border: 0, color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.remove', { defaultValue: 'Remove' })}</button>
-                      </div>
-                      <div style={{ marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.sentWithLog', { defaultValue: 'Sent to your coach with this log' })}</div>
-                    </div>
-                  ) : (
-                    <>
-                      <button onClick={toggleVoice} disabled={voiceState === 'processing'} aria-label={voiceState === 'recording' ? tr('nutrition:log.stopRecordingAria', { defaultValue: 'Stop recording' }) : tr('nutrition:log.startSpeakingAria', { defaultValue: 'Start speaking' })} style={{
-                        width: 96, height: 96, margin: '0 auto', borderRadius: 999, border: 0, padding: 0,
-                        cursor: voiceState === 'processing' ? 'default' : 'pointer',
-                        opacity: voiceState === 'processing' ? 0.6 : 1,
-                        background: `radial-gradient(circle, ${teal} 0%, ${teal} 32%, ${teal}22 33%, transparent 70%)`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        animation: voiceState === 'recording' ? 'bs-blink 1.1s ease-in-out infinite' : 'none',
-                      }}>
-                        {voiceState === 'recording'
-                          ? <span style={{ width: 24, height: 24, borderRadius: 6, background: '#04201d', display: 'block' }} />
-                          : <span style={{ width: 14, height: 14, borderRadius: 999, background: '#04201d', display: 'block' }} />}
-                      </button>
-                      <div style={{ marginTop: 16, fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 15, fontWeight: 600, color: t.INK70, minHeight: 21, padding: `0 ${t.padX}px` }}>
-                        {voiceState === 'recording' ? tr('nutrition:log.listening', { defaultValue: 'Listening…' }) : voiceState === 'processing' ? tr('nutrition:log.transcribing', { defaultValue: 'Transcribing…' }) : (voiceCapture === 'text' ? tr('nutrition:log.speakHint', { defaultValue: 'Speak — it’s added to your note' }) : tr('nutrition:log.recordHint', { defaultValue: 'Record a memo for your coach' }))}
-                      </div>
-                      <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: voiceError ? t.RUST : t.INK50, fontWeight: 600 }}>
-                        {voiceError ? voiceError : voiceState === 'recording' ? tr('nutrition:log.tapToStop', { defaultValue: 'Tap to stop · {len}', len: fmtSecs(voiceSecs) }) : voiceState === 'processing' ? tr('nutrition:log.working', { defaultValue: 'Working…' }) : tr('nutrition:log.tapToSpeak', { defaultValue: 'Tap to speak' })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* THE TALLY station dissolved — the band carries THIS MEAL + the day
-          live (Cockpit/Split spec); no duplicated register on paper. */}
-
-      {/* Reserve height for the sticky ledger bar so content never hides behind it. */}
-      <div style={{ height: 96 }} />
-
-      {/* Sticky ledger bar — the always-reachable, honest log action. */}
-      {createPortal((
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5200, background: t.PAPER2, borderTop: `1px solid ${t.RULE}`, boxShadow: '0 -8px 22px rgba(0,0,0,0.12)', padding: `12px ${t.padX}px calc(14px + env(safe-area-inset-bottom, 0px))`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50, fontVariantNumeric: 'tabular-nums' }}>{tr('nutrition:log.barMeta', { defaultValue: '{kcal} KCAL · {p}P', kcal, p: P })}</span>
-          <button onClick={doLog} disabled={signedIn && kcal <= 0} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 18px', borderRadius: t.RADIUS_SM, clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)', border: 0, cursor: (signedIn && kcal <= 0) ? 'default' : 'pointer', opacity: (signedIn && kcal <= 0) ? 0.45 : 1, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{ctaLabel}</button>
-        </div>
-      ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body)}
-
-      {/* Add-food sheet — search recents or enter manually (replaces the old SEARCH tab). */}
-      {showAddFood && (() => {
-        const FOODS = [
-          { name: 'Chipotle · chicken bowl', qty: '1 bowl',  kcal: 560, p: 42, c: 52, f: 18 },
-          { name: 'Whey isolate',            qty: '1 scoop', kcal: 120, p: 25, c: 3,  f: 1  },
-          { name: 'Jasmine rice',            qty: '1 cup',   kcal: 205, p: 4,  c: 45, f: 0  },
-          { name: 'Grilled chicken breast',  qty: '6 oz',    kcal: 280, p: 52, c: 0,  f: 8  },
-          { name: 'Greek yogurt · plain',    qty: '1 cup',   kcal: 150, p: 25, c: 9,  f: 4  },
-          { name: 'Banana',                  qty: '1 medium',kcal: 105, p: 1,  c: 27, f: 0  },
-          { name: 'Almonds',                 qty: '1 oz',    kcal: 165, p: 6,  c: 6,  f: 14 },
-          { name: 'Olive oil',               qty: '1 tbsp',  kcal: 120, p: 0,  c: 0,  f: 14 },
-        ];
-        const q = foodQuery.trim().toLowerCase();
-        // Signed-in members search the REAL hybrid food database (FDC + OFF via
-        // /api/nutrition/food-search) with real user_goals recents; the demo
-        // list (search + recents) is the signed-out preview only.
-        const rows = q ? FOODS.filter(f => f.name.toLowerCase().includes(q)) : FOODS.slice(0, 3);
-        const addFood = (f) => { setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty, kcal: f.kcal, p: f.p, c: f.c, f: f.f, on: true }]); window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name: f.name }), 'ok'); setShowAddFood(false); };
-        // Live handlers — ＋ adds the provider's default serving directly; a tap
-        // on the row body opens the ingredient editor prefilled so the portion
-        // can be adjusted before it lands. Adds persist to real recents
-        // (best-effort — a failed write never blocks the add).
-        const addLiveFood = (f) => {
-          setIngs(arr => [...arr, { id: bsIngId(), name: f.name, qty: f.qty || '1 serving', kcal: Math.round(Number(f.kcal) || 0), p: Math.round(Number(f.p) || 0), c: Math.round(Number(f.c) || 0), f: Math.round(Number(f.f) || 0), on: true }]);
-          window.__bsToast?.(tr('nutrition:log.toastAdded', { defaultValue: 'Added {name}', name: f.name }), 'ok');
-          setShowAddFood(false);
-          rememberFood(f);
-        };
-        const editLiveFood = (f) => {
-          setShowAddFood(false);
-          // fromSearch: the editor's save persists this add to recents too.
-          setEditIng({ index: null, fromSearch: true, name: f.name, qty: f.qty || '', kcal: String(Math.round(Number(f.kcal) || 0)), p: String(Math.round(Number(f.p) || 0)), c: String(Math.round(Number(f.c) || 0)), f: String(Math.round(Number(f.f) || 0)) });
-        };
-        // Barcode → one OFF product → the prefilled ingredient editor (the
-        // member confirms the portion before it lands — same contract as a
-        // search-row tap). Honest states for invalid / not-found / outage.
-        // Stale-guarded like the text search: a new lookup (or the sheet
-        // closing) ABORTS the prior request, and every post-await update is
-        // gated on this call still being the live one — a late response can
-        // never reopen a dismissed sheet or win over a newer code.
-        const lookupBarcode = async (raw) => {
-          const code = bsValidBarcode(raw);
-          if (!code) { setBarcodeStatus('invalid'); return; }
-          try { barcodeCtlRef.current?.abort(); } catch (e) {}
-          const ctl = new AbortController();
-          barcodeCtlRef.current = ctl;
-          setBarcodeStatus('looking');
-          setBarcodeMode((m) => (m === 'scan' ? null : m)); // a scanned hit stops the camera
-          try {
-            const data = await window.ShapeFoodSearch?.barcode?.(code, { signal: ctl.signal });
-            if (ctl.signal.aborted || barcodeCtlRef.current !== ctl) return;
-            const row = data && Array.isArray(data.results) ? data.results[0] : null;
-            if (row) { setBarcodeStatus('idle'); setBarcodeDigits(''); setBarcodeMode(null); editLiveFood(row); return; }
-            setBarcodeStatus(data && data.unavailable ? 'error' : 'notfound');
-          } catch (e) {
-            if (ctl.signal.aborted || barcodeCtlRef.current !== ctl) return;
-            setBarcodeStatus('error');
-          }
-        };
-        const searching = foodQuery.trim().length >= 2;
-        const liveRows = searching ? (foodResults || []) : (foodRecents || []);
-        const liveStatus = foodStatus === 'searching' ? tr('nutrition:log.searching', { defaultValue: 'Searching…' })
-          : foodStatus === 'error' ? tr('nutrition:log.searchError', { defaultValue: 'Can’t reach the food database — enter manually below' })
-          : searching ? tr('nutrition:log.results', { defaultValue: '{n, plural, one {# result} other {# results}}', n: liveRows.length })
-          : (foodRecents === null || liveRows.length ? tr('nutrition:log.recents', { defaultValue: 'Recents' }) : tr('nutrition:log.noRecents', { defaultValue: 'No recents yet — search or enter manually' }));
-        return createPortal((
-          <div onClick={() => setShowAddFood(false)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)', maxHeight: '80%', overflowY: 'auto' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{tr('nutrition:log.addFood', { defaultValue: 'Add food' })}</div>
-              {signedIn ? (
-                <>
-                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder={tr('nutrition:log.searchPlaceholder', { defaultValue: 'Search foods & brands…' })} style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
-                  {/* Barcode (v2) — scan where BarcodeDetector exists (Chrome /
-                      Android WebView); the manual digits entry everywhere
-                      (iOS WebKit ships no BarcodeDetector). */}
-                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 18 }}>
-                    {bsBarcodeScanSupported() && (
-                      <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'scan' ? null : 'scan'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'scan' ? teal : t.INK50 }}>{tr('nutrition:log.scanBarcode', { defaultValue: '▥ Scan barcode' })}</button>
-                    )}
-                    <button onClick={() => { setBarcodeStatus('idle'); setBarcodeMode(barcodeMode === 'enter' ? null : 'enter'); }} style={{ background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: barcodeMode === 'enter' ? teal : t.INK50 }}>{tr('nutrition:log.enterBarcode', { defaultValue: '# Enter barcode' })}</button>
-                    {barcodeMode && <button onClick={() => { setBarcodeMode(null); setBarcodeStatus('idle'); }} style={{ marginLeft: 'auto', background: 'transparent', border: 0, padding: '6px 0', cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.cancelPlain', { defaultValue: 'Cancel' })}</button>}
-                  </div>
-                  {barcodeMode === 'scan' && <BSBarcodeScan teal={teal} onHit={(code) => lookupBarcode(code)} onFallback={() => setBarcodeMode('enter')} />}
-                  {barcodeMode === 'enter' && (
-                    <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                      <input value={barcodeDigits} onChange={(e) => setBarcodeDigits(e.target.value.replace(/[^\d\s-]/g, ''))} onKeyDown={(e) => { if (e.key === 'Enter') lookupBarcode(barcodeDigits); }} inputMode="numeric" placeholder={tr('nutrition:log.barcodePlaceholder', { defaultValue: 'Barcode digits (EAN / UPC)…' })} aria-label={tr('nutrition:log.barcodeAria', { defaultValue: 'Barcode digits' })} style={{ flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '11px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 14, outline: 'none' }} />
-                      <button onClick={() => lookupBarcode(barcodeDigits)} disabled={barcodeStatus === 'looking'} style={{ flex: '0 0 auto', minHeight: 44, padding: '0 16px', borderRadius: t.RADIUS_SM, border: 0, background: teal, color: '#08221f', cursor: barcodeStatus === 'looking' ? 'default' : 'pointer', opacity: barcodeStatus === 'looking' ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('nutrition:log.lookUp', { defaultValue: 'Look up' })}</button>
-                    </div>
-                  )}
-                  {barcodeStatus !== 'idle' && (
-                    <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: barcodeStatus === 'looking' ? t.INK50 : t.RUST }}>
-                      {barcodeStatus === 'looking' ? tr('nutrition:log.lookingUp', { defaultValue: 'Looking up…' })
-                        : barcodeStatus === 'invalid' ? tr('nutrition:log.barcodeInvalid', { defaultValue: 'That doesn’t read as a barcode — 8–14 digits' })
-                        : barcodeStatus === 'notfound' ? tr('nutrition:log.barcodeNotFound', { defaultValue: 'No match for that barcode — search or enter it manually' })
-                        : tr('nutrition:log.barcodeError', { defaultValue: 'Can’t reach the food database — try again or enter manually' })}
-                    </div>
-                  )}
-                  <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: foodStatus === 'error' ? t.RUST : t.INK50 }}>{liveStatus}</div>
-                  <div style={{ marginTop: 2 }}>
-                    {liveRows.map((r, i) => (
-                      <div key={r.id || `${r.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0', borderBottom: i === liveRows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                        <button onClick={() => editLiveFood(r)} style={{ flex: 1, minWidth: 0, minHeight: 44, textAlign: 'left', background: 'transparent', border: 0, padding: '9px 0', cursor: 'pointer' }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</div>
-                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.brand ? `${r.brand} · ` : ''}{tr('nutrition:log.foodMeta', { defaultValue: '{qty} · {kcal} kcal · {p}P', qty: r.qty, kcal: r.kcal, p: r.p })}</div>
-                        </button>
-                        <button onClick={() => addLiveFood(r)} aria-label={tr('nutrition:log.addAria', { defaultValue: 'Add {name}', name: r.name })} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
-                      </div>
-                    ))}
-                    {searching && foodStatus === 'done' && liveRows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>{tr('nutrition:log.noMatches', { defaultValue: 'No matches for “{q}”.', q: foodQuery.trim() })}</div>}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <input autoFocus value={foodQuery} onChange={(e) => setFoodQuery(e.target.value)} placeholder={tr('nutrition:log.searchPlaceholderDemo', { defaultValue: 'Search foods, brands, barcodes…' })} style={{ width: '100%', boxSizing: 'border-box', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, outline: 'none' }} />
-                  <div style={{ marginTop: 14, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 }}>{q ? tr('nutrition:log.results', { defaultValue: '{n, plural, one {# result} other {# results}}', n: rows.length }) : tr('nutrition:log.recents', { defaultValue: 'Recents' })}</div>
-                  <div style={{ marginTop: 2 }}>
-                    {rows.map((r, i) => (
-                      <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 0', borderBottom: i === rows.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{r.name}</div>
-                          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{tr('nutrition:log.foodMeta', { defaultValue: '{qty} · {kcal} kcal · {p}P', qty: r.qty, kcal: r.kcal, p: r.p })}</div>
-                        </div>
-                        <button onClick={() => addFood(r)} aria-label={tr('nutrition:log.addAria', { defaultValue: 'Add {name}', name: r.name })} style={{ flex: '0 0 auto', minWidth: 44, minHeight: 44, background: 'transparent', border: 0, color: teal, cursor: 'pointer', fontSize: 22, fontWeight: 700, lineHeight: 1 }}>＋</button>
-                      </div>
-                    ))}
-                    {q && rows.length === 0 && <div style={{ padding: '16px 0', fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>{tr('nutrition:log.noMatches', { defaultValue: 'No matches for “{q}”.', q: foodQuery.trim() })}</div>}
-                  </div>
-                </>
-              )}
-              <button onClick={() => { setShowAddFood(false); openAddIng(); }} style={{ marginTop: 12, width: '100%', padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('nutrition:log.enterManually', { defaultValue: 'Enter manually →' })}</button>
-            </div>
-          </div>
-        ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
-      })()}
-
-      {/* Ingredient editor / add sheet */}
-      {editIng && (() => {
-        const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '12px 13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, outline: 'none' };
-        return createPortal((
-          <div onClick={() => setEditIng(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `18px ${t.padX}px calc(20px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 12 }}>{editIng.index == null ? tr('nutrition:log.addIngredient', { defaultValue: 'Add ingredient' }) : tr('nutrition:log.editIngredient', { defaultValue: 'Edit ingredient' })}</div>
-              <input autoFocus value={editIng.name} placeholder={tr('nutrition:log.ingredientPlaceholder', { defaultValue: 'Ingredient' })} onChange={(e) => setEditIngField('name', e.target.value)} style={inputStyle} />
-              <input value={editIng.qty} placeholder={tr('nutrition:log.portionPlaceholder', { defaultValue: 'Portion · e.g. 1 cup' })} onChange={(e) => setEditIngField('qty', e.target.value)} style={{ ...inputStyle, marginTop: 8 }} />
-              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
-                {[['kcal', tr('cook:plated.kcal', { defaultValue: 'Kcal' })], ['p', tr('cook:plated.protein', { defaultValue: 'Protein' })], ['c', tr('cook:plated.carbs', { defaultValue: 'Carbs' })], ['f', tr('cook:plated.fat', { defaultValue: 'Fat' })]].map(([k, l]) => (
-                  <label key={k} style={{ display: 'block' }}>
-                    <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 4 }}>{l}</span>
-                    <input value={editIng[k]} inputMode="numeric" placeholder="0" onChange={(e) => setEditIngField(k, e.target.value.replace(/[^0-9]/g, ''))} style={{ width: '100%', boxSizing: 'border-box', padding: '10px 6px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 13, fontWeight: 700, outline: 'none', textAlign: 'center' }} />
-                  </label>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                {editIng.index != null && <button onClick={deleteEditIng} style={{ padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RUST}`, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{tr('nutrition:log.remove', { defaultValue: 'Remove' })}</button>}
-                <button onClick={() => setEditIng(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('nutrition:log.cancelPlain', { defaultValue: 'Cancel' })}</button>
-                <button onClick={saveEditIng} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('nutrition:log.save', { defaultValue: 'Save' })}</button>
-              </div>
-            </div>
-          </div>
-        ), (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body);
-      })()}
-    </BSPage>
-  );
-}
+// ─── THE WORKOUT DETAIL PAGE ─── moved to BSWorkoutDetail.jsx (2026-11-04), when the owner's B redrew it
+// ("B for all of them"). Home's I'll train today and Team's session open it, and the Library's saved workout.
 
 // Retro-tighten past auto-posts when a Settings change makes the member's
 // share level STRICTER (Share off, or profile → more private). Loosening never
@@ -4897,7 +3802,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // its date (Codex P1 on #2599).
     const pv = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : null;
     const shownWorkout = pv ? pv.workout : selWorkout;
-    return <BSHomeWorkoutPreview workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(pv && pv.day ? pv.day : undefined); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
+    return <BSWorkoutDetail workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(pv && pv.day ? pv.day : undefined); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
       setShowWorkoutPreview(false);
       // The trainer who wrote the session (the plan read's coachId), in their own thread; signed in with no
       // such paid trainer, the chats; the signed-out preview's sample coach.
@@ -6514,129 +5419,6 @@ function _bsScrollTopOnMount() {
   }, []);
 }
 
-// Shared "Logged." confirmation screen — used after one-tap logging a meal
-// from the preview (and mirrors the log-meal flow's confirmation).
-// `p` has NO default: an omitted prop must stay undefined so the stamp renders
-// an honest "—" (a `= 0` default would fabricate "0P" for unknown protein —
-// the Number(null)/?? 0 zero-fabrication class). `p || 0` guards the arithmetic.
-function BSMealLogged({ kcal = null, p, time = '12:40 PM', logged = null, onDone = () => {}, onUndo = () => {}, share = null }) {
-  const t = useBS();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  // ⚠ AN UNKNOWN CALORIE COUNT IS NOT ZERO, AND `Logged ✓` OVER IT IS A CLAIM
-  // NOTHING BACKED. The cook's own logIt OMITS the log entirely when kcal is
-  // null ("never posted as fabricated 0s"), so this screen was printing a 46px
-  // teal 0 under a filed stamp while the ledger had received nothing. Reachable
-  // for the first time by member-imported recipes, which carry no macros by
-  // construction. The `—` is the idiom already sitting beside it for protein.
-  // ⚠ INFERENCE IS THE DEFAULT, NOT THE RULE. Cook mode's logIt skips the post
-  // when kcal is null, so there `kcal != null` IS whether a row was written —
-  // but the plan-meal path posts unconditionally, and a screen that denied a
-  // log the app had just made would put two surfaces in disagreement about the
-  // same meal. A caller that knows says so.
-  const didLog = logged == null ? kcal != null : !!logged;
-  // Share-by-choice (spec 2026-07-12): a deliberate per-meal action, default
-  // off, never auto. The created postId persists here so Undo can retract the
-  // post; the button disables while pending (no double-posts). Signed-in only
-  // — the demo preview never shows it.
-  const [sharedPostId, setSharedPostId] = useStateBSC(null);
-  const [shareBusy, setShareBusy] = useStateBSC(false);
-  const canShare = !!(share && typeof window !== 'undefined' && window.ShapeCommunity && window.ShapeCommunity.createPost
-    && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user);
-  const doShare = async () => {
-    if (sharedPostId || shareBusy || !canShare) return;
-    setShareBusy(true);
-    try {
-      const res = await window.ShapeCommunity.createPost(bsMealSharePayload(share));
-      // createCommunityPost returns { stored: 'local', … } WITHOUT throwing
-      // when the insert didn't reach Supabase — only a real stored row is a
-      // success (CodeRabbit: never a fake ✓ over a local fallback).
-      if (res && res.stored === 'supabase' && res.data && res.data.id) {
-        setSharedPostId(res.data.id);
-        window.__bsToast?.('On the wire → Community', 'ok');
-      } else {
-        window.__bsToast?.('Could not post — try again.', 'err');
-      }
-    } catch (e) {
-      window.__bsToast?.('Could not post — try again.', 'err');
-    }
-    setShareBusy(false);
-  };
-  const handleUndo = async () => {
-    // Undo retracts the shared POST (a retracted meal never leaves a ghost
-    // card). Gated on shareBusy — a fast Undo mid-post would orphan the
-    // just-created row (CodeRabbit). A failed delete is told honestly — the
-    // post stays deletable from the feed card's own menu; we never claim
-    // it's gone when it isn't. The log-side macro reversal is the
-    // pre-existing Undo gap — out of scope here (spec, review rounds).
-    if (shareBusy) return;
-    if (sharedPostId && window.ShapeCommunity?.remove) {
-      try { await window.ShapeCommunity.remove({ postId: sharedPostId }); }
-      catch (e) { window.__bsToast?.('Could not remove the post — delete it from the feed card.', 'err'); }
-    }
-    onUndo();
-  };
-  // Day-so-far demo bases are the SIGNED-OUT preview only — a signed-in
-  // member gets no fabricated day figures here (this shared confirmation has
-  // no live day feed; the log-meal flow's own confirmation carries the real
-  // ones). Honest absence over invented numbers.
-  const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id);
-  const CAL_GOAL = 2100, P_GOAL = 165, DAY_BASE_CAL = 1568, DAY_BASE_P = 118;
-  const dayCal = DAY_BASE_CAL + (kcal || 0);
-  const dayP = DAY_BASE_P + (p || 0);
-  const calFrac = Math.max(0, Math.min(1, dayCal / CAL_GOAL));
-  return (
-    <BSPage>
-      {/* Masthead row on the paper at the standard inset — the band (and its
-          ← Undo) sit BELOW it. The row can't live INSIDE the band: the band is
-          fixed-dark on every paper, so theme ink would vanish on it. */}
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 12px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-      </div>
-      {/* THE BAND — the filed stamp (Cockpit/Split spec 2026-07-14) */}
-      <div style={{ position: 'relative', background: '#0b0f0f', padding: `18px ${t.padX}px 18px`, overflow: 'hidden' }}>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={handleUndo} disabled={shareBusy} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: shareBusy ? 'default' : 'pointer', opacity: shareBusy ? 0.5 : 1, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span aria-hidden style={{ fontSize: 11 }}>←</span>Undo</button>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc' }}>Meal · {didLog ? 'Filed' : 'Cooked'} {time}</span>
-        </div>
-        <div style={{ position: 'relative', textAlign: 'center', marginTop: 28 }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 46, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(56,224,204,0.45)' }}>{didLog ? kcal : '—'}</div>
-          <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>Kcal · {p == null ? '—' : p}P · {didLog ? 'Logged ✓' : 'No macros on this one'}</div>
-        </div>
-        {!loggedIn && (
-          <div style={{ position: 'relative', marginTop: 22, borderTop: '1px solid rgba(244,237,224,0.14)', paddingTop: 12 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.35)' }}>Day so far</div>
-            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#38e0cc', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(56,224,204,0.35)' }}>{dayCal}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {CAL_GOAL} KCAL</span></span>
-              <span style={{ fontFamily: t.MONO, fontSize: 20, fontWeight: 800, color: '#e8a13c', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 12px rgba(232,161,60,0.3)' }}>{dayP}<span style={{ fontSize: 8.5, color: 'rgba(244,237,224,0.35)', textShadow: 'none' }}> / {P_GOAL} P</span></span>
-            </div>
-            <div aria-hidden style={{ marginTop: 11, display: 'flex', gap: 4 }}>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: (i + 0.5) / 10 <= calFrac ? '#38e0cc' : 'rgba(244,237,224,0.14)', boxShadow: (i + 0.5) / 10 <= calFrac ? '0 0 8px rgba(56,224,204,0.5)' : 'none' }} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      {/* The seam — the ONE band/paper boundary */}
-      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
-      <div style={{ padding: `22px ${t.padX}px 8px` }}>
-        <button onClick={onDone} style={{ width: '100%', padding: '15px', borderRadius: t.RADIUS_SM, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>Done →</button>
-      </div>
-      {canShare && (
-        <div style={{ textAlign: 'center', paddingBottom: 4 }}>
-          {sharedPostId ? (
-            <div style={{ minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal }}>✓ On the wire · Community</div>
-          ) : (
-            <button onClick={doShare} disabled={shareBusy} style={{ background: 'transparent', border: 0, cursor: shareBusy ? 'default' : 'pointer', minHeight: 44, padding: '0 12px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: shareBusy ? t.INK50 : teal }}>{shareBusy ? 'Posting…' : 'Post to the wire →'}</button>
-          )}
-        </div>
-      )}
-      {/* Undo moved to the band's universal top-left slot (2026-07-14). */}
-    </BSPage>
-  );
-}
-
 // Household-measure conversion for meal ingredients — most people don't weigh
 // grams, so render gram/ml quantities as cups / tbsp / oz / slices (display only;
 // stored data stays metric). Keyed by ingredient name; falls back to oz (solids)
@@ -6798,32 +5580,9 @@ function bsMealSchedTime(meal) {
 }
 function bsMealSchedLabel(meal) { return bsFmt12(bsMealSchedTime(meal)); }
 
-// A real food photo for a meal — the meal's own `photo` when set, else a stock
-// image inferred from the title/ingredients so previews always show a picture
-// (was a generated halftone placeholder).
-function bsMealPhoto(meal) {
-  if (meal && (meal.photo || meal.image)) return meal.photo || meal.image;
-  // A coach-uploaded image (from the meal/recipe builder's MEDIA section, stored
-  // in detail.media) — use the first photo as the hero when present.
-  if (meal && Array.isArray(meal.media)) {
-    const img = meal.media.find((m) => m && m.url && (m.type === 'image' || !m.type));
-    if (img) return img.url;
-  }
-  const s = `${(meal && meal.title) || ''} ${(meal && meal.sub) || ''} ${(meal && meal.hero) || ''} ${(meal && meal.tag) || ''}`.toLowerCase();
-  const pick = (id) => `https://images.unsplash.com/photo-${id}?w=720&h=400&fit=crop&q=72&auto=format`;
-  if (/oat|egg|toast|pancake|breakfast|yogurt|granola|smoothie/.test(s)) return pick('1484723091739-30a097e8f929');
-  if (/salmon|fish|tuna|cod/.test(s)) return pick('1467003909585-2f8a72700288');
-  if (/steak|beef|burger|sirloin/.test(s)) return pick('1546964124-0cce460f38ef');
-  if (/wrap|sandwich|burrito|taco/.test(s)) return pick('1528735602780-2552fd46c7af');
-  if (/chicken|turkey|poultry/.test(s)) return pick('1532550907401-a500c9a57435');
-  if (/salad|veg|bowl|greens|broccoli|kale/.test(s)) return pick('1512621776951-a57141f2eefd');
-  if (/rice|stir|noodle|pasta|grain|quinoa/.test(s)) return pick('1603133872878-684f208fb84b');
-  return pick('1490645935967-10de6ba17061');
-}
-
 // One qty label for a structured {n, m, k?} ingredient — household units off the
-// metric pref, the optional kcal annotation appended. Shared by the Kitchen Card
-// and the meal preview so the two Eat-day sheets can never drift.
+// metric pref, the optional kcal annotation appended. The Kitchen Card prints it;
+// the meal page (BSMealPage.jsx) sets the same two parts in columns of their own.
 function bsIngQtyLabel(isMetric, ing) {
   const q = isMetric ? ing.n : bsHouseholdQty(ing.n, ing.m);
   const kc = ing.k ? String(ing.k).replace(/\s*kcal$/i, '') : null;
@@ -6831,7 +5590,7 @@ function bsIngQtyLabel(isMetric, ing) {
 }
 
 // Page-level flanked dateline (rule · MONO label · rule) — the section head the
-// recipe surfaces use for THE METHOD; shared here so meals read identically.
+// recipe surfaces use for THE METHOD.
 function BSDateline({ children }) {
   const t = useBS();
   return (
@@ -6843,207 +5602,9 @@ function BSDateline({ children }) {
   );
 }
 
-function BSMealPreview({ meal, onBack, onLog, onFiled, onUnfiled }) {
-  const t = useBS();
-  _bsScrollTopOnMount();
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const tr = useShapeTr();
-  const [justLogged, setJustLogged] = useStateBSC(false);
-  const [cooking, setCooking] = useStateBSC(false);
-  // Normalized ONCE — null (malformed/title-less meal) hides the Cook door
-  // entirely, so BSCookMode can never mount on a null cookable (CodeRabbit).
-  const cookable = React.useMemo(() => bsCookableFromMeal(meal, SHAPE_KITCHEN_RECIPES), [meal]);
-  // Nora's "this meal" (the Ask Nora plan, step 4).
-  React.useEffect(() => (meal && meal.title ? bsNoraOpen({ item: { kind: 'meal', title: meal.title } }) : undefined), [meal && meal.title]);
-  const mealLibItem = { id: 'meal:' + String(meal.id || String(meal.title || 'meal').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')), kind: 'meal', title: meal.title, meta: `${meal.kcal} kcal · ${meal.p}P · ${meal.c}C · ${meal.f}F` };
-  const mealSaved = useBSLibrary().some(x => x.id === mealLibItem.id);
-  const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '').split(':').map(Number); if (Number.isNaN(h)) return ''; const ap = h >= 12 ? 'PM' : 'AM'; return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${ap}`; };
-  // The eyebrow timestamp follows the client's actual schedule: use the meal's
-  // own scheduled time, and only when it's missing fall back to the client's
-  // meal-time preference for that slot (Settings → Preferences → meal times).
-  const _mt = (typeof window !== 'undefined' && window.ShapeMealTimes && window.ShapeMealTimes.get()) || BS_DEFAULT_MEAL_TIMES;
-  const SLOT_TIMES = { BFAST: _mt.BFAST, BREAKFAST: _mt.BFAST, LUNCH: _mt.LUNCH, SNACK: _mt.SNACK, DINR: _mt.DINNER, DINNER: _mt.DINNER };
-  const schedTime = meal.time || SLOT_TIMES[String(meal.tag || '').toUpperCase()] || '';
-  // Cook Mode takeover (spec 2026-07-21) — EVERY meal opens at its honest
-  // cookable tier: a catalog-mapped meal walks the recipe's method (the plan's
-  // macros stay the logged truth), an unmapped one walks what it carries.
-  if (cooking && cookable) return <BSCookMode cookable={cookable} onClose={() => setCooking(false)} onLogged={() => { try { onFiled?.(); } catch (e) {} }} onUnlogged={() => { try { onUnfiled?.(); } catch (e) {} }} />;
-  if (justLogged) {
-    return <BSMealLogged kcal={meal.kcal} p={meal.p} logged time={fmt12(schedTime)} onDone={onBack} onUndo={() => { setJustLogged(false); try { onUnfiled?.(); } catch (e) {} }}
-      share={{ name: meal.title, kcal: meal.kcal, p: meal.p, c: meal.c, f: meal.f, planned: true, recipeId: meal.recipeId || '', coach: meal.coach || '' }} />;
-  }
-
-  // Meals opened from the day log carry only macros — guard the rich fields.
-  // Steps may be coach-authored OBJECTS ({t, min, passive, station} — PR E
-  // structured authoring): the preview renders display text only; Cook Mode
-  // reads the structure through bsCookableFromMeal.
-  const ingredients = Array.isArray(meal.ingredients) ? meal.ingredients : [];
-  const steps = (Array.isArray(meal.steps) ? meal.steps : [])
-    .map((s) => (typeof s === 'string' ? s : (s && typeof s === 'object' && typeof s.t === 'string' ? s.t : ''))).filter(Boolean);
-  const ingHalf = Math.ceil(ingredients.length / 2);
-  const ingCols = [ingredients.slice(0, ingHalf), ingredients.slice(ingHalf)];
-
-  return (
-    <BSPage>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 10px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <BSBackRow onBack={onBack} />
-      </div>
-
-      {/* Hero photo — clipped instrument plate (falls back to a halftone if the image fails) */}
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        <div style={{ position: 'relative', height: 150 }}>
-          <div aria-hidden style={{ position: 'absolute', inset: 0, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', background: t.RULE }} />
-          <div style={{ position: 'absolute', inset: 1, clipPath: 'polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 0 100%)', overflow: 'hidden', background: `${meal.tagColor || t.AMBER}22` }}>
-            <BSHalftone height={150} accent={meal.tagColor} pattern="dots" />
-            <img
-              src={bsMealPhoto(meal)}
-              alt={meal.title || 'Meal'}
-              loading="lazy"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Title below the image — with the meal-slot timestamp as an eyebrow */}
-      <div style={{ padding: `14px ${t.padX}px 0` }}>
-        {(meal.tag || schedTime) && (
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-            {[meal.tag, schedTime ? fmt12(schedTime) : null].filter(Boolean).join(' · ')}
-          </div>
-        )}
-        <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 30, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>{meal.title}</div>
-      </div>
-
-      {/* Stats — bare register over the ledger rule (the boxed plate + split bar died,
-          matching the recipe surfaces; the register carries the same macros). */}
-      <div style={{ padding: `16px ${t.padX}px 6px` }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-          {[
-            ['Kcal', String(meal.kcal)],
-            ['Protein', meal.p + 'g'],
-            ['Carbs', meal.c + 'g'],
-            ['Fat', meal.f + 'g'],
-          ].map(([l, v]) => (
-            <div key={l}>
-              <div style={{ fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.14em', fontWeight: 800, textTransform: 'uppercase', color: t.INK50 }}>{l}</div>
-              <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.05, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        <div aria-hidden style={{ marginTop: 10, height: 2, background: `linear-gradient(90deg, ${t.INK}, ${teal} 72%, transparent)` }} />
-      </div>
-
-      {/* Cook Mode door — universal (spec 2026-07-21 §2.5); the tier ladder
-          inside decides what the walkthrough honestly offers. Hidden when the
-          meal can't normalize at all (null cookable — nothing to walk). */}
-      {cookable && (
-      <div style={{ padding: `12px ${t.padX}px 0` }}>
-        <button type="button" data-bsck-door="cook" onClick={() => setCooking(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', padding: '13px 14px', border: `1px solid ${bsTHexA(teal, 0.5)}`, borderLeft: `3px solid ${teal}`, borderRadius: 5, background: bsTHexA(teal, t.isLight ? 0.07 : 0.12), cursor: 'pointer', clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
-          <span style={{ textAlign: 'left', minWidth: 0 }}>
-            <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('cook:cta.eyebrow', { defaultValue: 'Guided · step by step' })}</span>
-            <span style={{ display: 'block', marginTop: 2, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK }}>{tr('cook:cta', { defaultValue: 'Cook this' })}</span>
-          </span>
-          <span aria-hidden style={{ fontFamily: t.MONO, fontSize: 13, color: teal, fontWeight: 800 }}>→</span>
-        </button>
-        <BSCookWithDoor cookable={cookable} tone={teal} />
-      </div>
-      )}
-
-      {/* Quick facts */}
-      {(meal.prep || meal.portion || meal.score) && (
-        <div style={{ padding: `8px ${t.padX}px 10px`, display: 'flex', gap: 16, flexWrap: 'wrap', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', color: t.INK70, fontWeight: 600 }}>
-          {meal.prep && <span>⏱ {meal.prep}</span>}
-          {meal.portion && <span>· {meal.portion}</span>}
-          {meal.score && <span>· Score <span style={{ color: t.AMBER, fontWeight: 700 }}>{meal.score}</span></span>}
-        </div>
-      )}
-
-      {/* The brief */}
-      {(meal.hero || meal.brief) && (
-        <div style={{ padding: `12px ${t.padX}px 4px` }}>
-          <BSEyebrow color={teal}>The dish</BSEyebrow>
-          {meal.hero && (
-            <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, fontWeight: 600, letterSpacing: '-0.005em' }}>
-              {meal.hero}
-            </div>
-          )}
-          {meal.brief && (
-            <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>
-              {meal.brief}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Ingredients — two-column ruled lines under a dateline (Kitchen Card grammar) */}
-      {ingredients.length > 0 && (
-        <>
-          <BSDateline>The ingredients</BSDateline>
-          <div style={{ padding: `0 ${t.padX}px`, display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16, marginTop: 2 }}>
-            {ingCols.map((col, ci) => (
-              <div key={ci}>
-                {col.map((ing, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '9px 2px 3px', borderBottom: `1px solid ${bsTHexA(t.ACCENT, 0.3)}` }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 12.5, color: t.INK, minWidth: 0 }}>{ing.m}</span>
-                    <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{bsIngQtyLabel(t.isMetric, ing)}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Method — lettered serif steps under the dateline (recipe-detail grammar) */}
-      {steps.length > 0 && (
-        <>
-          <BSDateline>The method</BSDateline>
-          <div style={{ padding: `2px ${t.padX}px 0` }}>
-            {steps.map((s, i) => (
-              <p key={i} style={{ margin: '10px 0 0', fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.55, color: t.INK }}>
-                <b style={{ fontFamily: t.MONO, fontSize: 10.5, color: t.ACCENT, fontWeight: 700 }}>{String.fromCharCode(97 + i)}.</b> {s}
-              </p>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* CTA row — compact, single-line, squared instrument buttons */}
-      <div style={{ padding: `16px ${t.padX}px 16px`, display: 'flex', gap: 8, alignItems: 'stretch' }}>
-        <button onClick={() => bsLibToggle(mealLibItem)} style={{ borderRadius: 5,
-          padding: '0 14px', border: `1px solid ${mealSaved ? teal : t.RULE}`, borderLeft: mealSaved ? `3px solid ${teal}` : `1px solid ${t.RULE}`, background: mealSaved ? (t.isLight ? `${teal}14` : `${teal}22`) : 'transparent', color: mealSaved ? teal : t.INK, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-        }}>{mealSaved ? '✓ Saved' : '♡ Save'}</button>
-        <button onClick={onLog ? onLog : () => {
-          // One-tap "ate as planned" — also persist the meal's macros onto
-          // today's snapshot so the Nutrition stats track real logging.
-          try { window.ShapeMealLog?.log?.({ kcal: meal.kcal, protein: meal.p, carbs: meal.c, fat: meal.f }); } catch (e) {}
-          try { onFiled?.(); } catch (e) {}
-          setJustLogged(true);
-        }} style={{
-          flex: 1, border: 0, borderRadius: 5, background: teal, color: '#04201d', cursor: 'pointer',
-          clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)',
-          padding: '9px 14px', display: 'flex', alignItems: 'center', justifyContent: onLog ? 'center' : 'space-between', gap: 8,
-        }}>
-          {onLog ? <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>Log Now</span> : (
-            <>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.6 }}>One tap</span>
-                <span style={{ display: 'block', marginTop: 1, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 700, letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Ate as planned</span>
-              </span>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>✓</span>
-            </>
-          )}
-        </button>
-      </div>
-
-      <BSFooter right="Meal" />
-    </BSPage>
-  );
-}
+// ─── THE MEAL PAGE ─── moved to BSMealPage.jsx (2026-11-04) with its redesign (the owner's B, of three).
+// It reads these at call time.
+Object.assign(window, { BSMealLogged, BSCookWithDoor, useBSLibrary, bsLibToggle, bsHouseholdQty, bsMealSchedTime, bsFmt12 });
 
 // ═══════════════════════════════════════════════════════════
 // RECIPE PREVIEW — for "Recipe of the day" card (full recipe view)
@@ -20997,7 +19558,7 @@ function BSUniversalSearch({ onClose }) {
   );
   if (viewWorkout) return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 230, background: t.PAPER }}>
-      <BSHomeWorkoutPreview workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
+      <BSWorkoutDetail workout={viewWorkout} onBack={() => setViewWorkout(null)} onStart={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:startWorkout', { detail: { workout: viewWorkout } })); } catch (e) {} }} />
     </div>
   );
 
@@ -33183,6 +31744,8 @@ function BSStoreCheckout({ t, lines, total, balance, busy, notice, onQty, onBack
 
 Object.assign(window, {
   BSClientApp,
+  // The workout detail page's save, its library and its pre-workout playlist (BSWorkoutDetail.jsx).
+  useBSLibrary, bsLibToggle, BSPlaylistCard,
   // The Send to a member sheet, for the coach apps' grocery lists (iosAppBroadsheetPros.jsx).
   BSPostSendSheet,
   // The client_settings write lane, exposed so OTHER modules that write that
@@ -33691,7 +32254,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     return () => clearInterval(id);
   }, [hrmOn, hrNow, setLogs]);
   const heat = (!bsSdReduced() && effort) ? BS_EFFORT_RAMP[effort.zone] : (t.isLight ? '#0a8f87' : '#34d6c5');
-  const heatTrans = { transition: 'color 1.2s ease, border-color 1.2s ease, background-color 1.2s ease' };
   const _bsStrength = useBSStrength();
 
   React.useEffect(() => {
@@ -34044,16 +32606,6 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
   // an unauthored move now renders NOTHING rather than the old "Move with
   // intent." filler — absence is honest, invented coaching is not.
   const cue = (move && move.cue) || '';
-  // ONE translated label per set field, read by all three sites that name a
-  // field: the band's visible eyebrow, the band input's aria, and the table
-  // input's aria. The table's aria used to interpolate the RAW INTERNAL KEY
-  // ('load'/'reps'/'rpe'), so a screen reader announced the code's field name.
-  // RPE stays literal — a term of art, exactly as the table header carries it.
-  // `reps` reads the SHIPPED column key rather than a second key holding the same
-  // word in all 13 — the duplicate-key trap cut 1 already paid for. `load` needs
-  // its own: the band deliberately reads LOAD where the table header reads WEIGHT,
-  // because a band value can carry its unit ("165 lb").
-  const fieldLabel = (f) => (f === 'rpe' ? 'RPE' : tr(f === 'load' ? 'session:player.fieldLoad' : 'session:player.colReps'));
   const activeIdx = (() => { if (activeSetKey?.startsWith(`${moveIdx}-`) && !completed[activeSetKey]) return Number(activeSetKey.split('-')[1]); for (let i = 0; i < move.sets; i++) if (!completed[`${moveIdx}-${i}`]) return i; return null; })();
   const activeKey = activeIdx != null ? `${moveIdx}-${activeIdx}` : null;
   const activeRunning = !!(activeKey && activeSetKey === activeKey);
@@ -34250,316 +32802,67 @@ function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clien
     </BSPage>
   );
 
-  return (
-    <BSPage noSwipe>
-      {/* ═══ THE BAND — live numbers only; the paper ledger below the seam
-          carries the work. Scan-line + segments are decorative (aria-hidden). */}
-      <div style={{ position: 'relative', background: BAND.bg, padding: `46px ${t.padX}px 15px`, overflow: 'hidden' }}>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px)' }} />
-        {/* End · overall workout time (owner add — wall clock since start) */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <button onClick={endWorkout} style={{ background: 'transparent', border: 0, padding: 0, minHeight: 44, cursor: 'pointer', ...bandEyebrow, fontSize: 10, color: BAND.cream }}>{tr('session:player.pause')}</button>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, ...bandEyebrow, fontSize: 10, color: bandHeat, ...heatTrans }}>
-            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: bandHeat, display: 'inline-block', ...(bsSdReduced() ? null : { '--sd-glow': bsTHexA(bandHeat, 0.45), animation: 'bsSdPrBreath 2200ms ease-in-out infinite' }) }} />
-            {tr('session:player.elapsed')} · <span style={{ fontVariantNumeric: 'tabular-nums', textShadow: `0 0 12px ${bsTHexA(bandHeat, 0.45)}` }}>{fmt(elapsedSec)}</span>
-          </span>
-        </div>
-        <div style={{ position: 'relative', margin: '8px 0', display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-          <span style={{ ...bandEyebrow, color: bandHeat, fontSize: 11 }}>{tr('session:player.view.' + view)}</span>
-          <button ref={viewControlRef} onClick={() => setViewChooser(true)} style={{ minHeight: 44, background: 'transparent', border: 0, color: BAND.cream, cursor: 'pointer', textDecoration: 'underline' }}>{tr('session:player.view.change')}</button>
-        </div>
-        {viewWarning && <p role="alert" style={{ position: 'relative', color: '#e8a33c' }}>{tr('session:player.view.storage')}</p>}
-        <BSWorkoutCoachCue identity={identity} />
-        {/* Session line — real figures only */}
-        <div style={{ position: 'relative', marginTop: 12, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-          <span style={{ ...bandEyebrow, color: BAND.dim, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || tr('session:player.liveSession')}</span>
-          <span style={{ ...bandEyebrow, color: BAND.dim, flexShrink: 0 }}>{tr('session:player.bandCounts', { ex: moveIdx + 1, exTotal: moves.length, done: doneSets, total: totalSets })}</span>
-        </div>
-        {/* Segment strip — one per exercise; lit = done, outlined = now */}
-        <div aria-hidden style={{ position: 'relative', marginTop: 9, display: 'flex', gap: 4 }}>
-          {moves.map((_, i) => (
-            <span key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: moveAllDone(i) ? bandHeat : BAND.hair, boxShadow: moveAllDone(i) ? `0 0 8px ${bsTHexA(bandHeat, 0.55)}` : 'none', outline: i === moveIdx ? `1px solid ${bsTHexA(bandHeat, 0.7)}` : 'none', outlineOffset: 1, ...heatTrans }} />
-          ))}
-        </div>
-        <div style={{ position: 'relative', marginTop: 6, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35 }}>{tr('session:player.view.progress', { pct: Math.round(pct * 100) })}</div>
-        {/* Exercise title (+ open-session rename) + the trainer form clip */}
-        <div style={{ position: 'relative', marginTop: 14 }}>
-          {openMode ? (
-            <input value={move.m} onChange={(e) => renameMove(e.target.value)} list="bs-session-move-names" placeholder={tr('session:player.namePlaceholder')} style={{ width: '100%', boxSizing: 'border-box', fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05, background: 'transparent', border: 0, borderBottom: `1px solid ${BAND.hair}`, outline: 'none', padding: '2px 0 8px' }} />
-          ) : (
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: t.W.displayHeavy, letterSpacing: '0.02em', textTransform: 'uppercase', color: BAND.cream, lineHeight: 1.05 }}>{move.m}</div>
-          )}
-          {clip && (
-            <button onClick={() => setClipOpen(true)} style={{ marginTop: 9, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: `1px solid ${bsTHexA(bandHeat, 0.4)}`, borderRadius: 5, padding: '8px 11px', cursor: 'pointer', ...bandEyebrow, fontSize: 8, color: bandHeat, ...heatTrans }}>▶ {tr('session:player.formClip')}</button>
-          )}
-        </div>
-        {draftWarning && <p role="alert" style={{ position: 'relative', fontSize: 13, color: '#e8a33c' }}>{draftWarning}</p>}
-        {logStatus && <p role="status" style={{ position: 'relative', fontSize: 13, color: BAND.cream }}>{logStatus}</p>}
-        {view === 'focus' && <div style={{ position: 'relative', marginTop: 12, fontFamily: t.MONO, fontSize: 12, lineHeight: 1.5, color: BAND.dim }}>
-          {move.s || `${move.sets} × ${move.reps || '—'}`}{move.rpe ? ` · ${tr('session:player.view.targetRpe', { rpe: move.rpe })}` : ''}
-          {cue && <p style={{ fontFamily: t.DISPLAY, fontSize: 15, color: BAND.cream, margin: '8px 0 0' }}>{cue}</p>}
-        </div>}
-        {activeRunning && <p style={{ position: 'relative', fontFamily: t.MONO, color: bandHeat }}>{tr('session:player.setLive', { n: activeIdx + 1 })} · {fmt(activeSetSeconds)}</p>}
-        {view === 'guided' && activeIdx != null && <div style={{ position: 'relative', marginTop: 18, borderTop: `1px solid ${BAND.hair}`, paddingTop: 14 }}>
-          <div style={{ ...bandEyebrow, color: bandHeat }}>{tr(guidePrepare ? 'session:player.view.prepare' : 'session:player.view.perform')}</div>
-          <p style={{ color: BAND.cream, fontSize: 15, lineHeight: 1.5 }}>{guidePrepare ? (cue || tr('session:player.view.prepareHelp')) : tr('session:player.view.performHelp')}</p>
-          <p style={{ fontFamily: t.MONO, color: BAND.dim, fontSize: 12 }}>{bsSetPrefill(move, activeIdx).reps || '—'} · {bsSetPrefill(move, activeIdx).load || '—'}{move.rpe ? ` · ${tr('session:player.view.targetRpe', { rpe: move.rpe })}` : ''}{move.restSeconds != null ? ` · ${tr('session:player.view.rest')} ${fmt(move.restSeconds)}` : ''}</p>
-        </div>}
-        {/* Current-set readout — the big figures ARE the inputs */}
-        {view !== 'log' && (activeIdx != null ? (
-          <div style={{ position: 'relative', marginTop: 14 }}>
-            <div style={{ ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr(activeRunning ? 'session:player.setLive' : 'session:player.setUp', { n: String(activeIdx + 1).padStart(2, '0') })}</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, marginTop: 8 }}>
-              {/* Load values can carry their unit ("165 lb" — the athlete's own
-                  text), so the label reads LOAD (not LB) and the size leaves
-                  room for the unit token without clipping. */}
-              {['load', 'reps', 'rpe'].map((field) => (
-                <div key={field} style={{ flex: 1, minWidth: 0 }}>
-                  <input value={(setInputs[activeKey] && setInputs[activeKey][field]) ?? ''} onChange={(e) => updateSetInput(activeIdx, field, e.target.value)} placeholder="—" inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: activeIdx + 1, field: fieldLabel(field) })}
-                    style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: `1.5px solid ${bsTHexA(bandHeat, 0.6)}`, background: 'transparent', color: bandHeat, textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, padding: '0 0 6px', fontFamily: t.MONO, fontSize: 21, fontWeight: 800, textAlign: 'center', fontVariantNumeric: 'tabular-nums', borderRadius: 0, ...heatTrans }} />
-                  <div style={{ marginTop: 5, ...bandEyebrow, fontSize: 7.5, color: BAND.dim35, textAlign: 'center' }}>{fieldLabel(field)}</div>
-                </div>
-              ))}
-
-            </div>
+  // Trainer form-clip player — a dark portal sheet over the session (the card's ▶ How-to chip opens
+  // it; renders only when the plan move actually carries a coach clip).
+  const clipSheet = clipOpen && clip ? (() => {
+    const sheet = (
+      <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+            <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
+            <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
           </div>
-        ) : (
-          <div style={{ position: 'relative', marginTop: 14, ...bandEyebrow, color: bandHeat, ...heatTrans }}>{tr('session:player.allSetsLogged')}</div>
-        ))}
-        {/* Rest — countdown + a bar that FILLS as the rest runs (owner add) */}
-        {restEnd && restLeft > 0 && (
-          <div style={{ position: 'relative', marginTop: 14, borderTop: `1px solid ${BAND.hair}`, paddingTop: 11 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ ...bandEyebrow, color: BAND.dim }}>{tr('session:player.restAfter', { n: restAfterSet })}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 24, fontWeight: 800, color: bandHeat, fontVariantNumeric: 'tabular-nums', textShadow: `0 0 14px ${bsTHexA(bandHeat, 0.4)}`, lineHeight: 1, ...heatTrans }}>{fmt(restLeft)}<span style={{ fontSize: 9, color: BAND.dim35, textShadow: 'none' }}> / {fmt(restTotal)}</span></span>
-            </div>
-            <div aria-hidden style={{ marginTop: 9, height: 4, borderRadius: 2, background: BAND.hair, overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 2, background: bandHeat, boxShadow: `0 0 10px ${bsTHexA(bandHeat, 0.6)}`, width: `${Math.round(Math.max(0, Math.min(1, 1 - restLeft / restTotal)) * 100)}%`, transition: bsSdReduced() ? 'none' : 'width 1s linear, background-color 1.2s ease' }} />
-            </div>
-            <div style={{ marginTop: 4, display: 'flex', gap: 16, alignItems: 'center' }}>
-              <button onClick={() => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); }} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: BAND.cream }}>{tr('session:player.plus30')}</button>
-              {hrmOn && hrNow ? <span style={{ ...bandEyebrow, fontSize: 8, color: BAND.dim35 }}>{tr('session:player.hrComeDown', { bpm: hrNow })}</span> : null}
-              <button onClick={() => setRestEnd(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 0', ...bandEyebrow, fontSize: 9, color: bandHeat, ...heatTrans }}>{tr('session:player.skipRest')}</button>
-            </div>
-          </div>
-        )}
-        <div style={{ position: 'relative', marginTop: 15, borderTop: `1px solid ${BAND.hair}`, paddingTop: 12, color: BAND.cream }}>
-          {hrNow != null ? <span style={{ fontFamily: t.MONO, color: bandHeat }}>{bsFeedIcon('heart', 12, true)} {tr('session:player.view.hrReading', { bpm: hrNow })} · {tr('session:player.view.hrLive')}</span> : <>
-            <span style={{ fontSize: 12, color: BAND.dim }}>{tr(hrmOn ? 'session:player.view.hrWaiting' : hrSamplesRef.current.length ? 'session:player.view.hrLost' : 'session:player.view.hrAbsent')}</span>
-            <button onClick={connectHrm} disabled={hrConnecting || hrmOn} style={{ minHeight: 44, display: 'block', border: 0, padding: 0, background: 'transparent', color: bandHeat, cursor: 'pointer' }}>{tr(hrConnecting ? 'session:player.view.hrConnecting' : 'session:player.connectHr')}</button>
-          </>}
-          <div style={{ marginTop: 5, fontSize: 11, color: BAND.dim }}>{tr('session:player.view.hrHelp')}</div>
+          <ShapeVideoPlayer key={clip.url} value={clip.url} title={tr('coach:video.namedDemo',{defaultValue:'{name} demonstration',name:move.m})} expanded/>
+          <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
         </div>
       </div>
-      {/* The seam — the ONE band/paper boundary (Cockpit/Split signature) */}
-      <div aria-hidden style={{ height: 3, background: `linear-gradient(90deg, ${teal}, ${bsTHexA(teal, 0.15)})` }} />
+    );
+    const target = typeof document !== 'undefined' && document.getElementById('bs-phone-surface');
+    return target ? createPortal(sheet, target) : sheet;
+  })() : null;
 
-      <details key={view} open={view === 'log'} style={{ color: t.INK }}>
-        <summary style={{ padding: `18px ${t.padX}px`, minHeight: 44, boxSizing: 'border-box', cursor: 'pointer', fontFamily: t.MONO, fontSize: 12, borderBottom: `1px solid ${t.RULE}` }}>{tr('session:player.view.details')}</summary>
-        <div style={{ padding: `0 ${t.padX}px`, background: BAND.bg }}>
-        <div style={{ position: 'relative', marginTop: 12, display: 'flex', gap: 8 }}>
-          {[false, true].map(timed => <button key={String(timed)} aria-pressed={timedMode === timed} onClick={() => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); }} style={{ minHeight: 44, flex: 1, background: timedMode === timed ? BAND.hair : 'transparent', color: BAND.cream, border: `1px solid ${BAND.hair}`, borderRadius: 5, cursor: 'pointer' }}>{timed ? tr('session:player.timedSets') : tr('session:player.quickLog')}</button>)}
-        </div>
+  // The one action's words: the rest's skip, Ready for this set in Guided's prepare step, Start set in
+  // timed mode, else Log set; Next exercise / Finish workout once this move's sets are all logged.
+  const primaryLabel = activeIdx == null
+    ? tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')
+    : restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
+      // "· N reps" only for a count; any other value as written, with no unit word (bsLogSetLabel).
+      ? (() => {
+          const lbl = bsLogSetLabel(bsSetPrefill(move, activeIdx).reps);
+          return lbl.kind === 'count' ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: lbl.reps })
+            : lbl.kind === 'value' ? tr('session:player.logSetCtaValue', { n: activeIdx + 1, value: lbl.value })
+              : tr('session:player.logSetCta', { n: activeIdx + 1 });
+        })()
+      : tr('session:player.startSetCta', { n: activeIdx + 1 });
+  const nextOrFinish = () => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } else openCompletion(); };
 
-        </div>
-      {/* ═══ THE LEDGER (paper) — cue · last · suggestion · plates · sets */}
-      <div style={{ padding: `16px ${t.padX}px 0` }}>
-        {!openMode && !!cue && <div style={{ fontFamily: t.DISPLAY, fontStyle: 'italic', fontSize: 13.5, fontWeight: 500, color: t.INK50, letterSpacing: '-0.005em' }}>“{cue}”</div>}
-        {move.l && <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, fontWeight: 600 }}>{tr('session:player.targetLoad', { load: move.l })}</div>}
-      </div>
-
-      {/* Suggested next load (e1RM progression nudge) — dot-leader row */}
-      {_bsSug && (
-        <div style={{ padding: `10px ${t.padX}px 0` }}>
-          <button onClick={_bsFillSuggestion} aria-label={tr('session:player.useSuggestedAria', { load: _bsSug.load, unit: _bsSug.unit })}
-            style={{ width: '100%', background: 'transparent', border: 0, cursor: 'pointer', padding: '10px 0', minHeight: 44, textAlign: 'left' }}>
-            <span style={{ display: 'flex', alignItems: 'baseline', gap: 9 }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: heat, ...heatTrans }}>{tr('session:player.suggested')}</span>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{`${_bsSug.load} ${_bsSug.unit}`}{_bsSug.reps != null ? ` × ${_bsSug.reps}` : ''}</span>
-              <span aria-hidden style={{ flex: 1, borderBottom: `1px dotted ${bsTHexA(t.INK, 0.28)}`, transform: 'translateY(-3px)' }} />
-              <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK, borderBottom: `2px solid ${heat}`, paddingBottom: 2, ...heatTrans }}>{tr('session:player.use')}</span>
-            </span>
-            <span style={{ display: 'block', marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50 }}>{_bsSug.rationale}</span>
-          </button>
-        </div>
-      )}
-
-      {/* Plate math — unboxed line (gym plate colors are semantic, kept) */}
-      {identity.loadUnit === 'lb' && perSide && (
-        <div style={{ padding: `8px ${t.padX}px 0`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('session:player.perSide', { load: activeLoad })}</span>
-          {plates.length ? plates.map((p, i) => (
-            <span key={i} style={{ padding: '3px 8px', borderRadius: 3, background: plateColor[p] || t.INK50, color: '#1a1410', fontFamily: t.MONO, fontSize: 10, fontWeight: 800 }}>{p}</span>
-          )) : <span style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{tr('session:player.barOnly')}</span>}
-        </div>
-      )}
-
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        {move.tempo && <p style={{ color: t.INK70 }}>{tr('session:player.tempo')} · {move.tempo}</p>}
-        {bsGroupKey(move) && <p style={{ color: t.INK70 }}>{tr('session:player.superset')} · {bsGroupKey(move)}</p>}
-        {activeIdx != null && <button onClick={() => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || ''))} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', textAlign: 'left' }}>{tr('session:player.applyRemaining')}</button>}
-      </div>
-
-      {/* Set table */}
-      <div style={{ padding: `18px ${t.padX}px 0` }}>
-        {/* ⚠ THE SET-TABLE COLUMNS WERE SIZED TO ENGLISH — the same magic number the
-            wire form's 84px label column was, measured the same way. JetBrains Mono
-            advances 0.6em, so at 9px with 0.16em tracking a character costs ~6.84px:
-            the old `26px` first column held 3.8 characters and the `30px` last held
-            4.4. English never revealed it (`Set` 3, `Done` 4). Translated it breaks
-            immediately — ru/uk «Подход»/«Підхід» are 6 (41.0px) and id "Selesai" is 7
-            (47.9px), all from the coach console's own shipped headers. Widened to
-            48px (~7 chars) and 56px (~8) — the measured longest plus a character of
-            slack. The three `1fr` input columns give up the difference and still hold
-            the widest header (ha "Maimaici", 8 ch / 54.7px) at every density.
-            ⚠ The coach live-watch console renders the IDENTICAL grid off the same
-            `coach:live.col*` values, so it carried this overflow already; widened
-            there too, first column only — its last column is an empty spacer. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, padding: '0 0 8px', fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>
-          <span>{tr('session:player.colSet')}</span><span>{tr('session:player.colWeight')}</span><span>{tr('session:player.colReps')}</span><span>RPE</span><span style={{ textAlign: 'right' }}>{tr('session:player.colDone')}</span>
-        </div>
-        {(view === 'log' ? moves.map((rowMove, rowMoveIdx) => ({ rowMove, rowMoveIdx })) : [{ rowMove: move, rowMoveIdx: moveIdx }]).map(({ rowMove, rowMoveIdx }) => (
-          <section key={rowMoveIdx} aria-labelledby={`bs-log-move-${rowMoveIdx}`} style={{ marginBottom: 16 }}>
-            <button id={`bs-log-move-${rowMoveIdx}`} onClick={() => { setMoveIdx(rowMoveIdx); setGuideStep('prepare'); }} style={{ width: '100%', textAlign: 'left', minHeight: 44, background: 'transparent', border: 0, borderTop: `1px solid ${t.RULE}`, color: t.INK, padding: '12px 0', fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18 }}>{rowMove.m || tr('session:player.namePlaceholder')}</button>
-            {view === 'log' && <p style={{ fontFamily: t.MONO, fontSize: 10, color: t.INK70, margin: '0 0 8px' }}>{rowMove.s || `${rowMove.sets} × ${rowMove.reps || '—'}`}{rowMove.l ? ` · ${rowMove.l}` : ''}</p>}
-        {Array.from({ length: rowMove.sets }).map((_, i) => {
-          const k = `${rowMoveIdx}-${i}`;
-          const done = completed[k];
-          const isActive = rowMoveIdx === moveIdx && i === activeIdx;
-          const ri = setInputs[k] || { reps: '', load: bsSetPrefill(rowMove, i).load, rpe: '' };
-          // Every row stays tap-to-edit in place (Cockpit/Split spec: full set
-          // editing — done, active, pending alike share state with the band's
-          // readout). The dotted underlines died with the redesign: pending =
-          // hairline, active = solid heat, done = bare dimmed figures.
-          const cell = (field, ph) => (
-            // Logged sets stay editable in place (a mis-entered load/reps/RPE
-            // corrects without delete-and-relog — updateSetInput patches the
-            // captured log row); they read dimmed, not locked.
-            <input value={ri[field] ?? ''} onChange={(e) => updateSetInput(i, field, e.target.value, rowMoveIdx)} placeholder={ph} inputMode="decimal" aria-label={tr('session:player.setFieldAria', { n: i + 1, field: fieldLabel(field) })} aria-describedby={`bs-log-move-${rowMoveIdx}`}
-              style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', border: 0, borderBottom: done ? 0 : (isActive ? `1.5px solid ${heat}` : `1px solid ${t.HAIR}`), background: 'transparent', color: t.INK, padding: '12px 4px', fontFamily: t.MONO, fontSize: 12.5, textAlign: 'center', fontVariantNumeric: 'tabular-nums', opacity: done ? 0.55 : 1, borderRadius: 0, ...heatTrans }} />
-          );
-          return (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 1fr 1fr 56px', gap: 8, alignItems: 'center', padding: '5px 0', borderLeft: isActive ? `3px solid ${heat}` : '3px solid transparent', marginLeft: -9, paddingLeft: 6, ...heatTrans }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 700, color: (done || isActive) ? heat : t.INK50, fontVariantNumeric: 'tabular-nums', ...heatTrans }}>{done ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              {cell('load', identity.loadUnit)}
-              {cell('reps', '—')}
-              {cell('rpe', '—')}
-              <button onClick={() => { if (!done) logSet(i, rowMoveIdx); }} disabled={!!done} aria-label={tr(done ? 'session:player.setDoneAria' : timedMode && activeSetKey !== k ? 'session:player.startSetCta' : 'session:player.markSetDoneAria', { n: i + 1 })} style={{ justifySelf: 'end', width: 44, height: 44, padding: 0, borderRadius: 5, border: `1.5px solid ${(done || isActive) ? heat : t.RULE}`, background: done ? heat : 'transparent', color: done ? '#04201d' : (isActive ? heat : 'transparent'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, cursor: done ? 'default' : 'pointer', ...heatTrans }}>{timedMode && !done && activeSetKey !== k ? '▶' : '✓'}</button>
-            </div>
-          );
-        })}
-          </section>
-        ))}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={addSet} aria-label={tr('session:player.addSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addSet')}</button>
-          {/* Remove targets the current pending set (else the last set, confirm-
-              gated when logged) — spec's full-set-editing contract; hidden at
-              one set (an exercise never drops to zero). */}
-          {move.sets > 1 && <button onClick={() => removeSet(activeIdx != null ? activeIdx : move.sets - 1)} aria-label={tr('session:player.removeSetAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.removeSet')}</button>}
-          {openMode && <button onClick={addMove} aria-label={tr('session:player.addMoveAria')} style={{ marginTop: 6, flex: 1, minHeight: 44, padding: '12px', border: 0, background: 'transparent', color: t.ACCENT, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('session:player.addMove')}</button>}
-        </div>
-        {openMode && <datalist id="bs-session-move-names">{(() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => <option key={k} value={k.replace(/\b\w/g, (c) => c.toUpperCase())} />); } catch (e) { return null; } })()}</datalist>}
-      </div>
-
-      </details>
-
-      {(() => { const action = (<div style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 55, padding: `10px ${t.padX}px`, background: t.PAPER, borderTop: `1px solid ${t.RULE}` }}>
-        {activeIdx != null ? (
-          <button onClick={primarySetAction} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {restLeft > 0 ? tr('session:player.skipRest') : guidePrepare ? tr('session:player.view.begin') : !timedMode || activeRunning
-              // "· N reps" only for a count; any other value as written, with no unit word (bsLogSetLabel).
-              ? (() => {
-                  const lbl = bsLogSetLabel(bsSetPrefill(move, activeIdx).reps);
-                  return lbl.kind === 'count' ? tr('session:player.logSetCtaReps', { n: activeIdx + 1, reps: lbl.reps })
-                    : lbl.kind === 'value' ? tr('session:player.logSetCtaValue', { n: activeIdx + 1, value: lbl.value })
-                      : tr('session:player.logSetCta', { n: activeIdx + 1 });
-                })()
-              : tr('session:player.startSetCta', { n: activeIdx + 1 })}
-          </button>
-        ) : (
-          <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } else openCompletion(); }} style={{ width: '100%', borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)', border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '16px', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
-            {tr(moveIdx < moves.length - 1 ? 'session:player.nextExercise' : 'session:player.finishWorkout')}
-          </button>
-        )}
-      </div>); const surface = typeof document !== 'undefined' && document.getElementById('bs-phone-surface'); return surface ? createPortal(action, surface) : action; })()}
-
-      {/* Prev / next — text-actions (the bordered boxes died with the spec) */}
-      <div style={{ padding: `6px ${t.padX}px 0`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => { setMoveIdx(Math.max(0, moveIdx - 1)); setGuideStep('prepare'); }} disabled={moveIdx === 0} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, cursor: moveIdx === 0 ? 'default' : 'pointer', opacity: moveIdx === 0 ? 0.35 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{tr('session:player.previous')}</button>
-        <button onClick={() => { if (moveIdx < moves.length - 1) { setMoveIdx(moveIdx + 1); setGuideStep('prepare'); } }} disabled={moveIdx >= moves.length - 1} style={{ background: 'transparent', border: 0, padding: '13px 2px', minHeight: 44, minWidth: 0, cursor: moveIdx >= moves.length - 1 ? 'default' : 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: moveIdx >= moves.length - 1 ? t.INK50 : teal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{moveIdx < moves.length - 1 ? <span style={{ borderBottom: `2px solid ${bsTHexA(teal, 0.4)}`, paddingBottom: 2 }}>{tr('session:player.nextNamed', { move: moves[moveIdx + 1].m })}</span> : tr('session:player.lastExercise')}</button>
-      </div>
-
-      {/* Queue */}
-      <div style={{ padding: `26px ${t.padX}px 4px` }}>
-        <BSEyebrow color={teal}>{tr('session:player.upNext')}</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 27, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('session:player.queue')}</div>
-      </div>
-      <div style={{ padding: `8px ${t.padX}px 0` }}>
-        {moves.map((mv, i) => {
-          const mDone = Array.from({ length: mv.sets }).every((_, si) => completed[`${i}-${si}`]);
-          const isCurrent = i === moveIdx;
-          return (
-            <button key={i} onClick={() => { setMoveIdx(i); setGuideStep('prepare'); }} style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderLeft: isCurrent ? `3px solid ${heat}` : '3px solid transparent', display: 'grid', gridTemplateColumns: '24px 1fr auto', gap: 10, alignItems: 'baseline', padding: '13px 0 13px 10px', borderBottom: `1px solid ${t.HAIR}`, opacity: mDone ? 0.5 : 1, ...heatTrans }}>
-              <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: mDone ? heat : t.INK50, ...heatTrans }}>{mDone ? '✓' : String(i + 1).padStart(2, '0')}</span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{mv.m}{isCurrent && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.16em', color: heat, marginLeft: 8, ...heatTrans }}>{tr('session:player.now')}</span>}</div>
-                {/* ⚠ THE AUTHORED SCHEME, NOT A FABRICATED REST. This rendered
-                    `{sets} × {reps} · 90s rest` — re-deriving from the parsed
-                    numbers and then appending a rest interval nobody wrote, so a
-                    move authored "3 × 10 · 3 min rest" read 90s in the queue.
-                    `mv.s` IS the coach's line; the parsed pair is the fallback
-                    for outline-delivered days that ship no scheme at all. */}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50, marginTop: 2 }}>{mv.s && mv.s !== '—' ? mv.s : `${mv.sets} × ${mv.reps}`}</div>
-              </div>
-              {mv.l && <span style={{ fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: t.INK70 }}>{mv.l}</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ⚠ THE FABRICATED LIVE-COACH CREDIT IS GONE, AND IT COULD NOT BE FIXED IN
-          PLACE. This rendered a rust role-spined press credit reading
-          "Jordan · live · coaching · 2 min" under the current move's cue —
-          UNCONDITIONALLY, with no signed-in gate and no coach check. BSSession
-          receives only { moves, onBack, title }: there is no coach prop, so
-          there was never a path to a real name. A member with no coach at all
-          read a named trainer coaching them live two minutes ago, and a member
-          WITH a coach read the wrong name — while the quoted line was not a live
-          message but the move's authored form cue, which the ledger above
-          already shows in its proper place.
-          This repo's own rule (#1947): a role-spined credit IS the claim "a
-          coach authored this", so it may only exist on real evidence. There is
-          none here, so the block is deleted rather than gated — restoring it
-          means passing a real coach into the player first. */}
-
-      {/* End workout early — routes to the SAME completion step, so finishing
-          early is still asked for an effort rating rather than saving blind. */}
-      <div style={{ padding: `18px ${t.padX}px 150px` }}>
-        <button onClick={() => openCompletion()} style={{ width: '100%', padding: '14px', borderRadius: 5, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase' }}>{tr('session:player.endEarly')}</button>
-        <button onClick={discardWorkout} style={{ minHeight: 44, width: '100%', border: 0, background: 'transparent', color: t.RUST, cursor: 'pointer', marginTop: 12 }}>{tr('session:player.discard')}</button>
-      </div>
-
-      {/* Trainer form-clip player — a dark portal sheet over the session (the
-          band's ▶ How-to chip opens it; renders only when the plan move
-          actually carries a coach clip). */}
-      {clipOpen && clip && (() => {
-        const sheet = (
-          <div onClick={() => setClipOpen(false)} role="dialog" aria-modal="true" aria-label={tr('session:player.clipAria', { move: move.m })} style={{ position: 'absolute', inset: 0, zIndex: 90, background: 'rgba(4,6,6,0.88)', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 18 }}>
-            <div onClick={(e) => e.stopPropagation()} style={{ background: '#0b0f0f', color:'#f4ede0', border: '1px solid rgba(56,224,204,0.25)', borderRadius: 12, padding: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#38e0cc', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>▶ {tr('session:player.formClipHead', { move: move.m })}</span>
-                <button onClick={() => setClipOpen(false)} aria-label={tr('session:player.closeClipAria')} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, padding: '10px 4px', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#f4ede0' }}>{tr('session:player.closeClip')}</button>
-              </div>
-              <ShapeVideoPlayer key={clip.url} value={clip.url} title={tr('coach:video.namedDemo',{defaultValue:'{name} demonstration',name:move.m})} expanded/>
-              <button onClick={() => { try { window.open(clip.url, '_blank', 'noopener'); } catch (e) {} }} style={{ marginTop: 10, background: 'transparent', border: 0, cursor: 'pointer', padding: '8px 0', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(244,237,224,0.55)' }}>{tr('session:player.openExternally')}</button>
-            </div>
-          </div>
-        );
-        const target = typeof document !== 'undefined' && document.getElementById('bs-phone-surface');
-        return target ? createPortal(sheet, target) : sheet;
-      })()}
-    </BSPage>
-  );
+  // ═══ THE THREE VIEWS — Focus, Workout log, Guided coach (BSWorkoutSession.jsx) ═══
+  // The owner's B (2026-11-04: "B for all of them", "the training ones i mean"): a raised card for
+  // what is now, glass for the rest. The view only draws; every value and handler below is this
+  // component's, so a view change, a pause or a recovery keeps the workout exactly as it was.
+  return <BSWorkoutSession session={{
+    view, openChooser: () => setViewChooser(true), viewControlRef, viewWarning,
+    title, moves, move, moveIdx, openMode, cue, clip, clipSheet,
+    goMove: (i) => { setMoveIdx(i); setGuideStep('prepare'); },
+    coachCue: <BSWorkoutCoachCue identity={identity} />,
+    renameMove, openClip: () => setClipOpen(true), draftWarning, logStatus,
+    // An open session names its moves as it goes; the list offers the swap library's names.
+    moveNames: openMode ? (() => { try { return Object.keys(BS_MOVE_SWAPS || {}).slice(0, 60).map((k) => k.replace(/\b\w/g, (c) => c.toUpperCase())); } catch (e) { return []; } })() : [],
+    doneSets, totalSets, pct, moveAllDone,
+    activeIdx, activeKey, activeRunning, activeSetKey, activeSetSeconds, guidePrepare,
+    setInputs, updateSetInput, completed, logSet, addSet, addMove,
+    // Remove targets the current pending set (else the last set, confirm-gated when logged).
+    removeCurrentSet: () => removeSet(activeIdx != null ? activeIdx : move.sets - 1),
+    applyRemaining: () => setSetInputs(prev => bsApplyRemainingLoad(prev, completed, moves, moveIdx, activeIdx, prev[activeKey]?.load || '')),
+    prefill: bsSetPrefill, superset: bsGroupKey(move),
+    restEnd, restLeft, restTotal, restAfterSet, skipRest: () => setRestEnd(null),
+    addRest30: () => { setRestEnd((e) => (e || Date.now()) + 30 * 1000); setRestTotal((r) => r + 30); },
+    hrmOn, hrNow, hrHadSamples: hrSamplesRef.current.length > 0, connectHrm, hrConnecting, heartIcon: bsFeedIcon('heart', 12, true),
+    timedMode, setTimed: (timed) => { setTimedMode(timed); setActiveSetKey(null); setSetStartedAt(null); },
+    sug: _bsSug, fillSug: _bsFillSuggestion, perSide, plates, plateColor, activeLoad, loadUnit: identity.loadUnit,
+    primaryLabel, primaryAction: activeIdx != null ? primarySetAction : nextOrFinish,
+    openCompletion, endWorkout, discardWorkout, elapsedSec, fmt, heat,
+  }} />;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -34599,646 +32902,14 @@ const BS_GROCERY_DEFAULT = {
 
 // "Build a list." lives in BSGroceryBuilder.jsx (imported above).
 
-// Item-swap suggestions for a coach-sent grocery item — a keyword map + a
-// category fallback so the member can sub anything for a sensible alternative.
-const BS_GRO_SWAPS = {
-  'white rice': ['Brown rice', 'Quinoa', 'Cauliflower rice'],
-  'rice': ['Brown rice', 'Quinoa', 'Jasmine rice'],
-  'chicken breast': ['Chicken thigh', 'Turkey breast', 'Extra-firm tofu'],
-  'chicken': ['Turkey', 'Tofu', 'Tempeh'],
-  'beef': ['Lean ground beef', 'Bison', 'Turkey'],
-  'salmon': ['Trout', 'Cod', 'Canned tuna'],
-  'milk': ['Almond milk', 'Oat milk', 'Lactose-free milk'],
-  'greek yogurt': ['Skyr', 'Cottage cheese', 'Plant-based yogurt'],
-  'yogurt': ['Greek yogurt', 'Skyr', 'Plant-based yogurt'],
-  'bread': ['Whole-grain bread', 'Sourdough', 'Wraps'],
-  'pasta': ['Whole-wheat pasta', 'Chickpea pasta', 'Rice noodles'],
-  'potato': ['Sweet potato', 'Butternut squash', 'Parsnip'],
-  'spinach': ['Kale', 'Arugula', 'Swiss chard'],
-  'peanut butter': ['Almond butter', 'Sunflower butter', 'Cashew butter'],
-};
-function bsGrocerySwap(name) {
-  const n = String(name || '').toLowerCase().trim();
-  for (const k in BS_GRO_SWAPS) if (n.includes(k)) return BS_GRO_SWAPS[k].filter(x => x.toLowerCase() !== n);
-  const cat = bsGroceryAisleFor(name);
-  const FB = {
-    Produce: ['Seasonal greens', 'Frozen mixed veg', 'A different vegetable'],
-    Protein: ['Tofu', 'Turkey', 'Eggs'],
-    Dairy: ['Plant-based alt', 'Low-fat version', 'Lactose-free version'],
-    Grains: ['Brown rice', 'Quinoa', 'Oats'],
-  };
-  return FB[cat] || ['A similar item', 'Store-brand version', 'Skip this item'];
-}
-// "From your nutritionist" review card — the coach-pushed grocery list, where the
-// member reviews each item and can SWAP it for an alternative before adding it to
-// their own grocery list. Reads coach_pushed_items via /api/client/grocery.
-function BSCoachGroceryReview({ t, teal, onAdd }) {
-  const tr = useShapeTr();
-  const [groups, setGroups] = useStateBSC(null);
-  const [swapKey, setSwapKey] = useStateBSC(null); // `${gi}-${ii}`
-  const [added, setAdded] = useStateBSC({});
-  // ⚠ THE RECORD TOKEN AND THE HEADING LABEL ARE TWO DIFFERENT STRINGS ON PURPOSE.
-  // An unnamed group keys on '' (see below) — but `onAdd` writes the group's source
-  // onto every added grocery item as its provenance subtitle, and that is a RECORD
-  // value, not copy: translating it would freeze one language into the member's own
-  // list (the record-shape rule this wave already paid for). So the record carries
-  // the canonical English token while the heading renders the translated label.
-  const SOURCE_UNNAMED = 'Coach list';
-  React.useEffect(() => {
-    let on = true;
-    if (!window.ShapeClientGrocery?.list) { setGroups([]); return () => { on = false; }; }
-    window.ShapeClientGrocery.list().then(items => {
-      if (!on) return;
-      if (!Array.isArray(items) || !items.length) { setGroups([]); return; }
-      const by = {};
-      // ⚠ THE GROUP KEY STAYS RAW AND THE FALLBACK NAME IS MADE AT RENDER. This
-      // grouped on the literal 'Coach list', so translating it here would make the
-      // key itself locale-dependent — the same shape as the aisle token, one
-      // component over. An unnamed group keys on '' and is named below.
-      items.forEach(it => { const g = String(it.mealName || '').trim(); (by[g] = by[g] || []).push({ item: it.item, qty: it.qty || '', id: it.id }); });
-      setGroups(Object.keys(by).map(name => ({ name, source: name || SOURCE_UNNAMED, items: by[name] })));
-    }).catch(() => { if (on) setGroups([]); });
-    return () => { on = false; };
-  }, []);
-  if (!groups || !groups.length) return null;
-  const muted = t.INK50;
-  const card = t.SURFACE || t.PAPER2;
-  const setItem = (gi, ii, val) => setGroups(gs => gs.map((g, x) => x !== gi ? g : { ...g, items: g.items.map((it, y) => y !== ii ? it : { ...it, item: val }) }));
-  return (
-    <div style={{ padding: `0 ${t.padX}px 6px` }}>
-      {groups.map((g, gi) => (
-        <div key={gi} style={{ border: `1px solid ${teal}55`, borderRadius: 18, background: card, overflow: 'hidden', marginBottom: 12 }}>
-          <div style={{ height: 3, background: teal }} />
-          <div style={{ padding: '13px 15px 15px' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 900 }}>{tr('nutrition:grocery.coach.from', { defaultValue: 'From your nutritionist' })}</div>
-            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: t.INK }}>{g.name || tr('nutrition:grocery.coach.unnamed', { defaultValue: 'Coach list' })}</div>
-            <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: muted }}>{tr('nutrition:grocery.coach.reviewCount', { defaultValue: `${g.items.length} item${g.items.length === 1 ? '' : 's'} · review & swap before adding`, count: g.items.length })}</div>
-            <div style={{ marginTop: 11, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {g.items.map((it, ii) => {
-                const k = `${gi}-${ii}`;
-                const open = swapKey === k;
-                const alts = open ? bsGrocerySwap(it.item) : [];
-                return (
-                  <div key={ii}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderTop: ii ? `1px solid ${t.RULE}` : 'none' }}>
-                      <span style={{ flex: 1, minWidth: 0, fontFamily: t.DISPLAY, fontSize: 14.5, color: t.INK }}>{it.item}{it.qty ? <span style={{ color: muted, fontSize: 12 }}> · {it.qty}</span> : null}</span>
-                      <button onClick={() => setSwapKey(open ? null : k)} style={{ flex: 'none', border: `1px solid ${open ? teal : t.RULE}`, background: open ? `${teal}1f` : 'transparent', color: open ? teal : t.INK70, borderRadius: 999, padding: '5px 11px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('nutrition:grocery.coach.swap', { defaultValue: '⇄ Swap' })}</button>
-                    </div>
-                    {open && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '0 0 10px 2px' }}>
-                        {alts.map(a => (
-                          <button key={a} onClick={() => { setItem(gi, ii, a); setSwapKey(null); window.__bsToast?.(tr('nutrition:grocery.coach.swapped', { defaultValue: `Swapped to ${a}`, item: a }), 'ok'); }} style={{ border: `1px solid ${t.RULE}`, background: t.PAPER, color: t.INK, borderRadius: 999, padding: '6px 11px', fontFamily: t.DISPLAY, fontSize: 12.5, cursor: 'pointer' }}>{a}</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <button
-              disabled={!!added[gi]}
-              onClick={() => { onAdd(g); setAdded(a => ({ ...a, [gi]: true })); window.__bsToast?.(tr('nutrition:grocery.coach.added', { defaultValue: 'Added to your grocery list' }), 'ok'); }}
-              style={{ width: '100%', marginTop: 13, padding: '12px', borderRadius: 999, border: 0, background: added[gi] ? t.RULE : teal, color: added[gi] ? t.INK50 : '#04201d', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: added[gi] ? 'default' : 'pointer' }}>
-              {added[gi]
-                ? tr('nutrition:grocery.coach.addedTick', { defaultValue: '✓ Added to your list' })
-                : tr('nutrition:grocery.coach.addCta', { defaultValue: 'Add to my grocery list →' })}
-            </button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-
 // One palette for the grocery surfaces (the list + Saved carts) so the client
 // teal lead + the nutritionist gold tag can't drift between the two components.
 const bsGroceryHues = (t) => ({ teal: t.isLight ? '#0a8f87' : '#34d6c5', gold: t.isLight ? '#a07a2e' : '#d8b25a' });
-function BSGrocery({ list: activeList, planList = null, onBack, onLibrary, recipeLists = [], onChangeView = () => {}, editable = false, onUpdate = () => {}, onCreate = () => {}, onSaveToLibrary = null, onPickList = null, onProfile = () => {}, onPrep = null, mealWhen = null }) {
-  const t = useBS();
-  // The page under the Eat · Grocery tabs is in the clean type, as Day is (owner, 2026-10-29: "Yes", to
-  // moving Grocery and the Library off Saira): Geist heads and Inter Tight words. The header, the tabs and
-  // the sheets (the list picker, Send to a member) keep the app's own type, as on Day.
-  const tc = useBSClean();
-  const trG = useShapeTr();
-  const TG = bsTrainT(trG);
-  _bsScrollTopOnMount();
-  const list = bsNormalizeGroceryList(activeList || BS_GROCERY_DEFAULT);
-  const [pickerOpen, setPickerOpen] = useStateBSC(false);
-  const [sendOpen, setSendOpen] = useStateBSC(false); // Send to a member (owner, 2026-10-23)
-  const [newName, setNewName] = useStateBSC('');
-  const [newQty, setNewQty] = useStateBSC('');
-  const addItem = () => {
-    const n = newName.trim();
-    if (!n) return;
-    const item = { id: `${list.id || 'list'}-i-${Date.now()}`, n, q: newQty.trim() || '1', meals: list.name };
-    const aisles = (list.aisles && list.aisles.length)
-      ? list.aisles.map(a => ({ ...a, items: [...a.items] }))
-      : [{ aisle: 'Items', items: [] }];
-    aisles[0] = { ...aisles[0], items: [...aisles[0].items, item] };
-    onUpdate({ ...list, aisles });
-    setAisleAt(0);   // walk to the aisle the new item landed in
-    setNewName(''); setNewQty('');
-  };
-  const removeItem = (ai, ii) => {
-    const aisles = list.aisles.map((a, idx) => idx === ai ? { ...a, items: a.items.filter((_, j) => j !== ii) } : a);
-    onUpdate({ ...list, aisles });
-  };
-  const allKeys = [];
-  list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => allKeys.push({ k: `${ai}-${ii}`, have: !!it.have })));
-  // THE TICKS ARE REMEMBERED PER LIST (owner, 2026-10-11, the shop list on each
-  // meal): the Eat page ticks the same items, by name, so one tick is one tick
-  // on both pages and survives leaving this one. Nothing remembered yet → the
-  // list's own defaults (a pantry staple starts got).
-  // The state holds the got NAMES; the ticked rows are worked out from them on
-  // every render, so when another device's edit lands while this list is open
-  // (an item added in front, one removed, the order changed) each tick stays on
-  // its item instead of on the row it used to be in.
-  const _gStore = (typeof window !== 'undefined' && window.localStorage) || null;
-  const _gListKey = String(list.id || list.name || 'list');
-  const [gotNames, setGotNames] = useStateBSC(() => bsReadGotItems(_gStore, _gListKey));
-  React.useEffect(() => {
-    setGotNames(bsReadGotItems(_gStore, _gListKey));
-  }, [_gListKey]);
-  const checked = bsGroceryCheckedKeys(list.aisles, gotNames);
 
-  const toggle = (k) => {
-    const [ai, ii] = String(k).split('-').map(Number);
-    const item = list.aisles[ai] && list.aisles[ai].items[ii];
-    if (!item) return;
-    const next = bsToggleGot(list.aisles, gotNames, item);
-    setGotNames(next);
-    bsSaveGotItems(_gStore, _gListKey, next);
-  };
-  // ── SHOP BY (owner, 2026-10-11): the same list two ways — by aisle for the
-  // store (one aisle at a time), or by meal for the week (each ingredient under
-  // the meal it is for, and a meal can be skipped). One tick is one tick in
-  // both views. The choice and the skipped meals are remembered on this device.
-  const _store = (typeof window !== 'undefined' && window.localStorage) || null;
-  const [shopBy, setShopByState] = useStateBSC(() => bsReadShopBy(_store));
-  const setShopBy = (v) => { setShopByState(v); bsSaveShopBy(_store, v); };
-  const listKey = String(list.id || list.name || 'list');
-  const [skipped, setSkipped] = useStateBSC(() => bsReadSkippedMeals(_store, listKey));
-  const [aisleAt, setAisleAt] = useStateBSC(null);      // the aisle being walked (index), null = the first with anything left
-  const [aisleAll, setAisleAll] = useStateBSC(false);   // show every item still to get in that aisle
-  const [cartOpen, setCartOpen] = useStateBSC(false);   // show what is already in the cart there
-  const [openMeals, setOpenMeals] = useStateBSC(null);  // meals shown open; null = the first two
-  const [mealsAll, setMealsAll] = useStateBSC(false);   // every meal, not just the next six
-  React.useEffect(() => {
-    setSkipped(bsReadSkippedMeals(_store, listKey));
-    setAisleAt(null); setAisleAll(false); setCartOpen(false); setOpenMeals(null); setMealsAll(false);
-  }, [listKey]);
-  const toggleSkip = (name) => setSkipped((prev) => {
-    const n = new Set(prev);
-    if (n.has(name)) n.delete(name); else n.add(name);
-    bsSaveSkippedMeals(_store, listKey, n);
-    return n;
-  });
-  const isGot = (ai, ii) => checked.has(`${ai}-${ii}`);
-  // A skipped item (every meal it is for was skipped) is off the list: out of the
-  // counts, the aisles, the share text and the Instacart order.
-  const liveKeys = [];
-  list.aisles.forEach((a, ai) => a.items.forEach((it, ii) => { if (!bsGrocerySkipped(it, skipped)) liveKeys.push(`${ai}-${ii}`); }));
-  const total = liveKeys.length;
-  const done = liveKeys.filter((k) => checked.has(k)).length;
-  const offCount = allKeys.length - total;
-  const pct = total ? Math.round((done / total) * 100) : 0;
-  const estCost = 48;
-  const estLeft = total ? Math.round(estCost * (1 - done / total)) : 0;
-  const { teal, gold } = bsGroceryHues(t);
-  const savedLib = useBSLibrary();
-  // ⚠ `meta` STAYS ENGLISH, AND THAT IS THE RECORD-SHAPE RULE, NOT AN OMISSION.
-  // It is WRITTEN INTO the saved-library record (bsLibToggle → shape.library +
-  // the cloud doc), so translating it here would freeze one language into the
-  // member's own data — the exact fault the grocery eyebrow cut closed. The
-  // honest fix is the same token/render split, but `meta` is a LIBRARY field
-  // with four writers (workout · meal · plan · grocery) and three readers, so
-  // doing it at this one writer would split one column into two conventions.
-  // Registered as its own cut; see docs/WORKLOG.md.
-  const groceryItem = { id: `grocery:${list.id || String(list.name || 'list').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`, kind: 'grocery', title: list.name, meta: `${allKeys.length} items · ${list.aisles.length} aisles` };
-  const grocerySaved = savedLib.some(x => x.id === groceryItem.id);
-  const accent = teal; // grocery (food list) page leads with the client teal accent
-  const aisleDoneCount = (ai) => list.aisles[ai].items.filter((_, ii) => checked.has(`${ai}-${ii}`)).length;
-  const saveToLib = () => { if (onSaveToLibrary) onSaveToLibrary(list); else bsLibToggle(groceryItem); };
-  const shareList = async () => {
-    // ⚠ toUpperCase() IS LOCALE-INSENSITIVE and this now runs over translated
-    // text — the Turkish dotted/dotless i class this repo has already paid for.
-    const lines = list.aisles.map(a => ({ ...a, items: a.items.filter(it => !bsGrocerySkipped(it, skipped)) })).filter(a => a.items.length).map(a => `${bsAisleLabel(a.aisle, TG).toLocaleUpperCase(bsDateLocale())}\n${a.items.map(it => `  • ${it.q ? it.q + ' ' : ''}${it.n}`).join('\n')}`).join('\n\n');
-    const shopTitle = TG('nutrition:grocery.shop.shareTitle', `${list.name} — Shop list`, { name: list.name });
-    const body = `${shopTitle}\n\n${lines}`;
-    // Native share sheet (Messages / Mail / etc.) when available, else clipboard.
-    try {
-      if (typeof navigator !== 'undefined' && navigator.share) {
-        await navigator.share({ title: shopTitle, text: body });
-        return;
-      }
-    } catch (e) { if (e && e.name === 'AbortError') return; /* fall through to copy */ }
-    try { await navigator.clipboard?.writeText(body); window.__bsToast?.(TG('nutrition:grocery.shop.copied', 'Shop list copied — paste to share'), 'ok'); }
-    catch (e) { window.__bsToast?.(TG('nutrition:grocery.shop.shareFail', 'Could not share the list'), 'err'); }
-  };
-  const sendInstacart = async () => {
-    try {
-      const items = (list.aisles || []).flatMap(a => (a.items || []).filter(it => !bsGrocerySkipped(it, skipped))).map(it => ({ name: it.n, display_text: [it.q, it.n].filter(Boolean).join(' ') })).filter(it => it.name);
-      if (!items.length) { window.__bsToast?.(TG('nutrition:grocery.shop.emptySend', 'Your grocery list is empty.'), 'error'); return; }
-      await window.ShapeIntegrations?.sendGroceryToInstacart?.({ items, title: list.name });
-    } catch (e) { window.__bsToast?.(e?.message || TG('nutrition:grocery.shop.sendFail', 'Could not send list.'), 'error'); }
-  };
-  // ── Voice add — speak the whole list ("chicken, 2 lbs of rice, olive oil…"),
-  // transcribe via /api/nutrition/voice (Whisper), parse into items and drop
-  // each into its aisle — no typing item by item.
-  const [vState, setVState] = useStateBSC('idle'); // 'idle' | 'rec' | 'busy'
-  const vRef = React.useRef({ rec: null, chunks: [], stream: null });
-  React.useEffect(() => () => { try { vRef.current.stream && vRef.current.stream.getTracks().forEach((track) => track.stop()); } catch (e) {} }, []);
-  const bsParseSpokenItems = (text) => String(text || '')
-    .split(/,| and | plus |\n|;/i)
-    .map((s) => s.trim().replace(/^(add|get|buy|grab|some|a|an)\s+/i, '').replace(/[.!?]+$/, ''))
-    .filter((s) => s.length > 1)
-    .map((part) => {
-      const m = part.match(/^(\d+(?:\.\d+)?\s*(?:x|lbs?|kg|g|oz|cans?|bags?|bunch(?:es)?|box(?:es)?|bottles?|cartons?|packs?|jars?|loaves?|loaf|dozen|ct)?)\s+(?:of\s+)?(.+)$/i);
-      return m ? { q: m[1].trim(), n: m[2].trim() } : { q: '1', n: part };
-    });
-  const addSpokenItems = (items) => {
-    if (!items.length) { window.__bsToast?.(TG('nutrition:grocery.shop.voiceNone', 'Didn’t catch any items — try again'), 'err'); return; }
-    const aisles = (list.aisles && list.aisles.length) ? list.aisles.map(a => ({ ...a, items: [...a.items] })) : [];
-    const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
-    items.forEach((it, n2) => { const ai = findAisle(it.n); aisles[ai].items.push({ id: `voice-${Date.now()}-${n2}`, n: it.n, q: it.q, meals: list.name, have: false }); });
-    onUpdate({ ...list, aisles });
-    const _touched = new Set(items.map((it) => bsGroceryAisleFor(it.n)));   // walk to the first aisle the spoken items landed in
-    const _firstAi = aisles.findIndex((a) => _touched.has(a.aisle));
-    if (_firstAi >= 0) setAisleAt(_firstAi);
-    window.__bsToast?.(TG('nutrition:grocery.shop.voiceAdded', `Added ${items.length} item${items.length === 1 ? '' : 's'} from voice`, { count: items.length }), 'ok');
-  };
-  // One item on the list — the same row in both views; the meal line shows in the
-  // aisle view only (in the meal view the meal is the group).
-  const itemRow = (ai, ii, it, { compact = false, first = false } = {}) => {
-    const k = `${ai}-${ii}`; const on = checked.has(k);
-    return (
-      <div key={k} role="checkbox" aria-checked={on} tabIndex={0} onClick={() => toggle(k)}
-        onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(k); } }}
-        style={{ display: 'grid', gridTemplateColumns: '24px 1fr auto', alignItems: 'center', gap: 12, padding: compact ? '10px 0' : '13px 0', cursor: 'pointer', borderTop: first ? 0 : `1px solid ${t.HAIR}`, opacity: on ? 0.5 : 1 }}>
-        <span style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${on ? accent : t.RULE}`, background: on ? accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: tc.DISPLAY, fontSize: compact ? 15 : 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', textDecoration: on ? 'line-through' : 'none' }}>{it.n}</div>
-          {!compact && it.meals && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.meals}</div>}
-        </div>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontFamily: t.MONO, fontSize: 11, color: accent, fontWeight: 700 }}>{it.q}</span>
-          {editable && <button onClick={(e) => { e.stopPropagation(); removeItem(ai, ii); }} aria-label={TG('nutrition:log.remove', 'Remove')} style={{ border: 0, background: 'transparent', color: t.INK50, fontSize: 16, lineHeight: 1, cursor: 'pointer', padding: 0, minWidth: 24, minHeight: 32 }}>×</button>}
-        </span>
-      </div>
-    );
-  };
-  const voiceTap = async () => {
-    if (vState === 'busy') return;
-    const v = vRef.current;
-    if (vState === 'rec') { try { v.rec && v.rec.stop(); } catch (e) {} return; }
-    if (!(typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined')) {
-      window.__bsToast?.(TG('nutrition:log.errVoiceUnsupported', 'Voice input isn’t supported here yet'), 'err'); return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      v.stream = stream; v.rec = rec; v.chunks = [];
-      rec.ondataavailable = (e) => { if (e.data && e.data.size) v.chunks.push(e.data); };
-      rec.onstop = async () => {
-        const blob = new Blob(v.chunks, { type: rec.mimeType || 'audio/webm' });
-        try { v.stream && v.stream.getTracks().forEach((track) => track.stop()); } catch (e) {}
-        v.stream = null; v.rec = null; v.chunks = [];
-        if (!(blob.size > 0)) { setVState('idle'); return; }
-        setVState('busy');
-        try {
-          // The backend client (apiBaseUrl + Bearer), with the app's locale and
-          // the grocery vocabulary — see the meal logger's dictate().
-          const stt = window.ShapeSupport && window.ShapeSupport.transcribeNote;
-          if (!stt) throw new Error(TG('nutrition:log.errVoiceUnsupported', 'Voice input isn’t supported here yet'));
-          const r = await stt(blob, { filename: 'list.webm', context: 'grocery', language: window.ShapeLocale?.get?.() });
-          if (!r.ok) throw new Error(r.error || TG('nutrition:log.errTranscribe', 'Could not transcribe'));
-          addSpokenItems(bsParseSpokenItems(r.transcript));
-        } catch (e) { window.__bsToast?.(e?.message || TG('nutrition:grocery.shop.voiceFail', 'Voice add failed'), 'err'); }
-        finally { setVState('idle'); }
-      };
-      rec.start();
-      setVState('rec');
-    } catch (e) { window.__bsToast?.(TG('nutrition:grocery.shop.micFail', 'Microphone unavailable'), 'err'); setVState('idle'); }
-  };
-
-  return (
-    <BSPage>
-      <BSPageHeader trailing={<BSHeaderTools onProfile={onProfile} />} />
-      {/* Header — title + a small ＋ box (new custom list) */}
-      <div style={{ padding: `4px ${t.padX}px 0` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 34, fontWeight: t.W.display, color: t.INK, lineHeight: 0.92, letterSpacing: '-0.035em' }}>{TG('nutrition:grocery.shop.titleA', 'Food')}<br /><span style={{ fontStyle: 'italic', color: accent }}>{TG('nutrition:grocery.shop.titleB', 'list.')}</span></div>
-          <button onClick={onCreate} aria-label={TG('nutrition:grocery.shop.newAria', 'New custom grocery list')} style={{ flexShrink: 0, width: 34, height: 34, marginTop: 4, borderRadius: 5, border: `1px solid ${accent}66`, borderLeft: `3px solid ${accent}`, background: `${accent}14`, color: accent, cursor: 'pointer', padding: 0, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 16, fontWeight: 800, lineHeight: 1 }}>＋</button>
-        </div>
-      </div>
-
-      <BSNutritionTopTabs active="grocery" onChange={onChangeView} />
-
-      <BSCleanType t={tc}>
-
-      {/* THE LIST CARD (owner, 2026-10-30: "this part, looks confusing"). One card answers, in
-          order: which list this is, with a Switch button that says what it does (the old row was
-          a name, an unexplained coloured dot, "89 ITEMS" and a ▾ that read as a filter); then how
-          far the shop has got, in words. The dot's meaning is now said: the list's source, named.
-          ⚠ THE "~$44 TO GO" FIGURE IS GONE ON PURPOSE. It was a fixed $48 for every list scaled by
-          the ticks, so it priced no list at all; a cost comes back only from real prices. */}
-      {(() => {
-        const src = list.kind === 'recipe' ? { c: t.AMBER, l: TG('nutrition:grocery.shop.srcRecipe', 'Recipe') }
-          : list.kind === 'custom' ? { c: '#8a5cf6', l: TG('nutrition:grocery.shop.srcCustom', 'Custom') }
-            : list.kind === 'mealplan' ? { c: gold, l: TG('nutrition:grocery.shop.srcMealPlan', 'Meal plan') }
-              : { c: gold, l: TG('nutrition:grocery.shop.srcPlan', 'Nutri plan') };
-        const left = total - done;
-        return (
-          <div data-grocery-list-card="" style={{ margin: `14px ${t.padX}px 0`, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${src.c}`, borderRadius: 10, background: t.PAPER2, overflow: 'hidden' }}>
-            <button type="button" onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={TG('nutrition:grocery.shop.pickAria', 'Choose a grocery list')} style={{ width: '100%', minHeight: 60, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px 11px 13px', background: 'transparent', border: 0, color: t.INK }}>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: src.c, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {src.l}<span style={{ color: t.INK50, fontWeight: 700 }}> · {trG('nutrition:grocery.itemCount', { defaultValue: '{count, plural, one {# item} other {# items}}', count: total })}</span>
-                </span>
-                <span style={{ display: 'block', marginTop: 3, fontFamily: tc.DISPLAY, fontSize: 19, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</span>
-              </span>
-              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 32, padding: '0 11px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: t.PAPER, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>
-                {trG('nutrition:grocery.shop.switchList', { defaultValue: 'Switch list' })}
-                <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3.5 5 6.5 8 3.5" /></svg>
-              </span>
-            </button>
-            {total > 0 && (
-              <div style={{ padding: '10px 13px 12px', borderTop: `1px solid ${t.HAIR}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                  <span style={{ fontFamily: tc.BODY, fontSize: 14, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>
-                    {trG('nutrition:grocery.shop.inCartOf', { defaultValue: '{done} of {total} in the cart', done, total })}
-                  </span>
-                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: left > 0 ? accent : t.INK50 }}>
-                    {left > 0 ? trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: left }) : trG('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' })}
-                  </span>
-                </div>
-                <div role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={trG('nutrition:grocery.shop.inCartOf', { defaultValue: '{done} of {total} in the cart', done, total })} style={{ marginTop: 8, height: 6, borderRadius: 3, background: t.HAIR, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, minWidth: done > 0 ? 6 : 0, background: accent, borderRadius: 3, transition: 'width 0.2s ease' }} />
-                </div>
-                {offCount > 0 ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: gold }}>{trG('nutrition:grocery.shop.offCount', { defaultValue: '{count} skipped', count: offCount })}</div> : null}
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* List picker — coach plan + everything in the library, switch in place */}
-      {pickerOpen && createPortal(
-        <div onClick={() => setPickerOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', maxHeight: '74%', overflowY: 'auto', background: t.PAPER, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderTop: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{TG('nutrition:grocery.shop.pickerEyebrow', 'Grocery · Switch list')}</div>
-            <div style={{ marginTop: 5, marginBottom: 12, fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 700, letterSpacing: '-0.03em', color: t.INK }}>{TG('nutrition:grocery.shop.pickerTitleA', 'Choose a')} <span style={{ fontStyle: 'italic', color: accent }}>{TG('nutrition:grocery.shop.pickerTitleB', 'list.')}</span></div>
-            {(() => {
-              const isPlan = !list.kind || list.kind === 'plan';
-              const rows = [
-                { key: '__plan__', name: (planList && planList.name) || TG('nutrition:eat.groceryPlanName', "This week's plan"), label: TG('nutrition:grocery.shop.srcPlan', 'Nutri plan'), c: gold, on: isPlan, pick: () => onPickList && onPickList(null) },
-                ...recipeLists.map((l) => ({
-                  key: l.id,
-                  name: l.name,
-                  label: l.kind === 'recipe' ? TG('nutrition:grocery.shop.srcRecipe', 'Recipe') : l.kind === 'mealplan' ? TG('nutrition:grocery.shop.srcMealPlan', 'Meal plan') : TG('nutrition:grocery.shop.srcCustom', 'Custom'),
-                  c: l.kind === 'recipe' ? t.AMBER : l.kind === 'mealplan' ? gold : '#8a5cf6',
-                  sub: l.count != null ? TG('nutrition:grocery.itemCount', `${l.count} item${l.count === 1 ? '' : 's'}`, { count: l.count }) : '',
-                  on: list.id === l.id,
-                  pick: () => onPickList && onPickList(l),
-                })),
-              ];
-              return rows.map((r) => (
-                <button key={r.key} onClick={() => { setPickerOpen(false); r.pick(); }} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px', marginBottom: 8, borderRadius: 6, border: `1px solid ${r.on ? r.c : t.RULE}`, borderLeft: `3px solid ${r.c}`, background: r.on ? `${r.c}14` : t.PAPER2 }}>
-                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: r.c, background: `${r.c}1a`, border: `1px solid ${r.c}55`, borderRadius: 4, padding: '3px 8px' }}>{r.label}</span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
-                    {r.sub ? <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>{r.sub}</span> : null}
-                  </span>
-                  {r.on && <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, color: r.c }}>{TG('nutrition:grocery.shop.showing', '✓ SHOWING')}</span>}
-                </button>
-              ));
-            })()}
-            <button onClick={() => { setPickerOpen(false); onChangeView('library'); }} style={{ width: '100%', marginTop: 4, padding: '12px', borderRadius: 5, border: `1px solid ${accent}`, background: 'transparent', color: accent, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>{TG('nutrition:grocery.shop.openLibrary', 'Open the library →')}</button>
-          </div>
-        </div>,
-        (typeof document !== 'undefined' && document.getElementById('bs-phone-surface')) || document.body
-      )}
-
-      {/* Coach-sent grocery list — review + swap items, then add to your list */}
-      <BSCoachGroceryReview t={tc} teal={teal} onAdd={(g) => {
-        const aisles = (list.aisles && list.aisles.length) ? list.aisles.map(a => ({ ...a, items: [...a.items] })) : [];
-        const findAisle = (name) => { const al = bsGroceryAisleFor(name); let idx = aisles.findIndex(a => a.aisle === al); if (idx < 0) { aisles.push({ aisle: al, items: [] }); idx = aisles.length - 1; } return idx; };
-        (g.items || []).forEach((it, n) => { const ai = findAisle(it.item); aisles[ai].items.push({ id: `coach-${Date.now()}-${n}`, n: it.item, q: it.qty || '1', meals: g.source, have: false }); });
-        onUpdate({ ...list, aisles });
-      }} />
-
-      <div style={{ padding: `0 ${t.padX}px 24px` }}>
-        {/* PREP THE WEEK door (PR C) — shopping done, cooking next. Optional
-            always; renders only where the host wired the session. It says what it
-            opens (the dotted-leader row it replaces named a ritual and nothing more). */}
-        {onPrep && (
-          <button type="button" data-bsck-door="prep" onClick={onPrep} style={{ marginTop: 10, width: '100%', minHeight: 58, display: 'flex', alignItems: 'center', gap: 12, background: 'transparent', border: `1px solid ${t.RULE}`, borderRadius: 10, cursor: 'pointer', padding: '10px 13px', textAlign: 'left', color: t.INK }}>
-            <span aria-hidden style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', background: bsTHexA(accent, 0.12), color: accent }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 11h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" /><path d="M2 11h2M20 11h2M9 7.5c0-1 .8-1.4.8-2.5M14 7.5c0-1 .8-1.4.8-2.5" /></svg>
-            </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontFamily: tc.HEAD, fontSize: 15, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{trG('cook:prep.door', { defaultValue: 'Prep the week' })}</span>
-              <span style={{ display: 'block', marginTop: 1, fontFamily: tc.BODY, fontSize: 12.5, color: t.INK70, lineHeight: 1.3 }}>{trG('cook:prep.doorSub', { defaultValue: 'Pick the dishes and cook them in one go' })}</span>
-            </span>
-            <span aria-hidden style={{ flexShrink: 0, color: accent, fontWeight: 700, fontSize: 15 }}>→</span>
-          </button>
-        )}
-
-        {/* SHOP BY — aisle or meal. */}
-        {allKeys.length > 0 && (
-          <BSShopBySwitch value={shopBy} onChange={setShopBy}
-            label={trG('nutrition:grocery.shop.shopBy', { defaultValue: 'Shop by' })}
-            aisleLabel={trG('nutrition:grocery.shop.byAisle', { defaultValue: 'Aisle' })}
-            mealLabel={trG('nutrition:grocery.shop.byMeal', { defaultValue: 'Meal' })} />
-        )}
-
-        {/* BY AISLE — one aisle at a time: the aisles on a strip with what is left
-            in each, then the aisle you are in (the first eight still to get, the
-            rest a tap away), what is already in the cart there, and the next
-            aisle with anything left. */}
-        {shopBy !== 'meal' && (() => {
-          const stops = bsGroceryAisleStops(list.aisles, isGot, skipped);
-          const cur = stops.find((s) => s.ai === aisleAt) || stops.find((s) => s.left > 0) || stops[0] || null;
-          if (!cur) return null;
-          const label = bsAisleLabel(list.aisles[cur.ai].aisle, TG);
-          const items = list.aisles[cur.ai].items.map((it, ii) => ({ it, ii })).filter((x) => !bsGrocerySkipped(x.it, skipped));
-          const toGet = items.filter((x) => !isGot(cur.ai, x.ii));
-          const inCart = items.filter((x) => isGot(cur.ai, x.ii));
-          const CAP = 8;
-          const shown = aisleAll ? toGet : toGet.slice(0, CAP);
-          const pos = stops.indexOf(cur);
-          const next = stops.slice(pos + 1).find((s) => s.left > 0) || stops.slice(0, pos).find((s) => s.left > 0) || null;
-          const go = (ai) => { setAisleAt(ai); setAisleAll(false); setCartOpen(false); };
-          return (
-            <>
-              {stops.length > 1 && (
-                <BSFocusRoute flush stops={stops.map((s) => {
-                  const name = bsAisleLabel(list.aisles[s.ai].aisle, TG);
-                  return { key: `${s.ai}`, top: name, value: s.left, pct: s.total ? (s.got / s.total) * 100 : 0, on: s.ai === cur.ai, onSelect: () => go(s.ai), ariaLabel: trG('nutrition:grocery.shop.aisleStopAria', { defaultValue: '{aisle}: {count} to get', aisle: name, count: s.left }) };
-                })} />
-              )}
-              <div style={{ marginTop: 18, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ minWidth: 0 }}>
-                  {stops.length > 1 && <div style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{trG('nutrition:grocery.shop.aisleOf', { defaultValue: 'Aisle {n} of {count}', n: pos + 1, count: stops.length })}</div>}
-                  <div style={{ marginTop: 3, fontFamily: tc.HEAD, fontSize: 28, fontWeight: 600, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.1 }}>{label}</div>
-                </div>
-                <span style={{ flexShrink: 0, paddingBottom: 5, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{toGet.length ? trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: toGet.length }) : trG('nutrition:grocery.shop.aisleDone', { defaultValue: 'All got ✓' })}</span>
-              </div>
-              <div aria-hidden style={{ height: 2, margin: '10px 0 2px', background: `linear-gradient(90deg, ${t.INK}, ${accent} 58%, transparent)` }} />
-              {shown.map((x, i) => itemRow(cur.ai, x.ii, x.it, { first: i === 0 }))}
-              {toGet.length > CAP && (
-                <button type="button" onClick={() => setAisleAll((v) => !v)} aria-expanded={aisleAll} style={{ width: '100%', minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: 0, background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
-                  {aisleAll ? trG('nutrition:grocery.shop.showFewer', { defaultValue: 'Show fewer ▴' }) : trG('nutrition:grocery.shop.moreInAisle', { defaultValue: '{count} more in {aisle} ▾', count: toGet.length - CAP, aisle: label })}
-                </button>
-              )}
-              {inCart.length > 0 && (
-                <>
-                  <button type="button" onClick={() => setCartOpen((v) => !v)} aria-expanded={cartOpen} style={{ width: '100%', minHeight: 46, display: 'flex', alignItems: 'center', gap: 12, padding: 0, background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer', textAlign: 'left' }}>
-                    <span aria-hidden style={{ flexShrink: 0, width: 16, height: 16, borderRadius: 4, background: accent, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 9, fontWeight: 800 }}>✓</span>
-                    <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {trG('nutrition:grocery.shop.inCart', { defaultValue: '{count} in the cart', count: inCart.length })} · <span style={{ color: t.INK70 }}>{inCart.map((x) => x.it.n).join(', ')}</span>
-                    </span>
-                    <span aria-hidden style={{ marginLeft: 'auto', flexShrink: 0, fontFamily: t.MONO, fontSize: 10, color: t.INK50 }}>{cartOpen ? '▴' : '▾'}</span>
-                  </button>
-                  {cartOpen && inCart.map((x, i) => itemRow(cur.ai, x.ii, x.it, { first: i === 0 }))}
-                </>
-              )}
-              {next ? (
-                <button type="button" onClick={() => go(next.ai)} style={{ marginTop: 18, width: '100%', minHeight: 60, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px', borderRadius: 4, border: `1px solid ${accent}73`, borderLeft: `3px solid ${accent}`, background: `${accent}0f`, cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', color: accent }}>{trG('nutrition:grocery.shop.nextAisle', { defaultValue: 'Next aisle' })}</span>
-                    <span style={{ display: 'block', marginTop: 2, fontFamily: tc.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{bsAisleLabel(list.aisles[next.ai].aisle, TG)}</span>
-                  </span>
-                  <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70 }}>{trG('nutrition:grocery.shop.toGetCount', { defaultValue: '{count} to get', count: next.left })}</span>
-                  <span aria-hidden style={{ flexShrink: 0, color: accent, fontSize: 16, fontWeight: 700 }}>→</span>
-                </button>
-              ) : (stops.every((s) => s.left === 0) ? (
-                <div style={{ marginTop: 18, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: accent }}>{trG('nutrition:grocery.shop.allGot', { defaultValue: 'Everything is in the cart ✓' })}</div>
-              ) : null)}
-            </>
-          );
-        })()}
-
-        {/* BY MEAL — each ingredient under the meal it is for, in the order the
-            meals come this week (today first). An ingredient for two meals sits
-            under both, and a tick in one is a tick in the other. Skip a meal and
-            its ingredients come off the list, unless another meal still needs
-            them. Items that are not for a meal gather at the end. */}
-        {shopBy === 'meal' && (() => {
-          // A custom list's own items carry the list's name as their "meal" — they
-          // are for no meal, so they gather with the loose items.
-          const forMeal = list.aisles.map((a) => ({ ...a, items: a.items.map((it) => (it.meals === list.name ? { ...it, meals: '', mealList: undefined } : it)) }));
-          const when = (name) => (mealWhen && typeof mealWhen.get === 'function' ? mealWhen.get(name) : null) || null;
-          const groups = bsGroceryByMeal(forMeal, (name) => { const w = when(name); return w ? w.rank : null; });
-          const named = groups.filter((g) => g.name);
-          const firstOpen = new Set(named.filter((g) => !skipped.has(g.name)).slice(0, 2).map((g) => g.name));
-          const isOpen = (name) => (openMeals || firstOpen).has(name);
-          const flip = (name) => setOpenMeals((prev) => { const n = new Set(prev || firstOpen); if (n.has(name)) n.delete(name); else n.add(name); return n; });
-          // The next six meals show; the rest of the week is one tap away, so a
-          // 29-meal plan does not open as 29 rows. The loose items always show.
-          const MEAL_CAP = 6;
-          const shownGroups = mealsAll ? groups : [...named.slice(0, MEAL_CAP), ...groups.filter((g) => !g.name)];
-          const moreMeals = named.length - MEAL_CAP;
-          return (
-            <>
-              {named.length > 0 && (
-                <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, lineHeight: 1.6, letterSpacing: '0.04em', color: t.INK50 }}>
-                  <span style={{ color: t.INK, fontWeight: 700 }}>{trG('nutrition:grocery.shop.mealsItems', { defaultValue: '{meals, plural, one {# meal} other {# meals}} · {items, plural, one {# item} other {# items}}.', meals: named.length, items: total })}</span>{' '}
-                  {trG('nutrition:grocery.shop.byMealHint', { defaultValue: 'Each ingredient sits under the meal it’s for. Skip a meal and its items come off the list.' })}
-                </div>
-              )}
-              {shownGroups.map((g) => {
-                const skip = !!(g.name && skipped.has(g.name));
-                const w = g.name ? when(g.name) : null;
-                const open = !skip && (g.name ? isOpen(g.name) : true);
-                const gotN = g.items.filter((x) => isGot(x.ai, x.ii)).length;
-                const offN = g.items.filter((x) => bsGrocerySkipped(x.item, skipped)).length;
-                const spine = skip ? gold : open ? accent : t.RULE;
-                return (
-                  <div key={g.name || '__loose'} style={{ position: 'relative', marginTop: 18, paddingLeft: 13 }}>
-                    <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: spine }} />
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, paddingBottom: 8, borderBottom: open ? `1px solid ${t.RULE}` : 0 }}>
-                      <button type="button" onClick={() => { if (g.name && !skip) flip(g.name); }} aria-expanded={g.name && !skip ? open : undefined} disabled={!g.name || skip} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: g.name && !skip ? 'pointer' : 'default' }}>
-                        <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: skip ? gold : open ? accent : t.INK50 }}>{w ? w.label : g.name ? trG('nutrition:grocery.shop.mealKicker', { defaultValue: 'Meal' }) : trG('nutrition:grocery.shop.notForMeal', { defaultValue: 'Not for a meal' })}</span>
-                        <span style={{ display: 'block', marginTop: 3, fontFamily: tc.DISPLAY, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', color: skip ? t.INK50 : t.INK, textDecoration: skip ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name || trG('nutrition:grocery.shop.otherItems', { defaultValue: 'Other items' })}</span>
-                      </button>
-                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, paddingTop: 2 }}>
-                        <span style={{ fontFamily: t.MONO, fontSize: 9, color: skip ? gold : t.INK50, whiteSpace: 'nowrap' }}>{skip
-                          ? trG('nutrition:grocery.shop.skippedOff', { defaultValue: 'Skipped · {count} off', count: offN })
-                          : trG('nutrition:grocery.shop.itemsGot', { defaultValue: '{count, plural, one {# item} other {# items}} · {got} got', count: g.items.length, got: gotN })}</span>
-                        {g.name && (
-                          <button type="button" onClick={() => toggleSkip(g.name)} style={{ minHeight: 32, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
-                            {skip ? trG('nutrition:grocery.shop.unskip', { defaultValue: 'Undo' }) : trG('nutrition:grocery.shop.skip', { defaultValue: 'Skip' })}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {open && g.items.map((x, i) => itemRow(x.ai, x.ii, x.item, { compact: true, first: i === 0 }))}
-                  </div>
-                );
-              })}
-              {moreMeals > 0 && (
-                <button type="button" onClick={() => setMealsAll((v) => !v)} aria-expanded={mealsAll} style={{ marginTop: 14, width: '100%', minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: 0, background: 'transparent', border: 0, borderTop: `1px solid ${t.HAIR}`, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>
-                  {mealsAll ? trG('nutrition:grocery.shop.showFewer', { defaultValue: 'Show fewer ▴' }) : trG('nutrition:grocery.shop.moreMeals', { defaultValue: '{count, plural, one {# more meal ▾} other {# more meals ▾}}', count: moreMeals })}
-                </button>
-              )}
-            </>
-          );
-        })()}
-
-        {total === 0 && <div style={{ padding: '30px 0', textAlign: 'center', fontFamily: t.MONO, fontSize: 10, color: t.INK50, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{editable ? TG('nutrition:grocery.shop.emptyEditable', 'Add your first item below.') : TG('nutrition:grocery.shop.emptyRead', 'This list is empty.')}</div>}
-
-        {/* Add item (editable lists) — type one, or speak the whole list */}
-        {editable && (
-          <div style={{ marginTop: 22 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: accent }}>{TG('nutrition:grocery.shop.addItem', 'Add item')}</div>
-              <div style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: vState === 'rec' ? t.RUST : t.INK50, fontWeight: 700 }}>
-                {vState === 'rec' ? TG('nutrition:grocery.shop.vListening', '● Listening — tap Stop when done') : vState === 'busy' ? TG('nutrition:log.transcribing', 'Transcribing…') : TG('nutrition:grocery.shop.vHint', 'Or speak the whole list')}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder={TG('nutrition:grocery.build.itemPlaceholder', 'Item')} style={{ flex: 1, minWidth: 0, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, borderLeft: `3px solid ${accent}66`, background: t.PAPER2, color: t.INK, padding: '0 13px', fontFamily: tc.DISPLAY, fontSize: 14, outline: 'none' }} />
-              <input value={newQty} onChange={(e) => setNewQty(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addItem(); }} placeholder={TG('nutrition:grocery.build.qtyPlaceholder', 'Qty')} style={{ width: 64, height: 42, borderRadius: 5, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, padding: '0 11px', fontFamily: t.MONO, fontSize: 12, outline: 'none', textAlign: 'center' }} />
-              <button onClick={addItem} style={{ height: 42, borderRadius: 5, clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)', padding: '0 16px', background: accent, color: '#fff', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{TG('nutrition:grocery.shop.addCta', 'Add')}</button>
-            </div>
-            <button onClick={voiceTap} disabled={vState === 'busy'} style={{
-              marginTop: 8, width: '100%', height: 42, borderRadius: 5, cursor: vState === 'busy' ? 'wait' : 'pointer',
-              border: `1px solid ${vState === 'rec' ? t.RUST : `${accent}66`}`,
-              borderLeft: `3px solid ${vState === 'rec' ? t.RUST : accent}`,
-              background: vState === 'rec' ? `${t.RUST}1f` : `${accent}10`,
-              color: vState === 'rec' ? t.RUST : accent,
-              fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}>
-              {vState === 'rec' && <span style={{ width: 7, height: 7, borderRadius: 2, background: t.RUST, animation: 'bsGrocBlink 1.1s ease-in-out infinite' }} />}
-              {vState === 'rec' ? TG('nutrition:grocery.shop.vStop', 'Stop & add items') : vState === 'busy' ? TG('nutrition:grocery.shop.vAdding', 'Adding from voice…') : TG('nutrition:grocery.shop.vStart', 'Speak your list — auto-adds each item')}
-            </button>
-            {vState === 'rec' && <style>{`@keyframes bsGrocBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }`}</style>}
-          </div>
-        )}
-
-        {/* Actions — one bar: Instacart primary, Save + Share secondary */}
-        {total > 0 && (
-          <div style={{ marginTop: 24 }}>
-            <button onClick={sendInstacart} style={{ width: '100%', borderRadius: 8, border: 0, background: accent, color: '#fff', padding: '12px', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{TG('nutrition:grocery.shop.instacart', 'Send to Instacart →')}</button>
-            <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-              <button onClick={saveToLib} style={{ flex: 1, borderRadius: 8, border: `1px solid ${accent}`, background: grocerySaved ? `${accent}14` : 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{grocerySaved ? TG('nutrition:grocery.shop.saved', '✓ Saved') : TG('nutrition:grocery.shop.saveToLib', '+ Save to library')}</button>
-              <button onClick={shareList} style={{ flex: 1, borderRadius: 8, border: `1px solid ${accent}`, background: 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>{TG('nutrition:grocery.shop.share', 'Share')}</button>
-            </div>
-            {/* Send to a member (owner, 2026-10-23): the list goes to them in a message, as a card they can
-                save to their own lists. What is sent is what this list shows (skipped meals' items left off). */}
-            <button type="button" data-bs-grocery-send="" onClick={() => setSendOpen(true)} style={{ marginTop: 4, width: '100%', minHeight: 44, border: 0, background: 'transparent', color: accent, padding: '9px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{TG('nutrition:grocery.shop.sendMember', 'Send to a member →')}</button>
-          </div>
-        )}
-      </div>
-      </BSCleanType>
-      {sendOpen && <BSPostSendSheet post={{ grocery: list, keep: (it) => !bsGrocerySkipped(it, skipped) }} onClose={() => setSendOpen(false)} />}
-      <BSFooter right={TG('nutrition:grocery.shop.footerCount', `${done}/${total} item${total === 1 ? '' : 's'}`, { done, count: total })} />
-    </BSPage>
-  );
-}
+// ─── GROCERY (Eat → Grocery) ─── moved to BSGroceryList.jsx (2026-11-04) with its redesign (owner:
+// "actually C for grocery list"), the coach's sent-list card and its swap suggestions with it. It reads
+// these at call time (and the Library's, below).
+Object.assign(window, { bsNormalizeGroceryList, bsGroceryAisleFor, useBSLibrary, bsLibToggle });
 
 // ─── GROCERY LIBRARY ─── moved to BSGroceryLibrary.jsx (2026-10-24), with its built-in lists and Send to a
 // member. It reads these at call time.
@@ -36555,65 +34226,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     </div>
   );
 
-  // A mono label over a rule, opening a group of rows on the root (Quick switches, the
-  // sections, Also).
-  const RootLabel = ({ children, heavy }) => (
-    <div style={{ paddingBottom: 8, borderBottom: `${heavy ? 2 : 1}px solid ${t.INK}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50 }}>{children}</div>
-  );
-
-  // An Also row: More, About (with the build number as `value`) and Account actions.
-  const HubCard = ({ title, summary, value, onClick, last }) => (
-    <button onClick={onClick} style={{
-      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-      padding: '13px 0', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: last ? 0 : `1px solid ${t.HAIR}`,
-      background: 'transparent', color: t.INK,
-    }}>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.BODY, fontSize: 15.5, fontWeight: 600, color: t.INK }}>{title}</span>
-        {summary ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{summary}</span> : null}
-      </span>
-      {value ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50 }}>{value}</span> : null}
-      <span aria-hidden="true" style={{ flexShrink: 0, color: t.INK50, fontSize: 17, fontFamily: t.DISPLAY, lineHeight: 1 }}>→</span>
-    </button>
-  );
-
-  // A quick switch: the whole row is the control, the pill on its right shows the state.
-  // The row is 50px tall, past the house floor (WCAG 2.5.8 AA at 24px).
-  const QuickSwitch = ({ label, on, value, onToggle }) => (
-    <button onClick={onToggle} aria-pressed={on} style={{
-      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-      padding: '13px 0', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', color: t.INK,
-    }}>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 500, letterSpacing: '-0.015em', lineHeight: 1.15 }}>{label}</span>
-        <span style={{ display: 'block', marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK70 }}>{value}</span>
-      </span>
-      <span aria-hidden="true" style={{ flexShrink: 0, width: 44, height: 26, borderRadius: 999, padding: 3, boxSizing: 'border-box', background: on ? sTeal : bsTHexA(t.INK, 0.18), display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start', transition: 'background 140ms ease' }}>
-        <span style={{ width: 20, height: 20, borderRadius: 999, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.35)', display: 'block' }} />
-      </span>
-    </button>
-  );
-
-  // A door, as a line of the index: its number, its name, and what is behind it. The
-  // summary states what is behind the door, so a member can read their setting without
-  // opening it.
-  const PassportTile = ({ n, title, summary, onClick }) => (
-    <button onClick={onClick} style={{
-      width: '100%', display: 'flex', alignItems: 'flex-start', gap: 14,
-      padding: '15px 0 14px', cursor: 'pointer', textAlign: 'left',
-      border: 0, borderBottom: `1px solid ${t.HAIR}`, background: 'transparent', color: t.INK,
-    }}>
-      <span style={{ width: 22, flexShrink: 0, paddingTop: 5, fontFamily: t.MONO, fontSize: 11, fontWeight: 700, color: sTealInk, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 500, letterSpacing: '-0.02em', lineHeight: 1.15 }}>{title}</span>
-        {summary ? <span style={{ display: 'block', marginTop: 5, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.5 }}>{summary}</span> : null}
-      </span>
-      <span aria-hidden="true" style={{ flexShrink: 0, paddingTop: 3, fontFamily: t.DISPLAY, fontSize: 20, color: t.INK50, lineHeight: 1 }}>→</span>
-    </button>
-  );
-
   // The Edit profile page's Cancel · Save: rounded, Save filled teal. `tall` is the 44px
   // row, the review's comfortable-row height, above the 24px floor.
   const PassportBtn = ({ label, onClick, fill, tall, grow = true }) => (
@@ -36624,16 +34236,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       color: fill ? sOnTeal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
       letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     }}>{label}</button>
-  );
-
-  // The byline's two actions, Edit profile and Public profile, as underlined links. The
-  // negative margin keeps the line where it was while the hit area grows to 30px.
-  const PassportLink = ({ label, onClick, strong, out }) => (
-    <button onClick={onClick} style={{
-      padding: '7px 0', margin: '-7px 0', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK,
-      fontFamily: t.BODY, fontSize: 13.5, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 4,
-      textDecorationThickness: 2, textDecorationColor: strong ? sTeal : t.RULE, whiteSpace: 'nowrap',
-    }}>{label}{out ? <span aria-hidden="true"> ↗</span> : null}</button>
   );
 
   // ⚠ `onBack` IS WHERE THE ROW RETURNS TO, AND IT DEFAULTS TO THE SETTINGS ROOT. The
@@ -37219,6 +34821,94 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions' },
   ];
 
+  // ── THE ROOT ── (owner, 2026-11-04: "option C for settings page"). BSSettingsRoot.jsx lays it out; the
+  // words, the readings and the writers are composed here, beside the state they read.
+  // Who you are: the identity line under the member's name.
+  const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
+  const hasSub = !!(plan && plan.active === true);
+  const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
+  // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
+  // their role; only a member reads a membership state. Composed from the SAME
+  // keys the plan card uses, so the line and the card agree.
+  // ⚠ AND `plan === null` IS "WE HAVE NOT READ IT", NOT "INACTIVE" — the two
+  // are different claims and this state's own declaration says so in as many
+  // words ("null until loaded; { active:false } when there's no active
+  // subscription"). `/api/stripe/subscription` is a fetch whose non-ok arm
+  // sets nothing and whose .catch swallows, so null is the state during EVERY
+  // load and permanently after a failure: a paying member would have read
+  // "MEMBERSHIP INACTIVE" under their own name on every open, and indefinitely
+  // on a bad network. Signed-OUT is the one case null still settles, because
+  // you cannot hold a subscription without an account — that reading is a fact
+  // about the session, not about the unread plan.
+  const planKnown = plan != null;
+  const statusLine = isCoachRole
+    ? (tweaks.role === 'dietitian' ? tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachRole === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
+    : !signedIn
+      ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
+      : hasSub
+        ? (renews && !isNaN(renews.getTime())
+            ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
+            : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
+        : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
+  // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
+  // AGAIN. With no account username and no saved handle, the initializer
+  // SYNTHESIZES one from the display name — and bsMyName() falls back to the
+  // email local-part — so a legacy account's card would present `@chris.perry`
+  // as this member's public handle when they never claimed it and it may
+  // belong to somebody else. A value you can overwrite inside an edit form is
+  // not a claim; the first line of your own settings is.
+  const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
+  // ── QUICK SWITCHES ── the two things members actually flip, on the
+  // root instead of two taps down. Each one is a REAL stored setting and
+  // writes through `setPref`, the module's one writer, so the mirror, the
+  // live re-render and the presence broadcast all still happen — a bare
+  // write here would have been a switch that looks like it worked.
+  // ⚠ ONLINE IS `onlineVisible`, NOT `onlineRail`, AND THE TWO ARE
+  // OPPOSITE CLAIMS. `onlineRail` is the member's own view of Community's
+  // online row — its own description says "Hiding it changes only your
+  // view — it never changes whether others can see you online". A switch
+  // labelled Online wired to that would tell a member they were hidden
+  // while they were still visible to everyone. `onlineVisible` is the one
+  // that means what the label says.
+  // ⚠ AND THERE IS NO THIRD. The concept board's third cell read
+  // "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
+  // else the board implied and the app does not store is not built.
+  // ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
+  // (owner, 2026-10-18); its sound is the speaker on the radio bar.
+  const rootSwitches = [
+    { k: 'online', label: tr('settings:quick.online', { defaultValue: 'Online' }), on: prefs.onlineVisible !== 'Off',
+      value: prefs.onlineVisible !== 'Off' ? tr('settings:quick.visible', { defaultValue: 'Visible' }) : tr('settings:quick.hidden', { defaultValue: 'Hidden' }),
+      onToggle: () => setPref('onlineVisible', prefs.onlineVisible !== 'Off' ? 'Off' : 'On') },
+    { k: 'checkins', label: tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' }), on: prefs.dailyCheckin !== 'Off',
+      value: prefs.dailyCheckin !== 'Off' ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' }),
+      onToggle: () => setPref('dailyCheckin', prefs.dailyCheckin !== 'Off' ? 'Off' : 'On') },
+  ];
+  // PREVIEW AS: signed-out demo only, to browse each account type's demo data without an account.
+  // PROFILE MODE: only for people with more than one account, listing just the roles they created so
+  // they can switch between them. Both choose through setTweak('role').
+  const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }) };
+  const rootActiveRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
+  const rootModes = [
+    ...(!signedIn ? [{
+      key: 'preview',
+      title: tr('settings:preview.title', { defaultValue: 'Preview as' }),
+      meta: tr('settings:preview.demoData', { defaultValue: 'Demo data' }),
+      label: tr('settings:preview.profileType', { defaultValue: 'Profile type' }),
+      opts: [['client', ROLE_LABELS.client], ['trainer', ROLE_LABELS.trainer], ['nutritionist', ROLE_LABELS.nutritionist]],
+      value: tweaks.role || 'client',
+      hint: tr('settings:preview.hint', { defaultValue: "Browse each account type's demo data — no sign-up needed." }),
+    }] : []),
+    ...(hasMultipleAccounts ? [{
+      key: 'mode',
+      title: tr('settings:profileMode.title', { defaultValue: 'Profile mode' }),
+      meta: tr('settings:profileMode.viewMeta', { role: ROLE_LABELS[rootActiveRole] || ROLE_LABELS.client, defaultValue: '{role} view' }),
+      label: tr('settings:profileMode.active', { defaultValue: 'Active profile' }),
+      opts: accountRoles.map((key) => [key, ROLE_LABELS[key] || key]),
+      value: rootActiveRole,
+      hint: '',
+    }] : []),
+  ];
+
   return (
     <BSPage tabBarHeight={0}>
       <div ref={paneTopRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
@@ -37574,181 +35264,36 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })()}
       </>)}
 
-      {/* ── SETTINGS PAGE ── */}
-      {!detail && !editing && (<>
-      <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
-        {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-        <BSBackRow onBack={onBack} label={tr('settings:head.back', { defaultValue: 'Back' })} />
-      </div>
-      <SettingsTitle title={tr('settings:head.title', { defaultValue: 'Settings' })} />
-
-      {/* ── THE IDENTITY CARD ── who you are, first: the Passport's whole argument.
-          The page used to open on an "ACCOUNT / Settings." masthead and three chips,
-          with the member's own name nowhere on it. The corner EDIT link moved here
-          too, onto a button that says what it edits. */}
-      {(() => {
-        const acc = bsMyTierColor();
-        const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-        const hasSub = !!(plan && plan.active === true);
-        const renews = plan && plan.renewsAt ? new Date(plan.renewsAt) : null;
-        // ⚠ THE STATUS LINE IS ROLE-GATED, LIKE THE CARD BEHIND IT. A coach reads
-        // their role; only a member reads a membership state. Composed from the SAME
-        // keys the plan card uses, so the line and the card agree.
-        // ⚠ AND `plan === null` IS "WE HAVE NOT READ IT", NOT "INACTIVE" — the two
-        // are different claims and this state's own declaration says so in as many
-        // words ("null until loaded; { active:false } when there's no active
-        // subscription"). `/api/stripe/subscription` is a fetch whose non-ok arm
-        // sets nothing and whose .catch swallows, so null is the state during EVERY
-        // load and permanently after a failure: a paying member would have read
-        // "MEMBERSHIP INACTIVE" under their own name on every open, and indefinitely
-        // on a bad network. Signed-OUT is the one case null still settles, because
-        // you cannot hold a subscription without an account — that reading is a fact
-        // about the session, not about the unread plan.
-        const planKnown = plan != null;
-        const statusLine = isCoachRole
-          ? (tweaks.role === 'dietitian' ? tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) : coachRole === 'nutritionist' ? tr('profile:role.nutritionist', { defaultValue: 'Nutritionist' }) : tr('profile:role.trainer', { defaultValue: 'Trainer' }))
-          : !signedIn
-            ? tr('settings:plan.notMember', { defaultValue: 'Not a member' })
-            : hasSub
-              ? (renews && !isNaN(renews.getTime())
-                  ? tr('settings:plan.renews', { date: renews.toLocaleDateString(window.ShapeI18n?.current?.() || undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Renews {date}' })
-                  : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' }))
-              : planKnown ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : '';
-        // ⚠ THE HANDLE IS PRINTED ONLY WHEN IT IS THEIRS, THE `locationKnown` RULE
-        // AGAIN. With no account username and no saved handle, the initializer
-        // SYNTHESIZES one from the display name — and bsMyName() falls back to the
-        // email local-part — so a legacy account's card would present `@chris.perry`
-        // as this member's public handle when they never claimed it and it may
-        // belong to somebody else. A value you can overwrite inside an edit form is
-        // not a claim; the first line of your own settings is.
-        const sub = [handleKnown ? identity.handle : '', locationKnown ? identity.location : ''].filter(Boolean).join(' · ');
-        return (
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '18px 0', borderBottom: `1px solid ${t.HAIR}` }}>
-              <BSFacetAvatar size={56} c={acc} initial={(identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name)} name={identity.name} photo={(identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} BG={t.PAPER} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, letterSpacing: '-0.025em', color: t.INK, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{identity.name}</div>
-                {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub}</div> : null}
-                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <span aria-hidden="true" style={{ flexShrink: 0, width: 7, height: 7, borderRadius: 999, background: settingsTierC, display: 'inline-block' }} />
-                  {/* ⚠ ITS OWN KEY, NOT `edit.tierColor` WITH THE WORD "color" STRIPPED.
-                      A `.replace(/ color$/, '')` is right in English and wrong in the
-                      other twelve: German's "Stufenfarbe" has no trailing " color" to
-                      cut, so the line would have read "Tempo Stufenfarbe · Mitglied".
-                      Each locale's value is built from its OWN word for a tier. */}
-                  {tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' })}{statusLine ? ' \u00b7 ' + statusLine : ''}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px', marginTop: 10 }}>
-                  <PassportLink label={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onClick={startEdit} strong />
-                  <PassportLink label={tr('settings:more.publicProfile', { defaultValue: 'Public profile' })} onClick={() => setShowPublicProfile(true)} out />
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* The quick switches. The edit form used to swap in here, under the root's own
-          ← Back; it is its own page above now. */}
-      <div style={{ padding: `22px ${t.padX}px 6px` }}>
-          <div>
-            {/* ── QUICK SWITCHES ── the two things members actually flip, on the
-                root instead of two taps down. Each one is a REAL stored setting and
-                writes through `setPref`, the module's one writer, so the mirror, the
-                live re-render and the presence broadcast all still happen — a bare
-                write here would have been a switch that looks like it worked.
-                ⚠ ONLINE IS `onlineVisible`, NOT `onlineRail`, AND THE TWO ARE
-                OPPOSITE CLAIMS. `onlineRail` is the member's own view of Community's
-                online row — its own description says "Hiding it changes only your
-                view — it never changes whether others can see you online". A switch
-                labelled Online wired to that would tell a member they were hidden
-                while they were still visible to everyone. `onlineVisible` is the one
-                that means what the label says.
-                ⚠ AND THERE IS NO THIRD. The concept board's third cell read
-                "Check-ins · On Home"; that is `dailyCheckin`, which exists. Anything
-                else the board implied and the app does not store is not built.
-                ⚠ NOR A RADIO SWITCH. Shape Radio is always on air and has no off
-                (owner, 2026-10-18); its sound is the speaker on the radio bar. */}
-            <RootLabel>{tr('settings:passport.quick', { defaultValue: 'Quick switches' })}</RootLabel>
-            <div>
-              <QuickSwitch
-                label={tr('settings:quick.online', { defaultValue: 'Online' })}
-                on={prefs.onlineVisible !== 'Off'}
-                value={prefs.onlineVisible !== 'Off' ? tr('settings:quick.visible', { defaultValue: 'Visible' }) : tr('settings:quick.hidden', { defaultValue: 'Hidden' })}
-                onToggle={() => setPref('onlineVisible', prefs.onlineVisible !== 'Off' ? 'Off' : 'On')} />
-              <QuickSwitch
-                label={tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' })}
-                on={prefs.dailyCheckin !== 'Off'}
-                value={prefs.dailyCheckin !== 'Off' ? tr('settings:common.on', { defaultValue: 'On' }) : tr('settings:common.off', { defaultValue: 'Off' })}
-                onToggle={() => setPref('dailyCheckin', prefs.dailyCheckin !== 'Off' ? 'Off' : 'On')} />
-            </div>
-          </div>
-      </div>
-
-      {/* PREVIEW AS — signed-out demo only: switch profile type to browse each
-          account type's demo data without an account. (Signed-in multi-role
-          accounts use Profile mode below.) */}
-      {!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) && (
-        <>
-          <SectionHead title={tr('settings:preview.title', { defaultValue: 'Preview as' })} meta={tr('settings:preview.demoData', { defaultValue: 'Demo data' })} />
-          <div style={{ padding: `14px ${t.padX}px 18px` }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-              {tr('settings:preview.profileType', { defaultValue: 'Profile type' })}
-            </div>
-            <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
-              {[['client', tr('settings:preview.roleClient', { defaultValue: 'Client' })], ['trainer', tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' })], ['nutritionist', tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' })]].map(([key, label]) => {
-                const on = (tweaks.role || 'client') === key;
-                return (
-                  <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: 999,
-                    flex: 1, minHeight: 32, padding: '8px 9px', cursor: 'pointer', border: 0,
-                    background: on ? sTealInk : 'transparent',
-                    color: on ? sOnTeal : t.INK70,
-                    fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                  }}>{label}</button>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
-              {tr('settings:preview.hint', { defaultValue: "Browse each account type's demo data — no sign-up needed." })}
-            </div>
-          </div>
-        </>
+      {/* ── SETTINGS PAGE ── the root, a lit panel (owner, 2026-11-04: "option C for settings page"),
+          drawn by BSSettingsRoot.jsx from what is composed above: who you are, the quick switches and
+          their writer, Preview as / Profile mode, the doors and Also. Hidden while a pane or the Edit
+          profile page is open, and it alone carries the shell's ← Back (onBack closes Settings). */}
+      {!detail && !editing && (
+        <BSSettingsRoot
+          onBack={onBack}
+          identity={{
+            name: identity.name,
+            sub,
+            initial: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name),
+            photo: (identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null),
+            ring: bsMyTierColor(),
+            tierColor: settingsTierC,
+            // ⚠ ITS OWN KEY, NOT `edit.tierColor` WITH THE WORD "color" STRIPPED: German's "Stufenfarbe"
+            // has no trailing " color" to cut. Each locale's value is built from its OWN word for a tier.
+            tierLine: tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' }),
+            statusLine,
+          }}
+          onEdit={startEdit}
+          onPublicProfile={() => setShowPublicProfile(true)}
+          switches={rootSwitches}
+          modes={rootModes}
+          onPickRole={(key) => setTweak('role', key)}
+          tiles={passportTiles}
+          also={alsoRows}
+          onOpen={(d) => setDetail(d)}
+          onLogout={onLogout}
+        />
       )}
-
-      {/* PROFILE MODE — only for people with more than one account; lists just
-          the roles they actually created so they can switch between them. */}
-      {hasMultipleAccounts && (() => {
-        const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }) };
-        const activeRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
-        return (
-          <>
-            <SectionHead
-              title={tr('settings:profileMode.title', { defaultValue: 'Profile mode' })}
-              meta={tr('settings:profileMode.viewMeta', { role: ROLE_LABELS[activeRole] || ROLE_LABELS.client, defaultValue: '{role} view' })}
-            />
-            <div style={{ padding: `14px ${t.padX}px 18px` }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 8, fontWeight: 700 }}>
-                {tr('settings:profileMode.active', { defaultValue: 'Active profile' })}
-              </div>
-              <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
-                {accountRoles.map(key => {
-                  const on = activeRole === key;
-                  return (
-                    <button key={key} onClick={() => setTweak('role', key)} style={{ borderRadius: 999,
-                      flex: 1, minHeight: 32, padding: '8px 9px', cursor: 'pointer', border: 0,
-                      background: on ? sTealInk : 'transparent',
-                      color: on ? sOnTeal : t.INK70,
-                      fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                    }}>{ROLE_LABELS[key] || key}</button>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        );
-      })()}
-
-      </>)}
 
       {/* ── CUSTOMIZE ── every cosmetic control the root used to carry, behind one
           door. Owner, 2026-09-14: the Passport root is identity first and cosmetics
@@ -38115,35 +35660,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         })}
       </div>
 
-      </>)}
-
-      {!detail && !editing && (<>
-      {/* ── THE DOORS ── a numbered index of the sections, then the three Also rows.
-          ⚠ THE HEADING IS NO LONGER "More · 12 sections". The 2026-09-14 review's
-          sharpest measurement was that the whole settings tree lived under a word
-          meaning "the rest", one of whose twelve cards was itself called More. The
-          grid is the settings; More is one row in Also, where it belongs. */}
-      <div style={{ padding: `30px ${t.padX}px 0` }}>
-        <RootLabel heavy>{tr('settings:more.sectionsMeta', { n: passportTiles.length, defaultValue: '{n} sections' })}</RootLabel>
-        {passportTiles.map((c, i) => (
-          <PassportTile key={c.detail} n={String(i + 1).padStart(2, '0')} title={c.title} summary={c.summary} onClick={() => setDetail(c.detail)} />
-        ))}
-      </div>
-
-      <div style={{ padding: `30px ${t.padX}px 10px` }}>
-        <RootLabel>{tr('settings:passport.also', { defaultValue: 'Also' })}</RootLabel>
-        {alsoRows.map((c, i) => (
-          <HubCard key={c.detail} title={c.title} summary={c.summary} value={c.value} last={i === alsoRows.length - 1} onClick={() => setDetail(c.detail)} />
-        ))}
-      </div>
-
-      {/* Sign out — ink over an ink rule, with breathing room before the footer. */}
-      <div style={{ padding: `28px ${t.padX}px 32px` }}>
-        <button onClick={onLogout} style={{
-          width: '100%', padding: '14px 0 4px', background: 'transparent', color: t.INK, border: 0, borderTop: `2px solid ${t.INK}`, cursor: 'pointer', textAlign: 'left',
-          fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-        }}>{tr('settings:action.signOut', { defaultValue: 'Sign out' })}</button>
-      </div>
       </>)}
 
       <BSRadioPrompt />

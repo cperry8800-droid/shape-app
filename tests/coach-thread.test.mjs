@@ -613,7 +613,11 @@ test('app: the thread view loads its history by id, shows the welcome as a note,
   assert.match(client, /shape: m\.shape \|\| null,/);
   assert.match(client, /const listed = \(threadRows \|\| \[\]\)\.find\(r => r\.conversation_id === openRequest\.conversationId\);/);
   // Member views that pick "my coach" from these threads never pick one of the account's own clients.
-  assert.equal((client.match(/\.filter\(\(?c\)? => !c\.as_coach\)/g) || []).length, 2, 'the dispatch register and the profile chip');
+  // The meal logger's note to the coach (the old dispatch register) lives in BSMealLog.jsx since its
+  // redesign (owner, 2026-11-04: B "for logging meals and Filed"); the profile chip stays in the client.
+  const asCoach = /\.filter\(\(?c\)? => !c\.as_coach\)/g;
+  assert.equal((client.match(asCoach) || []).length, 1, 'the profile chip');
+  assert.equal((read('mobile-app/src/broadsheet/BSMealLog.jsx').match(asCoach) || []).length, 1, 'the meal logger\'s note to the coach');
   // The launch telegram's coach note reads the member's threads through bsWireCoachNote (its
   // behaviour is in tests/daily-wire.test.mjs), which skips a thread held as the coach.
   assert.match(read('mobile-app/src/services/dailyWire.mjs'), /\.filter\(\(th\) => th && !th\.as_coach\)/);
