@@ -80,12 +80,12 @@ export function BSProDeck({ t, role, title, aside, tour, label, children, stopCo
   const heat = stopColor || bsProDeckHeat(role);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-pro-deck="" data-glass="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ color: d.INK, padding: dense ? '10px 0 12px' : '12px 0 14px', margin: dense ? '16px 10px 0' : '6px 10px 0', ...bsRaised(t) }}>
+    <section data-pro-deck="" data-glass="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ color: d.INK, padding: dense ? '8px 0 10px' : '12px 0 14px', margin: dense ? '16px 10px 0' : '6px 10px 0', ...bsRaised(t) }}>
       <BSGlassEdge t={t} />
       <div style={{ padding: `0 ${t.padX}px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         {/* The title keeps its width (up to most of the row) and the aside wraps beside it, so a long line
             ("4 published · 40 clients on them") never cuts the title to "Pla…". */}
-        <h1 data-tour={tour} style={{ margin: 0, flexShrink: 0, maxWidth: '72%', fontFamily: BS_GAUGE_FACE, fontSize: dense ? 26 : 30, fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.05, color: d.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <h1 data-tour={tour} style={{ margin: 0, flexShrink: 0, maxWidth: '72%', fontFamily: BS_GAUGE_FACE, fontSize: dense ? 23 : 30, fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.05, color: d.INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {title}<span aria-hidden="true" style={{ color: heat }}>.</span>
         </h1>
         {aside ? <div data-deck-aside="" style={{ flex: '0 1 auto', minWidth: 0, display: 'flex', justifyContent: 'flex-end', textAlign: 'right' }}>{aside}</div> : null}
@@ -120,13 +120,13 @@ export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, c
           return (
             <button key={idx} type="button" aria-pressed={on} onClick={() => onSelectDay(day.getDate())}
               aria-label={`${dayWord(day, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${todayAria}` : ''}`}
-              style={{ minWidth: 0, height: dense ? 46 : 54, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${d.RULE}` : 0, borderRadius: 9, background: on ? d.INK : 'transparent', color: on ? d.PAPER : d.INK, opacity: past && !on ? 0.6 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 0, cursor: 'pointer' }}>
+              style={{ minWidth: 0, height: dense ? 44 : 54, boxSizing: 'border-box', border: today && !on ? `1.5px solid ${d.RULE}` : 0, borderRadius: 9, background: on ? d.INK : 'transparent', color: on ? d.PAPER : d.INK, opacity: past && !on ? 0.6 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, padding: 0, cursor: 'pointer' }}>
               <span style={{ maxWidth: '100%', overflow: 'hidden', fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: on ? d.PAPER : d.INK70, whiteSpace: 'nowrap' }}>{dayWord(day, { weekday: 'short' })}</span>
-              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: dense ? 16 : 17, fontWeight: 400, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{day.getDate()}</span>
-              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: dense ? 10 : 12 }}>
+              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: dense ? 15 : 17, fontWeight: 400, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{day.getDate()}</span>
+              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: dense ? 9 : 12 }}>
                 {n === 0
                   ? <span style={{ width: 4, height: 2, borderRadius: 1, background: on ? `${d.PAPER}55` : d.RULE }} />
-                  : (dense ? [4, 7, 10] : [5, 8, 12]).slice(0, n).map((h, k) => <span key={k} style={{ width: 4, height: h, borderRadius: 1, background: on ? heat : d.INK50 }} />)}
+                  : (dense ? [3, 6, 9] : [5, 8, 12]).slice(0, n).map((h, k) => <span key={k} style={{ width: 4, height: h, borderRadius: 1, background: on ? heat : d.INK50 }} />)}
               </span>
             </button>
           );

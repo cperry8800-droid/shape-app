@@ -119,7 +119,7 @@ test('the session on a lit lead: its kicker, title and coach, the glowing Start,
     // The capsule: a 999px radius, Start session and its arrow.
     const start = m.q('[data-focus-primary="lit"]');
     assert.equal(start.textContent, 'Start session →');
-    assert.equal(start.style.borderRadius, '999px');
+    assert.equal(start.querySelector('[data-focus-pill]').style.borderRadius, '999px', 'the capsule is drawn inside the 44px button');
     await m.click(start);
     assert.equal(calls.start, 1, 'Start calls the page\'s start');
     await m.click([...lead.querySelectorAll('button')].find((b) => /^Swap →$/.test(b.textContent)));
@@ -197,7 +197,7 @@ test('the glow is dark paper\'s: the picked tile, the burn total, the lead\'s sp
     const m = await mount({ calls: freshCalls() });
     try {
       const picked = m.q('[data-week-strip="lit"] button[aria-pressed="true"]');
-      const start = m.q('[data-focus-primary="lit"]');
+      const start = m.q('[data-focus-primary="lit"] [data-focus-pill]');
       const spine = m.q('[data-focus-lead="lit"]').querySelector('span[aria-hidden]');
       const total = m.q('[data-train-burn-total]');
       if (name === 'dark') {
