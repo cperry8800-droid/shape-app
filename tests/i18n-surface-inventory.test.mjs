@@ -331,7 +331,10 @@ function inventory() {
 /** Renders user-facing copy with NO translator in scope at all. */
 const UNCOVERED = new Set([
   'Client::BSActivityBody', 'Client::BSActivityLogCta',
-  'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet', 'Client::BSBarcodeScan',
+  'Client::BSActivityRoutePreview', 'Client::BSAddPlaylistSheet',
+  // ⚠ BSBarcodeScan MOVED FILES 2026-11-04 (iosAppBroadsheetClient.jsx → BSMealLog.jsx) with the
+  // meal logger it belongs to. Same one string ("Point at the barcode"), still no translator.
+  'BSMealLog::BSBarcodeScan',
   'Client::BSCardSheetHost',
   'Client::BSClientNextPlate',
   'Client::BSClientProgress', 'Client::BSCoachAdjustBanner',
@@ -342,7 +345,7 @@ const UNCOVERED = new Set([
   'Client::BSHelpPage',
   'Client::BSKitchenCard', 'Client::BSLegalActions',
   'Client::BSLogActivity',
-  'Client::BSMealLogged', 'Client::BSMessageComposer', 'Client::BSMoodSheet',
+  'Client::BSMessageComposer', 'Client::BSMoodSheet',
   'Client::BSNoraMemoryPage',
   'Client::BSPlaylistCard', 'Client::BSPricingPage', 'Client::BSPrivacyPage',
   'Client::BSProgChart',
@@ -463,6 +466,13 @@ const PARTIAL = new Set([
   // BSMealSecHead child) so this walk still sees them: passed as a function argument they would have
   // vanished from the count while staying exactly as English.
   'BSMealPage::BSMealPreview',
+  // ⚠ BSMealLogged LEFT UNCOVERED FOR PARTIAL 2026-11-04, when the filed stamp was redesigned with
+  // the meal logger (owner: B "for logging meals and Filed") and MOVED FILES with it (→ BSMealLog.jsx).
+  // It reads the log flow's keys, which say its words (Filed, Logged ✓, Day so far, Done, the wire)
+  // and cook:ck.undo for Undo; what stays English is the honest no-macros state the cook added
+  // (`Meal · Cooked`, `Kcal · —P · No macros on this one`), which has no keys yet and no new
+  // strings were authored for a redesign.
+  'BSMealLog::BSMealLogged',
   // MktComboCard and MktRow left with the directory's redesign (2026-11-04): its cards and rows are
   // BSMarketDirectory.jsx's now, fully covered.
   'Marketplace::BSCoachDetailPublic', 'Marketplace::MktCoachCard',
@@ -831,7 +841,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // module, BSMarketDirectory.jsx, fully covered: its rate reads the locale's "{monthly}/mo"
   // (coach:rates.rowSubMonthly), so the "/mo" literal MktComboCard and MktRow each printed goes with
   // them: 163 -> 161.
-  assert.equal(partStrings, 161, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The filed stamp (BSMealLogged) left UNCOVERED for PARTIAL with the meal logger's redesign
+  // (2026-11-04), keeping the three pieces of its no-macros state in English: 161 -> 164.
+  assert.equal(partStrings, 164, 'the partial surfaces changed how much they hardcode — update the number AND say so in the PR');
   // ⚠ AND noneStrings 793 -> 796 IS THREE STRINGS ADDED ON PURPOSE, in
   // BSMealLogged (already uncovered): the plated stage was printing a 46px teal
   // `0` under `Logged ✓` for a cook whose macros are unknown — while logIt had
@@ -939,14 +951,17 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // (owner, 2026-11-01: "also need to update design of this page"). The walk saw six of its literals
   // ("Shape team", "Always online", the line under her name, "What Nora helps with", her promise and
   // "Message Nora →"; what she helps with sat in an array literal, the blind spot cut 5 recorded): 592 -> 586.
-  assert.equal(noneStrings, 586, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The same move takes its 12 hardcoded strings out of the untranslated surfaces: 586 -> 574.
+  assert.equal(noneStrings, 574, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.
-  assert.equal(part.length, 29, 'partial-surface count moved — regenerate PARTIAL and the record');
+  // BSMealLogged came in (2026-11-04): 29 -> 30.
+  assert.equal(part.length, 30, 'partial-surface count moved — regenerate PARTIAL and the record');
   // BSProfileIdentityHead was deleted with the member profile's old head (2026-10-31): 79 -> 78.
   // Nora's profile moved to BSNoraProfile.jsx, fully covered (2026-11-01): 78 -> 77.
-  assert.equal(none.length, 77, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
+  // BSMealLogged left for PARTIAL (2026-11-04): 77 -> 76.
+  assert.equal(none.length, 76, 'untranslated-surface count moved — regenerate UNCOVERED and the record');
   // Floors, not equalities: a new component with a translator and no copy of its
   // own moves both of these without changing anything this file is about.
   // ⚠ The JSX floor dropped 358 → 357 when BSCosmicWordmark — an orphaned

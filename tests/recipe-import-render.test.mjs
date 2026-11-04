@@ -172,6 +172,11 @@ test('no component calls a hook after an early return', () => {
   assert.deepEqual(out.filter((line) => ![...KNOWN].some((k) => line.startsWith(`${k} `))), [],
     'a component returns above its own hooks — React renders fewer hooks on that frame and throws. ' +
     'Move the early return below every hook call (BSLibraryDetail carries the note).');
+  // The plated stage this file mounts (BSMealLogged) moved to the meal logger's own module with its
+  // redesign (owner, 2026-11-04: B "for logging meals and Filed"); the rule follows it there.
+  const logger = scanSource(readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSMealLog.jsx'), 'utf8'));
+  assert.ok(logger.scanned >= 3, `only ${logger.scanned} component bodies scanned in BSMealLog.jsx`);
+  assert.deepEqual(logger.out, [], 'the meal logger returns above its own hooks');
 });
 
 // ── the prep picker's namespace ────────────────────────────────────────────

@@ -17,6 +17,8 @@ import { stripComments } from './helpers/strip-comments.mjs';
 const BACKEND = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 const CLIENT = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8'));
 const WIDGET = stripComments(readFileSync(new URL('../public/newdesign/chatWidget.jsx', import.meta.url), 'utf8'));
+// The meal logger (its coach note's dictation) is its own module since its redesign (owner, 2026-11-04).
+const MEAL_LOG = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/BSMealLog.jsx', import.meta.url), 'utf8'));
 
 // Lift a function out of shapeBackend.js by brace-matching from its signature
 // (the community-post-delta method): the code that runs here is the code that
@@ -92,9 +94,10 @@ test('⚠ the transcription clients post to the backend origin with the Bearer s
 test('⚠ NO VOICE CALL IN THE APP IS ROOT-RELATIVE ANY MORE: the composer, the meal note and the grocery list all ride window.ShapeSupport', () => {
   assert.ok(!/fetch\(['"]\/api\/ai\/transcribe/.test(CLIENT), 'the composer still posts to a root-relative /api/ai/transcribe');
   assert.ok(!/fetch\(['"]\/api\/nutrition\/voice/.test(CLIENT), 'a meal / grocery dictation still posts to a root-relative /api/nutrition/voice');
+  assert.ok(!/fetch\(['"]\/api\/nutrition\/voice/.test(MEAL_LOG), 'the meal note\'s dictation still posts to a root-relative /api/nutrition/voice');
   // Each call site names its context and hands over the app locale.
   assert.match(CLIENT, /ShapeSupport\.transcribe;[\s\S]{0,400}stt\(blob, \{ filename: 'nora\.webm', context: 'nora', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
-  assert.match(CLIENT, /ShapeSupport\.transcribeNote;[\s\S]{0,400}stt\(blob, \{ filename: 'note\.webm', context: 'meal', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
+  assert.match(MEAL_LOG, /ShapeSupport\.transcribeNote;[\s\S]{0,400}stt\(blob, \{ filename: 'note\.webm', context: 'meal', language: window\.ShapeLocale\?\.get\?\.\(\) \}\)/);
   // The grocery list's spoken add lives in its page's module since the redesign (BSGroceryList.jsx, 2026-11-04).
   const GROCERY = stripComments(readFileSync(new URL('../mobile-app/src/broadsheet/BSGroceryList.jsx', import.meta.url), 'utf8'));
   assert.ok(!/fetch\(['"]\/api\/nutrition\/voice/.test(GROCERY), 'the grocery dictation still posts to a root-relative /api/nutrition/voice');

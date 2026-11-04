@@ -691,7 +691,10 @@ test("today's session goes on the card of the trainer who wrote it, and the memb
 // onLogged, and Home reads the day again once it lands (and a moment later, as Home's other loggers do).
 test("a meal logged from Team is counted in Team's food left once it is written", () => {
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
-  const flow = client.slice(client.indexOf('function BSLogMealFlow('), client.indexOf('function BSLogMealFlow(') + 40000);
+  // The meal logger is its own module since its redesign (owner, 2026-11-04: B "for logging meals and Filed").
+  const logger = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSMealLog.jsx'), 'utf8');
+  const flow = logger.slice(logger.indexOf('export function BSLogMealFlow('), logger.indexOf('export function BSLogMealFlow(') + 40000);
+  assert.notEqual(logger.indexOf('export function BSLogMealFlow('), -1, 'the meal logger is BSMealLog.jsx\'s');
   assert.match(flow, /write = r;[\s\S]{0,400}onLogged\(write\);/, 'the logger hands its write to onLogged');
   assert.match(client, /onLogged=\{\(write\) => \{\s+if \(loggingMealId\) setMealLogged\(\(prev\) => \(\{ \.\.\.prev, \[loggingMealId\]: true \}\)\);[\s\S]{0,300}if \(write && typeof write\.then === 'function'\) write\.then\(\(\) => \{ refreshAnalytics\(\); bsScoreDirty\(\); \}, \(\) => \{\}\);\s+setTimeout\(refreshAnalytics, 700\);/);
 });
