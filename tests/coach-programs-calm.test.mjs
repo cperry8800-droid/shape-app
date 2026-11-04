@@ -1,55 +1,57 @@
 // tests/coach-programs-calm.test.mjs
 //
-// Redrawn in direction A, the Instrument (owner, 2026-11-03): From scratch on the deck, the kinds as tabs,
-// Most popular as a plate with one block in the role's heat, and the rows as a numbered ledger. The rule
-// below still holds: one ink, the teal for links and text actions, the role's colour in one place.
-//
-// The coach Programs page in one ink, the teal kept for links (owner, 2026-10-31, of the trainer's
-// Programs page: "too many colors here. I dont like the design here"). It had a rust Draft with Nora,
-// a tan search field and filter track, a rust week tile on a tan card, the rows' squares in rust, ink,
-// teal and amber by turn, rust-outlined Assign, and a colour per face in Enrolled.
+// The coach's Programs / Plans page is the owner's B (2026-11-04, of three looks: "B for programs just reduce
+// size of this button"), after "reduce the coloring and simplify UI more": tiles in the paper's own colour,
+// colour only as a signal. These hold that at the source of BSProCatalog.jsx, and hold the old page and its
+// preview switch gone, so the two looks cannot drift back side by side.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
-const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
-const fn = (head) => { const at = PROS.indexOf(head); assert.ok(at > 0, head); return PROS.slice(at, PROS.indexOf('\n}\n', at)); };
+const ROOT = new URL('..', import.meta.url).pathname;
+const PROS = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8');
+const CAT = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSProCatalog.jsx'), 'utf8');
+const fn = (src, head) => { const at = src.indexOf(head); assert.ok(at >= 0, head); return src.slice(at, src.indexOf('\n}\n', at)); };
 
-test('a row is a ledger row: led by its number, its actions teal text, no colour of the role', () => {
-  // Direction A (owner, 2026-11-03) took the length squares off the rows; the length is in the row's facts.
-  const sw = fn('function bsProSwatch(');
-  assert.match(sw, /const tone = \{ bg: 'transparent', fg: t\.INK, line: t\.INK \};/);
-  assert.doesNotMatch(sw, /#07706a|#d8a23a|tones\[/, 'a square takes a colour by turn again');
-  assert.doesNotMatch(PROS, /function bsProBand\(/, 'the role band is back');
-  const row = fn('function BSProCatRow(');
-  assert.match(row, /<span style=\{bsProLedgerNo\(t\)\}>\{bsProNo\(index\)\}<\/span>/, 'a row is led by its number');
-  assert.match(row, /const tealText = t\.isLight \? '#07706a' : '#34d6c5';/);
-  assert.doesNotMatch(row, /background: heat|color: heat|border: `[^`]*heat/, 'a row takes the role\'s colour');
-  assert.doesNotMatch(row, /bsProSwatch/, 'the coloured square is back on the rows');
+test('colour is a signal: teal fills only the page\'s one primary action and the empty list\'s build; the role\'s colour only the full stop, the picked icon and the ★', () => {
+  assert.equal((CAT.match(/background: tealOf\(t\)/g) || []).length, 2, 'the compact primary pill and the empty list\'s Build from scratch');
+  const heatUses = CAT.match(/heatOf\(t, [^)]*\)/g) || [];
+  assert.deepEqual(heatUses, ['heatOf(t, m.role)', 'heatOf(t, role)', 'heatOf(t, m.role)'], 'the picked icon, the ★, the title\'s full stop');
+  assert.doesNotMatch(CAT, /filter: 'blur\(|radial-gradient|data-pc-halo/, 'a coloured glow or wash is back');
+  assert.doesNotMatch(CAT, /linear-gradient\([^)]*(heat|teal)/i, 'a coloured gradient is back');
+  // The picked sort and the picked chip are ink.
+  assert.match(fn(CAT, 'function PcSort('), /\.\.\.\(on \? pcOn\(t\) : \{ color: t\.INK70 \}\)/);
+  assert.match(CAT, /const pcOn = \(t\) => \(\{ background: t\.INK, color: t\.PAPER, border: `1px solid \$\{t\.INK\}` \}\);/);
 });
 
-test('From scratch, the search and the tabs are ink and hairlines, not fills of the role or tan', () => {
-  const create = fn('function bsProCreateButton(');
-  assert.match(create, /data-create="scratch"[^\n]*border: `1px solid \$\{t\.INK30\}`, background: 'transparent'/);
-  // Nora drafts from the masthead's ✦, not a line on the page (owner, 2026-11-04).
-  assert.doesNotMatch(PROS, /data-create="nora"|coach:plans\.draftWithNora/, 'Nora\'s draft line is back on Programs or Plans');
-  const search = fn('function bsProLibrarySearch(');
-  assert.match(search, /border: `1px solid \$\{t\.RULE\}`, background: 'transparent'/);
-  assert.doesNotMatch(search, /PAPER2/);
-  const filter = fn('function bsProTypoIndex(');
-  assert.match(filter, /borderBottom: `1px solid \$\{t\.RULE\}`/, 'the tabs sit on a hairline');
-  assert.match(filter, /borderBottom: `2px solid \$\{on \? \(heat \|\| t\.INK\) : 'transparent'\}`/, 'the pick underlined');
-  assert.match(filter, /color: on \? t\.INK : t\.INK70/);
-  assert.doesNotMatch(filter, /background: on \?/, 'a filled pick');
+test('one filled action a page: the most popular plan\'s Assign (or the sample\'s Edit); every other plan\'s Assign is the quiet pill', () => {
+  const featured = fn(CAT, 'function PcFeatured(');
+  assert.equal((featured.match(/kind="primary"/g) || []).length, 1);
+  assert.match(featured, /kind=\{i === 0 \? 'primary' : 'bare'\}/, 'the sample\'s Edit, then Duplicate and Share as words');
+  const row = fn(CAT, 'function PcRow(');
+  assert.doesNotMatch(row, /kind="primary"|kind=\{/, 'a row\'s Assign is quiet');
+  assert.match(row, /kind="bare" tag="copy"/, 'Copy is the words alone');
 });
 
-test('Most popular is the plate: one block in the role\'s heat, the rest on the raised paper; Enrolled faces are the paper\'s tones', () => {
-  const feat = fn('function BSProFeaturedPlan(');
-  assert.match(feat, /data-featured-plan="" onClick=\{onOpen\} style=\{\{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax\(0, 1fr\)', \.\.\.bsRaised\(t\), cursor: 'pointer' \}\}>/);
-  assert.equal((feat.match(/background: heat\b/g) || []).length, 1, 'the length block, and nothing else, in the heat');
-  const enr = fn('function bsProEnrolledRow(');
-  assert.match(enr, /background: t\.PAPER2, color: t\.INK, border: `2px solid \$\{t\.PAPER\}`/);
-  assert.doesNotMatch(enr, /background: col\b/, 'a colour per face');
-  const lead = fn('function bsProFeatureLead(');
-  assert.doesNotMatch(lead, /fontStyle: 'italic'|bsProBand/, 'the sample\'s top workout keeps its rust band or italic word');
+test('the old page, its primitives and the preview switch are gone', () => {
+  for (const name of ['bsProSwatch', 'bsProTypoIndex', 'bsProCreateButton', 'bsProLibrarySearch', 'BSProFeaturedPlan', 'BSProCatRow', 'BSProTextAction', 'bsProStationHead', 'bsProMonoTrail', 'bsProFeatureLead', 'bsProEnrolledRow', 'bsProCatalogLook']) {
+    assert.doesNotMatch(PROS, new RegExp(`\\b${name}\\b`), `${name} is back in the pros module`);
+  }
+  const trainer = PROS.slice(PROS.indexOf('function BSTrainerPrograms('), PROS.indexOf('function BSCoachPlaylistStudio('));
+  const nutri = PROS.slice(PROS.indexOf('function BSNutriPlans('), PROS.indexOf('// SHARED PRO ME'));
+  for (const [who, src] of [['trainer', trainer], ['nutritionist', nutri]]) {
+    assert.equal((src.match(/<BSProCatalog t=\{t\} model=\{model\} \/>/g) || []).length, 1, `${who}: one page`);
+    assert.doesNotMatch(src, /<BSProDeck\b|data-cat-row|showSoundtracks|const TABS = /, `${who}: the old page's furniture`);
+  }
+  const walk = (dir) => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : [p]; });
+  for (const f of walk(join(ROOT, 'mobile-app/src')).filter((p) => /\.(jsx?|mjs)$/.test(p))) {
+    assert.doesNotMatch(readFileSync(f, 'utf8'), /designPreview/, `${f} reads a design preview switch`);
+  }
+});
+
+test('the page keeps the coach rules: window globals at call time, no import back into the pros or client module', () => {
+  assert.doesNotMatch(CAT, /^import .*iosAppBroadsheet/m);
+  assert.doesNotMatch(CAT, /^const \{[^}]*\} = window;/m, 'a window global read at module top');
+  assert.match(fn(CAT, 'function PcFace('), /const Facet = typeof window !== 'undefined' \? window\.BSFacetAvatar : null;/, 'members as facet avatars, read at render');
 });

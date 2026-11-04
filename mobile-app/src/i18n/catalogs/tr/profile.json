@@ -1188,5 +1188,18 @@
   "work.word.5k": "5k hazırlığı",
   "work.word.mobility": "Mobilite",
   "trainer.replaysSubSessions": "{name} kişisinin kaydettiği seanslar, set set.",
-  "about.photos": "{name} kişisinin koçluk yaptığı yerler"
+  "about.photos": "{name} kişisinin koçluk yaptığı yerler",
+  "mine.tabSpotlight": "Vitrin",
+  "mine.spotlightTitle": "Vitrinin",
+  "mine.spotlightSub": "Bir tanıtım videosu, öne çıkan rakamların, bir an, şarkın ve sabitlediğin yorumlar. Hepsi isteğe bağlı.",
+  "mine.errDemoFilm": "Kendi videonu yüklemek için giriş yap.",
+  "mine.statsTitle": "Öne çıkan veriler",
+  "mine.statsHint": "Adının altında, seçtiğin sırayla en fazla üç rakamın. Henüz değeri olmayan sayfanda görünmez.",
+  "mine.statsMax": "{count, plural, one {En fazla # öne çıkan veri.} other {En fazla # öne çıkan veri.}} Başka birini seçmek için birinin işaretini kaldır.",
+  "mine.statNone": "Henüz yok",
+  "mine.errPinTitle": "Anına bir başlık ver ya da temizle.",
+  "mine.winsHint": "Üyelerinin en fazla üç yorumunu sabitle. Sayfandaki “Danışanlar ne diyor” bölümünün başında görünürler.",
+  "mine.bizName": "İşletmenin adı",
+  "mine.bizHint": "Adı ve yeri adının altında, çalışma saatleri ve seni nerede bulacakları Hakkımda bölümünde görünür.",
+  "mine.errBizName": "İşletmene bir ad ver ya da kartını temizle."
 }

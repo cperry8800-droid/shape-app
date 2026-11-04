@@ -1188,5 +1188,18 @@
   "work.word.5k": "5k-Vorbereitung",
   "work.word.mobility": "Mobilität",
   "trainer.replaysSubSessions": "Die Einheiten, die {name} geloggt hat, Satz für Satz.",
-  "about.photos": "Wo {name} coacht"
+  "about.photos": "Wo {name} coacht",
+  "mine.tabSpotlight": "Spotlight",
+  "mine.spotlightTitle": "Dein Spotlight",
+  "mine.spotlightSub": "Ein Vorstellungsvideo, deine wichtigsten Zahlen, ein Highlight, dein Song und die Bewertungen, die du anheftest. Alles optional.",
+  "mine.errDemoFilm": "Melde dich an, um dein eigenes Video hochzuladen.",
+  "mine.statsTitle": "Kennzahlen",
+  "mine.statsHint": "Bis zu drei deiner Zahlen unter deinem Namen, in der Reihenfolge deiner Wahl. Eine, für die es noch keinen Wert gibt, erscheint nicht.",
+  "mine.statsMax": "{count, plural, one {Bis zu # Kennzahl.} other {Bis zu # Kennzahlen.}} Entferne bei einer den Haken, um eine andere zu wählen.",
+  "mine.statNone": "Noch keine",
+  "mine.errPinTitle": "Gib deinem Highlight eine Überschrift – oder leere es.",
+  "mine.winsHint": "Hefte bis zu drei Bewertungen deiner Mitglieder an. Sie stehen auf deiner Seite vorn unter „Was Kund:innen sagen“.",
+  "mine.bizName": "Name deines Studios",
+  "mine.bizHint": "Name und Ort stehen unter deinem Namen, die Zeiten und wo man dich findet unter „Über mich“.",
+  "mine.errBizName": "Gib deinem Studio einen Namen – oder leere die Karte."
 }

@@ -1188,5 +1188,18 @@
   "work.word.5k": "Prep for 5k",
   "work.word.mobility": "Mobility",
   "trainer.replaysSubSessions": "Di sessions wey {name} log, set by set.",
-  "about.photos": "Where {name} dey coach"
+  "about.photos": "Where {name} dey coach",
+  "mine.tabSpotlight": "Spotlight",
+  "mine.spotlightTitle": "Your spotlight",
+  "mine.spotlightSub": "Intro video, your headline numbers, one big moment, your song and the reviews wey you pin. All of am na optional.",
+  "mine.errDemoFilm": "Sign in to upload your own video.",
+  "mine.statsTitle": "Headline numbers",
+  "mine.statsHint": "Up to three of your numbers, under your name, for the order wey you pick dem. The one wey never get number no go show.",
+  "mine.statsMax": "{count, plural, one {Na only # headline number you fit pick.} other {Na only # headline numbers you fit pick.}} Untick one make you fit pick another one.",
+  "mine.statNone": "None yet",
+  "mine.errPinTitle": "Give your big moment one headline, or clear am.",
+  "mine.winsHint": "Pin up to three reviews from your members. Dem go show first for Wetin clients dey talk for your page.",
+  "mine.bizName": "Name of your practice",
+  "mine.bizHint": "Im name and place go show under your name; im hours and where dem fit find you, for About me.",
+  "mine.errBizName": "Give your practice name, or clear the card."
 }

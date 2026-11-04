@@ -622,6 +622,30 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Tune the program, the Boost sheet, coach Clients C with Add a client, the Wall top B with Chat\'s switch D, Programs B with the draft composer and Assign (#2612). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of each page built in the app: Clients "C for clients" and "add a client looks good" (a message icon on every client); Programs "B for programs just reduce size of this button"; the composer "clean up filters, make them smaller, and alow for custom focuses to be used"; Assign "reduce size of header and the boxes on page"; the Wall "go with B", smaller online cards, and of the switch "last option"; Boost and Tune "update to design"', status: 'done' },
+        { label: '#2612 new modules: BSProAdjust.jsx (Tune), BSLiveBoost.jsx (Boost), BSProClients.jsx (Clients C, drawing only), BSWallTop.jsx (the Wall top), BSProCatalog.jsx and BSProDraftComposer.jsx (Programs B, the composer with ＋ Custom focus or goal, sent to Nora as goal); the Add a client sheet redrawn; Assign compact; /api/ai/generate-plan caps goal at 80', status: 'done' },
+        { label: '#2612 review: Codex P2 (a plan\'s kcal or RPE dropped beside its stats) fixed in 4fc4600. CI on 4fc4600 failed search-rate-limit, which pinned the roster\'s old !searching literal; the redrawn sheet keeps the gate, and the pin takes either form (9e22b8b). CI green on 9e22b8b', status: 'done' },
+        { label: 'The owner asked for a raised, lit, almost-3D look on these pages, then stopped that work ("stop", "just apply what i said here for now"); they ship as approved', status: 'pending' },
+        { label: 'Clients rows: a client who needs you shows their reason in place of program, streak and since-when; the AI draft title wraps at 320px', status: 'pending' },
+        { label: 'OWNER: on a phone, coach Clients (Message on a row, Add a client), Programs and Plans, the AI draft with a custom focus, Assign, Tune, the Wall top with the place switch, and a Boost', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App and website: profile customization per role, the coaches\' spotlight on their pages and members\' own colours (#2611). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the profile editor after B for its Colors page (#2609): "make sure also setting cutomizations on that page cover al capabilities members should have when customizing", "Both", "the customization options should be specific for what coaches can edit and clients", "this should apply to website as well"; of the coach extras no coach page drew, "Show them on coach pages"; of members\' "Your line", "Remove the field"', status: 'done' },
+        { label: '#2611 coaches: Make it yours gains a Spotlight tab (intro film to coach-media, up to three headline stats from the coach\'s own figures, a pinned highlight, a Spotify song, up to three pinned member reviews) and About me a practice card (name, where, hours, handle). The app and website coach pages show each only when set, never on a private profile; pinned reviews lead What clients say through /api/coaches/reviews?ids=, so a non-member gets the rating and no words', status: 'done' },
+        { label: '#2611 members: once a member picks a paper, their profile paints in their look (profile_custom.look) in the app (bsLookTheme handed on through BSContext round BSTerrainProfile) and on the website (livingDesktop.jsx with the coach kit\'s palette); the website editor\'s lit Colors panel for both roles writes look only when picked; the member "Your line" field is gone, a coach\'s stays', status: 'done' },
+        { label: '#2611 review: Codex clean on 738d2a8; main merged with #2607 (52f98d9, no conflict); Codex P2 on 52f98d9 (the app\'s older member editor saved only the hex accent, which a website look\'s accent overrode) fixed in 8022456, answered and resolved; Codex clean on 8022456. Local full suite on both commits 9,779 of 9,781 (a swipe-back timing test, 20/20 alone, not this PR\'s). CI green on 8022456; no reviewer read this record', status: 'done' },
+        { label: 'The app\'s member editor gets the Colors panel and loses "Your line" in the other session\'s Customize redesign (BSProfileCustomizer.jsx); until then a member picks their look on the website', status: 'pending' },
+        { label: 'The website\'s ProfileCustomizer doesn\'t edit a coach\'s spotlight and still offers member stats to coaches (toggling one there can push out an app-picked coach stat); the nutritionist demo has no sample film', status: 'pending' },
+        { label: 'The native store release is on hold (owner, 2026-11-04: "put the native build on hold for now"). TestFlight still gets a build on every merge; Android builds only a debug APK, as GitHub holds no ANDROID_KEYSTORE_BASE64 (DEPLOY.md §9), and Google Play needs an AAB', status: 'pending' },
+        { label: 'OWNER: on a phone, Make it yours → Spotlight on a trainer and a nutritionist, then the coach page in the app and on the website, as a member and signed out; and a member\'s look picked on the website, seen in the app and on the website', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the member profile\'s facet avatar, Follow and Message on their own line under the counts; coach Home\'s sessions open their details (#2607). No migration',
       items: [
         { label: 'Owner, 2026-11-04: of the member profile head, "make sure you have the facet avatar"; of Follow and Message, "make sure the message and follow buttons are below the followers/following", "dont make this boxes big, small"; of coach Home\'s Your day, "when i click on the activity here on home page it should take be to details regarding that activity, no month calendar"', status: 'done' },

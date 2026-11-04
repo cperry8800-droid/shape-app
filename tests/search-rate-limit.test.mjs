@@ -643,7 +643,9 @@ test('no search surface can act on the previous query’s rows', () => {
   }
 
   // (b) the two references, pinned so a "cleanup" cannot quietly remove them
-  assert.match(stripComments(PROS), /\{!searching && \(results \|\| \[\]\)\.map\(/,
+  // The Add a client sheet redrawn in #2612 keeps the gate as `{!searching && results && results.length > 0 && (`
+  // around its `results.map(`; either form holds the property.
+  assert.match(stripComments(PROS), /\{!searching && \(results \|\| \[\]\)\.map\(|\{!searching && results && results\.length > 0 && \(\s*<div data-add-results=""[^\n]*\n\s*\{results\.map\(/,
     'the coach roster no longer gates its rows on `!searching` — a superseded query’s clients ' +
     'become invitable again');
   const site = stripComments(SITE);

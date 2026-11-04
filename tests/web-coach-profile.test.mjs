@@ -99,6 +99,9 @@ test('what the website shares with the app is the same code, not a copy', async 
     assert.match(read(`mobile-app/src/services/${mobile}`), /export \* from '\.\.\/\.\.\/\.\.\/public\/newdesign\//, `${mobile} is a re-export, not a second copy`);
   }
   assert.equal(K.bsPlateNoteDays, (await import('../public/newdesign/coachWork.mjs')).bsPlateNoteDays);
+  // The spotlight's figures and cleaners: the app's own (coachWork.mjs, profileCustom.mjs).
+  assert.equal(K.bsCoachHeadline, (await import('../mobile-app/src/services/coachWork.mjs')).bsCoachHeadline);
+  assert.equal(K.bsProfileSong, (await import('../mobile-app/src/services/profileCustom.mjs')).bsProfileSong);
   // The nutritionist sample: the app hands in its kitchen catalog; the website has none and draws
   // the sample without recipes, never a recipe it cannot show.
   const app = (await import('../mobile-app/src/services/nutritionistDemo.mjs')).bsNutritionistDemo({});
@@ -220,6 +223,54 @@ test('About me on the website: the coach\'s accolades and education; the head\'s
   assert.ok(row, 'the socials the coach chose for the head');
   assert.deepEqual([...row.querySelectorAll('[data-head-social]')].map((a) => [a.getAttribute('data-head-social'), a.getAttribute('href'), a.getAttribute('aria-label')]), [['instagram', 'https://instagram.com/tom.lifts', 'Instagram @tom.lifts']], 'only a link the page can use');
   await p.unmount();
+});
+
+// Owner, 2026-11-04: "Show them on coach pages", "this should apply to website as well": what a coach
+// sets in Make it yours → Spotlight (and the practice's card in About me) shows on the website's page too.
+test('the website shows the spotlight: stats, highlight, film, the practice, the song and the wins wall; none when unset', async () => {
+  WIDE = true; backend();
+  const host = 'https://' + (await import('../public/newdesign/listingMedia.mjs')).BS_SUPABASE_HOST;
+  const FILM = `${host}/storage/v1/object/public/coach-media/coach-1/intro.mp4`;
+  const PIN = '11111111-1111-4111-8111-111111111111';
+  const base = globalThis.fetch;
+  // A pinned review, read by id, as one of this coach's members'.
+  globalThis.fetch = async (url, init) => (String(url).startsWith('/api/coaches/reviews?ids=')
+    ? { ok: true, status: 200, json: async () => ({ reviews: [{ id: PIN, author: 'Dana K.', rating: 10, text: 'An old favourite.', ownerId: 'coach-1', authorId: 'm-1' }] }) }
+    : base(url, init));
+  const custom = {
+    about: { story: 'Ten years on the floor.', years: 9 },
+    film: { url: FILM, caption: 'How I coach a squat.' },
+    heroStats: ['rating', 'years', 'programs'],
+    pinned: { kind: 'win', title: 'Client deadlift: twice her bodyweight', note: 'Fourteen weeks.', metric: '2×BW' },
+    song: { url: 'https://open.spotify.com/track/2KH16WveTQWT6KOG9Rg6e2', label: 'Warm-up anthem' },
+    pinnedReviews: [PIN],
+    bizCard: { name: 'Iron Path Strength', where: 'Austin, TX', hours: 'Mon–Sat · by appointment', handle: '@ironpath' },
+  };
+  let p = await mount({ ...LIVE, row: { ...LIVE.row, custom } });
+  assert.deepEqual([...document.querySelectorAll('[data-coach-stat]')].map((s) => s.textContent), ['10.0/10Rating', '9Years coaching', '1Programs'], 'the page\'s own figures, in the coach\'s order');
+  assert.match(document.querySelector('[data-coach-highlight]').textContent, /★ Pinned · Win.*Client deadlift: twice her bodyweight.*2×BW.*Fourteen weeks\./);
+  assert.equal(document.querySelector('[data-coach-film] video').getAttribute('src'), `${FILM}#t=0.1`);
+  assert.match(document.querySelector('[data-coach-film]').textContent, /Intro film.*How I coach a squat\./);
+  assert.ok(document.querySelector('[data-coach-spotlight]').compareDocumentPosition(document.querySelector('.cpw-tabs')) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'before the tabs');
+  const first = document.querySelector('[data-reviews-strip] figure');
+  assert.match(first.textContent, /10\/10 · Pinned.*An old favourite\./, 'the wins wall leads What clients say');
+  const aboutTab = [...document.querySelectorAll('[data-profile-tab]')].find((b) => b.getAttribute('data-profile-tab') === 'about');
+  await React.act(async () => aboutTab.click());
+  await settle();
+  assert.match(document.querySelector('[data-about="practice"]').textContent, /^The practiceIron Path Strength/);
+  assert.deepEqual([...document.querySelectorAll('[data-about-practice-row]')].map((r) => r.textContent), ['WhereAustin, TX', 'HoursMon–Sat · by appointment', 'Find@ironpath']);
+  assert.equal(document.querySelector('[data-about-song] iframe').getAttribute('src'), 'https://open.spotify.com/embed/track/2KH16WveTQWT6KOG9Rg6e2');
+  assert.match(document.querySelector('[data-about="song"]').textContent, /^Warm-up anthem/);
+  await p.unmount();
+
+  // Unset, or not the coach's own (another coach's folder, a song that is not Spotify's, a member's stats): none.
+  p = await mount({ ...LIVE, row: { ...LIVE.row, custom: { about: { story: 'Ten years.' }, film: { url: FILM.replace('/coach-1/', '/coach-2/') }, song: { url: 'https://example.com/x' }, heroStats: ['score', 'streak'], pinned: { title: '' } } } });
+  for (const sel of ['[data-coach-stats]', '[data-coach-highlight]', '[data-coach-film]', '[data-coach-spotlight]']) assert.ok(!document.querySelector(sel), sel);
+  await React.act(async () => [...document.querySelectorAll('[data-profile-tab]')].find((b) => b.getAttribute('data-profile-tab') === 'about').click());
+  await settle();
+  assert.ok(!document.querySelector('[data-about="practice"]') && !document.querySelector('[data-about="song"]'));
+  await p.unmount();
+  globalThis.fetch = base;
 });
 
 test('Subscribe goes through the one checkout path, with the code typed before the redirect', async () => {

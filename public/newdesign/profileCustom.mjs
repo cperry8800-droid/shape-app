@@ -338,6 +338,63 @@ export function bsProfilePinnedReviews(v) {
   return out;
 }
 
+// ── A coach's spotlight (owner, 2026-11-04: "Show them on coach pages") ──────────
+// The pinned highlight, the profile song and the headline stats were written by the old editors and
+// shown by nothing a coach has; Make it yours now edits them and the coach page shows them, in the
+// app and on the website. The normalizer above passes these three keys through as stored (the member
+// editors write them too), so every reader cleans them here, and Make it yours writes them cleaned.
+export const BS_PIN_TITLE_MAX = 80;
+export const BS_PIN_NOTE_MAX = 160;
+export const BS_PIN_METRIC_MAX = 24;
+export const BS_SONG_LABEL_MAX = 60;
+export const BS_HERO_STATS_MAX = 3;
+// A coach's intro film: the coach-media bucket's own cap (shapeBackend uploadCoachMedia).
+export const BS_COACH_FILM_MAX_MB = 200;
+
+// The embed address of a Spotify track, playlist, album, artist, episode or show link, or null. The
+// address is rebuilt from the kind and the id alone, so nothing else in what was pasted reaches a page.
+export function bsSpotifyEmbed(url) {
+  if (typeof url !== 'string' || !url || url.length > BS_LINK_MAX) return null;
+  const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/.exec(url);
+  return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
+}
+
+// The profile song: { url, label } when the link is one Spotify can play here, else null.
+export function bsProfileSong(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const url = bsCleanText(v.url, BS_LINK_MAX);
+  if (!bsSpotifyEmbed(url)) return null;
+  return { url, label: bsCleanText(v.label, BS_SONG_LABEL_MAX) };
+}
+
+// The pinned highlight: { kind, title, note, metric }. The title is the anchor (no title, no card);
+// the kind is a pin token (BS_PIN_KINDS, below) or a hand-written word, drawn as itself.
+export function bsProfilePinned(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const title = bsCleanText(v.title, BS_PIN_TITLE_MAX);
+  if (!title) return null;
+  return {
+    kind: bsPinKindToken(bsCleanText(v.kind, 24)),
+    title,
+    note: bsCleanText(v.note, BS_PIN_NOTE_MAX),
+    metric: bsCleanText(v.metric, BS_PIN_METRIC_MAX),
+  };
+}
+
+// The headline stats' keys: up to three, in their order, each once, and only those in `allowed` when
+// it is given (a coach's are coachWork.mjs's BS_COACH_STATS; a member's page has its own).
+export function bsProfileHeroStats(v, allowed = null) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const k of v.slice(0, BS_HERO_STATS_MAX * 4)) {
+    if (typeof k !== 'string' || !k || out.includes(k)) continue;
+    if (Array.isArray(allowed) && !allowed.includes(k)) continue;
+    out.push(k);
+    if (out.length >= BS_HERO_STATS_MAX) break;
+  }
+  return out;
+}
+
 // ── The coach profile redesign (owner, 2026-10-27) ────────────────────────────
 // `look`: the coach's own colours, chosen from Shape's papers and accents (the app's
 // makePalette keys, so the profile paints with the same values the app does), and what stays

@@ -453,6 +453,18 @@ function useBS() {
   return v;
 }
 
+// A page painted in its owner's own look (a member's profile: owner, 2026-11-04, members get the colours
+// coaches got): the theme BSProvider gives for that paper and accent, with every other setting the
+// reader's (density, borders, weight, text size, texture, units). The reader's ink override is theirs,
+// not part of the look, so it is left out, as BSTrainerProfile's own provider leaves it out. The page
+// hands it on through BSContext, so what it holds reads it with useBS().
+function bsLookTheme(outer, { paper, accent } = {}) {
+  const P = makePalette({ paperMode: paper, accentKey: accent || outer.accentKey });
+  const txOverride = outer.textureColor && outer.textureColor !== 'auto' ? _hexToRGB(outer.textureColor) : null;
+  const TEXTURE = makeTexture(outer.textureKey, txOverride || P.inkRGB || '15,14,12', P.isLight);
+  return { ...outer, ...P, B: makeBorders(outer.borderKey, P), TEXTURE };
+}
+
 function isNativeBSApp() {
   return document.documentElement.classList.contains('is-native-app') ||
     !!window.Capacitor?.isNativePlatform?.();
@@ -2618,7 +2630,7 @@ function BSNavGestures() {
 }
 
 Object.assign(window, {
-  BSContext, BSProvider, useBS, BSBackButton, BSBackRow, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
+  BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,

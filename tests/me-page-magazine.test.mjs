@@ -1,12 +1,13 @@
 // tests/me-page-magazine.test.mjs
 //
-// The Me page, the live Boost sheet and the coach profile, after four asks on 2026-10-24:
+// The Me page and the coach profile, after the asks on 2026-10-24:
 //   "This needs to get cleaned up" (the Me tab: the score bars, the tabs, THE WALL, THE SHELF),
-//   "update design of this as well to match" (the "Boost Priya" sheet),
 //   "also why isnt this going away when i scroll down, the message and work with maya" (the dock), and
 //   "Design", on the offer to bring the rest of the coach profile into the same look.
+// (The live Boost sheet was redrawn on 2026-11-04 and moved to its own module; tests/live-boost-sheet.test.mjs
+// holds it now.)
 //
-// The first two now print as the Wall does (#2436, #2438, #2439): heads in the headline face over ink
+// The Me page prints as the Wall does (#2436, #2438, #2439): heads in the headline face over ink
 // rules, the active tab underlined in the magazine's teal, square bars and boxes, and a member's own words
 // pulled out under a teal quote mark. The dock slides away while the page scrolls down and comes back as
 // it scrolls up. That part is driven with real React in jsdom, since it runs on a scroll listener.
@@ -17,7 +18,7 @@ import { readFileSync } from 'node:fs';
 import { loadBroadsheet, drive, flatten, textOf, THEME, SRC } from './helpers/broadsheet-mount.mjs';
 import { stripComments } from './helpers/strip-comments.mjs';
 
-const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'BSLiveBoostSheet', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer', 'BSCoachCoachingBlock']);
+const mod = await loadBroadsheet(['BSTerrainProfile', 'BSTerrainTabs', 'BSTStationHead', 'BSTPullQuote', 'BSProfileExtras', 'bsDemoMemberCustom', 'BSSignalCoachProfile', 'BSProfileCustomizer', 'BSCoachCoachingBlock']);
 const named = (name) => (n) => n && typeof n.type === 'function' && n.type.name === name;
 const TEAL = '#0a7a72';   // bsWsAccent on a light paper (the harness THEME is light)
 const INK = '#111';
@@ -222,61 +223,13 @@ test('a Wall shot opens full size, at its place, and steps round the wall', () =
   assert.equal(viewer(), undefined, 'the viewer would not close');
 });
 
-// The Boost sheet portals into the phone surface; with no document the sheet renders nothing, so every
-// render of it (the first, and the one after typing) runs with one.
+// A sheet portals into the phone surface; with no document it renders nothing, so every render of one
+// runs with one.
 const withSurface = (fn) => {
   const saved = globalThis.document;
   globalThis.document = { getElementById: () => ({}), body: {} };
   try { return fn(); } finally { globalThis.document = saved; }
 };
-function driveBoost(person) {
-  const d = withSurface(() => drive(mod.BSLiveBoostSheet, { person, onClose() {}, onOpenProfile() {} }));
-  const render = d.render;
-  d.render = () => withSurface(render);
-  return d;
-}
-
-test('the Boost sheet in the Wall\'s look: the flat face, the headline over a heavy rule, square boxes, Send in ink', () => {
-  const d = driveBoost({ name: 'Priya Shah', activity: 'workout', tier: 'PEAK' });
-  const nodes = d.nodes();
-  assert.ok(!nodes.some((n) => n.props && n.props.style && n.props.style.clipPath), 'a clipped corner is the old sheet');
-  const av = nodes.find(named('BSFacetAvatar'));
-  assert.equal(av.props.flat, true);
-  assert.equal(av.props.c, THEME.INK, 'the face is framed in ink, not the tier\'s colour');
-  // The live line is the magazine's kicker: teal mid-workout, with a still dot.
-  const kicker = nodes.find((n) => n.type === 'span' && /^In a workout now/.test(String(n.props.children && n.props.children[0])));
-  assert.equal(kicker.props.style.color, TEAL);
-  const dot = nodes.find((n) => n.type === 'span' && n.props.style && n.props.style.width === 6);
-  assert.equal(dot.props.style.animation, undefined, 'the dot no longer breathes');
-  const title = nodes.find((n) => n.type === 'div' && n.props.children && n.props.children[0] === 'Boost ');
-  assert.equal(title.props.style.fontFamily, THEME.DISPLAY);
-  assert.equal(title.props.style.textTransform, 'uppercase');
-  assert.equal(title.props.children[1], 'Priya');
-  assert.equal(title.props.children.length, 2, 'the accent full stop is the old title');
-  assert.ok(nodes.some((n) => n.type === 'div' && n.props.style && n.props.style.height === 3 && n.props.style.background === THEME.INK), 'no heavy ink rule under the head');
-  const chips = nodes.filter((n) => n.type === 'button' && n.props.style && n.props.style.minHeight === 40);
-  assert.equal(chips.length, 7, 'the seven workout phrases');
-  assert.equal(chips[0].props.children, "Let's go!");
-  for (const ch of chips) {
-    assert.equal(ch.props.style.borderRadius, 0);
-    assert.equal(ch.props.style.background, 'transparent');
-  }
-  const send = () => d.nodes().find((n) => n.type === 'button' && /Send$/.test(String(n.props.children)));
-  assert.equal(send().props.disabled, true);
-  assert.notEqual(send().props.style.background, THEME.INK, 'an empty Send reads as off');
-  d.nodes().find((n) => n.type === 'input').props.onChange({ target: { value: 'Go get it' } });
-  d.render();
-  assert.equal(send().props.disabled, false);
-  assert.equal(send().props.style.background, THEME.INK);
-  assert.equal(send().props.style.color, THEME.PAPER);
-  assert.equal(send().props.style.borderRadius, 0);
-});
-
-test('at the stove the kicker is amber, as the face\'s dot', () => {
-  const d = driveBoost({ name: 'Sam Ortiz', activity: 'cooking' });
-  const kicker = d.nodes().find((n) => n.type === 'span' && /^Cooking now/.test(String(n.props.children && n.props.children[0])));
-  assert.equal(kicker.props.style.color, THEME.AMBER);
-});
 
 // ── The coach profile (Signal) in the same look ───────────────────────────────
 const MAYA = { who: 'Maya Okafor', kind: 'TRAINER', tier: 'ELITE', init: 'MO' };

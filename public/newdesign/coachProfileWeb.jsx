@@ -8,7 +8,13 @@
 // same type and the coach's own colours, on a wider page.
 //
 //   The wall     the coach's wall photo with their round avatar over its edge, their name, what they
-//                do and where, their bio, the verified line, Message · Work with · Follow.
+//                do and where, their bio, the verified line, up to three headline stats,
+//                Message · Work with · Follow.
+//   Spotlight    under the head, before the tabs: the highlight the coach pinned and their intro film
+//                (owner, 2026-11-04: "Show them on coach pages", "this should apply to website as
+//                well"). Their song and their practice's card (its hours and where to find them) are on
+//                About me, and the reviews they pinned (their wins wall) lead What clients say. Each
+//                shows only when set, all set in the app's Make it yours, read from the same doc.
 //   The tabs     {Name}'s day · About me · The studio · Replays · Activity (a nutritionist: … {Name}'s
 //                kitchen · Plate notes · Activity). A visitor sees a tab only when there is something in
 //                it; the coach sees them all. Activity is last and is the coach's own posts.
@@ -41,6 +47,8 @@ const CPW_BODY = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 
 const CPW_MONO = "'JetBrains Mono', ui-monospace, monospace";
 const CPW_FOCUS = { top: "center 22%", center: "center 50%", bottom: "center 80%" };
 const CPW_LINK_NAMES = { instagram: "Instagram", x: "X", tiktok: "TikTok", youtube: "YouTube", substack: "Substack", website: "Website" };
+// A headline stat's words, by key (the app's BS_STAT_WORDS, BSMakeItYours.jsx).
+const CPW_STAT_WORDS = { rating: "Rating", reviews: "Reviews", years: "Years coaching", programs: "Programs", workouts: "Workouts", replays: "Replays", recipes: "Recipes", plates: "Plate notes", certs: "Certificates" };
 // The anon grant's columns of a listing (the app's PUBLIC_PROVIDER_COLUMNS, shapeBackend.js): a `*`
 // read fails the whole row for a visitor.
 const CPW_LISTING_COLS = "id, name, specialty, category, price, credential, credential_full, specialty_type, owner_id, at_capacity, capacity_resume_at, verified, monthly_offer, listing_media, listing_ready";
@@ -549,8 +557,21 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const headSocials = custom && custom.headLinks === true && aboutLinks
     ? K.BS_PROFILE_LINK_KEYS.map((k) => [k, aboutLinks[k] ? K.bsProfileLinkHref(k, aboutLinks[k]) : null]).filter(([, href]) => href) : [];
   const credList = isPrivate ? [] : (Array.isArray(certs) ? certs : []);
+  // The spotlight, as the app's page reads it (BSTrainerProfile): the intro film only as the coach's own
+  // video in coach-media, the highlight with a headline, a song Spotify can play, and up to three
+  // headline stats from the figures this page already has. A sample and a private profile show none.
+  const film = isPrivate || !live ? null : K.bsProfileFilm(custom && custom.film, uid, "coach-media");
+  const highlight = isPrivate ? null : K.bsProfilePinned(custom && custom.pinned);
+  const song = isPrivate ? null : K.bsProfileSong(custom && custom.song);
+  const songEmbed = song ? K.bsSpotifyEmbed(song.url) : null;
+  const statFigures = K.bsCoachStatFigures({
+    reviews: reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null,
+    years: aboutDoc && aboutDoc.years, programs: studioModel ? studioModel.programs.length : 0, workouts: studioModel ? studioModel.workouts.length : 0,
+    replays: replays.length, recipes: kitchen && kitchen.recipes ? kitchen.recipes.length : 0, plates: plateDays.length, certs: credList.length,
+  });
+  const headline = isPrivate ? [] : K.bsCoachHeadline(custom && custom.heroStats, role, statFigures);
   // The listing's photos sit at About me's foot for a trainer, where the floor plan's tab had them.
-  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || credList.length || (!nutri && !isPrivate && gallery.length));
+  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || credList.length || biz || songEmbed || (!nutri && !isPrivate && gallery.length));
   const aboutTab = isSelf || hasAbout ? [["about", "About me"]] : [];
   const tabs = nutri ? [
     ["day", words.day], ...aboutTab,
@@ -714,6 +735,22 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                       ))}
                     </div>
                   ) : null}
+                  {/* The headline stats the coach picked (Make it yours → Spotlight): up to three of the
+                      figures this page already has, ruled as one row, each only when there is a figure. Its
+                      columns are auto columns, not a template: the site's phone CSS (pageShell.jsx) turns
+                      every inline "repeat(n" template into one column. */}
+                  {headline.length ? (
+                    <div data-coach-stats="" role="list" aria-label="Headline stats" style={{ margin: "14px 0 0", maxWidth: 560, display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(0, 1fr)", borderTop: `1px solid ${ink(0.14)}`, borderBottom: `1px solid ${ink(0.14)}` }}>
+                      {headline.map((s, i) => (
+                        <div key={s.key} role="listitem" data-coach-stat={s.key} style={{ minWidth: 0, padding: `10px 10px 11px ${i ? 14 : 0}px`, borderLeft: i ? `1px solid ${ink(0.14)}` : 0 }}>
+                          <div style={{ fontFamily: CPW_DISPLAY, fontSize: 24, fontWeight: 600, lineHeight: 1.05, color: INK, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                            {s.key === "rating" ? Number(s.value).toFixed(1) : Number(s.value).toLocaleString()}{s.key === "rating" ? <span style={{ fontFamily: CPW_MONO, fontSize: 11.5, fontWeight: 500, color: ink(0.55) }}>/10</span> : null}
+                          </div>
+                          <div style={{ marginTop: 4, fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.62), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{CPW_STAT_WORDS[s.key]}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {sample && !demo ? <p data-sample-note="" style={{ margin: "12px 0 0", padding: "9px 12px", borderLeft: `2px solid ${ACC}`, background: pal.PAPER2, fontSize: 13, lineHeight: 1.45, color: ink(0.74), maxWidth: 680 }}>{nutri
                     ? `${first} hasn't set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.`
                     : `${first} hasn't set up a Shape account yet, so the studio, replays, reviews and times here are samples.`}</p> : null}
@@ -748,8 +785,36 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                   </React.Fragment>
                 )}
               </div>
-              {isSelf ? <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.45, color: ink(0.58), maxWidth: 560 }}>Your colours, wall photo, studio or kitchen and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
+              {isSelf ? <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.45, color: ink(0.58), maxWidth: 560 }}>Your colours, wall photo, studio or kitchen, spotlight and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
             </section>
+
+            {/* The spotlight (Make it yours → Spotlight): the highlight the coach pinned, set as About me's
+                answers are, then their intro film. */}
+            {highlight || film ? (
+              <div data-coach-spotlight="" style={{ marginTop: 24, maxWidth: 720 }}>
+                {highlight ? (
+                  <div data-coach-highlight="" style={{ padding: "13px 16px 14px", background: pal.PAPER2, borderLeft: `3px solid ${ACC}` }}>
+                    <div style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: ink(0.66) }}>
+                      <span aria-hidden="true" style={{ color: ACC }}>★ </span>Pinned · {K.bsPinKindLabel(highlight.kind) || "Highlight"}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 6 }}>
+                      <p style={{ flex: 1, minWidth: 0, margin: 0, fontFamily: CPW_DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.25, color: INK, overflowWrap: "anywhere" }}>{highlight.title}</p>
+                      {highlight.metric ? <span data-coach-highlight-metric="" style={{ flex: "none", maxWidth: "45%", fontFamily: CPW_DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.25, color: ACC, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere", textAlign: "right" }}>{highlight.metric}</span> : null}
+                    </div>
+                    {highlight.note ? <p style={{ margin: "5px 0 0", fontSize: 15, lineHeight: 1.45, color: ink(0.74), overflowWrap: "anywhere" }}>{highlight.note}</p> : null}
+                  </div>
+                ) : null}
+                {film ? (
+                  <figure data-coach-film="" style={{ margin: highlight ? "20px 0 0" : 0 }}>
+                    <span style={cpwEyebrow(ink)}>Intro film</span>
+                    <div style={{ marginTop: 8, background: "#000", overflow: "hidden" }}>
+                      <video src={`${film.url}#t=0.1`} controls playsInline preload="metadata" aria-label="Intro film" style={{ display: "block", width: "100%", maxHeight: 460, background: "#000" }} />
+                    </div>
+                    {film.caption ? <figcaption style={{ marginTop: 8, fontSize: 14, lineHeight: 1.4, color: ink(0.74), overflowWrap: "anywhere" }}>{film.caption}</figcaption> : null}
+                  </figure>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Tabs */}
             {!isPrivate ? (
@@ -768,7 +833,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                     <CpwDayTab T={T} K={K} avail={avail} listingState={live ? listing.state : (sample ? "ready" : "none")} introClosed={introClosed} hoursHref={hoursHref}
                       onRetry={() => (listing.state === "error" ? setListingEpoch : setWeekEpoch)((n) => n + 1)} bookHref={providerId ? bookHref : null} onWork={openWork} />
                   ) : tabNow === "about" ? (
-                    <CpwAboutTab T={T} K={K} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={credList} gallery={nutri || isPrivate ? [] : gallery} onEdit={canEdit ? () => setEditing(true) : null} />
+                    <CpwAboutTab T={T} K={K} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={credList} gallery={nutri || isPrivate ? [] : gallery} onEdit={canEdit ? () => setEditing(true) : null}
+                      biz={biz} song={songEmbed ? { label: song.label, embed: songEmbed } : null} />
                   ) : tabNow === "studio" ? (
                     <CpwStudioTab T={T} model={studioModel} heat={cpwStudioHeat(pal, look.accent, ACC)} stickyTop={headH + 51} failed={workFailed} onRetry={retryWork}
                       onProgram={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} onVideo={(v) => { if (v) setSheet({ kind: "replay", r: v, i: 0 }); }}
@@ -1165,7 +1231,9 @@ function CpwDayTab({ T, K, avail, listingState, introClosed, hoursHref, onRetry,
 }
 
 // ── About me ─────────────────────────────────────────────────────────────────────────────────
-function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit }) {
+// `biz`: the practice's card (bsProfileBizCard), after the facts. `song`: { label, embed }, the profile
+// song's player after the coach's answers. As the app's About me draws them.
+function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit, biz = null, song = null }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : about.how === "in_person" ? "Coaches in person" : "Coaches online and in person";
   const facts = about ? [
@@ -1185,6 +1253,21 @@ function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit 
       {facts.map((f, i) => <li key={i} style={{ padding: "11px 0", borderTop: `1px solid ${ink(0.14)}`, fontSize: 15, lineHeight: 1.4 }}>{f}</li>)}
     </ul>
   )]);
+  // The practice's card: its name, then where, its hours and where to find them, over dotted leaders
+  // (the handle is text, never a link).
+  if (biz) sections.push(["practice", 26, <React.Fragment>
+    {head("The practice")}
+    <div data-about-practice="" style={{ marginTop: 8, maxWidth: 680 }}>
+      <div style={{ padding: "11px 0", borderTop: `1px solid ${ink(0.14)}`, fontFamily: CPW_DISPLAY, fontSize: 16.5, fontWeight: 600, lineHeight: 1.3, overflowWrap: "anywhere" }}>{biz.name}</div>
+      {[["where", "Where", biz.where], ["hours", "Hours", biz.hours], ["find", "Find", biz.handle]].filter((r) => r[2]).map(([k, label, v]) => (
+        <div key={k} data-about-practice-row={k} style={{ display: "flex", alignItems: "baseline", gap: 10, padding: "12px 0", borderTop: `1px solid ${ink(0.14)}` }}>
+          <span style={{ flex: "none", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.64) }}>{label}</span>
+          <span aria-hidden="true" style={{ flex: 1, minWidth: 12, borderBottom: `1px dotted ${ink(0.28)}`, transform: "translateY(-3px)" }} />
+          <span style={{ flex: "0 1 auto", minWidth: 0, textAlign: "right", fontSize: 15, lineHeight: 1.4, overflowWrap: "anywhere" }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  </React.Fragment>]);
   if (prompts.length) sections.push(["qa", 26, <React.Fragment>
     {head(`In ${first}'s words`)}
     <div className="cpw-cards2" style={{ marginTop: 12, gap: 10 }}>
@@ -1230,6 +1313,13 @@ function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit 
   };
   list("accolades", "Accolades", about && about.accolades);
   list("education", "Education and training", about && about.education);
+  // The profile song: its label (else "Profile song") over the Spotify player.
+  if (song) sections.push(["song", 26, <React.Fragment>
+    {head(song.label || "Profile song")}
+    <div data-about-song="" style={{ marginTop: 10, maxWidth: 680, borderRadius: 12, overflow: "hidden", background: pal.PAPER2 }}>
+      <iframe title="Profile song" src={song.embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" loading="lazy" style={{ display: "block", border: 0 }} />
+    </div>
+  </React.Fragment>]);
   if (socials.length) sections.push(["socials", 26, <React.Fragment>
     {head(`Find ${first} online`)}
     <div style={{ marginTop: 8, maxWidth: 680 }}>

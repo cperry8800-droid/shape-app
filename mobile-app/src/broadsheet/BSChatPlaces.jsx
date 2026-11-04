@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { bsWsAccent, bsWsHead } from './bsMagazine.mjs';
+import { bsWsAccent, bsWsHead, bsWsHexA } from './bsMagazine.mjs';
+import { bsWallRaised } from './BSWallTop.jsx';
 // ─── CHAT · THE TITLE IS THE SWITCH ──────────────────────────────────────────────────────────────
 // Owner, 2026-10-26, on the Chat page's tab rows (Feed / Team / Channels over Wall / Client / Community
 // over the six types): "still dont love the look of this", "give me 3 new ideas", then "go with B". The
@@ -29,37 +30,40 @@ const bsChatReduceMotion = () => {
   try { return !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
 };
 
-// The page's title: the place's name and the teal ▾ that says it opens. It stays an h1 for the page's
-// outline; the button inside it carries the name, so a screen reader hears "Wall, button, collapsed".
-export function BSChatPlaceTitle({ label, open, onOpen, buttonRef }) {
+// The page's title: the place's name and, beside it, the switch's mark (owner, 2026-11-04, of four drawn for
+// "a few more design/symbol options for this drop down": "last option"): a dot for each of Chat's places, the
+// one you are in a teal dash, and a ⌄, on a soft pill in the paper's own colour. It replaced the teal grid
+// chip; like it, it carries no word (owner, 2026-10-31: "dont say switch, need something else") and reads the
+// same in every language. The title stays an h1 for the page's outline, and the whole title is the 44px
+// target; the button carries the name, with where you are among the places, so a screen reader hears
+// "Wall, 1 of 5. Choose another place in Chat, button, collapsed".
+// `place` is the open place's key and `places` every place's key in the sheet's order.
+export function BSChatPlaceTitle({ label, open, onOpen, buttonRef, place = null, places = [] }) {
   const t = window.useBS();
   const tr = useShapeTr();
   const accent = bsWsAccent(t);
+  const still = bsChatReduceMotion();
+  const at = places.indexOf(place);
+  const dots = places.length ? places : [place || ''];
+  const aria = at >= 0
+    ? tr('feed:places.switchAriaAt', { defaultValue: '{place}, {n, number} of {total, number}. Choose another place in Chat', place: label, n: at + 1, total: places.length })
+    : tr('feed:places.switchAria', { defaultValue: '{place}. Choose another place in Chat', place: label });
   return (
     <h1 style={{ margin: '4px 0 0', lineHeight: 1 }}>
-      <button ref={buttonRef} type="button" onClick={onOpen} aria-haspopup="dialog" aria-expanded={!!open}
-        aria-label={tr('feed:places.switchAria', { defaultValue: '{place}. Choose another place in Chat', place: label })}
+      <button ref={buttonRef} type="button" onClick={onOpen} aria-haspopup="dialog" aria-expanded={!!open} aria-label={aria}
         style={{ display: 'inline-flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 8, maxWidth: '100%', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left',
           fontFamily: bsWsHead(t), fontWeight: 500, fontSize: 36, letterSpacing: '0.005em', lineHeight: 1, color: t.INK }}>
-        {/* A long place name in a long language keeps the page's width (Codex on #2535): the chip
+        {/* A long place name in a long language keeps the page's width (Codex on #2535): the pill
             wraps under the name when the two don't fit, and a name wider than the page breaks. */}
         <span style={{ minWidth: 0, maxWidth: '100%', overflowWrap: 'anywhere' }}>{label}</span>
-        {/* The title is a switch, and says so (owner, 2026-10-31: "make it more noticeable that you click
-            here to change between pages on chat"): a keyed chip in the accent with its chevron, where a
-            lone 15px ▾ was. The whole title stays the tap target. No word on it (owner, 2026-10-31: "dont
-            say switch, need something else", then the grid): a 2×2 grid, Chat's pages, reads the same in
-            every language; the button's own label says it aloud. */}
-        <span aria-hidden data-bs-chat-switch="" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flex: 'none', height: 28, padding: '0 8px 0 9px', borderRadius: 6,
-          border: `1px solid ${accent}`, background: open ? accent : `${accent}1a`, color: open ? t.PAPER : accent,
-          lineHeight: 1, transition: 'background 160ms ease, color 160ms ease' }}>
-          <svg data-bs-chat-pages-icon="" width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-            <rect x="0.75" y="0.75" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <rect x="7" y="0.75" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <rect x="0.75" y="7" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <rect x="7" y="7" width="4.25" height="4.25" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-          </svg>
-          <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 180ms ease' }}>
-            <path d="M1.5 3.5 L5 7 L8.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <span aria-hidden data-bs-chat-switch="" style={{ ...bsWallRaised(t, 999), display: 'inline-flex', alignItems: 'center', gap: 8, flex: 'none', height: 30, padding: '0 9px 0 11px', lineHeight: 1,
+          color: open ? accent : bsWsHexA(t.INK, 0.5), ...(open ? { border: `1px solid ${accent}` } : null) }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            {dots.map((k, i) => <span key={`${k}-${i}`} data-bs-chat-dot={i === at ? 'on' : 'off'} style={{ width: i === at ? 14 : 5, height: 5, borderRadius: 99, background: i === at ? accent : bsWsHexA(t.INK, 0.28), transition: still ? 'none' : 'width 200ms ease' }} />)}
+          </span>
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+            style={{ display: 'block', flex: 'none', transform: open ? 'rotate(180deg)' : 'none', transition: still ? 'none' : 'transform 180ms ease' }}>
+            <path d="m6 9 6 6 6-6" />
           </svg>
         </span>
       </button>

@@ -1188,5 +1188,18 @@
   "work.word.5k": "5k prep",
   "work.word.mobility": "Mobility",
   "trainer.replaysSubSessions": "The sessions {name} logged, stepped set by set.",
-  "about.photos": "Where {name} coaches"
+  "about.photos": "Where {name} coaches",
+  "mine.tabSpotlight": "Spotlight",
+  "mine.spotlightTitle": "Your spotlight",
+  "mine.spotlightSub": "An intro film, your headline numbers, a highlight, your song and the reviews you pin. All optional.",
+  "mine.errDemoFilm": "Sign in to upload your own film.",
+  "mine.statsTitle": "Headline stats",
+  "mine.statsHint": "Up to three of your numbers, under your name, in the order you pick them. One you have no figure for yet stays off your page.",
+  "mine.statsMax": "{count, plural, one {Up to # headline stat.} other {Up to # headline stats.}} Untick one to pick another.",
+  "mine.statNone": "None yet",
+  "mine.errPinTitle": "Give your highlight a headline, or clear it.",
+  "mine.winsHint": "Pin up to three of your members’ reviews. They lead What clients say on your page.",
+  "mine.bizName": "Name of your practice",
+  "mine.bizHint": "Its name and place show under your name; its hours and where to find you, on About me.",
+  "mine.errBizName": "Give your practice a name, or clear its card."
 }

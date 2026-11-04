@@ -1,15 +1,9 @@
-// The coach's Programs / Plans page, redrawn in direction A, the Instrument (owner, 2026-11-03), after it
-// was condensed (owner, 2026-10-31, of the Most popular card and the
-// "✦ Draft with Nora" / "＋ From scratch" buttons: "these can be condensed more").
+// The coach's Programs / Plans page, the owner's B (2026-11-04): "B for programs just reduce size of this
+// button", of the most popular plan's big filled Assign. Every action on the page is a compact pill now: a
+// 34px pill drawn inside a 44px button, so the tap stays 44 while the button reads small. The most popular
+// plan's Assign is the page's one filled teal pill; every other plan's is the quiet one, the same size.
 //
-// The Most popular card was an 88px band in the role's colour carrying the length at 34px ("12 wk")
-// and "48 clients · 4.9 ★", over a second row with the name, the price and Assign: 158px in all. It
-// is now one row: the length on a 56px tile in the band, the name, its price, then clients and
-// rating, and Assign at 44px (owner, of the first condensed row: "you can make this a little bigger
-// for coaches"); about 84px. The two create buttons were 48px at 15 / 700 with
-// an ink outline on From scratch; they are 40px at 13.5 / 650, From scratch on a hairline.
-//
-// The shipping components, mounted in jsdom (the harness is tests/app-roster-details.test.mjs's).
+// The shipping component (BSProCatalog.jsx), mounted in jsdom with a page's model.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +20,6 @@ const W = dom.window;
 globalThis.window = W;
 globalThis.document = W.document;
 Object.defineProperty(globalThis, 'navigator', { value: W.navigator, configurable: true, writable: true });
-globalThis.localStorage = W.localStorage;
 globalThis.__VITE_ENV__ = { BASE_URL: '/m/', MODE: 'test' };
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require_('react');
@@ -34,95 +27,97 @@ const ReactDOMClient = require_('react-dom/client');
 
 const { IntlMessageFormat } = require_('intl-messageformat');
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/en/coach.json'), 'utf8'));
-W.ShapeI18n = {
-  t: (key, opts = {}) => {
-    const msg = key.startsWith('coach:') ? CATALOG[key.slice(6)] : null;
-    return msg == null ? undefined : new IntlMessageFormat(msg, 'en').format(opts);
-  },
-  intlLocale: () => 'en',
-};
-W.bsDateLocale = () => 'en-US';
-const theme = { MONO: 'mono', DISPLAY: 'display', BODY: 'body', PAPER: '#fff', PAPER2: '#eee', PAPER3: '#ddd', INK: '#111', INK50: '#777', INK70: '#555', HAIR: '#ddd', RULE: '#ccc', AMBER: '#d8b25a', RUST: '#c0533b', GREEN: '#5fa96e', BLUE: '#4a7bd0', padX: 18, isLight: true, W: { display: 700 } };
-W.useBS = () => theme;
-for (const chrome of ['BSPage', 'BSFooter', 'BSBackButton', 'BSBackRow', 'BSMasthead', 'BSPageHeader', 'BSAvatar', 'BSFacetAvatar', 'BSEyebrow', 'BSSection', 'BSPlate', 'BSSlab', 'BSCell', 'BSTag', 'BSRow', 'BSHeadlineNumber', 'BSHalftone', 'BSTabBar', 'BSSheetProvider', 'BSCalendarScreen', 'BSRadioPrompt', 'BSRadioScreen', 'BSNowPlaying', 'BSClientChat', 'BSSettings', 'BSShapeScorePage', 'BSShapeStorePage', 'BSContactPage', 'BSTermsPage', 'BSPublicProfile']) {
-  W[chrome] = ({ children }) => React.createElement('div', { 'data-chrome': chrome }, children);
-}
+W.ShapeI18n = { t: (key, opts = {}) => { const msg = key.startsWith('coach:') ? CATALOG[key.slice(6)] : null; return msg == null ? undefined : new IntlMessageFormat(msg, 'en').format(opts); } };
+const theme = { MONO: 'mono', DISPLAY: 'display', BODY: 'body', PAPER: '#ffffff', PAPER2: '#eeeeee', INK: '#111111', INK50: '#777777', INK70: '#555555', RULE: '#cccccc', RUST: '#c0533b', padX: 18, isLight: true, inkRGB: '17,17,17' };
 
-const PROS = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), {
-  registry: new Map([['react', React], ['react-dom', { createPortal: (n) => n }]]),
-  appendExports: 'export { BSProFeaturedPlan, bsProCreateButton, bsProDeckTheme };',
-});
+const CAT = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSProCatalog.jsx'), { registry: new Map([['react', React]]) });
 
-async function mount(el) {
+async function mount(model) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
-  await React.act(async () => { root.render(el); });
-  return { host, close: () => React.act(async () => { root.unmount(); host.remove(); }) };
+  await React.act(async () => { root.render(React.createElement(CAT.BSProCatalog, { t: theme, model })); });
+  const click = async (el) => { assert.ok(el, 'no such element'); await React.act(async () => { el.dispatchEvent(new W.MouseEvent('click', { bubbles: true })); }); };
+  return { host, click, close: () => React.act(async () => { root.unmount(); host.remove(); }) };
 }
 const nb = (s) => s.replace(/ /g, ' ');
 
-test('Most popular is the plate: the length on a block, "Most popular", the name, clients and rating, the weeks, the price and Assign', async () => {
-  // Direction A (owner, 2026-11-03). The words keep the condensed sizes (none over 20px); the length on
-  // its block is the one figure set large.
-  let assigned = 0, opened = 0;
-  const plan = { n: 'Push / Pull / Legs', meta: '12 wk · 48 on it · 4.9 ★', price: '$120/mo' };
-  const m = await mount(React.createElement(PROS.BSProFeaturedPlan, { plan, heat: '#c0533b', t: theme, onOpen: () => { opened++; }, onAssign: () => { assigned++; } }));
-  try {
-    const card = m.host.querySelector('[data-featured-plan]');
-    assert.equal(card.style.display, 'grid');
-    assert.equal(card.style.gridTemplateColumns, '64px minmax(0, 1fr)');
-    const [block, body] = card.children;
-    assert.equal(nb(block.textContent), '12WK');
-    assert.equal(block.style.background, 'rgb(192, 83, 59)', 'the block in the role\'s heat');
-    const name = m.host.querySelector('[data-featured-name]');
-    const assign = m.host.querySelector('[data-featured-assign]');
-    assert.match(body.textContent, /^Most popular/);
-    assert.equal(name.textContent, 'Push / Pull / Legs');
-    assert.equal(m.host.querySelector('[data-featured-price]').textContent, '$120/mo');
-    const facts = m.host.querySelector('[data-featured-facts]').textContent;
-    assert.equal(nb(facts), '48 clients · 4.9 ★');
-    assert.ok(facts.includes('4.9 ★') && facts.includes('48 clients'), 'a fact breaks only between facts');
-    assert.equal(m.host.querySelector('[data-featured-spine]').children.length, 12, 'a tick a week');
-    for (const el of body.querySelectorAll('[style*="font-size"]')) assert.ok(parseFloat(el.style.fontSize) <= 20, el.textContent + ' ' + el.style.fontSize);
-    assert.equal(assign.textContent, 'Assign');
-    assert.equal(assign.style.minHeight, '44px');
-    name.click(); assign.click();
-    assert.equal(opened, 1, 'the name opens it, and Assign does not');
-    assert.equal(assigned, 1);
-    m.host.querySelector('[data-featured-facts]').click();
-    assert.equal(opened, 2, 'the rest of the plate opens it too');
-  } finally { await m.close(); }
-});
+function model(calls) {
+  const item = (name, meta, price, extra = {}) => ({ key: name, name, meta, price, demo: true, onOpen: () => calls.push(`open ${name}`), onAssign: () => calls.push(`assign ${name}`), ...extra });
+  return {
+    role: 'trainer', title: 'Programs', published: '4 published', publishedRest: '1 draft',
+    onScratch: () => calls.push('scratch'), note: '', alert: null, loading: null,
+    tabs: [['plans', 'Plans'], ['workouts', 'Workouts'], ['programs', 'Programs'], ['soundtracks', 'Music']], tab: 'plans', onTab: (k) => calls.push(`tab ${k}`), tabsAria: 'Catalogue kind',
+    search: { value: '', onChange: () => {}, placeholder: 'Search plans, workouts, music', aria: 'Search your library' },
+    sort: { value: 'Popular', label: 'Sort: Popular', onPick: (k) => calls.push(`sort ${k}`), options: [['Popular', 'Popular'], ['Price', 'Price'], ['Rating', 'Rating']] },
+    sections: [
+      { kind: 'featured', item: { ...item('Push / Pull / Legs', '12 wk · 48 on it · 4.9 ★', '$120/mo'), badge: 'Most popular' } },
+      { kind: 'list', key: 'plans', sortable: true, head: 'All plans', items: [item('Starting Strength', '8 wk · 31 on it · 4.8 ★', '$95', { onDuplicate: () => calls.push('copy Starting Strength') }), item('Lean Cut', '2,400 kcal', null)] },
+    ],
+  };
+}
 
-test('a plan with no length has a ★ block, and a plan with no price, clients or rating no facts line', async () => {
-  const m = await mount(React.createElement(PROS.BSProFeaturedPlan, { plan: { n: 'Lean Cut', meta: '2,400 kcal' }, heat: '#a07a2e', t: theme, onOpen: () => {}, onAssign: () => {} }));
-  try {
-    const block = m.host.querySelector('[data-featured-plan]').children[0];
-    assert.equal(block.textContent, '★');
-    assert.ok(!m.host.querySelector('[data-featured-facts]'), 'no facts line');
-    assert.ok(!m.host.querySelector('[data-featured-price]'), 'no price line');
-    assert.ok(!m.host.querySelector('[data-featured-spine]'), 'no weeks to draw');
-  } finally { await m.close(); }
-});
-
-test('the deck holds From scratch alone: no Nora line (she drafts from the masthead), 44 to tap, builds blank', async () => {
-  // Owner, 2026-11-04: "remove this nora box from program and plan page since coach should just be able
-  // to ask nora from click nora button in mast head".
+test('the most popular plan: its photo, "★ Most popular", the name, the length, clients and rating, the price, and a compact filled Assign', async () => {
   const calls = [];
-  const deck = PROS.bsProDeckTheme(theme);
-  const m = await mount(React.createElement('div', null, PROS.bsProCreateButton(deck, (k, o) => (o && o.defaultValue) || k, () => calls.push('scratch'))));
+  const m = await mount(model(calls));
   try {
-    assert.ok(!m.host.querySelector('[data-create="nora"]'), 'Nora\'s draft line is back on the deck');
-    assert.doesNotMatch(m.host.textContent, /Nora/);
+    const tile = m.host.querySelector('[data-pc-featured]');
+    assert.match(tile.textContent, /★ Most popular/);
+    assert.equal(tile.querySelector('[data-pc-featured-name]').textContent, 'Push / Pull / Legs');
+    assert.match(nb(tile.textContent), /12 WK · 48 clients · 4\.9 ★/);
+    assert.equal(tile.querySelector('[data-pc-price]').textContent, '$120/mo');
+    assert.equal(tile.querySelector('[data-pc-thumb]').getAttribute('data-pc-thumb'), 'photo', 'the sample plan wears its photo');
+    const assign = tile.querySelector('[data-pc-action="assign"]');
+    assert.equal(assign.getAttribute('data-pc-compact'), 'primary', 'the page\'s one filled action');
+    assert.equal(assign.style.minHeight, '44px', 'the tap stays 44');
+    assert.equal(assign.style.minWidth, '44px');
+    const pill = assign.querySelector('[data-pc-pill]');
+    assert.equal(pill.style.height, '34px', 'the pill reads small');
+    assert.equal(pill.style.fontSize, '13px');
+    assert.equal(pill.style.background, 'rgb(10, 143, 135)', 'teal, filled');
+    assert.equal(assign.getAttribute('aria-label'), 'Assign Push / Pull / Legs to a client');
+    await m.click(assign);
+    await m.click(tile.querySelector('[data-pc-open]'));
+    assert.deepEqual(calls, ['assign Push / Pull / Legs', 'open Push / Pull / Legs'], 'Assign keeps its own tap; the tile opens the plan');
+  } finally { await m.close(); }
+});
+
+test('every other plan\'s Assign is the quiet pill, the same size; Copy is the words alone; a plan with no figures shows none', async () => {
+  const calls = [];
+  const m = await mount(model(calls));
+  try {
+    const rows = [...m.host.querySelectorAll('[data-pc-item]')];
+    assert.equal(rows.length, 2);
+    const assign = rows[0].querySelector('[data-pc-action="assign"]');
+    assert.equal(assign.getAttribute('data-pc-compact'), 'quiet');
+    assert.equal(assign.style.minHeight, '44px');
+    assert.equal(assign.querySelector('[data-pc-pill]').style.height, '34px', 'the same size as the featured one');
+    assert.equal(assign.querySelector('[data-pc-pill]').style.background, 'rgba(255, 255, 255, 0.72)', 'quiet, in the paper\'s own colour');
+    const copy = rows[0].querySelector('[data-pc-action="copy"]');
+    assert.equal(copy.getAttribute('data-pc-compact'), 'bare');
+    assert.equal(copy.getAttribute('aria-label'), 'Duplicate Starting Strength');
+    await m.click(copy);
+    assert.deepEqual(calls, ['copy Starting Strength']);
+    assert.match(nb(rows[0].textContent), /8 WK · 31 clients · 4\.8 ★/);
+    assert.ok(!rows[1].querySelector('[data-pc-price]'), 'no price, none drawn');
+    assert.match(rows[1].textContent, /2,400 kcal/, 'the line as it is when it carries no figure the page reads');
+  } finally { await m.close(); }
+});
+
+test('the head: the title with its full stop, what is published, and ＋ From scratch at 44', async () => {
+  const calls = [];
+  const m = await mount(model(calls));
+  try {
+    assert.equal(m.host.querySelector('h1[data-tour="hero-plans"]').textContent, 'Programs.');
+    assert.equal(m.host.querySelector('[data-deck-published]').textContent, '4 published · 1 draft');
     const scratch = m.host.querySelector('[data-create="scratch"]');
-    assert.ok(parseFloat(scratch.style.minHeight) >= 44, scratch.style.minHeight);
     assert.equal(scratch.textContent, '＋ From scratch');
-    // The deck is glass in the paper's own colour (owner, 2026-11-04: "make sure the glassy look matches the
-    // print color"), so on a light paper it is that paper with its own ink.
-    assert.equal(deck.PAPER, '#fff', 'the deck is the paper\'s own colour');
-    assert.equal(deck.INK, '#111', 'with the paper\'s own ink');
-    scratch.click();
+    assert.ok(parseFloat(scratch.style.minHeight) >= 44);
+    await m.click(scratch);
     assert.deepEqual(calls, ['scratch']);
+    for (const b of m.host.querySelectorAll('button')) {
+      if (b.hasAttribute('data-pc-open')) continue;
+      assert.ok(parseFloat(b.style.minHeight) >= 44, `${b.textContent || b.getAttribute('aria-label')} is under 44 tall`);
+    }
   } finally { await m.close(); }
 });

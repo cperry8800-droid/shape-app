@@ -2,20 +2,21 @@ import React from 'react';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
+import { bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel, bsCleanText, BS_FILM_CAPTION_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsPlateNoteDays, energySplit } from '../services/coachWork.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
 import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel, bsStudioFocusLabel } from './BSCoachStudio.jsx';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
-import { bsTrainerDemo, bsTrainerSampleOf } from '../services/trainerDemo.mjs';
+import { bsTrainerDemo, bsTrainerSampleOf, BS_SAMPLE_CLIPS } from '../services/trainerDemo.mjs';
 import { bsMpTile, BSMpIcon } from './BSMemberBento.jsx';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
 import { bsKitchenRecipe, bsKitchenGroceryList, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from './kitchenRecipes.js';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
-import { BSMakeItYours } from './BSMakeItYours.jsx';
+import { BSMakeItYours, BS_STAT_WORDS } from './BSMakeItYours.jsx';
 import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 
@@ -33,7 +34,13 @@ const BS_OWN_PROFILE_KINDS = ['profile_custom'];
 // page").
 //
 //   Header      the coach's wall photo with their round avatar over its edge, name, what they
-//               do and where, their bio, the verified line, Message · Work with · Follow.
+//               do and where, their bio, the verified line, up to three headline stats,
+//               Message · Work with · Follow.
+//   Spotlight   under the header, before the tabs: the highlight they pinned and their intro film
+//               (owner, 2026-11-04: "Show them on coach pages"). Their song and their practice's
+//               card (its hours and where to find them) are on About me, and the reviews they pinned
+//               (their wins wall) lead What clients say. Each shows only when set, all in Make it
+//               yours → Spotlight (the card in About me).
 //   Her day     the coach's week of open times and a day as it really is: open times you can
 //               take (a free intro call, booked at that time), and busy time that says only
 //               that it is busy. From the same public read the listing books from.
@@ -165,7 +172,12 @@ export function BSTrainerProfile(props) {
       return { ...bsNutritionistDemo({ ...bsNutritionistSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null, say, word }), mode: 'sample' };
     }
     const base = { media: `${import.meta.env.BASE_URL}demo/`, word, lb, say };
-    if (demoOn) return { ...bsTrainerDemo(base), mode: 'self' };
+    // The demo coach's own page has an intro film, one of the sample's clips (a signed-out demo can
+    // upload none), and its film is only ever one of those (`clips`), as its wall photo is one of its photos.
+    if (demoOn) {
+      const d = bsTrainerDemo(base);
+      return { ...d, custom: { ...d.custom, film: { url: BS_SAMPLE_CLIPS.squat, caption: '' } }, clips: Object.values(BS_SAMPLE_CLIPS), mode: 'self' };
+    }
     return { ...bsTrainerDemo({ ...base, ...bsTrainerSampleOf({ key: sampleKey, specialty: person.specialty }), where: sampleCity, business: null }), mode: 'sample' };
   }, [nutri, demoOn, sampleOn, sampleKey, sampleCity, person.specialty, lb, lang]);
   // What Make it yours changed on the demo, and only that (a key it changed, or null for a removed
@@ -174,7 +186,8 @@ export function BSTrainerProfile(props) {
   const [demoOwn, setDemoOwn] = React.useState(null);
   const saveDemo = (doc, changed) => setDemoOwn((prev) => {
     const next = { ...(prev || {}) };
-    for (const k of ['look', 'cover', 'studio', 'kitchen', 'about', 'prompts', 'links', 'headLinks', 'focus', 'picks', 'descriptions', 'programFor']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
+    for (const k of ['look', 'cover', 'studio', 'kitchen', 'about', 'prompts', 'links', 'headLinks', 'focus', 'picks', 'descriptions', 'programFor',
+      'film', 'heroStats', 'pinned', 'song', 'pinnedReviews', 'bizCard']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
     return next;
   });
   const [live, setLive] = React.useState(null);
@@ -492,7 +505,37 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     : sample ? { list: sample.reviews.list, avg: Number(person.rating10) > 0 ? Number(person.rating10) : sample.reviews.avg, count: sample.reviews.list.length }
     : liveReviews;
   const reviews = reviewsAll;
-  const quotes = reviews && Array.isArray(reviews.list) ? reviews.list.filter((r) => r && String(r.text || '').trim()).slice(0, 6) : [];
+  // The wins wall (owner, 2026-11-04: "Show them on coach pages"): up to three reviews the coach pinned
+  // in Make it yours, which lead What clients say, as on the website. Read by id, so a pin older than
+  // the latest reviews still shows, and only as one of this coach's members' reviews (by id AND owner,
+  // never one the coach wrote): a hand-written id or another coach's review never resolves. The demo's
+  // pins are its own sample reviews.
+  const pinIds = isPrivate ? [] : demo
+    ? (Array.isArray(custom && custom.pinnedReviews) ? custom.pinnedReviews.filter((x) => typeof x === 'string').slice(0, BS_PINNED_REVIEWS_MAX) : [])
+    : bsProfilePinnedReviews(custom && custom.pinnedReviews);
+  const pinKey = pinIds.join(',');
+  const [pinRead, setPinRead] = React.useState([]);
+  React.useEffect(() => {
+    setPinRead([]);
+    if (demo || !pinKey || !person.userId || !W.ShapeCoachReviews?.byIds) return undefined;
+    let on = true;
+    W.ShapeCoachReviews.byIds(pinKey).then((d) => { if (on && d && Array.isArray(d.reviews)) setPinRead(d.reviews); }).catch(() => {});
+    return () => { on = false; };
+  }, [pinKey, person.userId, revEpoch, !!demo]);
+  const memberReview = (r) => !!r && r.ownerId === person.userId && r.authorId !== r.ownerId;
+  const wins = pinIds.map((id) => (demo ? ((reviews && reviews.list) || []).find((r) => r && r.id === id) : pinRead.find((r) => memberReview(r) && r.id === id)))
+    .filter((r) => r && String(r.text || '').trim());
+  const quotes = (() => {
+    const seen = new Set(), out = [];
+    for (const r of [...wins.map((w) => ({ ...w, pinned: true })), ...(reviews && Array.isArray(reviews.list) ? reviews.list : [])]) {
+      if (!r || !String(r.text || '').trim()) continue;
+      const k = r.id || r.text;
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(r);
+      if (out.length >= 6) break;
+    }
+    return out;
+  })();
   // Members read the reviews; anyone else gets the rating, and the way in (owner, 2026-10-28:
   // "anyone with a shape membership can read them", "Rating only"). The server sends a non-member
   // no review, only `locked` with the average and count. A sample's reviews are the sample's own.
@@ -661,7 +704,26 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const aboutDoc = isPrivate ? null : bsProfileAbout(custom && custom.about);
   const aboutPrompts = isPrivate ? [] : bsProfilePrompts(custom && custom.prompts);
   const aboutLinks = isPrivate || sample ? null : bsProfileLinkable(custom && custom.links);
-  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || certs.length || (!nutri && !isPrivate && media.gallery && media.gallery.length));
+  // The spotlight (owner, 2026-11-04: "Show them on coach pages"), each cleaned as the doc is public:
+  // the intro film only as the coach's own video in coach-media (the demo's, one of its clips), the
+  // highlight with a headline, a song Spotify can play, the practice's card with a name. A private
+  // profile shows none of it.
+  const film = isPrivate ? null : demo
+    ? (custom && custom.film && typeof custom.film.url === 'string' && Array.isArray(demo.clips) && demo.clips.includes(custom.film.url) ? { url: custom.film.url, caption: bsCleanText(custom.film.caption, BS_FILM_CAPTION_MAX) } : null)
+    : bsProfileFilm(custom && custom.film, person.userId || (isSelf ? signedInUid() : null), 'coach-media');
+  const highlight = isPrivate ? null : bsProfilePinned(custom && custom.pinned);
+  const song = isPrivate ? null : bsProfileSong(custom && custom.song);
+  const songEmbed = song ? bsSpotifyEmbed(song.url) : null;
+  const biz = isPrivate ? null : bsProfileBizCard(custom && custom.bizCard);
+  // The headline stats: the figures this page already has (coachWork.mjs), for the keys the coach picked.
+  const statFigures = bsCoachStatFigures({
+    // The rating and count are everyone's to read (a non-member gets them with the reviews locked).
+    reviews: reviews ? { avg: reviews.avg, count: reviews.count } : null,
+    years: aboutDoc && aboutDoc.years, programs: studioModel ? studioModel.programs.length : 0, workouts: studioModel ? studioModel.workouts.length : 0,
+    replays: replays.length, recipes: kitchen && kitchen.recipes ? kitchen.recipes.length : 0, plates: plateDays.length, certs: certs.length,
+  });
+  const headline = isPrivate ? [] : bsCoachHeadline(custom && custom.heroStats, role, statFigures);
+  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || certs.length || biz || songEmbed || (!nutri && !isPrivate && media.gallery && media.gallery.length));
   // The socials in the head too, when the coach chose it in Make it yours (owner, 2026-11-03: "coaches
   // socials should be shown somewhere in this section if they choose to"): the same links About draws.
   const headSocials = custom && custom.headLinks === true && aboutLinks
@@ -707,6 +769,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         coaching: studioModel.coaching ? { blurb: (offer && typeof offer.blurb === 'string' && offer.blurb) || '' } : null,
         specialty: specialty || '',
       } : null}
+      figures={statFigures} reviews={demo && reviews ? reviews.list : null} clips={demo ? (demo.clips || []) : null}
       onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} onSettings={onOpenSettings} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
@@ -807,6 +870,25 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{nutri
                 ? tr('profile:nutri.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.', name: first })
                 : tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
+              {/* The headline stats the coach picked (Make it yours → Spotlight): up to three of the figures
+                  this page already has, ruled as one row, each only when there is a figure for it. */}
+              {headline.length ? (
+                <div data-coach-stats="" role="list" aria-label={tr('profile:mine.statsTitle', { defaultValue: 'Headline stats' })}
+                  style={{ margin: '12px 0 0', display: 'grid', gridTemplateColumns: `repeat(${headline.length}, minmax(0, 1fr))`, borderTop: `1px solid ${ink(0.14)}`, borderBottom: `1px solid ${ink(0.14)}` }}>
+                  {headline.map((s, i) => {
+                    const label = tr(BS_STAT_WORDS[s.key][0], { defaultValue: BS_STAT_WORDS[s.key][1] });
+                    const fig = s.key === 'rating' ? Number(s.value).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(s.value).toLocaleString(locale);
+                    return (
+                      <div key={s.key} role="listitem" data-coach-stat={s.key} style={{ minWidth: 0, padding: `9px 8px 10px ${i ? 12 : 0}px`, borderLeft: i ? `1px solid ${ink(0.14)}` : 0 }}>
+                        <div style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, lineHeight: 1.05, color: INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                          {fig}{s.key === 'rating' ? <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, color: ink(0.55) }}>/10</span> : null}
+                        </div>
+                        <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
               {/* The Shape Score row, as on a member's page (owner, 2026-11-04: "Add the Shape Score row to
                   coach profiles too"; it was a small "Shape Score 3,060 ›" on your own page only): the member
                   row's tile, a ring in the page's accent round the award, "Shape Score" and the bold tier,
@@ -874,6 +956,36 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
           {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role={role} accent={ACC} onOpen={() => setPage('business')} /></div> : null}
         </div>
 
+        {/* The spotlight (Make it yours → Spotlight): the highlight the coach pinned, as About me's
+            answers are set (the paper's second tone, the accent's spine), then their intro film. */}
+        {highlight || film ? (
+          <div data-coach-spotlight="" style={{ padding: `0 ${gutter}px`, marginTop: 18 }}>
+            {highlight ? (
+              <div data-coach-highlight="" style={{ padding: '12px 14px 13px', background: t.PAPER2, borderLeft: `3px solid ${ACC}` }}>
+                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.66) }}>
+                  <span aria-hidden style={{ color: ACC }}>★ </span>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {bsPinKindLabel(highlight.kind, tr) || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6 }}>
+                  <p style={{ flex: 1, minWidth: 0, margin: 0, fontFamily: DISPLAY, fontSize: 18, fontWeight: 600, lineHeight: 1.25, color: INK, overflowWrap: 'anywhere' }}>{highlight.title}</p>
+                  {highlight.metric ? <span data-coach-highlight-metric="" style={{ flex: 'none', maxWidth: '45%', fontFamily: DISPLAY, fontSize: 18, fontWeight: 600, lineHeight: 1.25, color: ACC, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere', textAlign: 'right' }}>{highlight.metric}</span> : null}
+                </div>
+                {highlight.note ? <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ink(0.74), overflowWrap: 'anywhere' }}>{highlight.note}</p> : null}
+              </div>
+            ) : null}
+            {film ? (
+              <figure data-coach-film="" style={{ margin: highlight ? '18px 0 0' : 0 }}>
+                <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:film.headCoach', { defaultValue: 'Intro film' })}</span>
+                <div style={{ marginTop: 8, background: '#000', overflow: 'hidden' }}>
+                  {/* #t=0.1 draws the first frame before it plays, where a phone shows black otherwise. */}
+                  <video src={`${film.url}#t=0.1`} controls playsInline preload="metadata" aria-label={tr('profile:film.headCoach', { defaultValue: 'Intro film' })}
+                    style={{ display: 'block', width: '100%', maxHeight: 440, background: '#000' }} />
+                </div>
+                {film.caption ? <figcaption style={{ marginTop: 7, fontSize: 13.5, lineHeight: 1.4, color: ink(0.74), overflowWrap: 'anywhere' }}>{film.caption}</figcaption> : null}
+              </figure>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Tabs */}
         {!isPrivate ? (
           <>
@@ -938,6 +1050,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                   sec={kitchenSec} setSec={setKitchenSec} />
               ) : tabNow === 'about' ? (
                 <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} gallery={nutri || isPrivate ? [] : (media.gallery || [])} isSelf={isSelf} first={first}
+                  biz={biz} song={songEmbed ? { label: song.label, embed: songEmbed } : null}
                   onEdit={() => openEdit('about')} />
               ) : tabNow === 'plates' ? (
                 <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
@@ -973,8 +1086,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             </div>
             <div className="bs-scroll" style={{ marginTop: 8, display: 'flex', gap: 10, overflowX: 'auto', scrollSnapType: 'x mandatory', scrollPaddingLeft: gutter, padding: `0 ${gutter}px 4px` }}>
               {quotes.map((r) => (
-                <figure key={r.id || r.text} data-review-card="" style={{ margin: 0, flex: quotes.length > 1 ? '0 0 80%' : '1 1 auto', scrollSnapAlign: 'start', boxSizing: 'border-box', padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10</span>
+                <figure key={r.id || r.text} data-review-card="" data-review-pinned={r.pinned ? '' : undefined} style={{ margin: 0, flex: quotes.length > 1 ? '0 0 80%' : '1 1 auto', scrollSnapAlign: 'start', boxSizing: 'border-box', padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10{r.pinned ? ` · ${tr('profile:extras.pinned', { defaultValue: 'Pinned' })}` : ''}</span>
                   <blockquote style={{ margin: 0, fontSize: 15, lineHeight: 1.45, color: INK, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.text}</blockquote>
                   <figcaption style={{ fontSize: 12.5, color: ink(0.64) }}>{r.author || tr('profile:role.member', { defaultValue: 'Member' })}</figcaption>
                 </figure>
@@ -1772,7 +1885,9 @@ function plateMacros(tr, m) {
 }
 // ── About: the coach's story and details, their questions and answers, and their socials ─────
 const LINK_NAMES = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok', youtube: 'YouTube', substack: 'Substack' };
-function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], gallery = [], isSelf, first, onEdit }) {
+// `biz`: the practice's card (bsProfileBizCard), its rows after the facts. `song`: { label, embed }, the
+// profile song's player after the coach's answers.
+function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], gallery = [], isSelf, first, onEdit, biz = null, song = null }) {
   const how = !about || !about.how ? null
     : about.how === 'online' ? tr('profile:about.howOnline', { defaultValue: 'Coaches online' })
     : about.how === 'in_person' ? tr('profile:about.howInPerson', { defaultValue: 'Coaches in person' })
@@ -1795,6 +1910,21 @@ function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs
       {facts.map((f, i) => <li key={i} style={{ padding: '11px 0', borderTop: `1px solid ${ink(0.14)}`, fontSize: 14.5, lineHeight: 1.4, color: t.INK }}>{f}</li>)}
     </ul>
   )]);
+  // The practice's card: its name, then where, its hours and where to find them, each over a dotted
+  // leader (the handle is text, never a link).
+  if (biz) sections.push(['practice', 26, <>
+    {head(tr('profile:biz.head', { defaultValue: 'The practice' }))}
+    <div data-about-practice="" style={{ marginTop: 8 }}>
+      <div style={{ padding: '11px 0', borderTop: `1px solid ${ink(0.14)}`, fontFamily: DISPLAY, fontSize: 16, fontWeight: 600, lineHeight: 1.3, color: t.INK, overflowWrap: 'anywhere' }}>{biz.name}</div>
+      {[['where', 'profile:biz.where', 'Where', biz.where], ['hours', 'profile:biz.hours', 'Hours', biz.hours], ['find', 'profile:biz.find', 'Find', biz.handle]].filter((r) => r[3]).map(([k, key, en, v]) => (
+        <div key={k} data-about-practice-row={k} style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '12px 0', borderTop: `1px solid ${ink(0.14)}` }}>
+          <span style={{ flex: 'none', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.64) }}>{tr(key, { defaultValue: en })}</span>
+          <span aria-hidden style={{ flex: 1, minWidth: 12, borderBottom: `1px dotted ${ink(0.28)}`, transform: 'translateY(-3px)' }} />
+          <span style={{ flex: '0 1 auto', minWidth: 0, textAlign: 'right', fontSize: 14.5, lineHeight: 1.4, color: t.INK, overflowWrap: 'anywhere' }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  </>]);
   // Certificates as Shape verified them, then the coach's own lists: each row what it is, then what it
   // was or who gave it, and the year at the row's end.
   if (certs.length) sections.push(['certs', 26, <>
@@ -1835,6 +1965,13 @@ function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs
         <p style={{ margin: '6px 0 0', fontFamily: DISPLAY, fontSize: 16, lineHeight: 1.4, color: t.INK, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{p.a}</p>
       </div>
     ))}
+  </>]);
+  // The profile song: its label (else "Profile song") over the Spotify player.
+  if (song) sections.push(['song', 26, <>
+    {head(song.label || tr('profile:extras.profileSong', { defaultValue: 'Profile song' }))}
+    <div data-about-song="" style={{ marginTop: 10, borderRadius: 12, overflow: 'hidden', background: t.PAPER2 }}>
+      <iframe title={tr('profile:extras.profileSong', { defaultValue: 'Profile song' })} src={song.embed} width="100%" height="80" frameBorder="0" allow="encrypted-media" loading="lazy" style={{ display: 'block', border: 0 }} />
+    </div>
   </>]);
   if (socials.length) sections.push(['socials', 26, <>
     {head(tr('profile:about.socials', { defaultValue: 'Find {name} online', name: first }))}
