@@ -65,7 +65,7 @@ test('the root switches to the plan\'s coach app and holds the request; each she
   assert.ok(at > 0, 'the root listens');
   const body = main.slice(at, main.indexOf("}, []);", at));
   assert.match(body, /const held = heldCoachRoles\(window\.ShapeAuth\?\.getCachedState\?\.\(\)\?\.profile\);/);
-  assert.match(body, /const target = coachPlanSwitch\(detail, roleNow\.current, held\);\n\s+if \(!target\) return;\n\s+holdCoachPlan\(window, detail\);\n\s+setRole\(target\);\n\s+setTweakNow\.current\('role', target\);/);
+  assert.match(body, /const target = coachPlanSwitch\(detail, roleNow\.current, held\);\n\s+if \(!target\) return;\n(\s+\/\/[^\n]*\n)?\s+mayLeave\(window\)\.then\(\(ok\) => \{\n\s+if \(!ok\) return;\n\s+holdCoachPlan\(window, detail\);\n\s+setRole\(target\);\n\s+setTweakNow\.current\('role', target\);/);
   assert.match(body, /window\.addEventListener\('shape:openCoachPlan', onOpenPlan\);/);
   assert.match(main, /roleNow\.current = role;/, 'the role on screen, read at the tap');
 
@@ -73,4 +73,29 @@ test('the root switches to the plan\'s coach app and holds the request; each she
   assert.match(pros, /import \{ takeCoachPlan \} from '\.\.\/services\/coachPlanRoute\.mjs';/);
   const taken = [...pros.matchAll(/const handed = takeCoachPlan\(window, (true|false)\);\n\s+if \(handed\) onOpenPlan\(\{ detail: handed \}\);/g)].map((m) => m[1]);
   assert.deepEqual(taken, ['false', 'true'], 'the trainer shell takes programs, the nutritionist shell nutrition plans');
+});
+
+test('the leave guard: one held at a time, asked before a tab tap or a jump, let go by its own release (Codex on #2594)', async () => {
+  const { holdLeave, mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
+  const w = {};
+  assert.equal(await mayLeave(w), true, 'none held: go');
+  const releaseA = holdLeave(w, async () => false);
+  assert.equal(await mayLeave(w), false);
+  const releaseB = holdLeave(w, async () => true);
+  releaseA();
+  assert.equal(await mayLeave(w), true, 'an older screen\'s release leaves the newer guard');
+  releaseB();
+  assert.equal(await mayLeave(w), true);
+  holdLeave(w, async () => { throw new Error('dialog failed'); });
+  assert.equal(await mayLeave(w), false, 'a guard that fails keeps the work');
+  holdLeave(w, async () => 'yes');
+  assert.equal(await mayLeave(w), false, 'only a plain yes leaves');
+  assert.equal(typeof holdLeave(w, null), 'function', 'no guard to hold: a release that does nothing');
+
+  const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
+  const nutri = pros.slice(pros.indexOf('function BSNutritionistAppInner('), pros.indexOf('function BSNutriToday('));
+  assert.match(nutri, /<BSTabBar active=\{tab\} onChange=\{\(k\) => \{ mayLeave\(window\)\.then\(\(ok\) => \{ if \(ok\) setTab\(k\); \}\); \}\}/, 'the tab bar asks first');
+  assert.match(nutri, /mayLeave\(window\)\.then\(\(ok\) => \{\n\s+if \(!ok\) return;\n\s+navJumpRef\.current\.navPush\(\);\n\s+setOpenPlanRequest\(/, 'so does opening Nora\'s plan');
+  const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
+  assert.match(main, /mayLeave\(window\)\.then\(\(ok\) => \{\n\s+if \(!ok\) return;\n\s+holdCoachPlan\(window, detail\);/, 'and switching coach apps');
 });

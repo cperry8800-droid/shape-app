@@ -256,7 +256,7 @@ test('a diet guide offers no Assign on its row, and Assign refuses one and sends
   try {
     await tab(m, 'Diet');
     const assignFor = (name) => m.host.querySelector(`button[aria-label="Assign ${name} to a client"]`);
-    assert.equal(assignFor('Keto week'), null, 'the guide has no Assign');
+    assert.ok(!assignFor('Keto week'), 'the guide has no Assign');
     assert.ok(assignFor('Keto week written'), 'a diet with every day written does');
   } finally { await m.close(); }
 
@@ -293,7 +293,7 @@ test('a nutrition program is never a menu, whatever its lines say now (Codex on 
   try {
     await tab(m, 'Programs');
     assert.ok([...m.host.querySelectorAll('button')].some((b) => /Habit reset/.test(b.textContent)), 'the program is listed');
-    assert.equal(m.host.querySelector('button[aria-label="Assign Habit reset to a client"]'), null, 'no Assign on it');
+    assert.ok(!m.host.querySelector('button[aria-label="Assign Habit reset to a client"]'), 'no Assign on it');
   } finally { await m.close(); }
 
   // And the Assign page, reached another way, refuses one with a single week line and sends nothing.

@@ -1,6 +1,7 @@
 import React from 'react';
 import '../../../public/newdesign/dashMealCore.js'; // → window.DashMeals, the website builder's core
 import { mealBuilderDoc, dayMeals, dayTotals, hasVariants, foodsFor, swapMeal, removeMeal, addMeal, setTarget, mealPlanMeta } from '../services/mealBuilderEdit.mjs';
+import { holdLeave } from '../services/leaveGuard.mjs';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, useBSClean, BSCleanType } from './bsCleanType.jsx';
 
 // ─── A NUTRITIONIST'S MEAL PLAN, AS THE WEBSITE BUILDER KEEPS IT, IN THE APP ─────────────────────
@@ -63,14 +64,18 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
   onScreen.current = { doc, name };
   const keepSaving = (s) => (s === 'saving' ? s : '');
   const change = (next) => { if (next !== doc) { setDoc(next); setDirty(true); setStatus(keepSaving); } };
+  const askLeave = async () => !window.bsAskConfirm || !!(await window.bsAskConfirm({
+    title: tr('coach:mealEditor.leaveTitle', { defaultValue: 'Leave without saving?' }),
+    message: tr('coach:mealEditor.leaveMsg', { defaultValue: 'Your changes to this plan are not saved.' }),
+    confirmLabel: tr('coach:mealEditor.leave', { defaultValue: 'Leave without saving' }),
+  }));
   const close = async () => {
-    if (dirty && window.bsAskConfirm && !(await window.bsAskConfirm({
-      title: tr('coach:mealEditor.leaveTitle', { defaultValue: 'Leave without saving?' }),
-      message: tr('coach:mealEditor.leaveMsg', { defaultValue: 'Your changes to this plan are not saved.' }),
-      confirmLabel: tr('coach:mealEditor.leave', { defaultValue: 'Leave without saving' }),
-    }))) return;
+    if (dirty && !(await askLeave())) return;
     onClose();
   };
+  // ⚠ The tab bar is under this editor (Codex on #2594): while it has unsaved changes, a tab tap or a
+  // jump elsewhere asks the same question Back does (services/leaveGuard.mjs), never drops them.
+  React.useEffect(() => (dirty ? holdLeave(window, askLeave) : undefined), [dirty]);
 
   const head = (trailing) => (
     <>
@@ -107,9 +112,12 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     if (!window.ShapeCoachPlans?.update) { setStatus('error'); setErr(tr('coach:mealEditor.saveFailed', { defaultValue: 'Could not save. Try again.' })); return null; }
     setStatus('saving'); setErr('');
     const sent = { doc, name };
+    // An emptied name is saved as the plan's own, and the field shows it again: never "Saved" over a
+    // blank the plan doesn't have (Codex on #2594).
+    const savedName = name.trim() || plan.name;
     try {
       const row = await window.ShapeCoachPlans.update({
-        id: plan.id, name: name.trim() || plan.name, ...(ownerId ? { expectedOwnerId: ownerId } : {}),
+        id: plan.id, name: savedName, ...(ownerId ? { expectedOwnerId: ownerId } : {}),
         // The revision it opened (the saved row's, once saved): a plan changed on the website since is
         // refused with the route's words, and this document stays here, never written over it.
         expectedRevision: Number(plan.detail && plan.detail.revision) || 0,
@@ -117,7 +125,7 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
         meta: mealPlanMeta(M, doc), detail: { mealBuilder: doc },
       });
       const unchanged = onScreen.current.doc === sent.doc && onScreen.current.name === sent.name;
-      if (unchanged) setDirty(false);
+      if (unchanged) { setDirty(false); if (name !== savedName) setName(savedName); }
       setStatus(unchanged ? 'saved' : '');
       onSaved(row);
       return row;

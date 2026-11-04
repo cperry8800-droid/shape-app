@@ -242,7 +242,7 @@ test('the editor: Save names the revision it opened, the saved one after a save;
     await click(host.querySelector(`[data-meal-remove="${NORA.days[0].slots[2].id}"]`));
     await click(host.querySelector('[data-meal-save]'));
     assert.match(host.querySelector('[role="alert"]').textContent, /changed on another device/);
-    assert.equal(host.querySelector(`[data-meal-remove="${NORA.days[0].slots[2].id}"]`), null, 'the edit is still here');
+    assert.ok(!host.querySelector(`[data-meal-remove="${NORA.days[0].slots[2].id}"]`), 'the edit is still here');
   } finally { await React.act(async () => root.unmount()); host.remove(); delete W.ShapeCoachPlans; }
 });
 
@@ -279,6 +279,49 @@ test('the editor: an edit made while a save is in flight stays unsaved; a second
     assert.equal(asked.length, 1, 'nothing left to ask about');
     assert.equal(closed.length, 1);
   } finally { await m.close(); delete W.ShapeCoachPlans; delete W.bsAskConfirm; }
+});
+
+test('the editor: while it has unsaved changes it holds the leave guard the tab bar asks, and lets go when saved or closed (Codex on #2594)', async () => {
+  const { mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
+  const asked = [];
+  let answer = false;
+  W.bsAskConfirm = async (o) => { asked.push(o.title); return answer; };
+  W.ShapeCoachPlans = { update: async (body) => ({ id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }) };
+  const m = await mount({ plan: PLAN, onClose: () => {} });
+  try {
+    assert.equal(await mayLeave(W), true, 'nothing unsaved: a tab tap goes, unasked');
+    assert.equal(asked.length, 0);
+    await m.click(m.q(`[data-meal-remove="${NORA.days[0].slots[0].id}"]`));
+    assert.equal(await mayLeave(W), false, 'unsaved: asked, and told to stay');
+    assert.deepEqual(asked, ['Leave without saving?'], 'the question Back asks');
+    answer = true;
+    assert.equal(await mayLeave(W), true, 'told to leave: it goes');
+    await m.click(m.q('[data-meal-save]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    asked.length = 0;
+    assert.equal(await mayLeave(W), true, 'saved: nothing to ask about');
+    assert.equal(asked.length, 0);
+    await m.click(m.q(`[data-meal-remove="${NORA.days[0].slots[1].id}"]`));
+  } finally { await m.close(); }
+  asked.length = 0;
+  assert.equal(await mayLeave(W), true, 'closed: the guard went with it');
+  assert.equal(asked.length, 0);
+  delete W.ShapeCoachPlans; delete W.bsAskConfirm;
+});
+
+test('the editor: a name emptied and saved is the plan\'s own again, in the field too (Codex on #2594)', async () => {
+  const calls = [];
+  W.ShapeCoachPlans = { update: async (body) => { calls.push(body); return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail } }; } };
+  const m = await mount({ plan: PLAN, onClose: () => {} });
+  try {
+    const box = m.q('input[aria-label="Plan name"]');
+    await m.type(box, '   ');
+    await m.click(m.q('[data-meal-save]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(calls[0].name, PLAN.name, 'saved under its own name');
+    assert.equal(m.q('input[aria-label="Plan name"]').value, PLAN.name, 'and the field says so');
+    assert.match(m.text(), /Saved/);
+  } finally { await m.close(); delete W.ShapeCoachPlans; }
 });
 
 test('the editor: Assign hands on the saved plan, saving first when there are changes; a failed save stays and says so', async () => {

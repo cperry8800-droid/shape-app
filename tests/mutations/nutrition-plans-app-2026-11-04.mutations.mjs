@@ -16,6 +16,7 @@ const ROUTE = 'mobile-app/src/services/coachPlanRoute.mjs';
 const MAIN = 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx';
 const GUIDE = 'mobile-app/src/services/nutritionAssign.mjs';
 const PLANS_ROUTE = 'src/app/api/coach/plans/route.ts';
+const LEAVE = 'mobile-app/src/services/leaveGuard.mjs';
 
 export default {
   test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs tests/coach-plans-api.test.mjs',
@@ -42,13 +43,13 @@ export default {
     { name: 'Save writes the whole stored detail back', file: EDITOR,
       find: '        meta: mealPlanMeta(M, doc), detail: { mealBuilder: doc },', replace: '        meta: mealPlanMeta(M, doc), detail: { ...(plan.detail || {}), mealBuilder: doc },' },
     { name: 'Save does not name the account', file: EDITOR,
-      find: "        id: plan.id, name: name.trim() || plan.name, ...(ownerId ? { expectedOwnerId: ownerId } : {}),", replace: '        id: plan.id, name: name.trim() || plan.name,' },
+      find: "        id: plan.id, name: savedName, ...(ownerId ? { expectedOwnerId: ownerId } : {}),", replace: '        id: plan.id, name: savedName,' },
     { name: 'Assign does not save changes first', file: EDITOR,
       find: '    const row = dirty ? await save() : { ...plan,', replace: '    const row = false ? await save() : { ...plan,' },
     { name: 'Assign goes on after a failed save', file: EDITOR,
       find: '    if (row) onAssign(row);', replace: '    onAssign(row || plan);' },
     { name: 'Back with changes leaves without asking', file: EDITOR,
-      find: '    if (dirty && window.bsAskConfirm && !(await window.bsAskConfirm({', replace: '    if (false && window.bsAskConfirm && !(await window.bsAskConfirm({' },
+      find: '    if (dirty && !(await askLeave())) return;', replace: '    if (false && !(await askLeave())) return;' },
     { name: 'a target out of range stays in its box', file: EDITOR,
       find: '    if (next === doc) setTargetText((s) => ({ ...s, [k]: doc.targets[k] }));', replace: '    if (next === doc) {}' },
     // ── the Plans page ──
@@ -193,9 +194,24 @@ export default {
     { name: 'a diet\'s card promises Assign', file: ACT,
       find: ": 'to edit there, and to assign once each day has a menu';", replace: ": 'to edit and assign there';" },
     { name: 'a save marks an edit made during it saved', file: EDITOR,
-      find: '      if (unchanged) setDirty(false);', replace: '      setDirty(false);' },
+      find: '      if (unchanged) { setDirty(false);', replace: '      { setDirty(false);' },
     { name: 'an edit clears a save in flight', file: EDITOR,
       find: "  const keepSaving = (s) => (s === 'saving' ? s : '');", replace: "  const keepSaving = () => '';" },
+    // ── review round 6 (Codex on 4651b48) ──
+    { name: 'a held guard is never asked', file: LEAVE,
+      find: "  if (typeof ask !== 'function') return true;\n  try { return (await ask()) === true; } catch (e) { return false; }", replace: '  return true;' },
+    { name: 'a guard that fails lets the work go', file: LEAVE,
+      find: '} catch (e) { return false; }', replace: '} catch (e) { return true; }' },
+    { name: 'an older screen\'s release drops the newer guard', file: LEAVE,
+      find: '  return () => { if (w[KEY] === ask) delete w[KEY]; };', replace: '  return () => { delete w[KEY]; };' },
+    { name: 'the editor holds no guard while unsaved', file: EDITOR,
+      find: '  React.useEffect(() => (dirty ? holdLeave(window, askLeave) : undefined), [dirty]);', replace: '' },
+    { name: 'an emptied name stays blank after Save', file: EDITOR,
+      find: '{ setDirty(false); if (name !== savedName) setName(savedName); }', replace: '{ setDirty(false); }' },
+    { name: 'the nutritionist\'s tab bar switches without asking', file: PROS,
+      find: '<BSTabBar active={tab} onChange={(k) => { mayLeave(window).then((ok) => { if (ok) setTab(k); }); }} tabs={[', replace: '<BSTabBar active={tab} onChange={setTab} tabs={[' },
+    { name: 'the root switches coach apps without asking', file: MAIN,
+      find: '      mayLeave(window).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);', replace: '      Promise.resolve(true).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);' },
     { name: 'the trainer shell never lets go of Nora\'s open', file: PROS,
       find: '<BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />', replace: '<BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} />' },
     { name: 'the draft is saved live', file: ACT,

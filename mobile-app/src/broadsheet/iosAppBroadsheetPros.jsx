@@ -13,6 +13,7 @@ import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
 import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
 import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
+import { mayLeave } from '../services/leaveGuard.mjs';
 import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
@@ -7944,11 +7945,15 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     const onOpenPlan = (e) => {
       const d = (e && e.detail) || {};
       if (typeof d.planId !== 'string' || !d.planId || d.planKind !== 'meal_plan') return;
-      navJumpRef.current.navPush();
       // The client Nora drafted it for rides along, so Assign can start on them, as the trainer's.
       const clientId = typeof d.clientId === 'string' && d.clientId ? d.clientId : null;
-      setOpenPlanRequest({ planId: d.planId, clientId, nonce: Date.now() });
-      setTab('plans');
+      // A meal plan open with unsaved changes is asked first: opening this one would close it.
+      mayLeave(window).then((ok) => {
+        if (!ok) return;
+        navJumpRef.current.navPush();
+        setOpenPlanRequest({ planId: d.planId, clientId, nonce: Date.now() });
+        setTab('plans');
+      });
     };
     window.addEventListener('shape:openCoachPlan', onOpenPlan);
     // A card tapped in the trainer (or member) app for a nutrition plan: the root switched here and held it.
@@ -8020,7 +8025,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       </div>
       {/* Feed composer portals into this slot (see BSClientFeed). */}
       <div id="bs-composer-slot" style={{ position: 'absolute', left: 0, right: 0, bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64), zIndex: 60, pointerEvents: 'none' }} />
-      <BSTabBar active={tab} onChange={setTab} tabs={[
+      {/* A tab tap asks a screen holding unsaved changes first (services/leaveGuard.mjs), as Back does. */}
+      <BSTabBar active={tab} onChange={(k) => { mayLeave(window).then((ok) => { if (ok) setTab(k); }); }} tabs={[
         { key: 'today',    label: tr('coach:nav.today', { defaultValue: 'Today' }) },
         { key: 'clients',  label: tr('coach:nav.clients', { defaultValue: 'Clients' }) },
         { key: 'plans',    label: tr('coach:nav.plans', { defaultValue: 'Plans' }) },

@@ -16,6 +16,7 @@ import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../serv
 import { bumpSignOutGen } from '../services/signOutGen.mjs';
 import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
 import { heldCoachRoles, coachPlanSwitch, holdCoachPlan } from '../services/coachPlanRoute.mjs';
+import { mayLeave } from '../services/leaveGuard.mjs';
 import { copyIndex } from '../../../src/lib/click-capture.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -1611,9 +1612,13 @@ function BSAppShell({ tweaks, setTweak }) {
       const held = heldCoachRoles(window.ShapeAuth?.getCachedState?.()?.profile);
       const target = coachPlanSwitch(detail, roleNow.current, held);
       if (!target) return;
-      holdCoachPlan(window, detail);
-      setRole(target);
-      setTweakNow.current('role', target);
+      // Switching apps closes whatever is open: a screen with unsaved changes is asked first.
+      mayLeave(window).then((ok) => {
+        if (!ok) return;
+        holdCoachPlan(window, detail);
+        setRole(target);
+        setTweakNow.current('role', target);
+      });
     };
     window.addEventListener('shape:openCoachPlan', onOpenPlan);
     return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
