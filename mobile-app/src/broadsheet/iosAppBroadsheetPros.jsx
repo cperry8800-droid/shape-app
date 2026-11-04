@@ -1972,30 +1972,22 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   return (
     <BSPage>
       <BSMasthead
-        compact
-        thinRule
-        noTopRule
-        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), condensed (owner,
-        // 2026-11-03: "lets condense the Club Shape at the top for coaches and member accounts", then
-        // "make the club shape masthead more condensed"): 200px wide sets its letters about 11px tall,
-        // with 4px above and 2px below, so the masthead is some 40px shorter. It was 300px wide with
-        // 23px above and 16px below.
+        layout="flag"
+        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), unchanged: the
+        // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(200px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        showDoubleRule={false}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}{typeof window !== 'undefined' && window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile }) : null}</span>}
-        showDotTexture={false}
+        // The top bars stay (owner, 2026-10-25: "Keep the top bars in home page"): the edition band
+        // (edition · the day the strip shows · the clock) rides in the masthead now.
+        dateline={{
+          edition: isNutri ? tr('coach:today.editionNutri', { defaultValue: 'NUTRI EDITION' }) : tr('coach:today.editionTrainer', { defaultValue: 'TRAINERS EDITION' }),
+          editionColor: heatText,
+          date: dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' }),
+          clock: fmtClock(nowMin),
+        }}
       />
       <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
 
-      {/* The top bars stay (owner, 2026-10-25: "Keep the top bars in home page"): the edition band
-          (edition · the day the strip shows · the clock), the ticker and Shape Radio's now-playing bar. */}
-      <div style={{ padding: `7px ${t.padX}px 8px`, borderBottom: `1px solid ${t.RULE}`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-        <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          <span style={{ color: heatText }}>{isNutri ? tr('coach:today.editionNutri', { defaultValue: 'NUTRI EDITION' }) : tr('coach:today.editionTrainer', { defaultValue: 'TRAINERS EDITION' })}</span>
-          <span style={{ color: t.INK70 }}> · {dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-        </span>
-        <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{fmtClock(nowMin)}</span>
-      </div>
       {/* The ticker (owner, 2026-10-25: "I still want the ticker bar. The stock market bar"): the member
           Home's black strip, carrying today's figures. Only what is known shows; signed in with
           nothing read yet, the strip hides (BSTicker draws nothing for []). */}

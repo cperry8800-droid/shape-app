@@ -118,18 +118,24 @@ test('muted is the resting state, and the member\'s choice is kept on the device
   assert.deepEqual(calls, [['state', false], ['persist', true]], 'unmuting is not kept');
 });
 
-test('the Home bar is muted only on the measured key, and its speaker says what can be heard', () => {
+test('the Home bar is muted only on the measured key, and its play control says what can be heard', () => {
   const bar = stripComments(braced(RADIO, 'function BSNowPlaying({ onOpen }) {'));
   assert.match(bar, /if \(key === 'resume'\) return <BSNowPlayingMuted onTurnOn=\{\(\) => r\.setPaused\(false\)\}/,
     'the muted bar no longer follows the deck\'s key, or its Tune in no longer unmutes');
-  assert.match(bar, /<BSSpeakerGlyph on=\{key === 'pause'\} \/>/, 'the live bar\'s speaker no longer reads the measured key');
+  // No speaker (owner, 2026-11-04: "we dont need the volume button since the phone will control that"):
+  // the round control plays and pauses, ❚❚ only while the measured key says sound is playing.
+  assert.match(bar, /<BSPlayGlyph playing=\{key === 'pause'\} /, 'the live bar\'s play control no longer reads the measured key');
+  assert.match(bar, /const playing = key === 'pause';/, 'the ON AIR ring and the level read something other than the measured key');
+  assert.doesNotMatch(bar, /BSSpeakerGlyph/, 'the speaker is back');
   // Every control on the slim box is 44 wide and 44 tall to tap, the votes included (Codex on #2581).
   for (const m of bar.matchAll(/<button[\s\S]*?style=\{\{([\s\S]*?)\}\}/g)) {
     const style = m[1];
     if (/minWidth|width:/.test(style)) assert.match(style, /(?:minWidth|width): 44\b/, `a control under 44 wide: ${style.slice(0, 80)}`);
   }
   const muted = stripComments(braced(RADIO, 'function BSNowPlayingMuted({ onTurnOn, onOpen }) {'));
-  assert.match(muted, /<BSSpeakerGlyph on=\{false\}/, 'the muted bar\'s Tune in lost its speaker');
+  assert.match(muted, /<BSPlayGlyph playing=\{false\}/, 'the muted bar\'s play control does not show ▶');
+  assert.equal((muted.match(/onTurnOn && onTurnOn\(\)/g) || []).length, 2, 'the muted bar\'s ▶ and Tune in do not both turn the sound on');
+  assert.doesNotMatch(muted, /BSSpeakerGlyph/, 'the speaker is back');
 });
 
 test('the Radio page and Settings offer no off', () => {

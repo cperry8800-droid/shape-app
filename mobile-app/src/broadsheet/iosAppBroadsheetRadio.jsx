@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL, noraAssetUrl, crowdPackPath, skylinePath, CLUB_SHAPE_MODEL, clubShapeModelUrl, wallLoopUrls } from '../../../public/newdesign/booth/noraBoothState.mjs';
 import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeeper.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
+import { BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import {
   BANDS, BAND_BINS, hasSignal, bandsFromBins, smoothBand, peakBand, barHeight, capVisible,
   fieldBin, fieldK, fieldAlpha, fieldRadius,
@@ -1033,23 +1034,103 @@ function radioNowPlayingDisplay(np) {
 // Shared clipped-notch frame for the now-playing bar — one geometry for the
 // live and muted states so the two siblings can never drift.
 
-// The bar's sound glyph: a speaker with waves while the station is audible,
-// crossed out while it is not. currentColor, so it takes its button's ink.
-function BSSpeakerGlyph({ on, size = 14 }) {
+// The bar's play control glyph: ▶ while nothing can be heard (muted, paused, a play that did not
+// start), ❚❚ while the station is actually playing. currentColor, so it takes its button's ink.
+// There is no speaker: the phone's own buttons are the volume (owner, 2026-11-04: "we dont need the
+// volume button since the phone will control that").
+function BSPlayGlyph({ playing, size = 16 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none', display: 'block' }}>
-      <path d="M2.5 6h2.6L8.6 3v10L5.1 10H2.5z" fill="currentColor" />
-      {on
-        ? <><path d="M10.7 5.7a3.3 3.3 0 0 1 0 4.6" /><path d="M12.7 3.8a6 6 0 0 1 0 8.4" /></>
-        : <><path d="M11 6l4 4" /><path d="M15 6l-4 4" /></>}
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style={{ flex: 'none', display: 'block' }}>
+      {playing
+        ? <><rect x="3.5" y="2.5" width="3.2" height="11" rx="1" /><rect x="9.3" y="2.5" width="3.2" height="11" rx="1" /></>
+        : <path d="M4.5 2.6v10.8c0 .5.5.8.9.5l8.3-5.4a.6.6 0 0 0 0-1L5.4 2.1c-.4-.3-.9 0-.9.5z" />}
     </svg>
   );
 }
+
+// ⚠ THE BAR'S LEVEL IS A READING, NEVER A LOOP (the rule the radio page keeps: "a picture of a
+// signal is a claim about the signal"). While the station is actually playing (`playingSince` is
+// stamped) the bars read the analyser's frame; a visitor previewing the app gets the radio page's
+// labelled example signal (`previewSimOn`/`previewBins`), and the bar says Preview; anything else
+// (muted, a refused play, a frame we cannot read) and Reduce Motion draw the bars flat and still.
+// The loop writes a CSS variable on each bar, so a 60 Hz frame never re-renders React.
+// Builds and resumes the station's analyser inside the play tap itself, while iOS still counts it as the
+// listener's gesture, so the level meter can read the stream (Codex P2 on #2585). Called only by a tap
+// that starts sound; a failure leaves the meter flat and the sound as it was.
+function bsRadioWakeMeter() {
+  try { if (window.ShapeRadioLive && typeof window.ShapeRadioLive.analyser === 'function') window.ShapeRadioLive.analyser(); } catch (e) { /* the meter stays flat */ }
+}
+
+function useBSRadioLevel(n, playing, preview) {
+  const ref = useRefBR(null);
+  useEffectBR(() => {
+    const box = ref.current;
+    if (!box) return undefined;
+    const bars = () => box.querySelectorAll('[data-bs-lv]');
+    const rest = () => bars().forEach((el) => el.style.setProperty('--lv', '0'));
+    let still = false;
+    try { still = !!window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* no matchMedia: animate */ }
+    if (still || (!playing && !preview)) { rest(); return undefined; }
+    let raf = 0;
+    let stopped = false;
+    let bins = null;
+    let sim = null;
+    const sm = new Array(n).fill(0);
+    const t0 = window.performance.now();
+    const frame = () => {
+      if (stopped) return;
+      raf = window.requestAnimationFrame(frame);
+      if (document.hidden) return;
+      let b = null;
+      // Peek, never build: an analyser built here, outside a tap, can strand the stream in a context iOS
+      // keeps suspended (Codex P2 on #2585). The play tap builds it (bsRadioWakeMeter).
+      const an = playing && window.ShapeRadioLive?.peekAnalyser ? window.ShapeRadioLive.peekAnalyser() : null;
+      if (an && an.frequencyBinCount) {
+        if (!bins || bins.length !== an.frequencyBinCount) bins = new Uint8Array(an.frequencyBinCount);
+        an.getByteFrequencyData(bins);
+        b = bins;
+      }
+      if (previewSimOn(preview, hasSignal(b))) {
+        if (!sim) sim = new Uint8Array(PREVIEW_BINS);
+        b = previewBins(sim, (window.performance.now() - t0) / 1000);
+      }
+      const v = hasSignal(b) ? bandsFromBins(b, n) : null;
+      const els = bars();
+      for (let i = 0; i < els.length; i += 1) {
+        // The meter's scale, as a level meter's: the bottom quarter of a band reads as rest.
+        const x = v ? Math.max(0, Math.min(1, (v[i] - 0.28) / 0.72)) : 0;
+        sm[i] = x > sm[i] ? x : sm[i] * 0.86 + x * 0.14;
+        els[i].style.setProperty('--lv', sm[i].toFixed(3));
+      }
+    };
+    raf = window.requestAnimationFrame(frame);
+    return () => { stopped = true; window.cancelAnimationFrame(raf); rest(); };
+  }, [n, playing, preview]);
+  return ref;
+}
+
+// A row of level bars off that reading: each bar rests at `floor` of its height and rises with the
+// band it reads.
+function BSRadioLevel({ n = 24, playing, preview, color, height = 16, gap = 2, floor = 0.14, style }) {
+  const ref = useBSRadioLevel(n, playing, preview);
+  return (
+    <span ref={ref} aria-hidden style={{ display: 'flex', alignItems: 'flex-end', gap, height, ...style }}>
+      {Array.from({ length: n }, (_, i) => (
+        <span key={i} data-bs-lv="" style={{ flex: 1, minWidth: 2, height: '100%', borderRadius: 2, background: color, transformOrigin: 'bottom', transform: `scaleY(calc(${floor} + var(--lv, 0) * ${1 - floor}))` }} />
+      ))}
+    </span>
+  );
+}
+
+// The console's fixed ground: dark in both themes, as the Radio page's own stage, so the box reads as
+// a window onto the page it opens; on light paper it answers the black ticker right above it.
+const BS_NP_CONSOLE = { ground: '#0c1413', cream: '#f4ede0', cream60: 'rgba(244,237,224,0.6)', cream40: 'rgba(244,237,224,0.4)', teal: '#34d6c5' };
 
 function BSNowPlaying({ onOpen }) {
   const t = useBS();
   const r = useBSRadio();
   const tr = useShapeTr();
+  const preview = useBSRadioPreview();
   // The station is always live (there is no radio off); what the bar shows is
   // the deck's MEASURED key. Muted is its own quieter bar, and every other
   // state (playing, a refused play, signed out) is the live bar with the
@@ -1064,9 +1145,9 @@ function BSNowPlaying({ onOpen }) {
   const homeKey = r.currentSongKey;
   const homeTrack = { a: r.nowPlaying?.title, b: r.nowPlaying?.artist };
   const homeSocial = (homeKey && r.songSocial[homeKey]) || RADIO_SOCIAL_EMPTY;
-  // The speaker — the MEASURED state, through the deck's own decision (the `key` above): a stream
-  // that was asked for and did not start reads crossed out and asks again; it never shows sound over
-  // silence.
+  // The play control — the MEASURED state, through the deck's own decision (the `key` above): ❚❚
+  // pauses a station that is playing; ▶ asks again for a stream that was asked for and did not start;
+  // signed out it is disabled (the licence: Sign in to listen). It never shows ❚❚ over silence.
   const act = key === 'pause' ? () => r.setPaused(true)
     : key === 'resume' ? () => r.setPaused(false)
       : key === 'tune' ? () => r.retryPlay()
@@ -1076,61 +1157,79 @@ function BSNowPlaying({ onOpen }) {
       : key === 'tune' ? tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })
         : tr('radio:screen.signInToListen', { defaultValue: 'Sign in to listen' });
 
-  // ⚠ THE SLIM BOX (owner, 2026-11-03: "Make the new shape radio box the same look as the new one we
-  // used for client home page"). One 46px row in a hairline frame of the accent with an accent spine:
-  // the speaker in a ring, "● Shape Radio" over what's on, the votes, and Open →. It was a clipped
-  // instrument card with an aurora, a stage light and a halftone. Every control keeps a 44px target.
+  // ⚠ OPTION B · THE LIVE SIGNAL. The box is a small console on the Radio page's dark ground, in both
+  // themes, with the station's spectrum rising behind the words: 40 bars off the analyser while the
+  // station plays (the labelled example signal on the preview; flat and still otherwise, and under
+  // Reduce Motion), and a soft accent glow behind the play disc (▶ / ❚❚). The disc's ring pulses ON
+  // AIR only while sound is actually playing (the measured key), never as decoration. No speaker: the
+  // phone's buttons are the volume. Home's 14px radius, the title in the clean head face. Every
+  // control keeps a 44px target.
+  const C = BS_NP_CONSOLE;
+  const playing = key === 'pause';
   return (
-    <div data-bs-now-playing="" onClick={onOpen} style={{
-      position: 'relative', cursor: 'pointer', boxSizing: 'border-box',
-      margin: `10px ${t.padX}px`, minHeight: 46, padding: '0 2px 0 4px',
-      display: 'flex', alignItems: 'center', gap: 4,
-      border: `1px solid ${t.ACCENT}73`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 4,
-      background: 'transparent', color: t.INK,
+    <div data-bs-now-playing="" data-bs-clean="" onClick={onOpen} style={{
+      position: 'relative', overflow: 'hidden', cursor: 'pointer', boxSizing: 'border-box',
+      margin: '12px 8px 4px', borderRadius: 14,
+      background: C.ground, color: C.cream, fontFamily: BS_CLEAN_SANS,
+      border: `1px solid ${C.teal}${t.isLight ? '40' : '33'}`,
+      boxShadow: t.isLight ? `0 14px 28px -20px rgba(8,30,28,0.9)` : `0 0 26px -12px ${C.teal}`,
     }}>
-      <button disabled={!act} type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); if (act) act(); }} style={{
-        width: 44, height: 44, flexShrink: 0, border: 0, padding: 0, background: 'transparent', color: t.INK,
-        cursor: act ? 'pointer' : 'default', opacity: act ? 1 : 0.6, display: 'grid', placeItems: 'center',
-      }}>
-        <span style={{ width: 28, height: 28, borderRadius: '50%', border: `1.5px solid ${t.INK}`, display: 'grid', placeItems: 'center' }}><BSSpeakerGlyph on={key === 'pause'} /></span>
-      </button>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, whiteSpace: 'nowrap' }}>
-          <span aria-hidden style={{ width: 5, height: 5, borderRadius: 3, background: '#d83a2c', animation: 'bs-blink 1.2s ease-in-out infinite', flex: 'none' }} />
-          Shape Radio
+      <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `radial-gradient(150px 110px at 32px 50%, ${C.teal}3d, transparent 70%)` }} />
+      <BSRadioLevel n={40} playing={playing} preview={preview} color={`${C.teal}38`} height="78%" gap={2} floor={0.06}
+        style={{ position: 'absolute', left: 8, right: 8, bottom: 0, pointerEvents: 'none', WebkitMaskImage: 'linear-gradient(to top, #000 30%, transparent)', maskImage: 'linear-gradient(to top, #000 30%, transparent)' }} />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, minHeight: 68, padding: '0 4px 0 10px' }}>
+        <button disabled={!act} type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); if (!act) return; if (key !== 'pause') bsRadioWakeMeter(); act(); }} style={{
+          position: 'relative', width: 44, height: 44, flexShrink: 0, border: 0, padding: 0, borderRadius: 999,
+          background: act ? C.teal : 'transparent', color: act ? C.ground : C.cream60,
+          boxShadow: act ? `0 0 18px -4px ${C.teal}` : `inset 0 0 0 1.5px ${C.cream40}`,
+          cursor: act ? 'pointer' : 'default', display: 'grid', placeItems: 'center',
+        }}>
+          {playing && <span aria-hidden data-bs-np-onair="" style={{ position: 'absolute', inset: 0, borderRadius: 999, boxShadow: `0 0 0 2px ${C.teal}`, pointerEvents: 'none' }} />}
+          <BSPlayGlyph playing={key === 'pause'} size={16} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0, paddingLeft: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.teal, whiteSpace: 'nowrap' }}>
+            {!preview && <span aria-hidden data-bs-np-lamp="" style={{ width: 5, height: 5, borderRadius: 3, background: '#ff5b4a', boxShadow: '0 0 6px #ff5b4a', flex: 'none' }} />}
+            Shape Radio
+            {preview && <span style={{ color: C.cream40 }}>· {tr('radio:rail.preview', { defaultValue: 'Preview' })}</span>}
+          </div>
+          <div style={{ marginTop: 3, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.12, color: C.cream, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.title}</div>
+          {np.byline ? <div style={{ marginTop: 1, fontSize: 12, lineHeight: 1.3, color: C.cream60, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.byline}</div> : null}
         </div>
-        <div style={{ marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-          <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, letterSpacing: '-0.02em', color: t.INK }}>{np.title}</span>
-          {np.byline ? <span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK70 }}> · {np.byline}</span> : null}
-        </div>
+        {[
+          { key: 'up', glyph: '＋', count: homeSocial.up },
+          { key: 'down', glyph: '−', count: homeSocial.down },
+        ].map(item => {
+          const active = homeSocial.myVote === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              aria-label={item.key === 'up' ? tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) : tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' })}
+              aria-pressed={active}
+              onClick={(e) => { e.stopPropagation(); if (homeKey) r.voteSong(homeTrack, item.key); }}
+              disabled={!homeKey}
+              style={{
+                minWidth: 44, height: 44, flexShrink: 0, border: 0, padding: '0 3px', borderRadius: 999,
+                background: active ? `${C.teal}2e` : 'transparent', color: active ? C.teal : C.cream,
+                cursor: homeKey ? 'pointer' : 'default', opacity: homeKey ? 1 : 0.6,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2, lineHeight: 1,
+              }}
+            >
+              <span style={{ fontSize: 17 }}>{item.glyph}</span>
+              {item.count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{item.count}</span>}
+            </button>
+          );
+        })}
+        <span style={{ flexShrink: 0, minHeight: 44, display: 'grid', placeItems: 'center', padding: '0 8px 0 4px', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.teal, whiteSpace: 'nowrap' }}>{tr('radio:nowPlaying.open', { defaultValue: 'Open →' })}</span>
       </div>
-      {[
-        { key: 'up', glyph: '＋', count: homeSocial.up },
-        { key: 'down', glyph: '−', count: homeSocial.down },
-      ].map(item => {
-        const active = homeSocial.myVote === item.key;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            aria-label={item.key === 'up' ? tr('radio:nowPlaying.likeSong', { defaultValue: 'Like song' }) : tr('radio:nowPlaying.dislikeSong', { defaultValue: 'Dislike song' })}
-            aria-pressed={active}
-            onClick={(e) => { e.stopPropagation(); if (homeKey) r.voteSong(homeTrack, item.key); }}
-            disabled={!homeKey}
-            style={{
-              minWidth: 44, height: 44, flexShrink: 0, border: 0, padding: '0 3px', borderRadius: 4,
-              background: active ? `${t.ACCENT}22` : 'transparent', color: t.INK,
-              cursor: homeKey ? 'pointer' : 'default', opacity: homeKey ? 1 : 0.6,
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 2,
-              fontFamily: t.DISPLAY, lineHeight: 1,
-            }}
-          >
-            <span style={{ fontSize: 16 }}>{item.glyph}</span>
-            {item.count > 0 && <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontVariantNumeric: 'tabular-nums' }}>{item.count}</span>}
-          </button>
-        );
-      })}
-      <span style={{ flexShrink: 0, minHeight: 44, display: 'grid', placeItems: 'center', padding: '0 8px', fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('radio:nowPlaying.open', { defaultValue: 'Open →' })}</span>
+      <style>{`
+        @keyframes bs-np-onair { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.55); opacity: 0; } }
+        @keyframes bs-np-lamp { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+        [data-bs-np-onair] { animation: bs-np-onair 1.8s ease-out infinite; }
+        [data-bs-np-lamp] { animation: bs-np-lamp 1.2s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { [data-bs-np-onair], [data-bs-np-lamp] { animation: none; } }
+      `}</style>
     </div>
   );
 }
@@ -1202,36 +1301,44 @@ function BSNowPlayingMuted({ onTurnOn, onOpen }) {
   const tr = useShapeTr();
   const np = radioNowPlayingDisplay(r.nowPlaying);
 
-  // The slim box, quiet: a rule-coloured frame and spine, "Shape Radio · Muted" over what's on, and
-  // the speaker crossed out with Tune in, which turns the sound on.
+  // Option B, quiet: the same console with the signal flat (nothing is playing to read), no glow,
+  // the disc ringed and showing ▶, "Shape Radio · Muted" over what's on, and Tune in as an
+  // accent-ringed pill. Either one turns the sound on.
+  const C = BS_NP_CONSOLE;
   return (
-    <div data-bs-now-playing="muted" onClick={onOpen} style={{
-      position: 'relative', cursor: onOpen ? 'pointer' : 'default', boxSizing: 'border-box',
-      margin: `10px ${t.padX}px`, padding: '0 4px 0 10px',
-      border: `1px solid ${t.RULE}`, borderLeft: `3px solid rgba(${t.inkRGB},0.30)`, borderRadius: 4,
-      background: 'transparent', color: t.INK,
+    <div data-bs-now-playing="muted" data-bs-clean="" onClick={onOpen} style={{
+      position: 'relative', overflow: 'hidden', cursor: onOpen ? 'pointer' : 'default', boxSizing: 'border-box',
+      margin: '12px 8px 4px', borderRadius: 14,
+      background: C.ground, color: C.cream, fontFamily: BS_CLEAN_SANS,
+      border: `1px solid rgba(244,237,224,0.12)`,
+      boxShadow: t.isLight ? `0 14px 28px -20px rgba(8,30,28,0.9)` : 'none',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 46 }}>
+      <span aria-hidden style={{ position: 'absolute', left: 8, right: 8, bottom: 0, display: 'flex', alignItems: 'flex-end', gap: 2, height: 4, pointerEvents: 'none' }}>
+        {Array.from({ length: 40 }, (_, i) => <span key={i} style={{ flex: 1, height: '100%', borderRadius: 2, background: 'rgba(244,237,224,0.1)' }} />)}
+      </span>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, minHeight: 68, padding: '0 10px 0 10px' }}>
+        <button type="button" aria-label={tr('radio:screen.resume', { defaultValue: 'Resume' })} title={tr('radio:screen.resume', { defaultValue: 'Resume' })} onClick={(e) => { e.stopPropagation(); bsRadioWakeMeter(); onTurnOn && onTurnOn(); }} style={{
+          width: 44, height: 44, flexShrink: 0, border: 0, padding: 0, borderRadius: 999, cursor: 'pointer',
+          background: 'transparent', color: C.cream, boxShadow: `inset 0 0 0 1.5px ${C.cream40}`, display: 'grid', placeItems: 'center',
+        }}><BSPlayGlyph playing={false} size={16} /></button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>
-            <span aria-hidden style={{ width: 5, height: 5, borderRadius: 3, border: `1px solid ${t.INK50}`, flex: 'none' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.cream40, whiteSpace: 'nowrap' }}>
+            <span aria-hidden style={{ width: 5, height: 5, borderRadius: 3, border: `1px solid ${C.cream40}`, flex: 'none' }} />
             Shape Radio · {tr('radio:nowPlaying.muted', { defaultValue: 'Muted' })}
           </div>
-          <div style={{ marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, letterSpacing: '-0.02em', color: t.INK }}>{np.title}</span>
-            {np.byline ? <span style={{ fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}> · {np.byline}</span> : null}
-          </div>
+          <div style={{ marginTop: 3, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.12, color: C.cream, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.title}</div>
+          {np.byline ? <div style={{ marginTop: 1, fontSize: 12, lineHeight: 1.3, color: C.cream60, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.byline}</div> : null}
         </div>
-        {/* Tune in — the speaker, crossed out: the sound is off until this tap */}
-        <button type="button" onClick={(e) => { e.stopPropagation(); onTurnOn && onTurnOn(); }} style={{ borderRadius: 4,
-          minHeight: 44, padding: '0 10px', flexShrink: 0,
-          background: 'transparent', color: t.ACCENT, border: 0, cursor: 'pointer',
-          fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
-          whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}><BSSpeakerGlyph on={false} size={12} />{tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}</button>
+        {/* Tune in — the sound is off until this tap */}
+        <button type="button" onClick={(e) => { e.stopPropagation(); bsRadioWakeMeter(); onTurnOn && onTurnOn(); }} style={{
+          minHeight: 44, padding: '0 15px', flexShrink: 0, borderRadius: 999, cursor: 'pointer',
+          background: `${C.teal}1a`, color: C.teal, border: `1.5px solid ${C.teal}`,
+          fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 800,
+          whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 7,
+        }}>{tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })}</button>
       </div>
       {/* Schedule state — renders nothing unless a set is on air or imminent. */}
-      <BSSetsLine tone="paper" style={{ margin: '0 0 8px' }} />
+      <div style={{ position: 'relative', padding: '0 14px 0 64px' }}><BSSetsLine tone="dark" style={{ margin: '0 0 10px' }} /></div>
     </div>
   );
 }

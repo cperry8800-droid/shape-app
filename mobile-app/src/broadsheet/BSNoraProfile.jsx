@@ -93,10 +93,17 @@ export function BSNoraProfile({ onClose, onLeave = null, avatar, cover = null })
             {BSLogo && <BSLogo size={16} color={WHITE} />}
             <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: window.BS_CORNER_GAP || 9 }}>
-            {BSSearchCorner && <BSSearchCorner size={corner} ink={WHITE} close={leave} />}
-            {BSSettingsCorner && <BSSettingsCorner size={corner} ink={WHITE} onClick={goSettings} />}
-          </div>
+          {(() => {
+            const tools = (
+              <div style={{ display: 'flex', alignItems: 'center', gap: window.BS_CORNER_GAP || 9 }}>
+                {BSSearchCorner && <BSSearchCorner size={corner} ink={WHITE} close={leave} />}
+                {BSSettingsCorner && <BSSettingsCorner size={corner} ink={WHITE} onClick={goSettings} />}
+              </div>
+            );
+            // The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill).
+            const Pill = window.BSMastToolPill;
+            return Pill ? <Pill ink={WHITE}>{tools}</Pill> : tools;
+          })()}
         </div>
         <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
           <BSBackRow onBack={onClose} ink={WHITE} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}

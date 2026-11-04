@@ -622,6 +622,35 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile\'s Followers / Following / Posts line right under the photo, above the bio (#2587). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "move the followers, following row above the bio just below picture on profile"', status: 'done' },
+        { label: '#2587 BSTerrainProfile: the counts line (as it was) comes right after the photo and name; the bio, the tier line and the Training for countdown follow it, passed as children of BSFollowBlock (variant coach) so one block holds the counts and the Follow that changes them; a visitor\'s Follow / Message and your own Log activity / Edit profile stay under the countdown. With no one to count the block still shows the bio. No new copy; tests/member-profile-bento.test.mjs (10). Review: Codex clean on 88e10a7 (on open); CI green', status: 'done' },
+      ],
+    },
+    {
+      section: 'App: the flag masthead on Home and the slim tool pill on every top row; Shape Radio as a live console; the member profile\'s tiles condensed and the shelf without a sideways scroll (#2585). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: of the masthead, "give me some new design options for this masthead. Dont change club shape font though", then of three "i like masthead b", "leave the bubble just make it more condensed, not as thick. tighter around icons", "make sure this part of the masthead stays present on every page and stays visible as you scroll", "the club shape part of masthead should only be on home page", "make sure this new masthead applies to both coaches and members profile" and "make masthead on profile page has the extra edit icon"; of Shape Radio\'s box, "make this shape radio box look way cooler and fit the home page better", of three "go with b ... almost full width of screen but not fully" and "we dont need the volume button since the phone will control that"; of the profile, "condense these and make items on the shelf fit on page, no side scrolling"', status: 'done' },
+        { label: '#2585 masthead: member Home and coach Today draw the flag (BSMasthead layout="flag", BSMastLayout): the mark and Vol·No, the same Club Shape wordmark centred between double hairlines, the dateline centred with the clock (their own dateline bands gone). BSMastToolPill (chrome, on window) puts the tools in a 30px frosted pill with 44px taps on every top row: BSMastRow and so the pinned bar and BSDetailHeader, BSMasthead, BSPageHeader, the pinned detail bar, and the hand-built rows (the member profile on its cover with its ✎, both coach profiles, Nora\'s page, the follow-list sheet, the marketplace). The wordmark stays on Home alone', status: 'done' },
+        { label: '#2585 Shape Radio: BSNowPlaying / BSNowPlayingMuted are a dark console 8px from each edge: a round play/pause (▶ / ❚❚ off the measured key), no speaker, the title in the clean head face, the votes and Open, the station\'s level behind the words (read off the analyser only while playing, the labelled example on the preview, flat otherwise and under Reduce Motion); the muted bar keeps Tune in. The meter peeks (ShapeRadioLive.peekAnalyser) and the play tap builds the analyser inside the gesture', status: 'done' },
+        { label: '#2585 member profile: Log activity / Edit profile and Follow / Message are 54px rows with the icon beside the words; the coach tile reads "Coached by" and the name on one line; the shelf is a grid (three across for three moments, flat cards two to a row for one, two or four), the date chip wrapping inside its card', status: 'done' },
+        { label: '#2585 review: Codex\'s P2 on 94c6b3d (the meter built the AudioContext from an animation frame, which iOS can leave suspended and the stream silent) fixed in b137ac7; its P2 on b137ac7 (a long shelf date ran out of its card at 320px) fixed in 70e3dc4; Codex clean on 70e3dc4. CI green', status: 'done' },
+        { label: 'Sheets whose top row holds only a × close (Goals, the session builder, search, the cycle sheet, onboarding) keep the bare ×; the Radio page\'s own venue masthead keeps its corners; on the steel paper the pill is a flat tint over the brushed texture', status: 'pending' },
+        { label: 'OWNER: on a phone, tap ▶ on Home\'s Shape Radio box: the sound plays and the level moves (the meter reads the live stream through Web Audio)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App: the member profile as tiles, option C "Bento", with the counts line and the activity cards as they were (#2584). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the member profile: "hate the look of this on client profile, need this to look less analog and boring", then of three designs "go with c but dont change the look or design of followers, following part. leave that as is. and dont forget to keep the currect activity feed look the same as well" (the feed: "The feed that shows activities logged"), and "make sure the correct current nav bar is being used" (it is: the app frame\'s dock, untouched)', status: 'done' },
+        { label: '#2584 the head: Log activity (Follow on another\'s page) a lit tile in the tier\'s colour, Edit profile (Message) a quiet tile beside it, both with a line icon; the coach a wide tile (initials in a ring of their colour to teal, the name, the phase as chips). The Followers / Following / Posts line is byte-for-byte as it was, outside the clean box', status: 'done' },
+        { label: '#2584 the tabs an icon bar (pulse, bars, peak, note) frosted over the page; under Activity the photos a mosaic (the newest big, two beside it, rows of three after) and the Shelf award cards (the proudest lit, dates on chips). The activity cards (BSActivityCard, the Wall\'s format) untouched. The coach profile keeps its strip, numbered shelf and tab row', status: 'done' },
+        { label: '#2584 code: the new pieces in BSMemberBento.jsx (props only, nothing imported from the client); no new copy; tests/member-profile-bento.test.mjs (9). Review: Codex clean on 9973338 (on open); CI green', status: 'done' },
+        { label: 'The website\'s member profile (MemberProfile.html) keeps its own look; the steel paper\'s frosted tab bar is a flat tint (no brushed texture under it); a long-locale Edit profile hyphenates in its narrow tile (ru checked, de at 320px fits)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website: the Kitchen\'s filters as an index, and the login box as a glass card (#2577). No migration',
       items: [
         { label: 'Owner, 2026-11-03: the Kitchen\'s filters "looks like shit on website, lets improve this filter layout" and new designs "for this login box on website"; of three options each, the filters\' C (a sidebar index) and the login box\'s A ("do a")', status: 'done' },
@@ -641,7 +670,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2576 the website: Get App\'s 12:15 beat is the trainer preview\'s own page (getapp-coach-v2.png, "Example coach · the trainer preview, sample numbers"); the Home capture re-shot with the condensed card at ?v=20261103b on Get App and the homepage. The profile Activity feed already renders the Wall\'s card (checked, no change)', status: 'done' },
         { label: 'Review: Codex clean on 2a4bf36 (on open); on 650681c a P2 (a private profile answers a visitor with no account with no row, so certificates were read as if public) fixed in 37625fa with a test that fails without it; Codex clean on 37625fa. CI\'s Tests job failed on 2a4bf36 (a live DOM node in three assertions, one fallback string unlike its catalog), fixed in 650681c. CI green on the final head', status: 'done' },
         { label: 'OWNER — decide: whether coaches may also list certificates Shape has not verified, labelled as their own (today only verified ones show)', status: 'manual' },
-        { label: 'OWNER — on hold: the member-profile redesign, with the cover\'s tier-line colours, and with it whether the Activity tab\'s photo strip and Shelf move', status: 'manual' },
+        { label: 'OWNER — on hold: the cover\'s tier-line colours (the redesign under the cover shipped as #2584\'s tiles; the photos and the Shelf stayed in the Activity tab, as a mosaic and award cards)', status: 'manual' },
         { label: 'OWNER: on a phone, signed in: the condensed morning card; a coach\'s About with accolades, education and verified certificates; the head\'s socials (seen only in headless Chromium, signed out)', status: 'manual' },
       ],
     },
@@ -667,7 +696,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'OWNER: set up the station server (services/station/README.md): an always-on machine with Docker and plenty of included bandwidth (about 86 MB a listener-hour at 192 kbps), a DNS record, the .env, docker compose up', status: 'manual' },
         { label: 'Part 2: the website and app play Shape\'s station, now-playing from the rotation, the dashboard\'s station panel (#2574, its own section)', status: 'done' },
         { label: 'Part 3: members only at the station\'s door, and only in the US and UK (#2579, its own section)', status: 'done' },
-        { label: 'Part 4: listening hours in the SoundExchange report, from Icecast\'s listener log', status: 'pending' },
+        { label: 'Part 4: a performance count for every play in the SoundExchange report, from the station\'s own sessions (#2582, its own section)', status: 'done' },
         { label: 'A first Docker build of services/station, on the server (none here: the e2e ran its scripts and config on a real Icecast)', status: 'pending' },
       ],
     },
@@ -695,6 +724,22 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'COUNSEL: whether US territories (Puerto Rico, Guam and the like) are licensed; RADIO_COUNTRIES in src/lib/radio/pass.mjs is one line', status: 'manual' },
         { label: 'OWNER, optional: RADIO_PASS_SECRET (32+ random characters) in Vercel; without it, passes and tickets are signed with a key derived from the service-role key', status: 'manual' },
         { label: 'After the switch to Shape\'s own station: listen once from the website and once from the app (the redirect through /api/radio/listen seen only in tests and on a real Icecast here)', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Radio: Shape\'s own station, part 4 of 4: a performance count for every play (#2582). Migration: 2026-11-03-radio-listens.sql',
+      items: [
+        { label: 'Owner, 2026-11-03: "start part 4", then "Compliance requires a per-performance count for every play - build that"', status: 'done' },
+        { label: '#2582 the station tells Shape who joins and who leaves: Icecast\'s url auth sends listener_add and listener_remove to /api/radio/pass, signed in as station with NORA_ENGINE_TOKEN (no new secret), each start of the container named on the door\'s address (?boot=). The door keeps each session in radio_listens (times only: no account, no address; service role only): a join after the listener is let in, never instead; a leave ends it, or stores it whole from Icecast\'s length if the join was lost', status: 'done' },
+        { label: '#2582 the count (src/lib/radio/listens.mjs): a play is heard from its start to the end of its blend into the next song (71 s at most) or its stop, plus the listener\'s lag; a session with no reported end ran until the station next started; per play, every session overlapping it. The report (/api/admin/radio/plays) gains Actual total performances on every play (blank for radio.co\'s, 0 a real count) and &summary=1 the month\'s totals with listening hours; the station panel shows who is listening now', status: 'done' },
+        { label: '#2582 a part 1 bug: the report read the month in one select, which stops at 1,000 rows with no error (a 24/7 rotation plays about 10,000 songs a month); it now reads every page, sessions too, and into the next month for the last song\'s blend', status: 'done' },
+        { label: '#2582 review: Codex on 6559dcc found a leave refused when Icecast sends only the mount (P1; not on the station\'s 2.4.4, which sends the ticket, but a bare /live is taken since 243997e) and a switch back to radio.co miscounting Nora\'s later sets (P1; not fixed, on the owner\'s word: radio.co is not used, and is taken out next); on 243997e two starts in one second (P2, fixed in d3e42f3: the station waits a second before naming a start); on d3e42f3 a restart nobody tunes in to (P2, recorded below); mutations 41/41, then 43/43 and the new one killed; real-Icecast e2e; CI green', status: 'done' },
+        { label: 'The owner ran supabase-migrations/2026-11-03-radio-listens.sql (2026-11-04); checked live with read-only queries: the columns and checks, one row per connection, row security on with no policy, grants to service_role only, the indexes', status: 'done' },
+        { label: 'COUNSEL: the count puts UK listeners with US ones; if SoundExchange (US) and PPL (UK) are reported apart, the pass can carry the country the station route measured', status: 'manual' },
+        { label: 'COUNSEL: how long session rows are kept (nothing purges them yet), and the privacy policy\'s radio paragraph: listening sessions kept by the station, with no account or address', status: 'manual' },
+        { label: 'A start of the station is known to Shape only from its first listener: after a crash that lost a listener\'s leave, and a restart nobody tunes in to, that session counts as listening until someone does (an overcount, corrected retroactively by the next listener; amber on the station panel after 12 hours). Registering each start on its own needs a starts table, a call from entrypoint.sh (an HTTP client in the Icecast image) and a door action (Codex on d3e42f3)', status: 'pending' },
+        { label: 'radio.co taken out next, its own PR (owner, 2026-11-04: "yes remove radio.co"): the report then counts every play as Shape\'s own (Codex\'s provider-history finding on 6559dcc)', status: 'pending' },
+        { label: 'Per-recording totals, if SoundExchange\'s filing wants one line per recording rather than per play (today the column sums by recording in a spreadsheet)', status: 'pending' },
       ],
     },
     {

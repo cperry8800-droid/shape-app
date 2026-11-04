@@ -97,7 +97,8 @@ test('the preview\'s head: the cover, the photo, the sample\'s coach band; Log a
   assert.match(textOf(withAttr(nodes, 'data-member-name')[0]), /^Quinn Harper\.$/);
   assert.equal(withAttr(nodes, 'data-member-coach').length, 1, 'the preview shows its sample coach');
   assert.match(textOf(withAttr(nodes, 'data-member-coach')[0]), /coached by/i);
-  assert.equal(textOf(withAttr(nodes, 'data-member-log')[0]).trim(), '＋ Log activity');
+  // The ＋ is the tile's icon now (BSMemberBento.jsx, 2026-11-04), so the words are the name alone.
+  assert.equal(textOf(withAttr(nodes, 'data-member-log')[0]).trim(), 'Log activity');
   assert.equal(textOf(withAttr(nodes, 'data-member-edit')[0]).trim(), 'Edit profile');
   // On your own page Back is not drawn (the Me tab is a root); another's has it, in white on the cover.
   assert.equal(nodes.filter(named('BSBackRow')).length, 0);
