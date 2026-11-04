@@ -158,6 +158,37 @@ test('it holds across the whole declared range and refuses outside it', () => {
   }
 });
 
+// ⚠ 90 AND 170 SIT FAR FROM THE EDGES. A track just outside them scored highest AT the edge, so
+// every tempo from 94 to 99.9 read as a confident 100 and every one from 160.25 to 166 as 160, and
+// the Radio page's floor stepped at that tempo: off the music, snapping back at each search (seen in
+// the app on a 96 BPM track, owner, 2026-11-04: "the floor stepping on the beat - can you make sure
+// this works"). EDGE_GUARD checks past the edge.
+test('a tempo just outside the range is not read as the edge', () => {
+  for (const bpm of [94, 96, 98, 99.5, 160.5, 162, 166]) {
+    const { last } = drive(train(bpm), 12);
+    assert.equal(last, null, `${bpm} BPM is outside 100..160 and was reported as ${last && last.bpm}`);
+  }
+  // ...while a tempo AT the edge still reads, clean and under ±15ms of jitter.
+  for (const bpm of [100, 100.25, 159.75, 160]) {
+    const { last } = drive(train(bpm), 12);
+    assert.ok(last && Math.abs(last.bpm - bpm) <= 0.5, `${bpm} BPM read as ${last && last.bpm}`);
+  }
+  for (const bpm of [100, 160]) {
+    let read = 0;
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const { last } = drive(train(bpm, { jitter: jitterOf(15, seed * 7) }), 14);
+      if (last && Math.abs(last.bpm - bpm) <= 0.5) read += 1;
+    }
+    assert.ok(read >= 19, `${bpm} BPM under jitter read on only ${read} of 20 seeds`);
+  }
+});
+
+test('MUTATION: without the edge guard, a 96 BPM track reads as a confident 100', () => {
+  const { last } = drive(train(96), 12, { edgeGuard: 0 });
+  assert.ok(last, 'the unguarded detector refused 96 too, so the guarded refusal proves nothing');
+  assert.equal(last.bpm, 100);
+});
+
 test('±15ms of jitter still settles', () => {
   const { first } = drive(train(128, { jitter: jitterOf(15, 11) }), 12);
   assert.ok(first, 'a jittered train never settled — real music is never exact');
