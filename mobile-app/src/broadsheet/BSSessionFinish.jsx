@@ -73,7 +73,39 @@ export function BSSessionFinish({ finish: F }) {
   const bandOf = (n) => bands[n <= 4 ? 0 : n <= 7 ? 1 : 2];
   // The sheet takes focus as it opens, so a screen reader starts at its title, not at the workout behind.
   const headRef = React.useRef(null);
-  React.useEffect(() => { try { if (headRef.current) headRef.current.focus({ preventScroll: true }); } catch (e) {} }, []);
+  // ⚠ THE WORKOUT BEHIND THE SHEET IS INERT, NOT ONLY COVERED (Codex P2 on #2614). aria-modal enforces
+  // nothing: a hardware keyboard or switch control tabbed past the sheet into the logged sets while the
+  // clock is frozen. Every other child of the phone surface is made inert and hidden from screen readers
+  // while it shows, as BSUpdateGate does, and a focus that lands outside the sheet is sent back to its
+  // title, since `inert` first shipped in iOS 15.5 and the app supports iOS 14.
+  const dimRef = React.useRef(null);
+  React.useEffect(() => {
+    const toHead = () => { try { if (headRef.current) headRef.current.focus({ preventScroll: true }); } catch (e) {} };
+    const dim = dimRef.current;
+    const surface = typeof document !== 'undefined' && document.getElementById ? document.getElementById('bs-phone-surface') : null;
+    // The portal's own node on the surface (the clean-type wrapper may sit between it and the dim).
+    let gate = dim;
+    while (gate && surface && gate.parentElement && gate.parentElement !== surface) gate = gate.parentElement;
+    const made = [];
+    if (surface && gate && gate.parentElement === surface) {
+      for (const el of Array.from(surface.children)) {
+        if (el === gate) continue;
+        made.push({ el, inert: el.hasAttribute('inert'), hidden: el.getAttribute('aria-hidden') });
+        el.setAttribute('inert', '');
+        el.setAttribute('aria-hidden', 'true');
+      }
+    }
+    const hold = (e) => { try { if (dim && e.target && !dim.contains(e.target)) toHead(); } catch (err) {} };
+    if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('focusin', hold);
+    toHead();
+    return () => {
+      if (typeof document !== 'undefined' && document.removeEventListener) document.removeEventListener('focusin', hold);
+      for (const w of made) {
+        if (!w.inert) w.el.removeAttribute('inert');
+        if (w.hidden === null) w.el.removeAttribute('aria-hidden'); else w.el.setAttribute('aria-hidden', w.hidden);
+      }
+    };
+  }, []);
 
   // The session's lit slot: a dark inset on dark paper (a faint ink wash on light), framed in the colour
   // when on, glowing on dark paper only.
@@ -151,7 +183,7 @@ export function BSSessionFinish({ finish: F }) {
   const saving = F.saveState === 'saving';
   const { overflow: _clip, ...plate } = bsRaised(t, heat);
   const sheet = (
-    <div data-finish-dim="" style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: light ? 'rgba(20,18,15,0.42)' : 'rgba(0,0,0,0.58)', animation: still ? 'none' : 'bsFinishDim 180ms ease-out' }}>
+    <div ref={dimRef} data-finish-dim="" style={{ position: 'absolute', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: light ? 'rgba(20,18,15,0.42)' : 'rgba(0,0,0,0.58)', animation: still ? 'none' : 'bsFinishDim 180ms ease-out' }}>
       {still ? null : <style>{BS_FINISH_MOTION}</style>}
       <div role="dialog" aria-modal="true" aria-labelledby="bs-finish-title" data-finish-sheet="" className="bs-scroll"
         style={{ ...plate, borderRadius: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderBottom: 0, width: '100%', boxSizing: 'border-box', maxHeight: '92%', overflowX: 'hidden', overflowY: 'auto', overscrollBehavior: 'contain', padding: `8px ${px}px calc(18px + env(safe-area-inset-bottom, 0px))`, color: INK, animation: still ? 'none' : 'bsFinishUp 260ms cubic-bezier(0.2, 0.8, 0.2, 1)' }}>

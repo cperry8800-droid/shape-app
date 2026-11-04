@@ -82,7 +82,8 @@ test('the client renders the pop-up beside the view, and the old finish page is 
 
 // ── Mounted ──────────────────────────────────────────────────────────────────────────────────────
 
-const dom = new JSDOM('<!doctype html><div id="bs-phone-surface"></div><div id="root"></div>', { url: 'https://shape.test/m/' });
+// The app is drawn inside the phone surface and the sheet portals in beside it, as on the phone.
+const dom = new JSDOM('<!doctype html><div id="bs-phone-surface"><div id="root"></div></div>', { url: 'https://shape.test/m/' });
 globalThis.document = dom.window.document;
 globalThis.HTMLElement = dom.window.HTMLElement;
 globalThis.HTMLInputElement = dom.window.HTMLInputElement;
@@ -262,6 +263,35 @@ test('skipped ratings save as null, never 0', async (t) => {
   assert.equal(saved.length, 1);
   assert.strictEqual(saved[0].sessionRpe, null);
   assert.strictEqual(saved[0].summary.enjoyment, null);
+});
+
+test('the workout behind the sheet is inert and hidden while it shows, and focus is held in the sheet (Codex P2 on #2614)', async (t) => {
+  t.after(unmount); fresh(); await mount();
+  assert.ok(!rootEl.hasAttribute('inert'), 'nothing inert while the workout runs');
+  await press(document, 'End workout early');
+  const dlg = sheet();
+  const title = document.getElementById(dlg.getAttribute('aria-labelledby'));
+  // Every other child of the phone surface: the app with the workout in it.
+  assert.ok(rootEl.hasAttribute('inert'), 'the workout is inert');
+  assert.equal(rootEl.getAttribute('aria-hidden'), 'true', 'and hidden from screen readers');
+  assert.ok(!dlg.closest('[inert]'), 'the sheet itself is not');
+  // A focus that lands outside the sheet (Tab past its end, or a switch control) goes back to its title.
+  const behind = buttonIn(rootEl, 'Change view');
+  assert.ok(behind, 'a control behind the sheet');
+  await act(async () => { behind.focus(); });
+  assert.ok(document.activeElement === title, 'focus is sent back to the sheet');
+  // Inside the sheet, focus moves freely.
+  const pick = buttonIn(dlg, 'Effort 5 of 10');
+  await act(async () => { pick.focus(); });
+  assert.ok(document.activeElement === pick);
+  // Closed, the workout is back: neither inert nor hidden, and focus is no longer held.
+  await press(sheet(), '← Edit workout');
+  assert.ok(!sheet());
+  assert.ok(!rootEl.hasAttribute('inert'), 'the workout is live again');
+  assert.ok(!rootEl.hasAttribute('aria-hidden'));
+  const again = buttonIn(rootEl, 'Change view');
+  await act(async () => { again.focus(); });
+  assert.ok(document.activeElement === again, 'focus stays where it is put');
 });
 
 test('← Edit workout closes the pop-up back to the workout, saving nothing', async (t) => {
