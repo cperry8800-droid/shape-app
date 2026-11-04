@@ -706,7 +706,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         coaching: studioModel.coaching ? { blurb: (offer && typeof offer.blurb === 'string' && offer.blurb) || '' } : null,
         specialty: specialty || '',
       } : null}
-      onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
+      onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} onSettings={onOpenSettings} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
   if (page === 'business') return <BSCoachBusinessPage role={role} tab="money" onBack={() => setPage(null)} />;
