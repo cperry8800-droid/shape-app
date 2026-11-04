@@ -2036,7 +2036,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         if (isToday && calendarReady && dayShape.openHours != null) items.push({ label: tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' }), value: String(dayShape.openHours) });
         return items;
       })()} />
-      <div style={{ marginTop: 12 }}>
+      {/* 2px out from its own 8, so Shape Radio is 10px in, as the ticker above and the deck below. */}
+      <div style={{ margin: '12px 2px 0' }}>
         <BSNowPlaying onOpen={goRadio} />
       </div>
 
