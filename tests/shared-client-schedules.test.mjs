@@ -475,7 +475,9 @@ test('app: CARE TEAM opens the client\'s calendar whenever another coach is on i
   assert.match(cal, /\{useServer && view === 'month' && !forClient && \(/, 'no Add on a client\'s calendar');
   assert.match(cal, /onAdd=\{useServer && !forClient \?/);
   assert.match(cal, /&& \(role === 'trainer' \|\| role === 'nutritionist'\) && event\.mine !== false;/, 'no booking actions on the other coach\'s');
-  assert.match(cal, /mine: ev\.mine !== false,/);
+  // Another coach's booking (mine: false), and a session the viewer is booked into as the client
+  // (asClient, Codex P2 on #2607), are not the viewer's to manage as coach.
+  assert.match(cal, /mine: ev\.mine !== false && !ev\.asClient,/);
   assert.match(cal, /sub: \[ev\.sub, typeof ev\.by === 'string' \? ev\.by : ''\]\.filter\(Boolean\)\.join\(' · '\),/);
 });
 

@@ -94,7 +94,12 @@ test('the preview\'s head: the cover, the photo, the sample\'s coach band; Log a
   assert.match(cover.props.style.height, /^calc\(.+ \+ 190px\)$/, 'the cover runs under the masthead');
   const [avatar] = withAttr(nodes, 'data-member-avatar');
   assert.equal(avatar.props.style.width, 108);
-  assert.equal(avatar.props.style.borderRadius, 99, 'the photo is round, as a coach\'s is');
+  // A member's head carries the facet, not a round photo (owner, 2026-11-04: "make sure you have the facet
+  // avatar"); the coach's profile keeps its round one.
+  assert.equal(avatar.props.style.borderRadius, undefined, 'the member\'s photo is round again');
+  const gem = nodes.filter(named('BSFacetAvatar'));
+  assert.ok(gem.length >= 1, 'no facet in the head');
+  assert.equal(gem[0].props.showRank, false);
   assert.equal(avatar.props.disabled, true, 'signed out, the photo is no upload button');
   assert.match(textOf(withAttr(nodes, 'data-member-name')[0]), /^Quinn Harper\.$/);
   assert.equal(withAttr(nodes, 'data-member-coach').length, 1, 'the preview shows its sample coach');
