@@ -598,6 +598,7 @@ export const draftNutritionProgramAction = {
       note: (draft.source === 'template' ? 'This is a TEMPLATE, not an AI draft (' + NUTRITION_TEMPLATE_NOTICE + '): say so. ' : '')
         + "Every line on the card is the plan builder's; never add a line, a meal or a number of your own. "
         + (brief.kind === 'program' ? "A program is what to work on each week: it holds no meals, so it is not put on a client's Eat tab. " : '')
+        + (brief.kind === 'program' && draft.weeks !== brief.weeks ? 'The builder drafted ' + draft.weeks + ' weeks, not the ' + brief.weeks + ' asked for: say so. ' : '')
         + 'Nothing is saved until they confirm; it is saved unpublished to the ' + where + ' on the Plans page of the Shape app, where they edit it and publish or assign it.',
     };
   },

@@ -12,6 +12,7 @@ import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, knownWo
 import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
 import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
+import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
 import { bsAuthorStep, bsStepPerSideMin, BS_STATIONS } from '../services/cookable.mjs';
@@ -1504,6 +1505,9 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       setTab('programs');
     };
     window.addEventListener('shape:openCoachPlan', onOpenPlan);
+    // A card tapped in the nutritionist app for a program: the root switched here and held it.
+    const handed = takeCoachPlan(window, false);
+    if (handed) onOpenPlan({ detail: handed });
     return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
   }, []);
   // Care team — open (or reuse) the private coach↔coach thread about a shared
@@ -7901,10 +7905,15 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
       const d = (e && e.detail) || {};
       if (typeof d.planId !== 'string' || !d.planId || d.planKind !== 'meal_plan') return;
       navJumpRef.current.navPush();
-      setOpenPlanRequest({ planId: d.planId, nonce: Date.now() });
+      // The client Nora drafted it for rides along, so Assign can start on them, as the trainer's.
+      const clientId = typeof d.clientId === 'string' && d.clientId ? d.clientId : null;
+      setOpenPlanRequest({ planId: d.planId, clientId, nonce: Date.now() });
       setTab('plans');
     };
     window.addEventListener('shape:openCoachPlan', onOpenPlan);
+    // A card tapped in the trainer (or member) app for a nutrition plan: the root switched here and held it.
+    const handed = takeCoachPlan(window, true);
+    if (handed) onOpenPlan({ detail: handed });
     return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
   }, []);
   React.useEffect(() => {
@@ -8165,6 +8174,7 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
   const [editDraft, setEditDraft] = useStateBSP(null); // generated/blank draft being customized before publish; `id` when it is a saved row
   const [builderPlan, setBuilderPlan] = useStateBSP(null); // a saved plan holding the website builder's document, open in BSMealBuilderEditor
   const [assignPlan, setAssignPlan] = useStateBSP(null); // catalogue plan being assigned to a client
+  const [assignPrefer, setAssignPrefer] = useStateBSP(null); // { planId, clientId } from Nora's Open in builder
   const accountId = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
   const rememberRow = (row) => { if (row && row.id) setServerPlans(list => [row, ...(list || []).filter(p => p && p.id !== row.id)]); };
   // A saved row opens on what it holds: the builder's document in its editor, anything else in the
@@ -8249,6 +8259,8 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
       openHandled.current = req.nonce;
       setTab('library'); setLibTab(({ program: 'programs', diet: 'diet' })[kindOf(row)] || 'plans');
       setAssignPlan(null); setDrafting(false); setEditDraft(null); setBuilderPlan(null);
+      // Nora's client rides to Assign, as the trainer's (#2227): it starts on them.
+      setAssignPrefer(req.clientId ? { planId: row.id, clientId: req.clientId } : null);
       openRow(row);
       return;
     }
@@ -8260,7 +8272,7 @@ function BSNutriPlans({ openPlanRequest = null } = {}) {
   if (showSoundtracks) return <BSProSoundtracks role="nutritionist" onBack={() => setShowSoundtracks(false)} />;
 
   // ── Assign a catalogue meal plan to a linked client ──
-  if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} onBack={() => setAssignPlan(null)} onDone={() => { setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
+  if (assignPlan) return <BSProAssignPage role="nutritionist" plan={assignPlan} preferClientUid={assignPrefer && assignPlan.id && assignPrefer.planId === assignPlan.id ? assignPrefer.clientId : null} onBack={() => { setAssignPrefer(null); setAssignPlan(null); }} onDone={() => { setAssignPrefer(null); setAssignPlan(null); flash(tr('coach:diet.assignedEat', { defaultValue: "Assigned — it's on their Eat tab" })); }} />;
 
   // ── A plan in the website builder's document: its own editor, its own Assign ──
   if (builderPlan) return <BSMealBuilderEditor key={builderPlan.id} plan={builderPlan} ownerId={accountId} onClose={() => setBuilderPlan(null)}

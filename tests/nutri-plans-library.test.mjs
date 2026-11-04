@@ -182,3 +182,25 @@ test('Nora\'s "Open in builder" lands on the plan, on its tab, once the library 
     assert.match(m2.text(), /That plan isn't in your library yet/);
   } finally { await m2.close(); }
 });
+
+test('Nora\'s client rides to Assign: the plan she drafted for them opens Assign with them picked (Codex on #2594)', async () => {
+  stubBackend();
+  W.DashMeals = DashMeals;
+  W.ShapeAssign = { clients: async () => [{ userId: 'cl-9', name: 'Sam Rivera', sessions: 2 }, { userId: 'cl-2', name: 'Ada Obi' }], mealPlan: async () => ({ ok: true }) };
+  const pickedRow = (m) => [...m.host.querySelectorAll('button')].find((b) => /Sam Rivera/.test(b.textContent));
+  const m = await mount({ openPlanRequest: { planId: 'mp-web', clientId: 'cl-9', nonce: 11 } });
+  try {
+    assert.ok(m.q('[data-meal-builder-editor]'), 'the plan, in its editor');
+    await m.click(m.q('[data-meal-assign]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.match(pickedRow(m).textContent, /✓$/, 'Sam is picked');
+    assert.doesNotMatch([...m.host.querySelectorAll('button')].find((b) => /Ada Obi/.test(b.textContent)).textContent, /✓$/);
+    // The same plan opened again from a card with no client: Sam is not kept for it.
+    await m.render({ openPlanRequest: { planId: 'mp-web', nonce: 12 } });
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.ok(m.q('[data-meal-builder-editor]'), 'the plan, in its editor again');
+    await m.click(m.q('[data-meal-assign]'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.doesNotMatch(pickedRow(m).textContent, /✓$/, 'nobody picked');
+  } finally { await m.close(); delete W.ShapeAssign; }
+});

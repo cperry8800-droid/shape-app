@@ -15,6 +15,7 @@ import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 import { bumpSignOutGen } from '../services/signOutGen.mjs';
 import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
+import { heldCoachRoles, coachPlanSwitch, holdCoachPlan } from '../services/coachPlanRoute.mjs';
 import { copyIndex } from '../../../src/lib/click-capture.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
@@ -1593,6 +1594,30 @@ function BSAppShell({ tweaks, setTweak }) {
     const profileRole = authState?.profile?.role;
     if (profileRole) setRole(profileRole);
   }, [authState?.profile?.role]);
+
+  // ⚠ "OPEN IN BUILDER" FOR THE OTHER COACH APP (Codex on #2594). Nora drafts for every coach role
+  // the account holds, so a trainer who is also a nutritionist can have a nutrition plan drafted
+  // from the trainer app, where nothing answers its card (and the other way round). Here the app
+  // switches to the coach app the plan belongs to, as Profile mode does, and hands the request
+  // over; the shell it mounts opens it (services/coachPlanRoute.mjs). The shell on screen answers
+  // its own plans, and then this does nothing.
+  const roleNow = React.useRef(role);
+  roleNow.current = role;
+  const setTweakNow = React.useRef(setTweak); // a plain function, new each render
+  setTweakNow.current = setTweak;
+  useEffectBSM(() => {
+    const onOpenPlan = (e) => {
+      const detail = e && e.detail;
+      const held = heldCoachRoles(window.ShapeAuth?.getCachedState?.()?.profile);
+      const target = coachPlanSwitch(detail, roleNow.current, held);
+      if (!target) return;
+      holdCoachPlan(window, detail);
+      setRole(target);
+      setTweakNow.current('role', target);
+    };
+    window.addEventListener('shape:openCoachPlan', onOpenPlan);
+    return () => window.removeEventListener('shape:openCoachPlan', onOpenPlan);
+  }, []);
 
   // Apply the saved units preference (Imperial / Metric) at startup so weight
   // & distance readouts format correctly before Settings is ever opened.

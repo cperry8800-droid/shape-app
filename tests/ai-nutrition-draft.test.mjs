@@ -48,7 +48,7 @@ test('the generator is asked as the app\'s builder asks it, with no client\'s na
 test('the answer is read with the app\'s parsers: a line a week for a program, the template when it will not parse', () => {
   const prog = cleanNutritionBrief({ kind: 'program', weeks: 3 });
   const a = nutritionDraftFrom(prog, ARC);
-  assert.deepEqual(a, { lines: ['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros'], name: 'Habit reset', note: 'Check allergies first.', source: 'ai' });
+  assert.deepEqual(a, { lines: ['Week 1 — Reset & habits', 'Week 2 — Build routine', 'Week 3 — Dial macros'], name: 'Habit reset', note: 'Check allergies first.', source: 'ai', weeks: 3 });
   // A program whose lines are not weeks (or repeat a week) is refused whole: the app's template.
   for (const bad of [{ blocks: [{ title: 'Monday', detail: 'x' }, { title: 'Tuesday', detail: 'y' }] }, { blocks: [{ title: 'Week 1', detail: 'a' }, { title: 'Week 1', detail: 'b' }] }, null]) {
     const t = nutritionDraftFrom(prog, { source: 'openai', draft: bad });
@@ -59,6 +59,37 @@ test('the answer is read with the app\'s parsers: a line a week for a program, t
   const diet = nutritionDraftFrom(cleanNutritionBrief({ kind: 'diet' }), DIET);
   assert.deepEqual(diet.lines, ['Breakfast options — Oats, eggs, Greek yogurt', 'Foods to avoid — Fried food, sugary drinks']);
   assert.equal(diet.source, 'template');
+  assert.equal(diet.weeks, null, 'a diet has no length');
+});
+
+test('a program is as long as the weeks it holds, not the weeks asked for (Codex on #2594)', async () => {
+  // The generator answered a four-week request with six weeks (its own duration says six).
+  const SIX = { source: 'openai', draft: { title: 'Long reset', duration: '6 weeks', blocks: [1, 2, 3, 4, 5, 6].map((i) => ({ label: `W${i}`, title: `Week ${i}`, detail: `Focus ${i}` })) } };
+  const b = cleanNutritionBrief({ kind: 'program', weeks: 4 });
+  const d = nutritionDraftFrom(b, SIX);
+  assert.equal(d.weeks, 6);
+  assert.equal(nutritionPlanRow(b, d, 'x').meta, 'program · 6 weeks · omnivore');
+  assert.equal(nutritionDraftDiff(b, d).find((r) => r.label === 'Length').after, '6 weeks (asked for 4)');
+  // Counted as the builder counts it: the highest week a line states.
+  const gap = nutritionDraftFrom(b, { source: 'openai', draft: { blocks: [{ title: 'Week 1', detail: 'Base' }, { title: 'Week 6', detail: 'Peak' }] } });
+  assert.equal(gap.weeks, 6);
+  // The starting template is four weeks, whatever was asked.
+  const eight = cleanNutritionBrief({ kind: 'program', weeks: 8 });
+  const t = nutritionDraftFrom(eight, { source: 'openai', draft: { blocks: [{ title: 'nope' }] } });
+  assert.equal(t.weeks, 4);
+  assert.equal(nutritionPlanRow(eight, t, 'x').meta, 'program · 4 weeks · omnivore');
+  // As asked: the card says the length alone.
+  const asked = nutritionDraftFrom(cleanNutritionBrief({ kind: 'program', weeks: 3 }), ARC);
+  assert.equal(nutritionDraftDiff(cleanNutritionBrief({ kind: 'program', weeks: 3 }), asked).find((r) => r.label === 'Length').after, '3 weeks');
+  // And Nora is told to say so when it differs.
+  const reg = registry();
+  const prop = await proposeChange({ registry: reg, action: 'draft_nutrition_program', input: { kind: 'program', request: 'a reset', weeks: 4 }, actor, ctx: ctxFor(db(), { generated: SIX }), secret: SECRET });
+  assert.equal(prop.ok, true, prop.message);
+  assert.match(prop.preview.note, /The builder drafted 6 weeks, not the 4 asked for: say so\./);
+  assert.equal(verifyToken(prop.token, SECRET).confirmedPayload.row.meta, 'program · 6 weeks · omnivore');
+  const same = await proposeChange({ registry: reg, action: 'draft_nutrition_program', input: { kind: 'program', request: 'a reset', weeks: 3 }, actor, ctx: ctxFor(db(), { generated: ARC }), secret: SECRET });
+  assert.equal(same.ok, true, same.message);
+  assert.doesNotMatch(same.preview.note, /The builder drafted/);
 });
 
 test('the saved row is the app\'s own document for the kind; the card shows every line and where it came from', () => {

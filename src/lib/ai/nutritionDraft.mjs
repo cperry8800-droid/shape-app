@@ -14,7 +14,7 @@
 // It is saved as the app's own document (coach_plans kind 'meal_plan', detail.buildType 'program' or
 // 'diet', the shape BSNutriPlans publishes), unpublished, so it opens in the app's editor.
 
-import { bsDraftFromResponse } from '../../../public/newdesign/planOutline.mjs';
+import { bsDraftFromResponse, bsAssignWeekLine, bsWeekUnits, bsWeekSpan } from '../../../public/newdesign/planOutline.mjs';
 import { clipText } from './workoutDraft.mjs';
 
 export const NUTRITION_DRAFT_KINDS = ['program', 'diet'];
@@ -78,12 +78,20 @@ export function generatePlanBody(brief) {
   };
 }
 
-/** The generator's answer read the way the app reads it: { lines, name, note, source }. */
+// A program's length is the weeks its lines hold, not the weeks asked for: the generator may answer
+// a four-week request with six (it says so in its own `duration`, Codex on #2594), and the starting
+// template is four whatever was asked. Counted as the plan builder counts it (bsWeekSpan: the
+// highest week a line states), so the card, the row and Assign tell one length.
+const weeksIn = (lines) => bsWeekSpan(bsWeekUnits(lines.map((l) => bsAssignWeekLine(l))));
+
+/** The generator's answer read the way the app reads it: { lines, name, note, source, weeks }. */
 export function nutritionDraftFrom(brief, response) {
   const data = response && typeof response === 'object' ? response : {};
   const used = data.draft ? bsDraftFromResponse(MODE[brief.kind], data.draft, null) : null;
-  if (!used) return { lines: TEMPLATE_LINES[brief.kind].slice(), name: '', note: '', source: 'template' };
-  return { lines: used.lines, name: used.name || '', note: used.note || '', source: data.source === 'openai' ? 'ai' : 'template' };
+  const out = used
+    ? { lines: used.lines, name: used.name || '', note: used.note || '', source: data.source === 'openai' ? 'ai' : 'template' }
+    : { lines: TEMPLATE_LINES[brief.kind].slice(), name: '', note: '', source: 'template' };
+  return { ...out, weeks: brief.kind === 'program' ? weeksIn(out.lines) : null };
 }
 
 const typeWord = (kind) => (kind === 'program' ? 'program' : 'diet');
@@ -92,7 +100,7 @@ const typeWord = (kind) => (kind === 'program' ? 'program' : 'diet');
 export function nutritionPlanRow(brief, draft, planId) {
   const name = brief.name || clipText(draft.name, 80) || `${brief.goal} ${typeWord(brief.kind)}`;
   const facts = [typeWord(brief.kind)];
-  if (brief.kind === 'program') facts.push(`${brief.weeks} weeks`);
+  if (brief.kind === 'program') facts.push(`${draft.weeks} weeks`);
   if (brief.kcal) facts.push(`${brief.kcal} kcal`);
   facts.push(brief.diet.toLowerCase());
   return {
@@ -122,7 +130,9 @@ export function nutritionDraftDiff(brief, draft) {
   }];
   rows.push({ label: 'Goal', after: brief.goal });
   rows.push({ label: 'Diet', after: brief.diet });
-  if (brief.kind === 'program') rows.push({ label: 'Length', after: `${brief.weeks} weeks` });
+  if (brief.kind === 'program') {
+    rows.push({ label: 'Length', after: draft.weeks === brief.weeks ? `${draft.weeks} weeks` : `${draft.weeks} weeks (asked for ${brief.weeks})` });
+  }
   if (brief.kcal) rows.push({ label: 'Calories', after: `${brief.kcal} kcal a day` });
   draft.lines.forEach((line) => rows.push({ label: '', after: line }));
   return rows;
