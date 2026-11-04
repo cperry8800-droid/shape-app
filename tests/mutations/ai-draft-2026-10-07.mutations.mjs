@@ -184,7 +184,7 @@ export default {
       find: '        {status === \'done\' && open && (',
       replace: '        {open && (' },
     { name: 'app: Open names no plan', file: APP,
-      find: "    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null } })); } catch (e) {}",
+      find: "    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { planId: open.planId, clientId: open.clientId || null, planKind: open.planKind || null } })); } catch (e) {}",
       replace: "    try { window.dispatchEvent(new CustomEvent('shape:openCoachPlan', { detail: { url: open.url } })); } catch (e) {}" },
     { name: 'app: a line is drawn as a change', file: APP,
       find: "  const isLine = (d) => !!d && typeof d === 'object' && !Object.prototype.hasOwnProperty.call(d, 'before');",
