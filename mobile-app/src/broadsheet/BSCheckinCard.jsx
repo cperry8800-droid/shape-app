@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { bsCleanSheet } from './bsCleanType.jsx';
 import { morningReadiness, mrWatchForDay } from '../services/morningReadiness.mjs';
 import { bsCiWordIndex, bsCiIso, bsCiHM, bsCiWords, bsCiLowerIn, bsLeadReason } from '../services/leadReason.mjs';
-import { bsGlassFill, bsGlassBorder } from './BSProInstrument.jsx';
+import { bsRaised } from './BSProInstrument.jsx';
 
 // The check-in's words and helpers live in the shared module the server reads too; the card, Your
 // mornings and the client module keep importing them from here.
@@ -1113,9 +1113,9 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
 export function BSMorningPanel({ children }) {
   const t = window.useBS();
   return (
-    // Glass in the paper's own colour (owner, 2026-11-04: "apply that to all the boxes that had the grey
-    // coloring", "make sure the glassy look matches the print color").
-    <section data-bs-morning="" style={{ margin: `8px ${t.padX}px 4px`, padding: '12px 12px 11px', borderRadius: 14, ...bsGlassFill(t), border: bsGlassBorder(t) }}>
+    // Round and raised in the paper's own colour, as every box on Home (owner, 2026-11-04: "make sure the
+    // glassy look matches the print color", "this doesnt go together now").
+    <section data-bs-morning="" style={{ margin: '10px 10px 4px', padding: '12px 14px 11px', ...bsRaised(t) }}>
       {children}
       <style>{`[data-bs-morning] [data-bs-checkin-card] + [data-bs-water]{margin-top:10px;padding-top:10px;border-top:1px solid ${t.HAIR}}`}</style>
     </section>

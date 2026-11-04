@@ -67,8 +67,9 @@ export function bsProDeckTheme(t) {
 // A mono eyebrow on the deck (the date, "＋ ADD", the published count).
 export const bsDeckEyebrow = (color) => ({ fontFamily: BS_DECK_MONO, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color, whiteSpace: 'nowrap' });
 
-// The band: glass in the paper's colour, the title in Saira light with the role's full stop, an aside on
-// its baseline, what the page puts in it, and a hairline from ink to teal along its foot. A step tighter (owner, 2026-11-04: "condense
+// The deck: a round, raised box in the paper's colour (bsRaised) inset from the page's edges, its teal edge
+// along the top, the title in Saira light with the role's full stop, an aside on its baseline, and what the
+// page puts in it. A step tighter (owner, 2026-11-04: "condense
 // these boxes slightly"): 12px over and 14px under (16 and 18 before), the title 30px (34), the week's days
 // 54px tall (64), the gauges 28px (32).
 export function BSProDeck({ t, role, title, aside, tour, label, children, stopColor }) {
@@ -77,7 +78,7 @@ export function BSProDeck({ t, role, title, aside, tour, label, children, stopCo
   const heat = stopColor || bsProDeckHeat(role);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-pro-deck="" data-glass="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ position: 'relative', color: d.INK, padding: '12px 0 14px', marginTop: 4, ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }}>
+    <section data-pro-deck="" data-glass="" aria-label={label || (typeof title === 'string' ? title : undefined)} style={{ color: d.INK, padding: '12px 0 14px', margin: '6px 10px 0', ...bsRaised(t) }}>
       <BSGlassEdge t={t} />
       <div style={{ padding: `0 ${t.padX}px`, display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         {/* The title keeps its width (up to most of the row) and the aside wraps beside it, so a long line
@@ -88,7 +89,6 @@ export function BSProDeck({ t, role, title, aside, tour, label, children, stopCo
         {aside ? <div data-deck-aside="" style={{ flex: '0 1 auto', minWidth: 0, display: 'flex', justifyContent: 'flex-end', textAlign: 'right' }}>{aside}</div> : null}
       </div>
       {children}
-      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${d.TEAL})`, opacity: 0.9 }} />
     </section>
   );
   return Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;
@@ -177,24 +177,27 @@ export function BSProMeter({ t, pct, hue, ticks = 10 }) {
   );
 }
 
-// ⚠ THE PLATE, ROUND AND RAISED (owner, 2026-11-04: "round out this box. dont love the look of it. maybe it
-// round and popping, almost 3d"): no cut corner and no hard rule. A 20px round in the paper's own colour,
-// lit from the top (a light-to-clear sheen with a bright top edge and a darker lower lip), the role's heat
-// as a glow from its top-left corner, and a layered shadow that lifts it off the page.
-export const bsProPlate = (t, heat) => {
+// ⚠ ROUND AND RAISED (owner, 2026-11-04: "round out this box. dont love the look of it. maybe it round and
+// popping, almost 3d", then of the Today band over it: "this doesnt go together now"). Every box on these
+// pages shares it: a 20px round in the paper's own colour, lit from the top (a light-to-clear sheen with a
+// bright top edge and a darker lower lip), with a layered shadow that lifts it off the page. `glow` (the
+// role's heat on Up next) warms its top-left corner.
+export function bsRaised(t, glow = null) {
   const rgb = t.inkRGB || rgbOf(t.INK) || (t.isLight ? '20,18,15' : '242,237,228');
   const lit = t.isLight
     ? 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.55) 60%, rgba(255,255,255,0.32) 100%)'
     : `linear-gradient(180deg, rgba(${rgb},0.12) 0%, rgba(${rgb},0.05) 60%, rgba(${rgb},0.025) 100%)`;
   return {
     position: 'relative', borderRadius: 20, overflow: 'hidden',
-    background: `radial-gradient(120% 90% at 0% 0%, ${heat}30 0%, transparent 55%), ${lit}, ${t.PAPER}`,
+    background: `${glow ? `radial-gradient(120% 90% at 0% 0%, ${glow}30 0%, transparent 55%), ` : ''}${lit}, ${t.PAPER}`,
     border: `1px solid rgba(${rgb},${t.isLight ? 0.1 : 0.14})`,
     boxShadow: t.isLight
       ? `inset 0 1px 0 rgba(255,255,255,1), inset 0 -3px 0 rgba(${rgb},0.06), 0 2px 4px rgba(${rgb},0.08), 0 20px 36px -16px rgba(${rgb},0.38)`
       : 'inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -3px 0 rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.35), 0 22px 40px -14px rgba(0,0,0,0.85)',
   };
-};
+}
+// The plate (Up next): raised, its corner warmed by the role's heat.
+export const bsProPlate = (t, heat) => bsRaised(t, heat);
 
 // A ledger: a 2px ink rule over hairline rows, each led by its number.
 export const bsProLedgerTop = (t) => ({ borderTop: `2px solid ${t.INK}` });

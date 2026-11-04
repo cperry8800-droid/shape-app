@@ -564,6 +564,23 @@ test("a coach's note is filed by their listing id: same-named coaches each get t
   assert.match(textOf(coachBlock(nameless, 'extra')), /Only 8 wrote/);
 });
 
+// Owner, 2026-11-04: "ok add it", of the engine's move back on Home as one row: the morning panel's first,
+// only when the engine leads, "Your move" in the lever's colour, the move and its reason, the pledge a square.
+test('Your move: the engine\'s one move, its reason and its pledge, first in the morning panel and only when it leads', () => {
+  let went = 0;
+  const d = drive(S.BSHomeMoveRow, { head: 'Get to bed earlier tonight.', sub: 'Under 6h a night this week', cta: ["I'll get to bed earlier →", () => { went += 1; }], color: '#4a7bd0' });
+  assert.match(d.text, /^Your moveGet to bed earlier tonight\.Under 6h a night this week$/);
+  const go = d.nodes().find((n) => n.type === 'button' && n.props['data-bs-home-move-go'] != null);
+  assert.equal(go.props['aria-label'], "I'll get to bed earlier", 'the square says the pledge');
+  assert.equal(go.props.style.width, 44);
+  go.props.onClick();
+  assert.equal(went, 1);
+  assert.equal(drive(S.BSHomeMoveRow, { head: '', cta: null }).nodes().length, 0, 'no move, no row');
+  // Home draws it first in the panel, and only for the engine's lead (the plan's own leads are Team's).
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(src, /<BSMorningPanel>\n(\s+\{\/\*[\s\S]*?\*\/\}\n)?\s+\{todayDirective && todayDirective\.engine \? \(\n\s+<BSHomeMoveRow head=\{todayDirective\.head\} sub=\{todayDirective\.sub\} cta=\{todayDirective\.cta\} color=\{todayDirective\.c\} \/>/);
+});
+
 test('Team\'s next session opens the calendar on its day', () => {
   const opened = [];
   const next = { at: Date.parse('2026-10-24T13:00:00Z'), providerName: 'Jordan Chen', providerRole: 'trainer' };

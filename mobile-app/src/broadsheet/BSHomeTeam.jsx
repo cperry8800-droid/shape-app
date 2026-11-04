@@ -1,5 +1,5 @@
 import React from 'react';
-import { BS_GAUGE_FACE, BS_DECK_MONO, bsGlassFill, bsGlassBorder } from './BSProInstrument.jsx';
+import { BS_GAUGE_FACE, BS_DECK_MONO, bsRaised } from './BSProInstrument.jsx';
 import { useBSHomeUnread, useBSHomeNextSession } from './BSHomeSections.jsx';
 
 // ─── TEAM ───────────────────────────────────────────────────────────────────────────────────────
@@ -116,8 +116,8 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
   if (!coaches.length && !workout && !hasFuel && !showFindCoach) return null;
 
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', whiteSpace: 'nowrap' };
-  // A card is glass in the paper's own colour (owner, 2026-11-04: "apply that to all the boxes that had the grey coloring", "make sure the glassy look matches the print color").
-  const card = { marginTop: 8, padding: '12px 14px 14px', borderRadius: 6, ...bsGlassFill(t), border: bsGlassBorder(t) };
+  // A card is round and raised in the paper's own colour, as every box on Home (owner, 2026-11-04).
+  const card = { marginTop: 8, padding: '12px 14px 14px', ...bsRaised(t), borderRadius: 16 };
   const btn = (primary) => ({ minHeight: 44, borderRadius: 4, border: primary ? 0 : `1px solid ${t.INK50}`, background: primary ? t.INK : 'transparent', color: primary ? t.PAPER : t.INK, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 650, cursor: 'pointer', padding: '0 12px' });
   const message = (c) => {
     const n = nNew(c);

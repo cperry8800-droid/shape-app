@@ -1,5 +1,5 @@
 import React from 'react';
-import { bsProDeckTheme, bsGlassFill, bsGlassBorder, BSGlassEdge, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
+import { bsProDeckTheme, bsRaised, BSGlassEdge, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
 import { bsHomeGoalRead } from '../services/homeWeek.mjs';
 import { bsHomeClimbState, bsClimbPoint, bsClimbPath, bsClimbRidge, BS_CLIMB_W, BS_CLIMB_H, BS_CLIMB_MILESTONES } from '../services/homeClimb.mjs';
 import { bsCiIso } from './BSCheckinCard.jsx';
@@ -37,20 +37,19 @@ function bsHdDate(iso, opts) {
   try { return dt.toLocaleDateString(bsHdLocale(), opts); } catch (e) { return dt.toDateString(); }
 }
 
-// The band: glass in the paper's own colour (bsProDeckTheme, bsGlassFill; owner, 2026-11-04: "make sure
-// the glassy look matches the print color"), handing its theme to what it holds so the radio's box and
-// the climb read on it, with the hairline from ink to teal along its foot. The paper's accent reads on it
+// The deck: a round, raised box in the paper's own colour (bsProDeckTheme, bsRaised; owner, 2026-11-04:
+// "make sure the glassy look matches the print color", "this doesnt go together now"), inset from the
+// page's edges, handing its theme to what it holds so the radio's box and the climb read on it. The paper's accent reads on it
 // as it is; it was lifted toward white while the band was dark on a light paper.
 export function BSHomeDeck({ radio = null, children }) {
   const t = window.useBS();
   const d = bsProDeckTheme(t);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-bs-home-deck="" data-glass="" style={{ position: 'relative', color: d.INK, padding: '2px 0 16px', ...bsGlassFill(t), borderTop: bsGlassBorder(t), borderBottom: bsGlassBorder(t) }}>
+    <section data-bs-home-deck="" data-glass="" style={{ color: d.INK, padding: '2px 0 14px', margin: '6px 10px 0', ...bsRaised(t) }}>
       <BSGlassEdge t={t} />
       {radio}
       {children}
-      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${d.TEAL})`, opacity: 0.9 }} />
     </section>
   );
   return Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;

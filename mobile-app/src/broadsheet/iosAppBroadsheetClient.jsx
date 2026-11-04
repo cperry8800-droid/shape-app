@@ -74,7 +74,7 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
-import { BSHomeHabitsRow, BSHomeShortcutList } from './BSHomeSections.jsx';
+import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSections.jsx';
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
@@ -4908,9 +4908,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSYourMornings onBack={() => setMorningsPage(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
   }
 
-  // ⚠ NOT DRAWN ON HOME SINCE 2026-11-03: Today's call came off Home (the owner's Home preview), so the
-  // engine's move shows nowhere on Home; Shape Daily and the pushes still carry it. Kept, with its tests,
-  // while the owner decides whether it comes back as a row (War Room).
+  // ⚠ DRAWN AS THE MORNING PANEL'S "YOUR MOVE" ROW, AND ONLY WHEN THE ENGINE LEADS (owner, 2026-11-04: "ok
+  // add it"). Today's call came off Home on 2026-11-03; the plan's own leads below (the session, a meal, the
+  // habits) are Team's and the panel's, so only `engine` draws.
   // "Today · your move" — ONE clear next move. The signal engine's top action
   // leads when it has a real flag (the RIGHT move, not just the next chronological
   // item); otherwise it synthesizes from the day's plan (workout → unlogged meals
@@ -5139,6 +5139,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           instead of at bottom"). Water shows all day and whatever the Check-ins setting (owner,
           2026-10-19), so with Check-ins off the panel holds water and the habits. */}
       <BSMorningPanel>
+        {/* Your move: the engine's one move today, first in the panel, only when it flags one (owner,
+            2026-11-04: "ok add it"). The plan's own fallbacks (the session, the next meal, the habits) are
+            Team's and the panel's already, so a day the engine flags nothing shows no row. */}
+        {todayDirective && todayDirective.engine ? (
+          <BSHomeMoveRow head={todayDirective.head} sub={todayDirective.sub} cta={todayDirective.cta} color={todayDirective.c} />
+        ) : null}
         <BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
         <BSWaterLine />
         <BSHomeHabitsRow tour="hero-habits" tweaks={tweaks} setTweak={setTweak} onOpen={() => setHabitsPage(true)} onTicked={bsScoreDirty} />
@@ -23257,8 +23263,9 @@ function BSActivityCard({ a, ctx, hideAuthor = false, onAuthorPage = false, isLa
             holds scaleX(0) — never animates at mount while offscreen); reduced
             motion renders it finished. */}
         {/* A step heavier between posts (owner, 2026-11-04: "a slightly thinker border in between activity
-            posts", on the Wall and the profile feeds): 2px (it was a 1px hairline). */}
-        {!isLast && isMag && <div aria-hidden data-bs-wall-story-rule="" style={{ height: 2, margin: '20px 12px 22px', background: bsTHexA(t.INK, 0.22) }} />}
+            posts", on the Wall and the profile feeds): 2px (it was a 1px hairline), and no gap around it
+            ("remove these gaps between activity posts"): the posts meet at the rule. */}
+        {!isLast && isMag && <div aria-hidden data-bs-wall-story-rule="" style={{ height: 2, margin: 0, background: bsTHexA(t.INK, 0.22) }} />}
         {!isLast && !isMag && (
           <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
         )}

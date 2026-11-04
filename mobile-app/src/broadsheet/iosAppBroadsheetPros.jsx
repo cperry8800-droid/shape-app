@@ -25,7 +25,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsGlassFill, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -3317,7 +3317,7 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
     rating ? `${rating} ★` : null,
   ].filter(Boolean).map((f) => f.replace(/ /g, '\u00a0')).join(' · '); // a fact breaks only between facts ("4.9" kept with its ★)
   return (
-    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', ...bsGlassFill(t), clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', cursor: 'pointer' }}>
+    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', ...bsRaised(t), cursor: 'pointer' }}>
       <span aria-hidden style={{ background: heat, color: '#f6f0e3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '10px 0' }}>
         <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 30, fontWeight: 300, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
         {sw.unit && <span style={{ marginTop: 4, fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em' }}>{sw.unit}</span>}

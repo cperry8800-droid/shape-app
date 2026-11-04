@@ -238,6 +238,37 @@ export function BSHomeHabitsRowView({ habits = [], ready = true, onToggle, onOpe
   );
 }
 
+// ── YOUR MOVE ─────────────────────────────────────────────────────────────────────────────────────
+// The engine's one move for today, back on Home as the morning panel's first row (owner, 2026-11-04: "ok
+// add it", of the row that brings back what Today's call carried): only when the engine flags something
+// (sleep, water, energy, hunger, the weekly check-in, the streak, a meal, the goal's pace, the score), so a
+// day with nothing flagged reads as before. "Your move" in the lever's colour, the move, its reason in the
+// member's words, and the pledge as the panel's ink square.
+export function BSHomeMoveRow({ head, sub, cta, color }) {
+  const t = window.useBS();
+  const tr = useShapeTr();
+  if (!head) return null;
+  const go = cta && typeof cta[1] === 'function' ? cta[1] : null;
+  return (
+    <div data-bs-home-move="" style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 10, marginBottom: 10, borderBottom: `1px solid ${t.HAIR}` }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: color || t.ACCENT }}>
+          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 3, background: color || t.ACCENT, flex: 'none' }} />
+          {tr('home:lead.railHeader', { defaultValue: 'Your move' })}
+        </div>
+        <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.2, color: t.INK }}>{head}</div>
+        {sub ? <div style={{ marginTop: 2, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK70 }}>{sub}</div> : null}
+      </div>
+      {go ? (
+        <button type="button" data-bs-home-move-go="" onClick={go} aria-label={String(cta[0] || '').replace(/\s*→\s*$/, '')}
+          style={{ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, borderRadius: 6, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 // ── SHORTCUTS, AS A LIST ─────────────────────────────────────────────────────────────────────────
 // The Home preview's Shortcuts (owner, 2026-11-03): a numbered list under a 2px ink rule, each row a
 // door with its name over one line, and a chevron. No figures.
