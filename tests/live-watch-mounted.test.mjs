@@ -43,10 +43,11 @@ test('actual workout title, unit and out-of-order set identity are rendered accu
   await mount();
   assert.match(document.body.textContent, /Actual session/);
   assert.match(document.body.textContent, /Weight \(kg\)/);
-  const rows = [...document.querySelectorAll('tbody tr')];
+  // The recorded sets are glass rows (the owner's B): a row per set, its own done flag, read only.
+  const rows = [...document.querySelectorAll('[role="table"] [role="row"][data-completed]')];
   assert.deepEqual(rows.map(r => r.dataset.completed), ['false', 'true', 'false']);
-  assert.match(rows[1].textContent, /2 ✓7087/);
-  assert.equal(document.querySelectorAll('tbody input, tbody button').length, 0);
+  assert.match(rows[1].textContent, /02 ✓7087/);
+  assert.equal(document.querySelectorAll('[role="table"] input, [role="table"] button').length, 0);
   assert.equal(button('Send').disabled, true);
   await unmount();
 });
@@ -75,7 +76,8 @@ test('preset cue reaches backend once and unavailable connection disables sendin
   assert.match(document.body.textContent, /Reconnecting/);
   assert.equal(button('Slow the eccentric').disabled, true);
   await React.act(async () => observer({ status: 'idle', publicRow: null, coachRow: null }));
-  assert.equal(document.querySelector('table'), null);
+  assert.equal(document.querySelector('[role="table"]'), null);
+  assert.match(document.body.textContent, /No active workout shared/);
   assert.doesNotMatch(document.body.textContent, /Upper Pull|Barbell/);
   await unmount();
 });

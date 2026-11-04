@@ -15129,7 +15129,7 @@ function bsMapActivityPosts(data) {
 // splits/laps (Strava etc.). Returns null when the post carries neither, so the
 // section is honestly absent rather than faked.
 // A set's seconds in the COACH REVIEW'S OWN SPELLING (`42s` under a minute, `2:05`
-// over it — `formatReviewSeconds`, iosAppBroadsheetPros.jsx), so the member's Session
+// over it — `formatReviewSeconds`, BSWorkoutReview.jsx), so the member's Session
 // details and the coach's review of the same set cannot print one duration two ways.
 // ⚠ `> 0` IS THE GUARD; `Number.isFinite` IS NOT. `Number(null)`, `Number('')` and
 // `Number([])` are all 0 and all FINITE, so a finiteness check alone turns an absent
