@@ -56,16 +56,17 @@ test('on someone else\'s page Follow is the lit tile and Message a quiet one bes
   const [message] = withAttr(d.nodes(), 'data-follow-message');
   assert.equal(toggle.props.style.background, '#34d6c5');
   assert.equal(toggle.props.style.backgroundImage, bento.BS_MP_SHEEN, 'the lit tile lost its sheen');
-  assert.equal(toggle.props.style.borderRadius, 18);
+  assert.equal(toggle.props.style.borderRadius, 14);
   // Condensed (owner, 2026-11-04: "condense these"): the icon beside the words, one row.
   assert.equal(toggle.props.style.flexDirection, 'row');
   assert.notEqual(message.props.style.background, '#34d6c5', 'Message is lit');
   assert.equal(message.props.style.backgroundImage, undefined, 'Message has the sheen');
   assert.match(message.props.style.border, /^1px solid rgba\(/, 'Message is not the quiet tile');
-  assert.equal(message.props.style.borderRadius, 18);
+  assert.equal(message.props.style.borderRadius, 14);
   const [grid] = withAttr(d.nodes(), 'data-follow-actions');
-  assert.equal(grid.props.style.gridAutoRows, 'minmax(54px, auto)', 'the tiles are not condensed');
+  assert.equal(grid.props.style.gridAutoRows, 'minmax(44px, auto)', 'the tiles are not condensed');
   assert.equal(grid.props.style.gridTemplateColumns, 'repeat(2, minmax(0, 1fr))', 'Follow and Message are not side by side');
+  assert.equal(grid.props.style.gap, 10, 'Follow and Message lost the room between them');
   assert.equal(toggle.props.style.gridColumn, 'auto');
   // With no Message, Follow takes the row.
   const alone = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
@@ -114,18 +115,23 @@ test('on your own page Log activity is the lit tile over two columns, Edit profi
   const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
   const nodes = d.nodes();
   const [grid] = withAttr(nodes, 'data-member-actions');
-  assert.equal(grid.props.style.gridTemplateColumns, 'repeat(3, minmax(0, 1fr))');
+  // Owner, 2026-11-04: "dont have to be such think bubbles, with slightly more spacing between them":
+  // Log three fifths, Edit two (its words on one line at 390px), 44px thin, 10px apart.
+  assert.equal(grid.props.style.gridTemplateColumns, 'minmax(0, 3fr) minmax(0, 2fr)');
+  assert.equal(grid.props.style.gap, 10);
   const [log] = withAttr(nodes, 'data-member-log');
   const [edit] = withAttr(nodes, 'data-member-edit');
-  assert.equal(log.props.style.gridColumn, 'span 2');
+  assert.equal(log.props.style.gridColumn, undefined);
+  assert.equal(log.props.style.borderRadius, 14);
   assert.equal(log.props.style.backgroundImage, bento.BS_MP_SHEEN);
-  assert.equal(log.props.style.boxShadow.startsWith('0 10px 22px -6px rgba('), true);
-  assert.equal(grid.props.style.gridAutoRows, 'minmax(54px, auto)', 'the tiles are not condensed');
+  assert.equal(log.props.style.boxShadow.startsWith('0 6px 14px -6px rgba('), true);
+  assert.equal(grid.props.style.gridAutoRows, 'minmax(44px, auto)', 'the tiles are not condensed');
   assert.equal(edit.props.style.backgroundImage, undefined, 'Edit profile is lit');
   assert.equal(edit.props.style.alignItems, 'center', 'Edit profile is not the narrow tile');
   assert.equal(edit.props.style.overflowWrap, 'anywhere', 'a long word ("Редактировать") runs out of the narrow tile');
   // The coach is a wide tile with the phase as chips, and still opens the coach.
   const [coach] = withAttr(nodes, 'data-member-coach');
+  assert.equal(coach.props.style.marginTop, 10, 'the coach tile sits tight under the tiles again');
   // Condensed: "Coached by" and the name on one line.
   assert.match(textOf(coach), /^MOCoached by Maya Okafor/);
   assert.equal(withAttr(nodes, 'data-member-phase').length, 1, 'the phase lost its chips');

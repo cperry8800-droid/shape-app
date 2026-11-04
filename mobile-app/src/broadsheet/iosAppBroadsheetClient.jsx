@@ -15824,14 +15824,14 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
              activity and Edit profile are on your own page; the tiles keep the weights they are written
              with (BSCleanType), the counts above keep theirs. */
           <BSCleanType t={tFB}>
-            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(54px, auto)', gap: 6 }}>
+            <div data-follow-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
               <button type="button" data-follow-toggle="" onClick={onToggle} disabled={busy} aria-pressed={following || requested}
-                style={{ ...bsMpAction({ t: tFB, INK, c, onC, lit: !(following || requested) }), gridColumn: typeof onMessage === 'function' ? 'auto' : '1 / -1', minHeight: 46, cursor: busy ? 'default' : 'pointer' }}>
+                style={{ ...bsMpAction({ t: tFB, INK, c, onC, lit: !(following || requested) }), gridColumn: typeof onMessage === 'function' ? 'auto' : '1 / -1', minHeight: 44, cursor: busy ? 'default' : 'pointer' }}>
                 <BSMpIconBox name={following ? 'check' : requested ? 'clock' : 'plus'} ink={following || requested ? INK : onC} />
                 <span>{following ? tr('profile:follow.following', { defaultValue: 'Following' }) : requested ? tr('profile:follow.requested', { defaultValue: 'Requested' }) : tr('profile:follow.followShort', { defaultValue: 'Follow' })}</span>
               </button>
               {typeof onMessage === 'function' ? (
-                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...bsMpAction({ t: tFB, INK, c, onC }), minHeight: 46 }}>
+                <button type="button" data-follow-message="" onClick={() => onMessage()} style={{ ...bsMpAction({ t: tFB, INK, c, onC }), minHeight: 44 }}>
                   <BSMpIconBox name="chat" ink={INK} />
                   <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('profile:terrain.messageName', { defaultValue: 'Message {name}', name: firstName })}</span>
                 </button>
@@ -19182,9 +19182,9 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
         // tint of the tier's colour.
         const phaseParts = String(programEff || '').split(' · ').map((x) => x.trim()).filter(Boolean);
         const phaseChips = (
-          <span data-member-phase="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 3 }}>
+          <span data-member-phase="" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 1 }}>
             {blockEff ? <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{blockEff}</span> : null}
-            {phaseParts.map((p, i) => <span key={i} style={{ padding: '1px 7px', borderRadius: 99, background: bsTHexA(c, tTheme.isLight ? 0.2 : 0.22), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 650, lineHeight: 1.4 }}>{p}</span>)}
+            {phaseParts.map((p, i) => <span key={i} style={{ padding: '0 6px', borderRadius: 99, background: bsTHexA(c, tTheme.isLight ? 0.2 : 0.22), color: INK, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 650, lineHeight: 1.45 }}>{p}</span>)}
           </span>
         );
         // The tier ridge over the cover (owner, 2026-11-03: "this top section should show the tier line
@@ -19301,20 +19301,22 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   ) : null}
                 </BSFollowBlock>
               </div>
-              {/* Your own actions as tiles: Log activity lit in the tier's colour over two of three columns,
-                  Edit profile a quiet tile beside it; the tiles keep the weights they are written with
-                  (BSCleanType), the counts above keep theirs. */}
+              {/* Your own actions as tiles: Log activity lit in the tier's colour over three fifths, Edit
+                  profile a quiet tile beside it (two fifths, so its words hold one line at 390px), 44px thin
+                  with 10px between (owner, 2026-11-04: "dont have to be such think bubbles, with slightly more
+                  spacing between them"); the tiles keep the weights they are written with (BSCleanType), the
+                  counts above keep theirs. */}
               <BSCleanType t={tTheme}>
               {isSelf ? (
-                <div data-member-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gridAutoRows: 'minmax(54px, auto)', gap: 6 }}>
-                  <button type="button" data-member-log="" onClick={() => setShowLog(true)} style={{ ...bsMpAction({ t: tTheme, INK, c, onC, lit: true }), gridColumn: 'span 2' }}>
+                <div data-member-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
+                  <button type="button" data-member-log="" onClick={() => setShowLog(true)} style={bsMpAction({ t: tTheme, INK, c, onC, lit: true })}>
                     <BSMpIconBox name="plus" ink={onC} />
                     <span>{tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</span>
                   </button>
                   {/* The host's own editor when it has one (Settings → Public profile: the name and initials;
                       Codex P2 on #2546), else the profile's; the ✎ above always opens the profile's. */}
                   <button type="button" data-member-edit="" onClick={() => { if (typeof onEdit === 'function') onEdit(); else setShowCustomizer(true); }} style={bsMpAction({ t: tTheme, INK, c, onC, compact: true })}>
-                    <BSMpIconBox name="pencil" ink={INK} size={26} />
+                    <BSMpIconBox name="pencil" ink={INK} size={20} />
                     <span>{tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })}</span>
                   </button>
                 </div>
@@ -19323,25 +19325,25 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   never a made-up coach on someone else's real profile. A wide tile: the coach's initials in
                   a ring of their colour, their name, the phase as chips. */}
               {coachTile ? (
-                <div data-member-coach="" style={{ marginTop: 6, display: 'flex' }}>
+                <div data-member-coach="" style={{ marginTop: 10, display: 'flex' }}>
                   {showCoachLink ? (
                     <button type="button" onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })}
-                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 18, flex: 1, minWidth: 0, minHeight: 52, display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px 7px 8px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
-                      <span aria-hidden style={{ flex: 'none', width: 36, height: 36, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
-                        <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 12, fontWeight: 700 }}>{coachInitEff}</span>
+                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px 5px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
+                      <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
+                        <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 10.5, fontWeight: 700 }}>{coachInitEff}</span>
                       </span>
                       {/* One line for who (owner, 2026-11-04: "condense these"): "Coached by" and the name, then the phase. */}
                       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>
                           <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{capFirst(tr('profile:terrain.coachedBy', { defaultValue: 'coached by' }))}</span>{' '}
-                          <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em' }}>{coachNameEff}</span>
+                          <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{coachNameEff}</span>
                         </span>
                         {phaseLine ? phaseChips : null}
                       </span>
                       <span aria-hidden style={{ flex: 'none', color: bsTHexA(INK, 0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span>
                     </button>
                   ) : (
-                    <div style={{ ...bsMpTile(tTheme, INK), borderRadius: 18, flex: 1, minWidth: 0, padding: '8px 12px' }}>{phaseChips}</div>
+                    <div style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, padding: '6px 12px' }}>{phaseChips}</div>
                   )}
                 </div>
               ) : null}
