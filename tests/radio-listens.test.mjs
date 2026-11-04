@@ -274,7 +274,7 @@ test('⚠ every play is Shape\'s own station\'s, counted (zero is a count), one 
   const before = await performanceReport(fakeDb({ nora_engine_log: log }, { missing: ['radio_listens'] }), monthRange('2026-11'), { now: NOW });
   assert.equal(before.ok, true);
   assert.deepEqual(before.plays.map((p) => p.performances), [null, null, null]);
-  assert.deepEqual([before.totals.tuningHours, before.totals.sessions], [null, null]);
+  assert.deepEqual([before.totals.tuningHours, before.totals.sessions, before.totals.measuredPlays], [null, null, 0], 'nothing measured before the migration');
   // Any other fault is no report, never a report of nothing.
   assert.deepEqual(await performanceReport(fakeDb({ nora_engine_log: log }, { fail: ['select:radio_listens'] }), monthRange('2026-11'), { now: NOW }), { ok: false, error: 'read_failed' });
   assert.deepEqual(await performanceReport(fakeDb({}, { fail: ['select:nora_engine_log'] }), monthRange('2026-11'), { now: NOW }), { ok: false, error: 'read_failed' });
