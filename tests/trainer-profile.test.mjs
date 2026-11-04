@@ -1389,12 +1389,13 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
 
 test('the tabs set smaller until the row holds them, down to 11.5px; a row that still runs over fades at its edge', async () => {
   // Owner, 2026-11-04: "these tabs are also going off page". jsdom lays nothing out, so the row's widths
-  // are stood in for: each tab's words take 0.6em a letter, its sides 10px, a hairline 1px.
+  // are stood in for: each tab's words take 0.6em a letter (0.66em set bold, as the picked one is), its
+  // sides 10px, a hairline 1px.
   const P = window.HTMLElement.prototype;
   const saved = ['clientWidth', 'scrollWidth'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]);
-  // Her day, About me, The studio, Replays, Activity: 40 letters, so 378px at 13px and 354px at 12px.
+  // Her day (picked), About me, The studio, Replays, Activity: 359px at 12px, 371px at 12.5px.
   let room = 360;
-  const need = (nav) => 12 + [...nav.querySelectorAll('[data-profile-tab]')].reduce((w, b) => w + b.textContent.length * 0.6 * parseFloat(b.style.fontSize) + 10, 0)
+  const need = (nav) => 12 + [...nav.querySelectorAll('[data-profile-tab]')].reduce((w, b) => w + b.textContent.length * (b.style.fontWeight === '600' ? 0.66 : 0.6) * parseFloat(b.style.fontSize) + 10, 0)
     + nav.querySelectorAll('[data-profile-tab-rule]').length;
   Object.defineProperty(P, 'clientWidth', { configurable: true, get() { return this.tagName === 'NAV' ? room : 0; } });
   Object.defineProperty(P, 'scrollWidth', { configurable: true, get() { return this.tagName === 'NAV' ? Math.max(room, need(this)) : 0; } });
@@ -1408,6 +1409,10 @@ test('the tabs set smaller until the row holds them, down to 11.5px; a row that 
     assert.deepEqual(s, [12, 12, 12, 12, 12], 'the largest half point that fits: 12.5 needs 366px of 360');
     assert.ok(need(nav) <= room, 'the row holds them');
     assert.ok(!nav.querySelector('[data-profile-tab-fade]'), 'no fade on a row that fits');
+    // Picking a longer tab sets it bold: 361px at 12px, so the row is fitted again (Codex P2 on #2590).
+    await click(button(/^The studio$/));
+    assert.deepEqual(sizes(), [11.5, 11.5, 11.5, 11.5, 11.5], 'fitted again for the bold pick');
+    assert.ok(need(nav) <= room, 'the row still holds them');
     await m.unmount();
     // Too narrow even at 11.5px: the row keeps 11.5 and scrolls, with a fade on the side there is more.
     room = 200;

@@ -680,7 +680,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   ];
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
   const [tabNav, setTabNav] = React.useState(null);
-  const tabFit = useTabFit(tabNav, tabs.map(([k, l]) => `${k}:${l}`).join('|'), tabs.length > 3 ? 13 : 15);
+  // The picked tab is set bold, so picking another changes the row's width: it is part of the key, and
+  // the row is fitted again (Codex P2 on #2590).
+  const tabFit = useTabFit(tabNav, `${tabNow}|${tabs.map(([k, l]) => `${k}:${l}`).join('|')}`, tabs.length > 3 ? 13 : 15);
   const tabEdges = useTabEdges(tabNav, tabFit.more);
 
   if (page === 'edit' && editReady) {
