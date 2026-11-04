@@ -1,9 +1,10 @@
 import React from 'react';
 import { bsUserGoalsRevHook } from '../services/userGoalsRefresh.mjs';
 import { createPortal } from 'react-dom';
-import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
-import { STUDIO_WORDS, STUDIO_KIT, bsStudioSvg, bsStudioRoom, bsStudioSpot, bsStudioDrawOrder, bsStudioFrame, BS_STUDIO_W, BS_STUDIO_H } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioWork, bsWorkPaid, bsPlateNoteDays, energySplit } from '../services/coachWork.mjs';
+import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
+import { STUDIO_WORDS } from '../services/studioKit.mjs';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsPlateNoteDays, energySplit } from '../services/coachWork.mjs';
+import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel, bsStudioFocusLabel } from './BSCoachStudio.jsx';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
@@ -35,16 +36,14 @@ const BS_OWN_PROFILE_KINDS = ['profile_custom'];
 //   Her day     the coach's week of open times and a day as it really is: open times you can
 //               take (a free intro call, booked at that time), and busy time that says only
 //               that it is busy. From the same public read the listing books from.
-//   The studio  their space as they drew it (Make it yours → Your space); tap a number for
-//               what they do there, in their words. Their listing photos under it.
-//   Replays     their work, in three parts (owner, 2026-10-29: "There needs to be videos in replays of
-//               specific workouts or programs"): the programs they sell, each with the one video its
-//               public preview gives free, its weeks, its first week and Buy; the workouts they posted
-//               on video; and the sessions they logged, stepped set by set with their note.
-//               (coachWork.mjs.) The studio shows which of their programs' moves happen on each
-//               piece, from the moves' equipment and names, and the programs they pinned to a station
-//               (the same owner note: "The layout of the gym floor needs to include coaches workouts
-//               based on those machines").
+//   Studio      their work, in three kinds (owner, 2026-11-04, round 3 of the studio on background C:
+//               "name it studio"; the floor plan it held was "too confusing for people"): the programs
+//               they sell (bought once), every program's day and every workout they posted on video
+//               (one session each, their picks first, by focus), and their coaching by the month, each
+//               with the line they wrote about it (BSCoachStudio.jsx; coachWork.mjs's bsStudioModel).
+//               Their listing photos moved to the foot of About me.
+//   Replays     the sessions they logged, stepped set by set with their note (owner, 2026-10-29: "There
+//               needs to be videos in replays of specific workouts or programs"; those moved to Studio).
 //   Activity    what they posted that the other tabs don't show (notes, photos, links, their own
 //               runs), as the member profile's activity cards; last, after Replays or Plate notes
 //               (owner, 2026-10-31: "the coaches activity feed shouldn't be under replays, they should
@@ -111,10 +110,6 @@ const onColor = (hex) => (lum(hex) > 0.36 ? '#0b0d0c' : '#ffffff');
 const signedInUid = () => { try { return window.ShapeAuth?.getCachedState?.()?.user?.id || null; } catch (e) { return null; } };
 const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const FOCUS_POS = { top: 'center 22%', center: 'center 50%', bottom: 'center 80%' };
-const STUDIO_KIND_KEYS = {
-  private: ['kindPrivate', 'Private studio'], garage: ['kindGarage', 'Garage gym'], gym: ['kindGym', 'Full gym'], pilates: ['kindPilates', 'Pilates studio'],
-  boxing: ['kindBoxing', 'Boxing gym'], outdoor: ['kindOutdoor', 'Outdoors'], kitchen: ['kindKitchen', 'Kitchen'], blank: ['kindBlank', 'Their space'],
-};
 
 function sheetHost() {
   return typeof document !== 'undefined' ? (document.getElementById('bs-phone-surface') || document.body) : null;
@@ -178,7 +173,7 @@ export function BSTrainerProfile(props) {
   const [demoOwn, setDemoOwn] = React.useState(null);
   const saveDemo = (doc, changed) => setDemoOwn((prev) => {
     const next = { ...(prev || {}) };
-    for (const k of ['look', 'cover', 'studio', 'kitchen', 'about', 'prompts', 'links', 'headLinks']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
+    for (const k of ['look', 'cover', 'studio', 'kitchen', 'about', 'prompts', 'links', 'headLinks', 'focus', 'picks', 'descriptions', 'programFor']) if (changed && changed[k]) next[k] = doc && doc[k] ? doc[k] : null;
     return next;
   });
   const [live, setLive] = React.useState(null);
@@ -409,7 +404,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const where = isPrivate ? '' : ((custom && custom.bizCard && custom.bizCard.where) || (studio && studio.where) || person.city || '');
   const specialty = (!isPrivate && ((listed && (provider.specialty || provider.specialty_type)) || (sample && person.category))) || '';
   const business = !isPrivate && custom && custom.bizCard && custom.bizCard.name;
-  const roleLine = [specialty || (nutri ? tr('profile:nutri.role', { defaultValue: 'Nutritionist' }) : tr('profile:trainer.role', { defaultValue: 'Coach' })), business].filter(Boolean).join(' · ');
+  // The words under the name: the coach's focus when they chose some (Make it yours → About me, owner,
+  // 2026-11-04), each in the reader's language when it is one of Shape's; else their listing's specialty.
+  const focusWords = isPrivate || nutri ? [] : bsProfileFocus(custom && custom.focus).map((f) => bsFocusWordLabel(tr, f)).filter(Boolean);
+  const roleLine = [focusWords.length ? focusWords.join(' · ') : (specialty || (nutri ? tr('profile:nutri.role', { defaultValue: 'Nutritionist' }) : tr('profile:trainer.role', { defaultValue: 'Coach' }))), business].filter(Boolean).join(' · ');
 
   // ── Their week: the public read the listing books from ──
   const [avail, setAvail] = React.useState({ kind: 'loading' });
@@ -538,6 +536,15 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const workouts = nutri ? [] : demo ? (demo.workouts || []) : bsWorkoutVideos(postCards);
   const replays = nutri ? [] : demo ? demo.replays : postCards
     .filter((c) => c.breakdown && Array.isArray(c.breakdown.rows) && c.breakdown.rows.length && !c.video);
+  // The Studio tab's model (owner, 2026-11-04: round 3 of the studio, "name it studio"): the programs,
+  // every program's day and posted video as workouts, and the monthly coaching, with the coach's own
+  // words from their doc (descriptions, who a program is for, their picks). A private profile shows none.
+  const studioModel = nutri ? null : bsStudioModel({
+    programs, videos: workouts, monthly, offer,
+    descriptions: isPrivate ? null : bsProfileDescriptions(custom && custom.descriptions),
+    programFor: isPrivate ? null : bsProfileProgramFor(custom && custom.programFor),
+    picks: isPrivate ? [] : bsProfilePicks(custom && custom.picks),
+  });
   const buyProgram = async (pr) => {
     const pl = pr && pr.plan;
     if (!pl || !W.ShapeCoachPlans?.buy) return;
@@ -547,8 +554,6 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);
     } catch (e) { W.__bsToast?.(tr('profile:coach.checkoutError', { defaultValue: 'Could not start checkout.' }), 'err'); }
   };
-  // Each studio piece's share of those programs, by index (bsStudioWork).
-  const studioWork = studio ? bsStudioWork(studio, programs) : [];
   // A nutritionist's shared meals (the cards that carry a plate), a day to a plate note.
   const plates = !nutri ? [] : demo ? demo.plates : posts.map((p) => (W.bsProfileCardFromPost ? W.bsProfileCardFromPost(p, 'Nutritionist') : null))
     .filter((c) => c && c.meal && typeof c.meal === 'object');
@@ -652,7 +657,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const aboutDoc = isPrivate ? null : bsProfileAbout(custom && custom.about);
   const aboutPrompts = isPrivate ? [] : bsProfilePrompts(custom && custom.prompts);
   const aboutLinks = isPrivate || sample ? null : bsProfileLinkable(custom && custom.links);
-  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || certs.length);
+  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || certs.length || (!nutri && !isPrivate && media.gallery && media.gallery.length));
   // The socials in the head too, when the coach chose it in Make it yours (owner, 2026-11-03: "coaches
   // socials should be shown somewhere in this section if they choose to"): the same links About draws.
   const headSocials = custom && custom.headLinks === true && aboutLinks
@@ -661,7 +666,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // Activity is a tab of its own, last (owner, 2026-10-31: "the coaches activity feed shouldn't be
   // under replays, they should have a separate tab for activity"); it sat under the tabs.
   const gallery = media.gallery || [];
-  const hasStudio = !!(studio || gallery.length);
+  // The Studio tab: the coach's programs, workouts and coaching (BSCoachStudio.jsx).
+  const hasStudioWork = !!(studioModel && (studioModel.programs.length || studioModel.workouts.length || studioModel.coaching));
   const hasKitchen = !!(kitchen || gallery.length);
   // About me comes second, after the day, so a member meets the coach before their kitchen or studio.
   const aboutTab = isSelf || hasAbout ? [['about', tr('profile:trainer.tabAbout', { defaultValue: 'About me' })]] : [];
@@ -674,8 +680,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   ] : [
     ['day', words.day],
     ...aboutTab,
-    ...(isSelf || hasStudio ? [['studio', tr('profile:trainer.tabStudio', { defaultValue: 'The studio' })]] : []),
-    ...(isSelf || replays.length || workouts.length || programs.length ? [['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })]] : []),
+    ...(isSelf || hasStudioWork ? [['studio', tr('profile:trainer.tabStudio', { defaultValue: 'Studio' })]] : []),
+    ...(isSelf || replays.length ? [['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })]] : []),
     ...(isSelf || activity.length ? [['activity', tr('profile:tab.activity', { defaultValue: 'Activity' })]] : []),
   ];
   const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
@@ -688,7 +694,15 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   if (page === 'edit' && editReady) {
     const photos = demo ? demo.photos : [media.cover, ...(gallery.map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
     return <BSMakeItYours role={role} demo={!!demo} ownerUid={ownFor} initial={custom} startTab={editTab} startSection={editSection} who={{ name, first, photo: avatarShown, roleLine }} words={words} photos={photos}
-      programs={programs.map((pr) => ({ id: pr.id, name: pr.name }))}
+      work={studioModel ? {
+        programs: studioModel.programs.map((p) => ({ id: p.id, name: p.name, note: (p.pr && p.pr.preview && p.pr.preview.note) || '' })),
+        workouts: studioModel.workouts.map((w) => ({ key: w.key, kind: w.kind, title: w.title || tr('profile:trainer.workoutVideo', { defaultValue: 'Workout video' }),
+          facts: w.kind === 'day'
+            ? [w.program && w.program.name, bsStudioWeekday(w.label, locale), w.moves.length ? tr('profile:trainer.movesCount', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: w.moves.length + (w.more || 0) }) : null].filter(Boolean).join(' · ')
+            : tr('profile:work.kindVideo', { defaultValue: 'Video' }) })),
+        coaching: studioModel.coaching ? { blurb: (offer && typeof offer.blurb === 'string' && offer.blurb) || '' } : null,
+        specialty: specialty || '',
+      } : null}
       onClose={() => setPage(null)} onSaved={(doc, changed) => { setOwn && setOwn(doc, changed); setPage(null); }} />;
   }
   if (page === 'hours') return <BSCoachHoursPage role={role} onBack={() => { setPage(null); setAvailEpoch((n) => n + 1); }} />;
@@ -845,7 +859,14 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
             </nav>
             {/* Activity draws its cards edge to edge, as the member profile's do, so it stands in
                 for the padded body rather than inside it. */}
-            {tabNow === 'activity' ? (
+            {tabNow === 'studio' && studioModel ? (
+              <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} stickyTop={pinnedTop + 49}
+                model={studioModel} first={first} isSelf={isSelf} heat={bsStudioHeat(t, look.accent, ACC)} hasMessage={hasMessage}
+                onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
+                onWork={() => setSheet({ kind: 'work' })} onMessage={() => onMessage && onMessage(person)}
+                onDescribe={isSelf && editReady ? () => openEdit('programs') : null}
+                onPostVideo={isSelf ? () => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog('video'); } : null} />
+            ) : tabNow === 'activity' ? (
               <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first}
                 onLog={() => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(true); }}
                 ctx={cardSheets && W.BSActivityCard ? {
@@ -870,21 +891,18 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                   // 2026-10-29: "Request, saved for her"); a listing with no id has nothing to keep it on.
                   onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}
                   asks={asks} asksLive={!!providerId} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
-              ) : tabNow === 'studio' ? (
-                <StudioTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} studio={studio} gallery={gallery} isSelf={isSelf} first={first}
-                  work={studioWork} onPiece={(i) => setSheet({ kind: 'piece', i })} onDraw={() => openEdit('space')} />
               ) : tabNow === 'kitchen' ? (
                 <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
                   ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
                   sec={kitchenSec} setSec={setKitchenSec} />
               ) : tabNow === 'about' ? (
-                <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} isSelf={isSelf} first={first}
+                <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} gallery={nutri || isPrivate ? [] : (media.gallery || [])} isSelf={isSelf} first={first}
                   onEdit={() => openEdit('about')} />
               ) : tabNow === 'plates' ? (
                 <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
               ) : (
-                <ReplaysTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} programs={programs} workouts={workouts} replays={replays} isSelf={isSelf} first={first}
-                  onProgram={(pr) => setSheet({ kind: 'program', pr })} onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })}
+                <ReplaysTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
+                  onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })}
                   onLog={(kind) => { if (W.bsRequireAccount && !W.bsRequireAccount('log activity')) return; setShowLog(kind || true); }} />
               )}
             </div>
@@ -958,12 +976,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         <AskSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} role={role} providerId={providerId}
           onClose={() => setSheet(null)} />
       ) : null}
-      {sheet && sheet.kind === 'piece' && studio && studio.items[sheet.i] ? (
-        <PieceSheet t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} INK={INK} studio={studio} i={sheet.i} work={studioWork[sheet.i]} programs={programs}
-          isSelf={isSelf} first={first} words={words} onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} onProgram={(pr) => setSheet({ kind: 'program', pr })} />
-      ) : null}
       {sheet && sheet.kind === 'program' ? (
-        <ProgramSheet t={t} tr={tr} pr={sheet.pr} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} isSelf={isSelf} studio={studio} work={studioWork}
+        <ProgramSheet t={t} tr={tr} locale={locale} pr={sheet.pr} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} isSelf={isSelf}
+          item={studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null}
+          days={studioModel ? studioModel.workouts.filter((w) => w.kind === 'day' && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true })) : []}
           onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={() => setSheet({ kind: 'work' })} />
       ) : null}
       {sheet && sheet.kind === 'replay' ? (
@@ -1277,195 +1293,6 @@ function BookSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, f
           </button>
         </>
       )}
-    </Sheet>
-  );
-}
-
-// ── The studio ──────────────────────────────────────────────────────────────────────────────
-// The plan is one SVG on the fixed 344 × 528 grid, scaled to the page; its numbers are buttons
-// placed by percentage, so they scale with it and keep a 44px target.
-// A piece's name: the station's title, the coach's label, or the kit's name in the reader's language.
-const kitName = (type, tr) => tr('profile:studio.kit.' + type, { defaultValue: (STUDIO_KIT[type] || [type])[0] });
-const pieceName = (p, tr) => (p.st && p.st.title) || p.label || p.tag || kitName(p.t, tr);
-
-// The plan. A station shows its number; any other piece that holds the coach's moves (bsStudioWork)
-// is lit in the accent and can be tapped over its whole shape. Either opens the piece (onPiece, by
-// its index). The counts are in the lists under the plan, not on it: a count on the plan reads as a
-// station's number.
-// `frame` is the part of the plan drawn ([x, y, w, h], the whole plan by default; a kitchen draws
-// only its room, bsStudioFrame). `pieceLabel(p, count)` names a lit piece for a screen reader.
-export function BSStudioPlan({ t, studio, ACC, ON_ACC, ink, MONO, onPiece, work = [], door = (k) => k, tr = (k, o) => (o && o.defaultValue) || k, frame = null, pieceLabel = null }) {
-  const [fx, fy, fw, fh] = frame || [0, 0, BS_STUDIO_W, BS_STUDIO_H];
-  const room = bsStudioRoom(studio.kind);
-  const [rx, ry, rw, rh, style, radius] = room.room;
-  const order = bsStudioDrawOrder(studio.items);
-  const svgInk = t.inkRGB || '245,240,230';
-  let station = 0;
-  const marks = studio.items.map((p, i) => {
-    if (p.st) { station += 1; return { i, p, n: station }; }
-    return work[i] && work[i].count && p.t !== 'zone' ? { i, p, n: null, count: work[i].count } : null;
-  }).filter(Boolean);
-  return (
-    <div style={{ position: 'relative', width: '100%', aspectRatio: `${fw} / ${fh}`, background: t.PAPER2 }}>
-      <svg viewBox={`${fx} ${fy} ${fw} ${fh}`} width="100%" height="100%" style={{ position: 'absolute', inset: 0 }} aria-hidden>
-        <rect x={rx} y={ry} width={rw} height={rh} rx={radius} fill="none" stroke={ink(0.26)} strokeWidth="1.5" strokeDasharray={style === 'dashed' ? '5 5' : undefined} />
-        {room.doors.map(([x, y, w, h, key, lx, ly], i) => (
-          <g key={i}><rect x={x} y={y} width={w} height={h} fill={t.PAPER2} /><text x={lx} y={ly + 9} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)}>{door(key)}</text></g>
-        ))}
-        {order.map((i) => {
-          const p = studio.items[i];
-          const lit = !!p.st || !!(work[i] && work[i].count);
-          return (
-            <g key={i}>
-              <image href={bsStudioSvg(p.t, p.w, p.h, { ink: svgInk, light: t.isLight, accent: lit ? ACC : null })} x={p.x} y={p.y} width={p.w} height={p.h} />
-              {p.tag ? <text x={p.x + 9} y={p.y + 17} fontFamily="Inter, system-ui, sans-serif" fontSize="11" fontWeight="600" fill={ink(0.72)}>{p.tag}</text> : null}
-              {p.label ? <text x={p.x} y={p.y + p.h + 12} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)}>{p.label}</text> : null}
-            </g>
-          );
-        })}
-      </svg>
-      {marks.filter((x) => !x.n).map(({ i, p, count }) => {
-        // The piece's own rectangle, at least 32 points each way so a narrow rack can be tapped.
-        const w = Math.max(p.w, 32 * fw / 344), h = Math.max(p.h, 32 * fw / 344);
-        const x = p.x + p.w / 2 - w / 2, y = p.y + p.h / 2 - h / 2;
-        return (
-          <button key={i} type="button" data-piece="" onClick={onPiece ? () => onPiece(i) : undefined}
-            aria-label={pieceLabel ? pieceLabel(p, count) : tr('profile:trainer.pieceMoves', { defaultValue: '{name}: {count, plural, one {# move} other {# moves}} from the programs', name: pieceName(p, tr), count })}
-            style={{ position: 'absolute', left: `${((x - fx) / fw) * 100}%`, top: `${((y - fy) / fh) * 100}%`, width: `${(w / fw) * 100}%`, height: `${(h / fh) * 100}%`, padding: 0, border: 0, background: 'transparent', cursor: onPiece ? 'pointer' : 'default' }} />
-        );
-      })}
-      {marks.filter((x) => x.n).map(({ i, p, n }) => {
-        const [sx, sy] = bsStudioSpot(p);
-        return (
-          <button key={i} type="button" data-station="" onClick={onPiece ? () => onPiece(i) : undefined} aria-label={`${n}. ${pieceName(p, tr)}`}
-            style={{ position: 'absolute', left: `${((sx - fx) / fw) * 100}%`, top: `${((sy - fy) / fh) * 100}%`, width: 44, height: 44, margin: '-22px 0 0 -22px', padding: 0, border: 0, background: 'transparent', display: 'grid', placeItems: 'center', cursor: onPiece ? 'pointer' : 'default' }}>
-            <span style={{ width: 26, height: 26, borderRadius: 99, background: ACC, color: ON_ACC, display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 12, fontWeight: 700, boxShadow: `0 0 0 4px ${hexA(ACC, 0.22)}` }}>{n}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function StudioTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, studio, gallery, isSelf, first, work = [], onPiece, onDraw }) {
-  const kind = studio ? (STUDIO_KIND_KEYS[studio.kind] || STUDIO_KIND_KEYS.blank) : null;
-  const door = (k) => (k === 'entrance' ? tr('profile:trainer.doorEntrance', { defaultValue: 'Entrance' }) : k === 'garage' ? tr('profile:trainer.doorGarage', { defaultValue: 'Garage door' }) : tr('profile:trainer.doorDoor', { defaultValue: 'Door' }));
-  const stations = studio ? studio.items.map((p, i) => ({ p, i })).filter((x) => x.p.st) : [];
-  // The rest of the floor that holds their moves, a row per kind of piece (four treadmills are one).
-  const floor = [];
-  if (studio) {
-    const seen = new Map();
-    studio.items.forEach((p, i) => {
-      const w = work[i];
-      if (p.st || p.t === 'zone' || !w || !w.count) return;
-      const key = `${p.t}|${p.label || ''}`;
-      if (seen.has(key)) { seen.get(key).n += 1; return; }
-      const row = { i, p, n: 1, w };
-      seen.set(key, row);
-      floor.push(row);
-    });
-    floor.sort((a, b) => b.w.count - a.w.count);
-  }
-  const movesOf = (w) => tr('profile:trainer.movesCount', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: w ? w.count : 0 });
-  return (
-    <section style={{ paddingTop: 16 }}>
-      {studio ? (
-        <>
-          <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ACC }}>{tr('profile:trainer.' + kind[0], { defaultValue: kind[1] })}</span>
-          {studio.where ? <span style={{ display: 'block', marginTop: 2, fontFamily: DISPLAY, fontWeight: 500, fontSize: 18 }}>{studio.where}<span style={{ color: ACC }}>.</span></span> : null}
-          {stations.length || floor.length ? <p style={{ margin: '2px 0 0', fontSize: 13.5, color: ink(0.7) }}>{floor.length
-            ? tr('profile:trainer.tapFloor', { defaultValue: 'Tap a number, or a lit piece, to see what {name} does there.', name: first })
-            : tr('profile:trainer.tapNumber', { defaultValue: 'Tap a number to see how {name} coaches there.', name: first })}</p> : null}
-          <div style={{ marginTop: 12 }}><BSStudioPlan t={t} studio={studio} ACC={ACC} ON_ACC={ON_ACC} ink={ink} MONO={MONO} onPiece={onPiece} work={work} door={door} tr={tr} /></div>
-          {stations.length ? (
-            <ol style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0 16px' }}>
-              {stations.map(({ p, i }, n) => (
-                <li key={i}><button type="button" onClick={() => onPiece(i)} style={{ width: '100%', minHeight: 40, padding: 0, border: 0, borderBottom: `1px solid ${ink(0.11)}`, background: 'transparent', color: t.INK, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, textAlign: 'left', cursor: 'pointer' }}>
-                  <span style={{ fontFamily: MONO, color: ACC }}>{n + 1}</span><span style={{ flex: 1, minWidth: 0 }}>{p.st.title}</span>
-                  {work[i] && work[i].count ? <span style={{ flexShrink: 0, fontSize: 11.5, color: ink(0.55) }}>{movesOf(work[i])}</span> : null}
-                </button></li>
-              ))}
-            </ol>
-          ) : null}
-          {floor.length ? (
-            <div data-floor="" style={{ marginTop: 18 }}>
-              <span style={eyebrow(ink, MONO)}>{tr('profile:trainer.onTheFloor', { defaultValue: '{name}\'s workouts on the floor', name: first })}</span>
-              {floor.map(({ i, p, n, w }) => (
-                <button key={i} type="button" data-floor-row="" onClick={() => onPiece(i)} style={{ width: '100%', minHeight: 48, marginTop: 4, padding: '6px 0', border: 0, borderBottom: `1px solid ${ink(0.11)}`, background: 'transparent', color: t.INK, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer' }}>
-                  <img src={bsStudioSvg(p.t, p.w, p.h, { ink: t.inkRGB, light: t.isLight, accent: ACC })} alt="" style={{ width: 34, height: 34, objectFit: 'contain' }} />
-                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.3 }}>
-                    <span style={{ fontSize: 14.5 }}>{pieceName(p, tr)}{n > 1 ? <span style={{ color: ink(0.55) }}> ×{n}</span> : null}</span>
-                    <span style={{ fontSize: 12.5, color: ink(0.6) }}>{movesOf(w)} · {w.programs.map((x) => x.name).join(', ')}</span>
-                  </span>
-                  <span aria-hidden style={{ color: ACC }}>→</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </>
-      ) : isSelf ? (
-        <div>
-          <Hint ink={ink}>{tr('profile:trainer.studioEmptySelf', { defaultValue: 'Draw where you coach: a private studio, a garage, a full gym or a park. Members tap your stations to see how you work.' })}</Hint>
-          <button type="button" onClick={onDraw} style={{ marginTop: 12, minHeight: 46, padding: '0 16px', border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.drawSpace', { defaultValue: 'Draw your space' })}</button>
-        </div>
-      ) : null}
-      {gallery.length ? (
-        <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
-          {gallery.slice(0, 6).map((g, i) => <img key={i} src={g.url} alt={g.caption || ''} style={{ width: '100%', height: 96, objectFit: 'cover' }} />)}
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-// A piece opened from the plan: the station's words, the programs the coach pinned there, and the
-// moves of their programs done on it, a row per program (each opens the program). A program is
-// listed once: a pinned one under the pins, with its moves done here under its name, and not again
-// under "done here" (owner, 2026-10-31: "this strong in 12 is appearing on multiple machines"; asked,
-// they kept a program on every piece its moves use and had only the repeat on one sheet fixed).
-function PieceSheet({ t, tr, ACC, ink, DISPLAY, MONO, INK, studio, i, work, programs, isSelf, first, words, onClose, onWork, onProgram }) {
-  const p = studio.items[i];
-  const n = p.st ? studio.items.slice(0, i + 1).filter((q) => q.st).length : null;
-  const name = pieceName(p, tr);
-  const byId = new Map(programs.map((pr) => [pr.id, pr]));
-  const pinned = work ? [...new Set(work.pinned)].map((id) => byId.get(id)).filter(Boolean) : [];
-  const pinnedIds = new Set(pinned.map((pr) => pr.id));
-  const movesOf = new Map(work ? work.programs.map((x) => [x.id, x.moves]) : []);
-  const held = work ? work.programs.filter((x) => byId.has(x.id) && !pinnedIds.has(x.id)) : [];
-  const progRow = (pr, moves, k) => (
-    <button key={k} type="button" data-piece-program="" onClick={() => onProgram(pr)} style={{ width: '100%', minHeight: 48, padding: '9px 0', border: 0, borderTop: `1px solid ${ink(0.12)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', cursor: 'pointer' }}>
-      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
-        <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 15 }}>{pr.name}{pr.video ? <span style={{ marginLeft: 6, fontFamily: MONO, fontSize: 10, color: ACC }}>▷</span> : null}</span>
-        {moves && moves.length ? <span style={{ fontSize: 13, color: ink(0.68) }}>{moves.slice(0, 8).join(' · ')}{moves.length > 8 ? ` ＋${moves.length - 8}` : ''}</span> : null}
-      </span>
-      <span aria-hidden style={{ color: ACC }}>→</span>
-    </button>
-  );
-  return (
-    <Sheet t={t} label={name} onClose={onClose}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: ACC }}>{n ? `${n} · ` : ''}{kitName(p.t, tr)}</span>
-        <CloseX onClose={onClose} color={INK} label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
-      </div>
-      <div style={{ marginTop: 8, display: 'grid', placeItems: 'center', height: 120, background: t.PAPER2 }}>
-        <img src={bsStudioSvg(p.t, p.w, p.h, { ink: t.inkRGB, light: t.isLight, accent: ACC })} alt="" style={{ maxWidth: '70%', maxHeight: 96, width: p.w * 1.4, height: p.h * 1.4, objectFit: 'contain' }} />
-      </div>
-      <h2 style={{ margin: '12px 0 0', fontFamily: DISPLAY, fontWeight: 500, fontSize: 21, lineHeight: 1.15 }}>{name}</h2>
-      {p.st && p.st.note ? <p style={{ margin: '6px 0 0', fontSize: 14.5, lineHeight: 1.5, color: ink(0.86), whiteSpace: 'pre-wrap' }}>{p.st.note}</p>
-        : (p.st && isSelf ? <p style={{ margin: '6px 0 0', fontSize: 14, color: ink(0.6) }}>{tr('profile:trainer.stationNoNote', { defaultValue: 'Say what you do here in Make it yours → Your space.' })}</p> : null)}
-      {pinned.length ? (
-        <div data-pinned="" style={{ marginTop: 16 }}>
-          <span style={eyebrow(ink, MONO, ACC)}>{tr('profile:trainer.pinnedHere', { defaultValue: 'Programs {name} runs here', name: first })}</span>
-          {pinned.map((pr) => progRow(pr, movesOf.get(pr.id) || null, 'pin-' + pr.id))}
-        </div>
-      ) : null}
-      {held.length ? (
-        <div data-piece-moves="" style={{ marginTop: 16 }}>
-          <span style={eyebrow(ink, MONO)}>{tr('profile:trainer.movesHere', { defaultValue: 'In {name}\'s programs, done here', name: first })}</span>
-          {held.map((x) => progRow(byId.get(x.id), x.moves, 'held-' + x.id))}
-        </div>
-      ) : (isSelf && !pinned.length ? <p style={{ margin: '12px 0 0', fontSize: 13.5, lineHeight: 1.45, color: ink(0.6) }}>{tr('profile:trainer.movesHereSelf', { defaultValue: 'Moves from your published programs show here when they use this piece. You can also pin a program to a station in Make it yours.' })}</p> : null)}
-      {!isSelf ? <button type="button" onClick={onWork} style={{ marginTop: 16, width: '100%', minHeight: 50, padding: '0 14px', border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}<span style={{ color: ACC }}>→</span></button> : null}
     </Sheet>
   );
 }
@@ -1900,7 +1727,7 @@ function plateMacros(tr, m) {
 }
 // ── About: the coach's story and details, their questions and answers, and their socials ─────
 const LINK_NAMES = { instagram: 'Instagram', x: 'X', tiktok: 'TikTok', youtube: 'YouTube', substack: 'Substack' };
-function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], isSelf, first, onEdit }) {
+function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs = [], gallery = [], isSelf, first, onEdit }) {
   const how = !about || !about.how ? null
     : about.how === 'online' ? tr('profile:about.howOnline', { defaultValue: 'Coaches online' })
     : about.how === 'in_person' ? tr('profile:about.howInPerson', { defaultValue: 'Coaches in person' })
@@ -1974,6 +1801,14 @@ function AboutTab({ t, tr, ACC, ink, DISPLAY, MONO, about, prompts, links, certs
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, color: ink(0.72) }}>{bsProfileLinkText(k, links[k])} <span aria-hidden style={{ color: ACC }}>↗</span></span>
         </a>
       ))}
+    </div>
+  </>]);
+  // A trainer's listing photos, which sat under the floor plan until the Studio tab became their work
+  // (owner, 2026-11-04): where they coach, at the foot of About me.
+  if (gallery.length) sections.push(['photos', 26, <>
+    {head(tr('profile:about.photos', { defaultValue: 'Where {name} coaches', name: first }))}
+    <div data-about-photos="" style={{ marginTop: 8, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
+      {gallery.slice(0, 6).map((g, i) => <img key={i} src={g.url} alt={g.caption || ''} style={{ width: '100%', height: 96, objectFit: 'cover' }} />)}
     </div>
   </>]);
   const empty = !sections.length;
@@ -2096,93 +1931,24 @@ function PlateNotesSheet({ t, tr, locale, day, i, setI, ACC, DISPLAY, MONO, firs
 }
 
 // ── Replays ─────────────────────────────────────────────────────────────────────────────────
-const isVideoFile = (u) => { try { return /\.(mp4|m4v|mov|webm)$/i.test(new URL(u).pathname); } catch (e) { return false; } };
-const playBadge = (ACC) => (
-  <span aria-hidden style={{ position: 'absolute', left: '50%', top: '50%', width: 48, height: 48, margin: '-24px 0 0 -24px', borderRadius: 99, background: 'rgba(0,0,0,0.55)', border: `2px solid ${ACC}`, display: 'grid', placeItems: 'center', color: '#fff', fontSize: 18, paddingLeft: 3, boxSizing: 'border-box' }}>▶</span>
-);
-// A video's still: the file's first frame where the link is a file, else a dark panel.
-function VideoStill({ url, ACC }) {
-  return (
-    <span style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, #15171b, ${hexA(ACC, 0.35)})` }}>
-      {isVideoFile(url) ? <video src={`${url}#t=0.1`} muted playsInline preload="metadata" aria-hidden tabIndex={-1} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} /> : null}
-    </span>
-  );
-}
 const programMeta = (tr, pr) => [
   pr.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: pr.weeks }) : null,
   pr.perWeek ? tr('profile:trainer.programDays', { defaultValue: '{count, plural, one {# day a week} other {# days a week}}', count: pr.perWeek }) : null,
 ].filter(Boolean).join(' · ');
-const programDays = (pr) => {
-  const p = pr.preview;
-  if (!p || !Array.isArray(p.units) || !(p.kind === 'program' || p.kind === 'split')) return '';
-  return p.units.filter((u) => !u.rest).slice(0, 7).map((u) => [u.label, u.title].filter(Boolean).join(' ')).join(' · ');
-};
 
-function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, programs = [], workouts = [], replays, isSelf, first, onProgram, onOpen, onLog }) {
-  const head = (label) => <span style={{ ...eyebrow(ink, MONO), marginTop: 22 }}>{label}</span>;
+// Replays: the sessions the coach logged, stepped set by set. Their programs and workout videos moved
+// to the Studio tab (owner, 2026-11-04), so this is the sessions alone.
+function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, replays, isSelf, first, onOpen, onLog }) {
   return (
     <section style={{ paddingTop: 16 }}>
-      <p style={{ margin: 0, fontSize: 14, color: ink(0.74) }}>{tr('profile:trainer.replaysSubAll', { defaultValue: 'The programs {name} sells, workouts on video, and sessions stepped set by set.', name: first })}</p>
+      <p style={{ margin: 0, fontSize: 14, color: ink(0.74) }}>{tr('profile:trainer.replaysSubSessions', { defaultValue: 'The sessions {name} logged, stepped set by set.', name: first })}</p>
       {isSelf ? (
         <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-          <button type="button" data-post-video="" onClick={() => onLog('video')} style={linkBtn(ACC, DISPLAY)}>＋ {tr('profile:trainer.postVideo', { defaultValue: 'Post a workout video' })}</button>
           <button type="button" onClick={() => onLog('workout')} style={linkBtn(ACC, DISPLAY)}>＋ {tr('profile:trainer.logSession', { defaultValue: 'Log a session' })}</button>
-        </div>
-      ) : null}
-      {programs.length ? (
-        <div data-programs="">
-          {head(tr('profile:trainer.programs', { defaultValue: 'Programs' }))}
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {programs.map((pr) => {
-              const days = programDays(pr);
-              const meta = programMeta(tr, pr);
-              return (
-                <button key={pr.id} type="button" data-program="" onClick={() => onProgram(pr)} style={{ padding: 0, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <span style={{ position: 'relative', display: 'block', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', background: `linear-gradient(135deg, ${t.PAPER2}, ${hexA(ACC, 0.22)})` }}>
-                    {pr.poster ? <img src={pr.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : pr.video ? <VideoStill url={pr.video.url} ACC={ACC} />
-                        : (
-                          <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontFamily: DISPLAY, fontSize: 30, fontWeight: 600, lineHeight: 1.1 }}>
-                            {pr.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: pr.weeks }) : tr('profile:trainer.movesCount', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: pr.moves.length })}
-                          </span>
-                        )}
-                    {pr.video ? playBadge(ACC) : null}
-                    {pr.price ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '3px 9px', background: ACC, color: ON_ACC, fontFamily: MONO, fontSize: 11, fontWeight: 700 }}>{pr.price}</span> : null}
-                  </span>
-                  <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
-                    <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17 }}>{pr.name}</span>
-                    {meta || pr.video ? <span style={{ fontSize: 13, color: ink(0.62) }}>{[meta, pr.video ? tr('profile:trainer.previewVideo', { defaultValue: 'Preview video' }) : null].filter(Boolean).join(' · ')}</span> : null}
-                    {days ? <span style={{ marginTop: 2, fontFamily: MONO, fontSize: 11, letterSpacing: '0.04em', color: ink(0.72) }}>{days}</span> : null}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : isSelf ? <Hint ink={ink}>{tr('profile:trainer.programsEmptySelf', { defaultValue: 'Publish a program and it shows here with its preview video, for members to buy.' })}</Hint> : null}
-      {workouts.length ? (
-        <div data-workouts="">
-          {head(tr('profile:trainer.workouts', { defaultValue: 'Workouts' }))}
-          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {workouts.map((w) => (
-              <button key={w.key} type="button" data-workout="" onClick={() => onOpen(w)} style={{ padding: 0, border: 0, background: 'transparent', color: t.INK, textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ position: 'relative', display: 'block', width: '100%', aspectRatio: '16 / 9', overflow: 'hidden', background: '#000' }}>
-                  <VideoStill url={w.video.url} ACC={ACC} />
-                  {playBadge(ACC)}
-                  {w.ago ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '2px 8px', background: hexA('#000000', 0.55), color: '#fff', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em' }}>{bsShortAge(w.ago, tr)}</span> : null}
-                </span>
-                <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.35 }}>
-                  <span style={{ fontFamily: DISPLAY, fontWeight: 600, fontSize: 17 }}>{w.title || tr('profile:trainer.workoutVideo', { defaultValue: 'Workout video' })}</span>
-                  {w.body ? <span style={{ fontSize: 13, color: ink(0.62), display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{w.body}</span> : null}
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
       ) : null}
       {replays.length ? (
         <div data-sessions="">
-          {programs.length || workouts.length ? head(tr('profile:trainer.sessions', { defaultValue: 'Sessions' })) : null}
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {replays.map((r) => {
               const stats = (Array.isArray(r.stats) ? r.stats : Array.isArray(r.statsRow) ? r.statsRow : []).slice(0, 2).map((s) => (Array.isArray(s) ? `${s[1]}` : '')).filter(Boolean);
@@ -2206,37 +1972,73 @@ function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, programs = [], wor
             })}
           </div>
         </div>
-      ) : null}
-      {isSelf && !workouts.length && !replays.length ? <Hint ink={ink}>{tr('profile:trainer.replaysEmptySelf', { defaultValue: 'Log a session and share it, and it shows here with every set.' })}</Hint> : null}
+      ) : isSelf ? <Hint ink={ink}>{tr('profile:trainer.replaysEmptySelf', { defaultValue: 'Log a session and share it, and it shows here with every set.' })}</Hint> : null}
     </section>
   );
 }
 
-// A program opened from Replays or the studio: its free preview video, weeks and days, the first
-// week's days with their moves' names (all a public preview gives), the pieces of the coach's floor
-// its moves use, and Buy. A sample program has no Buy.
-function ProgramSheet({ t, tr, pr, ACC, DISPLAY, MONO, first, isSelf, studio, work = [], onClose, onBuy, onWork }) {
-  const muted = 'rgba(232,235,239,0.6)';
+// A program opened from the Studio tab: its free preview video, weeks and days, what the coach says
+// about it (their line, else the program's own note) and who it is for, the first week's days (each
+// opens to its moves and their muscles, with the coach's line about that day), and Buy. A sample
+// program has no Buy. All a public preview gives: sets, loads and cues stay with the buyer.
+function ProgramSheet({ t, tr, locale, pr, ACC, DISPLAY, MONO, first, isSelf, item = null, days = [], onClose, onBuy, onWork }) {
+  const muted = 'rgba(232,235,239,0.66)';
+  const rule = '1px solid rgba(232,235,239,0.12)';
   const p = pr.preview || { units: [], kind: null };
   const units = Array.isArray(p.units) ? p.units.filter((u) => u && !u.locked && !u.rest) : [];
-  const where = studio ? [...new Set(studio.items.map((q, k) => (q.t !== 'zone' && work[k] && work[k].programs.some((x) => x.id === pr.id) ? pieceName(q, tr) : null)).filter(Boolean))].slice(0, 8) : [];
   const meta = programMeta(tr, pr);
+  const desc = (item && item.desc) || p.note || '';
+  const forSaid = item ? bsStudioForLabel(tr, item.forWho) : '';
+  const [open, setOpen] = React.useState(() => (days[0] ? days[0].key : null));
   const host = sheetHost();
   const el = (
     <div role="dialog" aria-label={pr.name} data-program-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
       <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{tr('profile:trainer.program', { defaultValue: 'Program' })}{pr.price ? ` · ${pr.price}` : ''}</span>
+        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{[tr('profile:trainer.program', { defaultValue: 'Program' }), meta].filter(Boolean).join(' · ')}</span>
         <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
       </div>
-      <h2 style={{ margin: '0 18px', fontFamily: DISPLAY, fontWeight: 300, fontSize: 25, lineHeight: 1.1 }}>{pr.name}<span style={{ color: ACC }}>.</span></h2>
-      {meta ? <p style={{ margin: '4px 18px 0', fontSize: 13.5, color: muted }}>{meta}</p> : null}
-      {pr.video ? <div data-program-video="" style={{ margin: '4px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>
+      <h2 style={{ margin: '0 18px', fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.1 }}>{pr.name}<span style={{ color: ACC }}>.</span></h2>
+      {desc ? <p data-program-desc="" style={{ margin: '6px 18px 0', fontSize: 15, lineHeight: 1.45 }}>{desc}</p> : null}
+      {forSaid ? <p data-program-for="" style={{ margin: '6px 18px 0', display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 14, fontWeight: 600 }}><span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 500, letterSpacing: '0.13em', textTransform: 'uppercase', color: muted }}>{tr('profile:work.forLabel', { defaultValue: 'For' })}</span>{forSaid}</p> : null}
+      {pr.video ? <div data-program-video="" style={{ margin: '10px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>
         : pr.poster ? <div style={{ margin: '12px 18px 0', aspectRatio: '16 / 9', overflow: 'hidden', background: '#000' }}><img src={pr.poster} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div> : null}
-      {units.length ? (
+      {days.length ? (
+        <div data-program-days="" style={{ margin: '16px 18px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('profile:trainer.firstWeek', { defaultValue: 'The first week' })}</span>
+            <span style={{ fontSize: 12.5, color: muted }}>{tr('profile:work.tapDay', { defaultValue: 'Tap a day for its moves' })}</span>
+          </div>
+          {days.map((d) => {
+            const on = open === d.key;
+            const focusSaid = bsStudioFocusLabel(tr, d.focus);
+            const sub = [focusSaid ? focusSaid.toLowerCase() : null, on ? null : tr('profile:trainer.movesCount', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: d.moves.length + (d.more || 0) })].filter(Boolean).join(' · ');
+            return (
+              <div key={d.key} data-program-day="" style={{ borderBottom: rule }}>
+                <button type="button" aria-expanded={on} onClick={() => setOpen(on ? null : d.key)} style={{ width: '100%', minHeight: 48, padding: '9px 0', border: 0, background: 'transparent', color: '#e8ebef', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr) 16px', columnGap: 8, alignItems: 'baseline', fontFamily: 'inherit' }}>
+                  <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', color: ACC }}>{d.label}</span>
+                  <span><span style={{ display: 'block', fontSize: 15, fontWeight: 600 }}>{d.title}</span>{sub ? <span style={{ display: 'block', fontSize: 12.5, color: muted }}>{sub}</span> : null}</span>
+                  <span aria-hidden="true" style={{ color: muted, transform: on ? 'rotate(90deg)' : 'none' }}>›</span>
+                </button>
+                {on ? (
+                  <div data-program-moves="" style={{ paddingLeft: 52, paddingBottom: 10 }}>
+                    {d.desc ? <p style={{ margin: '0 0 6px', fontSize: 13.5, lineHeight: 1.45 }}>{d.desc}</p> : null}
+                    {d.moves.map((m, k) => (
+                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, minHeight: 30, alignItems: 'center', borderTop: rule, fontSize: 13.5 }}>
+                        <span>{m.name}</span>{m.muscle ? <span style={{ fontSize: 12.5, color: muted }}>{m.muscle}</span> : null}
+                      </div>
+                    ))}
+                    {d.more ? <div style={{ minHeight: 30, display: 'flex', alignItems: 'center', borderTop: rule, fontSize: 12.5, color: muted }}>＋{d.more}</div> : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : units.length ? (
         <div style={{ margin: '14px 18px 0' }}>
           <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{p.kind === 'program' || p.kind === 'split' ? tr('profile:trainer.firstWeek', { defaultValue: 'The first week' }) : tr('profile:trainer.theMoves', { defaultValue: 'The moves' })}</span>
           {units.slice(0, 14).map((u, k) => (
-            <div key={k} data-program-day="" style={{ padding: '9px 0', borderBottom: '1px solid rgba(232,235,239,0.1)' }}>
+            <div key={k} data-program-day="" style={{ padding: '9px 0', borderBottom: rule }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
                 {u.label ? <span style={{ flexShrink: 0, minWidth: 40, fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', color: ACC }}>{u.label}</span> : null}
                 <span style={{ fontSize: 15 }}>{u.title}</span>
@@ -2246,14 +2048,7 @@ function ProgramSheet({ t, tr, pr, ACC, DISPLAY, MONO, first, isSelf, studio, wo
           ))}
         </div>
       ) : null}
-      {p.namesOnly ? <p style={{ margin: '10px 18px 0', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: muted }}>{tr('marketplace:preview.namesOnly', { defaultValue: 'Sets, loads, cues and exercise videos unlock when you buy' })}</p> : null}
-      {p.note ? <p style={{ margin: '12px 18px 0', paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 14.5, lineHeight: 1.5 }}>{p.note}</p> : null}
-      {where.length ? (
-        <div data-program-where="" style={{ margin: '14px 18px 0' }}>
-          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('profile:trainer.programWhere', { defaultValue: 'On {name}\'s floor', name: first })}</span>
-          <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.5 }}>{where.join(' · ')}</p>
-        </div>
-      ) : null}
+      {p.namesOnly ? <p style={{ margin: '12px 18px 0', fontSize: 13, lineHeight: 1.45, color: muted }}>{tr('marketplace:preview.namesOnly', { defaultValue: 'Sets, loads, cues and exercise videos unlock when you buy' })}</p> : null}
       <div style={{ margin: '20px 18px calc(28px + env(safe-area-inset-bottom))' }}>
         {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>{tr('profile:trainer.programSelf', { defaultValue: 'This is what members see before they buy.' })}</p>
           : pr.sample ? <button type="button" onClick={onWork} style={{ width: '100%', minHeight: 50, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}</button>
