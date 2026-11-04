@@ -622,6 +622,26 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: Train and Eat back to the owner\'s picks; Home\'s goal climb in option B\'s colours; coach Today\'s Your day with its sessions before To do (#2608). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: of #2605\'s Train, "dont like this", then "no revert training to what i had prior" and "this one" of a shot of this session\'s earlier Train C; of Eat, "use this again" and "this one for eat" of a shot of its earlier pick; of option B\'s climb graph, "also i like this coloring for graph on home page"; of Your day, "also switch the order of these around on home page"', status: 'done' },
+        { label: '#2608 Train (BSTrainDay.jsx, the page still handing in every handler): the week as seven lit tiles, the picked day framed and glowing (BSWeekDays.jsx, new), the coach\'s adjust, Burned this week as a lit slot in rust (BSTrainBurn), the session on a glass lead with a glowing rust spine hanging by a dotted line, Start a glowing capsule (BSFocusLead and BSFocusActions lit), the program table, On deck, the links and the find-a-coach bar (findCoach, not for a member who pays a trainer)', status: 'done' },
+        { label: '#2608 Eat (BSEatDay.jsx): the week as round days, the plan\'s notices, Fuel left as the ring card beside the macros (BSEatFuel, naming another day picked), the next meal on the lit lead with its arrival line, the morning swap and the menu (BSFocusLine); both pages take their own head (BSPageHeader) again, Eat\'s tabs above the day; Month view and Edit · Yours are 44px', status: 'done' },
+        { label: '#2608 Home\'s goal climb: the hill washed teal → gold, the walked line and the dashed route on the same run, each tick and the now dot in the colour of where it stands, the flag gold; C\'s glows gone, the strip unchanged. Coach Today\'s Your day: the done fold, the sessions and NOW first, then the To do lane on the same rail', status: 'done' },
+        { label: '#2608 review: Codex clean on 7351fae. Full suite on 7351fae: 9,754 of 9,755 passed, 1 skipped (radio); vite build and tsc pass. CI green on the War Room head; no reviewer read this record', status: 'done' },
+        { label: 'No longer called: the client\'s BSWeekStrip, and #2605\'s gauge face (BSProInstrument.jsx)', status: 'pending' },
+        { label: 'OWNER: on a phone, Train, Eat, Home\'s climb and coach Today\'s Your day on both papers', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App: no rule between the Home masthead and the ticker, on every profile\'s Home (#2606). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the coach ticker (Active · Open hrs · Sessions): "remove this border line abobe the ticker on home page for all profiles"', status: 'done' },
+        { label: '#2606 the flag masthead (BSMastLayout: member Home, coach Today for trainers and nutritionists) closed on a 3px double rule right above the ticker; it closes on nothing now. tests/home-mast-no-rule.test.mjs', status: 'done' },
+        { label: '#2606 review: Codex clean on f0d6aae; CI green on f0d6aae. Its record rides in #2608, the next PR in flight', status: 'done' },
+      ],
+    },
+    {
       section: 'App: Your mornings in one box, each check a line with its average dotted; Home\'s goal climb in colour; Settings as a lit panel; the meal page, Grocery, the meal log and the workout flow in the owner\'s picks, each in its own module (#2604). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of three designs each built in the app: Your mornings "combine all the information into once box neatly with subtle seperates between us, also redesign look of the charts besides top one that shows overall", then "B for mornings but include dotted line for weeks avaerage"; the goal climb "this design but with option C coloring scheme on graph"; "option C for settings page"; "B for meal page and grocery", then "actually C for grocery list", "include a bubble around this top part that matches C design"; "B for logging meals and Filed"; the workout screens "B for all of them", "the training ones i mean"', status: 'done' },
@@ -649,7 +669,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2605 coach Home: the Today deck dense (16px under Shape Radio, the title 26px, the days 46px); Up next tighter (rail 64px, 36px pills on 44px targets) in the deck\'s own box (bsRaised, no warm corner); Your day: one head and one time rail, a To do lane first, a client\'s to-do folded under their session today (bsProFoldTodos), so nobody is listed twice', status: 'done' },
         { label: '#2605 review: Codex clean on 41d51d3. The full suite on the combined tree failed home-deck-spacing (the deck\'s old literals), fixed in 41d51d3; CI green on 41d51d3', status: 'done' },
         { label: 'Another session built coach Today\'s To do + Schedule as tabs (BSProAgendaTabs, #2604); the owner said "your day version" here, and #2604 dropped its tabs (867d05e reverts c8bab51), so Your day stands', status: 'done' },
-        { label: 'At 320px Eat\'s and Train\'s day tiles are 35px wide (45px at 390px); BSFocusHead and the client\'s BSFocusCountdown import are unused; bsProAttentionBudget has no caller in the app', status: 'pending' },
+        { label: 'Train\'s and Eat\'s instrument days gave way to the owner\'s earlier picks in #2608 ("no revert training to what i had prior", "use this again"), so their tiles, the gauge and the orbit are gone; bsProAttentionBudget has no caller in the app', status: 'pending' },
         { label: 'OWNER: on a phone, Train, Eat and coach Home on both papers', status: 'manual' },
       ],
     },
