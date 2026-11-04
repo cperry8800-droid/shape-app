@@ -502,7 +502,22 @@ test('the page pins its rows: the root clips sideways without becoming a scrolle
   // the dashboard's sticky app bar (Codex P2 on #2597): that <main> clips too, and the rows pin under the bar.
   assert.match(read('public/newdesign/livingProfilePage.jsx'), /<main style=\{\{ minWidth: 0, overflowX: "hidden" \}\}>\{node\}<\/main>/, 'the dashboard wrapper still hides: drop the override if it stops');
   assert.match(src, /\.dash-app main\{overflow-x:clip !important\}/, 'over its inline hidden; a browser without clip keeps hidden');
-  assert.match(src, /document\.querySelector\(chrome \? "\.shape-header" : "\.dash-appbar"\)/, 'without the site\'s chrome, the dashboard\'s app bar is the header the rows sit under');
+  // Without the site's chrome, the header is the dashboard's sticky bars across the top: its app bar, and
+  // at 900px and under its nav rail, pinned under the app bar as a bar (Codex P2 on #2597, dash.css).
+  assert.match(src, /if \(!chrome\) \{ setH\(cpwDashBarsH\(\)\); return; \}/);
+  assert.match(read('public/newdesign/dash.css'), /\.dash-appbar \{ position: sticky; top: 0;/, 'the app bar still pins');
+  assert.match(read('public/newdesign/dash.css'), /\.dash-rail \{ top: 60px; height: auto; z-index: 59; \}/, 'the narrow rail still pins under it');
+  // The measure, run on stand-ins for the two layouts: a wide rail is a side column, a narrow one a bar.
+  const fnSrc = src.slice(src.indexOf('function cpwDashBarsH()'), src.indexOf('function useCpwHeadH('));
+  const bars = (els) => new Function('document', 'window', `${fnSrc}; return cpwDashBarsH();`)(
+    { querySelectorAll: () => els.map((e) => e.el) },
+    { getComputedStyle: (el) => els.find((e) => e.el === el).cs },
+  );
+  const bar = (top, w, h, position = 'sticky') => ({ el: {}, cs: { position, top: `${top}px` } , r: { width: w, height: h } });
+  const withRect = (x) => { x.el.getBoundingClientRect = () => x.r; return x; };
+  assert.equal(bars([withRect(bar(0, 1200, 60)), withRect(bar(0, 64, 900))]), 60, 'wide: the app bar alone; the side rail is no bar');
+  assert.equal(bars([withRect(bar(0, 390, 60)), withRect(bar(60, 390, 50))]), 110, 'narrow: the app bar and the rail under it');
+  assert.equal(bars([withRect(bar(0, 390, 60, 'static'))]), 0, 'a bar that does not pin is no header');
   assert.doesNotMatch(src, /if \(!chrome\) \{ setH\(0\)/, 'a dashboard no longer reads as no header');
   assert.doesNotMatch(src, /data-coach-profile=""[^\n]*overflowX: "hidden"/, 'no inline hidden on the root');
   assert.match(src, /\.cpw-rail\{align-self:stretch\}/, 'the rail\'s column runs the grid\'s height, so the rail has room to pin');

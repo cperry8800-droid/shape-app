@@ -85,11 +85,25 @@ function useCpwWide(min = 1000) {
   return wide;
 }
 // The site header is fixed; a sticky row sits under it. Inside a coach dashboard (no chrome of its own)
-// the dashboard's sticky app bar is the header instead.
+// the header is the dashboard's sticky bars across the top: its app bar, and at 900px and under its nav
+// rail, which pins under the app bar as a bar (dash.css). The rail as a side column is not one.
+function cpwDashBarsH() {
+  let h = 0;
+  for (const el of document.querySelectorAll(".dash-appbar, .dash-rail")) {
+    const r = el.getBoundingClientRect();
+    const cs = window.getComputedStyle(el);
+    if ((cs.position === "sticky" || cs.position === "fixed") && r.width > r.height) h = Math.max(h, (parseFloat(cs.top) || 0) + r.height);
+  }
+  return h;
+}
 function useCpwHeadH(chrome) {
   const [h, setH] = React.useState(chrome ? 72 : 0);
   React.useEffect(() => {
-    const read = () => { const el = document.querySelector(chrome ? ".shape-header" : ".dash-appbar"); setH(el ? el.getBoundingClientRect().height : 0); };
+    const read = () => {
+      if (!chrome) { setH(cpwDashBarsH()); return; }
+      const el = document.querySelector(".shape-header");
+      setH(el ? el.getBoundingClientRect().height : 0);
+    };
     read();
     window.addEventListener("resize", read);
     const t = setTimeout(read, 400);
