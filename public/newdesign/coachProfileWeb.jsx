@@ -40,7 +40,6 @@ const CPW_DISPLAY = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-se
 const CPW_BODY = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const CPW_MONO = "'JetBrains Mono', ui-monospace, monospace";
 const CPW_FOCUS = { top: "center 22%", center: "center 50%", bottom: "center 80%" };
-const CPW_KIND = { private: "Private studio", garage: "Garage gym", gym: "Full gym", pilates: "Pilates studio", boxing: "Boxing gym", outdoor: "Outdoors", kitchen: "Kitchen", blank: "Their space" };
 const CPW_LINK_NAMES = { instagram: "Instagram", x: "X", tiktok: "TikTok", youtube: "YouTube", substack: "Substack", website: "Website" };
 // The anon grant's columns of a listing (the app's PUBLIC_PROVIDER_COLUMNS, shapeBackend.js): a `*`
 // read fails the whole row for a visitor.
@@ -411,7 +410,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const biz = isPrivate ? null : K.bsProfileBizCard(custom && custom.bizCard);
   const where = isPrivate ? "" : ((biz && biz.where) || (studio && studio.where) || (live && row && row.location) || "");
   const specialty = isPrivate || !L ? "" : String(L.specialty || L.specialty_type || L.category || "").trim();
-  const roleLine = [specialty || (nutri ? "Nutritionist" : "Coach"), biz && biz.name].filter(Boolean).join(" · ");
+  // The coach's focus words under their name in place of the listing's specialty, when they chose some
+  // (Make it yours → About me), as the app's head reads them.
+  const focusWords = isPrivate || nutri ? [] : K.bsProfileFocus(custom && custom.focus).map(cpwFocusWord).filter(Boolean);
+  const roleLine = [focusWords.length ? focusWords.join(" · ") : (specialty || (nutri ? "Nutritionist" : "Coach")), biz && biz.name].filter(Boolean).join(" · ");
   const verified = !isPrivate && !!((L && L.verified) || (live && verifiedIn));
   const monthly = listed && Number(listing.row.price) > 0 ? Number(listing.row.price) : null;
   const sells = monthly != null;
@@ -448,7 +450,19 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const plateDays = K.bsPlateNoteDays(plates);
   const shownKeys = new Set([...replays, ...workouts, ...plates].map((c) => c && c.key).filter(Boolean));
   const activity = sample ? (sample.activity || []) : cards.filter((c) => !shownKeys.has(c.key));
-  const studioWork = studio ? K.bsStudioWork(studio, programs) : [];
+  // The Studio tab's model, the app's own (BSTrainerProfile: coachWork.mjs's bsStudioModel): the programs,
+  // every program's day and posted video as workouts, and the monthly coaching, with the coach's own words
+  // from their doc. A sample's coaching is its provider's price and offer, as its Work with shows them.
+  const sampleProvider = sample && sample.provider ? sample.provider : null;
+  const studioMonthly = monthly != null ? monthly : (sampleProvider && Number(sampleProvider.price) > 0 ? Number(sampleProvider.price) : null);
+  const studioModel = nutri ? null : K.bsStudioModel({
+    programs, videos: workouts, monthly: studioMonthly,
+    offer: listed ? listing.row.monthly_offer : (sampleProvider ? sampleProvider.monthly_offer : null),
+    descriptions: isPrivate ? null : K.bsProfileDescriptions(custom && custom.descriptions),
+    programFor: isPrivate ? null : K.bsProfileProgramFor(custom && custom.programFor),
+    picks: isPrivate ? [] : K.bsProfilePicks(custom && custom.picks),
+  });
+  const hasStudioWork = !!(studioModel && (studioModel.programs.length || studioModel.workouts.length || studioModel.coaching));
   // What Work with lists: a coach's published plans, or the sample's own, as the app's sheet does
   // (BSTrainerProfile sheetPlans): a trainer's programs, or a nutritionist's meal plans (#2557).
   // Programs are empty for a nutritionist, so reading only them left the sample's sheet with no
@@ -521,7 +535,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const headSocials = custom && custom.headLinks === true && aboutLinks
     ? K.BS_PROFILE_LINK_KEYS.map((k) => [k, aboutLinks[k] ? K.bsProfileLinkHref(k, aboutLinks[k]) : null]).filter(([, href]) => href) : [];
   const credList = isPrivate ? [] : (Array.isArray(certs) ? certs : []);
-  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || credList.length);
+  // The listing's photos sit at About me's foot for a trainer, where the floor plan's tab had them.
+  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || credList.length || (!nutri && !isPrivate && gallery.length));
   const aboutTab = isSelf || hasAbout ? [["about", "About me"]] : [];
   const tabs = nutri ? [
     ["day", words.day], ...aboutTab,
@@ -530,8 +545,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     ...(isSelf || activity.length || postsFailed ? [["activity", "Activity"]] : []),
   ] : [
     ["day", words.day], ...aboutTab,
-    ...(isSelf || studio || gallery.length ? [["studio", "The studio"]] : []),
-    ...(isSelf || replays.length || workouts.length || programs.length || workFailed ? [["replays", "Replays"]] : []),
+    ...(isSelf || hasStudioWork || workFailed ? [["studio", "Studio"]] : []),
+    ...(isSelf || replays.length || postsFailed ? [["replays", "Replays"]] : []),
     ...(isSelf || activity.length || postsFailed ? [["activity", "Activity"]] : []),
   ];
   const [tab, setTab] = React.useState("day");
@@ -578,16 +593,19 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   );
 
   return (
-    <div className="cpw" data-coach-profile="" data-role={role} data-mode={live ? "live" : "sample"} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", overflowX: "hidden" }}>
+    <div className="cpw" data-coach-profile="" data-role={role} data-mode={live ? "live" : "sample"} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased" }}>
       <style>{`
+    /* clip, not hidden: hidden makes this box a scroller, and the tabs, the Studio's filter and the rail never pin.
+       The rail's column runs the page's height, so Work with has room to stay beside it. */
+    .cpw{overflow-x:hidden;overflow-x:clip}
     .cpw-wrap{max-width:1180px;margin:0 auto;padding:0 32px}
     .cpw-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:56px;align-items:start}
+    .cpw-rail{align-self:stretch}
     .cpw-wall{height:300px}
     .cpw-av{width:132px;height:132px;top:-66px}
     .cpw-who-name{margin-left:154px;min-height:72px}
     .cpw-cards2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 20px}
     .cpw-quotes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .cpw-studio{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:28px;align-items:start}
     .cpw-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
     .cpw-gallery img{height:150px}
     .cpw-grab{display:none}
@@ -609,7 +627,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     @media (max-width:999px){
       .cpw-grid{grid-template-columns:minmax(0,1fr);gap:0}
       .cpw-rail{display:none}
-      .cpw-studio{grid-template-columns:minmax(0,1fr)}
     }
     @media (max-width:640px){
       .cpw-wrap{padding:0 20px}
@@ -732,15 +749,17 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                     <CpwDayTab T={T} K={K} avail={avail} listingState={live ? listing.state : (sample ? "ready" : "none")} introClosed={introClosed} hoursHref={hoursHref}
                       onRetry={() => (listing.state === "error" ? setListingEpoch : setWeekEpoch)((n) => n + 1)} bookHref={providerId ? bookHref : null} onWork={openWork} />
                   ) : tabNow === "about" ? (
-                    <CpwAboutTab T={T} K={K} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={credList} onEdit={canEdit ? () => setEditing(true) : null} />
+                    <CpwAboutTab T={T} K={K} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={credList} gallery={nutri || isPrivate ? [] : gallery} onEdit={canEdit ? () => setEditing(true) : null} />
                   ) : tabNow === "studio" ? (
-                    <CpwStudioTab T={T} K={K} studio={studio} gallery={gallery} work={studioWork} onPiece={(i) => setSheet({ kind: "piece", i })} />
+                    <CpwStudioTab T={T} model={studioModel} heat={cpwStudioHeat(pal, look.accent, ACC)} stickyTop={headH + 51} failed={workFailed} onRetry={retryWork}
+                      onProgram={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} onVideo={(v) => { if (v) setSheet({ kind: "replay", r: v, i: 0 }); }}
+                      onWork={openWork} onMessage={isPrivate || isSelf ? null : message} />
                   ) : tabNow === "kitchen" ? (
                     <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />
                   ) : tabNow === "plates" ? (
                     <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />
                   ) : tabNow === "replays" ? (
-                    <CpwReplaysTab T={T} programs={programs} workouts={workouts} replays={replays} failed={workFailed} onRetry={retryWork} onProgram={(pr) => setSheet({ kind: "program", pr })} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />
+                    <CpwReplaysTab T={T} replays={replays} failed={postsFailed} onRetry={posts.retry} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />
                   ) : (
                     <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />
                   )}
@@ -781,11 +800,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       {sheet && sheet.kind === "reviews" ? (
         <CpwReviewsSheet T={T} reviews={reviews} revLocked={revLocked} ratingBit={ratingBit} cm={cm} canReview={live && !isSelf} onClose={() => setSheet(null)} />
       ) : null}
-      {sheet && sheet.kind === "piece" && studio && studio.items[sheet.i] ? (
-        <CpwPieceSheet T={T} K={K} studio={studio} i={sheet.i} work={studioWork[sheet.i]} programs={programs} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }} onProgram={(pr) => setSheet({ kind: "program", pr })} />
-      ) : null}
       {sheet && sheet.kind === "program" ? (
-        <CpwProgramSheet T={T} K={K} pr={sheet.pr} studio={studio} work={studioWork} sells={listed} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }}
+        <CpwProgramSheet T={T} pr={sheet.pr} sells={listed} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }}
+          item={studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null}
+          days={studioModel ? studioModel.workouts.filter((w) => w.kind === "day" && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, "en", { numeric: true })) : []}
           onBuy={() => { const pl = sheet.pr.plan || {}; lvBuyPlan({ name: pl.name, price: sheet.pr.price, planId: pl.id, providerId: pl.provider_id || pl.providerId || providerId, providerRole: pl.provider_role || pl.providerRole || role }); }} />
       ) : null}
       {sheet && sheet.kind === "replay" ? (
@@ -1128,7 +1146,7 @@ function CpwDayTab({ T, K, avail, listingState, introClosed, hoursHref, onRetry,
 }
 
 // ── About me ─────────────────────────────────────────────────────────────────────────────────
-function CpwAboutTab({ T, K, about, prompts, links, certs, onEdit }) {
+function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : about.how === "in_person" ? "Coaches in person" : "Coaches online and in person";
   const facts = about ? [
@@ -1207,6 +1225,12 @@ function CpwAboutTab({ T, K, about, prompts, links, certs, onEdit }) {
   return (
     <section data-about-tab="" style={{ paddingTop: 20 }}>
       {sections.map(([k, gap, node], i) => <div key={k} data-about={k} style={{ marginTop: i ? gap : 0 }}>{node}</div>)}
+      {gallery.length ? (
+        <div data-about-photos="" style={{ marginTop: sections.length ? 26 : 0 }}>
+          {head(`Where ${first} coaches`)}
+          <CpwGallery gallery={gallery} top={10} />
+        </div>
+      ) : null}
       {isSelf ? (
         <React.Fragment>
           {!sections.length ? <CpwHint ink={ink}>Tell members who you are: your story, how you coach, and where to find you. Write About me in the Shape app, in Make it yours.</CpwHint> : null}
@@ -1217,162 +1241,275 @@ function CpwAboutTab({ T, K, about, prompts, links, certs, onEdit }) {
   );
 }
 
-// ── The studio ───────────────────────────────────────────────────────────────────────────────
-// Their space as they drew it in the app (Make it yours → Your space): one SVG on the studio grid,
-// its stations numbered and the pieces their programs use lit, each opening what they do there.
-function CpwStudioPlan({ T, K, studio, work, onPiece }) {
-  const { pal, ACC, ON_ACC, ink } = T;
-  const [fx, fy, fw, fh] = [0, 0, K.BS_STUDIO_W, K.BS_STUDIO_H];
-  const room = K.bsStudioRoom(studio.kind);
-  const [rx, ry, rw, rh, style, radius] = room.room;
-  const order = K.bsStudioDrawOrder(studio.items);
-  const pieceName = (p) => (p.st && p.st.title) || p.label || p.tag || ((K.STUDIO_KIT[p.t] || [p.t])[0]);
-  const door = (k) => (k === "entrance" ? "Entrance" : k === "garage" ? "Garage door" : "Door");
-  let station = 0;
-  const marks = studio.items.map((p, i) => {
-    if (p.st) { station += 1; return { i, p, n: station }; }
-    return work[i] && work[i].count && p.t !== "zone" ? { i, p, n: null, count: work[i].count } : null;
-  }).filter(Boolean);
-  return (
-    <div data-studio-plan="" style={{ position: "relative", width: "100%", aspectRatio: `${fw} / ${fh}`, background: pal.PAPER2 }}>
-      <svg viewBox={`${fx} ${fy} ${fw} ${fh}`} width="100%" height="100%" style={{ position: "absolute", inset: 0 }} aria-hidden="true">
-        <rect x={rx} y={ry} width={rw} height={rh} rx={radius} fill="none" stroke={ink(0.26)} strokeWidth="1.5" strokeDasharray={style === "dashed" ? "5 5" : undefined} />
-        {room.doors.map(([x, y, w, h, key, lx, ly], i) => (
-          <g key={i}><rect x={x} y={y} width={w} height={h} fill={pal.PAPER2} /><text x={lx} y={ly + 9} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)}>{door(key)}</text></g>
-        ))}
-        {order.map((i) => {
-          const p = studio.items[i];
-          const lit = !!p.st || !!(work[i] && work[i].count);
-          return (
-            <g key={i}>
-              <image href={K.bsStudioSvg(p.t, p.w, p.h, { ink: pal.inkRGB, light: pal.isLight, accent: lit ? ACC : null })} x={p.x} y={p.y} width={p.w} height={p.h} />
-              {p.tag ? <text x={p.x + 9} y={p.y + 17} fontFamily="Inter, system-ui, sans-serif" fontSize="11" fontWeight="600" fill={ink(0.72)}>{p.tag}</text> : null}
-              {p.label ? <text x={p.x} y={p.y + p.h + 12} fontFamily="Inter, system-ui, sans-serif" fontSize="10.5" fill={ink(0.62)}>{p.label}</text> : null}
-            </g>
-          );
-        })}
-      </svg>
-      {marks.filter((x) => !x.n).map(({ i, p, count }) => {
-        const w = Math.max(p.w, 32 * fw / 344), h = Math.max(p.h, 32 * fw / 344);
-        const x = p.x + p.w / 2 - w / 2, y = p.y + p.h / 2 - h / 2;
-        return <button key={i} type="button" data-piece="" onClick={() => onPiece(i)} aria-label={`${pieceName(p)}: ${count} ${count === 1 ? "move" : "moves"} from the programs`}
-          style={{ position: "absolute", left: `${((x - fx) / fw) * 100}%`, top: `${((y - fy) / fh) * 100}%`, width: `${(w / fw) * 100}%`, height: `${(h / fh) * 100}%`, padding: 0, border: 0, background: "transparent", cursor: "pointer" }} />;
-      })}
-      {marks.filter((x) => x.n).map(({ i, p, n }) => {
-        const [sx, sy] = K.bsStudioSpot(p);
-        return (
-          <button key={i} type="button" data-station="" onClick={() => onPiece(i)} aria-label={`${n}. ${pieceName(p)}`}
-            style={{ position: "absolute", left: `${((sx - fx) / fw) * 100}%`, top: `${((sy - fy) / fh) * 100}%`, width: 44, height: 44, margin: "-22px 0 0 -22px", padding: 0, border: 0, background: "transparent", display: "grid", placeItems: "center", cursor: "pointer" }}>
-            <span style={{ width: 26, height: 26, borderRadius: 99, background: ACC, color: ON_ACC, display: "grid", placeItems: "center", fontFamily: CPW_MONO, fontSize: 12, fontWeight: 700, boxShadow: `0 0 0 4px ${cpwA(ACC, 0.22)}` }}>{n}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
+// ── The Studio ───────────────────────────────────────────────────────────────────────────────
+// A trainer's work in three kinds, as the app's Studio tab draws it (BSCoachStudio.jsx; owner,
+// 2026-11-04: "need to combine all of these, with a clear list of workouts vs programs vs custom
+// coaching. And allow coach to write a brief descrioption of each", then "C", "name it studio", and
+// the website in the next PR after #2592). The model is the app's own, coachWork.mjs's bsStudioModel,
+// read from the same plans, posts and doc, so the two pages list the same work in the same order with
+// the coach's same words. The floor plan it replaced is gone here too: a plan already saved stays in
+// the doc, read only for where the coach is.
+//
+//   The jump line  how many of each kind, each a way to its section.
+//   Programs.      bought once: the price marked "Once", the coach's line (else the program's note),
+//                  its weeks and days, who it is for; the first with Preview and Open.
+//   Workouts.      every program's day and posted video, the coach's picks first, by focus; a day
+//                  opens in place to its moves and leads to its program, a video plays.
+//   Coaching.      the monthly card: the price, the coach's line (else the offer's blurb), what you
+//                  get, Apply and Message.
+const CPW_WORK_FOCUS = { upper: "Upper body", lower: "Lower body", full: "Full body", core: "Core" };
+const CPW_FOCUS_WORDS = { strength: "Strength", conditioning: "Conditioning", beginners: "Beginners welcome", hypertrophy: "Hypertrophy", cut: "Cut", return: "Return to gym", "5k": "5k prep", mobility: "Mobility" };
+// A focus word the coach chose: a preset's words, or their own.
+const cpwFocusWord = (f) => (!f ? "" : f.id ? (CPW_FOCUS_WORDS[f.id] || "") : (f.w || ""));
+// Who a program is for: a preset, or the coach's own words.
+const cpwForWho = (f) => (!f ? "" : f.id === "new" ? "New to lifting" : f.id === "lifting" ? "Lifting already" : (f.w || ""));
+const CPW_DOW = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+const cpwWeekday = (label) => {
+  const d = CPW_DOW[String(label || "").toUpperCase()];
+  if (d == null) return label || "";
+  try { return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date(2024, 0, 7 + d)); } catch (e) { return label; }
+};
+const cpwMoves = (n) => `${n} ${n === 1 ? "move" : "moves"}`;
+// The heat: the coach's own accent, unless it is the page's teal or a plain white or black, when it is
+// the trainer's rust (the app's bsStudioHeat): teal against the teal pool reads as one wash.
+const cpwStudioHeat = (pal, accentKey, ACC) => (!accentKey || accentKey === "teal" || accentKey === "white" || accentKey === "black" ? (pal.isLight ? "#c0533b" : "#e2775d") : ACC);
+const cpwRgb = (hex) => {
+  const m = /#([0-9a-f]{6})\b/i.exec(String(hex || ""));
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+};
+// Background C: the heat from the top right, a soft beam, a teal pool lower down, in pixels from the
+// tab's top so a long tab settles into the page's own colour.
+function CpwStudioMesh({ pal, heat }) {
+  const h = cpwRgb(heat) || "192,83,59";
+  const pool = pal.isLight ? "10,143,135" : "16,122,112";
+  const glow = pal.isLight
+    ? `radial-gradient(ellipse 130% 520px at 106% -40px, rgba(${h},0.5) 0%, rgba(${h},0.2) 40%, transparent 70%), radial-gradient(ellipse 120% 460px at -14% 600px, rgba(${pool},0.3) 0%, rgba(${pool},0.1) 45%, transparent 74%), radial-gradient(ellipse 80% 300px at 92% 960px, rgba(${h},0.18) 0%, transparent 72%)`
+    : `radial-gradient(ellipse 130% 520px at 106% -40px, rgba(${h},0.6) 0%, rgba(${h},0.26) 40%, transparent 70%), radial-gradient(ellipse 120% 460px at -14% 600px, rgba(${pool},0.6) 0%, rgba(10,78,72,0.28) 45%, transparent 76%), radial-gradient(ellipse 80% 300px at 92% 960px, rgba(${h},0.32) 0%, transparent 72%)`;
+  return <div aria-hidden="true" data-studio-mesh="" style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0, background: glow }} />;
 }
-function CpwGallery({ gallery }) {
+// Glass in the page's own colour, see-through enough for the mesh, never for the words.
+function cpwStudioGlass(pal) {
+  const rgb = pal.inkRGB || (pal.isLight ? "26,22,14" : "241,235,221");
+  const paper = cpwA(pal.PAPER, pal.isLight ? 0.62 : 0.58);
+  const blur = { backdropFilter: "blur(22px) saturate(1.15)", WebkitBackdropFilter: "blur(22px) saturate(1.15)" };
+  return pal.isLight ? {
+    position: "relative", borderRadius: 10, ...blur,
+    background: `linear-gradient(180deg, rgba(255,253,247,0.6) 0%, rgba(255,253,247,0.22) 55%, rgba(255,253,247,0.1) 100%), ${paper}`,
+    border: `1px solid rgba(${rgb},0.12)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 34px -22px rgba(${rgb},0.42)`,
+  } : {
+    position: "relative", borderRadius: 10, ...blur,
+    background: `linear-gradient(180deg, rgba(${rgb},0.075) 0%, rgba(${rgb},0.025) 55%, rgba(${rgb},0.012) 100%), ${paper}`,
+    border: `1px solid rgba(${rgb},0.12)`, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.09), 0 18px 40px -22px rgba(0,0,0,0.9)",
+  };
+}
+function CpwGlassEdge({ pal }) {
+  const teal = pal.isLight ? "#0a8f87" : "#34d6c5";
+  return <span aria-hidden="true" style={{ position: "absolute", top: -1, left: 26, right: 26, height: 1, opacity: 0.8, pointerEvents: "none", background: `linear-gradient(90deg, transparent, ${teal} 30%, ${teal} 70%, transparent)` }} />;
+}
+function CpwGallery({ gallery, top = 20 }) {
   if (!gallery || !gallery.length) return null;
   return (
-    <div className="cpw-gallery" data-gallery="" style={{ marginTop: 20 }}>
+    <div className="cpw-gallery" data-gallery="" style={{ marginTop: top }}>
       {gallery.slice(0, 6).map((g, i) => <img key={i} src={g.url} alt={g.caption || ""} loading="lazy" style={{ width: "100%", objectFit: "cover", display: "block" }} />)}
     </div>
   );
 }
-function CpwStudioTab({ T, K, studio, gallery, work, onPiece }) {
-  const { INK, ACC, ink, first, isSelf } = T;
-  const stations = studio ? studio.items.map((p, i) => ({ p, i })).filter((x) => x.p.st) : [];
-  const floor = [];
-  if (studio) {
-    const seen = new Map();
-    studio.items.forEach((p, i) => {
-      const w = work[i];
-      if (p.st || p.t === "zone" || !w || !w.count) return;
-      const key = `${p.t}|${p.label || ""}`;
-      if (seen.has(key)) { seen.get(key).n += 1; return; }
-      const row = { i, p, n: 1, w };
-      seen.set(key, row); floor.push(row);
-    });
-    floor.sort((a, b) => b.w.count - a.w.count);
-  }
-  const moves = (w) => `${w ? w.count : 0} ${w && w.count === 1 ? "move" : "moves"}`;
-  const pieceName = (p) => (p.st && p.st.title) || p.label || p.tag || ((K.STUDIO_KIT[p.t] || [p.t])[0]);
-  return (
-    <section data-studio-tab="" style={{ paddingTop: 20 }}>
-      {studio ? (
-        <React.Fragment>
-          <span style={cpwEyebrow(ink, ACC)}>{CPW_KIND[studio.kind] || CPW_KIND.blank}</span>
-          {studio.where ? <span style={{ display: "block", marginTop: 2, fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 20 }}>{studio.where}<span style={{ color: ACC }}>.</span></span> : null}
-          {stations.length || floor.length ? <p style={{ margin: "2px 0 0", fontSize: 14, color: ink(0.7) }}>{floor.length ? `Tap a number, or a lit piece, to see what ${first} does there.` : `Tap a number to see how ${first} coaches there.`}</p> : null}
-          <div className="cpw-studio" style={{ marginTop: 14 }}>
-            <CpwStudioPlan T={T} K={K} studio={studio} work={work} onPiece={onPiece} />
-            <div>
-              {stations.length ? (
-                <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                  {stations.map(({ p, i }, n) => (
-                    <li key={i}><button type="button" onClick={() => onPiece(i)} style={{ width: "100%", minHeight: 44, padding: 0, border: 0, borderBottom: `1px solid ${ink(0.11)}`, background: "transparent", color: INK, display: "flex", alignItems: "center", gap: 10, fontFamily: CPW_BODY, fontSize: 14.5, textAlign: "left", cursor: "pointer" }}>
-                      <span style={{ fontFamily: CPW_MONO, color: ACC }}>{n + 1}</span><span style={{ flex: 1, minWidth: 0 }}>{p.st.title}</span>
-                      {work[i] && work[i].count ? <span style={{ flexShrink: 0, fontSize: 12, color: ink(0.55) }}>{moves(work[i])}</span> : null}
-                    </button></li>
-                  ))}
-                </ol>
-              ) : null}
-              {floor.length ? (
-                <div data-floor="" style={{ marginTop: 18 }}>
-                  <span style={cpwEyebrow(ink)}>{first}'s workouts on the floor</span>
-                  {floor.map(({ i, p, n, w }) => (
-                    <button key={i} type="button" data-floor-row="" onClick={() => onPiece(i)} style={{ width: "100%", minHeight: 50, marginTop: 4, padding: "6px 0", border: 0, borderBottom: `1px solid ${ink(0.11)}`, background: "transparent", color: INK, display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY }}>
-                      <img src={K.bsStudioSvg(p.t, p.w, p.h, { ink: T.pal.inkRGB, light: T.pal.isLight, accent: ACC })} alt="" style={{ width: 34, height: 34, objectFit: "contain" }} />
-                      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
-                        <span style={{ fontSize: 14.5 }}>{pieceName(p)}{n > 1 ? <span style={{ color: ink(0.55) }}> ×{n}</span> : null}</span>
-                        <span style={{ fontSize: 12.5, color: ink(0.6) }}>{moves(w)} · {w.programs.map((x) => x.name).join(", ")}</span>
-                      </span>
-                      <span aria-hidden="true" style={{ color: ACC }}>→</span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </React.Fragment>
-      ) : isSelf ? (
-        <CpwHint ink={ink}>Draw where you coach in the Shape app (Make it yours → Your space): a private studio, a garage, a full gym or a park. Members tap your stations to see how you work.</CpwHint>
-      ) : null}
-      <CpwGallery gallery={gallery} />
-    </section>
-  );
-}
-function CpwPieceSheet({ T, K, studio, i, work, programs, onClose, onWork, onProgram }) {
-  const { pal, ACC, INK, ink, first, words, isSelf } = T;
-  const p = studio.items[i];
-  const n = p.st ? studio.items.slice(0, i + 1).filter((q) => q.st).length : null;
-  const kit = (K.STUDIO_KIT[p.t] || [p.t])[0];
-  const name = (p.st && p.st.title) || p.label || p.tag || kit;
-  const byId = new Map(programs.map((pr) => [pr.id, pr]));
-  const pinned = work ? [...new Set(work.pinned)].map((id) => byId.get(id)).filter(Boolean) : [];
-  const pinnedIds = new Set(pinned.map((pr) => pr.id));
-  const movesOf = new Map(work ? work.programs.map((x) => [x.id, x.moves]) : []);
-  const held = work ? work.programs.filter((x) => byId.has(x.id) && !pinnedIds.has(x.id)) : [];
-  const progRow = (pr, moves, k) => (
-    <button key={k} type="button" data-piece-program="" onClick={() => onProgram(pr)} style={{ width: "100%", minHeight: 48, padding: "9px 0", border: 0, borderTop: `1px solid ${ink(0.12)}`, background: "transparent", color: INK, display: "flex", alignItems: "center", gap: 10, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY }}>
-      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.35 }}>
-        <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 15 }}>{pr.name}{pr.video ? <span style={{ marginLeft: 6, fontFamily: CPW_MONO, fontSize: 10, color: ACC }}>▷</span> : null}</span>
-        {moves && moves.length ? <span style={{ fontSize: 13, color: ink(0.68) }}>{moves.slice(0, 8).join(" · ")}{moves.length > 8 ? ` ＋${moves.length - 8}` : ""}</span> : null}
-      </span>
-      <span aria-hidden="true" style={{ color: ACC }}>→</span>
-    </button>
-  );
-  return (
-    <CpwSheet pal={pal} label={name} onClose={onClose}>
-      <CpwSheetHead eyebrow={`${n ? n + " · " : ""}${kit}`} ACC={ACC} color={INK} onClose={onClose} />
-      <div style={{ marginTop: 8, display: "grid", placeItems: "center", height: 130, background: pal.PAPER2 }}>
-        <img src={K.bsStudioSvg(p.t, p.w, p.h, { ink: pal.inkRGB, light: pal.isLight, accent: ACC })} alt="" style={{ maxWidth: "70%", maxHeight: 104, width: p.w * 1.4, height: p.h * 1.4, objectFit: "contain" }} />
+function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, onProgram, onVideo, onWork, onMessage }) {
+  const { pal, ACC, INK, ink, first, isSelf } = T;
+  const ON_INK = pal.isLight ? "#f6f0e3" : "#13110d";
+  const glass = cpwStudioGlass(pal);
+  const progs = model.programs, works = model.workouts, coaching = model.coaching;
+  const [focus, setFocus] = React.useState("all");
+  const [open, setOpen] = React.useState(null);
+  const focusNow = focus === "all" || model.foci.some(([f]) => f === focus) ? focus : "all";
+  const shown = focusNow === "all" ? works : works.filter((w) => w.focus === focusNow);
+  const refs = { programs: React.useRef(null), workouts: React.useRef(null), coaching: React.useRef(null) };
+  const jump = (k) => { const el = refs[k].current; if (el && el.scrollIntoView) el.scrollIntoView({ block: "start", behavior: "smooth" }); };
+  const kicker = { fontFamily: CPW_MONO, fontSize: 9.5, lineHeight: "12px", letterSpacing: "0.13em", textTransform: "uppercase", color: ink(0.62), whiteSpace: "nowrap" };
+  const kickB = { fontWeight: 700, color: INK };
+  const tray = { ...glass, marginTop: 10, padding: "0 14px" };
+  const link = { minHeight: 44, padding: 0, border: 0, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: "pointer" };
+  const counts = [["programs", progs.length, "Programs"], ["workouts", works.length, "Workouts"], ["coaching", coaching ? 1 : 0, "Coaching"]];
+  const head = (k, title, count, sub) => (
+    <div ref={refs[k]} data-studio-head={k} style={{ marginTop: 26, paddingTop: 10, borderTop: `2px solid ${INK}`, scrollMarginTop: stickyTop + 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <h2 style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 25, lineHeight: "28px", letterSpacing: "-0.01em", color: INK }}>{title}<span style={{ color: ACC }}>.</span></h2>
+        <span style={{ fontFamily: CPW_DISPLAY, fontSize: 25, lineHeight: "28px", color: ink(0.6), fontVariantNumeric: "tabular-nums" }}>{count}</span>
       </div>
-      <h2 className="cpw-s21" style={{ margin: "12px 0 0", fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 21, lineHeight: 1.15 }}>{name}</h2>
-      {p.st && p.st.note ? <p style={{ margin: "6px 0 0", fontSize: 15, lineHeight: 1.5, color: ink(0.86), whiteSpace: "pre-wrap" }}>{p.st.note}</p> : null}
-      {pinned.length ? <div data-pinned="" style={{ marginTop: 16 }}><span style={cpwEyebrow(ink, ACC)}>Programs {first} runs here</span>{pinned.map((pr) => progRow(pr, movesOf.get(pr.id) || null, "pin-" + pr.id))}</div> : null}
-      {held.length ? <div data-piece-moves="" style={{ marginTop: 16 }}><span style={cpwEyebrow(ink)}>In {first}'s programs, done here</span>{held.map((x) => progRow(byId.get(x.id), x.moves, "held-" + x.id))}</div> : null}
-      {!isSelf ? <button type="button" onClick={onWork} style={{ marginTop: 16, width: "100%", minHeight: 50, padding: "0 14px", border: `1px solid ${ink(0.22)}`, background: "transparent", color: INK, display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{words.work}<span style={{ color: ACC }}>→</span></button> : null}
-    </CpwSheet>
+      {sub ? <p style={{ margin: "3px 0 0", fontSize: 13.5, lineHeight: "19px", color: ink(0.78) }}>{sub}</p> : null}
+    </div>
+  );
+  const price = (value, unit) => (
+    <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+      <b style={{ display: "block", fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 20, lineHeight: "22px", color: INK, fontVariantNumeric: "tabular-nums" }}>{value}</b>
+      {unit ? <span style={{ ...kicker, display: "block", marginTop: 3, fontSize: 9 }}>{unit}</span> : null}
+    </span>
+  );
+  return (
+    <section data-studio-work="" style={{ position: "relative", padding: "16px 0 10px", isolation: "isolate" }}>
+      <CpwStudioMesh pal={pal} heat={heat} />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="work" what={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={onRetry} /> : null}
+        {isSelf ? <CpwHint ink={ink}>Write a line about each program, workout and your coaching, say who each program is for, and pick two workouts to start members on, in the Shape app (Make it yours → Programs and About me).</CpwHint> : null}
+
+        <div data-studio-jump="" style={{ ...glass, marginTop: 12, padding: "8px 12px" }}>
+          <CpwGlassEdge pal={pal} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+            {counts.map(([k, n, label], i) => (
+              <button key={k} type="button" data-studio-jump-to={k} disabled={!n} onClick={() => jump(k)} aria-label={`${n} ${label}: go to them`}
+                style={{ minHeight: 44, padding: "2px 0 2px 12px", border: 0, borderLeft: i ? `1px solid ${ink(0.3)}` : 0, background: "transparent", color: INK, textAlign: "left", cursor: n ? "pointer" : "default", opacity: n ? 1 : 0.55 }}>
+                <b style={{ display: "block", fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 21, lineHeight: "24px", fontVariantNumeric: "tabular-nums" }}>{n}</b>
+                <span style={{ ...kicker, display: "flex", alignItems: "center", gap: 5, marginTop: 2, fontWeight: 600, color: ink(0.78) }}>{label}<span aria-hidden="true">⌄</span></span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {progs.length || isSelf ? (
+          <div data-studio-programs="">
+            {head("programs", "Programs", progs.length, "Plans that run for weeks. Buy once, yours to keep.")}
+            {progs.length ? (
+              <div style={tray}>
+                <CpwGlassEdge pal={pal} />
+                {progs.map((p, i) => {
+                  const facts = cpwProgramMeta(p);
+                  const forSaid = cpwForWho(p.forWho);
+                  const rowStyle = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 16, padding: "14px 0 15px", borderBottom: i < progs.length - 1 ? `1px solid ${ink(0.14)}` : 0 };
+                  const body = (
+                    <React.Fragment>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ ...kicker, display: "block", ...kickB }}>Program</span>
+                        <span style={{ display: "block", marginTop: 3, fontFamily: CPW_DISPLAY, fontSize: 18, lineHeight: "22px", fontWeight: 600, color: INK }}>{p.name}</span>
+                        {p.desc ? <span data-studio-desc="" style={{ display: "-webkit-box", marginTop: 3, fontSize: 13.5, lineHeight: "19px", color: INK, WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.desc}</span> : null}
+                        {facts ? <span style={{ display: "block", marginTop: 3, fontSize: 13, lineHeight: "18px", color: ink(0.78) }}>{facts}</span> : null}
+                        {forSaid ? <span data-studio-for="" style={{ display: "flex", gap: 7, alignItems: "baseline", marginTop: 4, fontSize: 13, fontWeight: 600, color: INK }}><span style={kicker}>For</span>{forSaid}</span> : null}
+                      </span>
+                      {p.price ? price(p.price, p.paid ? "Once" : "") : <span />}
+                    </React.Fragment>
+                  );
+                  if (i) return <button key={p.key} type="button" data-program="" onClick={() => onProgram(p.pr)} style={{ ...rowStyle, width: "100%", border: 0, borderBottom: rowStyle.borderBottom, background: "transparent", color: INK, textAlign: "left", cursor: "pointer", fontFamily: CPW_BODY }}>{body}</button>;
+                  return (
+                    <div key={p.key} data-program="" data-lead="" style={rowStyle}>
+                      {body}
+                      <span style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: p.pr && p.pr.video ? "1fr 1fr" : "1fr", gap: 8, marginTop: 12 }}>
+                        {p.pr && p.pr.video ? <button type="button" data-program-preview="" onClick={() => onProgram(p.pr)} style={{ minHeight: 44, borderRadius: 6, border: `1px solid ${INK}`, background: "transparent", color: INK, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>▷ Preview</button> : null}
+                        <button type="button" data-program-open="" onClick={() => onProgram(p.pr)} style={{ minHeight: 44, borderRadius: 6, border: 0, background: INK, color: ON_INK, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Open</button>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <CpwHint ink={ink}>Publish a program and it shows here with its preview video, for members to buy.</CpwHint>}
+          </div>
+        ) : null}
+
+        {works.length || isSelf ? (
+          <div data-studio-workouts="">
+            {head("workouts", "Workouts", works.length, `One session each: program days and ${first}'s videos.`)}
+            {model.foci.length > 1 || (model.foci.length === 1 && model.foci[0][1] < works.length) ? (
+              <div data-studio-filter="" role="group" aria-label="Workouts by focus" className="cpw-tabs"
+                style={{ position: "sticky", top: stickyTop, zIndex: 3, marginTop: 8, display: "flex", gap: 6, overflowX: "auto", background: cpwA(pal.PAPER, 0.78), backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}>
+                {[["all", works.length], ...model.foci].map(([f, n]) => {
+                  const on = f === focusNow;
+                  return (
+                    <button key={f} type="button" data-studio-focus={f} aria-pressed={on} onClick={() => { setFocus(f); setOpen(null); }}
+                      style={{ flex: "none", minHeight: 44, padding: 0, border: 0, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center" }}>
+                      <span style={{ height: 32, padding: "0 10px 0 11px", borderRadius: 4, display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, fontWeight: 600, background: on ? INK : "transparent", color: on ? ON_INK : INK, boxShadow: on ? "none" : `inset 0 0 0 1px ${ink(0.34)}` }}>
+                        {f === "all" ? "All" : CPW_WORK_FOCUS[f]}
+                        <em style={{ fontStyle: "normal", fontFamily: CPW_MONO, fontSize: 11, fontWeight: 500, opacity: on ? 0.75 : 0.7, fontVariantNumeric: "tabular-nums" }}>{n}</em>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {shown.length ? (
+              <div style={tray}>
+                <CpwGlassEdge pal={pal} />
+                {shown.map((w, i) => {
+                  const isOpen = open === w.key && w.kind === "day";
+                  const label = w.pick
+                    ? <React.Fragment><b style={kickB}>Workout</b> · <em style={{ fontStyle: "normal", fontWeight: 700, color: ACC }}>{first}'s pick</em></React.Fragment>
+                    : <React.Fragment><b style={kickB}>Workout</b>{w.focus ? ` · ${CPW_WORK_FOCUS[w.focus]}` : w.kind === "video" ? " · Video" : ""}</React.Fragment>;
+                  const facts = w.kind === "day"
+                    ? [w.program && w.program.name, cpwWeekday(w.label), w.moves.length ? cpwMoves(w.moves.length + (w.more || 0)) : null].filter(Boolean).join(" · ")
+                    : ["Video", w.ago || null].filter(Boolean).join(" · ");
+                  return (
+                    <div key={w.key} data-workout="" data-kind={w.kind} data-pick={w.pick ? "" : undefined} style={{ position: "relative", borderBottom: i < shown.length - 1 ? `1px solid ${ink(0.14)}` : 0 }}>
+                      {w.pick ? <span aria-hidden="true" style={{ position: "absolute", left: -12, top: 12, bottom: 13, width: 2, background: ACC }} /> : null}
+                      <button type="button" aria-expanded={w.kind === "day" ? isOpen : undefined} onClick={() => (w.kind === "day" ? setOpen(isOpen ? null : w.key) : onVideo(w.v))}
+                        style={{ width: "100%", padding: "12px 0 13px", border: 0, background: "transparent", color: INK, textAlign: "left", cursor: "pointer", display: "grid", gridTemplateColumns: "48px minmax(0, 1fr) 18px", columnGap: 12, alignItems: "start", fontFamily: CPW_BODY }}>
+                        {w.kind === "day" ? (
+                          <span aria-hidden="true" style={{ width: 48, height: 48, borderRadius: 6, boxShadow: `inset 0 0 0 1px ${ink(0.34)}`, display: "grid", placeItems: "center", fontFamily: CPW_MONO, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", color: INK }}>{w.label}</span>
+                        ) : (
+                          <span aria-hidden="true" style={{ position: "relative", width: 48, height: 48, borderRadius: 6, overflow: "hidden", background: `linear-gradient(135deg, #15171b, ${cpwA(ACC, 0.45)})`, display: "grid", placeItems: "center" }}>
+                            {w.video && cpwVideoFile(w.video.url) ? <video src={`${w.video.url}#t=0.1`} muted playsInline preload="metadata" tabIndex={-1} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} /> : null}
+                            <span style={{ position: "relative", color: "#fff", fontSize: 14, textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>▶</span>
+                          </span>
+                        )}
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ ...kicker, display: "block" }}>{label}</span>
+                          <span style={{ display: "block", marginTop: 3, fontSize: 15.5, lineHeight: "20px", fontWeight: 650 }}>{w.title || "Workout video"}</span>
+                          {w.desc ? <span data-studio-desc="" style={{ display: "-webkit-box", marginTop: 2, fontSize: 13, lineHeight: "18px", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{w.desc}</span> : null}
+                          <span style={{ display: "block", marginTop: 2, fontSize: 13, lineHeight: "18px", color: ink(0.78) }}>{facts}</span>
+                        </span>
+                        <span aria-hidden="true" style={{ alignSelf: "center", justifySelf: "end", color: ink(0.62), fontSize: 13, transform: isOpen ? "rotate(90deg)" : "none" }}>{w.kind === "video" ? "▷" : "›"}</span>
+                      </button>
+                      {isOpen ? (
+                        <div data-workout-moves="" style={{ marginLeft: 60, paddingBottom: 12 }}>
+                          {w.moves.map((m, k) => (
+                            <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, minHeight: 31, borderTop: `1px solid ${ink(0.14)}`, fontSize: 13.5, fontWeight: 500 }}>
+                              <span style={{ minWidth: 0 }}>{m.name}</span>{m.muscle ? <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 400, color: ink(0.74) }}>{m.muscle}</span> : null}
+                            </div>
+                          ))}
+                          {w.more ? <div style={{ minHeight: 31, display: "flex", alignItems: "center", borderTop: `1px solid ${ink(0.14)}`, fontSize: 12.5, color: ink(0.74) }}>＋{w.more}</div> : null}
+                          <button type="button" data-workout-program="" onClick={() => onProgram(w.pr)} style={{ ...link, display: "block", marginTop: 4, color: INK, textDecoration: "underline", textUnderlineOffset: 3, textDecorationColor: ink(0.34), fontFamily: CPW_BODY, fontSize: 13.5 }}>
+                            Sets and loads are in {w.program ? w.program.name : "the program"} →
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <CpwHint ink={ink}>Post a workout video, or publish a program, and its sessions show here.</CpwHint>}
+          </div>
+        ) : null}
+
+        {coaching || isSelf ? (
+          <div data-studio-coaching="">
+            {head("coaching", "Coaching", coaching ? 1 : 0, "Written for you, changed as you go. Paid monthly.")}
+            {coaching ? (
+              <div data-coaching-card="" style={{ ...glass, marginTop: 12, padding: 16 }}>
+                <CpwGlassEdge pal={pal} />
+                <span style={{ ...kicker, display: "block" }}><b style={kickB}>Coaching</b> · Monthly</span>
+                <div style={{ marginTop: 4, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 16, alignItems: "start" }}>
+                  <span style={{ fontFamily: CPW_DISPLAY, fontSize: 18, lineHeight: "22px", fontWeight: 600, color: INK }}>Coaching with {first}</span>
+                  {price(`$${coaching.price}`, "A month")}
+                </div>
+                {coaching.desc ? <p data-studio-desc="" style={{ margin: "8px 0 0", fontSize: 14, lineHeight: "20px", color: INK }}>{coaching.desc}</p> : null}
+                {coaching.includes.length ? (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${ink(0.14)}` }}>
+                    <span style={{ ...kicker, display: "block" }}>What you get</span>
+                    <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none" }}>
+                      {coaching.includes.map((x, k) => <li key={k} style={{ display: "flex", gap: 8, fontSize: 14, lineHeight: "20px", marginTop: 3, color: INK }}><span aria-hidden="true" style={{ color: ACC }}>✓</span>{x}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+                {!isSelf ? (
+                  <div style={{ display: "grid", gridTemplateColumns: onMessage ? "1fr 1fr" : "1fr", gap: 8, marginTop: 16 }}>
+                    <button type="button" data-coaching-apply="" onClick={onWork} style={{ minHeight: 46, borderRadius: 6, border: 0, background: INK, color: ON_INK, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Apply</button>
+                    {onMessage ? <button type="button" data-coaching-message="" onClick={onMessage} style={{ minHeight: 46, borderRadius: 6, border: `1px solid ${INK}`, background: "transparent", color: INK, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Message {first}</button> : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : <CpwHint ink={ink}>Give your listing a monthly price and your coaching shows here.</CpwHint>}
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -1584,60 +1721,19 @@ const cpwProgramDays = (pr) => {
   if (!p || !Array.isArray(p.units) || !(p.kind === "program" || p.kind === "split")) return "";
   return p.units.filter((u) => !u.rest).slice(0, 7).map((u) => [u.label, u.title].filter(Boolean).join(" ")).join(" · ");
 };
-function CpwReplaysTab({ T, programs, workouts, replays, failed = false, onRetry, onProgram, onOpen }) {
-  const { pal, ACC, ON_ACC, INK, ink, first, isSelf } = T;
-  const head = (label) => <span style={{ ...cpwEyebrow(ink), marginTop: 26, marginBottom: 12 }}>{label}</span>;
+function CpwReplaysTab({ T, replays, failed = false, onRetry, onOpen }) {
+  const { pal, ACC, INK, ink, first, isSelf } = T;
   const card = { padding: 0, border: 0, background: "transparent", color: INK, textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, fontFamily: CPW_BODY };
   const badge = { position: "absolute", right: 10, top: 10, padding: "2px 8px", background: "rgba(0,0,0,0.55)", color: "#fff", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.08em" };
+  // The sessions the coach logged, stepped set by set: their programs and workout videos are in the
+  // Studio tab (owner, 2026-11-04), as the app's Replays are.
   return (
     <section data-replays-tab="" style={{ paddingTop: 20 }}>
-      <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>The programs {first} sells, workouts on video, and sessions stepped set by set.</p>
-      {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="work" what={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={onRetry} /> : null}
-      {programs.length ? (
-        <div data-programs="">
-          {head("Programs")}
-          <div className="cpw-cards2">
-            {programs.map((pr) => (
-              <button key={pr.id} type="button" data-program="" onClick={() => onProgram(pr)} style={card}>
-                <span style={{ position: "relative", display: "block", width: "100%", aspectRatio: "16 / 9", overflow: "hidden", background: `linear-gradient(135deg, ${pal.PAPER2}, ${cpwA(ACC, 0.22)})` }}>
-                  {pr.poster ? <img src={pr.poster} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-                    : pr.video ? <CpwStill url={pr.video.url} ACC={ACC} />
-                      : <span style={{ position: "absolute", left: 14, right: 14, bottom: 12, fontFamily: CPW_DISPLAY, fontSize: 30, fontWeight: 600, lineHeight: 1.1 }}>{pr.weeks ? `${pr.weeks} weeks` : `${pr.moves.length} moves`}</span>}
-                  {pr.video ? cpwPlay(ACC) : null}
-                  {pr.price ? <span style={{ position: "absolute", right: 10, top: 10, padding: "3px 9px", background: ACC, color: ON_ACC, fontFamily: CPW_MONO, fontSize: 11, fontWeight: 700 }}>{pr.price}</span> : null}
-                </span>
-                <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.35 }}>
-                  <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 17 }}>{pr.name}</span>
-                  {cpwProgramMeta(pr) || pr.video ? <span style={{ fontSize: 13, color: ink(0.62) }}>{[cpwProgramMeta(pr), pr.video ? "Preview video" : null].filter(Boolean).join(" · ")}</span> : null}
-                  {cpwProgramDays(pr) ? <span style={{ marginTop: 2, fontFamily: CPW_MONO, fontSize: 11, letterSpacing: "0.04em", color: ink(0.72) }}>{cpwProgramDays(pr)}</span> : null}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : isSelf && !failed ? <CpwHint ink={ink}>Publish a program and it shows here with its preview video, for members to buy.</CpwHint> : null}
-      {workouts.length ? (
-        <div data-workouts="">
-          {head("Workouts")}
-          <div className="cpw-cards2">
-            {workouts.map((w) => (
-              <button key={w.key} type="button" data-workout="" onClick={() => onOpen(w)} style={card}>
-                <span style={{ position: "relative", display: "block", width: "100%", aspectRatio: "16 / 9", overflow: "hidden", background: "#000" }}>
-                  <CpwStill url={w.video.url} ACC={ACC} />{cpwPlay(ACC)}
-                  {w.ago ? <span style={badge}>{w.ago}</span> : null}
-                </span>
-                <span style={{ display: "flex", flexDirection: "column", lineHeight: 1.35 }}>
-                  <span style={{ fontFamily: CPW_DISPLAY, fontWeight: 600, fontSize: 17 }}>{w.title || "Workout video"}</span>
-                  {w.body ? <span style={{ fontSize: 13, color: ink(0.62), display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{w.body}</span> : null}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      <p style={{ margin: 0, fontSize: 14.5, color: ink(0.74) }}>The sessions {first} logged, stepped set by set.</p>
+      {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="work" what={isSelf ? "Couldn't read your sessions just now." : `Couldn't read ${first}'s sessions just now.`} onRetry={onRetry} /> : null}
       {replays.length ? (
         <div data-sessions="">
-          {programs.length || workouts.length ? head("Sessions") : <div style={{ height: 14 }} />}
+          <div style={{ height: 14 }} />
           <div className="cpw-cards2">
             {replays.map((r) => {
               const stats = (Array.isArray(r.stats) && r.stats.length ? r.stats : Array.isArray(r.statsRow) ? r.statsRow : []).slice(0, 2).map((s) => (Array.isArray(s) ? `${s[1]}` : "")).filter(Boolean);
@@ -1662,17 +1758,21 @@ function CpwReplaysTab({ T, programs, workouts, replays, failed = false, onRetry
           </div>
         </div>
       ) : null}
-      {isSelf && !failed && !workouts.length && !replays.length ? <CpwHint ink={ink}>Log a session and share it, and it shows here with every set.</CpwHint> : null}
+      {isSelf && !failed && !replays.length ? <CpwHint ink={ink}>Log a session and share it, and it shows here with every set.</CpwHint> : null}
     </section>
   );
 }
-function CpwProgramSheet({ T, K, pr, studio, work, sells, onClose, onBuy, onWork }) {
+// The program's sheet, as the app's (BSTrainerProfile ProgramSheet): the coach's line about it (else its
+// note) and who it is for, then its first week's days, each opening to its moves and their muscles with
+// the coach's line for that day (the Studio model's), then the unlock line and Buy.
+function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy, onWork }) {
   const { pal, ACC, ON_ACC, first, isSelf } = T;
   const muted = "rgba(232,235,239,0.6)";
   const p = pr.preview || { units: [], kind: null };
   const units = Array.isArray(p.units) ? p.units.filter((u) => u && !u.locked && !u.rest) : [];
-  const pieceName = (q) => (q.st && q.st.title) || q.label || q.tag || ((K.STUDIO_KIT[q.t] || [q.t])[0]);
-  const where = studio ? [...new Set(studio.items.map((q, k) => (q.t !== "zone" && work[k] && work[k].programs.some((x) => x.id === pr.id) ? pieceName(q) : null)).filter(Boolean))].slice(0, 8) : [];
+  const [openDay, setOpenDay] = React.useState(null);
+  const desc = item && item.desc ? item.desc : "";
+  const forSaid = item ? cpwForWho(item.forWho) : "";
   const meta = cpwProgramMeta(pr);
   const line = { width: "100%", minHeight: 50, border: "1px solid rgba(232,235,239,0.25)", background: "transparent", color: "#e8ebef", fontFamily: CPW_BODY, fontWeight: 600, cursor: "pointer" };
   return (
@@ -1682,7 +1782,39 @@ function CpwProgramSheet({ T, K, pr, studio, work, sells, onClose, onBuy, onWork
       {meta ? <p style={{ margin: "4px 0 0", fontSize: 13.5, color: muted }}>{meta}</p> : null}
       {pr.video ? <div data-program-video="" style={{ marginTop: 12 }}><CpwVideo url={pr.video.url} title={pr.name} /></div>
         : pr.poster ? <div style={{ marginTop: 12, aspectRatio: "16 / 9", overflow: "hidden", background: "#000" }}><img src={pr.poster} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div> : null}
-      {units.length ? (
+      {desc || p.note ? <p data-program-desc="" style={{ margin: "12px 0 0", paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 14.5, lineHeight: 1.5 }}>{desc || p.note}</p> : null}
+      {forSaid ? <p data-program-for="" style={{ margin: "8px 0 0", fontSize: 14, color: "#e8ebef" }}><span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: muted, marginRight: 8 }}>For</span>{forSaid}</p> : null}
+      {days.length ? (
+        <div style={{ marginTop: 14 }}>
+          <span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: muted }}>The first week</span>
+          {days.map((d) => {
+            const on = openDay === d.key;
+            return (
+              <div key={d.key} data-program-day="" style={{ borderBottom: "1px solid rgba(232,235,239,0.1)" }}>
+                <button type="button" aria-expanded={on} onClick={() => setOpenDay(on ? null : d.key)}
+                  style={{ width: "100%", minHeight: 44, padding: "9px 0", border: 0, background: "transparent", color: "#e8ebef", textAlign: "left", cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", fontFamily: CPW_BODY }}>
+                  <span style={{ flexShrink: 0, minWidth: 40, fontFamily: CPW_MONO, fontSize: 10.5, letterSpacing: "0.08em", color: ACC }}>{d.label}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: 15 }}>{d.title}</span>
+                    {d.desc ? <span style={{ display: "block", marginTop: 2, fontSize: 13, lineHeight: 1.45, color: "rgba(232,235,239,0.8)" }}>{d.desc}</span> : null}
+                  </span>
+                  <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 12, color: muted }}>{d.moves.length ? cpwMoves(d.moves.length + (d.more || 0)) : ""} {on ? "⌃" : "⌄"}</span>
+                </button>
+                {on ? (
+                  <div data-program-moves="" style={{ paddingLeft: 50, paddingBottom: 10 }}>
+                    {d.moves.map((m, k) => (
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", fontSize: 13.5, color: "#e8ebef" }}>
+                        <span>{m.name}</span>{m.muscle ? <span style={{ fontSize: 12.5, color: muted }}>{m.muscle}</span> : null}
+                      </div>
+                    ))}
+                    {d.more ? <div style={{ padding: "5px 0", fontSize: 12.5, color: muted }}>＋{d.more}</div> : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : units.length ? (
         <div style={{ marginTop: 14 }}>
           <span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: muted }}>{p.kind === "program" || p.kind === "split" ? "The first week" : "The moves"}</span>
           {units.slice(0, 14).map((u, k) => (
@@ -1697,8 +1829,6 @@ function CpwProgramSheet({ T, K, pr, studio, work, sells, onClose, onBuy, onWork
         </div>
       ) : null}
       {p.namesOnly ? <p style={{ margin: "10px 0 0", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: muted }}>Sets, loads, cues and exercise videos unlock when you buy</p> : null}
-      {p.note ? <p style={{ margin: "12px 0 0", paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 14.5, lineHeight: 1.5 }}>{p.note}</p> : null}
-      {where.length ? <div data-program-where="" style={{ marginTop: 14 }}><span style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: muted }}>On {first}'s floor</span><p style={{ margin: "4px 0 0", fontSize: 14, lineHeight: 1.5 }}>{where.join(" · ")}</p></div> : null}
       <div style={{ marginTop: 20 }}>
         {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>This is what members see before they buy.</p>
           : pr.sample ? <button type="button" onClick={onWork} style={line}>Work with {first}</button>
