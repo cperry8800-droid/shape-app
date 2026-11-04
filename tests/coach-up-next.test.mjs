@@ -47,14 +47,26 @@ test('Open their file asks for the booking\'s client by id, else by name, throug
   }
 });
 
-test('Up next is the plate: the role\'s rule, a cut corner, the time to it, its buttons still 44 to tap', () => {
-  // Direction A (owner, 2026-11-03), after "make this a little smaller" (2026-10-31): the name stays 17.
+test('Up next hangs from the deck: a dotted line into its rail, the countdown there, its buttons still 44 to tap', () => {
+  // Owner, 2026-11-04, of the deck and Up next: "also need to make these 2 sections flow and look better
+  // together", then of three built in the app "this one" (the timeline). The name stays 17 (2026-10-31).
   const at = PROS.indexOf('<div data-up-next=""');
   const card = PROS.slice(at, PROS.indexOf('{/* TO DO', at));
-  assert.match(card, /\.\.\.bsProPlate\(t, heat\)/);
+  // The deck's width: both sit 10px in from the page, so they line up.
+  const wrap = PROS.slice(PROS.lastIndexOf('{upB && (', at), at);
+  assert.match(wrap, /<div style=\{\{ margin: '0 10px' \}\}>/, 'Up next is not the deck\'s width');
+  const KIT = readFileSync(new URL('../mobile-app/src/broadsheet/BSProInstrument.jsx', import.meta.url), 'utf8');
+  assert.match(KIT, /data-pro-deck=""[^\n]*margin: '6px 10px 0', \.\.\.bsRaised\(t\)/, 'the deck moved off its 10px');
+  // The dotted line from the deck, in the role's heat, into the rail's middle (the rail is 74px wide).
+  assert.match(wrap, /data-up-link="" style=\{\{ marginLeft: 36, width: 0, height: 14, borderLeft: `2px dotted \$\{heat\}` \}\}/);
+  assert.match(card, /\.\.\.bsProPlate\(t, heat\), display: 'grid', gridTemplateColumns: '74px minmax\(0, 1fr\)'/);
+  // The rail: the pulse (still under Reduce Motion), the countdown, or a booking under way's start time.
+  const rail = card.slice(card.indexOf('data-up-rail=""'), card.indexOf("tr('coach:today.upNextAt'"));
+  assert.match(rail, /\.\.\.\(sdReduced \? null : \{ animation: 'bsLivePulse/);
+  assert.match(rail, /\{upIn != null && \(/, 'no countdown for a booking already under way');
+  assert.match(rail, /data-up-countdown=""[\s\S]*tr\('coach:today\.toGo'/, 'the countdown');
+  assert.match(rail, /\{upIn == null && <span[^\n]*\{fmtAt\(upB\.time\)\}/);
   assert.match(card, /fontFamily: BS_PRO_HEAD, fontSize: 17,/, 'the name at 17');
-  assert.match(card, /data-up-countdown=""[\s\S]*tr\('coach:today\.toGo'/, 'the countdown');
-  assert.match(card, /\{upIn != null && \(/, 'no countdown for a booking already under way');
   const buttons = card.match(/<button [^\n]*/g) || [];
   assert.ok(buttons.length >= 2);
   for (const b of buttons) assert.match(b, /minHeight: 44/, 'a button under 44');
