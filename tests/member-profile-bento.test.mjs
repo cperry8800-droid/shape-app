@@ -49,36 +49,50 @@ test('the counts line is as it was: three words on one line, no tiles', () => {
   }
 });
 
-test('on someone else\'s page Follow is the lit tile and Message a quiet one beside it', () => {
+test('on someone else\'s page Follow and Message are small pills in the counts\' row: Follow lit, Message quiet', () => {
+  // Owner, 2026-11-04: "also move the [Follow] up to where followers, following are", "and make smaller to
+  // hit the look of that section of page", then of Message, "same thing for the message box".
   signedInAs('u-me');
   const d = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', INK, BG: '#100d0a', name: 'Priya Shah', variant: 'coach', onMessage() {} });
-  const [toggle] = withAttr(d.nodes(), 'data-follow-toggle');
-  const [message] = withAttr(d.nodes(), 'data-follow-message');
-  assert.equal(toggle.props.style.background, '#34d6c5');
-  assert.equal(toggle.props.style.backgroundImage, bento.BS_MP_SHEEN, 'the lit tile lost its sheen');
-  assert.equal(toggle.props.style.borderRadius, 14);
-  // Condensed (owner, 2026-11-04: "condense these"): the icon beside the words, one row.
-  assert.equal(toggle.props.style.flexDirection, 'row');
-  assert.notEqual(message.props.style.background, '#34d6c5', 'Message is lit');
-  assert.equal(message.props.style.backgroundImage, undefined, 'Message has the sheen');
-  assert.match(message.props.style.border, /^1px solid rgba\(/, 'Message is not the quiet tile');
-  assert.equal(message.props.style.borderRadius, 14);
-  const [grid] = withAttr(d.nodes(), 'data-follow-actions');
-  assert.equal(grid.props.style.gridAutoRows, 'minmax(44px, auto)', 'the tiles are not condensed');
-  assert.equal(grid.props.style.gridTemplateColumns, 'repeat(2, minmax(0, 1fr))', 'Follow and Message are not side by side');
-  assert.equal(grid.props.style.gap, 10, 'Follow and Message lost the room between them');
-  assert.equal(toggle.props.style.gridColumn, 'auto');
-  // With no Message, Follow takes the row.
-  const alone = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
-  assert.equal(withAttr(alone.nodes(), 'data-follow-toggle')[0].props.style.gridColumn, '1 / -1');
-  // Following is a quiet tile with a check, and says so once (no ✓ in the words beside the icon).
+  const nodes = d.nodes();
+  const [toggle] = withAttr(nodes, 'data-follow-toggle');
+  const [message] = withAttr(nodes, 'data-follow-message');
+  const pillOf = (btn) => [btn.props.children].flat(3).find((n) => n && n.props && n.props['data-follow-pill'] !== undefined);
+  const fp = pillOf(toggle);
+  const mp = pillOf(message);
+  // In the counts' row: the actions sit in the row that holds the three counts.
+  const [actions] = withAttr(nodes, 'data-follow-actions');
+  const row = nodes.find((n) => n && n.props && [n.props.children].flat(3).includes(actions));
+  assert.ok(row, 'Follow and Message left the counts\' row');
+  assert.equal([row.props.children].flat(3).filter((n) => n && n.props && n.props['data-follow-count'] !== undefined).length, 3, 'the row lost its counts');
+  // Small: 32px pills in the counts' face, each a 44px target.
+  const [cnt] = withAttr(nodes, 'data-follow-count');
+  for (const p of [fp, mp]) {
+    assert.equal(p.props.style.height, 32);
+    assert.equal(p.props.style.borderRadius, 99);
+    assert.equal(p.props.style.fontFamily, cnt.props.style.fontFamily, 'a pill is not in the counts\' face');
+    assert.ok(p.props.style.fontSize <= cnt.props.style.fontSize, 'a pill\'s words are bigger than the counts\'');
+  }
+  for (const btn of [toggle, message]) assert.equal(btn.props.style.minHeight, 44, 'a pill is under 44 to tap');
+  assert.equal(toggle.props.style.minWidth, 44);
+  assert.equal(toggle.props.style.background, 'transparent', 'the target is drawn, not the pill');
+  // Follow lit in the profile's colour, Message quiet.
+  assert.equal(fp.props.style.background, '#34d6c5');
+  assert.notEqual(mp.props.style.background, '#34d6c5', 'Message is lit');
+  assert.match(mp.props.style.border, /^1px solid rgba\(/, 'Message is not the quiet pill');
+  assert.ok(!nodes.some(named('BSMpIconBox')), 'a tile\'s icon square is back');
+  // Following is a quiet pill with a check, and says so once (no ✓ in the words beside the icon).
   const src = fnBody('function BSFollowBlock(');
-  assert.match(src, /lit: !\(following \|\| requested\)/);
+  assert.match(src, /style=\{pill\(!\(following \|\| requested\)\)\}/);
   assert.match(src, /name=\{following \? 'check' : requested \? 'clock' : 'plus'\}/);
   assert.doesNotMatch(src.slice(src.indexOf("if (variant === 'coach')"), src.indexOf('// ── Ledger variant')), /`✓ \$\{tr\('profile:follow\.following'/);
+  // With no Message, Follow alone.
+  const alone = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', name: 'Priya Shah', variant: 'coach' });
+  assert.equal(withAttr(alone.nodes(), 'data-follow-toggle').length, 1);
+  assert.equal(withAttr(alone.nodes(), 'data-follow-message').length, 0);
 });
 
-test('the counts sit right under the photo, above the bio; a visitor\'s Follow stays under the bio', () => {
+test('the counts sit right under the photo, above the bio; a visitor\'s Follow and Message ride in the counts\' row', () => {
   // Owner, 2026-11-04: "move the followers, following row above the bio just below picture on profile".
   signedOut();
   const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
@@ -90,20 +104,26 @@ test('the counts sit right under the photo, above the bio; a visitor\'s Follow s
   const [actions] = withAttr(nodes, 'data-member-actions');
   assert.ok(at(nameEl) < at(follow), 'the counts went above the name');
   assert.ok(at(follow) < at(meta) && at(meta) < at(actions), 'the counts are not between the photo and the tier line');
-  // The bio, the tier line and the countdown ride inside the follow block, so one block holds the counts
-  // and the Follow that changes them.
+  // The bio and the tier line ride inside the follow block, so one block holds the counts and the Follow
+  // that changes them.
   const body = fnBody('function BSTerrainProfile(');
   const block = body.slice(body.indexOf('<BSFollowBlock '), body.indexOf('</BSFollowBlock>'));
-  for (const attr of ['data-member-bio', 'data-member-meta', 'data-member-start']) assert.ok(block.includes(attr), `${attr} left the follow block`);
+  for (const attr of ['data-member-bio', 'data-member-meta']) assert.ok(block.includes(attr), `${attr} left the follow block`);
+  // The countdown is under the name, as their status (owner, 2026-11-04: "also move this somewhere else on
+  // client profile"; it sat between the Shape Score row and Log activity).
+  assert.ok(!block.includes('data-member-start'), 'the countdown is back between the Score row and the tiles');
+  const nameAt = body.indexOf('data-member-name');
+  const startAt = body.indexOf('data-member-start');
+  assert.ok(nameAt > -1 && startAt > nameAt && startAt < body.indexOf('<BSFollowBlock '), 'the countdown sits in the name\'s block, before the counts');
   assert.ok(body.indexOf('data-member-bio') > body.indexOf('<BSFollowBlock '), 'the bio is above the counts again');
-  // In the block: the counts, then what the host put inside, then a visitor's Follow and Message.
+  // In the block: the counts with a visitor's Follow and Message in their row, then what the host put inside.
   signedInAs('u-me');
   const v = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', INK, name: 'Priya Shah', variant: 'coach', onMessage() {}, children: { type: 'p', props: { 'data-host-bio': '', children: 'bio' } } });
   const vn = v.nodes();
   const [count] = withAttr(vn, 'data-follow-count');
   const [bio] = withAttr(vn, 'data-host-bio');
   const [buttons] = withAttr(vn, 'data-follow-actions');
-  assert.ok(vn.indexOf(count) < vn.indexOf(bio) && vn.indexOf(bio) < vn.indexOf(buttons), 'the order is not counts, bio, Follow');
+  assert.ok(vn.indexOf(count) < vn.indexOf(buttons) && vn.indexOf(buttons) < vn.indexOf(bio), 'the order is not counts with Follow, then the bio');
   // With no one to count, the bio still shows.
   signedOut();
   const none = drive(mod.BSFollowBlock, { userId: null, isSelf: false, name: '', variant: 'coach', children: 'the bio' });
@@ -246,4 +266,42 @@ test('the tiles module stands alone: no import back into the client, no window g
   assert.doesNotMatch(BENTO_SRC.replace(/^\s*\/\/.*$/gm, ''), /window\./);
   assert.doesNotMatch(BENTO_SRC, /\p{Extended_Pictographic}/u);
   assert.match(CLIENT, /import \{ BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards \} from '\.\/BSMemberBento\.jsx';/);
+});
+
+// Owner, 2026-11-04, of the Shape Score row, the Log activity / Edit profile tiles and the Coached by card:
+// "make these sit better together. they each look out of place", then "idk if its the colors or what".
+// The Score row was a bordered strip with a gold spine, a mono caps label and its own →, beside a lit tile
+// and a quiet coach tile. Now it is drawn as the coach card is, and Log activity is the one lit tile.
+test('the Shape Score row and the Coached by card are one kind of tile; Log activity is the one lit thing', () => {
+  signedOut();
+  const nodes = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true }).nodes();
+  const [score] = withAttr(nodes, 'data-member-score');
+  const [coachWrap] = withAttr(nodes, 'data-member-coach');
+  const coach = [coachWrap.props.children].flat(3).find((n) => n && n.type === 'button');
+  assert.ok(coach, 'the coach card opens the coach');
+  const s = score.props.style;
+  const k = coach.props.style;
+  for (const prop of ['borderRadius', 'background', 'border', 'boxShadow', 'minHeight', 'padding', 'gap', 'alignItems']) {
+    assert.deepEqual(s[prop], k[prop], `the Score row's ${prop} is not the coach card's`);
+  }
+  assert.equal(s.borderRadius, 14, 'the tiles\' radius');
+  assert.equal(s.minHeight, 48);
+  assert.equal(s.boxShadow === undefined || !/inset 3px 0 0/.test(String(s.boxShadow)), true, 'the gold spine is back');
+  // Its words: a label then the bold tier, the points and the streak under them; a chevron, no →.
+  assert.match(textOf(score), /^Shape Score .+ tier1,284 pts · .+-day streak$/);
+  assert.doesNotMatch(textOf(score), /→/);
+  const kids = [score.props.children].flat(4).filter(Boolean);
+  const icons = (n) => (n && typeof n === 'object' ? (named('BSMpIcon')(n) ? [n] : [n.props && n.props.children].flat(5).flatMap(icons)) : []);
+  assert.deepEqual(kids.flatMap(icons).map((n) => n.props.name), ['award', 'chevron'], 'the ring\'s mark and the chevron');
+  assert.equal(score.props['aria-label'], `Shape Score: ${textOf(score).replace(/^Shape Score /, '').replace(/tier(?=1,284)/, 'tier · ')}`, 'a screen reader hears it whole');
+  // The phase chips are quiet ink; the tier's colour stays on the rings and Log activity.
+  const [phase] = withAttr(nodes, 'data-member-phase');
+  const chips = [phase.props.children].flat(3).filter((n) => n && n.props && n.props.style && n.props.style.borderRadius === 99);
+  assert.ok(chips.length >= 1, 'the phase lost its chips');
+  const [log] = withAttr(nodes, 'data-member-log');
+  const rgb = (hex) => { const h = String(hex).replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', '); };
+  const tier = rgb(log.props.style.background);
+  assert.match(tier, /^\d+, \d+, \d+$/, 'the tier colour reads as a hex colour');
+  for (const chip of chips) assert.ok(!chip.props.style.background.includes(tier), `a chip is in the tier's colour again (${chip.props.style.background})`);
+  assert.equal(log.props.style.backgroundImage, bento.BS_MP_SHEEN, 'Log activity is still the lit tile');
 });

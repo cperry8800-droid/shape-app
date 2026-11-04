@@ -622,6 +622,34 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the Wall\'s lit top, Find your coach as tall cards with the Shape Score tier and At capacity, Shape Score as one raised card, the Store\'s wallet over lit rows (#2602). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of three designs each built in the app: the Wall "option c for wall but keep the facet avatars for clients and circle avatar for coaches"; Find your coach "option A for find your trainer tab", "same design for find your nutritionist. Make sure their shape score tier is shown"; "B for shape score"; the Store "option C … but use this at top instead of 2 boxes"; and "if they are at capacity for new clients … have a little symbol or something that shows that"', status: 'done' },
+        { label: '#2602 the Wall: the lens, the count online and the type chips are lit chips (bsWsLed in bsMagazine.mjs: a dark slot, the one shown framed and lettered in teal, glowing on dark paper only); on the online rail a member keeps the flat facet and a coach is a circle ringed rust or gold (BSRailCoachFace), its initials when the photo fails', status: 'done' },
+        { label: '#2602 Find your coach: the trainers\' and nutritionists\' lists are tall cards two across (their place, their Shape Score tier lit in its colour or a dim New with none, a big face, role · credential, place · vetted, rating and rate); the search 42px, the switch 34px, the chips 30px (44px targets); the coach of the week one compact card', status: 'done' },
+        { label: '#2602 At capacity: a coach whose listing is at capacity (at_capacity, no resume date or one ahead: mktRowAtCapacity, src/lib/capacity.ts\'s rule, shared with the listing) reads At capacity on the list\'s cards over a dimmed face, on This week\'s tiles and on the coach of the week; the listing still offers the waiting list', status: 'done' },
+        { label: '#2602 Shape Score: the score, the rung\'s badge and the verdict in one raised card, the climb to the next rung as 24 dots (floored) with the floors, how far in and what it unlocks. The Store: the balance as a wallet card (Available with the rung, Worth under a hairline); Closest to you as lit rows with a 16-cell strip (floored)', status: 'done' },
+        { label: '#2602 review: Codex\'s four P2s on 1456923 (the coach face\'s broken photo, the coach of the week without At capacity, the Store\'s strips and the Score\'s dots reading full while points remained) fixed in 4050129; Codex clean on 4050129. CI green', status: 'done' },
+        { label: 'OWNER: should a coach at 0 Shape Score points read the bottom rung, Certified, on their card instead of New? Every listed coach has 0 points today, so every card reads New', status: 'manual' },
+        { label: 'Next PR, built and waiting on this one: Train in C (lit day tiles glowing on the day picked, the burn card a lit slot, a glass lead); Eat in C with B\'s round days and ring fuel card; the owner\'s B for the workout screens (detail, Focus, Workout log, Guided coach) and the meal log (sheet and Filed); the meal page B and Grocery C; the Home goal card (B\'s strip with C\'s colouring); Settings C', status: 'pending' },
+        { label: 'Waiting on the owner\'s pick: coach Today\'s To do + Schedule', status: 'pending' },
+        { label: 'OWNER: on a phone, the Wall, Find your coach, Score and Store on both papers', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App: This week\'s Steps opens Shape Steps again; the member profile\'s countdown under the name, its Score row, tiles and coach card as one set, Follow and Message as pills by the counts; the Score row on coach profiles (#2601). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "where did shape steps go?", "yes put it back on this week steps"; of the countdown, "also move this somewhere else on client profile"; of the Score row, tiles and coach card, "make these sit better together. they each look out of place", "idk if its the colors or what"; of Follow and Message, "make the follow and message buttons match too", "also move the [Follow] up to where followers, following are", "and make smaller to hit the look of that section of page", "same thing for the message box"; "Add the Shape Score row to coach profiles too"', status: 'done' },
+        { label: '#2601 Home: Steps in This week\'s line (the picked day\'s, and the key while the week is unread) is the Shape Steps page\'s door again, in the accent: the page once steps have synced or while the steps read has not answered (useBSStepsToday\'s `known`), Integrations once it says nothing ever synced. Its 44px box reaches as the date\'s → does; the line is a flex row whose words end in "…" and whose door never shrinks', status: 'done' },
+        { label: '#2601 member profile: the countdown sits under the name and handle ("Training for <goal>", then the date and days left). The Shape Score row is drawn as the Coached by card is (one tile, a ring in the tier\'s colour round the award, the tier bold, the points and streak under it, a chevron on your own page); the coach card 48px; the phase chips quiet ink, so the tier\'s colour is on the rings and the one lit thing', status: 'done' },
+        { label: '#2601 someone else\'s page: Follow and Message are 32px pills in the counts\' row and face (Follow lit, Message quiet), each a 44px target; on a phone they wrap under the counts, above the bio', status: 'done' },
+        { label: '#2601 coach profiles: the Shape Score row (the member row\'s tile in the coach page\'s faces, the page\'s accent on the ring, the coach tier and points) in place of the small "Shape Score 3,060 ›". Your own opens the Score page (onOpenScore, else shape:openScore); another coach\'s only shows it; a coach with no score has none', status: 'done' },
+        { label: '#2601 review: Codex\'s P2 on 2b25d97 (a tap before the steps read answered went to Integrations) fixed in 50db182; its P2 on a447e43 (the line\'s clip could hide the Steps door) fixed in bf6116c; its P1 on bf6116c ("Shape Score" untranslated in the coach row) answered: owner, 2026-11-04, "keep it in english", the product\'s name stays English in every locale as Shape Radio and Shape Steps do. CI green on bf6116c', status: 'done' },
+        { label: 'The copy key profile:trainer.score (the old coach link\'s words) is no longer read', status: 'pending' },
+        { label: 'OWNER: on a phone, the Follow and Message pills under the counts and the coach page\'s Score row', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the marketplace directory ("Find your coach.") redesigned, in its own module, BSMarketDirectory.jsx (#2600). No migration',
       items: [
         { label: 'Owner, 2026-11-04, after the run of redesigns (Goals, Home\'s Team, the coach pages): "and these", "the marketplace"', status: 'done' },

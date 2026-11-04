@@ -1,6 +1,6 @@
 import React from 'react';
 import { bsSdFigure, bsSdFigureText } from '../services/sessionLedger.mjs';
-import { bsWsAccent, bsWsHead } from './bsMagazine.mjs';
+import { bsWsAccent, bsWsHead, bsWsLed } from './bsMagazine.mjs';
 // ─── THE WALL · A STORY ──────────────────────────────────────────────────────────────────────────
 // Owner, 2026-10-23: the dark magazine look for the Wall, its headlines in the headline face, and
 // "keep the same likes and comments". A post on the Wall reads as a story: a picture or its route with
@@ -15,7 +15,7 @@ import { bsWsAccent, bsWsHead } from './bsMagazine.mjs';
 const BS_WS_OVER_KICKER = '#8cebe0';
 // The magazine's accent and its headline face live in bsMagazine.mjs, which the app's chrome reads too; the
 // client takes them from here with the story pieces.
-export { bsWsAccent, bsWsHead };
+export { bsWsAccent, bsWsHead, bsWsLed };
 
 
 function BSWsKicker({ children, color }) {
@@ -150,24 +150,25 @@ export function BSWallStoryQuote({ text, cite, onOpen }) {
   );
 }
 
-// The Wall's activity types as a row of chips, the one shown filled in ink, scrolling sideways when a
-// language's words run longer. `types` are [key, label] pairs; `type` is the one shown. Since the owner's
-// B (2026-10-26) the page's title is the switch between Chat's places (BSChatPlaces.jsx), so this is the
-// one row of controls left over the Wall; it sits on the cards' 12px gutter, as the live story does. It
-// used to stand under a masthead (THE WALL over a heavy rule, the day and how many were training), cut by
-// the owner, 2026-10-25: "remove this header in chat page" and "clean this up".
+// The Wall's activity types as a row of lit chips (the owner's C, 2026-11-04), the one shown framed and
+// lettered in the teal, scrolling sideways when a language's words run longer. `types` are [key, label]
+// pairs; `type` is the one shown. Since the owner's B (2026-10-26) the page's title is the switch between
+// Chat's places (BSChatPlaces.jsx), so this is the one row of controls left over the Wall; it sits on the
+// cards' 12px gutter, as the live story does. It used to stand under a masthead (THE WALL over a heavy
+// rule, the day and how many were training), cut by the owner, 2026-10-25: "remove this header in chat
+// page" and "clean this up".
 export function BSWallTypes({ types = [], typesLabel, type, onType }) {
   const t = window.useBS();
-  const mono = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
+  const mono = { fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
   return (
-    <nav data-bs-wall-types="" className="bs-hide-scroll" aria-label={typesLabel} style={{ margin: '0 12px', display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 6, borderBottom: `1px solid ${t.HAIR}` }}>
+    <nav data-bs-wall-types="" className="bs-hide-scroll" aria-label={typesLabel} style={{ margin: '0 12px', display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
       {types.map(([k, label]) => {
         const on = k === type;
         return (
           // The 44px target is the button; the chip drawn inside it is the visible part.
           <button key={k} type="button" aria-pressed={on} onClick={() => onType && onType(k)}
             style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer' }}>
-            <span style={{ ...mono, display: 'inline-block', padding: '9px 13px', borderRadius: 4, border: `1px solid ${on ? t.INK : t.RULE}`, background: on ? t.INK : 'transparent', color: on ? t.PAPER : t.INK }}>
+            <span data-led={on ? 'on' : 'off'} style={{ ...mono, display: 'inline-block', padding: '7px 11px', whiteSpace: 'nowrap', ...bsWsLed(t, on) }}>
               {label}
             </span>
           </button>
