@@ -442,9 +442,11 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
   return (
     <BSPageCal>
       <BSPageHeaderCal
+        // No "Section · Calendar" eyebrow on your own calendar (owner, 2026-11-04: "remove this from month
+        // calendar page"); a coach reading a client's keeps whose it is.
         kicker={forClient
           ? tr('calendar:client.kicker', { defaultValue: 'Calendar · {name}', name: clientName || tr('calendar:client.fallbackName', { defaultValue: 'Client' }) })
-          : tr('calendar:view.kicker', { defaultValue: 'Section · Calendar' })}
+          : null}
         trailing={trailing}
         onBack={onBack}
       />
@@ -454,27 +456,32 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
         </div>
       )}
 
-      {/* Month | Weeks — a quiet segmented switch (owner, 2026-10-30: "redesign look of
-          these"). The solid ink pill it replaces was the loudest thing on the page, louder than
-          the month it switches; now the lit view is a raised paper tab on a faint track, with a
-          small grid or list mark so the two read apart at a glance. */}
-      <div style={{ padding: `10px ${t.padX}px ${useServer && view === 'month' ? 0 : 10}px` }}>
-        <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, padding: 3, borderRadius: 11, background: `rgba(${t.inkRGB || '127,127,127'},${t.isLight ? 0.06 : 0.08})` }}>
+      {/* Month | Weeks — a quiet segmented switch (owner, 2026-10-30: "redesign look of these"), condensed
+          (owner, 2026-11-04: "condense these tabs"): a 32px track, 260px at most and centred, with less room
+          around it. Each tab is still a 44px tap: the button is the full height, the lit pill a 26px span
+          in it. A small grid or list mark tells the two apart at a glance. */}
+      <div style={{ padding: `2px ${t.padX}px ${useServer && view === 'month' ? 0 : 4}px` }}>
+        <div role="tablist" aria-label={tr('calendar:view.label', { defaultValue: 'Calendar view' })} style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 3, padding: '0 3px', maxWidth: 260, margin: '0 auto' }}>
+          <span aria-hidden="true" data-cal-track="" style={{ position: 'absolute', left: 0, right: 0, top: 6, bottom: 6, borderRadius: 10, background: `rgba(${t.inkRGB || '127,127,127'},${t.isLight ? 0.06 : 0.08})` }} />
           {[['month', tr('calendar:view.month', { defaultValue: 'Month' }), 'M3.5 5.5h17M3.5 5.5v14h17v-14M3.5 10.5h17M3.5 15h17M9 10.5v9M15 10.5v9'], ['weeks', tr('calendar:view.weeks', { defaultValue: 'Weeks' }), 'M4 6h16M4 12h16M4 18h16']].map(([k, l, d]) => {
             const on = view === k;
             return (
               <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setView(k)} style={{
-                minHeight: 38, padding: '0 4px', borderRadius: 8, border: 0, cursor: 'pointer',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                // Light papers raise the lit tab in paper; dark ones in a lighter ink wash, so the
-                // lit tab always sits above its track rather than sinking below it.
-                background: on ? (t.isLight ? t.PAPER : `rgba(${t.inkRGB || '127,127,127'},0.16)`) : 'transparent', color: on ? t.INK : t.INK70,
-                boxShadow: on && t.isLight ? `inset 0 0 0 1px ${t.RULE}, 0 1px 3px rgba(0,0,0,0.08)` : 'none',
-                fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-                transition: 'background 160ms ease, color 160ms ease',
+                position: 'relative', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', color: on ? t.INK : t.INK70,
+                fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
               }}>
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
-                {l}
+                {/* Light papers raise the lit tab in paper; dark ones in a lighter ink wash, so the lit tab
+                    always sits above its track rather than sinking below it. */}
+                <span style={{
+                  width: '100%', height: 26, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  background: on ? (t.isLight ? t.PAPER : `rgba(${t.inkRGB || '127,127,127'},0.16)`) : 'transparent',
+                  boxShadow: on && t.isLight ? `inset 0 0 0 1px ${t.RULE}, 0 1px 3px rgba(0,0,0,0.08)` : 'none',
+                  transition: 'background 160ms ease, color 160ms ease',
+                }}>
+                  <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+                  {l}
+                </span>
               </button>
             );
           })}

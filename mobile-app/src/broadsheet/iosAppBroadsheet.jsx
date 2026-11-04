@@ -1689,7 +1689,8 @@ function BSHeadlineNumber({ sign = '', value, unit, color, size }) {
   );
 }
 
-// Ticker — black bar with scrolling content
+// Ticker — black bar with scrolling content. Thin (owner, 2026-11-04: "thin this bar slightly, make a
+// little more narrow"): 5px above and below the line (from 8), its notch 9px.
 function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
   const t = useBS();
   const rows = Array.isArray(items) ? items : [];
@@ -1698,10 +1699,10 @@ function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
     <div style={{
       position: 'relative',
       background: t.INK, color: t.PAPER,
-      clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)',
+      clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)',
       borderLeft: `3px solid ${t.ACCENT}`,
-      padding: '8px 0', overflow: 'hidden', whiteSpace: 'nowrap',
-      fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.12em',
+      padding: '5px 0', overflow: 'hidden', whiteSpace: 'nowrap',
+      fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em',
     }}>
       {/* fixed live tick — a solid cap the marquee scrolls beneath */}
       <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 20, background: t.INK, zIndex: 1, display: 'grid', placeItems: 'center' }}>

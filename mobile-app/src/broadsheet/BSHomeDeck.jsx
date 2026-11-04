@@ -146,7 +146,10 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
         role: 'button', tabIndex: 0, 'aria-label': aria || undefined,
         onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } },
       } : null)}
-      style={{ position: 'relative', margin: '8px 0 0', cursor: typeof onOpen === 'function' && st.kind !== 'loading' ? 'pointer' : 'default' }}>
+      // 22px under the radio box: at 8px the ridge and the flag ran up against the box's foot (owner,
+      // 2026-11-04: "there is some overlap with new home design and shape radio box, can we move the graph
+      // down a little").
+      style={{ position: 'relative', margin: '22px 0 0', cursor: typeof onOpen === 'function' && st.kind !== 'loading' ? 'pointer' : 'default' }}>
       {/* Named by what it shows; still reading, it shows nothing yet and is hidden from a screen reader,
           never an unnamed graphic in browse mode (Codex P2 on #2583). */}
       <svg {...(aria ? { role: 'img', 'aria-label': aria } : { 'aria-hidden': true, focusable: 'false' })} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
@@ -220,9 +223,9 @@ function BSHdBar({ state, on }) {
   const ink = on ? t.PAPER : t.INK;
   const rule = on ? `${t.PAPER}55` : t.RULE;
   const base = { width: 3.5, borderRadius: 1, boxSizing: 'border-box' };
-  if (state === 'hit') return <span data-bar="hit" style={{ ...base, height: 14, background: ink }} />;
-  if (state === 'miss') return <span data-bar="miss" style={{ ...base, height: 4, background: ink, opacity: 0.55 }} />;
-  if (state === 'ahead') return <span data-bar="ahead" style={{ ...base, height: 14, border: `1px solid ${rule}` }} />;
+  if (state === 'hit') return <span data-bar="hit" style={{ ...base, height: 11, background: ink }} />;
+  if (state === 'miss') return <span data-bar="miss" style={{ ...base, height: 3, background: ink, opacity: 0.55 }} />;
+  if (state === 'ahead') return <span data-bar="ahead" style={{ ...base, height: 11, border: `1px solid ${rule}` }} />;
   if (state === 'rest') return <span data-bar="rest" style={{ ...base, height: 2, background: rule }} />;
   return <span data-bar="unknown" style={{ ...base, height: 2, width: 2, background: rule }} />;
 }
@@ -262,15 +265,18 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
   const span = week.length ? `${fmtDay(week[0], { month: 'short', day: 'numeric' })}–${fmtDay(week[6], dayOf(week[0]).getMonth() === dayOf(week[6]).getMonth() ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}` : '';
   const mono = { fontFamily: BS_DECK_MONO, fontWeight: 700, textTransform: 'uppercase' };
   return (
-    <section data-bs-home-week-bars="" aria-label={tr('home:section.thisWeek', { defaultValue: 'This week' })} style={{ padding: `14px ${t.padX - 6}px 0` }}>
+    // Condensed (owner, 2026-11-04: "the week calendar can be condensed a little to create more space"): the
+    // head's Month keeps its 44px tap without standing the row 44px tall, the days 52px (from 64), the bars
+    // 11px (from 14).
+    <section data-bs-home-week-bars="" aria-label={tr('home:section.thisWeek', { defaultValue: 'This week' })} style={{ padding: `8px ${t.padX - 6}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '0 6px' }}>
         <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK, whiteSpace: 'nowrap' }}>
           {tr('home:section.thisWeek', { defaultValue: 'This week' })}<span aria-hidden="true" style={{ color: '#e0654b' }}>.</span>
         </h2>
         {isoWeek ? <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {span}</span> : null}
-        {onMonth ? <button type="button" onClick={onMonth} style={{ marginLeft: 'auto', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
+        {onMonth ? <button type="button" onClick={onMonth} style={{ minHeight: 44, margin: '-12px 0 -12px auto', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 6 }}>
         {(week.length ? week : Array.from({ length: 7 }, () => null)).map((iso, i) => {
           const today = g && i === g.today;
           const states = rows.map((k) => (g && g[k] ? g[k][i] : null));
@@ -278,17 +284,17 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
           return (
             <button key={iso || i} type="button" data-bs-home-day={iso || ''} aria-label={label} aria-current={today ? 'date' : undefined}
               onClick={() => { if (iso && typeof onDay === 'function') onDay(dayOf(iso)); }}
-              style={{ minWidth: 0, minHeight: 64, padding: '6px 0 7px', border: 0, borderRadius: 8, background: today ? t.INK : 'transparent', color: today ? t.PAPER : t.INK, cursor: iso ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+              style={{ minWidth: 0, minHeight: 52, padding: '4px 0 5px', border: 0, borderRadius: 8, background: today ? t.INK : 'transparent', color: today ? t.PAPER : t.INK, cursor: iso ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.1em', color: today ? t.PAPER : t.INK70 }}>{iso ? fmtDay(iso, { weekday: 'short' }) : ''}</span>
-              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 19, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{iso ? dayOf(iso).getDate() : ''}</span>
-              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 14 }}>
+              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{iso ? dayOf(iso).getDate() : ''}</span>
+              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 11 }}>
                 {states.map((s, j) => <BSHdBar key={j} state={s} on={today} />)}
               </span>
             </button>
           );
         })}
       </div>
-      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, padding: '0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
+      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, padding: '0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
         <span>{tr('home:week.barsKey', { defaultValue: 'Each day' })}</span>
         <span style={{ color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rows.map((k) => names[k]).join(' · ')}</span>
       </div>
