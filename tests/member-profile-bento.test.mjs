@@ -77,6 +77,38 @@ test('on someone else\'s page Follow is the lit tile and Message a quiet one bes
   assert.doesNotMatch(src.slice(src.indexOf("if (variant === 'coach')"), src.indexOf('// ── Ledger variant')), /`✓ \$\{tr\('profile:follow\.following'/);
 });
 
+test('the counts sit right under the photo, above the bio; a visitor\'s Follow stays under the bio', () => {
+  // Owner, 2026-11-04: "move the followers, following row above the bio just below picture on profile".
+  signedOut();
+  const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
+  const nodes = d.nodes();
+  const at = (n) => nodes.indexOf(n);
+  const follow = nodes.find(named('BSFollowBlock'));
+  const [nameEl] = withAttr(nodes, 'data-member-name');
+  const [meta] = withAttr(nodes, 'data-member-meta');
+  const [actions] = withAttr(nodes, 'data-member-actions');
+  assert.ok(at(nameEl) < at(follow), 'the counts went above the name');
+  assert.ok(at(follow) < at(meta) && at(meta) < at(actions), 'the counts are not between the photo and the tier line');
+  // The bio, the tier line and the countdown ride inside the follow block, so one block holds the counts
+  // and the Follow that changes them.
+  const body = fnBody('function BSTerrainProfile(');
+  const block = body.slice(body.indexOf('<BSFollowBlock '), body.indexOf('</BSFollowBlock>'));
+  for (const attr of ['data-member-bio', 'data-member-meta', 'data-member-start']) assert.ok(block.includes(attr), `${attr} left the follow block`);
+  assert.ok(body.indexOf('data-member-bio') > body.indexOf('<BSFollowBlock '), 'the bio is above the counts again');
+  // In the block: the counts, then what the host put inside, then a visitor's Follow and Message.
+  signedInAs('u-me');
+  const v = drive(mod.BSFollowBlock, { userId: 'u-priya', isSelf: false, c: '#34d6c5', INK, name: 'Priya Shah', variant: 'coach', onMessage() {}, children: { type: 'p', props: { 'data-host-bio': '', children: 'bio' } } });
+  const vn = v.nodes();
+  const [count] = withAttr(vn, 'data-follow-count');
+  const [bio] = withAttr(vn, 'data-host-bio');
+  const [buttons] = withAttr(vn, 'data-follow-actions');
+  assert.ok(vn.indexOf(count) < vn.indexOf(bio) && vn.indexOf(bio) < vn.indexOf(buttons), 'the order is not counts, bio, Follow');
+  // With no one to count, the bio still shows.
+  signedOut();
+  const none = drive(mod.BSFollowBlock, { userId: null, isSelf: false, name: '', variant: 'coach', children: 'the bio' });
+  assert.equal(none.text, 'the bio');
+});
+
 test('on your own page Log activity is the lit tile over two columns, Edit profile the quiet one', () => {
   signedOut();
   const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
