@@ -340,7 +340,6 @@
   "editor.wall.add": "+ Добавить фото",
   "editor.wall.label": "Стена · закреплённые фото · до {count}",
   "editor.wall.removeAria": "Убрать фото",
-  "editor.accent.swatchAria": "Акцентный цвет {n}",
   "editor.group.about": "О вас",
   "editor.group.highlights": "Главное",
   "editor.group.photos": "Фото и видео",

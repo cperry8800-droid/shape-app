@@ -340,7 +340,6 @@
   "editor.wall.add": "+ Add photo",
   "editor.wall.label": "The wall · pinned photos · up to {count}",
   "editor.wall.removeAria": "Remove photo",
-  "editor.accent.swatchAria": "Accent color {n}",
   "editor.group.about": "About you",
   "editor.group.highlights": "Highlights",
   "editor.group.photos": "Photos & film",

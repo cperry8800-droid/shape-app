@@ -340,7 +340,6 @@
   "editor.wall.add": "+ Ajouter une photo",
   "editor.wall.label": "Le mur · photos épinglées · jusqu’à {count}",
   "editor.wall.removeAria": "Retirer la photo",
-  "editor.accent.swatchAria": "Couleur d’accent {n}",
   "editor.group.about": "À propos de vous",
   "editor.group.highlights": "Temps forts",
   "editor.group.photos": "Photos et vidéo",

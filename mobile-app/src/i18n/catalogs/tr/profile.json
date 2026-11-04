@@ -340,7 +340,6 @@
   "editor.wall.add": "+ Fotoğraf ekle",
   "editor.wall.label": "Duvar · sabitlenen fotoğraflar · en fazla {count}",
   "editor.wall.removeAria": "Fotoğrafı kaldır",
-  "editor.accent.swatchAria": "Vurgu rengi {n}",
   "editor.group.about": "Hakkında",
   "editor.group.highlights": "Öne çıkanlar",
   "editor.group.photos": "Fotoğraflar ve video",

@@ -191,10 +191,19 @@ test('the profile editor: a live preview, the parts in plain cards, colour only 
     assert.equal(styled.filter((n) => !swatchOrDot(n) && (n.props.style.color === '#c9a227' || n.props.style.background === '#c9a227')).length, 0, `${who}: the tier's gold is back`);
     // Every part keeps a plain label, its hint beside it (the social links take their card's title).
     const heads = nodes.filter((n) => n.props['data-cust-head'] != null);
-    assert.ok(heads.length >= 11, `${who}: the parts lost their heads (${heads.length})`);
+    assert.ok(heads.length >= 10, `${who}: the parts lost their heads (${heads.length})`);
     assert.equal(textOf(cards.find((n) => n.props['data-cust-card'] === 'links')).match(/Social links/g).length, 1, `${who}: the links are labelled twice`);
+    // "Your line" is a coach's only (owner, 2026-11-04, of the member editor: "Remove the field").
     const line = heads.find((h) => /Your line/.test(textOf(h)));
-    assert.deepEqual(line.props.children.filter(Boolean).map((ch) => textOf(ch)), ['Your line', 'one motto'], 'the hint after " · " sits beside the label');
+    if (coach) assert.deepEqual(line.props.children.filter(Boolean).map((ch) => textOf(ch)), ['Your line', 'one motto'], 'the hint after " · " sits beside the label');
+    else {
+      assert.equal(line, undefined, 'the member editor asks for a line again');
+      assert.equal(nodes.filter((n) => n.props['data-cust-field'] === 'line').length, 0, 'the member editor has a line field');
+    }
+    // The colours are the shared look panel, in place of the seven swatches.
+    const pickers = nodes.filter(named('BSLookPicker'));
+    assert.equal(pickers.length, 1, `${who}: the look panel is missing`);
+    assert.equal(nodes.filter((n) => n.type === 'button' && /Accent color|Tier default/.test(String(n.props['aria-label'] || ''))).length, 0, `${who}: the old swatches are back`);
     // Fields: rounded, 44px and up, 16px words (iOS zooms a smaller field).
     const fields = nodes.filter((n) => (n.type === 'input' || n.type === 'textarea' || n.type === 'select') && n.props.type !== 'file');
     assert.ok(fields.length > 8, `${who}: fields went missing`);
@@ -234,15 +243,22 @@ test('the editor\'s preview reads as the profile head, and follows what is typed
   const text = () => textOf(preview());
   assert.match(text(), /Training for My first marathon/);
   assert.match(text(), /days out/, 'the countdown');
-  assert.match(text(), /“Strong is a skill\.”/);
   assert.match(text(), /Early lifts, long runs\./);
+  assert.doesNotMatch(text(), /Strong is a skill/, 'a member\'s preview shows a line the editor no longer asks for');
   assert.doesNotMatch(text(), /Fill in the parts below/, 'the empty-state note shows over a filled profile');
   const input = (k) => d.nodes().find((n) => n.props['data-cust-field'] === k);
-  input('line').props.onChange({ target: { value: 'One more rep.' } });
+  input('bio').props.onChange({ target: { value: 'Long runs, early lifts.' } });
   input('startTitle').props.onChange({ target: { value: 'The Berlin half' } });
   withSurface(() => d.render());
-  assert.match(text(), /“One more rep\.”/, 'the preview did not follow the line');
+  assert.match(text(), /Long runs, early lifts\./, 'the preview did not follow the bio');
   assert.match(text(), /Training for The Berlin half/, 'the preview did not follow the goal');
+  // A coach's preview follows their line.
+  const coach = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { line: 'Strong is a skill.' }, c: '#c0533b', INK, BG: '#fff', onClose() {}, onSave() {}, coach: true, who: { name: 'Maya Okafor' } }));
+  const coachText = () => textOf(coach.nodes().find((n) => n.props['data-cust-preview'] != null));
+  assert.match(coachText(), /“Strong is a skill\.”/);
+  coach.nodes().find((n) => n.props['data-cust-field'] === 'line').props.onChange({ target: { value: 'One more rep.' } });
+  withSurface(() => coach.render());
+  assert.match(coachText(), /“One more rep\.”/, 'the coach\'s preview did not follow the line');
   // A date that is not one shows no countdown in the preview, and says why under the field.
   input('startDate').props.onChange({ target: { value: '2026-13-40' } });
   withSurface(() => d.render());
@@ -269,6 +285,103 @@ test('the editor\'s motion is gentle, and none of it runs under reduced motion',
   assert.ok(reduced.length > 40, 'no reduced-motion block');
   for (const rule of ['.bs-cust-in, .bs-cust-photo { animation: none !important; }', '.bs-cust-press, .bs-cust-field { transition: none !important; }', '.bs-cust-press:active:not(:disabled) { transform: none !important; }']) {
     assert.ok(reduced.includes(rule), `reduced motion leaves ${rule.split(' {')[0]} moving`);
+  }
+});
+
+// The profile's colours, in the shared look panel (BSLookPicker, Make it yours' Colors page), and a Save
+// that reads the doc again before it writes (as Make it yours saves), so a `look` or a line written
+// elsewhere since the editor opened is not overwritten by the copy it opened with.
+const lookTheme = (over) => new Proxy(over, { get: (t, k) => (k in t ? t[k] : THEME[k]), has: () => true });
+function editorWorld({ base, read = 'ok' }) {
+  const world = { reads: [], writes: [], toasts: [], saved: null };
+  const had = { auth: globalThis.window.ShapeAuth, db: globalThis.window.shapeDb, toast: globalThis.window.__bsToast };
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'u-me' } }) };
+  globalThis.window.shapeDb = {
+    getUserGoals: async (k, opts) => { world.reads.push([k, opts]); if (read === 'fail') throw new Error('offline'); return read === 'null' ? null : JSON.parse(JSON.stringify(base)); },
+    saveUserGoals: async (k, doc, opts) => { world.writes.push([k, doc, opts]); return { ok: true }; },
+  };
+  globalThis.window.__bsToast = (msg, kind) => world.toasts.push(kind);
+  world.restore = () => { globalThis.window.ShapeAuth = had.auth; globalThis.window.shapeDb = had.db; globalThis.window.__bsToast = had.toast; };
+  return world;
+}
+const pressSave = async (d) => withSurface(() => d.nodes().find((n) => n.props['data-cust-save'] != null).props.onClick());
+
+test('the look panel: seeded from the app\'s paper and accent when none is saved, and the seed is never written', async () => {
+  for (const coach of [false, true]) {
+    const who = coach ? 'coach' : 'member';
+    const world = editorWorld({ base: { bio: 'Saved', accent: '#e0644b' } });
+    try {
+      // No look saved and no app paper in the theme: the panel still gets a whole look (dark · teal).
+      const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { bio: 'Saved' }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave(doc) { world.saved = doc; }, coach }));
+      const picker = d.nodes().find(named('BSLookPicker'));
+      assert.deepEqual(picker.props.look, { paper: 'dark', accent: 'teal' }, `${who}: the panel's seed`);
+      // ⚠ The panel throws on a look with no paper or accent; drawn with the seed, it does not.
+      assert.doesNotThrow(() => picker.type(picker.props), `${who}: the look panel throws on the seed`);
+      // Saved untouched: no look is written, the old accent hex stays as the fallback.
+      await pressSave(d);
+      assert.equal(world.writes.length, 1, `${who}: the save did not write`);
+      const [, doc, opts] = world.writes[0];
+      assert.equal('look' in doc, false, `${who}: the seed was written to a profile that never picked a look`);
+      assert.equal(doc.accent, '#e0644b', `${who}: the old accent hex was dropped`);
+      assert.deepEqual(opts, { expectedUserId: 'u-me' }, `${who}: the write is not bound to the account`);
+      // A pick is written: the paper and accent, nothing else of the seed.
+      picker.props.setLook({ ...picker.props.look, paper: 'forest' });
+      withSurface(() => d.render());
+      assert.equal(d.nodes().find(named('BSLookPicker')).props.look.paper, 'forest');
+      await pressSave(d);
+      assert.deepEqual(world.writes[1][1].look, { paper: 'forest', accent: 'teal' }, `${who}: the pick was not saved`);
+      // Picking the seed back is no change, and writes no look.
+      d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'dark', accent: 'teal' });
+      withSurface(() => d.render());
+      await pressSave(d);
+      assert.equal('look' in world.writes[2][1], false, `${who}: a look put back as it was is written`);
+    } finally { world.restore(); }
+  }
+  // The app's own paper and accent seed it when the theme has them.
+  const had = globalThis.useBS;
+  globalThis.useBS = () => lookTheme({ paperMode: 'bone', accentKey: 'rust' });
+  try {
+    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: {}, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
+    assert.deepEqual(d.nodes().find(named('BSLookPicker')).props.look, { paper: 'bone', accent: 'rust' });
+    // A saved look wins over the app's.
+    const saved = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { look: { paper: 'plum', accent: 'violet' } }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave() {} }));
+    assert.deepEqual(saved.nodes().find(named('BSLookPicker')).props.look, { paper: 'plum', accent: 'violet' });
+  } finally { globalThis.useBS = had; }
+});
+
+test('Save reads the doc again and writes only what the editor shows over it', async () => {
+  // The editor opened on a stale copy; since then a look, a line and an About were written elsewhere.
+  const base = { bio: 'Old', look: { paper: 'bone', accent: 'rust', focus: 'top' }, line: 'Written by Nora', about: { story: 'Twelve years.' }, accent: '#e0644b' };
+  const world = editorWorld({ base });
+  try {
+    const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { bio: 'Old' }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave(doc) { world.saved = doc; } }));
+    d.nodes().find((n) => n.props['data-cust-field'] === 'bio').props.onChange({ target: { value: 'New bio' } });
+    withSurface(() => d.render());
+    await pressSave(d);
+    assert.deepEqual(world.reads, [['profile_custom', { expectedUserId: 'u-me' }]], 'the doc was not read again, bound to the account');
+    const [kind, doc] = world.writes[0];
+    assert.equal(kind, 'profile_custom');
+    assert.equal(doc.bio, 'New bio', 'the edit was not written');
+    assert.deepEqual(doc.look, base.look, 'a look written elsewhere was overwritten');
+    assert.equal(doc.line, 'Written by Nora', 'a member\'s line written elsewhere was overwritten');
+    assert.ok(doc.about && doc.about.story === 'Twelve years.', 'a key the editor does not show was dropped');
+    assert.equal(world.saved, doc, 'the profile gets the doc that was written');
+    // A pick goes over the stored look and keeps what else it holds (the focus).
+    d.nodes().find(named('BSLookPicker')).props.setLook({ paper: 'forest', accent: 'green' });
+    withSurface(() => d.render());
+    await pressSave(d);
+    assert.deepEqual(world.writes[1][1].look, { paper: 'forest', accent: 'green', focus: 'top' });
+  } finally { world.restore(); }
+  // A read that fails, or answers nothing, stops the save: the stale copy is never written.
+  for (const read of ['fail', 'null']) {
+    const w = editorWorld({ base, read });
+    try {
+      const d = withSurface(() => drive(mod.BSProfileCustomizer, { initial: { bio: 'Old' }, c: '#c9a227', INK, BG: '#fff', onClose() {}, onSave(doc) { w.saved = doc; } }));
+      await pressSave(d);
+      assert.equal(w.writes.length, 0, `a ${read} read still wrote`);
+      assert.equal(w.saved, null, `a ${read} read still closed the editor`);
+      assert.deepEqual(w.toasts, ['err'], `a ${read} read said nothing`);
+    } finally { w.restore(); }
   }
 });
 

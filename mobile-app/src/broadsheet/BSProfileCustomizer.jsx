@@ -2,9 +2,10 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS, BSCleanType, useBSClean } from './bsCleanType.jsx';
 import { BSMpIcon } from './BSMemberBento.jsx';
+import { BSLookPicker } from './BSLookPicker.jsx';
 import { bsWsAccent } from './bsMagazine.mjs';
 import {
-  bsNormalizeProfileCustom, bsStartLineState, bsValidStartDate,
+  bsNormalizeProfileCustom, bsStartLineState, bsValidStartDate, bsProfileLook, BS_LOOK_PAPERS, BS_LOOK_ACCENTS,
   BS_WALL_MAX, BS_SHELF_MAX, BS_LINE_MAX, BS_CAPTION_MAX, BS_SHELF_TITLE_MAX, BS_SHELF_WHEN_MAX, BS_START_TITLE_MAX,
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
   BS_PIN_KINDS, BS_PROFILE_PROMPTS, BS_COACH_PROMPTS, bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
@@ -18,18 +19,21 @@ import {
 // what "looks better"; then, of the redesigns that followed, "reduce the coloring and simplify UI more").
 //
 //   · A live preview at the top: the profile's head as it will read (the facet avatar for a member, the
-//     round photo for a coach; the name, the countdown, the line and the bio), redrawn as they type, with
-//     the door to the name, @handle and photo (Settings) under it.
+//     round photo for a coach; the name, the countdown, a coach's line and the bio), redrawn as they
+//     type, with the door to the name, @handle and photo (Settings) under it.
 //   · The parts gathered into a few cards in the paper's own colour with a soft lift, each part under a
 //     plain label with its hint beside it; rounded 16px fields; the photos as rounded tiles.
-//   · Colour only as a signal: Save, a focused field, the tier's colour in the facet avatar, the accent
-//     swatches (which are the colour being chosen) and an error. No tinted or gradient panels.
+//   · Colour only as a signal: Save, a focused field, the tier's colour in the facet avatar and an error.
+//     No tinted or gradient panels. The profile's colours are picked in the shared look panel
+//     (BSLookPicker, Make it yours' Colors page), which draws its own chrome.
 //   · Save floats at the foot as one pill. Motion is a short rise as the cards come in and a press on a
 //     tap, all of it off under prefers-reduced-motion.
 //
-// ⚠ WHAT IT SAVES DID NOT MOVE. Every field, every limit, the upload type and size checks, the in-flight
-// upload guard, the sign-in guard and the normalizer are the editor's as they were; the doc it writes is
-// the same shape (tests/profile-custom.test.mjs, tests/profile-token-sync.test.mjs).
+// ⚠ SAVE READS THE DOC AGAIN AND WRITES ONLY WHAT THIS PAGE SHOWS, as Make it yours saves: the parts this
+// role's editor shows go over the doc as stored now, so a key written elsewhere since it opened (a `look`,
+// a member's line) is kept, and `look` is written only when it was changed here. The limits, the upload
+// type and size checks, the in-flight upload guard, the sign-in guard and the normalizer are the
+// editor's as they were (tests/profile-custom.test.mjs, tests/profile-token-sync.test.mjs).
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME, NEVER AT MODULE TOP, and this module never imports the client
 // module (the BSLeaderboard / BSEatDay pattern): the masthead row, the facet avatar and the identity
 // helpers are read off window inside the component. The client imports the option tables below from here.
@@ -59,7 +63,6 @@ export function bsSpotifyEmbed(url) {
   const m = /open\.spotify\.com\/(?:intl-[a-z]+\/)?(track|playlist|album|artist|episode|show)\/([A-Za-z0-9]+)/.exec(String(url));
   return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}` : null;
 }
-export const BS_PROFILE_ACCENTS = ['#34d6c5', '#5ec8e0', '#7bbf5a', '#d8a23a', '#e0644b', '#e0518a', '#8a5cf6'];
 // Headline-stat picker options. `key` is what the doc stores and the profile hero
 // resolves against its own `stats` map — the split already exists, so `label` is
 // display-only. `tKey` is the profile key a locale renames it through; `score`
@@ -191,11 +194,21 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   const [links, setLinks] = useState({ ...(init.links || {}) });
   const [prompts, setPrompts] = useState(Array.isArray(init.prompts) && init.prompts.length ? init.prompts.slice(0, 4) : [{ q: PROMPT_OPTS[0].id, a: '' }]);
   const [coverUrl, setCoverUrl] = useState((init.cover && init.cover.image) || '');
-  const [accent, setAccent] = useState(init.accent || '');
-  // climbBg is no longer a customizable surface (the wash was retired with the
-  // Route Card redesign); keep the stored value round-tripping so a member who
-  // set one before isn't stripped, but there's no picker for it anymore.
-  const climbBg = init.climbBg || '';
+  // The profile's colours (`look`: a Shape paper and accent), picked in the shared look panel
+  // (BSLookPicker, Make it yours' Colors page). The panel needs both set, so a profile that never
+  // picked starts from the app's own paper and accent; that seed is never written: `look` is saved
+  // only once something here changes it, so a page nobody recoloured stays exactly as it was. The
+  // old `accent` hex and `climbBg` are no longer edited here; Save leaves them as the doc has them.
+  const [lookSeed] = useState(() => {
+    const saved = bsProfileLook(init.look) || {};
+    return {
+      ...saved,
+      paper: saved.paper || (BS_LOOK_PAPERS.includes(tTheme.paperMode) ? tTheme.paperMode : 'dark'),
+      accent: saved.accent || (BS_LOOK_ACCENTS.includes(tTheme.accentKey) ? tTheme.accentKey : 'teal'),
+    };
+  });
+  const [look, setLook] = useState(lookSeed);
+  const lookChanged = look.paper !== lookSeed.paper || look.accent !== lookSeed.accent;
   // Normalise on the way IN: a doc stored before the split carries English, and a
   // picker comparing tokens would match no chip and silently reset the member's pin.
   // The label helpers take the translator; the TOKEN is what the picker compares
@@ -318,7 +331,37 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
   }, [coach, ownerUid]);
   const startState = bsStartLineState(startDate, new Date());
   const embedPreview = bsSpotifyEmbed(songUrl);
+  // What this editor writes: the parts it SHOWS for this role, as the doc keeps them. Every other key
+  // (the other role's parts, a `look` nobody changed here, the old `accent` hex, `climbBg`, anything a
+  // later editor adds) is left as the doc has it when Save reads it.
+  const shownFields = () => ({
+    bio: bio.trim(),
+    song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
+    links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)),
+    cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
+    pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
+    heroStats: heroStats.slice(0, 3),
+    // This role's intro film → its own key (coach `film`, member `filmMember`); the other
+    // role's film key is left as the doc has it, so they coexist.
+    [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
+    // A coach's page: the line, the prompts, the business card (P4) and the pinned reviews (P5).
+    // The member profile shows no prompts and no longer asks for a line (owner, 2026-11-04:
+    // "Remove the field"); a member's saved ones stay as they are.
+    ...(coach ? {
+      line,
+      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
+      bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
+      pinnedReviews: pins,
+    } : {
+      // A member's page (M1–M4): the wall, the shelf and the countdown. The normalizer below
+      // cleans and caps these and DROPS them when empty.
+      wall,
+      shelf,
+      startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
+    }),
+  });
   const save = async () => {
+    if (busy) return;
     // A real signed-in owner is REQUIRED before we normalize: bsProfileWall drops
     // every wall entry when ownerUid is empty, so persisting with no uid would
     // SILENTLY erase the member's wall. Surface save failures instead of
@@ -329,38 +372,25 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     // AND left orphaned in storage (onSave closes the editor before it lands) — wait.
     if (wallBusy || coverBusy || filmBusy) { window.__bsToast?.(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' }), 'err'); return; }
     setBusy(true);
-    const doc = {
-      ...init,
-      bio: bio.trim(),
-      song: songUrl.trim() ? { url: songUrl.trim(), label: songLabel.trim() } : null,
-      links: Object.fromEntries(BS_PROFILE_LINKS.map((l) => [l.key, String(links[l.key] || '').trim()]).filter(([, v]) => v)),
-      prompts: prompts.filter((p) => p && p.q && String(p.a).trim()).map((p) => ({ q: bsPromptToken(p.q), a: String(p.a).trim() })).slice(0, 4),
-      cover: coverUrl.trim() ? { image: coverUrl.trim() } : null,
-      accent: accent || null,
-      climbBg: climbBg || null,
-      pinned: pinTitle.trim() ? { kind: bsPinKindToken(pinKind), title: pinTitle.trim(), note: pinNote.trim(), metric: pinMetric.trim() } : null,
-      heroStats: heroStats.slice(0, 3),
-      // Member profile-wave keys (M1–M4 / shared line). The normalizer below cleans +
-      // caps these and DROPS them when empty; every legacy key passes byte-identical.
-      line,
-      wall,
-      shelf,
-      startLine: (startTitle.trim() || startDate.trim()) ? { title: startTitle.trim(), date: startDate.trim() } : null,
-      // This role's intro film → its own key (coach `film`, member `filmMember`). The
-      // other role's film key rides through via ...init untouched, so they can coexist.
-      [filmKey]: (film && film.url) ? { url: film.url, caption: (film.caption || '').trim() } : null,
-      // Coach-only profile-wave keys (P4 card · P5 pins) — the member path leaves init's
-      // copies untouched (spread above).
-      ...(coach ? {
-        bizCard: biz.name.trim() ? { name: biz.name.trim(), where: biz.where.trim(), hours: biz.hours.trim(), handle: biz.handle.trim() } : null,
-        pinnedReviews: pins,
-      } : {}),
-    };
+    // Merge onto the doc as saved NOW, not the copy this opened with, so a key written elsewhere
+    // since (a `look` from Make it yours, Nora's account setup) is kept — as Make it yours saves. Both
+    // calls are bound to this account, and a read that fails (or answers for another account) stops
+    // the save: the doc as it was when this opened would undo a change made since.
+    let base = null;
+    try { base = await window.shapeDb?.getUserGoals?.('profile_custom', { expectedUserId: uid }); } catch (e) { base = null; }
+    if (!base || typeof base !== 'object' || Array.isArray(base)) {
+      setBusy(false);
+      window.__bsToast?.(tr('profile:editor.err.save', { defaultValue: 'Could not save — try again.' }), 'err');
+      return;
+    }
+    const doc = { ...base, ...shownFields() };
+    // The colours only when they were picked here, over whatever else the doc's look holds.
+    if (lookChanged) doc.look = { ...(bsProfileLook(base.look) || {}), paper: look.paper, accent: look.accent };
     // Normalize only THIS role's film key against its bucket; the other role's film key
     // isn't named here, so it passes through byte-identical.
     const clean = bsNormalizeProfileCustom(doc, uid, { filmBucket: filmRoleBucket, filmKey });
     let res;
-    try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean); }
+    try { res = await window.shapeDb?.saveUserGoals?.('profile_custom', clean, { expectedUserId: uid }); }
     catch (e) { res = { error: e }; }
     setBusy(false);
     // saveUserGoals RESOLVES { ok } | { error } (never throws on an RLS/no-backend
@@ -433,7 +463,8 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     try { startWhen = new Date(v.y, v.m - 1, v.d, 12).toLocaleDateString((W.bsDateLocale && W.bsDateLocale()) || undefined, { month: 'short', day: 'numeric' }); } catch (e) { startWhen = ''; }
   }
   const startDays = startState ? (startState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: startState.days })) : '';
-  const lineNow = line.trim();
+  // The line is a coach's only now (a member's editor no longer asks for it), so only a coach's preview shows it.
+  const lineNow = coach ? line.trim() : '';
   const bioNow = bio.trim();
   const bizNow = coach ? biz.name.trim() : '';
   const previewEmpty = !lineNow && !bioNow && !(startTitleNow || startState) && !bizNow;
@@ -493,11 +524,12 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       <textarea id="bs-cust-bio" data-cust-field="bio" className="bs-cust-field" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} maxLength={280} placeholder={tr('profile:editor.ph.bio', { defaultValue: 'A line about you, your training, your why…' })} style={{ ...field, resize: 'vertical', minHeight: 96, lineHeight: 1.5 }} />
     </div>
   );
+  // A coach's line (the member editor no longer asks for one: owner, 2026-11-04, "Remove the field").
   const linePart = (
     <div key="line">
       {head(tr('profile:editor.line.label', { defaultValue: 'Your line · one motto' }), 'bs-cust-line')}
       <input id="bs-cust-line" data-cust-field="line" className="bs-cust-field" value={line} onChange={(e) => setLine(e.target.value.slice(0, BS_LINE_MAX))} maxLength={BS_LINE_MAX}
-        placeholder={coach ? tr('profile:editor.ph.lineCoach', { defaultValue: 'A line you coach by — e.g. Strong is a skill.' }) : tr('profile:editor.ph.lineMember', { defaultValue: 'A line you live by — e.g. Strong is a skill.' })} style={field} />
+        placeholder={tr('profile:editor.ph.lineCoach', { defaultValue: 'A line you coach by — e.g. Strong is a skill.' })} style={field} />
     </div>
   );
   // M2 · The Start line
@@ -600,18 +632,16 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
       </div>
     </div>
   );
-  // The accent: the swatches ARE the colour being chosen, so they keep theirs; the chosen one is ringed.
-  const swatch = (col, on) => ({ width: 44, height: 44, flex: 'none', padding: 0, borderRadius: 999, cursor: 'pointer', border: 0, background: col, color: readableOn(col), display: 'grid', placeItems: 'center', boxShadow: on ? `0 0 0 3px ${cardBg}, 0 0 0 5px ${INK}` : `inset 0 0 0 1px ${ink(0.12)}` });
-  const accentPart = (
-    <div key="accent">
-      {head(tr('profile:editor.accent.label', { defaultValue: 'Accent color' }))}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '2px 0' }}>
-        <button type="button" className="bs-cust-btn" onClick={() => setAccent('')} aria-pressed={!accent} aria-label={tr('profile:editor.accent.tierDefault', { defaultValue: 'Tier default' })} title={tr('profile:editor.accent.tierDefault', { defaultValue: 'Tier default' })} style={swatch(c, !accent)}>{!accent ? <BSMpIcon name="check" size={18} stroke={2.6} /> : null}</button>
-        {BS_PROFILE_ACCENTS.map((a, i) => (
-          <button key={a} type="button" className="bs-cust-btn" onClick={() => setAccent(a)} aria-pressed={accent === a} aria-label={tr('profile:editor.accent.swatchAria', { n: i + 1, defaultValue: 'Accent color {n}' })} style={swatch(a, accent === a)}>{accent === a ? <BSMpIcon name="check" size={18} stroke={2.6} /> : null}</button>
-        ))}
+  // The colours: the shared look panel (BSLookPicker, Make it yours' Colors page): a Shape look, a
+  // paper and an accent. It draws its own chrome, so it sits in the card as it is, reaching 12px into
+  // the card's padding so its grids keep their gaps (its lamps measure 42px wide on a 280px-wide
+  // surface; the panel's own five-a-row grid is what sets that).
+  const lookPart = (
+    <div key="look" data-cust-look="">
+      {head(tr('profile:mine.tabColors', { defaultValue: 'Colors' }))}
+      <div style={{ margin: '0 -12px' }}>
+        <BSLookPicker tr={tr} look={look} setLook={setLook} />
       </div>
-      <p style={noteS}>{tr('profile:editor.accent.hint', { defaultValue: 'Tints your cover + cards. Your tier badge keeps its tier color.' })}</p>
     </div>
   );
   const statsPart = (
@@ -754,19 +784,22 @@ export function BSProfileCustomizer({ initial, c, INK, BG, onClose, onSave, coac
     </div>,
   ]) : null;
 
+  // The page, card by card, for each role. A part is a keyed <div> under head(); to add one, build it
+  // above, list it in its card here, and if it writes a key, add that key to shownFields() for the
+  // roles that show it (a key no card shows is left as the doc has it).
   const groups = coach ? [
     signalCard,
     card('about', tr('profile:editor.group.about', { defaultValue: 'About you' }), [bioPart, linePart, promptsPart]),
     card('practice', tr('profile:editor.group.practice', { defaultValue: 'Your practice' }), [bizPart, winsPart]),
     card('photos', tr('profile:editor.group.photos', { defaultValue: 'Photos & film' }), [coverPart, filmPart]),
     card('highlights', tr('profile:editor.group.highlights', { defaultValue: 'Highlights' }), [pinPart, statsPart]),
-    card('style', tr('profile:editor.group.style', { defaultValue: 'Look & sound' }), [accentPart, songPart]),
+    card('style', tr('profile:editor.group.style', { defaultValue: 'Look & sound' }), [lookPart, songPart]),
     card('links', linksTitle, [linksPart]),
   ] : [
-    card('about', tr('profile:editor.group.about', { defaultValue: 'About you' }), [bioPart, linePart, startPart]),
+    card('about', tr('profile:editor.group.about', { defaultValue: 'About you' }), [bioPart, startPart]),
     card('photos', tr('profile:editor.group.photos', { defaultValue: 'Photos & film' }), [wallPart, coverPart, filmPart]),
     card('highlights', tr('profile:editor.group.highlights', { defaultValue: 'Highlights' }), [shelfPart, pinPart, statsPart]),
-    card('style', tr('profile:editor.group.style', { defaultValue: 'Look & sound' }), [accentPart, songPart]),
+    card('style', tr('profile:editor.group.style', { defaultValue: 'Look & sound' }), [lookPart, songPart]),
     card('links', linksTitle, [linksPart]),
   ];
 
