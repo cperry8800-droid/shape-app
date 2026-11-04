@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Ø {kcal} kcal",
   "editor.nightBefore": "AM VORABEND VORBEREITEN",
   "editor.nightBeforeShape": "AM VORABEND VORBEREITET · SHAPE-REZEPT",
-  "editor.nightBeforeAria": "{name} am Vorabend vorbereiten"
+  "editor.nightBeforeAria": "{name} am Vorabend vorbereiten",
+  "today.dayEmpty": "{day}: nichts gebucht.",
+  "today.dayDoneOf": "{day}: {done} von {total, plural, one {# Session} other {# Sessions}} erledigt.",
+  "today.dayDoneOfNutri": "{day}: {done} von {total, plural, one {# Beratung} other {# Beratungen}} erledigt.",
+  "today.dayBooked": "{day}: {total, plural, one {# Session} other {# Sessions}} gebucht.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# Beratung} other {# Beratungen}} gebucht.",
+  "today.booked": "GEBUCHT"
 }

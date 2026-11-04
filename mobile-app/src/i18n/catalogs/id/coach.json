@@ -1509,5 +1509,11 @@
   "roster.avgKcal": "Rata-rata {kcal} kkal",
   "editor.nightBefore": "SIAPKAN MALAM SEBELUMNYA",
   "editor.nightBeforeShape": "DISIAPKAN MALAM SEBELUMNYA · RESEP SHAPE",
-  "editor.nightBeforeAria": "Siapkan {name} malam sebelumnya"
+  "editor.nightBeforeAria": "Siapkan {name} malam sebelumnya",
+  "today.dayEmpty": "{day}: tidak ada jadwal.",
+  "today.dayDoneOf": "{day}: {done} dari {total, plural, other {# sesi}} selesai.",
+  "today.dayDoneOfNutri": "{day}: {done} dari {total, plural, other {# konsultasi}} selesai.",
+  "today.dayBooked": "{day}: {total, plural, other {# sesi}} terjadwal.",
+  "today.dayBookedNutri": "{day}: {total, plural, other {# konsultasi}} terjadwal.",
+  "today.booked": "TERJADWAL"
 }

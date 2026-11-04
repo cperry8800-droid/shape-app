@@ -21,4 +21,6 @@ export {
   bsPinKindLabel, bsPinKindToken, bsPromptLabel, bsPromptToken,
   BS_ABOUT_STORY_MAX, BS_ABOUT_FACT_MAX, BS_ABOUT_YEARS_MAX, BS_ABOUT_HOW, BS_ABOUT_LIST_MAX, BS_ABOUT_ITEM_MAX, BS_ABOUT_YEAR_MIN, bsAboutItems, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS, BS_LINK_MAX,
   BS_PROMPTS_MAX, BS_PROMPT_Q_MAX, BS_PROMPT_A_MAX, bsCleanStory, bsProfileAbout, bsProfileLinks, bsProfileLinkable, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText,
+  BS_FOCUS_MAX, BS_FOCUS_WORD_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_DESCS_MAX, BS_FOR_WORDS_MAX, BS_FOR_PRESETS,
+  bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
 } from '../../../public/newdesign/profileCustom.mjs';
