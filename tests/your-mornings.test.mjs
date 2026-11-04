@@ -881,7 +881,8 @@ test('Back goes back, and the range switch sticks below the condensed masthead',
     const sw = m.q('[data-bs-mornings-range]');
     assert.equal(sw.style.position, 'sticky');
     assert.equal(sw.style.top, '52px');
-    assert.match(m.text(), /Morning check-in · history/);
+    // No eyebrow over the title (owner, 2026-11-04, of "MORNING CHECK-IN · HISTORY": "also remove these eyebrow headers").
+    assert.doesNotMatch(m.text(), /Morning check-in · history/i);
     assert.match(m.text(), /Your mornings\./);
     m.q('[data-test-back]').click();
     assert.equal(backs, 1);

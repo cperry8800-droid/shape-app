@@ -622,6 +622,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: no eyebrow on a detail page\'s Back row (#2603). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the grey "MORNING CHECK-IN · HISTORY" at the right of ← Back: "also remove these eyebrow headers"', status: 'done' },
+        { label: '#2603 BSDetailHeader draws no eyebrow: its Back row is ← Back alone, the kicker and title under it as they were, and none of the 31 pages that passed one does any more (the mornings, the Shape Score page, the Store, a macro\'s page, the legal pages and the rest). A recipe\'s credit and its day stay on its card, the burned week\'s dates on its days, a macro\'s day in its week; the day brief no longer names its day', status: 'done' },
+        { label: '#2603 review: Codex clean on 45bdd30; CI on 45bdd30 failed coach-score-app ("Your coach standing"): sixteen pages passed their eyebrow on a line of its own, which the first pass missed, fixed in d5304ff; Codex clean and CI green on d5304ff', status: 'done' },
+        { label: 'The copy keys that held the eyebrows (home:mornings.eyebrow, score:page.eyebrow and the like, listed in #2603) are no longer read', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: a nutritionist\'s plans in the app: Nora\'s meal plans edit and assign there, she drafts programs and diets; Home\'s ticker and wordmark (#2594). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of two items #2590 left open: "A meal plan Nora drafts for a nutritionist can only be edited and assigned on the website, not in the app" and "Nora can\'t create a nutritionist\'s \'program\' or \'diet\' yet, only meal plans", then "can you fix these and make them possible?"; later in the same PR, of Home, "make this ticker box the same width as the boxes below it on all home pages. also make the club shape a littile larger on home pages"', status: 'done' },
