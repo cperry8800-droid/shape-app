@@ -622,6 +622,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile as tiles, option C "Bento", with the counts line and the activity cards as they were (#2584). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04, of the member profile: "hate the look of this on client profile, need this to look less analog and boring", then of three designs "go with c but dont change the look or design of followers, following part. leave that as is. and dont forget to keep the currect activity feed look the same as well" (the feed: "The feed that shows activities logged"), and "make sure the correct current nav bar is being used" (it is: the app frame\'s dock, untouched)', status: 'done' },
+        { label: '#2584 the head: Log activity (Follow on another\'s page) a lit tile in the tier\'s colour, Edit profile (Message) a quiet tile beside it, both with a line icon; the coach a wide tile (initials in a ring of their colour to teal, the name, the phase as chips). The Followers / Following / Posts line is byte-for-byte as it was, outside the clean box', status: 'done' },
+        { label: '#2584 the tabs an icon bar (pulse, bars, peak, note) frosted over the page; under Activity the photos a mosaic (the newest big, two beside it, rows of three after) and the Shelf award cards (the proudest lit, dates on chips). The activity cards (BSActivityCard, the Wall\'s format) untouched. The coach profile keeps its strip, numbered shelf and tab row', status: 'done' },
+        { label: '#2584 code: the new pieces in BSMemberBento.jsx (props only, nothing imported from the client); no new copy; tests/member-profile-bento.test.mjs (9). Review: Codex clean on 9973338 (on open); CI green', status: 'done' },
+        { label: 'The website\'s member profile (MemberProfile.html) keeps its own look; the steel paper\'s frosted tab bar is a flat tint (no brushed texture under it); a long-locale Edit profile hyphenates in its narrow tile (ru checked, de at 320px fits)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website: the Kitchen\'s filters as an index, and the login box as a glass card (#2577). No migration',
       items: [
         { label: 'Owner, 2026-11-03: the Kitchen\'s filters "looks like shit on website, lets improve this filter layout" and new designs "for this login box on website"; of three options each, the filters\' C (a sidebar index) and the login box\'s A ("do a")', status: 'done' },
@@ -641,7 +651,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2576 the website: Get App\'s 12:15 beat is the trainer preview\'s own page (getapp-coach-v2.png, "Example coach · the trainer preview, sample numbers"); the Home capture re-shot with the condensed card at ?v=20261103b on Get App and the homepage. The profile Activity feed already renders the Wall\'s card (checked, no change)', status: 'done' },
         { label: 'Review: Codex clean on 2a4bf36 (on open); on 650681c a P2 (a private profile answers a visitor with no account with no row, so certificates were read as if public) fixed in 37625fa with a test that fails without it; Codex clean on 37625fa. CI\'s Tests job failed on 2a4bf36 (a live DOM node in three assertions, one fallback string unlike its catalog), fixed in 650681c. CI green on the final head', status: 'done' },
         { label: 'OWNER — decide: whether coaches may also list certificates Shape has not verified, labelled as their own (today only verified ones show)', status: 'manual' },
-        { label: 'OWNER — on hold: the member-profile redesign, with the cover\'s tier-line colours, and with it whether the Activity tab\'s photo strip and Shelf move', status: 'manual' },
+        { label: 'OWNER — on hold: the cover\'s tier-line colours (the redesign under the cover shipped as #2584\'s tiles; the photos and the Shelf stayed in the Activity tab, as a mosaic and award cards)', status: 'manual' },
         { label: 'OWNER: on a phone, signed in: the condensed morning card; a coach\'s About with accolades, education and verified certificates; the head\'s socials (seen only in headless Chromium, signed out)', status: 'manual' },
       ],
     },
