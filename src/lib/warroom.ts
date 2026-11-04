@@ -622,6 +622,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile\'s facet avatar, Follow and Message on their own line under the counts; coach Home\'s sessions open their details (#2607). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: of the member profile head, "make sure you have the facet avatar"; of Follow and Message, "make sure the message and follow buttons are below the followers/following", "dont make this boxes big, small"; of coach Home\'s Your day, "when i click on the activity here on home page it should take be to details regarding that activity, no month calendar"', status: 'done' },
+        { label: '#2607 the member profile head shows the member\'s facet (BSFacetAvatar, the tier\'s colour) on a diamond of the paper, in place of the round photo; Follow and Message are 32px pills on a line of their own under the counts (44px targets that start under the counts\' own)', status: 'done' },
+        { label: '#2607 coach Home: a session in Your day opens the calendar\'s detail sheet for it (BSEventSheet, a real booking mapped live by bsMapServerCalEvent, a sample as a sample); the head\'s Calendar link still opens the month. The mapper keeps scheduledAt (a started session offers Mark complete) and reads asClient as not the coach\'s to manage, in the calendar too', status: 'done' },
+        { label: '#2607 review: Codex\'s P2s (Follow/Message pulled over the counts\' targets; scheduledAt dropped; asClient bookings offered coach actions; the folded to-do\'s target over the session\'s) fixed in 797a867, 060568a and 3e22626. Its P1 (move BSTerrainProfile out of the client first) answered: owner, 2026-11-04, "Merge now, move it next". CI on 3e22626 failed one test: shared-client-schedules pinned the mapper\'s old mine line, and now holds the asClient rule (95faa09). CI green on 95faa09', status: 'done' },
+        { label: 'Move the member profile (BSTerrainProfile, ~1,140 lines, and BSFollowBlock) into its own module, as docs/WORKLOG.md asks of a screen a PR touches (owner: next PR)', status: 'pending' },
+        { label: 'OWNER: on a phone, someone else\'s profile (the facet head, Follow and Message under the counts) and a coach Home session opening its details', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: Make it yours\' Colors page as the lit panel (the owner\'s B), in its own module (#2609). No migration',
       items: [
         { label: 'Owner, 2026-11-04, of the coach profile editor\'s Colors page: "update profile edit settings page", then of three designs built in the app, "B for colors"; then "Both" (members get this page, and the coach editor gains what it lacks), "the customization options should be specific for what coaches can edit and clients", and "this should apply to website as well"', status: 'done' },
