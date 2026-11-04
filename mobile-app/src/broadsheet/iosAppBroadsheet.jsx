@@ -1222,9 +1222,74 @@ const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px
 // Back absolutely (the sign-in and coach-application screens): the same y as on every app page.
 const BS_BACK_SLOT_TOP_CSS = `calc(${BS_MAST_TOP_CSS} + ${BS_MAST_ROW_H + BS_BACK_ROW_GAP}px)`;
 
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false }) {
+// The masthead's tools at a full 44px tap target. The corners draw 34px boxes; inside a layout each
+// button reaches 44 and gives the extra back with a negative margin, so the row keeps its rhythm.
+const BS_MAST_HIT_CSS = '[data-bs-mast-tools] button{min-width:44px;min-height:44px;margin:-5px}';
+
+// The wordmark masthead of member Home and coach Today (`layout`): the Club Shape wordmark, its
+// tools and the dateline ({ edition, editionColor, date, extra, clock }). The wordmark element is
+// the page's own (club-shape-wordmark.svg); the layout sets only its width and place.
+function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
+  const t = useBS();
+  const word = (width) => (React.isValidElement(title) ? (
+    <div style={{ flex: `0 1 ${width}px`, width, minWidth: 0 }}>
+      {React.cloneElement(title, { style: { ...(title.props.style || {}), margin: 0, width: '100%' } })}
+    </div>
+  ) : title);
+  const tools = trailing ? <span data-bs-mast-tools={layout} style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{trailing}</span> : null;
+  const dl = dateline || {};
+  const run = [dl.date, dl.extra].filter(Boolean).join(' · ');
+  const mono = { fontFamily: t.MONO, textTransform: 'uppercase', fontWeight: 800 };
+
+  // B · CENTRED FLAG — the newspaper flag: the mark and Vol·No at the left, the tools in a slim pill at
+  // the right; the wordmark centred a size up between two double hairlines; the dateline centred under
+  // it with the clock folded in; a double rule closes it.
+  const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
+  const flank = <span aria-hidden style={{ flex: '1 1 0', minWidth: 10, height: 4, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`, opacity: 0.6 }} />;
+  return (
+    <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0`, borderBottom: `3px double ${t.INK}` }}>
+      <style>{`${BS_MAST_HIT_CSS}[data-bs-mast-tools=flag] button{margin:0}[data-bs-mast-tools=flag]>span{gap:0!important}`}</style>
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        backgroundImage: `repeating-linear-gradient(135deg, rgba(${inkRgb},0.035) 0, rgba(${inkRgb},0.035) 1px, transparent 1px, transparent 7px)`,
+        WebkitMaskImage: 'linear-gradient(180deg, black 0%, transparent 100%)', maskImage: 'linear-gradient(180deg, black 0%, transparent 100%)',
+      }} />
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <BSLogo size={16} color={t.INK} />
+          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{vol} · {no}</div>
+        </div>
+        {/* The tools in a slim frosted pill (owner, 2026-11-04: "leave the bubble just make it more
+            condensed, not as thick. tighter around icons"): the pill is 30px tall and sits 6px inside
+            the outer buttons, while each button keeps its 44px tap target past the pill's edge. */}
+        {tools ? (
+          <span data-bs-mast-pill="" style={{
+            display: 'flex', alignItems: 'center', height: 30, borderRadius: 999,
+            border: `1px solid rgba(${inkRgb},0.12)`, background: `rgba(${inkRgb},0.05)`,
+            backdropFilter: 'blur(12px) saturate(160%)', WebkitBackdropFilter: 'blur(12px) saturate(160%)',
+          }}><span style={{ display: 'flex', margin: '0 -6px' }}>{tools}</span></span>
+        ) : null}
+      </div>
+      {onBack && <BSBackRow onBack={onBack} />}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+        {flank}{word(228)}{flank}
+      </div>
+      {dateline && (
+        <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
+          {/* Each piece keeps together; on a narrow phone the line breaks between them. */}
+          <span style={{ color: dl.editionColor || t.ACCENT, whiteSpace: 'nowrap' }}>{dl.edition}</span>
+          {run ? <>{' '}<span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>· {run}</span></> : null}
+          {dl.clock ? <>{' '}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>· {dl.clock}</span></> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false, layout = null, dateline = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
+  if (layout) return <BSMastLayout layout={layout} title={title} trailing={trailing} dateline={dateline} onBack={onBack} vol={vol} no={no} />;
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
   // Layered: subtle halftone dot wash + faint pinstripes + side vignette + double rule.

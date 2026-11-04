@@ -5174,18 +5174,19 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   return (
     <BSPage>
       <BSMasthead
-        compact
-        thinRule
-        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), condensed (owner,
-        // 2026-11-03: "lets condense the Club Shape at the top for coaches and member accounts", then
-        // "make the club shape masthead more condensed"): 200px wide sets its letters about 11px tall,
-        // with 4px above and 2px below, so the masthead is some 40px shorter. It was 300px wide with
-        // 23px above and 16px below.
+        layout="flag"
+        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), unchanged: the
+        // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(200px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<BSHeaderTools onProfile={onProfile} />}
-        showDoubleRule={false}
-        showDotTexture={false}
-        noTopRule
+        // The dateline rides in the masthead: the edition, the day, the phase and week, the live clock.
+        dateline={{
+          edition: tr('home:dateline.edition', { defaultValue: 'CLIENTS EDITION' }),
+          editionColor: t.ACCENT,
+          date: `${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()}`,
+          extra: `${bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} ${tr('home:dateline.weekAbbr', { defaultValue: 'W' })}${isoWeek}`,
+          clock: `${String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:${String(bsNowMin % 60).padStart(2, '0')}`,
+        }}
       />
       {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
       <BSNoraHint t={t} />
@@ -5202,16 +5203,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           slate's NOW tick, so it advances while Home stays open instead of
           freezing at the render that painted it.
           The program phase + ISO week rode the masthead kickers this replaces;
-          they ride the ink-80 run now so nothing is lost. */}
-      <div style={{ padding: `6px ${t.padX}px 7px`, borderBottom: `1px solid ${t.INK}12`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-          <span style={{ color: t.ACCENT }}>{tr('home:dateline.edition', { defaultValue: 'CLIENTS EDITION' })}</span>
-          <span style={{ color: `${t.INK}80` }}> · {_dowShort(_now)} · {_monShort(_now)} {_now.getDate()} · {bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} {tr('home:dateline.weekAbbr', { defaultValue: 'W' })}{isoWeek}</span>
-        </span>
-        <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: `${t.INK}80`, fontVariantNumeric: 'tabular-nums' }}>
-          {String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:{String(bsNowMin % 60).padStart(2, '0')}
-        </span>
-      </div>
+          they ride the ink-80 run now so nothing is lost. The masthead draws it
+          (its dateline prop, above). */}
 
       <BSTicker items={(() => {
         const tk = ticker || {};
