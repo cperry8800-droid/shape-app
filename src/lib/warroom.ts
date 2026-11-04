@@ -622,6 +622,13 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the member profile\'s Followers / Following / Posts line right under the photo, above the bio (#2587). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "move the followers, following row above the bio just below picture on profile"', status: 'done' },
+        { label: '#2587 BSTerrainProfile: the counts line (as it was) comes right after the photo and name; the bio, the tier line and the Training for countdown follow it, passed as children of BSFollowBlock (variant coach) so one block holds the counts and the Follow that changes them; a visitor\'s Follow / Message and your own Log activity / Edit profile stay under the countdown. With no one to count the block still shows the bio. No new copy; tests/member-profile-bento.test.mjs (10). Review: Codex clean on 88e10a7 (on open); CI green', status: 'done' },
+      ],
+    },
+    {
       section: 'App: the flag masthead on Home and the slim tool pill on every top row; Shape Radio as a live console; the member profile\'s tiles condensed and the shelf without a sideways scroll (#2585). No migration',
       items: [
         { label: 'Owner, 2026-11-04: of the masthead, "give me some new design options for this masthead. Dont change club shape font though", then of three "i like masthead b", "leave the bubble just make it more condensed, not as thick. tighter around icons", "make sure this part of the masthead stays present on every page and stays visible as you scroll", "the club shape part of masthead should only be on home page", "make sure this new masthead applies to both coaches and members profile" and "make masthead on profile page has the extra edit icon"; of Shape Radio\'s box, "make this shape radio box look way cooler and fit the home page better", of three "go with b ... almost full width of screen but not fully" and "we dont need the volume button since the phone will control that"; of the profile, "condense these and make items on the shelf fit on page, no side scrolling"', status: 'done' },

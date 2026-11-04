@@ -15708,7 +15708,7 @@ function bsInjectFollowChipCss() {
 // Follower / following block for public profiles — counts (tappable → a names
 // sheet) + a Follow / Following toggle (when viewing someone else). Shared by the
 // Terrain (member) and Signal (coach) profiles. Counts are public.
-function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips' }) {
+function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', name = '', onOpenProfile, coach = false, embedded = false, center = false, ownerPhoto, onOpenPosts, onMessage = null, title = null, variant = 'chips', children = null }) {
   const tr = useShapeTr();
   const tFB = useBS();
   const MONO = "'JetBrains Mono', monospace", SERIF = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", TEAL = '#34d6c5';
@@ -15786,7 +15786,9 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
     finally { setBusy(false); }
   };
   const openList = (kind) => setSheet(kind); // BSFollowListSheet loads the list itself
-  if (!uid && !name) return null;
+  // What the host put between the counts and the buttons (the member profile's bio) shows even when
+  // there is no one to count.
+  if (!uid && !name) return children || null;
   // Follow display state — computed before EITHER branch (the ledger variant
   // reads it, so it must not sit in the temporal dead zone).
   const fs = stats.isFollowing ? 'following' : stats.isPending ? 'requested' : 'follow';
@@ -15816,6 +15818,7 @@ function BSFollowBlock({ userId, isSelf, c, INK = '#f2ede4', BG = '#100d0a', nam
             <button type="button" onClick={() => openList('requests')} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', fontFamily: DISPLAY, fontSize: 14, fontWeight: 650, color: INK, borderBottom: `2px solid ${c}` }}>{tr('profile:follow.requestCount', { defaultValue: '{count, plural, one {# request} other {# requests}}', count: reqCount })}</button>
           ) : null}
         </div>
+        {children}
         {!isSelf ? (
           /* Follow is the lit tile and Message a quiet one, side by side and the same height, as Log
              activity and Edit profile are on your own page; the tiles keep the weights they are written
@@ -19270,28 +19273,33 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 {whoLine ? <span style={{ fontSize: 13, color: bsTHexA(INK, 0.74), overflowWrap: 'anywhere' }}>{whoLine}</span> : null}
                 {aboutLine ? <span style={{ fontSize: 12, color: bsTHexA(INK, 0.64) }}>{aboutLine}</span> : null}
               </div>
-              {bio ? <p data-member-bio="" style={{ margin: '14px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
-              {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live
-                  there); a host with no way there gets the words alone (Codex P2 on #2546). */}
-              {isSelf && typeof onOpenScore === 'function' ? (
-                <button type="button" data-tour="hero-score" data-member-meta="" onClick={onOpenScore} style={{ display: 'block', margin: '8px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: bsTHexA(INK, 0.7), cursor: 'pointer' }}>
-                  {metaBits} <span aria-hidden style={{ color: c }}>›</span>
-                </button>
-              ) : (
-                <p data-member-meta="" style={{ margin: '8px 0 0', fontSize: 12.5, color: bsTHexA(INK, 0.66) }}>{metaBits}</p>
-              )}
-              {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
-                  not read on the light papers). */}
-              {heroStartState ? (
-                <p data-member-start="" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.4, color: INK }}>
-                  <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
-                  {heroStart.title ? ` ${heroStart.title}` : ''}{startDate ? ` · ${startDate}` : ''}
-                  <span style={{ color: bsTHexA(INK, 0.64) }}>{` · ${heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}`}</span>
-                </p>
-              ) : null}
+              {/* The counts first, right under the photo (owner, 2026-11-04: "move the followers, following row
+                  above the bio just below picture"); the bio, tier line and countdown ride inside the follow
+                  block, between the counts and a visitor's Follow and Message, so one block keeps the counts
+                  and the Follow that changes them. */}
               <div style={{ marginTop: 6 }}>
                 <BSFollowBlock userId={person.userId} isSelf={isSelf} c={c} INK={INK} BG={BG} name={name} variant="coach" ownerPhoto={avPhoto} onOpenProfile={setFollowProfile} onOpenPosts={openPosts}
-                  onMessage={hasMessage && !isSelf ? () => onMsg(person) : null} />
+                  onMessage={hasMessage && !isSelf ? () => onMsg(person) : null}>
+                  {bio ? <p data-member-bio="" style={{ margin: '2px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK, whiteSpace: 'pre-wrap' }}>{bio}</p> : null}
+                  {/* Tier · points · streak: on your own page it opens the Shape Score page (the score's bars live
+                      there); a host with no way there gets the words alone (Codex P2 on #2546). */}
+                  {isSelf && typeof onOpenScore === 'function' ? (
+                    <button type="button" data-tour="hero-score" data-member-meta="" onClick={onOpenScore} style={{ display: 'block', margin: '8px 0 0', minHeight: 32, padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: bsTHexA(INK, 0.7), cursor: 'pointer' }}>
+                      {metaBits} <span aria-hidden style={{ color: c }}>›</span>
+                    </button>
+                  ) : (
+                    <p data-member-meta="" style={{ margin: '8px 0 0', fontSize: 12.5, color: bsTHexA(INK, 0.66) }}>{metaBits}</p>
+                  )}
+                  {/* What they are training for: ink words, the tier's colour as the rule (8px coloured text did
+                      not read on the light papers). */}
+                  {heroStartState ? (
+                    <p data-member-start="" style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.4, color: INK }}>
+                      <span style={{ fontWeight: 600, borderBottom: `2px solid ${c}` }}>{tr('profile:startLine.trainingFor', { defaultValue: 'Training for' })}</span>
+                      {heroStart.title ? ` ${heroStart.title}` : ''}{startDate ? ` · ${startDate}` : ''}
+                      <span style={{ color: bsTHexA(INK, 0.64) }}>{` · ${heroStartState.days === 0 ? tr('profile:startLine.today', { defaultValue: 'Today' }) : tr('profile:startLine.daysOut', { defaultValue: '{count, plural, one {# day out} other {# days out}}', count: heroStartState.days })}`}</span>
+                    </p>
+                  ) : null}
+                </BSFollowBlock>
               </div>
               {/* Your own actions as tiles: Log activity lit in the tier's colour over two of three columns,
                   Edit profile a quiet tile beside it; the tiles keep the weights they are written with
