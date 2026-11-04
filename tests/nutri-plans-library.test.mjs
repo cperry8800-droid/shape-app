@@ -125,6 +125,7 @@ test('a saved row opens on what it holds; publishing it updates the same row, ne
     assert.equal(body.id, 'np-1');
     assert.equal(body.published, true);
     assert.equal(body.expectedOwnerId, 'nutri-1');
+    assert.equal(body.expectedRevision, 0, 'a row saved with no revision has revision 0');
     assert.equal(body.detail.buildType, 'program');
     assert.equal(body.detail.goal, 'Performance', 'its own goal, not the page\'s');
     assert.equal(body.detail.diet, 'Vegan');
@@ -207,7 +208,7 @@ test('Nora\'s client rides to Assign: the plan she drafted for them opens Assign
 });
 
 test('publishing a saved row takes nothing from the page\'s chips: a row with no goal, diet or line keeps none (Codex on #2594)', async () => {
-  const OLD = { id: 'np-old', kind: 'meal_plan', name: 'Old program', meta: null, price: null, published: true, detail: { buildType: 'program', blocks: [{ id: 'b0', text: 'Week 1 — Base' }, { id: 'b1', text: 'Week 2 — Build' }] } };
+  const OLD = { id: 'np-old', kind: 'meal_plan', name: 'Old program', meta: null, price: null, published: true, detail: { revision: 7, buildType: 'program', blocks: [{ id: 'b0', text: 'Week 1 — Base' }, { id: 'b1', text: 'Week 2 — Build' }] } };
   const calls = stubBackend([...ROWS(), OLD]);
   const m = await mount();
   try {
@@ -230,6 +231,7 @@ test('publishing a saved row takes nothing from the page\'s chips: a row with no
     assert.ok(!('cals' in body.detail) && !('mealsDay' in body.detail));
     assert.ok(!('meta' in body), 'no line built from the page\'s chips');
     assert.equal(body.name, 'Old program');
+    assert.equal(body.expectedRevision, 7, 'the revision it opened: changed elsewhere since, it is refused');
   } finally { await m.close(); }
 });
 

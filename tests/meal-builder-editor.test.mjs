@@ -195,8 +195,9 @@ test('the editor: Save writes the document back, merged into the plan; a target 
     await m.click(m.q('[data-meal-save]'));
     assert.equal(calls.length, 1);
     const body = calls[0];
-    assert.deepEqual(Object.keys(body).sort(), ['detail', 'expectedOwnerId', 'id', 'meta', 'name']);
+    assert.deepEqual(Object.keys(body).sort(), ['detail', 'expectedOwnerId', 'expectedRevision', 'id', 'meta', 'name']);
     assert.equal(body.id, 'plan-1');
+    assert.equal(body.expectedRevision, 0, 'the revision it opened: a plan saved with none (Codex on #2594)');
     assert.equal(body.name, 'Spring cut');
     assert.equal(body.expectedOwnerId, 'nutri-1');
     assert.deepEqual(Object.keys(body.detail), ['mealBuilder'], 'only the document: the route merges it over the stored detail');
@@ -207,6 +208,42 @@ test('the editor: Save writes the document back, merged into the plan; a target 
     assert.match(m.text(), /Saved/);
     assert.equal(NORA.targets.kcal, 1900, 'the plan handed in is never written to');
   } finally { await m.close(); delete W.ShapeCoachPlans; }
+});
+
+test('the editor: Save names the revision it opened, the saved one after a save; a plan changed since is refused and the edits stay (Codex on #2594)', async () => {
+  const calls = [];
+  let rev = 4;
+  let refuse = false;
+  W.ShapeCoachPlans = { update: async (body) => {
+    calls.push(body);
+    if (refuse) throw new Error('This plan changed on another device. Keep your draft, refresh the library, and review the latest version.');
+    rev += 1;
+    return { id: 'plan-1', name: body.name, meta: body.meta, detail: { ...PLAN.detail, ...body.detail, revision: rev } };
+  } };
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  // Rendered as the Plans page renders it: the saved row handed back as the plan.
+  let plan = { ...PLAN, detail: { ...PLAN.detail, revision: 4 } };
+  const render = async () => { await React.act(async () => { root.render(React.createElement(Editor, { plan, onClose: () => {}, onSaved: (row) => { plan = row; } })); }); };
+  const click = async (el) => { await React.act(async () => { el.dispatchEvent(new W.MouseEvent('click', { bubbles: true })); }); };
+  try {
+    await render();
+    await click(host.querySelector(`[data-meal-remove="${NORA.days[0].slots[0].id}"]`));
+    await click(host.querySelector('[data-meal-save]'));
+    assert.equal(calls[0].expectedRevision, 4);
+    await render();
+    await click(host.querySelector(`[data-meal-remove="${NORA.days[0].slots[1].id}"]`));
+    await click(host.querySelector('[data-meal-save]'));
+    assert.equal(calls[1].expectedRevision, 5, 'the saved row\'s, not the one it opened on');
+    // Changed on the website since: refused, said, and the edit stays in the editor.
+    refuse = true;
+    await render();
+    await click(host.querySelector(`[data-meal-remove="${NORA.days[0].slots[2].id}"]`));
+    await click(host.querySelector('[data-meal-save]'));
+    assert.match(host.querySelector('[role="alert"]').textContent, /changed on another device/);
+    assert.equal(host.querySelector(`[data-meal-remove="${NORA.days[0].slots[2].id}"]`), null, 'the edit is still here');
+  } finally { await React.act(async () => root.unmount()); host.remove(); delete W.ShapeCoachPlans; }
 });
 
 test('the editor: Assign hands on the saved plan, saving first when there are changes; a failed save stays and says so', async () => {

@@ -15,9 +15,10 @@ const CHAT = 'src/app/api/support/chat/route.ts';
 const ROUTE = 'mobile-app/src/services/coachPlanRoute.mjs';
 const MAIN = 'mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx';
 const GUIDE = 'mobile-app/src/services/nutritionAssign.mjs';
+const PLANS_ROUTE = 'src/app/api/coach/plans/route.ts';
 
 export default {
-  test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs',
+  test: 'node --test tests/meal-builder-editor.test.mjs tests/nutri-plans-library.test.mjs tests/ai-nutrition-draft.test.mjs tests/ai-meal-draft.test.mjs tests/broadsheet-render.test.mjs tests/coach-plan-route.test.mjs tests/ai-draft-surfaces.test.mjs tests/coach-plans-api.test.mjs',
   timeoutMs: 600_000,
   mutations: [
     // ── the builder document's edits ──
@@ -161,6 +162,21 @@ export default {
       find: '<BSNutriPlans sheet={sheet} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />', replace: '<BSNutriPlans sheet={sheet} openPlanRequest={openPlanRequest} />' },
     { name: 'the trainer\'s Programs holds on to Nora\'s open', file: PROS,
       find: 'setEditingPlan(row); onOpenConsumed(); return; }', replace: 'setEditingPlan(row); return; }' },
+    // ── review round 4 (Codex on 0fa3cf1) ──
+    { name: 'a meal plan\'s named revision is not checked', file: PLANS_ROUTE,
+      find: '    ? mealExpected != null && Number(mealExpected) !== revision\n', replace: '    ? false\n' },
+    { name: 'a meal plan write is not conditional on its revision', file: PLANS_ROUTE,
+      find: '  if (!mealPlan || mealExpected != null) update =', replace: '  if (!mealPlan) update =' },
+    { name: 'a meal plan write does not move its revision on', file: PLANS_ROUTE,
+      find: '  patch.detail = mealPlan ? { ...detail, revision: revision + 1 } :', replace: '  patch.detail = mealPlan ? detail :' },
+    { name: 'the website\'s save is held to the revision in its detail', file: PLANS_ROUTE,
+      find: '  const mealExpected = mealPlan ? body.expectedRevision : undefined;', replace: '  const mealExpected = mealPlan ? (body.expectedRevision ?? supplied?.revision) : undefined;' },
+    { name: 'the app\'s editor names no revision', file: EDITOR,
+      find: '        expectedRevision: Number(plan.detail && plan.detail.revision) || 0,\n', replace: '' },
+    { name: 'publishing a saved row names no revision', file: PROS,
+      find: 'expectedRevision: editDraft.revision, detail });', replace: 'detail });' },
+    { name: 'a saved row opens without its revision', file: PROS,
+      find: ', revision: Number(d.revision) || 0 });', replace: ' });' },
     { name: 'the trainer shell never lets go of Nora\'s open', file: PROS,
       find: '<BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />', replace: '<BSTrainerPrograms sheet={sheet} initialTab={programInitialTab} openPlanRequest={openPlanRequest} />' },
     { name: 'the draft is saved live', file: ACT,

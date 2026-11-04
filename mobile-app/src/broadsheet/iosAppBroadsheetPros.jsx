@@ -8208,7 +8208,7 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     const blockLabel = type === 'program' ? tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' }) : type === 'diet' ? tr('coach:diet.blockMealOptions', { defaultValue: 'Meal options' }) : tr('coach:diet.blockDailyMeals', { defaultValue: 'Daily meals' });
     const blocks = (Array.isArray(d.blocks) ? d.blocks : []).map((b, i) => (b && typeof b === 'object' ? { id: b.id || 'b' + i, ...b } : { id: 'b' + i, text: String(b == null ? '' : b) }));
     // Its own line and figures ride along, so publishing it never writes the page's chips over them.
-    setEditDraft({ id: row.id, name: row.name, blocks: blocks.length ? blocks : [{ id: 'b0', text: '' }], note: d.note || '', media: Array.isArray(d.media) ? d.media : [], days: Array.isArray(d.days) ? d.days : undefined, blockLabel, meta: row.meta || null, cals: d.cals != null ? d.cals : null, mealsDay: d.mealsDay != null ? d.mealsDay : null, goal: d.goal != null ? d.goal : null, diet: d.diet != null ? d.diet : null });
+    setEditDraft({ id: row.id, name: row.name, blocks: blocks.length ? blocks : [{ id: 'b0', text: '' }], note: d.note || '', media: Array.isArray(d.media) ? d.media : [], days: Array.isArray(d.days) ? d.days : undefined, blockLabel, meta: row.meta || null, cals: d.cals != null ? d.cals : null, mealsDay: d.mealsDay != null ? d.mealsDay : null, goal: d.goal != null ? d.goal : null, diet: d.diet != null ? d.diet : null, revision: Number(d.revision) || 0 });
   };
   const openCard = (card, type) => (card && card.row ? openRow(card.row) : openDraft(type));
   // ⚠ `days` must survive this destructure. The editor may hand over seven
@@ -8230,7 +8230,8 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
       const { cals: _pageCals, mealsDay: _pageMeals, goal: _pageGoal, diet: _pageDiet, ...own } = payload.detail;
       const kept = { cals: editDraft.cals, mealsDay: editDraft.mealsDay, goal: editDraft.goal, diet: editDraft.diet };
       const detail = { ...own, ...Object.fromEntries(Object.entries(kept).filter(([, v]) => v != null)), days: days && days.length ? days : null };
-      const row = await window.ShapeCoachPlans.update({ id: editDraft.id, name: name || editDraft.name || payload.name, ...(editDraft.meta ? { meta: editDraft.meta } : {}), published: true, ...(accountId ? { expectedOwnerId: accountId } : {}), detail });
+      // The revision it opened: a row changed elsewhere since is refused, and the draft stays open.
+      const row = await window.ShapeCoachPlans.update({ id: editDraft.id, name: name || editDraft.name || payload.name, ...(editDraft.meta ? { meta: editDraft.meta } : {}), published: true, ...(accountId ? { expectedOwnerId: accountId } : {}), expectedRevision: editDraft.revision, detail });
       rememberRow(row);
       flash(tr('coach:plans.published', { defaultValue: '{type} published', type: `${typeName.charAt(0).toUpperCase()}${typeName.slice(1)}` }));
       setEditDraft(null); setDrafting(false);

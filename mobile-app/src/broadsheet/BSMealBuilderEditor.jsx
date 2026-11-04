@@ -103,6 +103,9 @@ export default function BSMealBuilderEditor({ plan, ownerId = null, onClose, onS
     try {
       const row = await window.ShapeCoachPlans.update({
         id: plan.id, name: name.trim() || plan.name, ...(ownerId ? { expectedOwnerId: ownerId } : {}),
+        // The revision it opened (the saved row's, once saved): a plan changed on the website since is
+        // refused with the route's words, and this document stays here, never written over it.
+        expectedRevision: Number(plan.detail && plan.detail.revision) || 0,
         // The route merges `detail` over the stored one, so only the document is replaced.
         meta: mealPlanMeta(M, doc), detail: { mealBuilder: doc },
       });

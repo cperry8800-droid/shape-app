@@ -110,3 +110,33 @@ for (const [label, capture] of [['minutes', {plannedRpe:7}], ['effort', {planned
     assert.deepEqual(assignment.before.payload,payload,'the concurrency precondition retains the original assignment');
   });
 }
+test('a meal plan is held to the revision its writer names, and every write moves it on (Codex on #2594)',async()=>{
+  const meal={...plan,kind:'meal_plan',detail:{revision:3,mealBuilder:{goal:'gain'}}};
+  // The app's editor opened revision 2; the website saved since: refused, nothing written.
+  {const {route,calls}=await api([{data:meal}]);
+    const res=await route.PATCH(request('PATCH',{id:plan.id,expectedRevision:2,detail:{mealBuilder:{goal:'maintain'}}}));
+    assert.equal(res.status,409);
+    assert.equal((await res.json()).code,'revision_conflict');
+    assert.ok(!calls.some(c=>c[0]==='update'),'nothing written');}
+  // The revision it opened: written, in the same statement only while it is still that revision.
+  {const {route,calls}=await api([{data:meal},{data:meal}]);
+    assert.equal((await route.PATCH(request('PATCH',{id:plan.id,expectedRevision:3,detail:{mealBuilder:{goal:'maintain'}}}))).status,200);
+    assert.ok(calls.some(c=>c[0]==='eq'&&c[1]==='detail->>revision'&&c[2]==='3'));
+    const written=calls.find(c=>c[0]==='update')[1].detail;
+    assert.equal(written.revision,4);
+    assert.deepEqual(written.mealBuilder,{goal:'maintain'});}
+  // A plan saved with none (Nora's drafts): revision 0 is the one it has.
+  {const fresh={...meal,detail:{mealBuilder:{goal:'gain'}}};
+    const {route,calls}=await api([{data:fresh},{data:fresh}]);
+    assert.equal((await route.PATCH(request('PATCH',{id:plan.id,expectedRevision:0,detail:{mealBuilder:{goal:'maintain'}}}))).status,200);
+    assert.ok(calls.some(c=>c[0]==='is'&&c[1]==='detail->>revision'&&c[2]===null));
+    assert.equal(calls.find(c=>c[0]==='update')[1].detail.revision,1);}
+  // The website's builder names none: written as before, with no revision condition, and still moved on.
+  {const {route,calls}=await api([{data:meal},{data:meal}]);
+    assert.equal((await route.PATCH(request('PATCH',{id:plan.id,detail:{revision:1,mealBuilder:{goal:'maintain'}}}))).status,200,'a stale revision in its detail is not a claim');
+    assert.ok(!calls.some(c=>(c[0]==='eq'||c[0]==='is')&&c[1]==='detail->>revision'));
+    assert.equal(calls.find(c=>c[0]==='update')[1].detail.revision,4);}
+  // Moved on while saving: the statement matches nothing, and it says so.
+  {const {route}=await api([{data:meal},{data:null}]);
+    assert.equal((await route.PATCH(request('PATCH',{id:plan.id,expectedRevision:3,detail:{mealBuilder:{goal:'maintain'}}}))).status,409);}
+});
