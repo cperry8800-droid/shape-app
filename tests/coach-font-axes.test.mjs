@@ -69,8 +69,9 @@ test('the coach pages and the member Home share the one clean type', () => {
   // The clean area opens below the top bars and closes before the footer, as on the coach's Today.
   const open = body.indexOf('<BSCleanType t={t}>');
   const close = body.indexOf('</BSCleanType>');
-  assert.ok(open > body.indexOf('<BSNowPlaying') && open < body.indexOf('<BSHomeGoal'), 'the clean area starts under Shape Radio');
-  assert.ok(close > body.indexOf('<BSShortcuts') && close < body.indexOf('<BSFooter'), 'the clean area ends before the footer');
+  // The deck (Shape Radio, the climb, the week) is the clean area's first piece (owner, 2026-11-03).
+  assert.ok(open > body.indexOf('<BSTicker') && open < body.indexOf('<BSHomeDeck radio={<BSNowPlaying'), 'the clean area starts under the ticker, with the deck');
+  assert.ok(close > body.indexOf('<BSHomeShortcutList') && close < body.indexOf('<BSFooter'), 'the clean area ends before the footer');
 });
 
 test('Train and Eat set their pages in the clean type, under the header, and keep the swap sheet out', () => {

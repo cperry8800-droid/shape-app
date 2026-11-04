@@ -935,4 +935,5 @@ function BSHabitsPage({ onBack, onOpenScore, tweaks, setTweak, accent }) {
   );
 }
 
-Object.assign(window, { BSHabitsPage, BSHabitShareSheet, _bsDecodeHabits, _bsEncodeHabits, _bsHabitPts, _BS_HABIT_DEMO_ROWS });
+// _bsUseServerHabits: Home's morning panel ticks today's habits through the same store as the page.
+Object.assign(window, { BSHabitsPage, BSHabitShareSheet, _bsDecodeHabits, _bsEncodeHabits, _bsHabitPts, _BS_HABIT_DEMO_ROWS, _bsUseServerHabits, _bsHabitsToday });

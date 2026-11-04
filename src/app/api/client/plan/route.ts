@@ -277,14 +277,48 @@ export async function GET(request: Request) {
     ...(mp?.nutritionist_id != null ? [mp.nutritionist_id] : []),
     ...nutriSubs.map((r) => r.provider_id),
   ].map(Number))];
+  // `owner_id` and `listing_media` too, for the face on the member Home's Team cards: the listing's own
+  // portrait, else the coach's profile photo, the two the marketplace shows (2026-10-12-coach-listing-ready).
   const [trNames, nuNames] = await Promise.all([
-    trainerIds.length ? supabase.from('trainers').select('id, name').in('id', trainerIds) : Promise.resolve({ data: [] }),
-    nutriIds.length ? supabase.from('nutritionists').select('id, name').in('id', nutriIds) : Promise.resolve({ data: [] }),
+    trainerIds.length ? supabase.from('trainers').select('id, name, owner_id, listing_media').in('id', trainerIds) : Promise.resolve({ data: [] }),
+    nutriIds.length ? supabase.from('nutritionists').select('id, name, owner_id, listing_media').in('id', nutriIds) : Promise.resolve({ data: [] }),
   ]);
-  const nameMap = (res: { data: unknown }) =>
-    new Map(((res.data ?? []) as Array<{ id: number; name: string | null }>).map((r) => [String(r.id), r.name ?? null]));
+  type CoachRow = { id: number; name: string | null; owner_id?: string | null; listing_media?: { portrait?: unknown } | null };
+  const rowsOf = (res: { data: unknown }) => (res.data ?? []) as CoachRow[];
+  const nameMap = (res: { data: unknown }) => new Map(rowsOf(res).map((r) => [String(r.id), r.name ?? null]));
   const trainerName = nameMap(trNames);
   const nutriName = nameMap(nuNames);
+  const portraitOf = (r: CoachRow) => {
+    const p = r.listing_media && typeof r.listing_media === 'object' ? r.listing_media.portrait : null;
+    return typeof p === 'string' && /^https:\/\//.test(p.trim()) ? p.trim() : null;
+  };
+  // A face is a nicety: a failed avatar read leaves the card on the coach's initials, never the plan.
+  const photoOf = new Map<string, string | null>();
+  for (const [role, res] of [['trainer', trNames], ['nutritionist', nuNames]] as const) {
+    for (const r of rowsOf(res)) photoOf.set(`${role}:${r.id}`, portraitOf(r));
+  }
+  const ownersNeedingAvatar = [...new Set([...rowsOf(trNames), ...rowsOf(nuNames)]
+    .filter((r) => !portraitOf(r) && typeof r.owner_id === 'string' && r.owner_id)
+    .map((r) => r.owner_id as string))];
+  const avatarOf = new Map<string, string>();
+  if (ownersNeedingAvatar.length) {
+    try {
+      const { data } = await supabase.rpc('get_display_names', { p_ids: ownersNeedingAvatar });
+      for (const row of (data ?? []) as Array<{ user_id: string; avatar_url: string | null }>) {
+        const a = typeof row.avatar_url === 'string' ? row.avatar_url.trim() : '';
+        if (/^https:\/\//.test(a)) avatarOf.set(row.user_id, a);
+      }
+    } catch (e) {
+      console.error('[client/plan] coach avatar read failed:', e instanceof Error ? e.message : e);
+    }
+  }
+  const coachPhoto = (role: 'trainer' | 'nutritionist', id: number) => {
+    const key = `${role}:${id}`;
+    const own = photoOf.get(key);
+    if (own) return own;
+    const r = rowsOf(role === 'trainer' ? trNames : nuNames).find((x) => String(x.id) === String(id));
+    return (r && r.owner_id && avatarOf.get(r.owner_id)) || null;
+  };
   const trainerByWorkout = new Map((cwRows ?? []).map((w) => [w.id, w.trainer_id]));
   for (const w of workouts) {
     const id = trainerByWorkout.get(w.id);
@@ -318,6 +352,7 @@ export async function GET(request: Request) {
       providerId: sub.provider_id,
       name: names.get(String(sub.provider_id)) ?? null,
       conversationId: threadOf(role, sub.provider_id),
+      photo: coachPhoto(role, sub.provider_id),
     }));
     // The target one of them set during their own subscription (Codex on #2378: the section outlives a
     // change of coach, and an earlier run's target is not this one's); the section is shared, so it is

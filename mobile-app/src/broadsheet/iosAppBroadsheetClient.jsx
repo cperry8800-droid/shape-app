@@ -75,7 +75,9 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
-import { BSHomeGoal, BSHomeWeekSoFar, BSHomeCoaches } from './BSHomeSections.jsx';
+import { BSHomeHabitsRow, BSHomeShortcutList } from './BSHomeSections.jsx';
+import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
+import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet } from './bsCleanType.jsx';
 import { BSEatFuel, BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.jsx';
 import { BSTrainBurn, BSTrainBurnPage } from './BSTrainBurn.jsx';
@@ -4573,6 +4575,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const stepsToday = useBSStepsToday();
   const [previewMeal, setPreviewMeal] = useStateBSC(null);
   const [showWorkoutPreview, setShowWorkoutPreview] = useStateBSC(false);
+  // The member's Shape Score points, for the ticker's PTS (owner, 2026-11-03: "you can show points";
+  // the tier's progress lives on the profile). The signed-out preview reads the sample's.
+  const homeScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
   const [habitsPage, setHabitsPage] = useStateBSC(false);
   const [goalsPage, setGoalsPage] = useStateBSC(false);
@@ -5238,6 +5243,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           return { done: done.length, total: _homeHabitsDec.length, pts: done.reduce((a, h) => a + Math.round(ptsOf(h)), 0) };
         })();
         const all = [
+          ...((!bsHomeSignedIn || (homeScore && homeScore.live)) && homeScore && typeof homeScore.total === 'number'
+            ? [{ label: 'PTS', value: homeScore.total.toLocaleString('en-US'), note: homeScore.week && homeScore.week !== '+0' ? `${homeScore.week} WK` : '' }] : []),
           { label: 'CAL',  value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
           { label: 'PRO',  value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? tr('home:ticker.onPace', { defaultValue: 'ON PACE' }) : tr('home:ticker.buildUp', { defaultValue: 'BUILD UP' }), color: proColor },
           { label: 'HAB',  value: tkHab ? `${tkHab.done}/${tkHab.total}` : '3/5', note: tkHab ? `+${tkHab.pts} PTS` : '+12 PTS', color: tkHab && tkHab.total > 0 && tkHab.done >= tkHab.total ? '#a3e09a' : undefined },
@@ -5258,69 +5265,37 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         return out.length ? out : all;
       })()} />
 
-      {/* NOW PLAYING — Shape Radio (above the week calendar) */}
-      <BSNowPlaying onOpen={goRadio} />
-
       {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
           pages Home opens keep their own type: they return above, and the steps history sits outside. */}
       <BSCleanType t={t}>
-      {/* THIS WEEK — calendar preview (directly below the Clients Edition band) */}
-      <div style={{ padding: `${t.sectGap}px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 9, minWidth: 0, flexWrap: 'wrap' }}>
-          {/* At Week so far's size (owner, 2026-10-28: "make THIS WEEK on the client/member home page larger"). */}
-          <span style={{ fontFamily: t.HEAD, fontWeight: 700, fontSize: 17, lineHeight: 1, letterSpacing: '0.02em', textTransform: 'uppercase', color: t.INK, whiteSpace: 'nowrap' }}>▍ {tr('home:section.thisWeek', { defaultValue: 'This week' })}</span>
-          <span style={{ fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, whiteSpace: 'nowrap' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {fmtDate(0)}–{weekDates[0].getMonth() === weekDates[6].getMonth() ? weekDates[6].getDate() : fmtDate(6)}</span>
-        </span>
-        <button onClick={goCalendar} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', minHeight: 44, background: 'transparent', border: 0, padding: '0 2px', color: t.ACCENT, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('home:action.monthView', { defaultValue: 'Month view →' })}</button>
-      </div>
-      <div style={{ padding: `0 ${t.padX}px 12px` }}>
-        {/* Calendar rule with a heat needle over the selected day — the #1622
-            Train/Eat week-strip grammar (owner clean-up pass, 2026-07-13: the
-            boxed day tiles die; typographic day columns keep the activity dots). */}
-        <div aria-hidden style={{ position: 'relative', height: 2, background: `linear-gradient(90deg, ${t.INK}, ${t.ACCENT} 58%, transparent)` }}>
-          {weekDates.map((_, i) => (
-            <span key={i} style={{ position: 'absolute', left: `${((i + 0.5) * 100) / 7}%`, top: -3, width: 1.5, height: 8, background: t.RULE }} />
-          ))}
-          <span style={{ position: 'absolute', left: `${((selIdx + 0.5) * 100) / 7}%`, top: -7, width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: `7px solid ${t.ACCENT}`, transform: 'translateX(-5px)' }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginTop: 6 }}>
-          {weekDates.map((date, idx) => {
-            const on    = idx === selIdx;
-            const today = idx === todayIdx;
-            const dots  = (liveWeek ? liveWeek.dots[idx] : WEEK_DOTS_BY_IDX[idx]) || [];
-            return (
-              <button type="button" key={idx} onClick={() => goCalendar(date)}
-                aria-label={`${date.toLocaleDateString(_dateLoc, { weekday: 'long', month: 'long', day: 'numeric' })}${today ? `, ${tr('home:aria.today', { defaultValue: 'today' })}` : ''}`}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minHeight: 44, padding: '4px 0', background: 'transparent', border: 0, cursor: 'pointer' }}>
-                <span style={{ fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.16em', fontWeight: 700, color: on ? t.ACCENT : t.INK50 }}>{date.toLocaleDateString(_dateLoc, { weekday: 'narrow' }).toUpperCase()}</span>
-                <span style={{ fontFamily: t.DISPLAY, fontWeight: t.W.display, fontSize: 16, letterSpacing: '-0.04em', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', color: on || today ? t.INK : t.INK50 }}>{date.getDate()}</span>
-                <span style={{ display: 'flex', gap: 2.5, height: 3, marginTop: 1 }}>
-                  {dots.slice(0, 3).map((c, k) => <span key={k} style={{ width: 4, height: 3, borderRadius: 1, background: c }} />)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {/* ── THE DECK (owner, 2026-11-03, the Home the owner chose: "go with The whole Home: C on top, M3
+          below, but use this design at the top, and move shape radio box above the graph", and "the chart
+          should just be goal progress"): an ink band holding Shape Radio's slim box, the climb to the
+          member's goal (what Your goal said, BSHomeDeck.jsx), and This week as five bars a day (what Week
+          so far's rows said: train, food, protein, steps, check-in). A day opens the calendar. */}
+      <BSHomeDeck radio={<BSNowPlaying onOpen={goRadio} />}>
+        <BSHomeClimb tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
+          goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
+        <BSHomeWeekBars
+          sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
+          proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
+          stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
+          onDay={(date) => goCalendar(date)} onMonth={() => goCalendar()} />
+      </BSHomeDeck>
 
-      {/* ── CHECK-INS — up top, right under the week, as before the Focus layout
-          (owner, 2026-10-11: "check-in should be towards the top"). The daily
-          check-in is the one-tap card itself (BSCheckinCard, 2026-10-18), shown
-          whatever the lead is: the 'checkin' lever is the WEEKLY check-in, and
-          the card is where today's answers are given, not a nag. Its done line
-          and summary open Your mornings (part 2). The weekly line is suppressed
-          when its own lever is the lead; the wall bulletin yields to it. */}
-      {/* One morning panel (owner, 2026-10-22, Option A): the check-in card over water. Water shows all
-          day and whatever the Check-ins setting (owner, 2026-10-19), so with Check-ins off the panel
-          holds water alone. */}
+      {/* ── CHECK-INS — up top, right under the week (owner, 2026-10-11: "check-in should be towards the
+          top"), and above Team (owner, 2026-11-03). One morning panel (owner, 2026-10-22, Option A): the
+          check-in card over water, then the day's habits (owner, 2026-11-03: "add daily habits in here
+          instead of at bottom"). Water shows all day and whatever the Check-ins setting (owner,
+          2026-10-19), so with Check-ins off the panel holds water and the habits. */}
       <BSMorningPanel>
         <BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
         <BSWaterLine />
+        <BSHomeHabitsRow tour="hero-habits" tweaks={tweaks} setTweak={setTweak} onOpen={() => setHabitsPage(true)} />
       </BSMorningPanel>
       {checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin') && (
         <BSHomeBulletin label={tr('home:bulletin.weeklyCheckin', { defaultValue: 'Weekly check-in due' })} detail={tr('home:bulletin.weeklyCheckinDetail', { defaultValue: '2 min' })} onOpen={() => setCheckinPage(true)} />
       )}
-      {!(checkinDue && checkinPrefOn && !(engineFlag && engineFlag.lever === 'checkin')) && <BSHomeWallBulletin />}
       {/* With Check-ins off, the quiet door to Your mornings: nothing is asked, the history still shows. */}
       <BSTodayNudge variant="row" onOpen={() => setMorningsPage(true)} />
 
@@ -5331,84 +5306,56 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         <BSMemberSetupStation onGoal={() => setGoalsPage(true)} onTrain={() => goTrain?.()} onCheckin={() => setCheckinPage(true)} onFindCoach={goMarket ? () => goMarket() : null} />
       )}
 
-      {/* ── FOCUS · TODAY'S CALL — the one next thing, on its own (owner, 2026-10-22: was
-          Next stop). Timed leads carry the countdown in the head and an arrival bar
-          from the stop before; the engine's move carries the day's next stop. The
-          hero-home tour anchor rides the lead. */}
-      {focusLead && (
-        <>
-          <BSFocusHead glyph="▤" label={tr('home:focus.todaysCall', { defaultValue: 'Today’s call' })} meta={focusMeta}
-            actionLabel={focusLead.action ? focusLead.action[0] : null} onAction={focusLead.action ? focusLead.action[1] : null} color={focusLead.color} />
-          <BSFocusLead tour="hero-home" color={focusLead.color} kicker={focusLead.kicker} kickerRight={`${_dowShort(_now)} ${_now.getDate()}`} title={focusLead.title} sub={focusLead.sub}>
-            {focusPrev && (
-              <BSFocusArrival color={focusLead.color} pct={focusPct}
-                nowLabel={`${tr('home:slate.now', { defaultValue: 'Now' })} ${fmtAt(bsNowMin)}`}
-                fromLabel={`${fmtAt(focusPrev.min)} · ${focusPrev.label}${focusPrev.done ? ' ✓' : ''}`}
-                toLabel={focusLead.to}
-                ariaLabel={tr('home:focus.arrivalAria', { defaultValue: 'Now {now}, between {from} and {to}', now: fmtAt(bsNowMin), from: fmtAt(focusPrev.min), to: fmtAt(focusLead.at) })} />
-            )}
-            <BSFocusActions color={focusLead.color}
-              primary={todayDirective.cta ? { label: todayDirective.cta[0], onClick: todayDirective.cta[1] } : null}
-              secondary={focusLead.secondary || null} />
-          </BSFocusLead>
-        </>
-      )}
-
-      {/* Your line left Home (owner, 2026-10-22): the day's meals are Eat's menu and its session is
-          Train's, and every stop on it only opened one of the two. At a glance left with it: the week
-          reads in Week so far, and today's numbers are Eat's Fuel left today. */}
-
-      {/* ── HOME, PART 2 (owner, 2026-10-22, the Home mockup): what only Home says. Your goal, the
-          week so far against the plan, and the member's coaches (BSHomeSections.jsx). */}
-      <BSHomeGoal tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
-        goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
-      <BSHomeWeekSoFar
-        sessionsPlanned={bsHomeSessionsPlanned(livePlan)} plannedDays={bsHomeSessionsPlannedDays(livePlan)} planRead={planRead}
-        proteinTarget={ticker && typeof ticker.protein_target === 'number' ? ticker.protein_target : null}
-        stepGoal={stepsToday.goal} checkinsOn={checkinPrefOn}
-        onTrain={() => goTrain?.()} onEat={() => goEat()} onProgress={() => setHomeProgressPage(true)}
-        onSteps={() => {
-          if (stepsToday.hasData) { setStepsHistory(true); return; }
-          try { window.dispatchEvent(new CustomEvent('shape:openIntegrations')); } catch (e) {}
-        }}
-        onMornings={() => setMorningsPage(true)} />
-      {/* The coaches' weekly notes, trainers first: a member may pay two coaches of one role (owner,
-          2026-10-16), and each keeps one note (coach_focus_banners is one row per coach), signed with
-          its coach's name or the role alone. Real notes only, no sample even signed out (owner), and
-          only from a coach the member pays now, as the rest of the section. */}
-      <BSHomeCoaches coaches={planCoaches} onCalendar={goCalendar} onCoaches={() => goChat()}
-        notes={(() => {
+      {/* ── TEAM (owner, 2026-11-03: Today's call came off, "replace with just this" of the coaches'
+          cards, "so you dont have them twice", and "change 'in your corner' to 'team'"): the trainer's
+          card carries today's session, the nutritionist's their weekly note, the food left and the next
+          meal; with no coach it reads Today, with Find a coach. Your crew is not on Home (owner,
+          2026-11-03: "dont need to see them twice on home"; they are on the Wall). The hero-home tour
+          anchor rides it. */}
+      {(() => {
+        const nextMeal = (() => {
+          const open = selMeals.filter((m) => !mealLogged[m.id]).slice().sort((x, y) => mealMinutes(x) - mealMinutes(y));
+          return open.find((m) => mealMinutes(m) >= bsNowMin) || open[0] || null;
+        })();
+        const fuel = liveCal != null && liveTarget
+          ? { left: Math.max(0, Math.round(liveTarget - liveCal)), pct: Math.round((liveCal / liveTarget) * 100) }
+          // The signed-out preview's day is the ticker's sample (CAL 1568/2100), so the two agree.
+          : (!bsHomeSignedIn ? { left: 2100 - 1568, pct: Math.round((1568 / 2100) * 100) } : null);
+        // The signed-out preview shows the sample's two coaches, the ones its Train and Eat already name
+        // (owner, 2026-11-03: "the coaches should be appearing on home page next to the daily tasks"),
+        // with the sample's note on Eat. Signed in, only the coaches the member pays, and their notes.
+        const sample = !bsHomeSignedIn;
+        const teamCoaches = sample
+          ? [{ role: 'trainer', name: 'Jordan Chen', conversationId: null, providerId: 'sample-trainer', photo: bsDemoFace('Jordan Chen') }, { role: 'nutritionist', name: 'Dr. Maya Patel', conversationId: null, providerId: 'sample-nutritionist', photo: bsDemoFace('Dr. Maya Patel') }]
+          : planCoaches;
+        const notes = [];
+        if (sample) notes.push({ role: 'nutritionist', text: 'Five plates. Three logged before noon. Don’t coast through the afternoon — refill at 16:00.', who: 'Dr. Maya Patel' });
+        else {
           const banners = bsHomePaidBanners(coachFeed.banners, planCoaches);
-          const notes = [];
           for (const b of banners) if (b.provider_role !== 'nutritionist') notes.push({ role: 'trainer', text: b.text, who: b.provider_name || null });
           for (const b of banners) if (b.provider_role === 'nutritionist') notes.push({ role: 'nutritionist', text: b.text, who: b.provider_name || null });
-          return notes;
-        })()} />
-
-      {/* ── SHORTCUTS — the rest of the page as tiles, the same grid that ends the coach's Today
-          (owner, 2026-10-25), in Home's own grammar: Home's section title, and each tile with the
-          member links' coloured bar. Only doors Home does not already hold: the calendar is the week
-          strip's, Your mornings the check-in card's, Shape Radio the bar at the top, and a member with
-          a coach has their coaches' section, so Find a coach shows only to a member with none. Daily
-          habits and Progress keep their tour anchors. */}
-      {(() => {
-        // Signed in, only once the read said there is no coach (not while it loads, not after it fails).
-        const findCoach = !planCoaches.length && (!bsHomeSignedIn || coachesKnown);
+        }
         return (
-          <BSShortcuts title={tr('home:shortcut.title', { defaultValue: 'Shortcuts' })}
-            head={<BSFocusTitle kicker={tr('home:shortcut.kicker', { defaultValue: 'Jump to' })} title={tr('home:shortcut.title', { defaultValue: 'Shortcuts' })} color={t.ACCENT} />}>
-            <BSShortcutTile tour="hero-habits" icon="habits" color={t.GREEN} label={tr('home:slate.habitsHead', { defaultValue: 'Daily habits' })}
-              onOpen={() => setHabitsPage(true)}
-              sub={selDayHabits.length ? tr('home:focus.habitsDone', { defaultValue: '{done} of {total} done', done: selDayHabits.filter((h) => h.done).length, total: selDayHabits.length }) : tr('home:focus.habitsFirst', { defaultValue: 'Add your first' })} />
-            <BSShortcutTile tour="hero-progress" icon="progress" color="#a78bfa" label={tr('home:door.progress', { defaultValue: 'Progress' })} sub={tr('home:shortcut.progressSub', { defaultValue: 'Your record so far' })} onOpen={() => setHomeProgressPage(true)} />
-            <BSShortcutTile icon="list" color={t.isLight ? '#0a8f87' : '#34d6c5'} label={tr('home:shortcut.groceryList', { defaultValue: 'Grocery list' })} sub={tr('home:shortcut.grocerySub', { defaultValue: 'This week’s shopping' })} onOpen={() => goEat('grocery')} />
-            <BSShortcutTile icon="score" color={t.isLight ? '#a07a2e' : '#c9a14a'} label="Shape Score" sub={tr('home:shortcut.scoreSub', { defaultValue: 'Points and tier' })} onOpen={() => goScore?.()} />
-            <BSShortcutTile icon="devices" color={t.BLUE} wide={!findCoach} label={tr('home:shortcut.devices', { defaultValue: 'Watch & apps' })} sub={tr('home:shortcut.devicesSub', { defaultValue: 'Connect your steps and sleep' })} onOpen={() => goIntegrations?.()} />
-            {findCoach && <BSShortcutTile icon="coach" color={t.RUST} label={tr('home:shortcut.findCoach', { defaultValue: 'Find a coach' })} sub={tr('home:shortcut.findCoachSub', { defaultValue: 'Trainers and nutritionists' })} onOpen={() => goMarket?.()} />}
-          </BSShortcuts>
+          <BSHomeTeam tour="hero-home" coaches={teamCoaches} notes={notes}
+            dayLabel={`${_dowShort(_now)} ${_now.getDate()}`}
+            workout={selWorkout && selWorkout.title ? { title: selWorkout.title, meta: _wkShortMeta, time: fmtAt(WORKOUT_AT), onStart: () => setShowWorkoutPreview(true) } : null}
+            meal={nextMeal ? { slot: slotLabel(nextMeal), time: fmtAt(mealMinutes(nextMeal)), title: nextMeal.title, onLog: () => { setMealToLog(nextMeal); setLoggingMealId(nextMeal.id); setShowLogMeal(true); } } : null}
+            fuel={fuel}
+            showFindCoach={!teamCoaches.length && coachesKnown}
+            onFindCoach={() => goMarket?.()} onCoaches={() => goChat()} onCalendar={goCalendar} />
         );
       })()}
 
+      {/* ── SHORTCUTS — the doors Home does not already hold, as a plain list (owner, 2026-11-03, the Home
+          preview): Shape Score as a link with no figures (its progress is the profile's), Progress,
+          the grocery list and Watch & apps. Daily habits moved into the morning panel, Find a coach into
+          Team. Progress keeps its tour anchor. */}
+      <BSHomeShortcutList title={tr('home:shortcut.title', { defaultValue: 'Shortcuts' })} rows={[
+        { key: 'score', label: 'Shape Score', sub: tr('home:shortcut.scoreSub', { defaultValue: 'Points and tier' }), onOpen: () => goScore?.() },
+        { key: 'progress', tour: 'hero-progress', label: tr('home:door.progress', { defaultValue: 'Progress' }), sub: tr('home:shortcut.progressSub', { defaultValue: 'Your record so far' }), onOpen: () => setHomeProgressPage(true) },
+        { key: 'grocery', label: tr('home:shortcut.groceryList', { defaultValue: 'Grocery list' }), sub: tr('home:shortcut.grocerySub', { defaultValue: 'This week’s shopping' }), onOpen: () => goEat('grocery') },
+        { key: 'devices', label: tr('home:shortcut.devices', { defaultValue: 'Watch & apps' }), sub: tr('home:shortcut.devicesSub', { defaultValue: 'Connect your steps and sleep' }), onOpen: () => goIntegrations?.() },
+      ]} />
 
       {/* THIS WEEK — (moved to top) */}
 
@@ -16112,7 +16059,10 @@ function BSChannelIcon({ name, size = 20 }) {
 const BS_FACE_BASE = `${import.meta.env.BASE_URL}faces/`;
 const bsFaceUrl = (slug) => slug ? `${BS_FACE_BASE}${slug}.jpg` : null;
 const BS_DEMO_FACES = ['member-01', 'member-02', 'member-03', 'member-04', 'member-05', 'member-06', 'member-07', 'member-08', 'member-09', 'member-10', 'member-11', 'member-12'];
-const BS_DEMO_FACE_BY_NAME = { 'Priya Shah': 'member-03', 'Drew Oyelaran': 'member-02', 'Casey Morgan': 'member-10', 'Devon Wells': 'member-01', 'Maya Okafor': 'maya', 'Sofia Park': 'member-12' };
+// The sample coaches wear their working clothes (owner, 2026-11-04: "they should look like trainers",
+// "workout attire"): coach-jordan and coach-maya are the website's jordan.jpg and priya.jpg. By hash both
+// landed on member-11, a sweater, side by side on Home's Team.
+const BS_DEMO_FACE_BY_NAME = { 'Priya Shah': 'member-03', 'Drew Oyelaran': 'member-02', 'Casey Morgan': 'member-10', 'Devon Wells': 'member-01', 'Maya Okafor': 'maya', 'Sofia Park': 'member-12', 'Jordan Chen': 'coach-jordan', 'Dr. Maya Patel': 'coach-maya' };
 function bsDemoFace(name) {
   const n = String(name || '').trim();
   if (!n || n === 'You' || n.charAt(0) === '#') return null;
@@ -29954,52 +29904,6 @@ function BSHomeBulletin({ label, detail, onOpen }) {
 function bsWallBulletinPick(rows) {
   const list = Array.isArray(rows) ? rows : [];
   return list.find((r) => r && r.post && r.post.cosign && r.post.cosign.name) || list[0] || null;
-}
-
-// ⚠ THE READ IS CACHED PER ACCOUNT FOR FIVE MINUTES. Home remounts on every
-// tab return, and this line costs a definer RPC plus a `community_posts` fetch
-// carrying its likes and comments joins — a real round trip to decide one row
-// of text that changes when somebody's coach stamps a record, i.e. rarely.
-// Keyed by uid so a sign-out or an account switch cannot show the previous
-// account's record.
-let _bsWallBulletinCache = { uid: null, at: 0, rec: null };
-function BSHomeWallBulletin() {
-  const tr = useShapeTr();
-  const uid = (typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.()?.user?.id) || null;
-  const [rec, setRec] = React.useState(() => (_bsWallBulletinCache.uid === uid ? _bsWallBulletinCache.rec : null));
-  React.useEffect(() => {
-    if (!uid) { setRec(null); return undefined; }
-    const fresh = _bsWallBulletinCache.uid === uid && (Date.now() - _bsWallBulletinCache.at) < 300000;
-    if (fresh) { setRec(_bsWallBulletinCache.rec); return undefined; }
-    let dead = false;
-    const list = window.ShapePRWall && window.ShapePRWall.list;
-    if (!list) return undefined;
-    Promise.resolve(list({ limit: 6 }))
-      .then((res) => {
-        if (dead || !res || res.stored !== 'supabase') return;
-        const hit = bsWallBulletinPick(res.data);
-        // ⚠ The cache is stamped with the uid the READ started under, and only
-        // adopted when that is still the current account — an account switch
-        // mid-flight must not publish A's record onto B's Home.
-        if (uid === (window.ShapeAuth?.getCachedState?.()?.user?.id || null)) {
-          _bsWallBulletinCache = { uid, at: Date.now(), rec: hit };
-          setRec(hit);
-        }
-      })
-      .catch(() => {});
-    return () => { dead = true; };
-  }, [uid]);
-  if (!rec) return null;
-  return (
-    <BSHomeBulletin
-      label={tr('home:bulletin.onTheWall', { defaultValue: 'On the wall' })}
-      detail={tr('home:bulletin.onTheWallDetail', {
-        defaultValue: '{name} · {lift} {value} {unit}',
-        name: rec.name, lift: rec.liftLabel, value: bsWallNum(rec.best), unit: rec.unit,
-      })}
-      onOpen={() => { try { window.dispatchEvent(new CustomEvent('shape:goWall')); } catch (e) {} }}
-    />
-  );
 }
 
 // BSShelfDoor — one door in the INSIDE. index (owner call 2026-07-13: the

@@ -6,16 +6,22 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 const require = createRequire(import.meta.url);
-// ⚠ HOME NO LONGER CHECKS A HABIT OFF (the Focus layout, owner 2026-10-11): daily
-// habits are one Shortcuts tile there, to the habits page. The future-date guard this file
-// used to drive on Home's own toggle went with that toggle, so what is pinned now
-// is that Home writes no habit at all — a second writer would need its own guard.
-test('Home writes no habit: daily habits are a link to the habits page', () => {
+// ⚠ HOME TICKS TODAY'S HABITS THROUGH THE HABITS PAGE'S OWN STORE (owner, 2026-11-03: "add daily habits
+// in here instead of at bottom", of the morning panel). Home has no writer of its own: the panel's row
+// takes _bsUseServerHabits, the page's store, whose toggle writes today and only today. So the future-date
+// guard Home's old toggle needed stays unneeded, and a second writer would need its own.
+test("Home writes no habit of its own: the morning panel's row ticks today through the page's store", () => {
   const source = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', import.meta.url), 'utf8');
   const home = source.slice(source.indexOf('function BSClientHome('), source.indexOf('function _bsHomeWidgets('));
   assert.ok(home.length > 1000, 'BSClientHome was not found — re-point this guard');
   assert.doesNotMatch(home, /ShapeHabitsData\.action/, 'Home writes a habit again — give it the future-date guard');
-  assert.match(home, /<BSShortcutTile tour="hero-habits"[\s\S]{0,400}?onOpen=\{\(\) => setHabitsPage\(true\)\}/, 'the daily-habits tile no longer opens the habits page');
+  assert.match(home, /<BSHomeHabitsRow tour="hero-habits" tweaks=\{tweaks\} setTweak=\{setTweak\} onOpen=\{\(\) => setHabitsPage\(true\)\} \/>/, 'the habits row no longer opens the habits page');
+  const sections = readFileSync(new URL('../mobile-app/src/broadsheet/BSHomeSections.jsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(sections, /ShapeHabitsData\.action/, 'the habits row writes a habit itself');
+  assert.match(sections, /window\._bsUseServerHabits/, "the habits row left the page's store");
+  const habits = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetHabits.jsx', import.meta.url), 'utf8');
+  assert.match(habits, /const toggle = id => \{[\s\S]{0,240}?const date = _bsHabitsToday\(\);/, "the store's toggle writes a day other than today");
+  assert.match(habits, /Object\.assign\(window, \{[^}]*_bsUseServerHabits, _bsHabitsToday[^}]*\}\)/, 'the store is not a window global for Home');
 });
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<div id="root"></div>', { url:'https://shape.test' });

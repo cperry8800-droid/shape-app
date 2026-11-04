@@ -321,7 +321,9 @@ export function bsHomeCoachesOf(plan) {
     const c = plan && plan[part] && plan[part].coaching;
     const list = c && Array.isArray(c.coaches) ? c.coaches : [];
     for (const k of list) {
-      if (k && (k.name || k.providerId != null)) out.push({ role, name: k.name ? String(k.name) : null, conversationId: k.conversationId || null, providerId: k.providerId ?? null });
+      // `photo`: the listing's portrait or the coach's profile photo, when the plan read found one (https only).
+      const photo = k && typeof k.photo === 'string' && /^https:\/\//.test(k.photo) ? k.photo : null;
+      if (k && (k.name || k.providerId != null)) out.push({ role, name: k.name ? String(k.name) : null, conversationId: k.conversationId || null, providerId: k.providerId ?? null, photo });
     }
   };
   add('training', 'trainer');

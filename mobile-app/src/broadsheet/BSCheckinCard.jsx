@@ -14,7 +14,7 @@ export { bsCiWordIndex, bsCiIso, bsCiHM, bsCiWords };
 // says what the answers mean for today and for the week. EVERY TAP SAVES: there is no Log button to
 // forget, and leaving halfway keeps what was answered.
 //
-//   Home card: Start check-in →  ·  Same as yesterday (the morning in one tap)
+//   Home card: Morning check-in (the walkthrough)  ·  ✓ Same as yesterday (the morning in one tap)
 //   Walkthrough: Last night (sleep, How did you wake up? optional, or Skip) → This morning (energy)
 //                → the summary: today's read, the week, who sees it, Your mornings →, Change on
 //                  every answer
@@ -976,21 +976,15 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
 
   // ── the card on Home ──
   // ⚠ IN THE MORNING PANEL (owner, 2026-10-22, Option A: the card "look[s] analog and outdated"). The
-  // card draws no box of its own: BSMorningPanel holds it over the water line. Before the check-in, two
-  // rows (owner, 2026-11-03: "this also needs to be condensed on client home page"): the sun tile and
-  // the title, with Start (or Continue) as a quiet link at the row's end, then Same as yesterday as the
-  // one filled button on a single line, yesterday's answers after its words; with no yesterday to
-  // repeat, Start is that filled button instead. Once a step is in (a watch's night or a skipped one
-  // too), the steps take the place of "2 checks · 15 sec". Checked in: one row, with the morning's
-  // readiness as a ring when there is one.
+  // card draws no box of its own: BSMorningPanel holds it over the water line. Before the check-in, one
+  // row (owner, 2026-11-03, the Home preview): Morning check-in over one line, yesterday's answers as
+  // "Same as yesterday? …", and an ink ✓ square that logs them; the words open the walkthrough. With no
+  // yesterday to repeat the row is Start, ending in an arrow square. Once a step is in (a watch's night
+  // or a skipped one too), the steps take the line. Checked in: one row, with the morning's readiness
+  // as a ring when there is one.
   const done = status === 'done';
-  const fill = t.isLight ? '#08776f' : teal;
-  const onFill = t.isLight ? '#fff' : t.PAPER;
   const tile = (bg, child) => (
     <span aria-hidden style={{ width: 30, height: 30, borderRadius: 9, background: bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{child}</span>
-  );
-  const sun = (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={teal} strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
   );
   const tick = (color, size) => (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 12.5l4.2 4.2L19 7" /></svg>
@@ -1002,7 +996,11 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
   const title = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15, color: t.INK };
   const sub = { fontFamily: t.BODY, fontSize: 12, lineHeight: 1.35, color: t.INK50 };
   const startLabel = manual ? tr('home:checkin.continue', { defaultValue: 'Continue →' }) : tr('home:checkin.start', { defaultValue: 'Start check-in →' });
-  const bigButton = { width: '100%', minHeight: 44, border: 0, borderRadius: 10, background: fill, color: onFill, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 9, padding: '5px 14px', textAlign: 'left', boxShadow: t.isLight ? `0 6px 16px -9px ${fill}` : 'none' };
+  // Start's name for a screen reader: the visible arrow is the row's square.
+  const startAria = startLabel.replace(/\s*[→›]\s*$/, '');
+  // The row's square, the morning panel's one control shape (Water's ＋ is the same box): ink when it
+  // does the thing, an outline when it opens something.
+  const square = (filled) => ({ flex: 'none', width: 44, height: 44, minHeight: 44, padding: 0, borderRadius: 6, boxSizing: 'border-box', border: filled ? 0 : `1px solid ${t.INK50}`, background: filled ? t.INK : 'transparent', color: filled ? t.PAPER : t.INK, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' });
   const ring = (score) => {
     const r = 18;
     const c = 2 * Math.PI * r;
@@ -1048,24 +1046,43 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-            {tile(`${teal}1f`, sun)}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={title}>{tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</div>
-              {/* The steps or the meta, and the streak beside them: the row's end is Start's. */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 1 }}>
-                {BS_CI_STEPS.some((k) => answered[k]) ? (
-                  <span data-bs-checkin-steps="" style={{ display: 'flex', gap: 8, minWidth: 0 }}>
-                    {BS_CI_STEPS.map((k) => (
-                      <span key={k} style={{ ...mono, fontSize: 8, letterSpacing: '0.12em', color: answered[k] ? COLOR[k] : t.INK50, whiteSpace: 'nowrap' }}>{answered[k] ? '✓ ' : ''}{NAME[k]}</span>
-                    ))}
-                  </span>
-                ) : <span style={sub}>{tr('home:checkin.cardMeta', { defaultValue: '2 checks · 15 sec' })}</span>}
-                {streakChip}
-              </div>
-            </div>
+          // ⚠ ONE ROW (owner, 2026-11-03, the Home preview: "ok looks good"): the title and one line, and
+          // one square at the end. The words open the walkthrough; the ink ✓ is Same as yesterday, the
+          // morning in one tap, with yesterday's answers on the line. With nothing to repeat the whole
+          // row is Start, its square an arrow.
+          <div data-bs-checkin-row="" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button type="button" data-bs-checkin-start="" aria-label={startAria} onClick={() => open(firstOpen())}
+              style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
+                <span style={{ ...title, display: 'block' }}>{tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>
+                <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 2, marginTop: 2 }}>
+                  {/* What the ✓ logs leads: yesterday's answers, only those the tap writes; else the
+                      steps once one is in; else what the check-in takes. */}
+                  {same ? (
+                    <span data-bs-checkin-sameline="" style={{ ...sub, color: t.INK70, minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {sameLine ? tr('home:checkin.sameAsk', { defaultValue: 'Same as yesterday? {line}', line: sameLine }) : tr('home:checkin.sameAskBare', { defaultValue: 'Same as yesterday?' })}
+                    </span>
+                  ) : BS_CI_STEPS.some((k) => answered[k]) ? (
+                    <span data-bs-checkin-steps="" style={{ display: 'flex', gap: 8, minWidth: 0 }}>
+                      {BS_CI_STEPS.map((k) => (
+                        <span key={k} style={{ ...mono, fontSize: 8, letterSpacing: '0.12em', color: answered[k] ? COLOR[k] : t.INK50, whiteSpace: 'nowrap' }}>{answered[k] ? '✓ ' : ''}{NAME[k]}</span>
+                      ))}
+                    </span>
+                  ) : <span style={sub}>{tr('home:checkin.cardMeta', { defaultValue: '2 checks · 15 sec' })}</span>}
+                  {streakChip}
+                </span>
+              </span>
+              {same ? null : (
+                <span aria-hidden data-bs-checkin-go="" style={square(false)}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </span>
+              )}
+            </button>
             {same ? (
-              <button type="button" data-bs-checkin-start="" onClick={() => open(firstOpen())} style={{ flex: 'none', minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', color: teal, cursor: 'pointer', fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{startLabel}</button>
+              <button type="button" data-bs-checkin-same="" onClick={() => answer(same)} style={square(true)}
+                aria-label={sameLine ? `${tr('home:checkin.same', { defaultValue: 'Same as yesterday' })} · ${sameLine}` : tr('home:checkin.same', { defaultValue: 'Same as yesterday' })}>
+                {tick(t.PAPER, 18)}
+              </button>
             ) : null}
           </div>
         )}
@@ -1081,25 +1098,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
             ) : null}
             {errLine}
           </>
-        ) : (
-          <>
-            {errLine}
-            <div data-bs-checkin-actions="" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
-              {same ? (
-                <button type="button" onClick={() => answer(same)} style={{ ...bigButton, padding: '0 14px' }}>
-                  <span aria-hidden style={{ width: 20, height: 20, borderRadius: 999, background: t.isLight ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>{tick(onFill, 12)}</span>
-                  {/* One line: the words, then yesterday's answers after a dot, cut short on a narrow phone. */}
-                  <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>{tr('home:checkin.same', { defaultValue: 'Same as yesterday' })}</span>
-                    {sameLine ? <span style={{ fontFamily: t.BODY, fontSize: 12, opacity: 0.88 }}> · {sameLine}</span> : null}
-                  </span>
-                </button>
-              ) : (
-                <button type="button" onClick={() => open(firstOpen())} style={{ ...bigButton, justifyContent: 'center', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>{startLabel}</button>
-              )}
-            </div>
-          </>
-        )}
+        ) : errLine}
         {eveningRow}
       </div>
       {sheet && host ? createPortal(bsCleanSheet(t, sheet), host) : sheet}

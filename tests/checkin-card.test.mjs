@@ -313,14 +313,16 @@ test('coaching reads as three states per role, and who sees the morning follows 
 
 // The card on Home is asking: its one button, Start or Continue, is on it (the compact card has no
 // headline of its own; owner, 2026-10-21).
-const ASKING = /Start check-in →|Continue →/;
+// The card is asking: its resting row, whose words are Start (or Continue). Its labels are aria-labels
+// since the one-row card (owner, 2026-11-03), so this reads the row, not the text.
+const asking = () => !!document.querySelector('[data-bs-checkin-start]');
 
 test('the card is the door: Start walks last night then this morning, every tap saves, and the summary says what it means', async () => {
   const calls = env();
   const m = await mount();
   try {
     assert.match(m.text(), /Morning check-in/);
-    assert.match(m.text(), ASKING);
+    assert.ok(asking());
     assert.match(m.text(), /2 checks · 15 sec/);
     assert.ok(!m.walk(), 'the walkthrough opened by itself');
     assert.ok(!m.button(/Details/), 'the old Details door is still on the card');
@@ -392,7 +394,7 @@ test('Same as yesterday on the card logs the morning in one tap, never the hunge
   try {
     assert.match(m.text(), /Same as yesterday/);
     assert.match(m.text(), /Good · 6h 30 · Fresh/);
-    await m.click(/Same as yesterday/);
+    await m.click(/^Same as yesterday(?!\?)/);
     assert.deepEqual(calls.log, [{ energy: 7, sleepHours: 6.5, sleepQuality: 9 }]);
     assert.ok(!m.walk());
     assert.match(m.text(), /Checked in ✓/);
@@ -432,37 +434,54 @@ test('the morning panel holds the card over water, with a hairline between them'
 
 // Owner, 2026-10-21: "condense the size of this. taking up way to much space on home page"; owner,
 // 2026-10-22, Option A: it "look[s] analog and outdated"; owner, 2026-11-03: "this also needs to be
-// condensed on client home page". No headline and no row of step bars: the title row with Start at its
-// end, then Same as yesterday as the one filled button, on one line.
-test('the card on Home is compact: a title row ending in Start, Same as yesterday as the one button, the steps in the title once one is in', async () => {
-  env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
+// condensed on client home page", then the Home preview ("ok looks good"): one row, Morning check-in over
+// "Same as yesterday? …", the words opening the walkthrough and an ink ✓ square logging yesterday's answers.
+test('the card on Home is one row: the words open the check-in, the ink ✓ square is Same as yesterday, the steps on the line once one is in', async () => {
+  const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
   let m = await mount();
   try {
     const card = document.querySelector('[data-bs-checkin-card]');
-    assert.equal(card.children.length, 2, 'the card grew a row: a headline or the step bars came back');
+    assert.equal(card.children.length, 1, 'the card grew a row: a headline, the step bars or the big button came back');
     assert.ok(!card.querySelector('h2'), 'the card has a headline again');
     assert.equal(card.style.border, '', 'the card draws its own box again: the morning panel holds it');
-    assert.equal(card.style.clipPath, '', 'the notched corner came back');
-    const row = card.querySelector('[data-bs-checkin-actions]');
-    assert.deepEqual([...row.querySelectorAll('button')].map((b) => b.textContent), ['Same as yesterday · Good · 6h 30 · Fresh'], 'Same as yesterday is the one button under the title');
-    assert.equal(row.querySelector('button').style.minHeight, '44px', 'the one big button (a step down, owner 2026-10-24: "make these smaller")');
-    const label = row.querySelector('button').lastElementChild;
-    assert.equal(label.style.whiteSpace, 'nowrap', 'Same as yesterday and its answers are one line (owner, 2026-11-03)');
-    const start = card.querySelector('[data-bs-checkin-start]');
-    assert.equal(start?.textContent, 'Start check-in →', 'Start is not at the end of the title row');
-    assert.ok(start.parentElement === card.firstElementChild, 'Start left the title row');
+    assert.ok(!card.querySelector('[data-bs-checkin-actions]'), 'the big Same as yesterday button came back');
+    const row = card.querySelector('[data-bs-checkin-row]');
+    const start = row.querySelector('[data-bs-checkin-start]');
+    const same = row.querySelector('[data-bs-checkin-same]');
+    assert.deepEqual([...row.children], [start, same], 'the row is the words, then one square');
+    assert.equal(start.getAttribute('aria-label'), 'Start check-in');
     assert.equal(start.style.minHeight, '44px');
-    assert.equal(m.text(), 'Morning check-in2 checks · 15 secStart check-in →Same as yesterday · Good · 6h 30 · Fresh');
+    assert.equal(same.style.width, '44px');
+    assert.equal(same.style.height, '44px');
+    assert.equal(same.style.borderRadius, '6px', 'the ✓ is not the panel\'s square');
+    assert.notEqual(same.style.background, 'transparent', 'the ✓ square is ink: it does the thing');
+    assert.equal(same.getAttribute('aria-label'), 'Same as yesterday · Good · 6h 30 · Fresh', 'the square says what it logs');
+    const line = row.querySelector('[data-bs-checkin-sameline]');
+    assert.equal(line.textContent, 'Same as yesterday? Good · 6h 30 · Fresh');
+    assert.equal(line.style.whiteSpace, 'nowrap', 'yesterday\'s answers are one line (owner, 2026-11-03)');
+    assert.equal(m.text(), 'Morning check-inSame as yesterday? Good · 6h 30 · Fresh');
+    await React.act(async () => { same.click(); });
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.deepEqual(calls.log, [{ energy: 7, sleepHours: 6.5, sleepQuality: 9 }], 'the ✓ did not log yesterday\'s morning');
   } finally { m.unmount(); }
-  // Nothing to repeat: Start is the big button.
+  // The words open the walkthrough.
+  env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 } } });
+  m = await mount();
+  try {
+    await React.act(async () => { document.querySelector('[data-bs-checkin-start]').click(); });
+    assert.ok(m.walk(), 'the row\'s words did not open the check-in');
+  } finally { m.unmount(); }
+  // Nothing to repeat: the whole row is Start, its square an arrow, and no second button.
   env();
   m = await mount();
   try {
-    const row = document.querySelector('[data-bs-checkin-actions]');
+    const row = document.querySelector('[data-bs-checkin-row]');
     const only = [...row.querySelectorAll('button')];
-    assert.deepEqual(only.map((b) => b.textContent), ['Start check-in →']);
-    assert.equal(only[0].style.minHeight, '44px');
-    assert.ok(!document.querySelector('[data-bs-checkin-start]'), 'a second Start in the title row');
+    assert.equal(only.length, 1, 'a second button with nothing to repeat');
+    assert.equal(only[0].getAttribute('aria-label'), 'Start check-in');
+    assert.ok(only[0].querySelector('[data-bs-checkin-go]'), 'Start lost its arrow square');
+    assert.ok(!document.querySelector('[data-bs-checkin-same]'));
+    assert.equal(m.text(), 'Morning check-in2 checks · 15 sec');
   } finally { m.unmount(); }
   // Energy in: the steps take the title row's place for "2 checks · 15 sec", and Continue opens the night.
   env({ days: { [TODAY]: { energy: 8 } } });
@@ -470,14 +489,14 @@ test('the card on Home is compact: a title row ending in Start, Same as yesterda
   try {
     assert.equal(document.querySelector('[data-bs-checkin-steps]')?.textContent, 'Sleep✓ Energy');
     assert.doesNotMatch(m.text(), /2 checks · 15 sec/);
-    assert.match(m.text(), /Continue →/);
+    assert.equal(document.querySelector('[data-bs-checkin-start]').getAttribute('aria-label'), 'Continue');
   } finally { m.unmount(); }
   // A watch's night is a step in too, though it is not the member's own answer: Start, with ✓ Sleep.
   env({ days: { [TODAY]: { sleep: 7.2, hrv: 50 } } });
   m = await mount();
   try {
     assert.equal(document.querySelector('[data-bs-checkin-steps]')?.textContent, '✓ SleepEnergy');
-    assert.match(m.text(), /Start check-in →/);
+    assert.equal(document.querySelector('[data-bs-checkin-start]').getAttribute('aria-label'), 'Start check-in');
   } finally { m.unmount(); }
 });
 
@@ -486,8 +505,8 @@ test('the Same as yesterday line names only what the tap writes (review on this 
   const calls = env({ days: { [YDAY]: { energy: 7, sleep: 6.5, sleepQuality: 9 }, [TODAY]: { sleep: 7.5, sleepQuality: 4 } } });
   const m = await mount();
   try {
-    assert.match(m.text(), /Same as yesterday · Good(?! ·)/, 'the line offers a night and a Rested the tap will not write');
-    await m.click(/Same as yesterday/);
+    assert.match(m.text(), /Same as yesterday\? Good(?! ·)/, 'the line offers a night and a Rested the tap will not write');
+    await m.click(/^Same as yesterday(?!\?)/);
     assert.deepEqual(calls.log, [{ energy: 7 }]);
   } finally { m.unmount(); }
 });
@@ -505,7 +524,7 @@ test("a wearable's night is shown on step 1, never asked or typed over, and Same
   const calls = env({ days: { [TODAY]: { sleep: 7.2, hrv: 50 }, [YDAY]: { energy: 7, hunger: 5, sleep: 7, hrv: 48 } } });
   const m = await mount();
   try {
-    assert.match(m.text(), /Start check-in/, "a watch's night alone counted as the member's own answer");
+    assert.equal(document.querySelector('[data-bs-checkin-start]')?.getAttribute('aria-label'), 'Start check-in', "a watch's night alone counted as the member's own answer");
     assert.doesNotMatch(m.text(), /Good · 7h/, "yesterday's wearable night is offered as the member's own");
     // Start opens the night, the watch's included: its hours and How did you wake up? are there.
     await m.click(/Start check-in/);
@@ -516,7 +535,7 @@ test("a wearable's night is shown on step 1, never asked or typed over, and Same
     await m.click(/^Next/);
     assert.deepEqual(calls.log, [], "Next wrote over the wearable's night");
     await m.click(/^Close$/);
-    await m.click(/Same as yesterday/);
+    await m.click(/^Same as yesterday(?!\?)/);
     assert.deepEqual(calls.log, [{ energy: 7 }]);
     assert.match(m.text(), /Checked in ✓/);
     assert.match(m.text(), /Sleep 7h 12/);
@@ -556,7 +575,7 @@ test('a member who does not track sleep can skip the night, for the rest of the 
     mock.timers.setTime(new Date(2026, 9, 19, 12).getTime());
     env({ days: { '2026-10-19': { energy: 8 } } });
     m = await mount();
-    assert.match(m.text(), ASKING, "yesterday's skip held today");
+    assert.ok(asking(), "yesterday's skip held today");
     m.unmount();
   } finally { mock.timers.setTime(at(12)); dom.window.localStorage.clear(); }
 });
@@ -652,9 +671,9 @@ test('Same as yesterday after a skip copies the morning only, never the skipped 
     await m.click(/Start check-in/);
     await m.click(/^Skip$/);
     await m.click(/^Close$/);
-    assert.match(m.text(), /Same as yesterday · Good/);
+    assert.match(m.text(), /Same as yesterday\? Good/);
     assert.doesNotMatch(m.text(), /6h 30|Fresh/, 'the card offers to fill the skipped night');
-    await m.click(/Same as yesterday/);
+    await m.click(/^Same as yesterday(?!\?)/);
     assert.deepEqual(calls.log, [{ sleepSkipped: true }, { energy: 7 }], "Same as yesterday typed over the night the member skipped");
     assert.match(m.text(), /Checked in ✓/);
   } finally { m.unmount(); dom.window.localStorage.clear(); }
@@ -801,7 +820,7 @@ test("a new day closes the card until that day is read, and a failed read never 
       failSecond(new Error('500'));
       await m.flush();
       await m.flush();
-      assert.match(m.text(), ASKING, "a failed read left the day before's answers standing as today's");
+      assert.ok(asking(), "a failed read left the day before's answers standing as today's");
       assert.doesNotMatch(m.text(), /Checked in/);
     } finally { m.unmount(); }
   } finally { mock.timers.setTime(at(12)); }
@@ -845,7 +864,7 @@ test("a save from the day before that fails after midnight changes nothing on th
       failEdit(new Error('500'));
       await m.flush();
       await m.flush();
-      assert.match(m.text(), ASKING);
+      assert.ok(asking());
       assert.doesNotMatch(m.text(), /✓ Energy/, "the failed save from the day before put its energy into the new day");
       assert.doesNotMatch(m.text(), /Could not save/, "the day before's failure shows on the new day");
     } finally { m.unmount(); }
@@ -894,7 +913,7 @@ test("it asks from 4 a.m., but a day's done line shows before it", async () => {
     mock.timers.setTime(at(4));
     env();
     m = await mount();
-    assert.match(m.text(), ASKING);
+    assert.ok(asking());
     m.unmount();
   } finally { mock.timers.setTime(at(12)); }
 });
@@ -1414,10 +1433,10 @@ test('a save the network holds keeps the next card waiting 3 seconds at most', a
   m.unmount();
   m = await mount();
   try {
-    assert.doesNotMatch(m.text(), ASKING);
+    assert.ok(!asking());
     await React.act(async () => { await new Promise((r) => setTimeout(r, 3100)); });
     await m.flush();
-    assert.match(m.text(), ASKING, 'a held save kept the card off Home');
+    assert.ok(asking(), 'a held save kept the card off Home');
   } finally { m.unmount(); land({ ok: true }); }
 });
 

@@ -620,7 +620,7 @@ test('the plan read names the coach the member pays, their thread and their week
   assert.equal(body.training.hasPlan, false);
   assert.deepEqual(body.training.coaching, {
     name: 'Tom Trainer', conversationId: 'conv-t',
-    coaches: [{ providerId: 7, name: 'Tom Trainer', conversationId: 'conv-t' }],
+    coaches: [{ providerId: 7, name: 'Tom Trainer', conversationId: 'conv-t', photo: null }],
     weekOne: { count: 4, startsOn: '2026-10-20', setBy: 'Tom Trainer' },
   });
   assert.equal(body.meals.coaching, null, 'no nutritionist: null, a known none');
@@ -665,13 +665,56 @@ test('the plan read names every coach of a role, and credits each workout to the
   assert.deepEqual(body.training.coaching, {
     name: 'Tom Trainer', conversationId: 'conv-7',
     coaches: [
-      { providerId: 7, name: 'Tom Trainer', conversationId: 'conv-7' },
-      { providerId: 8, name: 'Sam Strong', conversationId: 'conv-8' },
+      { providerId: 7, name: 'Tom Trainer', conversationId: 'conv-7', photo: null },
+      { providerId: 8, name: 'Sam Strong', conversationId: 'conv-8', photo: null },
     ],
     weekOne: { count: 5, startsOn: '2026-10-20', setBy: 'Sam Strong' },
   }, 'both trainers, the earliest first, each with their own thread; the shared target names who set it');
   const byTitle = Object.fromEntries(body.training.workouts.map((w) => [w.title, w.coach]));
   assert.deepEqual(byTitle, { Lower: 'Tom Trainer', Conditioning: 'Sam Strong', 'My own': null });
+});
+
+// The member Home's Team cards show each coach's face (owner, 2026-11-03: "once signed in to real account,
+// and coaches are selected, they should appear"): the listing's portrait, else the coach's profile photo,
+// the two the marketplace shows; https only, and a failed avatar read leaves the plan whole.
+test("the plan read carries each paid coach's face: the listing portrait, else their profile photo", async () => {
+  const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const load = async (db) => loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
+    typescript: true,
+    registry: new Map([
+      ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
+      ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
+      ['@/lib/require-membership', { requireMembership: async () => null }],
+    ]),
+  });
+  const tables = {
+    client_workouts: [], client_meal_plans: [], client_programs: [],
+    subscriptions: [
+      { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: ago(3) },
+      { client_id: U, provider_role: 'trainer', provider_id: 8, status: 'active', created_at: ago(2) },
+      { client_id: U, provider_role: 'nutritionist', provider_id: 3, status: 'active', created_at: ago(2) },
+    ],
+    trainers: [
+      { id: 7, name: 'Tom Trainer', owner_id: 'o7', listing_media: { portrait: 'https://cdn.example/tom.jpg' } },
+      { id: 8, name: 'Sam Strong', owner_id: 'o8', listing_media: { portrait: 'javascript:alert(1)' } },
+    ],
+    nutritionists: [{ id: 3, name: 'Nia Nutrition', owner_id: 'o3', listing_media: null }],
+    conversations: [],
+  };
+  const rpcs = { get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: id, avatar_url: id === 'o8' ? 'https://cdn.example/sam.jpg' : id === 'o3' ? 'http://plain.example/nia.jpg' : null })) };
+  const db = fakeSupabase({ tables, rpcs });
+  const { body } = await (await load(db)).GET(new Request('https://x/api/client/plan'));
+  assert.deepEqual(body.training.coaching.coaches.map((c) => c.photo), ['https://cdn.example/tom.jpg', 'https://cdn.example/sam.jpg'],
+    'the portrait, else the profile photo when the portrait is not an https link');
+  assert.equal(body.meals.coaching.coaches[0].photo, null, 'a photo that is not https is no photo: the card keeps the initials');
+  const asked = db._calls.filter((c) => c.rpc === 'get_display_names');
+  assert.equal(asked.length, 1, 'one avatar read for every coach without a portrait');
+  assert.deepEqual([...asked[0].args.p_ids].sort(), ['o3', 'o8'], 'a coach with a portrait costs no avatar read');
+  // A failed avatar read is a face missing, never the plan: the coaches and their names stand.
+  const failed = (await (await load(fakeSupabase({ tables, rpcs, fail: ['rpc:get_display_names'] }))).GET(new Request('https://x/api/client/plan'))).body;
+  assert.deepEqual(failed.training.coaching.coaches.map((c) => [c.name, c.photo]), [['Tom Trainer', 'https://cdn.example/tom.jpg'], ['Sam Strong', null]]);
+  const thrown = (await (await load({ ...fakeSupabase({ tables }), rpc: async () => { throw new Error('offline'); } })).GET(new Request('https://x/api/client/plan'))).body;
+  assert.equal(thrown.meals.coaching.coaches[0].name, 'Nia Nutrition', 'a thrown avatar read lost the plan');
 });
 
 test('the member app and the website say the coach is preparing the plan, and ask adherence only of a plan', () => {
