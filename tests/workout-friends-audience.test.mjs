@@ -22,6 +22,8 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const SQL = read('supabase-migrations/2026-10-30-workout-friends-audience.sql');
 const BACKEND = read('mobile-app/src/services/shapeBackend.js');
 const CLIENT = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
+// The finish pop-up, where the session's share toggle is drawn (2026-11-04).
+const FINISH = read('mobile-app/src/broadsheet/BSSessionFinish.jsx');
 const FEED_ROUTE = read('src/app/api/community/feed/route.ts');
 const LIVING_PROFILE = read('public/newdesign/livingProfilePage.jsx');
 const LIVING_SHARED = read('public/newdesign/livingShared.jsx');
@@ -267,8 +269,10 @@ test('the first-share notice and toast say friends when that is the audience', (
 });
 
 test('the session player says who a shared session goes to', () => {
-  assert.match(CLIENT, /shareAudience === 'friends' \? tr\('session:player\.shareToggleFriends'\) : tr\('session:player\.shareToggle'\)/);
-  assert.match(CLIENT, /shareAudience === 'friends' \? tr\('session:player\.shareSubFriends'\) : tr\('session:player\.shareSub'\)/);
+  // BSSession hands the finish pop-up the audience it read; the pop-up names it on the toggle.
+  assert.match(CLIENT, /shareToFeed, toggleShare: \(\) => setShareToFeed\(\(v\) => !v\), shareAudience,/);
+  assert.match(FINISH, /\{F\.shareAudience === 'friends' \? tr\('session:player\.shareToggleFriends'\) : tr\('session:player\.shareToggle'\)\}/);
+  assert.match(FINISH, /\{F\.shareAudience === 'friends' \? tr\('session:player\.shareSubFriends'\) : tr\('session:player\.shareSub'\)\}/);
   // The toggle's seed still yields to a draft the member already set.
   assert.match(CLIENT, /if \(draft\?\.shareToFeed == null\) setShareToFeed\(rule !== 'private'\);/);
 });

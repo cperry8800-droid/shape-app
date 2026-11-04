@@ -121,14 +121,16 @@ ACTIVE_REACT = SHIM;
 // Compile the shipping file and hand back the named components. `exportNames` is
 // appended as a real export statement, so a typo fails loudly at load rather than
 // yielding an undefined component that renders as nothing.
-export async function loadBroadsheet(exportNames, reactImpl = SHIM) {
+// `reactDomImpl` defaults to a portal that draws in place; a suite mounting with real React in jsdom
+// can hand the real react-dom, so a sheet lands in #bs-phone-surface as it does on the phone.
+export async function loadBroadsheet(exportNames, reactImpl = SHIM, reactDomImpl = { createPortal: (n) => n }) {
   const names = Array.isArray(exportNames) ? exportNames : [exportNames];
   const source = `${readFileSync(SRC, 'utf8').replace(/import\.meta/g, '__VITE_IMPORTMETA__')}\nexport { ${names.join(', ')} };\n`;
   const { code } = babel.transformSync(source, {
     presets: [presetReact], plugins: [commonjs], babelrc: false, configFile: false, filename: SRC,
   });
   const specs = [...source.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((m) => m[1]);
-  const registry = new Map([['react', reactImpl], ['react-dom', { createPortal: (n) => n }]]);
+  const registry = new Map([['react', reactImpl], ['react-dom', reactDomImpl]]);
   // The client module is compiled HERE, not by loadRealModule, so the siblings it
   // loads are handed it as their ancestor — or a sibling that imports it back would
   // have the loader re-compile all 38k lines and recurse until killed.

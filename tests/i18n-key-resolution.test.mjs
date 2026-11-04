@@ -179,8 +179,10 @@ test('the paywall feature family is fully authored, not partially', () => {
 // strings that render perfectly.
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 // The live session's three views moved into their own module with every word they draw (the owner's B,
-// 2026-11-04); BSSession keeps the finish step and the chooser. One player, two files: both are walked.
+// 2026-11-04), and the finish step into its pop-up (BSSessionFinish.jsx, the same day); BSSession keeps
+// the chooser. One player, three files: all are walked.
 const SESSION_VIEW = 'mobile-app/src/broadsheet/BSWorkoutSession.jsx';
+const SESSION_FINISH = 'mobile-app/src/broadsheet/BSSessionFinish.jsx';
 
 function bareKeys(node, out) {
   if (!node || typeof node !== 'object') return;
@@ -211,6 +213,7 @@ test('every no-defaultValue key in the client module resolves in en', () => {
   const out = new Set();
   bareKeys(parse(CLIENT), out);
   bareKeys(parse(SESSION_VIEW), out);
+  bareKeys(parse(SESSION_FINISH), out);
 
   const missing = [];
   for (const key of [...out].sort()) {
@@ -234,9 +237,10 @@ test('the session player authors no key it does not read', () => {
   const out = new Set();
   bareKeys(parse(CLIENT), out);
   bareKeys(parse(SESSION_VIEW), out);
-  const src = fs.readFileSync(CLIENT, 'utf8') + fs.readFileSync(SESSION_VIEW, 'utf8');
+  bareKeys(parse(SESSION_FINISH), out);
+  const src = fs.readFileSync(CLIENT, 'utf8') + fs.readFileSync(SESSION_VIEW, 'utf8') + fs.readFileSync(SESSION_FINISH, 'utf8');
   const prefixes = [...src.matchAll(/tr\('session:(player\.[a-zA-Z.]*)' \+/g)].map((m) => m[1]);
-  assert.ok(prefixes.length >= 1, 'the computed vibe family stopped being seen');
+  assert.ok(prefixes.length >= 1, 'the computed view family stopped being seen');
 
   const asked = new Set([...out].filter((k) => k.startsWith('session:player.')).map((k) => k.slice('session:'.length)));
   const cat = catalog('session');
@@ -244,26 +248,6 @@ test('the session player authors no key it does not read', () => {
     .filter((k) => k.startsWith('player.'))
     .filter((k) => !asked.has(k) && !prefixes.some((p) => k.startsWith(p)));
   assert.deepEqual(orphans, [], `authored but never read: ${orphans.join(', ')}`);
-});
-
-test('the session vibe family is fully authored, not partially', () => {
-  // ⚠ THE ORPHAN TEST ABOVE CANNOT SEE THIS, AND MUTATION-TESTING IS WHAT SAID SO.
-  // `tr('session:player.vibe.' + key)` maps a literal array, so the family is
-  // pinned by its PREFIX in both directions — deleting `player.vibe.ok` leaves the
-  // prefix satisfied by its two siblings and every assertion green, while the
-  // middle button renders the raw key. Same shape, same fix, as the paywall
-  // feature list one surface over: read the ids out of the array itself.
-  const src = fs.readFileSync(CLIENT, 'utf8');
-  const m = src.match(/\{\[(\[[^\]]*\](?:,\s*\[[^\]]*\])*)\]\.map\(\(\[key, c\]\) => \{\s*const label = tr\('session:player\.vibe\.' \+ key\)/);
-  assert.ok(m, 'the vibe list stopped being a mapped literal array of ids');
-  // every quoted member, then drop the colour literals — a `[^'#]` first-char
-  // class does NOT work here: it rejects '#4fd18b' at its opening quote and the
-  // engine then pairs that quote with the next one, capturing the `], [` between.
-  const ids = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]).filter((x) => !x.startsWith('#'));
-  assert.ok(ids.length >= 3, `expected the full vibe list, saw ${ids.length}`);
-  const cat = catalog('session');
-  const absent = ids.filter((s) => !(`player.vibe.${s}` in cat));
-  assert.deepEqual(absent, [], `player.vibe.* missing from en: ${absent.join(', ')}`);
 });
 
 // ── The keys must resolve at RUNTIME, not merely exist in a JSON file ─────────

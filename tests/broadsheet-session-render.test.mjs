@@ -287,8 +287,12 @@ function harness({ elapsedMinutes = 0, failSaves = 0, draft = null, sessionProps
   let tree;
   // BSSession decides and BSWorkoutSession.jsx draws (the owner's B, 2026-11-04): the player hands the view
   // its state and handlers as one element, so the walk draws that element in the same render, after
-  // BSSession's own hooks, to reach the controls. The chooser and the finish step are BSSession's own.
-  const drawView = (el) => (el && typeof el.type === 'function' && el.type.name === 'BSWorkoutSession' ? el.type(el.props) : el);
+  // BSSession's own hooks, to reach the controls. The chooser is BSSession's own. The finish pop-up
+  // (BSSessionFinish.jsx, 2026-11-04) is drawn the same way, beside the view it opens over: BSSession
+  // returns the two as siblings, the view first, so the pop-up's hooks follow the view's.
+  const DRAWN = new Set(['BSWorkoutSession', 'BSSessionFinish']);
+  const draw = (el) => (el && typeof el.type === 'function' && DRAWN.has(el.type.name) ? el.type(el.props) : el);
+  const drawView = (el) => (el && el.type === React.Fragment ? [].concat(el.props.children).map(draw) : draw(el));
   const renderOnce = () => { CTX.idx = 0; tree = drawView(SHIM_MOD.BSSession(props)); return tree; };
 
   // `now` and `elapsedStart` are BOTH eager `useStateBSC(Date.now())` reads, in
@@ -520,7 +524,13 @@ test('drive: nothing is pre-selected — a skipped rating must stay skipped', as
   const h = harness();
   await h.completeAllSets();
   await h.click('Finish workout ✓');
-  const pressed = h.nodes().filter((n) => n.props && n.props['aria-pressed'] === true);
+  // The pop-up opens over the workout, so the walk holds the view's own toggles too (Quick Log is
+  // pressed there); what matters is the pop-up's controls, both ratings and the share toggle among them.
+  const sheet = h.nodes().find((n) => n.props && n.props.role === 'dialog' && n.props['data-finish-sheet'] !== undefined);
+  assert.ok(sheet, 'the finish pop-up is open');
+  const toggles = flatten(sheet.props.children).filter((n) => n.props && n.props['aria-pressed'] !== undefined);
+  assert.equal(toggles.length, 16, 'ten effort slots, five enjoyment slots and the share toggle');
+  const pressed = toggles.filter((n) => n.props['aria-pressed'] === true);
   // A default selection would turn "skipped" into a fabricated rating for every
   // member who never touches the control — the one outcome §3.1 forbids.
   assert.equal(pressed.length, 0);
