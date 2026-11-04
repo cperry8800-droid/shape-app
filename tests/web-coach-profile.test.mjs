@@ -494,6 +494,10 @@ test('the page pins its rows: the root clips sideways without becoming a scrolle
   // and Work with's rail (each position: sticky) never pinned on the website.
   const src = read('public/newdesign/coachProfileWeb.jsx');
   assert.match(src, /\.cpw\{overflow-x:hidden;overflow-x:clip\}/, 'clip, with hidden for a browser without it');
+  // pageShell sets html, body { overflow-x: hidden } on every page, which makes <body> the scroller the
+  // rows stuck to; the coach page overrides it, more specifically, while it is shown.
+  assert.match(read('public/newdesign/pageShell.jsx'), /html, body \{ overflow-x: hidden; \}/, 'pageShell still hides: drop the override if it stops');
+  assert.match(src, /html:root, html > body\{overflow-x:clip\}/, 'the page and its body clip while a coach page is shown');
   assert.doesNotMatch(src, /data-coach-profile=""[^\n]*overflowX: "hidden"/, 'no inline hidden on the root');
   assert.match(src, /\.cpw-rail\{align-self:stretch\}/, 'the rail\'s column runs the grid\'s height, so the rail has room to pin');
   assert.match(src, /data-studio-filter=""[^\n]*\n[^\n]*position: "sticky", top: stickyTop/, 'the focus filter pins');

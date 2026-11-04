@@ -595,8 +595,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   return (
     <div className="cpw" data-coach-profile="" data-role={role} data-mode={live ? "live" : "sample"} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased" }}>
       <style>{`
-    /* clip, not hidden: hidden makes this box a scroller, and the tabs, the Studio's filter and the rail never pin.
-       The rail's column runs the page's height, so Work with has room to stay beside it. */
+    /* clip, not hidden: hidden makes a box a scroller, and the tabs, the Studio's filter and the rail never pin.
+       pageShell's html, body { overflow-x: hidden } does that to <body> on every page; while a coach page is
+       shown, they clip instead (a browser without clip keeps hidden). The rail's column runs the page's
+       height, so Work with has room to stay beside it. */
+    html:root, html > body{overflow-x:clip}
     .cpw{overflow-x:hidden;overflow-x:clip}
     .cpw-wrap{max-width:1180px;margin:0 auto;padding:0 32px}
     .cpw-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:56px;align-items:start}
