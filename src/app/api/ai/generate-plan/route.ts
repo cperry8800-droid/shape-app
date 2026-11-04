@@ -189,7 +189,9 @@ function cleanBody(value: unknown): GenerateBody {
   // this route reads is named below; adding one here is the only way in.
   return {
     kind,
-    goal: String(body.goal || '').trim() || (isNutrition ? 'general nutrition' : 'general fitness'),
+    // The goal may be the coach's own words (the composer's ＋ Custom focus or goal), so it is bounded like
+    // any free text. It reaches the model only as a value inside the JSON `body` below, never as an instruction.
+    goal: String(body.goal || '').trim().slice(0, 80) || (isNutrition ? 'general nutrition' : 'general fitness'),
     client: String(body.client || '').trim() || 'Shape client',
     level: String(body.level || '').trim() || 'intermediate',
     duration: String(body.duration || '').trim() || (kind === 'workout' ? '60 minutes' : '4 weeks'),

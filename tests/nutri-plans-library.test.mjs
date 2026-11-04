@@ -101,7 +101,8 @@ test('signed in, Plans lists the meal plans, Programs the programs and Diet the 
     assert.doesNotMatch(m.text(), /website builder/, 'no row sends them to the website');
     await tab(m, 'Programs');
     assert.match(m.text(), /Habit reset/);
-    assert.match(m.text(), /program · 4 weeks · vegan · draft/);
+    // The tile leads its line with the plan's length (BSProCatalog reads "4 weeks" off it), then the rest.
+    assert.match(m.text(), /4 WK · program · vegan · draft/);
     assert.doesNotMatch(m.text(), /Busy professional/, 'no sample rows when signed in');
     await tab(m, 'Diet');
     assert.match(m.text(), /Keto week/);
@@ -114,7 +115,7 @@ test('a saved row opens on what it holds; publishing it updates the same row, ne
   const m = await mount();
   try {
     await tab(m, 'Programs');
-    await m.click(m.byText(/^Habit reset/) || [...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
+    await m.click(m.q('button[aria-label="Open Habit reset"]'));
     // The draft editor, on its own name and weeks (it opened a blank draft).
     assert.equal(m.q('input[value="Habit reset"]') ? 'ok' : [...m.host.querySelectorAll('input')].map((i) => i.value).join('|'), 'ok');
     const texts = [...m.host.querySelectorAll('textarea, input')].map((i) => i.value);
@@ -144,7 +145,7 @@ test('a refused publish of a saved row says why and keeps the draft open', async
   const m = await mount();
   try {
     await tab(m, 'Programs');
-    await m.click([...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
+    await m.click(m.q('button[aria-label="Open Habit reset"]'));
     await m.click(m.byText(/^Publish/));
     assert.match(m.q('[data-draft-publish-error]').textContent, /This plan changed while saving/);
     assert.ok(!m.byText(/^Publishing/), 'not stuck on Publishing…');
@@ -160,7 +161,7 @@ test('a builder document opens in its own editor, and Assign there goes to the a
   W.ShapeAssign = { clients: async () => [], mealPlan: async () => ({ ok: true }) };
   const m = await mount();
   try {
-    await m.click([...m.host.querySelectorAll('button')].find((b) => /^Cut · 3-day rotation/.test(b.textContent)));
+    await m.click(m.q('button[aria-label="Open Cut · 3-day rotation"]'));
     assert.ok(m.q('[data-meal-builder-editor]'), 'the builder\'s editor');
     assert.equal(m.q('input[aria-label="Plan name"]').value, 'Cut · 3-day rotation');
     await m.click(m.q('[data-meal-assign]'));
@@ -215,9 +216,9 @@ test('publishing a saved row takes nothing from the page\'s chips: a row with no
   try {
     await tab(m, 'Programs');
     // Another plan first: it leaves Performance and Vegan in the page's chips.
-    await m.click([...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
+    await m.click(m.q('button[aria-label="Open Habit reset"]'));
     await m.click(m.byText(/^CANCEL$/));
-    await m.click([...m.host.querySelectorAll('button')].find((b) => /Old program/.test(b.textContent)));
+    await m.click(m.q('button[aria-label="Open Old program"]'));
     const nameBox = m.q('input[value="Old program"]');
     assert.ok(nameBox, 'the old program, in the draft editor');
     // Its name emptied: it keeps its own, not one made from the page's goal.
@@ -293,7 +294,7 @@ test('a nutrition program is never a menu, whatever its lines say now (Codex on 
   const m = await mount();
   try {
     await tab(m, 'Programs');
-    assert.ok([...m.host.querySelectorAll('button')].some((b) => /Habit reset/.test(b.textContent)), 'the program is listed');
+    assert.ok(m.q('button[aria-label="Open Habit reset"]'), 'the program is listed');
     assert.ok(!m.host.querySelector('button[aria-label="Assign Habit reset to a client"]'), 'no Assign on it');
   } finally { await m.close(); }
 
@@ -341,7 +342,7 @@ test('a saved program or diet open in the draft editor holds the leave guard whi
   const m = await mount();
   try {
     await tab(m, 'Programs');
-    await m.click([...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
+    await m.click(m.q('button[aria-label="Open Habit reset"]'));
     assert.ok(m.q('input[value="Habit reset"]'), 'open in the draft editor');
     assert.equal(await mayLeave(W), true, 'as it opened: a tab tap goes, unasked');
     assert.equal(asked.length, 0);

@@ -278,7 +278,7 @@ test('the website builder opens ?plan= once the library holds it; the app lists 
   // Its own editor, and Assign on its own document.
   assert.match(plans, /if \(mealBuilderDoc\(row\.detail\)\) \{ setBuilderPlan\(row\); return; \}/);
   assert.match(plans, /if \(builderPlan\) return <BSMealBuilderEditor key=\{builderPlan\.id\} plan=\{builderPlan\}/);
-  assert.match(plans, /onOpen=\{\(\) => openCard\(p, 'mealplan'\)\}/);
+  assert.match(plans, /item\(p, \(\) => openCard\(p, 'mealplan'\)\)/, 'a saved row opens on what it holds');
   assert.doesNotMatch(plans, /webBuilderOnly/, 'no row sends them to the website');
   const assign = P.slice(P.indexOf('function BSProAssignPage('), P.indexOf('\nfunction ', P.indexOf('function BSProAssignPage(') + 10));
   assert.match(assign, /const days = builderDoc \? bsMealBuilderWeek\(window\.DashMeals, builderDoc\) : bsPlanWeek\(plan\.detail\)/);
