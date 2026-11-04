@@ -328,6 +328,7 @@ test('water is its own Home line, right under the morning card, whatever the Che
   // Owner, 2026-10-22, Option A: the two share one morning panel, the card first, outside any setting;
   // owner, 2026-11-03: the day's habits close the panel, under water.
   assert.match(after, /^\n\s+<BSWaterLine \/>\n\s+<BSHomeHabitsRow [^\n]*\/>\n\s+<\/BSMorningPanel>\n/, 'the water line is not right under the morning card, in its panel');
-  assert.match(client.slice(at - 200, at), /<BSMorningPanel>\n\s+$/, 'the morning card is not first in the panel');
+  // First in the panel, after only the engine's Your move row when it leads (owner, 2026-11-04: "ok add it").
+  assert.match(client.slice(at - 900, at), /<BSMorningPanel>\n(\s+\{\/\*[\s\S]*?\*\/\}\n)?\s+\{todayDirective && todayDirective\.engine \? \(\n\s+<BSHomeMoveRow [^\n]*\/>\n\s+\) : null\}\n\s+$/, 'the morning card is not first in the panel after Your move');
   assert.doesNotMatch(after.split('<BSWaterLine />')[0], /checkinPrefOn/, 'the water line hides with the Check-ins setting');
 });

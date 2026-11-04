@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Tambah menu",
   "mealEditor.variantsNote": "Rencana ini punya versi sendiri untuk hari istirahat atau hari perjalanan. Versi itu tetap seperti apa adanya, dan menu yang ditukar ikut berlaku di sana kecuali versi itu menggantinya. Edit di editor rencana di situs web.",
   "mealEditor.save": "Simpan",
-  "mealEditor.assign": "Tetapkan ke klien"
+  "mealEditor.assign": "Tetapkan ke klien",
+  "today.dayEmpty": "{day}: tidak ada jadwal.",
+  "today.dayDoneOf": "{day}: {done} dari {total, plural, other {# sesi}} selesai.",
+  "today.dayDoneOfNutri": "{day}: {done} dari {total, plural, other {# konsultasi}} selesai.",
+  "today.dayBooked": "{day}: {total, plural, other {# sesi}} terjadwal.",
+  "today.dayBookedNutri": "{day}: {total, plural, other {# konsultasi}} terjadwal.",
+  "today.booked": "TERJADWAL"
 }

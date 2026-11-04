@@ -29,7 +29,7 @@ import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } 
 import { bsGroceryFromCoachList } from '../services/groceryShare.mjs';
 import { bsRouteNotification, bsHandOver, bsRouteFor, bsChatOwner, BS_MEMBER_PAGES, BS_NAV_EVENTS, bsClosesPerson } from './bsNotificationRoute.mjs';
 import { BS_CLEAN_HEAD as BS_PRO_HEAD, BS_CLEAN_SANS as BS_PRO_SANS, useBSClean as useBSProClean, BSCleanType as BSProCleanType } from './bsCleanType.jsx';
-import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_TEAL, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { BSProDeck, BSProDeckWeek, BSProDeckSegments, BSProDeckGauges, BSProMeter, bsProDeckTheme, bsProDeckHeat, bsDeckEyebrow, bsDeckTeal, bsRaised, bsProPlate, bsProLedgerTop, bsProLedgerNo, bsProNo, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1943,6 +1943,23 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         ? tr('coach:today.doneOfNutri', { defaultValue: '{done} of {total, plural, one {# consult} other {# consults}} done.', done: doneToday, total: todayBookings.length })
         : tr('coach:today.doneOf', { defaultValue: '{done} of {total, plural, one {# session} other {# sessions}} done.', done: doneToday, total: todayBookings.length }))
       : tr('coach:today.nothingToday', { defaultValue: 'Nothing booked today.' });
+  // ⚠ A DAY PICKED IN THE WEEK SHOWS ON THE DECK (owner, 2026-11-04: "nothing is changing on page when i
+  // click different days on week calendar"): the line after the to-dos and the session bar read the picked
+  // day (a day gone by as done of booked, a day ahead as booked), with its open hours. Up next and To do
+  // stay today's, and the schedule below reads the picked day as before.
+  const dayBookings = isToday ? todayBookings : bookings;
+  const doneDay = dayBookings.filter((b) => b.state === 'done').length;
+  const dayPast = selIdx < todayIdx;
+  const dayName = selDate ? dayWord(selDate, { weekday: 'long' }) : '';
+  const dayRest = isToday || !calendarReady ? headRest
+    : !dayBookings.length ? tr('coach:today.dayEmpty', { defaultValue: '{day}: nothing booked.', day: dayName })
+      : dayPast
+        ? (isNutri
+          ? tr('coach:today.dayDoneOfNutri', { defaultValue: '{day}: {done} of {total, plural, one {# consult} other {# consults}} done.', day: dayName, done: doneDay, total: dayBookings.length })
+          : tr('coach:today.dayDoneOf', { defaultValue: '{day}: {done} of {total, plural, one {# session} other {# sessions}} done.', day: dayName, done: doneDay, total: dayBookings.length }))
+        : (isNutri
+          ? tr('coach:today.dayBookedNutri', { defaultValue: '{day}: {total, plural, one {# consult} other {# consults}} booked.', day: dayName, total: dayBookings.length })
+          : tr('coach:today.dayBooked', { defaultValue: '{day}: {total, plural, one {# session} other {# sessions}} booked.', day: dayName, total: dayBookings.length }));
   // To do shows five rows: paid sessions to book first, then flagged clients. Paid rows past five
   // open in place (they are listed nowhere else); flagged rows past the budget go to Clients (Codex on
   // #2458).
@@ -2023,15 +2040,16 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       {/* TODAY — the deck (owner, 2026-11-03, of the two redesigns drawn for Today, Clients and Programs: "A",
           the Instrument): "Today." and the day the page shows, what the day holds, THIS WEEK as bar meters
           (owner, 2026-11-03: "this should be towards top of coaches home page"), and today's sessions as a
-          segment bar. The strip picks the day the date and the Schedule below show; Up next and To do are
-          today's standing list whatever day it picks (the 2026-10-31 question, "are to dos and tasks
-          supposed to be updating when you choose a different day"). The onboarding tour anchors here. */}
+          segment bar. The strip picks the day the date, the deck's line and bar, and the Schedule below show
+          (owner, 2026-11-04); Up next and To do are today's standing list whatever day it picks (the
+          2026-10-31 question, "are to dos and tasks supposed to be updating when you choose a different
+          day"). The onboarding tour anchors here. */}
       <BSProDeck t={t} role={role} tour="hero-today" title={tr('coach:today.title', { defaultValue: 'Today' })}
-        aside={<span style={bsDeckEyebrow(BS_DECK_TEAL)}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}>
+        aside={<span style={bsDeckEyebrow(bsDeckTeal(t))}>{dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' })}</span>}>
         <p style={{ ...bsProLede(deckT), padding: `0 ${t.padX}px` }}>
-          {headLead ? <b style={{ fontWeight: 600, color: deckT.INK }}>{headLead} </b> : null}{headRest}
+          {headLead ? <b style={{ fontWeight: 600, color: deckT.INK }}>{headLead} </b> : null}{dayRest}
         </p>
-        {coachSignedIn && calendarStatus === 'error' && <div style={{ padding: `0 ${t.padX}px` }}><button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={{ ...LINK, color: BS_DECK_TEAL }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>}
+        {coachSignedIn && calendarStatus === 'error' && <div style={{ padding: `0 ${t.padX}px` }}><button type="button" onClick={() => setCalendarReload((n) => n + 1)} style={{ ...LINK, color: bsDeckTeal(t) }}>{tr('coach:roster.retry', { defaultValue: 'Retry' })}</button></div>}
         <div style={{ padding: `0 ${t.padX}px` }}><BSProRosterStatus status={rosterStatus} onRetry={retryRoster} /></div>
         {/* THIS WEEK — the day strip, at the top under Today. */}
         <BSProDeckWeek t={t} role={role} dates={dates} todayIdx={todayIdx} selDay={selDay} onSelectDay={setSelDay} dayWord={dayWord}
@@ -2039,10 +2057,12 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           label={tr('coach:rail.thisWeek', { defaultValue: 'This week' })}
           monthLabel={tr('coach:rail.monthView', { defaultValue: 'Month view →' })} onMonth={goCalendar}
           todayAria={tr('coach:rail.todayAria', { defaultValue: 'today' })} />
-        {calendarReady && todayBookings.length > 0 && (
-          <BSProDeckSegments t={t} done={doneToday} total={todayBookings.length}
-            left={`${isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} ${doneToday} / ${todayBookings.length}`}
-            right={isToday && dayShape.openHours != null ? `${tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} ${dayShape.openHours}` : null} />
+        {calendarReady && dayBookings.length > 0 && (
+          <BSProDeckSegments t={t} done={isToday || dayPast ? doneDay : 0} total={dayBookings.length}
+            left={isToday || dayPast
+              ? `${isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' })} ${doneDay} / ${dayBookings.length}`
+              : `${tr('coach:today.booked', { defaultValue: 'BOOKED' })} ${dayBookings.length}`}
+            right={dayShape.openHours != null ? `${tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' })} ${dayShape.openHours}` : null} />
         )}
       </BSProDeck>
 
@@ -2088,8 +2108,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         ? React.createElement(window.BSLiveBoostSheet, { person: boostFor, onClose: () => setBoostFor(null) })
         : null}
 
-      {/* UP NEXT — today's next booking as the plate (direction A): the role's rule down its left, a cut
-          corner, the time to it as a countdown, and what the coach does about it. The buttons keep 44 to tap. */}
+      {/* UP NEXT — today's next booking on the plate, round and raised (owner, 2026-11-04: "round and
+          popping, almost 3d"): the role's heat as a glow, the time to it as a countdown, and what the coach
+          does about it. The buttons are round too, and keep 44 to tap. */}
       {upB && (
         <div data-up-next="" style={{ margin: `16px ${t.padX}px 0`, ...bsProPlate(t, heat), padding: '14px 16px 14px 15px' }}>
           <span aria-hidden style={{ position: 'absolute', right: 22, top: 16, width: 7, height: 7, borderRadius: 999, background: heat, boxShadow: `0 0 0 4px ${heat}2e`, ...(sdReduced ? null : { animation: 'bsLivePulse 2.2s ease-in-out infinite' }) }} />
@@ -2105,8 +2126,8 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
           <div style={{ marginTop: 8, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{upB.title}</div>
           <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.35, color: t.INK70 }}>{lineOf(upB)}</div>
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: upIsPerson ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
-            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 6, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
-            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 6, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
+            <button type="button" onClick={upPrimary[1]} style={{ minHeight: 44, borderRadius: 14, border: 0, background: t.INK, color: t.PAPER, boxShadow: `inset 0 1px 0 rgba(255,255,255,${t.isLight ? 0.18 : 0.6}), 0 8px 16px -10px rgba(0,0,0,0.7)`, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{upPrimary[0]}</button>
+            {upIsPerson && <button type="button" onClick={() => messageClient(upB.clientId, upB.client || upB.title)} style={{ minHeight: 44, borderRadius: 14, border: `1px solid ${t.INK50}`, background: 'transparent', color: t.INK, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:today.message', { defaultValue: 'Message' })}</button>}
           </div>
         </div>
       )}
@@ -2718,7 +2739,7 @@ function BSProRosterView({ status = 'ready', onRetry, role = 'trainer', clients,
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>{bsProMastRow()}</div>
       <BSProCleanType t={t}>
       <BSProDeck t={t} role={role} tour="hero-clients" title={tr('coach:nav.clients', { defaultValue: 'Clients' })}
-        aside={<button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(BS_DECK_TEAL) }}>＋ {tr('coach:head.add', { defaultValue: 'Add' })}</button>}>
+        aside={<button type="button" onClick={goGrowRoster} style={{ flexShrink: 0, minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(bsDeckTeal(t)) }}>＋ {tr('coach:head.add', { defaultValue: 'Add' })}</button>}>
         <BSProDeckGauges t={t} items={[
           { key: 'need', value: deckReady ? String(deckNeed) : '—', label: tr('coach:today.needYou', { defaultValue: 'NEED YOU' }), color: deckReady && deckNeed ? '#f08f76' : undefined },
           { key: 'avg', value: deckReady && deckAvg != null ? `${deckAvg}%` : '—', label: role === 'nutritionist' ? tr('coach:roster.kpiAvgLogged', { defaultValue: 'Avg logged · 7d' }) : tr('coach:roster.kpiAvgAdherence', { defaultValue: 'Avg adherence' }) },
@@ -3293,7 +3314,8 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
   const m = String(plan.meta || '');
   const n = (m.match(/(\d+)\s*on it/i) || [])[1];
   const rating = (m.match(/([\d.]+)\s*★/) || [])[1];
-  // Direction A (owner, 2026-11-03): the plate. The plan's length down a block in the role's heat, then
+  // Direction A (owner, 2026-11-03): the plate, a step tighter (2026-11-04: "condense these boxes slightly":
+  // the block 64px wide, 10px in). The plan's length down a block in the role's heat, then
   // "Most popular", the name, clients and rating, the plan's weeks as a spine of ticks, and the price
   // beside Assign. The whole plate opens the plan; the name is its button and Assign keeps its own tap.
   const sw = bsProSwatch(t, heat, 0, m);
@@ -3303,21 +3325,21 @@ function BSProFeaturedPlan({ plan, heat, t, onOpen, onAssign }) {
     rating ? `${rating} ★` : null,
   ].filter(Boolean).map((f) => f.replace(/ /g, '\u00a0')).join(' · '); // a fact breaks only between facts ("4.9" kept with its ★)
   return (
-    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '72px minmax(0, 1fr)', background: t.PAPER2, clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)', cursor: 'pointer' }}>
-      <span aria-hidden style={{ background: heat, color: '#f6f0e3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '12px 0' }}>
-        <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 34, fontWeight: 300, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
+    <div data-featured-plan="" onClick={onOpen} style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '64px minmax(0, 1fr)', ...bsRaised(t), cursor: 'pointer' }}>
+      <span aria-hidden style={{ background: heat, color: '#f6f0e3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '10px 0' }}>
+        <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 30, fontWeight: 300, letterSpacing: '-0.03em' }}>{sw.unit ? sw.big : '★'}</span>
         {sw.unit && <span style={{ marginTop: 4, fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.18em' }}>{sw.unit}</span>}
       </span>
-      <div style={{ minWidth: 0, padding: '12px 14px 12px' }}>
+      <div style={{ minWidth: 0, padding: '10px 14px' }}>
         <div style={{ paddingRight: 12, fontFamily: BS_DECK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK70 }}>{tr('coach:head.mostPopular', { defaultValue: 'Most popular' })}</div>
         <button type="button" data-featured-name="" onClick={(e) => { e.stopPropagation(); if (onOpen) onOpen(); }} aria-label={tr('coach:plans.openAria', { defaultValue: 'Open {name}', name: plan.n })} style={{ display: 'block', maxWidth: '100%', marginTop: 4, minWidth: 0, textAlign: 'left', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: t.INK, fontFamily: BS_PRO_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plan.n}</button>
         {facts && <span data-featured-facts="" style={{ display: 'block', marginTop: 2, fontFamily: BS_PRO_SANS, fontSize: 12.5, fontWeight: 500, lineHeight: 1.35, color: t.INK70, fontVariantNumeric: 'tabular-nums' }}>{facts}</span>}
         {weeks > 0 && weeks <= 52 && (
-          <span aria-hidden data-featured-spine={weeks} style={{ display: 'flex', gap: 2, marginTop: 8 }}>
+          <span aria-hidden data-featured-spine={weeks} style={{ display: 'flex', gap: 2, marginTop: 6 }}>
             {Array.from({ length: weeks }).map((_, i) => <span key={i} style={{ flex: 1, maxWidth: 14, height: 4, borderRadius: 1, background: i === 0 ? heat : t.INK30 }} />)}
           </span>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 4 }}>
           {plan.price ? <span data-featured-price="" style={{ minWidth: 0, fontFamily: BS_GAUGE_FACE, fontSize: 18, fontWeight: 500, lineHeight: 1.2, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{String(plan.price)}</span> : <span />}
           {onAssign && <button type="button" data-featured-assign="" onClick={(e) => { e.stopPropagation(); onAssign(); }} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: plan.n })} style={{ flexShrink: 0, minHeight: 44, padding: '0 18px', borderRadius: 6, border: 0, background: t.INK, color: t.PAPER, fontFamily: BS_PRO_SANS, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</button>}
         </div>
@@ -7215,7 +7237,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
       {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
           kind on show blank (Nora drafts from the masthead's ✦). */}
       <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.programs', { defaultValue: 'Programs' })}
-        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(BS_DECK_TEAL), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
+        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(bsDeckTeal(t)), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
         {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
       </BSProDeck>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>
@@ -8444,7 +8466,7 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
       {/* The deck (direction A): the title, what is published on its baseline, and From scratch to build the
           kind on show blank (Nora drafts from the masthead's ✦). */}
       <BSProDeck t={t} role={heatRole} tour="hero-plans" title={tr('coach:shortcut.plans', { defaultValue: 'Plans' })}
-        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(BS_DECK_TEAL), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
+        aside={<span data-deck-published="" style={{ ...bsDeckEyebrow(bsDeckTeal(t)), whiteSpace: 'normal', textAlign: 'right' }}>{publishedLead}{publishedRest ? ` · ${publishedRest}` : ''}</span>}>
         {tab === 'library' && <div style={{ padding: `14px ${t.padX}px 0` }}>{bsProCreateButton(bsProDeckTheme(t), tr, () => openDraft(libBuild, true))}</div>}
       </BSProDeck>
       <div style={{ padding: `0 ${t.padX}px 28px` }}>

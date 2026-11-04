@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Add food",
   "mealEditor.variantsNote": "Dis plan get im own version for rest day or travel day. Dem go stay as dem be, and food wey you change go follow enter dem unless dem don replace am. Edit dem for di plan editor for di website.",
   "mealEditor.save": "Save",
-  "mealEditor.assign": "Give one client"
+  "mealEditor.assign": "Give one client",
+  "today.dayEmpty": "{day}: nothing dey booked.",
+  "today.dayDoneOf": "{day}: {done} out of {total, plural, one {# session} other {# sessions}} don finish.",
+  "today.dayDoneOfNutri": "{day}: {done} out of {total, plural, one {# consult} other {# consults}} don finish.",
+  "today.dayBooked": "{day}: {total, plural, one {# session} other {# sessions}} dey booked.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# consult} other {# consults}} dey booked.",
+  "today.booked": "BOOKED"
 }

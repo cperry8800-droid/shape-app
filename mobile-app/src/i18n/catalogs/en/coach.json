@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Add a meal",
   "mealEditor.variantsNote": "This plan has its own rest-day or travel-day versions. They stay as they are, and a swapped meal flows into them unless they replace it. Edit them in the website builder.",
   "mealEditor.save": "Save",
-  "mealEditor.assign": "Assign to a client"
+  "mealEditor.assign": "Assign to a client",
+  "today.dayEmpty": "{day}: nothing booked.",
+  "today.dayDoneOf": "{day}: {done} of {total, plural, one {# session} other {# sessions}} done.",
+  "today.dayDoneOfNutri": "{day}: {done} of {total, plural, one {# consult} other {# consults}} done.",
+  "today.dayBooked": "{day}: {total, plural, one {# session} other {# sessions}} booked.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# consult} other {# consults}} booked.",
+  "today.booked": "BOOKED"
 }

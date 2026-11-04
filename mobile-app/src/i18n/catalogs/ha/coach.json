@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Ƙara abinci",
   "mealEditor.variantsNote": "Wannan tsarin yana da nasa nau'in na ranakun hutu ko na tafiya. Za su zauna yadda suke, kuma abincin da aka canza zai shafe su sai dai idan sun maye gurbinsa. Gyara su a editan tsarin na shafin yanar gizo.",
   "mealEditor.save": "Adana",
-  "mealEditor.assign": "Ba wa abokin hulɗa"
+  "mealEditor.assign": "Ba wa abokin hulɗa",
+  "today.dayEmpty": "{day}: ba a tsara komai ba.",
+  "today.dayDoneOf": "{day}: an gama {done} daga cikin {total, plural, one {zama #} other {zama #}}.",
+  "today.dayDoneOfNutri": "{day}: an gama {done} daga cikin {total, plural, one {shawara #} other {shawarwari #}}.",
+  "today.dayBooked": "{day}: an tsara {total, plural, one {zama #} other {zama #}}.",
+  "today.dayBookedNutri": "{day}: an tsara {total, plural, one {shawara #} other {shawarwari #}}.",
+  "today.booked": "AN TSARA"
 }

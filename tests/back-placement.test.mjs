@@ -49,7 +49,8 @@ test('the slot has one geometry, owned by the chrome', () => {
 
 test('the three page headers draw their Back through the shared row', () => {
   assert.match(fnSrc(CHROME, 'BSMasthead'), /\{onBack && <BSBackRow onBack=\{onBack\}/);
-  assert.match(fnSrc(CHROME, 'BSPageHeader'), /\{onBack && <BSBackRow onBack=\{onBack\} \/>\}/);
+  // A page may lift a control up to the back row's right (the calendar's Month | Weeks); the ← stays put.
+  assert.match(fnSrc(CHROME, 'BSPageHeader'), /\{onBack && <BSBackRow onBack=\{onBack\} trailing=\{backTrailing\} \/>\}/);
   const client = read('iosAppBroadsheetClient.jsx');
   const detail = fnSrc(client, 'BSDetailHeader');
   assert.match(detail, /<BSMastRow trailing=\{noCorner \? null : <BSMeCorner \/>\} \/>\}\n\s*<BSBackRow onBack=\{onBack\}/, 'BSDetailHeader: the masthead row, then the back row');

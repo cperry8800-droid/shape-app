@@ -74,9 +74,10 @@ import { BSLeaderboard } from './BSLeaderboard.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
-import { BSHomeHabitsRow, BSHomeShortcutList } from './BSHomeSections.jsx';
+import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSections.jsx';
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
+import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { BSMpIcon, BSMpIconBox, bsMpTile, bsMpAction, bsMpCoachRing, BSMemberWallMosaic, BSMemberShelfCards } from './BSMemberBento.jsx';
 import { bsMpTealOf, bsMpGlass, bsMpGradText, bsMpGlow, BSMpPaneLabel, BSMpVinyl } from './BSMemberBento.jsx';
@@ -4908,9 +4909,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     return <BSYourMornings onBack={() => setMorningsPage(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
   }
 
-  // ⚠ NOT DRAWN ON HOME SINCE 2026-11-03: Today's call came off Home (the owner's Home preview), so the
-  // engine's move shows nowhere on Home; Shape Daily and the pushes still carry it. Kept, with its tests,
-  // while the owner decides whether it comes back as a row (War Room).
+  // ⚠ DRAWN AS THE MORNING PANEL'S "YOUR MOVE" ROW, AND ONLY WHEN THE ENGINE LEADS (owner, 2026-11-04: "ok
+  // add it"). Today's call came off Home on 2026-11-03; the plan's own leads below (the session, a meal, the
+  // habits) are Team's and the panel's, so only `engine` draws.
   // "Today · your move" — ONE clear next move. The signal engine's top action
   // leads when it has a real flag (the RIGHT move, not just the next chronological
   // item); otherwise it synthesizes from the day's plan (workout → unlogged meals
@@ -5139,6 +5140,12 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           instead of at bottom"). Water shows all day and whatever the Check-ins setting (owner,
           2026-10-19), so with Check-ins off the panel holds water and the habits. */}
       <BSMorningPanel>
+        {/* Your move: the engine's one move today, first in the panel, only when it flags one (owner,
+            2026-11-04: "ok add it"). The plan's own fallbacks (the session, the next meal, the habits) are
+            Team's and the panel's already, so a day the engine flags nothing shows no row. */}
+        {todayDirective && todayDirective.engine ? (
+          <BSHomeMoveRow head={todayDirective.head} sub={todayDirective.sub} cta={todayDirective.cta} color={todayDirective.c} />
+        ) : null}
         <BSTodayNudge onOpen={() => setMorningsPage(true)} variant="bulletin" openRequest={checkinPrefSettled ? checkinOpenReq : null} onOpenRequestConsumed={() => setCheckinOpenReq(null)} />
         <BSWaterLine />
         <BSHomeHabitsRow tour="hero-habits" tweaks={tweaks} setTweak={setTweak} onOpen={() => setHabitsPage(true)} onTicked={bsScoreDirty} />
@@ -17286,7 +17293,10 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
 
   const onFile = async (e, setUrl, asVideo) => {
     const file = e?.target?.files?.[0]; if (e?.target) e.target.value = '';
-    if (!file) return; setUpBusy(true);
+    if (!file) return;
+    // The composer opens signed out too (a coach's demo page): an upload is where it asks for an account.
+    if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;
+    setUpBusy(true);
     try {
       let url;
       if (asVideo) { const r = await window.ShapeCoachMedia?.upload?.(file); url = r?.url; }
@@ -17310,6 +17320,8 @@ function BSLogActivitySheet({ c, INK, BG, onClose, onPosted, editPost = null, st
 
   const submit = async () => {
     if (!canPost) return;
+    // ... and posting: nothing is sent without one.
+    if (window.bsRequireAccount && !window.bsRequireAccount('log activity')) return;
     setBusy(true);
     try {
       const base = { channel: 'COMMUNITY', privacy: vis };
@@ -19604,7 +19616,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                      chat feed"): the byline's face, name, tier and time included.
                      Only the name opens nothing, as this is already their page. */
                   <div key={a.key || i} style={{ margin: '0 -8px' }}>
-                    <BSActivityCard a={a} ctx={profileCtx} onAuthorPage isLast={i === feedEff.length - 1} pagePad={0} variant="magazine" />
+                    <BSActivityCard a={a} ctx={profileCtx} onAuthorPage isLast={i === feedEff.length - 1} pagePad={0} variant="magazine" glass={i % 2 === 1} />
                   </div>
                 ))}
               </div>
@@ -20577,7 +20589,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
                    padding to span the whole screen (side borders + radius
                    dropped at the edges). The card's own age chip carries the timing. */
                 <div key={a.key || i} style={{ margin: '0 -22px' }}>
-                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="magazine" />
+                  <BSActivityCard a={a} ctx={profileCtx} hideAuthor isLast={i === coachFeedEff.length - 1} pagePad={0} variant="magazine" glass={i % 2 === 1} />
                 </div>
               ))}
             </div>
@@ -22745,7 +22757,7 @@ function bsActivityKey(a) {
 // second component would let the two drift; doing it as a variant means every
 // field, every honest-empty and every reaction path stays shared, and the diff
 // between the two surfaces is legible in one file.
-function BSActivityCard({ a, ctx, hideAuthor = false, onAuthorPage = false, isLast = false, pagePad = 0, variant = 'feed', recordNote = '' }) {
+function BSActivityCard({ a, ctx, hideAuthor = false, onAuthorPage = false, isLast = false, pagePad = 0, variant = 'feed', recordNote = '', glass = false }) {
   const tr = useShapeTr();
   const {
     t, cardInk, muted, hair, card,
@@ -22987,9 +22999,14 @@ function BSActivityCard({ a, ctx, hideAuthor = false, onAuthorPage = false, isLa
       zones: a.zones || null, trace: a.trace || null, cadenceTrace: a.cadenceTrace || null, elevTrace: a.elevTrace || null, paceTrace: a.paceTrace || null, powerTrace: a.powerTrace || null, rawSplits: a.rawSplits || null, sport: _rawType,
       verb: cheer, allLikers, followedLikers, iAmAuthorsCoach, focus: focus || 'stats',
     });
+    // ⚠ EVERY OTHER POST IS GLASS (owner, 2026-11-04: "lets apply the same thing to the activity feed as
+    // well, maybe every other post gets the glassy look"): the feed passes `glass` on alternate cards, and
+    // the card sits in the paper's own colour under the glass sheen the decks wear, with its teal edge.
     return (
       <div ref={railRef} style={{ position: 'relative' }}>
-        <div style={{ paddingLeft: 0 }}>
+        {/* The glass is the post itself; the rule between posts stays outside it. */}
+        <div data-feed-glass={glass ? '' : undefined} style={{ paddingLeft: 0, ...(glass ? { position: 'relative', ...bsGlassFill(t), border: bsGlassBorder(t), borderRadius: 14 } : null) }}>
+          {glass ? <BSGlassEdge t={t} /> : null}
           {/* Heat rail removed; a small 12px side gutter keeps content just off the
               screen edge (owner request — near-edge-to-edge, eased back a touch). */}
           <div style={{ padding: '10px 12px 11px' }}>
@@ -23461,7 +23478,10 @@ function BSActivityCard({ a, ctx, hideAuthor = false, onAuthorPage = false, isLa
             via bsSdDrawX, gated on the card's one railSeen flag (pre-seen it
             holds scaleX(0) — never animates at mount while offscreen); reduced
             motion renders it finished. */}
-        {!isLast && isMag && <div aria-hidden data-bs-wall-story-rule="" style={{ height: 1, margin: '20px 12px 22px', background: bsTHexA(t.INK, 0.16) }} />}
+        {/* A step heavier between posts (owner, 2026-11-04: "a slightly thinker border in between activity
+            posts", on the Wall and the profile feeds): 2px (it was a 1px hairline), and no gap around it
+            ("remove these gaps between activity posts"): the posts meet at the rule. */}
+        {!isLast && isMag && <div aria-hidden data-bs-wall-story-rule="" style={{ height: 2, margin: 0, background: bsTHexA(t.INK, 0.22) }} />}
         {!isLast && !isMag && (
           <div aria-hidden style={{ height: 2, margin: '26px 0 24px', background: `linear-gradient(90deg, ${t.INK}, ${heat} 70%, transparent)`, transformOrigin: 'left', ...(sdReduced ? null : railSeen ? { animation: 'bsSdDrawX 700ms cubic-bezier(.4,0,.2,1) both' } : { transform: 'scaleX(0)' }) }} />
         )}
@@ -25717,7 +25737,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
                 // story, its likes and comments as they were. The member and coach profile
                 // feeds ask for the same. This tab IS the Wall, so it renders it here rather
                 // than in a parallel component.
-                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="magazine" /></React.Fragment>);
+                return cards.map((a, i) => <React.Fragment key={a.key || `act-${i}`}><BSActivityCard a={a} ctx={feedCtx} isLast={i === cards.length - 1} pagePad={0} variant="magazine" glass={i % 2 === 1} /></React.Fragment>);
               })()}
               {/* ⚠ THE MEMBER'S OWN RECORDS AND THE TWO WAYS TO ADD ONE BY HAND.
                   This is the only mount — #2036 retired the Wall segment and the

@@ -1423,7 +1423,10 @@ function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
 }
 
 // Compact page header (non-masthead, for inner tabs)
-function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34 }) {
+// `backTrailing` rides the right of the back row (as an eyebrow does on BSBackRow), so a page can lift a
+// control up beside its ← without moving the ← (the calendar's Month | Weeks, owner 2026-11-04: "move the
+// calendar higher on page").
+function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, onBack = null, titleSize = 34, backTrailing = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
   return (
@@ -1438,7 +1441,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
       {/* Universal back slot — own row, flush left, under the masthead row. */}
-      {onBack && <BSBackRow onBack={onBack} />}
+      {onBack && <BSBackRow onBack={onBack} trailing={backTrailing} />}
       {kicker && (
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 600 }}>
           {kicker}
@@ -1689,7 +1692,8 @@ function BSHeadlineNumber({ sign = '', value, unit, color, size }) {
   );
 }
 
-// Ticker — black bar with scrolling content
+// Ticker — black bar with scrolling content. Thin (owner, 2026-11-04: "thin this bar slightly, make a
+// little more narrow"): 5px above and below the line (from 8), its notch 9px.
 function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
   const t = useBS();
   const rows = Array.isArray(items) ? items : [];
@@ -1698,10 +1702,10 @@ function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
     <div style={{
       position: 'relative',
       background: t.INK, color: t.PAPER,
-      clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)',
+      clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)',
       borderLeft: `3px solid ${t.ACCENT}`,
-      padding: '8px 0', overflow: 'hidden', whiteSpace: 'nowrap',
-      fontFamily: t.MONO, fontSize: 10.5, letterSpacing: '0.12em',
+      padding: '5px 0', overflow: 'hidden', whiteSpace: 'nowrap',
+      fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em',
     }}>
       {/* fixed live tick — a solid cap the marquee scrolls beneath */}
       <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 20, background: t.INK, zIndex: 1, display: 'grid', placeItems: 'center' }}>

@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Mahlzeit hinzufügen",
   "mealEditor.variantsNote": "Dieser Plan hat eigene Versionen für Ruhetage oder Reisetage. Sie bleiben, wie sie sind, und eine getauschte Mahlzeit gilt auch für sie, sofern sie sie nicht ersetzen. Bearbeite sie im Plan-Editor auf der Website.",
   "mealEditor.save": "Speichern",
-  "mealEditor.assign": "Einem Klienten zuweisen"
+  "mealEditor.assign": "Einem Klienten zuweisen",
+  "today.dayEmpty": "{day}: nichts gebucht.",
+  "today.dayDoneOf": "{day}: {done} von {total, plural, one {# Session} other {# Sessions}} erledigt.",
+  "today.dayDoneOfNutri": "{day}: {done} von {total, plural, one {# Beratung} other {# Beratungen}} erledigt.",
+  "today.dayBooked": "{day}: {total, plural, one {# Session} other {# Sessions}} gebucht.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# Beratung} other {# Beratungen}} gebucht.",
+  "today.booked": "GEBUCHT"
 }

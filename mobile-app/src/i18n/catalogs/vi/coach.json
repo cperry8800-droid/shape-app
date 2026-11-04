@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Thêm món",
   "mealEditor.variantsNote": "Thực đơn này có phiên bản riêng cho ngày nghỉ hoặc ngày đi xa. Chúng giữ nguyên, và món đã đổi cũng áp dụng cho chúng trừ khi chúng đã thay món đó. Chỉnh sửa chúng trong trình chỉnh sửa thực đơn trên trang web.",
   "mealEditor.save": "Lưu",
-  "mealEditor.assign": "Giao cho một khách hàng"
+  "mealEditor.assign": "Giao cho một khách hàng",
+  "today.dayEmpty": "{day}: chưa có lịch.",
+  "today.dayDoneOf": "{day}: đã xong {done}/{total, plural, other {# buổi}}.",
+  "today.dayDoneOfNutri": "{day}: đã xong {done}/{total, plural, other {# buổi tư vấn}}.",
+  "today.dayBooked": "{day}: đã đặt {total, plural, other {# buổi}}.",
+  "today.dayBookedNutri": "{day}: đã đặt {total, plural, other {# buổi tư vấn}}.",
+  "today.booked": "ĐÃ ĐẶT"
 }

@@ -184,11 +184,12 @@ export const GOALS_SRC = join(SRC_DIR, 'BSGoals.jsx');
 
 // -- tree walking ------------------------------------------------------------
 // A row's `trailing` is drawn beside its children (the chrome's BSBackRow puts a page's eyebrow or
-// status there, beside ← Back), so it is part of what the page shows and is walked like them.
+// status there, beside ← Back), so it is part of what the page shows and is walked like them; so is a
+// page header's `backTrailing`, the control it lifts up beside its ← (the calendar's Month | Weeks).
 export function flatten(node, out = []) {
   if (node == null || node === false) return out;
   if (Array.isArray(node)) { for (const n of node) flatten(n, out); return out; }
-  if (typeof node === 'object' && node.props) { out.push(node); flatten(node.props.children, out); flatten(node.props.trailing, out); }
+  if (typeof node === 'object' && node.props) { out.push(node); flatten(node.props.children, out); flatten(node.props.trailing, out); flatten(node.props.backTrailing, out); }
   return out;
 }
 
@@ -198,7 +199,7 @@ export const textOf = (node) => {
     if (n == null || n === false) return;
     if (typeof n === 'string' || typeof n === 'number') { parts.push(String(n)); return; }
     if (Array.isArray(n)) { n.forEach(rec); return; }
-    if (typeof n === 'object' && n.props) { rec(n.props.children); rec(n.props.trailing); }
+    if (typeof n === 'object' && n.props) { rec(n.props.children); rec(n.props.trailing); rec(n.props.backTrailing); }
   })(node.props ? node.props.children : node);
   return parts.join('');
 };

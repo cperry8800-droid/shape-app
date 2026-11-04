@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Öğün ekle",
   "mealEditor.variantsNote": "Bu planın dinlenme ya da seyahat günleri için kendi sürümleri var. Oldukları gibi kalırlar; değiştirilen bir öğün, onu zaten değiştirmedikleri sürece onlara da geçer. Bunları web sitesindeki plan düzenleyicide düzenle.",
   "mealEditor.save": "Kaydet",
-  "mealEditor.assign": "Bir danışana ata"
+  "mealEditor.assign": "Bir danışana ata",
+  "today.dayEmpty": "{day}: planlanmış bir şey yok.",
+  "today.dayDoneOf": "{day}: {total, plural, other {# seansın}} {done} tanesi bitti.",
+  "today.dayDoneOfNutri": "{day}: {total, plural, other {# görüşmenin}} {done} tanesi bitti.",
+  "today.dayBooked": "{day}: {total, plural, other {# seans}} planlandı.",
+  "today.dayBookedNutri": "{day}: {total, plural, other {# görüşme}} planlandı.",
+  "today.booked": "PLANLI"
 }

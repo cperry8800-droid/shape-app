@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Добавить блюдо",
   "mealEditor.variantsNote": "У этого плана есть свои версии для дней отдыха или поездок. Они остаются как есть, и заменённое блюдо попадает и в них, если они его не заменяют. Измените их в редакторе планов на сайте.",
   "mealEditor.save": "Сохранить",
-  "mealEditor.assign": "Назначить клиенту"
+  "mealEditor.assign": "Назначить клиенту",
+  "today.dayEmpty": "{day}: ничего не запланировано.",
+  "today.dayDoneOf": "{day}: готово {done} из {total, plural, one {# занятия} few {# занятий} many {# занятий} other {# занятия}}.",
+  "today.dayDoneOfNutri": "{day}: готово {done} из {total, plural, one {# консультации} few {# консультаций} many {# консультаций} other {# консультации}}.",
+  "today.dayBooked": "{day}: {total, plural, one {# занятие} few {# занятия} many {# занятий} other {# занятия}} в плане.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# консультация} few {# консультации} many {# консультаций} other {# консультации}} в плане.",
+  "today.booked": "В ПЛАНЕ"
 }

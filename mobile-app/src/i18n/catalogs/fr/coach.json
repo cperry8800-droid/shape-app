@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Ajouter un repas",
   "mealEditor.variantsNote": "Ce plan a ses propres versions pour les jours de repos ou de voyage. Elles restent telles quelles, et un repas remplacé s'y applique aussi, sauf si elles le remplacent déjà. Modifie-les dans l'éditeur de plans du site.",
   "mealEditor.save": "Enregistrer",
-  "mealEditor.assign": "Attribuer à un client"
+  "mealEditor.assign": "Attribuer à un client",
+  "today.dayEmpty": "{day} : rien de prévu.",
+  "today.dayDoneOf": "{day} : {done} sur {total, plural, one {# séance} other {# séances}} terminées.",
+  "today.dayDoneOfNutri": "{day} : {done} sur {total, plural, one {# consultation} other {# consultations}} terminées.",
+  "today.dayBooked": "{day} : {total, plural, one {# séance prévue} other {# séances prévues}}.",
+  "today.dayBookedNutri": "{day} : {total, plural, one {# consultation prévue} other {# consultations prévues}}.",
+  "today.booked": "PRÉVUES"
 }

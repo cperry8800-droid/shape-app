@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Adicionar uma refeição",
   "mealEditor.variantsNote": "Este plano tem versões próprias para dias de descanso ou de viagem. Elas continuam como estão, e uma refeição trocada também vale para elas, a menos que já a substituam. Edite-as no editor de planos do site.",
   "mealEditor.save": "Salvar",
-  "mealEditor.assign": "Atribuir a um cliente"
+  "mealEditor.assign": "Atribuir a um cliente",
+  "today.dayEmpty": "{day}: nada agendado.",
+  "today.dayDoneOf": "{day}: {done} de {total, plural, one {# sessão} other {# sessões}} feitas.",
+  "today.dayDoneOfNutri": "{day}: {done} de {total, plural, one {# consulta} other {# consultas}} feitas.",
+  "today.dayBooked": "{day}: {total, plural, one {# sessão agendada} other {# sessões agendadas}}.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# consulta agendada} other {# consultas agendadas}}.",
+  "today.booked": "AGENDADAS"
 }

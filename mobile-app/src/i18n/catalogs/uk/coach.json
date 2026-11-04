@@ -1552,5 +1552,11 @@
   "mealEditor.addMeal": "＋ Додати страву",
   "mealEditor.variantsNote": "Цей план має власні версії для днів відпочинку чи подорожей. Вони лишаються як є, а замінена страва потрапляє і в них, якщо вони її не замінюють. Змініть їх у редакторі планів на сайті.",
   "mealEditor.save": "Зберегти",
-  "mealEditor.assign": "Призначити клієнту"
+  "mealEditor.assign": "Призначити клієнту",
+  "today.dayEmpty": "{day}: нічого не заплановано.",
+  "today.dayDoneOf": "{day}: зроблено {done} з {total, plural, one {# заняття} few {# занять} many {# занять} other {# заняття}}.",
+  "today.dayDoneOfNutri": "{day}: зроблено {done} з {total, plural, one {# консультації} few {# консультацій} many {# консультацій} other {# консультації}}.",
+  "today.dayBooked": "{day}: {total, plural, one {# заняття} few {# заняття} many {# занять} other {# заняття}} в плані.",
+  "today.dayBookedNutri": "{day}: {total, plural, one {# консультація} few {# консультації} many {# консультацій} other {# консультації}} в плані.",
+  "today.booked": "У ПЛАНІ"
 }

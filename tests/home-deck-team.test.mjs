@@ -239,7 +239,7 @@ test('the climb says only what it can: reached, a start with no target, a target
   }
 }));
 
-test('the deck hands its own dark theme to what it holds: the radio first, then the climb and the week', () => {
+test('the deck hands its own theme to what it holds: the radio first, then the climb and the week', () => {
   const seen = [];
   const prevCtx = globalThis.BSContext;
   globalThis.BSContext = { Provider: function Provider() {} };
@@ -249,9 +249,13 @@ test('the deck hands its own dark theme to what it holds: the radio first, then 
     assert.equal(provider.type, globalThis.BSContext.Provider, 'the band provides its theme');
     seen.push(provider.props.value);
     const band = d.nodes().find((n) => n.props && n.props['data-bs-home-deck'] != null);
-    const kids = [].concat(band.props.children).filter(Boolean);
+    // The glass's teal edge is drawn first; of what the band holds, Shape Radio sits first.
+    const kids = [].concat(band.props.children).filter(Boolean).filter((k) => !(typeof k.type === 'function' && k.type.name === 'BSGlassEdge'));
     assert.ok(kids[0].props['data-radio'] != null, 'Shape Radio sits first, above the climb (owner, 2026-11-03)');
-    assert.equal(band.props.style.background, seen[0].PAPER, 'the band is the deck theme\'s paper');
+    // Glass in the paper's own colour (owner, 2026-11-04: "make sure the glassy look matches the print color").
+    assert.ok(String(band.props.style.background).endsWith(`, ${seen[0].PAPER}`), 'the band is glass over the deck theme\'s paper');
+    assert.equal(seen[0].PAPER, THEME.PAPER, 'the deck is the paper\'s own colour, not a dark band');
+    assert.equal(seen[0].INK, THEME.INK, 'its words are the paper\'s own ink');
   } finally { globalThis.BSContext = prevCtx; }
 });
 
@@ -288,18 +292,36 @@ test('This week: a day a button with five bars, Train · Food · Protein · Step
   assert.ok(barsOf(list[3]).every((x) => x.props.on === true));
   assert.equal(list[3].props.style.background, THEME.INK);
   assert.ok(list.every((b) => b.props.style.minHeight >= 44), 'a day is a 44 px target');
-  // A day opens the calendar on that day; Month → opens the month.
+  // A tap picks a day in place, never straight into the calendar (owner, 2026-11-04: "when i click on any
+  // day on week view for client home page it immediatly takes me to month calendar"); today is picked
+  // first, and the line under the strip says how the picked day went.
+  assert.equal(list[3].props['aria-pressed'], true, 'today is picked first');
+  assert.match(d.text, /○ Train · ✓ Food · ○ Protein · ○ Steps · ○ Check-in/, 'today\'s line: its bars marked');
   list[1].props.onClick();
+  assert.equal(opened.length, 0, 'a first tap opens nothing');
+  d.render();
+  const picked = days(d);
+  assert.equal(picked[1].props['aria-pressed'], true);
+  assert.equal(picked[3].props['aria-pressed'], false);
+  assert.match(picked[1].props.style.boxShadow, /^inset 0 0 0 1\.5px /, 'the picked day is ringed');
+  assert.equal(picked[3].props.style.background, THEME.INK, 'today keeps its ink');
+  assert.match(d.text, /– Train · ✓ Food · × Protein · ✓ Steps · × Check-in/, 'the picked day\'s line');
+  // The picked day tapped again, or its → under the strip, opens the calendar on that day.
+  picked[1].props.onClick();
   assert.equal(opened.length, 1);
   assert.ok(opened[0] instanceof Date);
   assert.equal(opened[0].toDateString(), new Date(2026, 9, 20).toDateString());
+  const door = d.nodes().find((n) => n.type === 'button' && n.props['data-bs-home-open-day'] != null);
+  assert.equal(door.props['data-bs-home-open-day'], GRID.week[1]);
+  assert.ok(door.props.style.minHeight >= 44, 'the → is a 44 px target');
+  door.props.onClick();
+  assert.equal(opened.length, 2);
+  assert.equal(opened[1].toDateString(), new Date(2026, 9, 20).toDateString());
   d.nodes().find((n) => n.type === 'button' && textOf(n) === 'Month →').props.onClick();
   assert.equal(months, 1);
-  // The head: This week., the ISO week and its span; the key under the days.
+  // The head: This week., the ISO week and its span.
   assert.match(d.text, /This week\./);
   assert.match(d.text, /Wk 43 · Oct 19–25/);
-  assert.match(d.text, /Each day/);
-  assert.match(d.text, /Train · Food · Protein · Steps · Check-in/);
 });
 
 test('This week with Check-ins off draws four bars, and an unread week marks no day missed', () => {
@@ -558,6 +580,23 @@ test("a coach's note is filed by their listing id: same-named coaches each get t
   const nameless = drive(T.BSHomeTeamView, TEAM({ coaches: [A, B], notes: [{ role: 'trainer', text: 'Only 8 wrote.', who: null, providerId: 8 }], workout: { ...TEAM().workout, coachId: 7 } }));
   assert.doesNotMatch(textOf(coachBlock(nameless, 'trainer')), /Only 8 wrote/, 'an unnamed note fell to the first trainer');
   assert.match(textOf(coachBlock(nameless, 'extra')), /Only 8 wrote/);
+});
+
+// Owner, 2026-11-04: "ok add it", of the engine's move back on Home as one row: the morning panel's first,
+// only when the engine leads, "Your move" in the lever's colour, the move and its reason, the pledge a square.
+test('Your move: the engine\'s one move, its reason and its pledge, first in the morning panel and only when it leads', () => {
+  let went = 0;
+  const d = drive(S.BSHomeMoveRow, { head: 'Get to bed earlier tonight.', sub: 'Under 6h a night this week', cta: ["I'll get to bed earlier →", () => { went += 1; }], color: '#4a7bd0' });
+  assert.match(d.text, /^Your moveGet to bed earlier tonight\.Under 6h a night this week$/);
+  const go = d.nodes().find((n) => n.type === 'button' && n.props['data-bs-home-move-go'] != null);
+  assert.equal(go.props['aria-label'], "I'll get to bed earlier", 'the square says the pledge');
+  assert.equal(go.props.style.width, 44);
+  go.props.onClick();
+  assert.equal(went, 1);
+  assert.equal(drive(S.BSHomeMoveRow, { head: '', cta: null }).nodes().length, 0, 'no move, no row');
+  // Home draws it first in the panel, and only for the engine's lead (the plan's own leads are Team's).
+  const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
+  assert.match(src, /<BSMorningPanel>\n(\s+\{\/\*[\s\S]*?\*\/\}\n)?\s+\{todayDirective && todayDirective\.engine \? \(\n\s+<BSHomeMoveRow head=\{todayDirective\.head\} sub=\{todayDirective\.sub\} cta=\{todayDirective\.cta\} color=\{todayDirective\.c\} \/>/);
 });
 
 test('Team\'s next session opens the calendar on its day', () => {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { bsProDeckTheme, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
+import { bsProDeckTheme, bsRaised, BSGlassEdge, BS_DECK_TEAL, BS_GAUGE_FACE, BS_DECK_MONO } from './BSProInstrument.jsx';
 import { bsHomeGoalRead } from '../services/homeWeek.mjs';
 import { bsHomeClimbState, bsClimbPoint, bsClimbPath, bsClimbRidge, BS_CLIMB_W, BS_CLIMB_H, BS_CLIMB_MILESTONES } from '../services/homeClimb.mjs';
 import { bsCiIso } from './BSCheckinCard.jsx';
@@ -37,28 +37,19 @@ function bsHdDate(iso, opts) {
   try { return dt.toLocaleDateString(bsHdLocale(), opts); } catch (e) { return dt.toDateString(); }
 }
 
-// The member's accent, made to read on the ink: a light paper's accent is its darker pair, so it is
-// lifted toward white; a dark paper's is already the light one.
-function bsHdLift(hex, by = 0.35) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
-  if (!m) return BS_DECK_TEAL;
-  const n = parseInt(m[1], 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(c + (255 - c) * by));
-  return `#${ch.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
-}
-
-// The band: dark on every paper (bsProDeckTheme), handing its theme to what it holds so the radio's
-// box and the climb read on it, with the hairline from ink to teal along its foot.
+// The deck: a round, raised box in the paper's own colour (bsProDeckTheme, bsRaised; owner, 2026-11-04:
+// "make sure the glassy look matches the print color", "this doesnt go together now"), inset from the
+// page's edges, handing its theme to what it holds so the radio's box and the climb read on it. The paper's accent reads on it
+// as it is; it was lifted toward white while the band was dark on a light paper.
 export function BSHomeDeck({ radio = null, children }) {
   const t = window.useBS();
-  const base = bsProDeckTheme(t);
-  const d = { ...base, ACCENT: t.isLight ? bsHdLift(t.ACCENT) : t.ACCENT };
+  const d = bsProDeckTheme(t);
   const Ctx = typeof window !== 'undefined' ? window.BSContext : null;
   const band = (
-    <section data-bs-home-deck="" style={{ position: 'relative', background: d.PAPER, color: d.INK, padding: '2px 0 16px' }}>
+    <section data-bs-home-deck="" data-glass="" style={{ color: d.INK, padding: '2px 0 16px', margin: '6px 10px 0', ...bsRaised(t) }}>
+      <BSGlassEdge t={t} />
       {radio}
       {children}
-      <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, background: `linear-gradient(90deg, ${d.INK}, ${BS_DECK_TEAL})`, opacity: 0.9 }} />
     </section>
   );
   return Ctx ? <Ctx.Provider value={d}>{band}</Ctx.Provider> : band;
@@ -146,7 +137,10 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
         role: 'button', tabIndex: 0, 'aria-label': aria || undefined,
         onKeyDown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } },
       } : null)}
-      style={{ position: 'relative', margin: '8px 0 0', cursor: typeof onOpen === 'function' && st.kind !== 'loading' ? 'pointer' : 'default' }}>
+      // 22px under the radio box: at 8px the ridge and the flag ran up against the box's foot (owner,
+      // 2026-11-04: "there is some overlap with new home design and shape radio box, can we move the graph
+      // down a little").
+      style={{ position: 'relative', margin: '22px 0 0', cursor: typeof onOpen === 'function' && st.kind !== 'loading' ? 'pointer' : 'default' }}>
       {/* Named by what it shows; still reading, it shows nothing yet and is hidden from a screen reader,
           never an unnamed graphic in browse mode (Codex P2 on #2583). */}
       <svg {...(aria ? { role: 'img', 'aria-label': aria } : { 'aria-hidden': true, focusable: 'false' })} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
@@ -220,9 +214,9 @@ function BSHdBar({ state, on }) {
   const ink = on ? t.PAPER : t.INK;
   const rule = on ? `${t.PAPER}55` : t.RULE;
   const base = { width: 3.5, borderRadius: 1, boxSizing: 'border-box' };
-  if (state === 'hit') return <span data-bar="hit" style={{ ...base, height: 14, background: ink }} />;
-  if (state === 'miss') return <span data-bar="miss" style={{ ...base, height: 4, background: ink, opacity: 0.55 }} />;
-  if (state === 'ahead') return <span data-bar="ahead" style={{ ...base, height: 14, border: `1px solid ${rule}` }} />;
+  if (state === 'hit') return <span data-bar="hit" style={{ ...base, height: 11, background: ink }} />;
+  if (state === 'miss') return <span data-bar="miss" style={{ ...base, height: 3, background: ink, opacity: 0.55 }} />;
+  if (state === 'ahead') return <span data-bar="ahead" style={{ ...base, height: 11, border: `1px solid ${rule}` }} />;
   if (state === 'rest') return <span data-bar="rest" style={{ ...base, height: 2, background: rule }} />;
   return <span data-bar="unknown" style={{ ...base, height: 2, width: 2, background: rule }} />;
 }
@@ -261,37 +255,68 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
   })() : null;
   const span = week.length ? `${fmtDay(week[0], { month: 'short', day: 'numeric' })}–${fmtDay(week[6], dayOf(week[0]).getMonth() === dayOf(week[6]).getMonth() ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}` : '';
   const mono = { fontFamily: BS_DECK_MONO, fontWeight: 700, textTransform: 'uppercase' };
+  // A tap picks a day in place; the picked day's line under the strip says how it went, and a second tap
+  // (or its →) opens the calendar on it (owner, 2026-11-04: "when i click on any day on week view for
+  // client home page it immediatly takes me to month calendar"). Today is picked until another is.
+  const [picked, setPicked] = React.useState(null);
+  const pickIdx = g ? (picked != null && picked >= 0 && picked < week.length ? picked : g.today) : null;
+  const pickIso = pickIdx != null ? week[pickIdx] : null;
+  const openDay = (iso) => { if (iso && typeof onDay === 'function') onDay(dayOf(iso)); };
+  const mark = { hit: '✓', miss: '×', ahead: '○', rest: '–' };
   return (
-    <section data-bs-home-week-bars="" aria-label={tr('home:section.thisWeek', { defaultValue: 'This week' })} style={{ padding: `14px ${t.padX - 6}px 0` }}>
+    // Condensed (owner, 2026-11-04: "the week calendar can be condensed a little to create more space"): the
+    // head's Month keeps its 44px tap without standing the row 44px tall, the days 52px (from 64), the bars
+    // 11px (from 14). ⚠ NO TAP BOX OVERLAPS ANOTHER (Codex P2 on #2593): Month reaches 12px up into the
+    // head's padding and 6px down into the 6px gap over the days, never onto a day; the picked day's →
+    // reaches 6px up into the gap over its line and 26px down into this section's 10px and the deck's 16px.
+    <section data-bs-home-week-bars="" aria-label={tr('home:section.thisWeek', { defaultValue: 'This week' })} style={{ padding: `8px ${t.padX - 6}px ${10}px` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '0 6px' }}>
         <h2 style={{ margin: 0, fontFamily: t.HEAD || t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: t.INK, whiteSpace: 'nowrap' }}>
           {tr('home:section.thisWeek', { defaultValue: 'This week' })}<span aria-hidden="true" style={{ color: '#e0654b' }}>.</span>
         </h2>
         {isoWeek ? <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {span}</span> : null}
-        {onMonth ? <button type="button" onClick={onMonth} style={{ marginLeft: 'auto', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
+        {onMonth ? <button type="button" onClick={onMonth} style={{ minHeight: 44, margin: '-12px 0 -6px auto', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 6 }}>
         {(week.length ? week : Array.from({ length: 7 }, () => null)).map((iso, i) => {
           const today = g && i === g.today;
+          const isPicked = g && i === pickIdx;
           const states = rows.map((k) => (g && g[k] ? g[k][i] : null));
           const label = iso ? `${fmtDay(iso, { weekday: 'long', month: 'long', day: 'numeric' })}: ${rows.map((k, j) => (states[j] ? `${names[k]} ${word[states[j]]}` : null)).filter(Boolean).join(', ')}` : '';
           return (
-            <button key={iso || i} type="button" data-bs-home-day={iso || ''} aria-label={label} aria-current={today ? 'date' : undefined}
-              onClick={() => { if (iso && typeof onDay === 'function') onDay(dayOf(iso)); }}
-              style={{ minWidth: 0, minHeight: 64, padding: '6px 0 7px', border: 0, borderRadius: 8, background: today ? t.INK : 'transparent', color: today ? t.PAPER : t.INK, cursor: iso ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+            <button key={iso || i} type="button" data-bs-home-day={iso || ''} aria-label={label} aria-current={today ? 'date' : undefined} aria-pressed={iso ? !!isPicked : undefined}
+              onClick={() => { if (!iso) return; if (isPicked) openDay(iso); else setPicked(i); }}
+              style={{ minWidth: 0, minHeight: 52, padding: '4px 0 5px', border: 0, borderRadius: 8, background: today ? t.INK : 'transparent', color: today ? t.PAPER : t.INK,
+                // The picked day, when it is not today, is ringed (today keeps its ink).
+                boxShadow: isPicked && !today ? `inset 0 0 0 1.5px ${t.INK70}` : 'none', cursor: iso ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.1em', color: today ? t.PAPER : t.INK70 }}>{iso ? fmtDay(iso, { weekday: 'short' }) : ''}</span>
-              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 19, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{iso ? dayOf(iso).getDate() : ''}</span>
-              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 14 }}>
+              <span style={{ fontFamily: BS_GAUGE_FACE, fontSize: 17, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{iso ? dayOf(iso).getDate() : ''}</span>
+              <span aria-hidden="true" style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 11 }}>
                 {states.map((s, j) => <BSHdBar key={j} state={s} on={today} />)}
               </span>
             </button>
           );
         })}
       </div>
-      <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 6, padding: '0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
-        <span>{tr('home:week.barsKey', { defaultValue: 'Each day' })}</span>
-        <span style={{ color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rows.map((k) => names[k]).join(' · ')}</span>
-      </div>
+      {/* The picked day's line: its date as the door to the calendar, then each bar's name marked as it went
+          (✓ hit, × missed, ○ to come, – rest day). An unread week keeps the key. */}
+      {pickIso ? (
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginTop: 6, padding: '0 0 0 6px', height: 12, ...mono, fontSize: 8, lineHeight: '12px', letterSpacing: '0.12em', color: t.INK50 }}>
+          <button type="button" data-bs-home-open-day={pickIso} onClick={() => openDay(pickIso)}
+            aria-label={fmtDay(pickIso, { weekday: 'long', month: 'long', day: 'numeric' })}
+            style={{ flex: 'none', minHeight: 44, margin: '-6px 0 -26px', padding: '6px 0 0', border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', ...mono, fontSize: 8.5, lineHeight: '12px', letterSpacing: '0.12em', color: t.ACCENT, whiteSpace: 'nowrap' }}>
+            {fmtDay(pickIso, { weekday: 'short' })} {dayOf(pickIso).getDate()} →
+          </button>
+          <span aria-hidden="true" style={{ minWidth: 0, color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {rows.map((k) => { const st = g[k] ? g[k][pickIdx] : null; return `${st && mark[st] ? mark[st] + ' ' : ''}${names[k]}`; }).join(' · ')}
+          </span>
+        </div>
+      ) : (
+        <div aria-hidden="true" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, padding: '0 6px', ...mono, fontSize: 8, letterSpacing: '0.12em', color: t.INK50 }}>
+          <span>{tr('home:week.barsKey', { defaultValue: 'Each day' })}</span>
+          <span style={{ color: t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rows.map((k) => names[k]).join(' · ')}</span>
+        </div>
+      )}
     </section>
   );
 }
