@@ -37,5 +37,7 @@ test('today\'s session, and a preview opened with no day, still read Today', () 
 test('Home opens Team\'s preview with the picked day, and Your move\'s with today', () => {
   assert.match(CLIENT, /onStart: \(\) => setShowWorkoutPreview\(\{ workout: pw, day: pickDate \}\),/, 'Team hands the picked day');
   assert.match(CLIENT, /<BSHomeWorkoutPreview workout=\{shownWorkout\} day=\{pv \? pv\.day : null\}/, 'the preview gets it');
+  // Codex P2 on #2599: Move session from another day's preview opens the calendar on that day, not today.
+  assert.match(CLIENT, /onMove=\{\(\) => \{ setShowWorkoutPreview\(false\); goCalendar\?\.\(pv && pv\.day \? pv\.day : undefined\); \}\}/, 'Move session keeps the day');
   assert.match(CLIENT, /\[tr\('home:lead\.workout\.cta', \{ defaultValue: "I'll train today →" \}\), \(\) => setShowWorkoutPreview\(true\)\]/, 'Your move is today\'s');
 });

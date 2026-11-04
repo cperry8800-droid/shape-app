@@ -4895,7 +4895,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     // its date (Codex P1 on #2599).
     const pv = showWorkoutPreview && typeof showWorkoutPreview === 'object' ? showWorkoutPreview : null;
     const shownWorkout = pv ? pv.workout : selWorkout;
-    return <BSHomeWorkoutPreview workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
+    return <BSHomeWorkoutPreview workout={shownWorkout} day={pv ? pv.day : null} onBack={() => setShowWorkoutPreview(false)} onMove={() => { setShowWorkoutPreview(false); goCalendar?.(pv && pv.day ? pv.day : undefined); }} onStart={() => { setShowWorkoutPreview(false); goTrain?.({ workout: shownWorkout }); }} onMessage={() => {
       setShowWorkoutPreview(false);
       // The trainer who wrote the session (the plan read's coachId), in their own thread; signed in with no
       // such paid trainer, the chats; the signed-out preview's sample coach.
