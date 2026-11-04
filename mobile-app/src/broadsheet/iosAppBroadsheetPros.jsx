@@ -13,7 +13,7 @@ import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
 import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
 import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
-import { mayLeave } from '../services/leaveGuard.mjs';
+import { mayLeave, holdLeave } from '../services/leaveGuard.mjs';
 import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
 import BSCoachNote from './BSCoachNote.jsx';
 import BSLiveWorkoutWatch from './BSLiveWorkoutWatch.jsx';
@@ -6483,6 +6483,17 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   const mediaInputRef = React.useRef(null);
   const [status, setStatus] = useStateBSP('');
   const [pubErr, setPubErr] = useStateBSP(''); // a save that failed, said under Publish
+  // ⚠ A saved program or diet opens here, with the tab bar under it (Codex on #2594): while the draft
+  // differs from what it opened with, a tab tap, a swipe or a jump asks the meal editor's question first
+  // (services/leaveGuard.mjs), never drops it. What it opened with is its first render, hydrated.
+  const draftNow = JSON.stringify({ name, blocks, days, note, media });
+  const draftOpened = React.useRef(draftNow);
+  const draftChanged = draftNow !== draftOpened.current;
+  React.useEffect(() => (draftChanged ? holdLeave(window, async () => !window.bsAskConfirm || !!(await window.bsAskConfirm({
+    title: tr('coach:mealEditor.leaveTitle', { defaultValue: 'Leave without saving?' }),
+    message: tr('coach:mealEditor.leaveMsg', { defaultValue: 'Your changes to this plan are not saved.' }),
+    confirmLabel: tr('coach:mealEditor.leave', { defaultValue: 'Leave without saving' }),
+  }))) : undefined), [draftChanged]);
   // ⚠ Find the active day BY `dow`, never by array position. `days` is a SPARSE
   // list, so `days[1]` is whatever weekday happens to sit second — for
   // [{dow:0},{dow:2},{dow:4}] that is Wednesday. An editor that indexed by

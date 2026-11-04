@@ -261,6 +261,11 @@ export default {
     // ── review round 11 (Codex on c87b9b5) ──
     { name: 'sign-out leaves a nutritionist\'s kept meal-plan draft', file: 'public/newdesign/localScrub.mjs',
       find: "  'shape.coach.meal-draft.', // a nutritionist's unsaved meal plan, kept by the app's editor (mealBuilderEdit.mjs)\n", replace: '' },
+    // ── review round 12 (Codex on 73e7762) ──
+    { name: 'the draft editor holds no guard while changed', file: PROS,
+      find: '  React.useEffect(() => (draftChanged ? holdLeave(window, async () =>', replace: '  React.useEffect(() => (false ? holdLeave(window, async () =>' },
+    { name: 'the draft editor forgets what it opened with', file: PROS,
+      find: '  const draftOpened = React.useRef(draftNow);\n', replace: '  const draftOpened = React.useRef(draftNow);\n  draftOpened.current = draftNow;\n' },
     { name: 'the root switches coach apps without asking', file: MAIN,
       find: '      mayLeave(window).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);', replace: '      Promise.resolve(true).then((ok) => {\n        if (!ok) return;\n        holdCoachPlan(window, detail);' },
     { name: 'the trainer shell never lets go of Nora\'s open', file: PROS,

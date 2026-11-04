@@ -332,3 +332,32 @@ test('Nora\'s open request is let go once answered, so coming back to Plans does
     assert.match(m2.text(), /That plan isn't in your library yet/);
   } finally { await m2.close(); }
 });
+
+test('a saved program or diet open in the draft editor holds the leave guard while it has changes (Codex on #2594)', async () => {
+  const { mayLeave } = await import('../mobile-app/src/services/leaveGuard.mjs');
+  stubBackend();
+  const asked = [];
+  W.bsAskConfirm = async (o) => { asked.push(o.title); return false; };
+  const m = await mount();
+  try {
+    await tab(m, 'Programs');
+    await m.click([...m.host.querySelectorAll('button')].find((b) => /Habit reset/.test(b.textContent)));
+    assert.ok(m.q('input[value="Habit reset"]'), 'open in the draft editor');
+    assert.equal(await mayLeave(W), true, 'as it opened: a tab tap goes, unasked');
+    assert.equal(asked.length, 0);
+    const box = m.q('input[value="Habit reset"]');
+    const setValue = Object.getOwnPropertyDescriptor(W.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setValue.call(box, 'Habit reset, v2'); box.dispatchEvent(new W.Event('input', { bubbles: true })); });
+    assert.equal(await mayLeave(W), false, 'changed: asked, and told to stay');
+    assert.deepEqual(asked, ['Leave without saving?']);
+    await React.act(async () => { setValue.call(box, 'Habit reset'); box.dispatchEvent(new W.Event('input', { bubbles: true })); });
+    asked.length = 0;
+    assert.equal(await mayLeave(W), true, 'put back as it was: nothing to ask about');
+    await React.act(async () => { setValue.call(box, 'Habit reset, v3'); box.dispatchEvent(new W.Event('input', { bubbles: true })); });
+    await m.click(m.byText(/^CANCEL$/));
+  } finally { await m.close(); }
+  asked.length = 0;
+  assert.equal(await mayLeave(W), true, 'closed: the guard went with it');
+  assert.equal(asked.length, 0);
+  delete W.bsAskConfirm;
+});
