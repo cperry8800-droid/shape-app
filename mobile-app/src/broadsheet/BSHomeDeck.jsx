@@ -78,9 +78,10 @@ export function BSHomeClimb({ demo = null, ...view }) {
 // ⚠ IN COLOUR, WITH THE MILESTONES (owner, 2026-11-04: "add a little more info here, either milestones, and
 // percentage progress, be creative, just not too much", then "lets maybe add a little more color to this
 // graph, home page looking a little bland", and of the options, "this design but with option C coloring
-// scheme on graph"). The route runs from Shape's teal at the foot to gold at the summit, the goal: teal
-// light pools under the walked part, the walked line and the passed ticks glow, the next milestone's tick
-// wears a lit ring, and a gold glow stands behind the flag. Under the route, a goal on its way reads one
+// scheme on graph", then of option B's graph, "also i like this coloring for graph on home page"). The hill
+// is washed from Shape's teal at the foot to gold at the summit, the goal, and the route runs the same way:
+// the walked line solid, what is still to walk dashed, each milestone's tick and the now dot in the colour
+// of where they stand, the flag in gold. Under the route, a goal on its way reads one
 // slim strip: the share walked as a ring, the next milestone with its weight and what is left to it, and
 // the four milestones as dots on the same teal → gold scale. Every figure is the goal read's own: the share
 // is the route's (st.pct), the milestones are the goal page's (homeClimb.mjs's bsClimbMilestones, BSGoals'
@@ -103,8 +104,6 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
     const n = parseInt(h, 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
   };
-  // The glow is light on a dark paper; on a light one it would only smudge.
-  const glow = (c, r = 4, a = 0.85) => (t.isLight ? undefined : { filter: `drop-shadow(0 0 ${r}px ${ha(c, a)})` });
   const overall = (data && data.overall) || {};
   const toKg = (v) => (typeof docKg === 'function' ? docKg(v, overall) : null);
   const read = data ? bsHomeGoalRead({ weighIns: data.weighIns, startKg: toKg(overall.start), targetKg: toKg(overall.target), todayIso }) : null;
@@ -192,24 +191,20 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           never an unnamed graphic in browse mode (Codex P2 on #2583). */}
       <svg {...(aria ? { role: 'img', 'aria-label': aria } : { 'aria-hidden': true, focusable: 'false' })} viewBox={`0 0 ${BS_CLIMB_W} ${BS_CLIMB_H}`} width="100%" style={{ display: 'block', height: 'auto' }}>
         <defs>
-          <linearGradient id={`${gid}w`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={teal} stopOpacity={t.isLight ? 0.26 : 0.42} />
-            <stop offset="1" stopColor={teal} stopOpacity="0" />
+          {/* The hill washed from the teal at the foot to the gold at the summit, and the route drawn in the
+              same run of colour, walked and still to walk. */}
+          <linearGradient id={`${gid}rb`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor={teal} stopOpacity={t.isLight ? 0.14 : 0.2} />
+            <stop offset="1" stopColor={gold} stopOpacity={t.isLight ? 0.3 : 0.36} />
           </linearGradient>
-          <radialGradient id={`${gid}g`} gradientUnits="userSpaceOnUse" cx="302" cy="30" r="62">
-            <stop offset="0" stopColor={gold} stopOpacity={t.isLight ? 0.28 : 0.42} />
-            <stop offset="0.45" stopColor={gold} stopOpacity={t.isLight ? 0.1 : 0.14} />
-            <stop offset="1" stopColor={gold} stopOpacity="0" />
-          </radialGradient>
+          <linearGradient id={`${gid}p`} gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="300" y2="0">
+            <stop offset="0" stopColor={teal} />
+            <stop offset="1" stopColor={gold} />
+          </linearGradient>
         </defs>
-        {st.kind !== 'loading' ? <circle data-climb-summit-glow="" cx="302" cy="30" r="62" fill={`url(#${gid}g)`} /> : null}
-        <polygon points={bsClimbRidge()} fill={ink(0.07)} />
-        {walked && pct > 0 ? (() => {
-          const p = bsClimbPoint(pct / 100);
-          return <polygon data-climb-walked-area="" points={`${bsClimbPath(0, pct / 100)} ${p.x},${BS_CLIMB_H} ${bsClimbPoint(0).x},${BS_CLIMB_H}`} fill={`url(#${gid}w)`} />;
-        })() : null}
-        <polyline points={bsClimbPath(walked ? pct / 100 : 0, 1)} fill="none" stroke={faint} strokeWidth="1.4" strokeDasharray="3 4" strokeLinecap="round" />
-        {walked && pct > 0 ? <polyline data-climb-walked={pct} points={bsClimbPath(0, pct / 100)} fill="none" stroke={teal} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" style={glow(teal)} /> : null}
+        <polygon data-climb-ridge="" points={bsClimbRidge()} fill={`url(#${gid}rb)`} />
+        <polyline data-climb-ahead="" points={bsClimbPath(walked ? pct / 100 : 0, 1)} fill="none" stroke={`url(#${gid}p)`} strokeOpacity="0.7" strokeWidth="1.6" strokeDasharray="3 4" strokeLinecap="round" />
+        {walked && pct > 0 ? <polyline data-climb-walked={pct} points={bsClimbPath(0, pct / 100)} fill="none" stroke={`url(#${gid}p)`} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /> : null}
         {st.kind !== 'loading' ? BS_CLIMB_MILESTONES.map((m, i) => {
           const p = bsClimbPoint(m / 100);
           // Passed by the goal page's test when there is one to run (so a tick and its dot agree), else by
@@ -217,8 +212,7 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           const passed = ms ? ms.stops[i].done : (walked && pct >= m);
           return (
             <g key={m} data-climb-milestone={m} data-climb-passed={passed ? '' : undefined}>
-              <line x1={p.x} y1={p.y - 5} x2={p.x} y2={p.y + 5} stroke={passed ? teal : faint} strokeWidth="2" style={passed ? glow(teal, 3, 0.9) : undefined} />
-              {next && next.m === m ? <circle data-climb-next-ring="" cx={p.x} cy={p.y} r="7" fill="none" stroke={teal} strokeWidth="1.5" style={glow(teal, 4, 0.9)} /> : null}
+              <line x1={p.x} y1={p.y - 5} x2={p.x} y2={p.y + 5} stroke={passed ? along(m / 100) : ha(along(m / 100), 0.6)} strokeWidth="2" />
             </g>
           );
         }) : null}
@@ -228,11 +222,11 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           return (
             <g data-climb-flag={planted ? 'planted' : 'open'}>
               <line x1={p.x} y1={p.y} x2={p.x} y2={p.y - 20} stroke={fg} strokeWidth="1.5" />
-              <polygon points={`${p.x},${p.y - 20} ${p.x + 14},${p.y - 15} ${p.x},${p.y - 10}`} fill={planted ? teal : gold} fillOpacity={planted ? 1 : (st.kind === 'none' || st.kind === 'words' ? 0 : 1)} stroke={planted ? fg : gold} strokeWidth="1" style={glow(planted ? teal : gold, 5, 0.8)} />
+              <polygon points={`${p.x},${p.y - 20} ${p.x + 14},${p.y - 15} ${p.x},${p.y - 10}`} fill={planted ? teal : gold} fillOpacity={planted ? 1 : (st.kind === 'none' || st.kind === 'words' ? 0 : 1)} stroke={planted ? fg : gold} strokeWidth="1" />
             </g>
           );
         })()}
-        {walked && pct < 100 ? (() => { const p = bsClimbPoint(pct / 100); return <circle data-climb-now="" cx={p.x} cy={p.y} r="4.5" fill={teal} stroke={t.PAPER} strokeWidth="2" style={glow(teal, 5, 0.95)} />; })() : null}
+        {walked && pct < 100 ? (() => { const p = bsClimbPoint(pct / 100); return <circle data-climb-now="" cx={p.x} cy={p.y} r="4.5" fill={along(pct / 100)} stroke={t.PAPER} strokeWidth="2" />; })() : null}
       </svg>
 
       {/* The words over the sky, top left, and the target by the flag, in the goal's gold. */}

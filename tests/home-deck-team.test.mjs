@@ -126,7 +126,8 @@ test('the climb: the goal in the member\'s words, what is left in their units, t
   // The milestones: a quarter passed, a half and three quarters still ahead.
   const ticks = milestones(d);
   assert.equal(ticks.length, 3);
-  assert.deepEqual(ticks.map((l) => l.props.stroke === THEME.ACCENT), [true, false, false]);
+  // A met tick in the colour of where it stands on the teal → gold run (option B's colours), one ahead faded.
+  assert.deepEqual(ticks.map((l) => l.props.stroke === C.bsClimbMix(THEME.ACCENT, C.bsClimbGold(THEME), [0.25, 0.5, 0.75][ticks.indexOf(l)])), [true, false, false]);
   // The whole climb opens the goal.
   root.props.onClick();
   assert.equal(opened.length, 1);
@@ -193,34 +194,40 @@ test('the climb in colour, with the strip: the share walked, the next milestone,
   assert.equal(pips[3].props['data-climb-pip-color'], gold);
   assert.equal(pips[0].props.style.background, C.bsClimbMix(teal, gold, 0.25), 'a met milestone is filled');
   assert.equal(pips[1].props.style.background, 'transparent', 'one ahead is an outline');
-  // The route: the walked line and the light under it in teal, the next milestone's tick ringed, the flag
-  // and the goal by it in gold, a gold glow behind the flag.
-  assert.equal(one('data-climb-walked').props.stroke, teal);
-  assert.ok(one('data-climb-walked-area'), 'no light under the walked part');
-  const ring = one('data-climb-next-ring');
-  assert.equal(ring.props.cx, C.bsClimbPoint(0.5).x, 'the ring sits on the Halfway tick');
-  assert.equal(ring.props.stroke, teal);
+  // The route in option B's colours (owner, 2026-11-04: "also i like this coloring for graph on home page"):
+  // the hill washed teal at the foot to gold at the summit, the walked line and what is still to walk on the
+  // same teal → gold run, the flag and the goal by it in gold; no glows.
+  const grads = Object.fromEntries(d.nodes().filter((n) => n.type === 'linearGradient').map((g) => [g.props.id, g]));
+  const fillOf = (n) => /^url\(#(.+)\)$/.exec([n.props.fill, n.props.stroke].find((v) => /^url\(/.test(v || '')) || '')[1];
+  const ridge = grads[fillOf(one('data-climb-ridge'))];
+  assert.ok(ridge, 'the hill is not washed');
+  const stopsOf = (g) => (Array.isArray(g.props.children) ? g.props.children : [g.props.children]).filter(Boolean).map((c) => c.props.stopColor);
+  assert.deepEqual(stopsOf(ridge), [teal, gold], 'the hill runs from the teal to the gold');
+  const walkedRun = grads[fillOf(one('data-climb-walked'))];
+  assert.deepEqual(stopsOf(walkedRun), [teal, gold], 'the walked line runs from the teal to the gold');
+  assert.equal(fillOf(one('data-climb-ahead')), fillOf(one('data-climb-walked')), 'the route still to walk is on the same run');
+  assert.equal(one('data-climb-ahead').props.strokeDasharray, '3 4');
+  for (const k of ['data-climb-walked-area', 'data-climb-next-ring', 'data-climb-summit-glow']) assert.equal(one(k), undefined, `${k} is C's, not B's`);
+  assert.equal(one('data-climb-now').props.fill, C.bsClimbMix(teal, gold, 0.48), 'the now dot wears the colour of where it stands');
   const flag = d.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null);
   assert.equal(flag.props.fill, gold);
   assert.equal(one('data-climb-goal').props.style.color, gold);
-  assert.ok(one('data-climb-summit-glow'));
-  const stops = d.nodes().filter((n) => n.type === 'stop').map((n) => n.props.stopColor);
-  assert.ok(stops.includes(teal) && stops.includes(gold), 'the gradients run from the teal to the gold');
-  // A tick and its dot agree on what is met.
-  assert.deepEqual(milestones(d).map((l) => l.props.stroke === teal), pips.slice(0, 3).map((p) => p.props['data-climb-pip-state'] === 'done'));
+  // A tick and its dot agree on what is met: a met tick in the colour of where it stands, one ahead faded.
+  assert.deepEqual(milestones(d).map((l, i) => l.props.stroke === C.bsClimbMix(teal, gold, [0.25, 0.5, 0.75][i])), pips.slice(0, 3).map((p) => p.props['data-climb-pip-state'] === 'done'));
   // A screen reader hears the strip with the rest.
   assert.equal(climbOf(d).props['aria-label'], 'Your goal: 48% of the way, 5.7 lb to go · Next · Halfway · 170.9 lb · 0.2 lb to go');
 }));
 
 test('the strip is for a goal on its way: none when it is reached, before a weigh-in, or for a goal without numbers', () => withPounds(() => {
-  const noStrip = (d) => !d.nodes().some((n) => n.props && (n.props['data-climb-strip'] != null || n.props['data-climb-next-ring'] != null));
+  const noStrip = (d) => !d.nodes().some((n) => n.props && n.props['data-climb-strip'] != null);
   const reached = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 78 }, weighIns: LOSING } }));
   assert.equal(climbOf(reached).props['data-bs-home-climb'], 'reached');
   assert.ok(noStrip(reached), 'a reached goal has no next milestone');
   assert.doesNotMatch(reached.text, /%/);
-  // Reached plants the flag in the teal; every tick is passed.
+  // Reached plants the flag in the teal; every tick is passed, each in the colour of where it stands.
   assert.equal(reached.nodes().find((n) => n.type === 'polygon' && n.props.fillOpacity != null).props.fill, THEME.ACCENT);
-  assert.deepEqual(milestones(reached).map((l) => l.props.stroke === THEME.ACCENT), [true, true, true]);
+  const gold = C.bsClimbGold(THEME);
+  assert.deepEqual(milestones(reached).map((l) => l.props.stroke), [0.25, 0.5, 0.75].map((f) => C.bsClimbMix(THEME.ACCENT, gold, f)));
   const target = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'lb', target: 165 }, weighIns: [] } }));
   assert.equal(climbOf(target).props['data-bs-home-climb'], 'target');
   assert.ok(noStrip(target), 'no weigh-in: nothing walked to measure');
