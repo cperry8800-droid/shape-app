@@ -122,7 +122,9 @@ export function BSHomeTeamView({ coaches = [], notes = [], workout = null, meal 
     const n = nNew(c);
     return (
       <button type="button" data-team-message={c.role} onClick={() => openThread(c)} style={btn(false)}
-        aria-label={c.name ? tr('home:coaches.message', { defaultValue: 'Message {name}', name: c.name }) : c.role === 'nutritionist' ? tr('home:coaches.messageNutritionist', { defaultValue: 'Message your nutritionist' }) : tr('home:coaches.messageTrainer', { defaultValue: 'Message your trainer' })}>
+        // The unread count is said too, as the button shows it.
+        aria-label={[c.name ? tr('home:coaches.message', { defaultValue: 'Message {name}', name: c.name }) : c.role === 'nutritionist' ? tr('home:coaches.messageNutritionist', { defaultValue: 'Message your nutritionist' }) : tr('home:coaches.messageTrainer', { defaultValue: 'Message your trainer' }),
+          n > 0 ? tr('home:coaches.unread', { defaultValue: '{n} new', n }) : null].filter(Boolean).join(', ')}>
         {tr('home:team.message', { defaultValue: 'Message' })}{n > 0 ? ` · ${tr('home:coaches.unread', { defaultValue: '{n} new', n })}` : ''}
       </button>
     );

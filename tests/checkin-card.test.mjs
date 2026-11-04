@@ -449,7 +449,7 @@ test('the card on Home is one row: the words open the check-in, the ink ✓ squa
     const start = row.querySelector('[data-bs-checkin-start]');
     const same = row.querySelector('[data-bs-checkin-same]');
     assert.deepEqual([...row.children], [start, same], 'the row is the words, then one square');
-    assert.equal(start.getAttribute('aria-label'), 'Start check-in');
+    assert.equal(start.getAttribute('aria-label'), 'Start check-in · Morning check-in');
     assert.equal(start.style.minHeight, '44px');
     assert.equal(same.style.width, '44px');
     assert.equal(same.style.height, '44px');
@@ -478,7 +478,7 @@ test('the card on Home is one row: the words open the check-in, the ink ✓ squa
     const row = document.querySelector('[data-bs-checkin-row]');
     const only = [...row.querySelectorAll('button')];
     assert.equal(only.length, 1, 'a second button with nothing to repeat');
-    assert.equal(only[0].getAttribute('aria-label'), 'Start check-in');
+    assert.equal(only[0].getAttribute('aria-label'), 'Start check-in · Morning check-in');
     assert.ok(only[0].querySelector('[data-bs-checkin-go]'), 'Start lost its arrow square');
     assert.ok(!document.querySelector('[data-bs-checkin-same]'));
     assert.equal(m.text(), 'Morning check-in2 checks · 15 sec');
@@ -489,14 +489,14 @@ test('the card on Home is one row: the words open the check-in, the ink ✓ squa
   try {
     assert.equal(document.querySelector('[data-bs-checkin-steps]')?.textContent, 'Sleep✓ Energy');
     assert.doesNotMatch(m.text(), /2 checks · 15 sec/);
-    assert.equal(document.querySelector('[data-bs-checkin-start]').getAttribute('aria-label'), 'Continue');
+    assert.equal(document.querySelector('[data-bs-checkin-start]').getAttribute('aria-label'), 'Continue · Morning check-in');
   } finally { m.unmount(); }
   // A watch's night is a step in too, though it is not the member's own answer: Start, with ✓ Sleep.
   env({ days: { [TODAY]: { sleep: 7.2, hrv: 50 } } });
   m = await mount();
   try {
     assert.equal(document.querySelector('[data-bs-checkin-steps]')?.textContent, '✓ SleepEnergy');
-    assert.equal(document.querySelector('[data-bs-checkin-start]').getAttribute('aria-label'), 'Start check-in');
+    assert.equal(document.querySelector('[data-bs-checkin-start]').getAttribute('aria-label'), 'Start check-in · Morning check-in');
   } finally { m.unmount(); }
 });
 
@@ -524,7 +524,7 @@ test("a wearable's night is shown on step 1, never asked or typed over, and Same
   const calls = env({ days: { [TODAY]: { sleep: 7.2, hrv: 50 }, [YDAY]: { energy: 7, hunger: 5, sleep: 7, hrv: 48 } } });
   const m = await mount();
   try {
-    assert.equal(document.querySelector('[data-bs-checkin-start]')?.getAttribute('aria-label'), 'Start check-in', "a watch's night alone counted as the member's own answer");
+    assert.equal(document.querySelector('[data-bs-checkin-start]')?.getAttribute('aria-label'), 'Start check-in · Morning check-in', "a watch's night alone counted as the member's own answer");
     assert.doesNotMatch(m.text(), /Good · 7h/, "yesterday's wearable night is offered as the member's own");
     // Start opens the night, the watch's included: its hours and How did you wake up? are there.
     await m.click(/Start check-in/);

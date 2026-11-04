@@ -1051,7 +1051,7 @@ function BSCheckinDay({ dayIso, openRequest = null, onOpenRequestConsumed = null
           // morning in one tap, with yesterday's answers on the line. With nothing to repeat the whole
           // row is Start, its square an arrow.
           <div data-bs-checkin-row="" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button type="button" data-bs-checkin-start="" aria-label={startAria} onClick={() => open(firstOpen())}
+            <button type="button" data-bs-checkin-start="" aria-label={`${startAria} · ${tr('home:checkin.title', { defaultValue: 'Morning check-in' })}`} onClick={() => open(firstOpen())}
               style={{ flex: 1, minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={{ flex: 1, minWidth: 0, display: 'block' }}>
                 <span style={{ ...title, display: 'block' }}>{tr('home:checkin.title', { defaultValue: 'Morning check-in' })}</span>

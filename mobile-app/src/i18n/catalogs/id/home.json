@@ -485,7 +485,7 @@
   "climb.nowWord": "sekarang",
   "climb.paceSoon": "Laju setelah seminggu menimbang",
   "climb.paceWeek": "{pace} {unit}/mgg",
-  "habits.more": "{count} kebiasaan lagi",
+  "habits.more": "{count, plural, other {# kebiasaan lagi}}",
   "team.coaches": "{count, plural, other {# pelatih}}",
   "team.fuel": "Sisa hari ini",
   "team.kcalLeft": "kkal tersisa",
@@ -503,5 +503,6 @@
   "week.month": "Bulan →",
   "habits.avoidShort": "Tanpa {what}",
   "checkin.sameAsk": "Sama seperti kemarin? {line}",
-  "checkin.sameAskBare": "Sama seperti kemarin?"
+  "checkin.sameAskBare": "Sama seperti kemarin?",
+  "team.sampleNote": "Lima piring. Tiga dicatat sebelum siang. Jangan kendor di sore hari — isi ulang pukul 16.00."
 }

@@ -485,7 +485,7 @@
   "climb.nowWord": "hiện tại",
   "climb.paceSoon": "Nhịp độ sau một tuần cân",
   "climb.paceWeek": "{pace} {unit}/tuần",
-  "habits.more": "Thêm {count} thói quen",
+  "habits.more": "{count, plural, other {Thêm # thói quen}}",
   "team.coaches": "{count, plural, other {# huấn luyện viên}}",
   "team.fuel": "Còn lại hôm nay",
   "team.kcalLeft": "kcal còn lại",
@@ -503,5 +503,6 @@
   "week.month": "Tháng →",
   "habits.avoidShort": "Không {what}",
   "checkin.sameAsk": "Giống hôm qua? {line}",
-  "checkin.sameAskBare": "Giống hôm qua?"
+  "checkin.sameAskBare": "Giống hôm qua?",
+  "team.sampleNote": "Năm đĩa. Ba đĩa đã ghi trước buổi trưa. Đừng lơ là buổi chiều — nạp lại lúc 16:00."
 }

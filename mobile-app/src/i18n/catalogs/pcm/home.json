@@ -485,7 +485,7 @@
   "climb.nowWord": "now",
   "climb.paceSoon": "Pace go show after one week of weigh-in",
   "climb.paceWeek": "{pace} {unit}/week",
-  "habits.more": "{count} more habit",
+  "habits.more": "{count, plural, one {# more habit} other {# more habits}}",
   "team.coaches": "{count, plural, one {# coach} other {# coach}}",
   "team.fuel": "Wetin remain today",
   "team.kcalLeft": "kcal remain",
@@ -503,5 +503,6 @@
   "week.month": "Month →",
   "habits.avoidShort": "No {what}",
   "checkin.sameAsk": "Same as yesterday? {line}",
-  "checkin.sameAskBare": "Same as yesterday?"
+  "checkin.sameAskBare": "Same as yesterday?",
+  "team.sampleNote": "Five plates. You don log three before noon. No relax for afternoon — chop again by 16:00."
 }

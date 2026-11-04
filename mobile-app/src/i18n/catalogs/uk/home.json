@@ -485,7 +485,7 @@
   "climb.nowWord": "зараз",
   "climb.paceSoon": "Темп — після тижня зважувань",
   "climb.paceWeek": "{pace} {unit}/тиж.",
-  "habits.more": "Ще звичок: {count}",
+  "habits.more": "{count, plural, one {Ще # звичка} few {Ще # звички} many {Ще # звичок} other {Ще # звички}}",
   "team.coaches": "{count, plural, one {# тренер} few {# тренери} many {# тренерів} other {# тренера}}",
   "team.fuel": "Лишилося на сьогодні",
   "team.kcalLeft": "ккал лишилося",
@@ -503,5 +503,6 @@
   "week.month": "Місяць →",
   "habits.avoidShort": "Без: {what}",
   "checkin.sameAsk": "Як учора? {line}",
-  "checkin.sameAskBare": "Як учора?"
+  "checkin.sameAskBare": "Як учора?",
+  "team.sampleNote": "П'ять тарілок. Три записано до полудня. Не розслабляйся вдень — підкріпися о 16:00."
 }

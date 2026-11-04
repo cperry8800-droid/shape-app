@@ -300,8 +300,13 @@ export async function GET(request: Request) {
   for (const [role, res] of [['trainer', trNames], ['nutritionist', nuNames]] as const) {
     for (const r of rowsOf(res)) photoOf.set(`${role}:${r.id}`, portraitOf(r));
   }
-  const ownersNeedingAvatar = [...new Set([...rowsOf(trNames), ...rowsOf(nuNames)]
-    .filter((r) => !portraitOf(r) && typeof r.owner_id === 'string' && r.owner_id)
+  // Only the coaches the member pays have a face on Home (coachingFor's list), so only theirs are read: a
+  // former trainer behind an old workout, or a meal plan's author no longer paid, costs no read.
+  const paidIds = new Set([...trainerSubs.map((r) => `trainer:${r.provider_id}`), ...nutriSubs.map((r) => `nutritionist:${r.provider_id}`)]);
+  const ownersNeedingAvatar = [...new Set([
+    ...rowsOf(trNames).filter((r) => paidIds.has(`trainer:${r.id}`)),
+    ...rowsOf(nuNames).filter((r) => paidIds.has(`nutritionist:${r.id}`)),
+  ].filter((r) => !portraitOf(r) && typeof r.owner_id === 'string' && r.owner_id)
     .map((r) => r.owner_id as string))];
   // The profile photo as the marketplace reads it (Codex P2 on #2583): get_public_profile's avatar, the
   // client_identity photo the app's picker writes as a small square JPEG data URL. profiles.avatar_url is

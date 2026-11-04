@@ -15,7 +15,7 @@ test("Home writes no habit of its own: the morning panel's row ticks today throu
   const home = source.slice(source.indexOf('function BSClientHome('), source.indexOf('function _bsHomeWidgets('));
   assert.ok(home.length > 1000, 'BSClientHome was not found — re-point this guard');
   assert.doesNotMatch(home, /ShapeHabitsData\.action/, 'Home writes a habit again — give it the future-date guard');
-  assert.match(home, /<BSHomeHabitsRow tour="hero-habits" tweaks=\{tweaks\} setTweak=\{setTweak\} onOpen=\{\(\) => setHabitsPage\(true\)\} \/>/, 'the habits row no longer opens the habits page');
+  assert.match(home, /<BSHomeHabitsRow tour="hero-habits" tweaks=\{tweaks\} setTweak=\{setTweak\} onOpen=\{\(\) => setHabitsPage\(true\)\} onTicked=\{bsScoreDirty\} \/>/, 'the habits row no longer opens the habits page');
   const sections = readFileSync(new URL('../mobile-app/src/broadsheet/BSHomeSections.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(sections, /ShapeHabitsData\.action/, 'the habits row writes a habit itself');
   assert.match(sections, /window\._bsUseServerHabits/, "the habits row left the page's store");

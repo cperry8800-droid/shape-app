@@ -700,7 +700,9 @@ test("the plan read carries each paid coach's face: the listing portrait, else t
     ]),
   });
   const tables = {
-    client_workouts: [], client_meal_plans: [], client_programs: [],
+    // A session by a trainer no longer paid (10): their name is read for the session, their face never is.
+    client_workouts: [{ id: 'w10', client_id: U, status: 'published', title: 'Old block', trainer_id: 10, scheduled_date: null, created_at: ago(1), payload: {} }],
+    client_meal_plans: [], client_programs: [],
     subscriptions: [
       { client_id: U, provider_role: 'trainer', provider_id: 7, status: 'active', created_at: ago(3) },
       { client_id: U, provider_role: 'trainer', provider_id: 8, status: 'active', created_at: ago(2) },
@@ -711,6 +713,7 @@ test("the plan read carries each paid coach's face: the listing portrait, else t
       { id: 7, name: 'Tom Trainer', owner_id: 'o7', listing_media: { portrait: OWN('o7') } },
       { id: 8, name: 'Sam Strong', owner_id: 'o8', listing_media: { portrait: 'https://pixel.example/track.gif' } },
       { id: 9, name: 'Pat Planted', owner_id: 'o9', listing_media: { portrait: OWN('o7') } },
+      { id: 10, name: 'Former Coach', owner_id: 'o10', listing_media: null },
     ],
     nutritionists: [{ id: 3, name: 'Nia Nutrition', owner_id: 'o3', listing_media: null }],
     conversations: [],
@@ -726,7 +729,7 @@ test("the plan read carries each paid coach's face: the listing portrait, else t
     "the portrait in the coach's own folder; a portrait anywhere else (a tracking pixel, another coach's file) is no portrait, so the profile photo or nothing");
   assert.equal(body.meals.coaching.coaches[0].photo, null, 'a photo that is not a raster image is no photo: the card keeps the initials');
   const asked = db._calls.filter((c) => c.rpc === 'get_public_profile');
-  assert.deepEqual(asked.map((c) => c.args.p_user_id).sort(), ['o3', 'o8', 'o9'], 'one read per coach without a portrait; a coach with a portrait costs none');
+  assert.deepEqual(asked.map((c) => c.args.p_user_id).sort(), ['o3', 'o8', 'o9'], 'one read per paid coach without a portrait; a coach with a portrait, or one no longer paid, costs none');
   assert.equal(db._calls.filter((c) => c.rpc === 'get_display_names').length, 0, 'profiles.avatar_url is not the photo the marketplace shows');
   // A failed avatar read is a face missing, never the plan: the coaches and their names stand.
   const failed = (await (await load(fakeSupabase({ tables, rpcs, fail: ['rpc:get_public_profile'] }))).GET(new Request('https://x/api/client/plan'))).body;

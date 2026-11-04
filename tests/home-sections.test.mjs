@@ -340,22 +340,27 @@ test('the week\'s reads are used only in the week they were read for (Codex P2s 
   assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);
 });
 
-test("the ticker: signed in, nothing until something is live, and the score alone when it is all that is (Codex P2 on #2583)", () => {
-  const all = [{ label: 'PTS', value: '1,240' }, { label: 'CAL', value: '1568/2100' }, { label: 'HAB', value: '3/5' }];
-  const out = [all[1], all[0], all[2]];
-  // Signed out: the preview, in the member's order.
+test("the ticker: signed out the preview; signed in only the member's own figures, never a sample beside a real one (#2583)", () => {
+  const all = [{ label: 'PTS', value: '1,240', live: true }, { label: 'CAL', value: '1568/2100', live: false }, { label: 'HAB', value: '2/3', live: true }, { label: 'SLP', value: '7H24M', live: false }];
+  const out = [all[2], all[0], all[1], all[3]];
+  // Signed out: the preview, in the member's order; everything hidden still reads as the preview.
   assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: false }), out);
-  // Signed in, a new account whose score is live and nothing else: the score alone, never the demo numbers.
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, scoreLive: true }).map((i) => i.label), ['PTS']);
-  // ...unless the member hid it; and with no score either, no ticker.
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, scoreLive: true, hidden: ['PTS'] }), []);
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, scoreLive: false }), []);
-  // Something live (a metric or a habit): the member's own order, as before.
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, metricsLive: true }), out);
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true, habitsLive: true, scoreLive: true }), out);
-  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: true, metricsLive: true }), all, 'everything hidden reads the whole set, as it did');
-  // Home's ticker goes through it, with the score's own live flag.
+  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: false }), all);
+  // Signed in: only the live ones, in their order: a habit and the score, never the sample calories or sleep.
+  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true }).map((i) => i.label), ['HAB', 'PTS']);
+  // A new account whose score is all there is: the score alone (Codex P2 on #2583).
+  assert.deepEqual(H.bsHomeTickerShown([all[0], all[1]], all, { signedIn: true }).map((i) => i.label), ['PTS']);
+  // Nothing live, or everything hidden: no ticker, never the hidden ones back.
+  assert.deepEqual(H.bsHomeTickerShown([all[1], all[3]], all, { signedIn: true }), []);
+  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: true }), []);
+  // Home's ticker marks each entry live from its own read, and the score in the reader's number format.
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(client, /return bsHomeTickerShown\(out, all, \{ signedIn: bsHomeSignedIn, metricsLive, habitsLive: !!tkHab, scoreLive, hidden: tickerPrefs\.hidden \}\);/);
-  assert.match(client, /\.\.\.\(scoreLive\s+\? \[\{ label: 'PTS'/);
+  assert.match(client, /return bsHomeTickerShown\(out, all, \{ signedIn: bsHomeSignedIn \}\);/);
+  assert.match(client, /\{ label: 'PTS', live: true, value: homeScore\.total\.toLocaleString\(bsCkLocale\(\)\)/);
+  for (const [k, live] of [['CAL', "tk.cal != null"], ['PRO', "tk.protein_g != null"], ['HAB', '!!tkHab'], ['SLP', 'tk.sleep_hours != null'], ['HRV', 'tk.hrv_ms != null'], ['RHR', 'tk.resting_hr != null'], ['WGT', 'tk.weight_lb != null']]) {
+    assert.ok(client.includes(`{ label: '${k}', live: ${live},`), `${k} says when it is the member's own`);
+  }
+  assert.doesNotMatch(client, /toLocaleString\('en-US'\)/, 'the score in English digits everywhere');
+  // The score is one of Settings' ticker entries, so it can be moved or hidden like the rest.
+  assert.match(client, /const BS_TICKER_METRICS = \[[\s\S]{0,200}\{ key: 'PTS', name: 'Shape Score' \},/);
 });

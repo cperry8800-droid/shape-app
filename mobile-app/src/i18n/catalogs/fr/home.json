@@ -485,7 +485,7 @@
   "climb.nowWord": "maintenant",
   "climb.paceSoon": "Rythme après une semaine de pesées",
   "climb.paceWeek": "{pace} {unit}/sem.",
-  "habits.more": "{count} habitudes de plus",
+  "habits.more": "{count, plural, one {# habitude de plus} other {# habitudes de plus}}",
   "team.coaches": "{count, plural, one {# coach} other {# coachs}}",
   "team.fuel": "Reste du jour",
   "team.kcalLeft": "kcal restantes",
@@ -503,5 +503,6 @@
   "week.month": "Mois →",
   "habits.avoidShort": "Pas de {what}",
   "checkin.sameAsk": "Comme hier ? {line}",
-  "checkin.sameAskBare": "Comme hier ?"
+  "checkin.sameAskBare": "Comme hier ?",
+  "team.sampleNote": "Cinq assiettes. Trois notées avant midi. Ne relâche pas l’après-midi : recharge à 16 h."
 }

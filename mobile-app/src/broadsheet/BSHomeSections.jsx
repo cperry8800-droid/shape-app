@@ -181,10 +181,15 @@ export function useBSHomeNextSession(coaches) {
 // sample's habits, and a tick asks for an account (the store's own gate).
 const BS_HS_HABIT_TICKS = 3;
 function useBSHomeHabitsFallback() { return { habits: [], status: 'ready', toggle: () => {} }; }
-export function BSHomeHabitsRow({ tweaks = {}, setTweak = () => {}, onOpen, tour }) {
+export function BSHomeHabitsRow({ tweaks = {}, setTweak = () => {}, onOpen, tour, onTicked }) {
   const useHabits = (typeof window !== 'undefined' && window._bsUseServerHabits) || useBSHomeHabitsFallback;
   const store = useHabits(tweaks, setTweak);
-  return <BSHomeHabitsRowView habits={store.habits} ready={store.status === 'ready'} onToggle={store.toggle} onOpen={onOpen} tour={tour} />;
+  // A tick may earn points: the score on Home reads itself again once the tick is written (onTicked).
+  const toggle = (id) => {
+    const r = store.toggle(id);
+    if (typeof onTicked === 'function') Promise.resolve(r).then(() => onTicked(), () => {});
+  };
+  return <BSHomeHabitsRowView habits={store.habits} ready={store.status === 'ready'} onToggle={toggle} onOpen={onOpen} tour={tour} />;
 }
 
 export function BSHomeHabitsRowView({ habits = [], ready = true, onToggle, onOpen, tour, todayIso = bsCiIso(new Date()) }) {
@@ -225,8 +230,8 @@ export function BSHomeHabitsRowView({ habits = [], ready = true, onToggle, onOpe
         </button>
       )) : null}
       {ready && more > 0 ? (
-        <button type="button" onClick={open} aria-label={tr('home:habits.more', { defaultValue: '{count} more habits', count: more })}
-          style={{ minWidth: 34, minHeight: 44, flexShrink: 0, padding: '0 4px', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70 }}>+{more}</button>
+        <button type="button" onClick={open} aria-label={tr('home:habits.more', { defaultValue: '{count, plural, one {# more habit} other {# more habits}}', count: more })}
+          style={{ minWidth: 44, minHeight: 44, flexShrink: 0, padding: '0 4px', border: 0, background: 'transparent', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, color: t.INK70 }}>+{more}</button>
       ) : null}
       {ready && !list.length ? <span aria-hidden="true" style={{ color: t.INK50, fontSize: 20 }}>›</span> : null}
     </div>

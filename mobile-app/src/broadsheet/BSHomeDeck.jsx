@@ -96,8 +96,10 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   const walked = st.kind === 'progress' || st.kind === 'reached';
   const pos = (p) => { const pt = bsClimbPoint(p); return { left: `${(pt.x / BS_CLIMB_W) * 100}%`, top: `${(pt.y / BS_CLIMB_H) * 100}%` }; };
   const mono = { fontFamily: BS_DECK_MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: faint, whiteSpace: 'nowrap' };
-  const since = read && read.sinceIso ? tr('home:goal.since', { defaultValue: 'Since {date}', date: bsHdDate(read.sinceIso, { month: 'short', day: 'numeric' }) }) : null;
-  const eyebrow = [words ? `“${words}”` : null, since].filter(Boolean).join(' · ');
+  // Since when, only with a weight on show; and the goal's words over the climb, unless they are its
+  // big line already (the words state).
+  const since = read && read.sinceIso && (st.kind === 'progress' || st.kind === 'reached' || st.kind === 'start') ? tr('home:goal.since', { defaultValue: 'Since {date}', date: bsHdDate(read.sinceIso, { month: 'short', day: 'numeric' }) }) : null;
+  const eyebrow = [words && st.kind !== 'words' ? `“${words}”` : null, since].filter(Boolean).join(' · ');
   const link = (label) => (
     <button type="button" onClick={(e) => { e.stopPropagation(); if (typeof onOpen === 'function') onOpen(); }}
       style={{ minHeight: 44, padding: 0, marginTop: 2, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9.5, color: teal }}>{label}</button>
@@ -264,7 +266,7 @@ export function BSHomeWeekBarsView({ w, checkinsOn = true, onDay, onMonth }) {
           {tr('home:section.thisWeek', { defaultValue: 'This week' })}<span aria-hidden="true" style={{ color: '#e0654b' }}>.</span>
         </h2>
         {isoWeek ? <span style={{ ...mono, fontSize: 8.5, letterSpacing: '0.14em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('home:dateline.wkAbbr', { defaultValue: 'Wk' })} {isoWeek} · {span}</span> : null}
-        {onMonth ? <button type="button" onClick={onMonth} style={{ marginLeft: 'auto', minHeight: 40, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
+        {onMonth ? <button type="button" onClick={onMonth} style={{ marginLeft: 'auto', minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', ...mono, fontSize: 9, letterSpacing: '0.14em', color: t.ACCENT, whiteSpace: 'nowrap' }}>{tr('home:week.month', { defaultValue: 'Month →' })}</button> : null}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginTop: 4 }}>
         {(week.length ? week : Array.from({ length: 7 }, () => null)).map((iso, i) => {

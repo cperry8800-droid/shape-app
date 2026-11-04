@@ -189,6 +189,9 @@ test('the climb says only what it can: reached, a start with no target, a target
   const race = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'race', overall: {}, weighIns: LOSING }, onOpen }));
   assert.equal(climbOf(race).props['data-bs-home-climb'], 'words');
   assert.match(race.text, /“Run a race”/);
+  // The words once (they are the big line), and no "Since" date with no weight on show (#2583).
+  assert.equal(race.text.split('“Run a race”').length - 1, 1, 'the goal\'s words twice');
+  assert.doesNotMatch(race.text, /Since/);
   assert.doesNotMatch(race.text, /171\.1|lb now/, 'no weight read on a race goal');
   assert.equal(textOf(climbLinks(race)[0]), 'Add a number to track it →');
   tap(race);
@@ -369,10 +372,10 @@ test('Team: each coach once, the trainer with today\'s call and the nutritionist
   assert.equal(textOf(log), 'Log Lunch →');
   log.props.onClick();
   assert.equal(logged.length, 1);
-  // Each coach is offered once, with what is unread on their Message.
+  // Each coach is offered once, with what is unread on their Message, said to a screen reader too (#2583).
   assert.deepEqual(messages(d).map((b) => [b.props['data-team-message'], textOf(b), b.props['aria-label']]), [
     ['trainer', 'Message', 'Message Jordan Chen'],
-    ['nutritionist', 'Message · 2 new', 'Message Maya Patel'],
+    ['nutritionist', 'Message · 2 new', 'Message Maya Patel, 2 new'],
   ]);
   assert.ok(messages(d).every((b) => b.props.style.minHeight === 44));
   assert.doesNotMatch(d.text, /Find a coach/, 'a member with coaches is not sent to find one');
@@ -493,7 +496,7 @@ test("a meal logged from Team is counted in Team's food left once it is written"
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
   const flow = client.slice(client.indexOf('function BSLogMealFlow('), client.indexOf('function BSLogMealFlow(') + 40000);
   assert.match(flow, /write = r;[\s\S]{0,400}onLogged\(write\);/, 'the logger hands its write to onLogged');
-  assert.match(client, /onLogged=\{\(write\) => \{\s+if \(loggingMealId\) setMealLogged\(\(prev\) => \(\{ \.\.\.prev, \[loggingMealId\]: true \}\)\);[\s\S]{0,300}if \(write && typeof write\.then === 'function'\) write\.then\(\(\) => refreshAnalytics\(\), \(\) => \{\}\);\s+setTimeout\(refreshAnalytics, 700\);/);
+  assert.match(client, /onLogged=\{\(write\) => \{\s+if \(loggingMealId\) setMealLogged\(\(prev\) => \(\{ \.\.\.prev, \[loggingMealId\]: true \}\)\);[\s\S]{0,300}if \(write && typeof write\.then === 'function'\) write\.then\(\(\) => \{ refreshAnalytics\(\); bsScoreDirty\(\); \}, \(\) => \{\}\);\s+setTimeout\(refreshAnalytics, 700\);/);
 });
 
 // Codex P2 on #2583: a member who pays two nutritionists sees the day's meals under the one who wrote the plan.
@@ -519,7 +522,7 @@ test("the day's meals go on the card of the nutritionist who wrote the plan, wit
   const former = drive(T.BSHomeTeamView, TEAM({ coaches: [JORDAN, MAYA, NIA2], mealCoachId: 99 }));
   assert.match(textOf(coachBlock(former, 'none-fuel')), /kcal left/);
   assert.doesNotMatch(textOf(coachBlock(former, 'nutritionist')), /kcal left|Log /);
-  assert.ok(former.nodes().some((n) => n.type === 'button' && n.props['aria-label'] === 'Message Maya Patel'), "Maya's Message stays hers");
+  assert.ok(former.nodes().some((n) => n.type === 'button' && /^Message Maya Patel(, |$)/.test(n.props['aria-label'] || '')), "Maya's Message stays hers");
   const fuelCard = coachBlock(former, 'none-fuel');
   assert.ok(!former.nodes().some((n) => n.type === 'button' && n.props['data-team-message'] && textOf(fuelCard).includes(textOf(n)) && /Maya|Nia/.test(n.props['aria-label'] || '')), 'no coach\'s Message on those meals');
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
@@ -648,4 +651,26 @@ test('signed out, Daily habits shows the sample\'s habits as today\'s ticks', ()
     assert.deepEqual(list.map((b) => b.props['data-habit-tick']), rows.slice(0, 3).map((h) => (h.pattern[3] === 1 ? 'done' : 'open')));
     assert.equal(textOf(list[1]), '✓steps', 'a number is not a word: "10,000 steps" reads steps');
   } finally { globalThis._BS_HABIT_DEMO_ROWS = prev; }
+});
+
+// The self-review of #2583: Home's reads after its own writes, the trainer behind the preview's Message, the
+// week by Train's rule, the reader's clock, and the sample's note in the reader's language.
+test("Home re-reads the score after what earns points, messages the session's own trainer, and slots its week by Train's rule", () => {
+  const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
+  const sections = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'BSHomeSections.jsx'), 'utf8');
+  // The score reads itself again on a check-in saved and on Home's own point-earning writes.
+  assert.match(client, /window\.addEventListener\(BS_CI_SAVED, again\);\s+window\.addEventListener\(BS_SCORE_DIRTY, again\);/);
+  assert.match(client, /write\.then\(\(\) => \{ refreshAnalytics\(\); bsScoreDirty\(\); \}, \(\) => \{\}\);/, 'a meal logged from Team');
+  assert.match(client, /<BSHomeHabitsRow tour="hero-habits"[^\n]*onTicked=\{bsScoreDirty\} \/>/, 'a habit ticked on Home');
+  assert.match(sections, /Promise\.resolve\(r\)\.then\(\(\) => onTicked\(\), \(\) => \{\}\);/);
+  // The preview's Message: the session's own trainer's thread, never the sample coach for a signed-in member.
+  assert.match(client, /if \(!bsHomeSignedIn\) \{ goChat\('Jordan Chen', 'Coach · Hypertrophy'\); return; \}\s+const c = selWorkout && selWorkout\.coachId != null/);
+  assert.doesNotMatch(client, /onMessage=\{\(\) => \{ setShowWorkoutPreview\(false\); goChat\('Jordan Chen'/);
+  // Home's week is Train's (bsSlotWeek): a session dated in another week is never today's.
+  assert.match(client, /const wSlots = bsSlotWeek\(\(plan\.training && plan\.training\.workouts\) \|\| \[\], monday\);/);
+  // The reader's clock, and no time where none was set.
+  assert.match(client, /new Intl\.DateTimeFormat\(bsCkLocale\(\), \{ hour: 'numeric', minute: '2-digit' \}\)/);
+  assert.match(client, /time: _wkTimed \? fmtAt\(WORKOUT_AT\) : null/);
+  // The signed-out sample's note, in the reader's language.
+  assert.match(client, /text: tr\('home:team\.sampleNote', \{ defaultValue: 'Five plates\./);
 });

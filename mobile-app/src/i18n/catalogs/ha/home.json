@@ -485,7 +485,7 @@
   "climb.nowWord": "yanzu",
   "climb.paceSoon": "Saurin tafiya bayan mako guda na auna nauyi",
   "climb.paceWeek": "{pace} {unit}/mako",
-  "habits.more": "Ƙarin halaye {count}",
+  "habits.more": "{count, plural, one {Ƙarin hali #} other {Ƙarin halaye #}}",
   "team.coaches": "{count, plural, one {koci #} other {koci #}}",
   "team.fuel": "Abin da ya rage yau",
   "team.kcalLeft": "kcal sun rage",
@@ -503,5 +503,6 @@
   "week.month": "Wata →",
   "habits.avoidShort": "Babu {what}",
   "checkin.sameAsk": "Kamar jiya? {line}",
-  "checkin.sameAskBare": "Kamar jiya?"
+  "checkin.sameAskBare": "Kamar jiya?",
+  "team.sampleNote": "Faranti biyar. An rubuta uku kafin rana. Kada ka sassauta da rana — ka sake ci da ƙarfe 16:00."
 }

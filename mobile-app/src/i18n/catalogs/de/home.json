@@ -485,7 +485,7 @@
   "climb.nowWord": "jetzt",
   "climb.paceSoon": "Tempo nach einer Woche Wiegen",
   "climb.paceWeek": "{pace} {unit}/Wo.",
-  "habits.more": "{count} weitere Gewohnheiten",
+  "habits.more": "{count, plural, one {# weitere Gewohnheit} other {# weitere Gewohnheiten}}",
   "team.coaches": "{count, plural, one {# Coach} other {# Coaches}}",
   "team.fuel": "Heute noch übrig",
   "team.kcalLeft": "kcal übrig",
@@ -503,5 +503,6 @@
   "week.month": "Monat →",
   "habits.avoidShort": "Kein {what}",
   "checkin.sameAsk": "Wie gestern? {line}",
-  "checkin.sameAskBare": "Wie gestern?"
+  "checkin.sameAskBare": "Wie gestern?",
+  "team.sampleNote": "Fünf Teller. Drei vor Mittag eingetragen. Lass am Nachmittag nicht nach – um 16:00 nachlegen."
 }

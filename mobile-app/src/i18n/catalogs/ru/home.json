@@ -485,7 +485,7 @@
   "climb.nowWord": "сейчас",
   "climb.paceSoon": "Темп — через неделю взвешиваний",
   "climb.paceWeek": "{pace} {unit}/нед.",
-  "habits.more": "Ещё привычек: {count}",
+  "habits.more": "{count, plural, one {Ещё # привычка} few {Ещё # привычки} many {Ещё # привычек} other {Ещё # привычки}}",
   "team.coaches": "{count, plural, one {# тренер} few {# тренера} many {# тренеров} other {# тренера}}",
   "team.fuel": "Осталось на сегодня",
   "team.kcalLeft": "ккал осталось",
@@ -503,5 +503,6 @@
   "week.month": "Месяц →",
   "habits.avoidShort": "Без: {what}",
   "checkin.sameAsk": "Как вчера? {line}",
-  "checkin.sameAskBare": "Как вчера?"
+  "checkin.sameAskBare": "Как вчера?",
+  "team.sampleNote": "Пять тарелок. Три записаны до полудня. Не расслабляйся днём — подкрепись в 16:00."
 }

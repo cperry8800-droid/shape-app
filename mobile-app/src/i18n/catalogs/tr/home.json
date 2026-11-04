@@ -485,7 +485,7 @@
   "climb.nowWord": "şimdi",
   "climb.paceSoon": "Bir haftalık tartımdan sonra tempo",
   "climb.paceWeek": "{pace} {unit}/hf",
-  "habits.more": "{count} alışkanlık daha",
+  "habits.more": "{count, plural, one {# alışkanlık daha} other {# alışkanlık daha}}",
   "team.coaches": "{count, plural, other {# koç}}",
   "team.fuel": "Bugün kalan",
   "team.kcalLeft": "kcal kaldı",
@@ -503,5 +503,6 @@
   "week.month": "Ay →",
   "habits.avoidShort": "{what} yok",
   "checkin.sameAsk": "Dünkü gibi mi? {line}",
-  "checkin.sameAskBare": "Dünkü gibi mi?"
+  "checkin.sameAskBare": "Dünkü gibi mi?",
+  "team.sampleNote": "Beş tabak. Üçü öğleden önce kaydedildi. Öğleden sonra gevşeme — 16:00'da yeniden ye."
 }
