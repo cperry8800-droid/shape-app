@@ -78,10 +78,10 @@ test('the week strip sits at the top, under Today, above Up next and To do', () 
   const week = PROS.indexOf('{/* THIS WEEK — the day strip');
   const live = PROS.indexOf('{/* LIVE — a client training');
   const up = PROS.indexOf('{/* UP NEXT — today\'s next booking');
-  const todo = PROS.indexOf('{/* TO DO — paid sessions to book');
-  const sched = PROS.indexOf('{/* SCHEDULE — the selected day');
+  // To do and the schedule share one section since the owner's B (2026-11-04): two tabs over one list.
+  const agenda = PROS.indexOf('{/* TO DO + SCHEDULE — two quiet tabs over one list');
   assert.ok(head > 0 && week > head, 'the strip is under the Today header');
-  assert.ok(live > week && up > week && todo > week && sched > todo, 'Today, the strip, then Up next, To do and the schedule');
+  assert.ok(live > week && up > week && agenda > up, 'Today, the strip, then Up next, then To do and the schedule');
   assert.equal((PROS.slice(head, week).match(/<section /g) || []).length, 0, 'nothing between Today and the strip');
 });
 
