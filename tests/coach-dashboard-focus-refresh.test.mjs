@@ -44,11 +44,14 @@ let version = 'v1';
 let mode = 'ok';
 // When set, the overviews' answer waits on it: the page's in-between paint is then on screen.
 let holdOverviews = null;
+// The same for the dashboard read.
+let holdDashboard = null;
 const asked = [];
 globalThis.fetch = async (url, init) => {
   asked.push(String(url));
   if (!up) throw new TypeError('Failed to fetch');
   if (holdOverviews && String(url) === '/api/clients/shared-overview') await holdOverviews.promise;
+  if (holdDashboard && String(url).startsWith('/api/trainer/dashboard')) await holdDashboard.promise;
   const json = (body) => ({ ok: true, status: 200, json: async () => body });
   if (mode === 'roster-down' && String(url).startsWith('/api/trainer/clients')) return { ok: false, status: 503, json: async () => ({}) };
   if (String(url).startsWith('/api/trainer/clients')) return json({ isTrainer: true, clients: mode === 'garbled' ? 'oops' : [{ id: A, name: 'Ada' }], totals: { onPlan: 1 } });
@@ -154,6 +157,29 @@ test('a live page re-reads on the coach\'s return, quietly, and a failed re-read
   assert.equal(last().source, 'live');
   assert.equal(last().clients.length, 1);
   mode = 'ok';
+  await React.act(async () => root.unmount());
+});
+
+test('a return a minute after the page opened re-reads, even when the first read answered late (Codex on #2620)', async () => {
+  clock += 120_000; // every earlier read is stale
+  version = 'v5';
+  let release;
+  holdDashboard = { promise: new Promise((r) => { release = r; }) };
+  const root = createRoot(dom.window.document.getElementById('root'));
+  await React.act(async () => root.render(React.createElement(Probe)));
+  await flush();
+  // The dashboard answers 30 seconds after the page opened: its cached copy is 30 seconds younger
+  // than the gate's minute.
+  clock += 30_000;
+  release();
+  holdDashboard = null;
+  await flush();
+  assert.equal(last().today.today[0].clientName, 'v5');
+  // Back 61 seconds after the page opened (31 after that answer), with a new booking on the server.
+  clock += 31_000;
+  version = 'v6';
+  await back('focus');
+  assert.equal(last().today.today[0].clientName, 'v6', 'the return was served the cached Today');
   await React.act(async () => root.unmount());
 });
 

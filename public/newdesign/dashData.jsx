@@ -537,9 +537,13 @@ function dashRoleDashboardUrl(role) {
 // Today, the Week and the Schedule read once per visit, so a booking, a check-in or a cancelled
 // session that arrived while the coach was in another tab stayed off the page until a reload. The
 // Programs page already re-read on focus. These do too now: when the window regains focus or the
-// tab becomes visible, at most once a minute (DASH_FOCUS_MIN_MS, the cache's own lifetime, so a
-// refresh always finds the reads stale and never re-reads what it just read). A focus and a
-// visibilitychange arrive together on a tab switch; the gate lets one of them through.
+// tab becomes visible, at most once a minute (DASH_FOCUS_MIN_MS). A focus and a visibilitychange
+// arrive together on a tab switch; the gate lets one of them through.
+// ⚠ A RETURN EMPTIES THE CACHE BEFORE IT RE-READS (Codex on #2620). The gate's minute starts when the
+// page opens; a cached read's starts when its answer lands, so a first read that answered late (or
+// was still on the wire) would serve the return its old copy, and the gate would then hold the next
+// try for another minute. Emptying it is what `shape:coach-progress-refresh` does, so the same rules
+// hold: an answer already on the wire never repopulates the emptied cache.
 const DASH_FOCUS_MIN_MS = DASH_CACHE_TTL;
 // The gate, apart from the events so it can be tested: true when a return should re-read.
 function dashFocusGate(minMs, startedAt) {
@@ -577,7 +581,7 @@ function useDashboard(role, opts) {
   const stateRef = React.useRef(state);
   stateRef.current = state;
   const quietRef = React.useRef(false);
-  useDashFocusRefresh(() => { quietRef.current = true; setRefreshKey((v) => v + 1); }, !!(opts && opts.refreshOnFocus) && role !== "client");
+  useDashFocusRefresh(() => { _dashCache.clear(); quietRef.current = true; setRefreshKey((v) => v + 1); }, !!(opts && opts.refreshOnFocus) && role !== "client");
   React.useEffect(() => {
     const refresh = (event) => {
       const id = event.detail && event.detail.clientId;
