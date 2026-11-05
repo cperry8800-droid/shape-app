@@ -97,6 +97,75 @@ export function bsProgramLeg(assignments, templatesById, mine, now = Date.now())
 
 }
 
+// ── The program the CALLER put on the client's calendar (2026-11-05) ────────
+// ⚠ THIS IS WHAT ASSIGNING A PROGRAM WRITES; `coach_program_assignments` IS NOT. The website's
+// builder, the app's coach Plans and Nora all assign through builderToAssignmentRows →
+// /api/trainer/workout, which writes one `client_workouts` row per training day, each stamped
+// payload.template = { id, name, version, week, day }. The assignments table above has one writer,
+// /api/program-tools/templates POST, which no page or app calls, so every program assigned the way
+// coaches actually assign read "Not set" in the roster, the peek, the Week panel and Programs ending.
+//
+// Rows in: the caller's own published, dated rows that carry a template (shared-overview reads
+// them with `template_id`, `template_name`, `template_week` and `scheduled_date`). A RUN is one
+// assignment of one template: its days share an anchor (the date less 7 × (week − 1) days), which
+// lies within the week after the start the coach chose, so a second assignment of the same template
+// is a second run. `weeks` is the run's own length (its highest week): an assignment is a snapshot
+// (dashBuilderCore.js), so the template edited since does not change the client's block, and a
+// program whose later weeks the guardrail held reads as the weeks the client really has.
+//
+// The current run is the one most recently STARTED; with none started yet, the next to start
+// (status 'assigned', no week). A run of one day is a single workout, not a program. A run starts
+// on its first training day (the start the coach chose, when that day trains). The week counts from
+// it in whole weeks, capped at the run's length; `overdue` once its last week has passed. Day arithmetic is on calendar dates, so no clock's offset moves a day.
+export function bsWorkoutProgramLeg(rows, now = Date.now()) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const WEEK = 7 * DAY_MS;
+  const todayMs = Date.parse(isoDayUTC(now) + 'T00:00:00Z');
+  const days = [];
+  for (const r of rows) {
+    if (!r) continue;
+    const id = typeof r.template_id === 'string' && r.template_id ? r.template_id : null;
+    const date = typeof r.scheduled_date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.scheduled_date) ? r.scheduled_date.slice(0, 10) : null;
+    const week = num(r.template_week);
+    if (!id || !date || week == null || !Number.isInteger(week) || week < 1) continue;
+    const at = Date.parse(date + 'T00:00:00Z');
+    if (!Number.isFinite(at)) continue;
+    days.push({ id, name: typeof r.template_name === 'string' ? r.template_name.trim() : '', week, at, anchor: at - (week - 1) * WEEK });
+  }
+  // Group into runs: by template, then by anchor, a new run where the anchors part by over 6 days.
+  days.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : a.anchor - b.anchor));
+  const runs = [];
+  let cur = null;
+  for (const d of days) {
+    if (!cur || cur.id !== d.id || d.anchor - cur.start > 6 * DAY_MS) {
+      cur = { id: d.id, start: d.anchor, weeks: 0, count: 0, last: -Infinity, name: '' };
+      runs.push(cur);
+    }
+    cur.count += 1;
+    cur.weeks = Math.max(cur.weeks, d.week);
+    // The name the client sees on their newest day of the run.
+    if (d.at >= cur.last) { cur.last = d.at; if (d.name) cur.name = d.name; }
+  }
+  const programs = runs.filter((r) => r.count >= 2 && r.name);
+  if (!programs.length) return null;
+  const started = programs.filter((r) => r.start <= todayMs);
+  const pick = started.length
+    ? started.reduce((a, b) => (b.start > a.start || (b.start === a.start && b.last > a.last) ? b : a))
+    : programs.reduce((a, b) => (b.start < a.start ? b : a));
+  const isStarted = pick.start <= todayMs;
+  const week = isStarted ? Math.min(pick.weeks, Math.floor((todayMs - pick.start) / WEEK) + 1) : null;
+  const end = pick.start + pick.weeks * WEEK;
+  const next = programs
+    .filter((r) => r !== pick && r.start > pick.start)
+    .reduce((a, b) => (!a || b.start < a.start ? b : a), null);
+  return {
+    name: pick.name, week, weeks: pick.weeks, status: isStarted ? 'active' : 'assigned',
+    estimatedEndAt: new Date(end).toISOString(),
+    overdue: todayMs >= end,
+    nextAssigned: next ? next.name : null,
+  };
+}
+
 // ── Food logging: the last logged day, and the recent days themselves ───────
 // ⚠ A DAY COUNTS AS LOGGED WHEN IT CARRIES CALORIES EATEN — the SAME definition
 // `get_client_stats` uses (`dietary_kcal is not null`, 2026-10-11-dietary-kcal.sql;

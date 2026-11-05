@@ -258,8 +258,9 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
         })
       : null,
     goalPhase: phases ? phases.nutrition || phases.training || null : null,
-    // The block the CALLER assigned, and the week it is in — counted from the
-    // assignment and capped at the template's length (src/lib/coach-client-legs.mjs).
+    // The block the CALLER put on the client's calendar, and the week it is in — counted
+    // from its first training day and capped at its length (bsWorkoutProgramLeg in
+    // src/lib/coach-client-legs.mjs; an assignment row when there is none).
     program: ov && ov.program ? ov.program : null,
     coachNotes: noteText
       ? [{ on: note.updatedAt ? String(note.updatedAt).slice(0, 10) : null, text: noteText }]

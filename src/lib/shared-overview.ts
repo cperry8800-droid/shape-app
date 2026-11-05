@@ -17,7 +17,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
+import { bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
@@ -32,6 +32,12 @@ export type SharedOverviewMe = { trainerId: number | null; nutritionistId: numbe
 // route file because an App Router route may export only its handler set (an
 // exported helper fails the build's typegen — measured on the recipe-photo route).
 export const BATCH_MAX_IDS = 50;
+// The program leg's read of the caller's assigned days (bsWorkoutProgramLeg): a year back, newest
+// first. A trainer assigns a client a few hundred days a year at most; past the cap the oldest go,
+// which only shortens the start of a run the newest days already date.
+const PROGRAM_DAYS_BACK = 371;
+const PROGRAM_DAY_CAP = 1000;
+type ProgramDayRow = { scheduled_date: string | null; template_id: string | null; template_name: string | null; template_week: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Validate + dedupe a batch body's id list: UUIDs only, at least one, at most the cap. */
@@ -301,6 +307,24 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client),
   // plus the check-in kit: latest weekly check-ins, girth measurements, progress
   // photos, and the health profile (PAR-Q screening — never share-gated).
+  // The program the caller put on this client's calendar (2026-11-05): the days assigning a program
+  // writes, read light (the template's id, name and week, never the exercises) and only for a caller
+  // who is this client's trainer. A year back covers a 52-week block; the newest rows are kept.
+  // See bsWorkoutProgramLeg for why this, and not coach_program_assignments, is the program.
+  const myTrainerLink = trainers.find((t) => t.isMe)?.providerId ?? null;
+  const programSince = new Date(now.getTime() - PROGRAM_DAYS_BACK * 86_400_000).toISOString().slice(0, 10);
+  const programDaysRead = myTrainerLink == null
+    ? Promise.resolve({ data: [] as ProgramDayRow[], error: null })
+    : supabase
+        .from('client_workouts')
+        .select('scheduled_date, template_id:payload->template->>id, template_name:payload->template->>name, template_week:payload->template->>week')
+        .eq('client_id', clientId)
+        .eq('trainer_id', myTrainerLink)
+        .eq('status', 'published')
+        .not('payload->template->>id', 'is', null)
+        .gte('scheduled_date', programSince)
+        .order('scheduled_date', { ascending: false })
+        .limit(PROGRAM_DAY_CAP);
   const [
     { data: goals }, { data: stats }, { data: lifts },
     { data: checkins, error: checkinsError }, { data: measurements, error: measurementsError }, { data: progressPhotos }, { data: healthProfile, error: healthError },
@@ -310,6 +334,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     { data: programRow, error: programError },
     { data: convoRows, error: convoErr },
     { data: scoreHistory },
+    { data: programDays, error: programDaysErr },
   ] = await Promise.all([
     supabase.rpc('get_client_goals', { p_user_id: clientId }),
     supabase.rpc('get_client_stats', { p_user_id: clientId }),
@@ -346,6 +371,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // the RPC 404s, the leg reads null, and the column keeps its honest
     // "Not shared" — the get_client_meal_prep precedent above.
     supabase.rpc('get_client_score_history', { p_user_id: clientId }),
+    programDaysRead,
   ]);
   const programDetail = (programRow?.detail ?? {}) as Record<string, unknown>;
   if (programError) console.error('[shared-overview] client_programs read failed:', programError.message);
@@ -518,10 +544,18 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     dm = dmErr ? undefined : (((dmRows ?? []) as Array<{ id: string; last_message_at: string | null }>)[0] ?? null);
   }
   const lastContact = convoErr || dm === undefined ? undefined : bsLastContactLeg(convoRows ?? [], mine, dm);
+  // The program: what the caller put on the client's calendar (bsWorkoutProgramLeg), else an
+  // assignment row (the program-tools route's, which keeps its paused rule in bsProgramLeg).
+  // ⚠ A FAILED READ IS UNKNOWN, NOT "Not set". Either read failing omits the key, which the roster
+  // renders as its honest "Not shared"; null would tell the coach this client has no program.
+  if (programDaysErr) console.error('[shared-overview] program days read failed:', programDaysErr.message);
+  const fromCalendar = programDaysErr ? undefined : bsWorkoutProgramLeg((programDays ?? []) as ProgramDayRow[], Date.now());
   // Likewise: an unreadable TEMPLATE makes bsProgramLeg return null, which the
   // roster renders as "Not set" — "this client has no program" — for clients who
   // all have one. `templatesErr` is the only thing that can tell them apart.
-  const program = templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, mine, Date.now());
+  const program = fromCalendar === undefined
+    ? undefined
+    : fromCalendar ?? (templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, mine, Date.now()));
 
   // Food logging off the SAME 30-row snapshot window every other leg reads —
   // the last logged day (which `get_client_stats` has never carried), the
