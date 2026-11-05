@@ -83,12 +83,18 @@ const websiteRow = (ov = overview(), thresholds) => {
 // ── the app ─────────────────────────────────────────────────────────────────
 let appOverview = overview();
 let appSettings = {};
+let appDismissals = [];
+const appDismissCalls = [];
 globalThis.window = {
   ShapeAuth: { getCachedState: () => ({ user: { id: 'coach-1' } }) },
   ShapeAssign: { clients: async () => [{ userId: CID, name: 'Ana Lee', isNew: false, joinedAt: JOINED, paymentRetrying: true }] },
   ShapeCareTeam: { overviews: async () => ({ [CID]: appOverview }) },
   shapeDb: { getUserGoals: async (kind) => (kind === 'coach_week_reviews' ? {} : kind === 'coach_settings' ? appSettings : null) },
-  ShapeSignalDismissals: { list: async () => [] },
+  ShapeSignalDismissals: {
+    list: async () => appDismissals,
+    set: async (...args) => { appDismissCalls.push(['set', ...args]); return true; },
+    clear: async (...args) => { appDismissCalls.push(['clear', ...args]); return true; },
+  },
   DashSignals: E,
   addEventListener() {}, removeEventListener() {}, dispatchEvent() {},
 };
@@ -215,4 +221,151 @@ test('a shared client: the nutrition reads route to the nutritionist who is ther
   const row = websiteRow(overview({ careTeam: team }));
   assert.equal(row.flags.some((f) => ['ledger_blown', 'protein_under', 'hunger_high'].includes(f.key)), false);
   assert.deepEqual(row.readOnly.map((f) => f.key + ':' + f.owned + ':' + f.routeTo).sort(), ['hunger_high:false:nutritionist', 'ledger_blown:false:nutritionist', 'protein_under:false:nutritionist']);
+});
+
+// ── A coach with both listings (2026-11-05) ─────────────────────────────────
+// One auth user owns a trainer row and a nutritionist row. Each page reads its own role's program, and
+// a reason set aside on one page stays on the other.
+const BLOCK = overview().program; // the trainer's block, ending in 3 days
+// Every other leg quiet, so the program is the one thing that could raise the client.
+const quietOverview = (over) => ({ ...overview(), screening: 'clear', replyWait: null, bookedSessions: null, lastContact: null, stats: null, logs: null, scoreHistory: null, sleep: null, vitals: null, deviceRecovery: null, checkins: null, ...over });
+const dualOverview = () => quietOverview({ program: BLOCK, programs: { trainer: BLOCK } });
+const dualTables = () => ({
+  ...dbTables(),
+  nutritionists: [{ id: 3, owner_id: 'coach-1', name: 'Coach' }],
+  subscriptions: [{ client_id: CID, status: 'active', provider_role: 'nutritionist', provider_id: 3, created_at: JOINED }],
+});
+const keysOf = (row) => (row ? row.flags.map((f) => f.key).sort() : []);
+
+test("a coach with both listings: the nutrition page never reads the trainer's block as an ending plan, on any surface", async () => {
+  // The website.
+  const rec = recordFromLive(ROW, dualOverview(), {}, null);
+  assert.equal(keysOf(E.getTriageFeed('trainer', [rec], NOW)[0]).includes('program_ending'), true);
+  assert.equal(keysOf(E.getTriageFeed('nutritionist', [rec], NOW)[0]).includes('program_ending'), false);
+  // The push: the snapshot the page posts carries each role's program.
+  const snap = E.engineSnapshot(E.attachCoachContext([rec], CTX, 'nutritionist')[0]);
+  assert.equal(keysOf(E.getTriageFeed('nutritionist', [snap], NOW)[0]).includes('program_ending'), false);
+  assert.equal(core.candidatesFor({ role: 'nutritionist', clients: [snap] }, { tone: 'supportive', lastSeverity: {}, now: NOW, coachContext: CTX }).candidates.length, 0);
+  assert.equal(core.candidatesFor({ role: 'trainer', clients: [snap] }, { tone: 'supportive', lastSeverity: {}, now: NOW, coachContext: CTX }).candidates.length, 1);
+  // The app.
+  appOverview = dualOverview();
+  const app = (await window.ShapeSignals.triageLive('nutritionist', { force: true }))[0];
+  assert.equal(keysOf(app).includes('program_ending'), false);
+  appOverview = overview();
+  // Nora: the nutrition client is quiet; with only `program` (an older overview) it reads as before.
+  const nora = (ov) => readCoachToday(fakeSupabase({ tables: dualTables(), rpcs: dbRpcs() }), 'coach-1', { now: NOW, zone: 'UTC', role: 'nutritionist', readOverviews: async (ids) => ({ [ids[0]]: ov }) });
+  assert.equal((await nora(dualOverview())).needsYou.items.length, 0);
+  assert.equal((await nora(quietOverview({ program: BLOCK }))).needsYou.items.length, 1);
+});
+
+test('a coach with both listings: a reason set aside on one page stays on the other, on every surface', async () => {
+  const wait = new Date(NOW.getTime() - 30 * 3600e3).toISOString();
+  const both = (over) => ({ ...overview(), replyWait: { trainer: wait, nutritionist: wait }, ...over });
+  const rec = recordFromLive(ROW, both(), {}, null);
+  const flag = E.getTriageFeed('nutritionist', [rec], NOW)[0].flags.find((f) => f.key === 'reply_waiting');
+  assert.ok(flag && flag.sig);
+  const row = (role) => ({ client_id: CID, reason_key: 'reply_waiting', reason_sig: flag.sig, until: null, provider_role: role });
+  const has = (r) => keysOf(r).includes('reply_waiting');
+  // The push, re-reading the dismissals over the snapshot posted before anything was set aside.
+  const snap = E.engineSnapshot(rec);
+  const quiet = quietOverview({ replyWait: { trainer: wait, nutritionist: wait }, program: null });
+  const quietSnap = E.engineSnapshot(recordFromLive(ROW, quiet, {}, null));
+  const pushes = (role, rows) => core.candidatesFor({ role, clients: [quietSnap] }, { tone: 'supportive', lastSeverity: {}, now: NOW, coachContext: { dismissals: rows, reviews: {} } }).candidates.length;
+  assert.equal(pushes('trainer', [row('nutritionist')]), 1, "the nutritionist's dismissal leaves the trainer's alert");
+  assert.equal(pushes('nutritionist', [row('nutritionist')]), 0);
+  assert.equal(has(E.getTriageFeed('trainer', E.attachCoachContext([snap], { dismissals: [row('nutritionist')] }, 'trainer'), NOW)[0]), true);
+  // The app: Today reads the role's rows only, and Dismiss and Restore save the role.
+  appOverview = both();
+  appDismissals = [row('nutritionist')];
+  assert.equal(has((await window.ShapeSignals.triageLive('trainer', { force: true }))[0]), true, "the trainer's stays");
+  assert.equal(has((await window.ShapeSignals.triageLive('nutritionist', { force: true }))[0]), false);
+  appDismissals = []; appOverview = overview();
+  appDismissCalls.length = 0;
+  assert.equal(await window.ShapeSignals.dismiss(CID, { key: 'reply_waiting', sig: flag.sig }, null, 'nutritionist'), true);
+  assert.equal(await window.ShapeSignals.restore(CID, 'reply_waiting', 'trainer'), true);
+  assert.deepEqual(appDismissCalls, [['set', CID, { key: 'reply_waiting', sig: flag.sig }, null, 'nutritionist'], ['clear', CID, 'reply_waiting', 'trainer']]);
+  assert.equal(await window.ShapeSignals.dismiss(CID, { key: 'reply_waiting', sig: flag.sig }, null), false, 'no role, nothing saved');
+  assert.equal(appDismissCalls.length, 2);
+  // The case file names its role.
+  assert.match(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx'), 'utf8'), /window\.ShapeSignals\.dismiss\(clientUid, \{ key: _lead\.key, sig: _lead\.sig \}, until, role\)/);
+  // Nora reads the role column (coachContext.mjs selects it: the fake returns only the columns asked for).
+  const noraItems = async (rows) => (await readCoachToday(fakeSupabase({ tables: { ...dbTables(), coach_signal_dismissals: rows.map((d) => ({ ...d, coach_id: 'coach-1' })) }, rpcs: dbRpcs() }), 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer', readOverviews: async (ids) => ({ [ids[0]]: quiet }) })).needsYou.items.length;
+  assert.equal(await noraItems([row('nutritionist')]), 1, "the nutritionist's dismissal leaves the trainer's");
+  assert.equal(await noraItems([row('trainer')]), 0);
+});
+
+// The website's and the app's reads and writes of coach_signal_dismissals, run as shipped over a
+// recording client. ⚠ Before 2026-11-05-coach-signal-dismissals-by-role.sql runs the column is missing:
+// every read and write errors, which answers null and false, as before the table existed.
+function recordingDb({ rows = [], error = null } = {}) {
+  const calls = [];
+  return {
+    calls,
+    from(table) {
+      const q = { table, ops: [] };
+      calls.push(q);
+      const b = new Proxy({}, {
+        get(_, op) {
+          if (op === 'then') return (res, rej) => Promise.resolve(error ? { data: null, error } : { data: rows, error: null }).then(res, rej);
+          return (...args) => { q.ops.push([op, ...args]); return b; };
+        },
+      });
+      return b;
+    },
+  };
+}
+function asyncFn(src, name) {
+  const at = src.indexOf('async function ' + name + '(');
+  assert.notEqual(at, -1, name + ' not found');
+  let depth = 0;
+  for (let j = src.indexOf('{', at); j < src.length; j++) {
+    if (src[j] === '{') depth++;
+    else if (src[j] === '}' && --depth === 0) return src.slice(at, j + 1);
+  }
+  throw new Error('unbalanced ' + name);
+}
+test("the website's and the app's dismissal reads and writes carry the role", async () => {
+  // The website (dashData.jsx).
+  // eslint-disable-next-line no-new-func
+  const web = (db) => new Function('window', 'dashDocBridge',
+    [fn(DATA, '_dashDismissRole'), asyncFn(DATA, '_dashDismissUid'), asyncFn(DATA, 'dashReadDismissals'), asyncFn(DATA, 'dashWriteDismissal'), asyncFn(DATA, 'dashClearDismissal')].join('\n')
+    + '; return { dashReadDismissals, dashWriteDismissal, dashClearDismissal };')({ shapeDb: { client: db, getUser: async () => ({ id: 'coach-1' }) } }, async () => {});
+  let db = recordingDb({ rows: [{ client_id: CID, reason_key: 'reply_waiting', reason_sig: 's', until: null, provider_role: 'trainer' }] });
+  let w = web(db);
+  assert.equal((await w.dashReadDismissals()).length, 1);
+  assert.deepEqual(db.calls[0].ops[0], ['select', 'client_id, reason_key, reason_sig, until, provider_role']);
+  assert.equal(await w.dashWriteDismissal(CID, { key: 'reply_waiting', sig: 's' }, null, 'nutritionist'), true);
+  assert.deepEqual(db.calls[1].ops[0], ['upsert', { coach_id: 'coach-1', provider_role: 'nutritionist', client_id: CID, reason_key: 'reply_waiting', reason_sig: 's', until: null }, { onConflict: 'coach_id,provider_role,client_id,reason_key' }]);
+  assert.equal(await w.dashWriteDismissal(CID, { key: 'reply_waiting', sig: 's' }, null, 'dietitian'), true);
+  assert.equal(db.calls[2].ops[0][1].provider_role, 'nutritionist', "a dietitian's is the nutritionist's");
+  assert.equal(await w.dashClearDismissal(CID, 'reply_waiting', 'trainer'), true);
+  assert.deepEqual(db.calls[3].ops, [['delete'], ['eq', 'coach_id', 'coach-1'], ['eq', 'provider_role', 'trainer'], ['eq', 'client_id', CID], ['eq', 'reason_key', 'reply_waiting']]);
+  const before = db.calls.length;
+  assert.equal(await w.dashWriteDismissal(CID, { key: 'reply_waiting', sig: 's' }, null, 'client'), false, 'no coach role, nothing saved');
+  assert.equal(await w.dashClearDismissal(CID, 'reply_waiting'), false);
+  assert.equal(db.calls.length, before);
+  // Before the migration: the column is missing.
+  w = web(recordingDb({ error: { code: '42703', message: 'column coach_signal_dismissals.provider_role does not exist' } }));
+  assert.equal(await w.dashReadDismissals(), null, 'nothing hidden');
+  assert.equal(await w.dashWriteDismissal(CID, { key: 'reply_waiting', sig: 's' }, null, 'trainer'), false, 'the control says it could not save');
+  // The page passes its role to the engine and to every write.
+  assert.match(DATA, /DashSignals\.attachCoachContext\(state\.clients, coachCtx, role\)/);
+  assert.match(DATA, /await dashWriteDismissal\(clientId, flag, until, role\);/);
+  assert.match(DATA, /await dashClearDismissal\(clientId, key, role\);/);
+
+  // The app (shapeBackend.js's ShapeSignalDismissals).
+  const BACKEND = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const block = BACKEND.slice(BACKEND.indexOf('const signalDismissRole'), BACKEND.indexOf('window.ShapeSignalDismissals ='));
+  // eslint-disable-next-line no-new-func
+  const app = (sb) => new Function('supabase', 'state', block + '; return { listSignalDismissals, setSignalDismissal, clearSignalDismissal };')(sb, { user: { id: 'coach-1' } });
+  db = recordingDb({ rows: [] });
+  const a = app(db);
+  assert.deepEqual(await a.listSignalDismissals(), []);
+  assert.deepEqual(db.calls[0].ops[0], ['select', 'client_id, reason_key, reason_sig, until, provider_role']);
+  assert.equal(await a.setSignalDismissal(CID, { key: 'reply_waiting', sig: 's' }, null, 'trainer'), true);
+  assert.deepEqual(db.calls[1].ops[0], ['upsert', { coach_id: 'coach-1', provider_role: 'trainer', client_id: CID, reason_key: 'reply_waiting', reason_sig: 's', until: null }, { onConflict: 'coach_id,provider_role,client_id,reason_key' }]);
+  assert.equal(await a.clearSignalDismissal(CID, 'reply_waiting', 'nutritionist'), true);
+  assert.deepEqual(db.calls[2].ops, [['delete'], ['eq', 'coach_id', 'coach-1'], ['eq', 'provider_role', 'nutritionist'], ['eq', 'client_id', CID], ['eq', 'reason_key', 'reply_waiting']]);
+  assert.equal(await a.setSignalDismissal(CID, { key: 'reply_waiting', sig: 's' }, null), false, 'no role, nothing saved');
+  assert.equal(await app(recordingDb({ error: { code: '42703', message: 'missing column' } })).listSignalDismissals(), null);
 });

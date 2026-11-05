@@ -9,7 +9,7 @@
 import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
 import { copyFor, type Translate as ReaderTranslate } from '@/lib/reader-copy';
-import { isCoachRole } from '@/lib/roles.mjs';
+import { isCoachRole, providerRoleForRole } from '@/lib/roles.mjs';
 import { loadCoachContext as loadCoachContextMjs } from './coachContext.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
@@ -170,7 +170,7 @@ type Flag = { key: string; label: string; reason: string; owned?: boolean; disci
 type Lead = { key: string; reason: string; label?: string; sig?: string | null; action?: { kind: string; label: string } | null };
 type TriageRow = { client: { userId?: string; id?: string; profile?: { id?: string; name?: string } }; severity: string; flags: Flag[]; reasons: string[]; lead?: Lead | null };
 const engine = DashSignals as unknown as {
-  attachCoachContext: (records: unknown[], ctx: CoachContext) => unknown[];
+  attachCoachContext: (records: unknown[], ctx: CoachContext, role?: string) => unknown[];
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
   evaluateClient: (record: unknown, now?: Date, role?: string) => { flags: Flag[]; severity: string };
   getTriageFeed: (role: string, clients: unknown[], now?: Date, thresholds?: Record<string, number>) => TriageRow[];
@@ -223,7 +223,8 @@ export function candidatesFor(
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
     const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
-    const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext) : raw;
+    // The dismissals of this role only: a coach with both listings sets a reason aside per role.
+    const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw;
     const rows = engine.getTriageFeed(role, clients, opts.now, opts.thresholds || undefined).map((r) => ({
       clientId: coachRecordId(r.client) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
@@ -328,4 +329,68 @@ export async function writeUserGoal(client: SupabaseClient, userId: string, kind
   try {
     await client.from('user_goals').upsert({ user_id: userId, kind, data: value ?? {} }, { onConflict: 'user_id,kind' });
   } catch { /* best-effort */ }
+}
+
+// ── One roster per coach role (2026-11-05) ──────────────────────────────────
+// The coach role a posted roster is evaluated as: the one the body names when the caller holds it, else
+// the profile's. ⚠ COMPARED AS PROVIDER ROLES: a dietitian is on the nutritionist rails and the nutrition
+// page posts 'nutritionist', so an exact match sent a dietitian's nutrition roster down the profile
+// role's path (a trainer's, for a coach with both listings).
+export function rosterRole(asked: unknown, actor: { role: string; roles: string[] }): string {
+  if (typeof asked !== 'string' || !isCoachRole(asked)) return actor.role;
+  const want = providerRoleForRole(asked);
+  return actor.roles.some((r) => providerRoleForRole(r) === want) ? asked : actor.role;
+}
+
+// ⚠ A COACH WITH BOTH LISTINGS POSTS TWO ROSTERS, AND BOTH ARE KEPT. The trainer page and the nutrition
+// page each post their own role's clients, and both went to the one `notify_snapshot`, so opening the
+// second replaced the first and the hourly run stopped alerting for the other role's clients. A coach
+// role's roster is `notify_snapshot:<provider role>` (a dietitian's is the nutritionist's), and its alert
+// memory `notify_state:<provider role>`: run side by side on one memory, a client on both rosters whom
+// one role reads clear would be forgotten (settleCoachMemory) and alerted again by the other, every
+// hour. A member's own record keeps the plain keys.
+export function notifyKind(base: 'notify_snapshot' | 'notify_state', role: unknown): string {
+  const provider = isCoachRole(role) ? providerRoleForRole(role) : null;
+  return provider ? `${base}:${provider}` : base;
+}
+// Every key a snapshot is kept under. The plain one also holds a coach roster posted before the split.
+export const NOTIFY_SNAPSHOT_KINDS = ['notify_snapshot', 'notify_snapshot:trainer', 'notify_snapshot:nutritionist'];
+
+// The snapshots the hourly run evaluates for one person, from their NOTIFY_SNAPSHOT_KINDS rows: each coach
+// role's own roster, a member's record, and a coach roster under the plain key from before the split
+// until that role posts its own, so no roster is lost in the change. One whose app last checked in
+// before `cutoff` is skipped, as the run skips an inactive person.
+export function snapshotsToEvaluate(rows: Array<{ kind?: unknown; data?: unknown }> | null | undefined, cutoff?: number): Snapshot[] {
+  const byKind = new Map<string, Snapshot>();
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (r && typeof r.kind === 'string' && r.data && typeof r.data === 'object') byKind.set(r.kind, r.data as Snapshot);
+  }
+  const active = (s: Snapshot) => !(typeof s.at === 'number' && typeof cutoff === 'number' && s.at < cutoff);
+  const out: Snapshot[] = [];
+  for (const kind of NOTIFY_SNAPSHOT_KINDS) {
+    const s = byKind.get(kind);
+    if (!s || !active(s)) continue;
+    // The plain key: a member's record, or a coach roster that role has not replaced since.
+    if (kind === 'notify_snapshot' && isCoachRole(s.role) && byKind.has(notifyKind('notify_snapshot', s.role))) continue;
+    out.push(s);
+  }
+  return out;
+}
+
+// The alert memory a coach role's evaluation starts from: its own, else (that role's first run since the
+// split) the one state every role shared, its held coach alerts narrowed to this role's (each carries
+// its role), so a client alerted before is not alerted again and a held alert is not sent twice.
+export async function readNotifyState(client: SupabaseClient, userId: string, role: unknown): Promise<Record<string, unknown>> {
+  const kind = notifyKind('notify_state', role);
+  const own = await readUserGoal(client, userId, kind);
+  if (kind === 'notify_state' || Object.keys(own).length) return own;
+  const shared = await readUserGoal(client, userId, 'notify_state');
+  const provider = providerRoleForRole(role);
+  const held = Array.isArray(shared.pendingDigest) ? shared.pendingDigest : null;
+  if (!held) return shared;
+  const mine = held.filter((i) => {
+    const pr = i && typeof i === 'object' ? ((i as { data?: { providerRole?: unknown } }).data || {}).providerRole : undefined;
+    return typeof pr !== 'string' || pr === provider;
+  });
+  return { ...shared, pendingDigest: mine };
 }

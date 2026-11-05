@@ -164,6 +164,54 @@ test('the overview sends the logged days, and where a full snapshot window stops
   assert.ok(!('logDays' in failed), 'a failed read omits it');
 });
 
+// A coach with both listings (2026-11-05): `program` is one pick, the trainer's calendar first, so the
+// nutrition page's "program ending" named the trainer's block. `programs` is each role's own.
+test("a coach with both listings: the overview carries each role's own program", async () => {
+  const dual = async (tables, opts) => {
+    const lib = await loadRealModule(join(ROOT, 'src/lib/shared-overview.ts'), {
+      typescript: true,
+      registry: new Map([
+        ['@/lib/supabase/server', { createClient: async () => { throw new Error('type-only import; never called'); } }],
+        ['@/lib/recovery-readiness', await loadRealModule(join(ROOT, 'src/lib/recovery-readiness.ts'), { typescript: true })],
+        ['@/lib/vitals-leg.mjs', await importLib('src/lib/vitals-leg.mjs')],
+        ['@/lib/coach-client-legs.mjs', await importLib('src/lib/coach-client-legs.mjs')],
+      ]),
+    });
+    const db = fakeSupabase({
+      tables: {
+        trainers: [{ id: 7, name: 'Coach Q', owner_id: COACH.id }],
+        nutritionists: [{ id: 3, name: 'Coach Q', owner_id: COACH.id }],
+        subscriptions: [
+          { client_id: A, provider_role: 'trainer', provider_id: 7, status: 'active', current_period_end: null },
+          { client_id: A, provider_role: 'nutritionist', provider_id: 3, status: 'active', current_period_end: null },
+        ],
+        ...tables,
+      },
+      rpcs: { get_display_names: () => [{ user_id: A, full_name: 'Ada', avatar_url: null }] },
+      ...opts,
+    });
+    return lib.buildSharedOverview(db, { clientId: A, me: { trainerId: 7, nutritionistId: 3, userId: COACH.id } });
+  };
+  const plan = {
+    coach_program_assignments: [{ id: 'as-n', client_id: A, status: 'active', provider_role: 'nutritionist', provider_id: 3, program_template_id: 'tn', created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', notes: null }],
+    coach_program_templates: [{ id: 'tn', title: 'Cut Phase', goal: null, level: null, duration_weeks: 8, days_per_week: 3 }],
+  };
+  const ov = await dual({ client_workouts: asTable(assigned()), ...plan });
+  assert.equal(ov.program.name, 'Strength Block 3', 'the one pick stays the trainer\'s calendar, for the readers that show one');
+  assert.equal(ov.programs.trainer.name, 'Strength Block 3');
+  assert.equal(ov.programs.nutritionist.name, 'Cut Phase', 'the nutritionist\'s own plan');
+  // No plan of the nutritionist's: none, never the trainer's block.
+  const noPlan = await dual({ client_workouts: asTable(assigned()) });
+  assert.equal(noPlan.programs.nutritionist, null);
+  assert.equal(noPlan.programs.trainer.name, 'Strength Block 3');
+  // The calendar unread: the trainer's is unknown (left out), the nutritionist's still read.
+  const failed = JSON.parse(JSON.stringify(await dual({ client_workouts: asTable(assigned()), ...plan }, { fail: ['client_workouts'] })));
+  assert.equal('trainer' in failed.programs, false);
+  assert.equal(failed.programs.nutritionist.name, 'Cut Phase');
+  // A trainer-only caller: no nutritionist program to claim.
+  assert.deepEqual((await overview({ client_workouts: asTable(assigned()) })).programs.nutritionist, null);
+});
+
 test('a failed read of the days is unknown: the key is omitted, never "Not set"', async () => {
   const ov = await overview({ client_workouts: asTable(assigned()) }, { fail: ['client_workouts'] });
   assert.ok(!('program' in JSON.parse(JSON.stringify(ov))), 'the roster then says "Not shared"');

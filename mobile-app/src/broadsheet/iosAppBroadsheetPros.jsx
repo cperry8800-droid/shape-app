@@ -4614,7 +4614,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const setAside = async (until) => {
     if (!canSetAside || moveSaving) return;
     setMoveSaving(_lead.key); setMoveFailed(false);
-    const ok = await window.ShapeSignals.dismiss(clientUid, { key: _lead.key, sig: _lead.sig }, until).catch(() => false);
+    const ok = await window.ShapeSignals.dismiss(clientUid, { key: _lead.key, sig: _lead.sig }, until, role).catch(() => false);
     setMoveSaving(null);
     if (ok) onBack(); else setMoveFailed(true);
   };

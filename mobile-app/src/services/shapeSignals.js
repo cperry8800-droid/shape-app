@@ -229,7 +229,8 @@ async function triageLive(role, { force = false } = {}) {
     const e = engine(); if (!e) throw new Error('Client signals unavailable');
     const [records, thresholds, ctx] = await Promise.all([coachRecords(role, { strict: true }), coachThresholds(), coachContext()]);
     if (!records.length) return [];
-    const withCtx = typeof e.attachCoachContext === 'function' ? (call(e.attachCoachContext, records, ctx) || records) : records;
+    // This role's dismissals only (a coach with both listings sets a reason aside per role).
+    const withCtx = typeof e.attachCoachContext === 'function' ? (call(e.attachCoachContext, records, ctx, role) || records) : records;
     return call(e.getTriageFeed, role, withCtx, undefined, thresholds || undefined) || [];
   })();
   _triageCache[key] = { at: now, promise };
@@ -267,17 +268,18 @@ window.ShapeSignals = {
   },
 
   // Dismiss (until the reason changes: `until` null) or snooze (until an ISO time) one reason on one
-  // client, or undo it (P2). The next triage reads it; the cached feed is dropped so Today and Clients
-  // re-read at once. Resolves true when saved.
-  async dismiss(clientId, flag, until) {
+  // client, or undo it (P2), as `role` (the coach role the client is read as: a coach with both
+  // listings sets a reason aside per role; no role saves nothing). The next triage reads it; the cached
+  // feed is dropped so Today and Clients re-read at once. Resolves true when saved.
+  async dismiss(clientId, flag, until, role) {
     const D = window.ShapeSignalDismissals;
-    const ok = !!(D && D.set && await D.set(clientId, flag, until || null).catch(() => false));
+    const ok = !!(role && D && D.set && await D.set(clientId, flag, until || null, role).catch(() => false));
     if (ok) { for (const k of Object.keys(_triageCache)) delete _triageCache[k]; try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {} }
     return ok;
   },
-  async restore(clientId, key) {
+  async restore(clientId, key, role) {
     const D = window.ShapeSignalDismissals;
-    const ok = !!(D && D.clear && await D.clear(clientId, key).catch(() => false));
+    const ok = !!(role && D && D.clear && await D.clear(clientId, key, role).catch(() => false));
     if (ok) { for (const k of Object.keys(_triageCache)) delete _triageCache[k]; try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {} }
     return ok;
   },
