@@ -622,13 +622,35 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: the Home climb with its numbers on the route, a band of four figures under the hill, and more light (#2618). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "add more info on this graph. Make it pop more"; of three designs, "go with A and include these and clean up the flag section" (A\'s numbers on the route with B\'s band of four figures), then "dont need to see preview before. just build"', status: 'done' },
+        { label: '#2618 BSHomeDeck.jsx: the start weight at the foot, each milestone\'s weight under its tick, the weight now in a chip over the dot (under it near the summit); a band of Start, Current, Pace and the date at that pace, each only when the goal read has it; the flag\'s corner says the goal alone; a sun behind the summit inside the box, the hill shaded, a lit crest, a glow under the walked line, the now dot breathing (still under reduced motion). No new copy keys', status: 'done' },
+        { label: '#2618 review: Codex P2s on bd17239 (a flat pace read +0.0; toUpperCase broke Turkish capitals; the band clipped values on a 320px phone) fixed in 96ccd4b, each with a mount case that fails without it, answered and resolved; Codex clean on 96ccd4b. CI green on 96ccd4b', status: 'done' },
+        { label: 'OWNER: on a phone, Home with a goal on its way: the band\'s four figures, the chip over the dot, and the flag\'s corner', status: 'manual' },
+      ],
+    },
+    {
+      section: 'App: three coach pages as the owner picked them: Client review B with the client\'s ratings, Your hours C with readable times over B\'s lower half, the live-workout view as B\'s top with C\'s foot (#2616). No migration',
+      items: [
+        { label: 'Owner, 2026-11-04: "i need these pages redesigned" (Your hours, Client review) and "also need to improve and redesign a coach view of a client during a live workout"; picks: "option B" (Client review B); "I like option C but make it so you can tell more specifically what times certain bars sit on, that can be unclear here. And use the bottom part of B in C"; "use option B for coaches view, but use this section from C in bottom part"', status: 'done' },
+        { label: '#2616 Client review / Workout review B in its own module (BSWorkoutReview.jsx, out of iosAppBroadsheetPros.jsx): glass queue rows, a raised hero card with a pair board, glass rows and composer; a trainer sees the client\'s ratings, "RPE 7/10" (session_rpe) and "♡ 4/5" (summary.enjoyment), each only when given. A trainer\'s demo note no longer reaches the live writer', status: 'done' },
+        { label: '#2616 Your hours C (BSCoachHours.jsx): the lit week grid spans the coach\'s own hours with an hour scale (a label on every hour that fits, AM/PM where it changes), a tick and a faint line per hour through every row, and each row\'s ranges in words ("9–12 · 2–6", 24-hour where the locale is); B\'s rules, intros-while-full, time off and See your calendar below, in the coach\'s colour; pure helpers in services/coachHours.mjs', status: 'done' },
+        { label: '#2616 the coach\'s live view of a client (BSLiveWorkoutWatch.jsx): B\'s top (monogram, the move on a raised card with set lights and a pair board, recorded sets on glass) over C\'s foot (Send a cue, the lit Queue with NOW, Stop watching); WorkoutDiscussion and Message unchanged; coach:live.close left all 13 locales', status: 'done' },
+        { label: '#2616 review: Codex P2 on bb0f7d2 (the hour scale kept a wider width after a resize with no render, e.g. a phone turned) fixed in 98efd5c with a ResizeObserver (window resize where there is none), two mount cases that fail without it; answered and resolved. Codex clean on 98efd5c. CI on 98efd5c failed tests/assert-dom-value (coach-hours-c compared a DOM node to null), fixed in 3594460; main (#2615) merged, no reviewer read it. CI green on 3594460; merged on the owner\'s word ("just merge 2616 first") with no War Room commit, so this section rode in #2618', status: 'done' },
+        { label: 'Not shot (needs a signed-in coach): Your hours\' save bar, time-off list, "What members can book" and the zone line; a live heart-rate trace on the review page. The nutritionist shell has no live-watch entry', status: 'pending' },
+        { label: 'The review\'s enjoyment reads as the ♡ symbol and a number with no catalog word; a screen reader says "heart"', status: 'pending' },
+        { label: 'OWNER: on a phone, as a trainer: Your hours (change a day, Copy, a rule, time off, turn the phone); Workout review for a client who rated a session; watch a client\'s live workout and send a cue. As a nutritionist: Your hours and Client review', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: the end-of-workout pop-up, difficulty and enjoyment rated over the finished session and stored where a coach can read them (#2614). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "at the end of each workout, have a pop up appear where the client ranks workout from level of difficulty to enjoyment/satisfication"; then "show both ratings to coaches"', status: 'done' },
         { label: '#2614 BSSessionFinish.jsx: when a workout ends the session stays drawn and a sheet rises over it (portalled into #bs-phone-surface): "How hard was that?" 1-10 (sessionRpe, lit green/amber/red by band) and "How much did you enjoy it?" 1-5 (summary.enjoyment, teal), both skippable (null, never 0), then the duration question, the share toggle and Save & finish; the workout behind is inert and focus is held in the sheet. "The vibe" (reviewFeel) is no longer written', status: 'done' },
         { label: '#2614 storage: workout_sessions.session_rpe and workout_sessions.summary->enjoyment, both returned by the coach\'s existing ShapeWorkoutLogs.listSessions() read under the participants policy; nothing widened. A session the member starts on their own has no provider_id, so no coach reads it (as before)', status: 'done' },
         { label: '#2614 review: Codex P2 on 1b02de3 (keyboard focus could leave the sheet into the workout) fixed in 2fc9d37 as BSUpdateGate does (inert + aria-hidden siblings, focus held by hand for iOS 14), answered and resolved; Codex clean on 2fc9d37. Mutation round on the friends-audience spec: 45 killed, 0 survived. CI green on 2fc9d37; main (#2612, #2613) merged with the record, no reviewer read it', status: 'done' },
-        { label: 'Coaches see both ratings when the coach pages PR (Client review B) ships', status: 'pending' },
+        { label: 'Coaches see both ratings: #2616 (Client review B) shows them on a trainer\'s hero card, "RPE 7/10" and "♡ 4/5", each only when given', status: 'done' },
         { label: 'OWNER: on a phone, finish a workout, rate both and save; end one early and skip both; with a hardware keyboard, Tab stays in the sheet', status: 'manual' },
       ],
     },
