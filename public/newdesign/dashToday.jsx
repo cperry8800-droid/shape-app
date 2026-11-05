@@ -1883,7 +1883,8 @@ function DashNeedsYou({ tabs, prefs, role }) {
 
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
-  const { today: live, triage, clients, queue, joint, source } = useDashboard(role);
+  // Re-read when the coach comes back to the tab (dashData.jsx useDashFocusRefresh).
+  const { today: live, triage, clients, queue, joint, source } = useDashboard(role, { refreshOnFocus: true });
   // The coach's pinned clients, per ACCOUNT (review 2026-09-09, R15) — the same
   // `dashboard_prefs` document the roster filter and the Schedule view already use, so a
   // pin follows them between devices and costs no second mechanism.

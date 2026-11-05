@@ -533,10 +533,51 @@ function dashRoleDashboardUrl(role) {
   return "/api/" + role + "/dashboard" + (tz ? "?tz=" + encodeURIComponent(tz) : "");
 }
 
-function useDashboard(role) {
+// ── Re-read when the coach comes back to the tab (2026-11-05) ────────────────
+// Today, the Week and the Schedule read once per visit, so a booking, a check-in or a cancelled
+// session that arrived while the coach was in another tab stayed off the page until a reload. The
+// Programs page already re-read on focus. These do too now: when the window regains focus or the
+// tab becomes visible, at most once a minute (DASH_FOCUS_MIN_MS, the cache's own lifetime, so a
+// refresh always finds the reads stale and never re-reads what it just read). A focus and a
+// visibilitychange arrive together on a tab switch; the gate lets one of them through.
+const DASH_FOCUS_MIN_MS = DASH_CACHE_TTL;
+// The gate, apart from the events so it can be tested: true when a return should re-read.
+function dashFocusGate(minMs, startedAt) {
+  let last = startedAt;
+  return (now, hidden) => {
+    if (hidden) return false;
+    if (now - last < minMs) return false;
+    last = now;
+    return true;
+  };
+}
+function useDashFocusRefresh(onRefresh, enabled) {
+  const ref = React.useRef(onRefresh);
+  ref.current = onRefresh;
+  React.useEffect(() => {
+    if (!enabled || typeof window === "undefined" || typeof document === "undefined") return undefined;
+    const pass = dashFocusGate(DASH_FOCUS_MIN_MS, Date.now());
+    const back = () => { if (pass(Date.now(), !!document.hidden)) { try { ref.current(); } catch (e) { /* the page keeps what it shows */ } } };
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => { window.removeEventListener("focus", back); document.removeEventListener("visibilitychange", back); };
+  }, [enabled]);
+}
+
+// opts.refreshOnFocus: re-read on the coach's return (above). ⚠ A RE-READ ON RETURN IS QUIET, AND
+// IT NEVER TAKES A LIVE PAGE BACK TO THE PREVIEW. The first load paints the roster, then the
+// overviews; a re-read keeps the page as it is until the new answers land, so the columns do not
+// flash "loading" every time the coach switches tabs. A read that fails on a re-read (the network
+// dropped while the laptop slept) keeps what the page showed; on a first load it still means the
+// preview, as before. A client whose overview failed keeps the record it had.
+function useDashboard(role, opts) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null, planCount: undefined });
   const lastProgressRead = React.useRef(new Map());
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+  const quietRef = React.useRef(false);
+  useDashFocusRefresh(() => { quietRef.current = true; setRefreshKey((v) => v + 1); }, !!(opts && opts.refreshOnFocus) && role !== "client");
   React.useEffect(() => {
     const refresh = (event) => {
       const id = event.detail && event.detail.clientId;
@@ -550,6 +591,10 @@ function useDashboard(role) {
 
   React.useEffect(() => {
     let on = true;
+    // A quiet re-read (on the coach's return) of a page that is live: see useDashboard's note.
+    const quiet = quietRef.current;
+    quietRef.current = false;
+    const had = quiet && stateRef.current.source === "live" ? stateRef.current : null;
     // `today` = the raw role dashboard feed (/api/{role}/dashboard) when the
     // viewer is live; null otherwise (callers render their demo Today panels).
     // It resolves independently of the roster so one failing API can't take
@@ -590,16 +635,17 @@ function useDashboard(role) {
           _dashJson("/api/" + role + "/clients").catch(() => null),
           _dashJson(dashRoleDashboardUrl(role)).catch(() => null),
         ]);
-        const today = todayRes && todayRes[roleKey] ? todayRes : null;
-        if (!roster || !roster[roleKey]) return demo(today);
+        const today = todayRes && todayRes[roleKey] ? todayRes : had ? had.today : null;
+        if (!roster || !roster[roleKey]) return had ? undefined : demo(today);
         // Roster first (fast paint for callers), then enrich rows with ids.
         // ⚠ The third argument is deliberately absent, not null: undefined is
         // "the notes have not been read yet", null would claim the read failed.
         const base = (roster.clients || []).map((row) => _dashRecordFromLive(row, null, undefined, { state: "loading", checkedAt: lastProgressRead.current.get(row.id) || null }));
         // The route's count of people with an open plan: null when it could not read the plans.
         const planCount = roster.totals && roster.totals.onPlan !== undefined ? roster.totals.onPlan : undefined;
-        if (on) setState({ loading: false, clients: base, source: "live", today, planCount });
+        if (on && !had) setState({ loading: false, clients: base, source: "live", today, planCount });
         const rows = roster.clients || [];
+        const before = had ? new Map(had.clients.map((c) => [c.profile && c.profile.id, c])) : null;
         // The per-client overviews (one batched request per 50 clients) and the
         // ONE notes doc resolve together — the notes read is a single round trip
         // for the whole roster, so it must not sit behind the overviews.
@@ -613,13 +659,14 @@ function useDashboard(role) {
           clients: rows.map((row, i) => {
             const cached = _dashCache.get(_dashOverviewKey(row.id));
             if (overviews[i] && cached) lastProgressRead.current.set(row.id, new Date(cached.at).toISOString());
+            if (!overviews[i] && before && before.has(row.id)) return before.get(row.id);
             return _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
           }),
           source: "live",
           today,
           planCount,
         });
-      } catch (e) { demo(null); }
+      } catch (e) { if (!had) demo(null); }
     })();
     return () => { on = false; };
   }, [role, refreshKey]);
@@ -1767,4 +1814,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, dashRoleDashboardUrl, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });
+Object.assign(window, { useDashboard, dashRoleDashboardUrl, useDashFocusRefresh, dashFocusGate, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });

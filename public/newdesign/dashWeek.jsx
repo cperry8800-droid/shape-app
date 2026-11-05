@@ -406,7 +406,8 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
 function CoachWeekPage({ role }) {
   const nav = role === "nutritionist" ? nutriNavItems : trainerNavItems;
   const card = role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard;
-  const { loading, triage, source } = useDashboard(role);
+  // Re-read when the coach comes back to the tab, so a check-in that arrived meanwhile shows.
+  const { loading, triage, source } = useDashboard(role, { refreshOnFocus: true });
   const live = source === "live";
   const thisMonday = dwkIso(dwkMonday(new Date()));
   const [weekOf, setWeekOf] = React.useState(thisMonday);

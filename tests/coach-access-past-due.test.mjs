@@ -403,7 +403,8 @@ test('the Clients pages count people on a plan, as the badge does, and say "—"
   assert.equal(dashPlanClientCount([rec(true)], undefined), 1, 'the preview has no route count');
   // useDashboard carries the roster route's totals.onPlan to the pages, on both live paints.
   const data = stripComments(readFileSync(join(ROOT, 'public/newdesign/dashData.jsx'), 'utf8'));
-  assert.match(data, /const planCount = roster\.totals && roster\.totals\.onPlan !== undefined \? roster\.totals\.onPlan : undefined;\n\s+if \(on\) setState\(\{ loading: false, clients: base, source: "live", today, planCount \}\);/);
+  // (The roster's fast paint is skipped on a quiet re-read when the coach returns to the tab, 2026-11-05.)
+  assert.match(data, /const planCount = roster\.totals && roster\.totals\.onPlan !== undefined \? roster\.totals\.onPlan : undefined;\n\s+if \(on && !had\) setState\(\{ loading: false, clients: base, source: "live", today, planCount \}\);/);
   assert.match(data, /source: "live",\n\s+today,\n\s+planCount,\n\s+\}\);/, 'the enriched paint keeps it');
   assert.match(data, /source: state\.source, tuning, planCount: state\.planCount \};/);
   for (const page of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {

@@ -141,6 +141,23 @@ function dscMergeRange(prev, res, months) {
   for (const p of plansIn) planById.set(p.id, p);
   return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansOk: prev.plansOk !== false && plansOk };
 }
+// A re-read of months already on screen (the coach's return, 2026-11-05): the answer REPLACES what
+// those months held, where dscMergeRange only adds. Merging by id would keep a booking the client
+// cancelled meanwhile, because a cancelled session is no longer in the answer to be overwritten.
+// Months outside `months` keep what they had; an event or plan with no date is kept unless the
+// answer brings it back.
+function dscReplaceRange(prev, res, months) {
+  const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
+  if (!prev || prev.zone !== zone) return dscMergeRange(null, res, months);
+  const covered = new Set(months);
+  const outside = (x) => !(x && typeof x.date === "string" && covered.has(x.date.slice(0, 7)));
+  const byId = new Map(prev.events.filter(outside).map((e) => [e.id, e]));
+  for (const e of res.events) byId.set(e.id, e);
+  const plansIn = Array.isArray(res.clientPlans) ? res.clientPlans : [];
+  const planById = new Map((prev.clientPlans || []).filter(outside).map((x) => [x.id, x]));
+  for (const x of plansIn) planById.set(x.id, x);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansOk: prev.plansOk !== false && res.clientPlansReadable !== false };
+}
 // A demo week of client plans for the signed-out preview: invented, like its bookings.
 function dscDemoPlans(monday) {
   const at = (n) => dscIso(dscAddDays(monday, n));
@@ -250,6 +267,16 @@ function dscZoneLabel(live, storedZone) {
 // save, not the one it booted in.
 function dscBrowserZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+// The calendar read for a run of months ("YYYY-MM", consecutive). ⚠ `tz` IS WHAT MAKES THE ROUTE
+// ANSWER ON A CLOCK at all — without it every booking comes back in UTC (the contract older app
+// builds rely on). With it the route uses the coach's stored zone for `role`, and this browser's
+// only when none is stored yet.
+function dscCalendarUrl(run, role) {
+  return "/api/calendar?from=" + run[0] + "-01&to=" + dscMonthEnd(run[run.length - 1])
+    + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "")
+    // A trainer's clients' training days, for the plans row (step 4).
+    + (role === "trainer" ? "&clientPlans=1" : "");
 }
 // Stored rows → seven days of 48 half-hour cells (index = getDay()). A cell is open when a row
 // covers ALL of it. `offGrid` says a row did not land on the half hour, so saving will round it.
@@ -1603,7 +1630,8 @@ const DSC_ROLES = {
 // ── The page ────────────────────────────────────────────────────────────────
 function CoachSchedulePage({ role }) {
   const cfg = DSC_ROLES[role];
-  const { triage, today: live, source } = useDashboard(role);
+  // Re-read when the coach comes back to the tab; the calendar's months re-read below.
+  const { triage, today: live, source } = useDashboard(role, { refreshOnFocus: true });
   const R = dscRules();
   const narrow = useDscNarrow();
   // What /api/calendar has answered so far: { zone, months: Set<"YYYY-MM">, events }, or null
@@ -1724,14 +1752,8 @@ function CoachSchedulePage({ role }) {
     setLoadNote("loading");
     for (const run of dscMonthRuns(missing)) {
       run.forEach((k) => inflight.current.add(k));
-      // ⚠ `tz` IS WHAT MAKES THE ROUTE ANSWER ON A CLOCK at all — without it every booking
-      // comes back in UTC (the contract older app builds rely on). With it the route uses the
-      // coach's stored zone for `role`, and this browser's only when none is stored yet.
-      const url = "/api/calendar?from=" + run[0] + "-01&to=" + dscMonthEnd(run[run.length - 1])
-        + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "")
-        // A trainer's clients' training days, for the plans row (step 4).
-        + (role === "trainer" ? "&clientPlans=1" : "");
-      fetch(url, { credentials: "same-origin", cache: "no-store" })
+      // ⚠ dscCalendarUrl carries `tz`, which is what makes the route answer on a clock at all.
+      fetch(dscCalendarUrl(run, role), { credentials: "same-origin", cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((res) => {
           run.forEach((k) => inflight.current.delete(k));
@@ -1743,6 +1765,29 @@ function CoachSchedulePage({ role }) {
     }
   }, [role, wanted.join(","), cal, retryTick]);
   const retryLoad = () => { failed.current.clear(); setLoadNote(""); setRetryTick((n) => n + 1); };
+  // ⚠ THE MONTHS ON SCREEN RE-READ ON THE COACH'S RETURN (2026-11-05), with the roster above: a
+  // request, a cancellation or a booking made while the coach was in another tab showed only after a
+  // reload. Once a minute at most (useDashFocusRefresh), only months already read, never while a
+  // booking is being moved or dragged (its own answer is on the way), and the answer replaces those
+  // months (dscReplaceRange). A failed re-read keeps the bookings on screen.
+  const calRef = React.useRef(cal); calRef.current = cal;
+  const wantedRef = React.useRef(wanted); wantedRef.current = wanted;
+  const busyRef = React.useRef(busyId); busyRef.current = busyId;
+  useDashFocusRefresh(() => {
+    if (dragRef.current || busyRef.current != null || !calRef.current) return;
+    const months = wantedRef.current.filter((k) => calRef.current.months.has(k) && !inflight.current.has(k));
+    for (const run of dscMonthRuns(months)) {
+      run.forEach((k) => inflight.current.add(k));
+      fetch(dscCalendarUrl(run, role), { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((res) => {
+          run.forEach((k) => inflight.current.delete(k));
+          if (!mounted.current) return;
+          if (res && Array.isArray(res.events)) setCal((prev) => dscReplaceRange(prev, res, run));
+        });
+    }
+    loadToSchedule();
+  }, isLive);
 
   const liveEvents = cal != null;
   const allEvents = liveEvents ? cal.events : demoEvents;
