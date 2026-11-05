@@ -1411,3 +1411,45 @@ test('when the plan and today\'s pace reach the goal the same month, the sentenc
   assert.doesNotMatch(sentence(m.div), /instead of/);
   await m.unmount();
 });
+
+// ── What the coach collected, the payouts, the next payout, and why people left (2026-11-05) ──
+test('Money: what was collected is said apart from the rate and from payouts; the payouts are listed; the next payout follows the coach\'s own schedule', async () => {
+  const day = 86400000;
+  const now = Date.now();
+  const earnings = {
+    state: 'ready', zone: 'America/New_York', currency: 'usd', otherCurrency: 0,
+    month: { from: '2026-11-01', to: '2026-11-04', grossCents: 36000, feeCents: 2700, netCents: 33300, refundedCents: 9000, payments: 2 },
+    lifetime: { since: '2026-06-02T15:00:00.000Z', grossCents: 180000, feeCents: 13500, netCents: 166500, refundedCents: 9000, payments: 10 },
+  };
+  const stripe = { connected: true, balanceCents: 5200, pendingCents: 900, schedule: { interval: 'weekly', weeklyAnchor: 'friday', delayDays: 2 },
+    payouts: [{ id: 'po_1', status: 'paid', amountCents: 41200, arrivalDate: now - 3 * day, created: now - 4 * day }, { id: 'po_2', status: 'failed', amountCents: 9900, arrivalDate: now - 10 * day, created: now - 11 * day }] };
+  const base = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 1, brought: 0 }, trajectory: weeksFor(now, 400, []), renewals: [], churn: [] };
+  const m = await mountBusiness({ ...base, stripe, earnings }, 'money');
+  assert.match(m.text(), /What you collectedCollected this monthNov 1–Nov 4 · 2 payments · \$90 refunded\$333Lifetime on Shapesince Jun 2, 2026 · 10 payments\$1,665/);
+  assert.match(m.text(), /before Stripe's own card fees/);
+  assert.match(m.text(), /is coming to you\. The next payout is Fri, /, 'nothing on its way: the schedule names the day');
+  assert.match(m.text(), /Paid to your bank · last 4 months.*· arrived\$412.*· failed · check Stripe\$99/);
+  assert.match(m.text(), /won't match your net on Shape/);
+  await m.unmount();
+  // Not recorded yet, and unread: said, never $0.
+  const early = await mountBusiness({ ...base, stripe, earnings: { state: 'not_set_up' } }, 'money');
+  assert.match(early.text(), /shows here once Shape's payment record is switched on/);
+  assert.doesNotMatch(early.text(), /Collected this month/);
+  await early.unmount();
+  const unread = await mountBusiness({ ...base, stripe, earnings: { state: 'unread' } }, 'money');
+  assert.match(unread.text(), /Couldn't read what you've collected just now/);
+  await unread.unmount();
+});
+
+test('Retention: a departure shows the member\'s own words, or that they gave none', async () => {
+  const day = 86400000;
+  const now = Date.now();
+  const left = (name, reason, d) => ({ name, clientId: name, departed: true, startedAt: new Date(now - 300 * day).toISOString(), endedAt: new Date(now - d * day).toISOString(), priceCents: 18000, reason });
+  const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 10, brought: 0 }, trajectory: weeksFor(now, 400, [13]), renewals: [], stripe: { connected: false },
+    churn: [left('Devon S.', 'Budget. Back in the fall.', 20), left('Mara E.', null, 40)] };
+  const m = await mountBusiness(analytics, 'retention');
+  assert.match(m.text(), /“Budget\. Back in the fall\.”/);
+  assert.match(m.text(), /No reason given/);
+  assert.doesNotMatch(m.text(), /collects once the cancellation survey ships/);
+  await m.unmount();
+});

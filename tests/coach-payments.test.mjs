@@ -89,16 +89,18 @@ test('what a coach collected, in their own time zone: this month so far and life
     row('in_oct', '2026-10-15T12:00:00Z', 18000, 2700),
     // Nov 1, 06:00 UTC is Oct 31 in Los Angeles: last month there, this month in UTC.
     row('in_edge', '2026-11-01T06:00:00Z', 10000, 1500),
+    // Nov 1, 12:00 UTC is Nov 1 in Los Angeles too: the month's first day counts.
+    row('in_first', '2026-11-01T12:00:00Z', 1000, 0),
     row('in_nov', '2026-11-02T18:00:00Z', 18000, 0),
     row('re_nov', '2026-11-03T18:00:00Z', -9000, 0, { billing: 'refund', refund_of: 'in_nov' }),
     row('in_eur', '2026-11-02T18:00:00Z', 5000, 0, { currency: 'eur' }),
   ];
   const la = pay.earningsFrom(rows, { zone: 'America/Los_Angeles', now });
-  assert.deepEqual(la.month, { from: '2026-11-01', to: '2026-11-04', grossCents: 9000, feeCents: 0, netCents: 9000, refundedCents: 9000, payments: 1 });
-  assert.deepEqual(la.lifetime, { since: '2026-10-15T12:00:00.000Z', grossCents: 37000, feeCents: 4200, netCents: 32800, refundedCents: 9000, payments: 3 });
+  assert.deepEqual(la.month, { from: '2026-11-01', to: '2026-11-04', grossCents: 10000, feeCents: 0, netCents: 10000, refundedCents: 9000, payments: 2 });
+  assert.deepEqual(la.lifetime, { since: '2026-10-15T12:00:00.000Z', grossCents: 38000, feeCents: 4200, netCents: 33800, refundedCents: 9000, payments: 4 });
   assert.equal(la.otherCurrency, 1, 'another currency is left out and counted, never added as dollars');
   const utc = pay.earningsFrom(rows, { zone: 'UTC', now });
-  assert.deepEqual([utc.month.from, utc.month.to, utc.month.netCents], ['2026-11-01', '2026-11-05', 17500]);
+  assert.deepEqual([utc.month.from, utc.month.to, utc.month.netCents], ['2026-11-01', '2026-11-05', 18500]);
   assert.equal(pay.earningsFrom(rows, { zone: 'Not/AZone', now }).zone, 'UTC', 'a zone the clock can\'t use counts in UTC');
   assert.deepEqual(pay.earningsFrom([], { zone: 'UTC', now }).lifetime, { since: null, grossCents: 0, feeCents: 0, netCents: 0, refundedCents: 0, payments: 0 });
 });
@@ -375,6 +377,20 @@ test('webhook: a refund of a recorded payment is its own negative row; any other
   const noInvoice = { ...refunded, data: { object: { ...refunded.data.object, invoice: undefined } } };
   const viaPi = await runWebhook(noInvoice, { tables: { coach_payments: [{ ...payment }] }, stripeOver: { refunds, invoicePayments: { list: async (p) => ({ data: p.payment.payment_intent === 'pi_9' ? [{ invoice: 'in_1' }] : [] }) } } });
   assert.ok(viaPi.db.tables.coach_payments.some((x) => x.stripe_object_id === 're_1'));
+  // A refund on a coach's own account finds only that account's payment.
+  const onAcct = { ...refunded, account: ACCT, data: { object: { ...refunded.data.object, invoice: undefined, application: 'ca_Shape' } } };
+  const theirs = await runWebhook(onAcct, { secret: 'whsec_connect', tables: { coach_payments: [{ ...payment, stripe_payment_intent_id: 'pi_9', stripe_account_id: 'acct_1Other' }] }, stripeOver: { refunds } });
+  assert.ok(!(theirs.db.tables.coach_payments || []).some((x) => x.billing === 'refund'), 'another account\'s payment is not this refund\'s');
+  const mine = await runWebhook(onAcct, { secret: 'whsec_connect', tables: { coach_payments: [{ ...payment, stripe_payment_intent_id: 'pi_9', stripe_account_id: ACCT }] }, stripeOver: { refunds } });
+  assert.ok(mine.db.tables.coach_payments.some((x) => x.stripe_object_id === 're_1' && x.stripe_account_id === ACCT));
+  // A second refund of the same charge, with the first one's row already there (and listed first): the
+  // payment is what it is matched against, never the earlier refund.
+  const second = { list: async () => ({ data: [{ id: 're_1', amount: 6000, status: 'succeeded', created: 1799366400 }, { id: 're_2', amount: 3000, status: 'succeeded', created: 1799452800 }] }) };
+  const prior = pay.refundRow({ id: 're_1', amount: 6000, status: 'succeeded', created: 1799366400 }, { ...payment, stripe_payment_intent_id: 'pi_9' });
+  const again = await runWebhook(refunded, { tables: { coach_payments: [{ ...prior }, { ...payment, stripe_payment_intent_id: 'pi_9' }] }, stripeOver: { refunds: second, invoices: { retrieve: async (id) => ({ id }) } } });
+  const re2 = again.db.tables.coach_payments.find((x) => x.stripe_object_id === 're_2');
+  assert.ok(re2, 'the second refund is recorded');
+  assert.deepEqual([re2.gross_cents, re2.shape_fee_cents, re2.refund_of], [-3000, -450, 'in_1']);
   // The membership's charge (no recorded coach payment): nothing, and Stripe's refunds aren't even asked.
   const listed = [];
   const other = await runWebhook(noInvoice, { stripeOver: { refunds: { list: async (p) => { listed.push(p); return { data: [] }; } } } });
