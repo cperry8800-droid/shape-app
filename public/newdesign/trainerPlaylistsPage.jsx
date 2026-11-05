@@ -15,6 +15,8 @@ function soundtrackToWeb(row) {
     note: row.tag || "Imported playlist", listens: 0, updated: "synced",
     attachedTo: Array.isArray(row.attached) ? row.attached.map(a => a && a.id).filter(Boolean) : [],
     sampleTracks: [], shared: false, synced: true,
+    // The row as stored, for the live Attach view (its `attached` entries) and the track list (P5).
+    raw: row,
   };
 }
 
@@ -99,7 +101,9 @@ function PlaylistPage({ ctx }) {
         <PlaylistTabs value={view} onChange={setViewPersist} ctx={mctx} />
 
         {view === "library" && <LibraryGrid query={query} setQuery={setQuery} items={filtered} />}
-        {view === "matrix"  && <AttachMatrix />}
+        {view === "matrix"  && (authed && typeof window.LiveAttachMatrix === "function"
+          ? <window.LiveAttachMatrix role={ctx.role} rows={serverPlaylists.map(p => p.raw).filter(Boolean)} onRow={(row) => setServerPlaylists(list => list.map(p => (p.id === row.id ? soundtrackToWeb(row) : p)))} />
+          : <AttachMatrix />)}
         {view === "builder" && <BuilderDrawer query={query} setQuery={setQuery} items={filtered} />}
       </DashPage>
     </PlaylistCtx.Provider>
@@ -586,6 +590,7 @@ function BuilderDetailPane({ p }) {
           </div>
         </div>
 
+        {p.raw && typeof window.SoundtrackTracks === "function" && <window.SoundtrackTracks key={p.id} id={p.id} provider={p.provider} url={p.raw.url || null} />}
         <div style={{ display: "flex", gap: 8, marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
           <button style={pillPrimary}>Save changes</button>
           <button style={pillGhost}>Share with team</button>

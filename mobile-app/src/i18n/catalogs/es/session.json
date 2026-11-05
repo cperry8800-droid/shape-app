@@ -180,6 +180,7 @@
   "train.reg.tag": "Etiqueta",
   "train.reg.time": "Tiempo",
   "train.restChip": "Descanso",
+  "train.openPlaylistIn": "Abrir {name} en {service}",
   "train.restCopy": "Hoy no hay entreno programado. Recupera, come bien, duerme.",
   "train.restHeadline": "Descanso total.",
   "train.restLine": "Recuperar es entrenar. Tómate el día.",

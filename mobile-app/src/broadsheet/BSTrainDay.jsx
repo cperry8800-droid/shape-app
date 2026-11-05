@@ -2,6 +2,7 @@ import React from 'react';
 import { BSFocusLead, BSFocusCountdown, BSFocusActions, BSFocusTitle, BSFocusLink } from './BSFocus.jsx';
 import { BSTrainBurn } from './BSTrainBurn.jsx';
 import { BSWeekDays, bsWeekDaysOf } from './BSWeekDays.jsx';
+import { bsPlaylistLink, bsPlaylistService } from '../services/playlistLink.mjs';
 
 // ─── TRAIN · THE DAY ──────────────────────────────────────────────────────────────────────────
 // The member's Train page under its head, in the owner's C for Train (2026-11-04: "C for tainer page but
@@ -83,12 +84,15 @@ export function BSTrainDay(p) {
             {cur.intensityLabel && <span style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, border: `1px solid ${t.RULE}`, borderRadius: 3, padding: '3px 8px' }}>{tr('session:train.coachIntensity', { defaultValue: 'Coach · {label}', label: cur.intensityLabel })}</span>}
           </div>
         )}
-        {/* The coach's playlist for this day, as the website card chips it ("♪ name · meta"). It is a Shape
-            Radio soundtrack, so it opens Radio. A coach-set rest keeps the day's fields but is no session, so
-            it shows no soundtrack. */}
+        {/* The coach's playlist for this day, as the website card chips it ("♪ name · meta"). With a link
+            (an https Spotify or Apple Music playlist) it opens in the member's own app, and Shape never
+            streams it (2026-11-05); a day saved before links rode along opens Radio, as it did. A coach-set
+            rest keeps the day's fields but is no session, so it shows no soundtrack. */}
         {!isRest && cur.playlist && cur.playlist.name && (
-          <button type="button" data-train-soundtrack="" onClick={p.onRadio} style={{ marginTop: 6, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
-            <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, padding: '5px 9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>♪ {cur.playlist.name}{cur.playlist.meta ? ` · ${cur.playlist.meta}` : ''}</span>
+          <button type="button" data-train-soundtrack="" aria-label={bsPlaylistLink(cur.playlist.url) ? tr('session:train.openPlaylistIn', { defaultValue: 'Open {name} in {service}', name: cur.playlist.name, service: bsPlaylistService(cur.playlist) }) : undefined}
+            onClick={() => { const u = bsPlaylistLink(cur.playlist.url); if (!u) { if (p.onRadio) p.onRadio(); return; } try { window.open(u, '_blank', 'noopener,noreferrer'); } catch (e) { try { window.location.href = u; } catch (e2) {} } }}
+            style={{ marginTop: 6, minHeight: 44, maxWidth: '100%', display: 'flex', alignItems: 'center', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}>
+            <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.ACCENT, border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, padding: '5px 9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>♪ {cur.playlist.name}{cur.playlist.meta ? ` · ${cur.playlist.meta}` : ''}{bsPlaylistLink(cur.playlist.url) ? ` · ${bsPlaylistService(cur.playlist)} ↗` : ''}</span>
           </button>
         )}
         <BSFocusCountdown label={tr('session:train.startsIn', { defaultValue: 'Starts in' })}

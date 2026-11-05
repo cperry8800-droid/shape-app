@@ -280,6 +280,8 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/coach/leaderboard', 'GET'],
   ['/api/coach/soundtracks', 'GET,POST,PATCH,DELETE'],
   ['/api/coach/messages/group', 'POST'],
+  ['/api/coach/soundtracks/tracks', 'GET,PATCH,POST'],
+  ['/api/client/coach-playlists', 'GET'],
   ['/api/coach/week-publishes', 'GET'],
   ['/api/coaches/reviews', 'GET,POST'],
   ['/api/community/feed/[postId]/comments', 'POST'],

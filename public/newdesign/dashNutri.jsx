@@ -454,6 +454,7 @@ function ClientNutritionPage() {
         subtitle={"Your meal plan, day by day — swap any meal, see the week, and what " + coach + " has you eating. Log in the app; the ledger syncs here."}
       >
         <DashGrid role="client" tab="nutrition" widgets={widgets} />
+        {source === "live" && typeof window.MemberCoachPlaylists === "function" && <window.MemberCoachPlaylists role="nutritionist" />}
       </DashPage>
     </React.Fragment>
   );

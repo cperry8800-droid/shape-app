@@ -62,10 +62,18 @@ itself. We display playlist names, cover art, track counts, and links only.
 | `playlist-read-collaborative` | `GET /v1/me/playlists` | Include collaborative playlists a coach co-owns in that same picker. |
 | `playlist-modify-public` | `PUT /v1/playlists/{id}/followers` | Let a client follow ("Save to my Spotify") a coach's public playlist into their own library. |
 | `playlist-modify-private` | `PUT /v1/playlists/{id}/followers` | Same follow action when the client chooses to save it privately. |
+| `playlist-read-private` | `GET /v1/playlists/{id}`, `GET /v1/playlists/{id}/tracks` | Show a coach the track list (title, artists, length) of one of their own playlists, so they can tag each track's energy (Easy / Build / Peak) for a session. Read with the coach's own connection; only titles, artists and lengths are shown, and only the coach's tags are stored. |
+| `playlist-modify-public`, `playlist-modify-private` | `PUT /v1/playlists/{id}/tracks` (reorder: `range_start`, `insert_before`, `snapshot_id`) | Let a coach reorder the tracks of a playlist they own from the same view; the order is written back to their Spotify playlist. Nothing else is changed: no tracks added or removed. |
 
 We also read public playlist metadata (`GET /v1/playlists/{id}`) via the Client
 Credentials flow (no user scope) to display a playlist's name, track count, and
-duration from a pasted link.
+duration from a pasted link, and a public playlist's track list when the coach has
+not connected Spotify (`/api/coach/soundtracks/tracks`, 2026-11-05).
+
+Reorder write-back (2026-11-05): `POST /api/coach/soundtracks/tracks` moves one track
+in a coach's own playlist through their own OAuth connection, using the
+`playlist-modify-*` scopes already granted. Spotify refuses it (403) for a playlist the
+coach does not own, and Shape says so; it never edits anyone else's playlist.
 
 **We do not** stream audio, store Spotify content, build a competing player, use
 audio-analysis/recommendation endpoints, or apply any Spotify data to ML/AI.

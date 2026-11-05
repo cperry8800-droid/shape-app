@@ -180,6 +180,7 @@
   "train.reg.tag": "Мітка",
   "train.reg.time": "Час",
   "train.restChip": "Відпочинок",
+  "train.openPlaylistIn": "Відкрити «{name}» у {service}",
   "train.restCopy": "На сьогодні тренувань немає. Відновлюйся, добре їж, спи.",
   "train.restHeadline": "Повний відпочинок.",
   "train.restLine": "Відновлення — теж тренування. Візьми день.",

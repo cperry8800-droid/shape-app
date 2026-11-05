@@ -16,6 +16,7 @@ import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesig
 import { sharedWeekOneOf } from '../../../../lib/coach-client-legs.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 import { bsNormalizeListingMedia } from '../../../../../public/newdesign/listingMedia.mjs';
+import { bsWorkoutPlaylist } from '../../../../../mobile-app/src/services/playlistLink.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -182,9 +183,9 @@ export async function GET(request: Request) {
       scheduledDate: w.scheduled_date ?? null,
       time: /^\d{1,2}:\d{2}$/.test(timeRaw) ? timeRaw : null,
       durationMin: durMatch ? Number(durMatch[0]) : null,
-      playlist: payload?.playlist && typeof payload.playlist === 'object'
-        ? { name: String((payload.playlist as Record<string, unknown>).name ?? ''), meta: String((payload.playlist as Record<string, unknown>).meta ?? '') }
-        : null,
+      // The coach's playlist for the day, with its link when it has one (an https Spotify or Apple Music
+      // playlist), so the card opens it in the member's own app (playlistLink.mjs; 2026-11-05).
+      playlist: bsWorkoutPlaylist(payload?.playlist),
       // Builder snapshot stamp ({id, name, version, week, day}) — the client
       // Workouts tab groups the program into weeks with it.
       template: payload?.template && typeof payload.template === 'object'

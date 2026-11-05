@@ -900,6 +900,7 @@ function ClientWorkoutsPage() {
         subtitle={"The whole program, week by week — what's done, what's tonight, and what " + coach + " writes next. Log sessions in the app; sets sync here."}
       >
         <DashGrid role="client" tab="workouts" widgets={widgets} />
+        {source === "live" && typeof window.MemberCoachPlaylists === "function" && <window.MemberCoachPlaylists role="trainer" />}
       </DashPage>
     </React.Fragment>
   );

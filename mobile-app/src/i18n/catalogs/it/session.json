@@ -180,6 +180,7 @@
   "train.reg.tag": "Etichetta",
   "train.reg.time": "Durata",
   "train.restChip": "Riposo",
+  "train.openPlaylistIn": "Apri {name} in {service}",
   "train.restCopy": "Oggi nessun allenamento in programma. Recupera, mangia bene, dormi.",
   "train.restHeadline": "Riposo totale.",
   "train.restLine": "Recuperare è allenarsi. Prenditi la giornata.",

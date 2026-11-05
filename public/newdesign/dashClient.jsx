@@ -191,8 +191,12 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
       {rows.length > maxRows && <div style={{ fontFamily: mono, fontSize: 9, color: ink50, padding: "6px 0 0 36px" }}>+ {rows.length - maxRows} more</div>}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
         {workout.playlist && workout.playlist.name ? (
-          <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
-            ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}
+          // With a link (the plan route keeps only an https Spotify or Apple Music one), the chip opens it in
+          // the member's own app; Shape never streams it (2026-11-05).
+          <a href={workout.playlist.url && /^https:\/\/(open\.spotify\.com|music\.apple\.com)\//i.test(workout.playlist.url) ? workout.playlist.url : interactive ? "ClientPlaylists.html" : undefined}
+            {...(workout.playlist.url ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "6px 10px" }}>
+            ♪ {workout.playlist.name}{workout.playlist.meta ? " · " + workout.playlist.meta : ""}{workout.playlist.url ? " · " + (workout.playlist.provider === "apple" ? "Apple Music" : "Spotify") + " ↗" : ""}
           </a>
         ) : (
           <a href={interactive ? "ClientPlaylists.html" : undefined} style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: ink50, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)", borderRadius: 4, padding: "6px 10px" }}>♪ Shape Radio</a>

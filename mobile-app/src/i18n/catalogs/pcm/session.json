@@ -180,6 +180,7 @@
   "train.reg.tag": "Tag",
   "train.reg.time": "Time",
   "train.restChip": "Rest",
+  "train.openPlaylistIn": "Open {name} for {service}",
   "train.restCopy": "No workout for today. Recover, chop well, sleep.",
   "train.restHeadline": "Full rest.",
   "train.restLine": "Recovery na training. Take di day.",

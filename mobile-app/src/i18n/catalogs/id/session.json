@@ -180,6 +180,7 @@
   "train.reg.tag": "Label",
   "train.reg.time": "Durasi",
   "train.restChip": "Istirahat",
+  "train.openPlaylistIn": "Buka {name} di {service}",
   "train.restCopy": "Tidak ada latihan hari ini. Pulihkan diri, makan yang baik, tidur.",
   "train.restHeadline": "Istirahat penuh.",
   "train.restLine": "Pemulihan itu latihan. Ambil harimu.",

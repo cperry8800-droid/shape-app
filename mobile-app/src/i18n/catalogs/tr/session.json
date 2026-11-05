@@ -180,6 +180,7 @@
   "train.reg.tag": "Etiket",
   "train.reg.time": "Süre",
   "train.restChip": "Dinlenme",
+  "train.openPlaylistIn": "{name} çalma listesini {service} uygulamasında aç",
   "train.restCopy": "Bugün planlı antrenman yok. Toparlan, iyi ye, uyu.",
   "train.restHeadline": "Tam dinlenme.",
   "train.restLine": "Toparlanmak da antrenmandır. Günü kendine ayır.",

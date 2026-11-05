@@ -1251,7 +1251,8 @@ function DbuDayChips({ day, onChange, onWeekday, takenBy, playlists = [], clips,
         <span aria-hidden="true">{day.playlist ? "♫ " + day.playlist.name : "＋ Playlist"}</span>
         <select aria-label="Playlist on the client's card" value={day.playlist ? day.playlist.name : ""} onChange={(e) => {
           const p = lists.find((x) => x.name === e.target.value);
-          onChange({ ...day, playlist: p ? { name: p.name, meta: p.meta || "" } : null });
+          // With the playlist's id and link, so the client's card opens it in their own app (2026-11-05).
+          onChange({ ...day, playlist: p ? { name: p.name, meta: p.meta || "", ...(p.id ? { id: p.id } : {}), ...(p.url ? { url: p.url, provider: p.provider || "spotify" } : {}) } : null });
         }}>
           <option value="">No playlist</option>
           {lists.map((p) => <option key={p.name} value={p.name}>{p.name}{p.meta ? " · " + p.meta : ""}</option>)}
@@ -3074,7 +3075,7 @@ function TrainerProgramsPage() {
       // failed read means nothing yet: stay on Loading instead of flashing an error at a
       // visitor who is a moment from the preview.
       }catch(e){if(on&&source!=null){if(source==='demo' && !libraryOwner.current){resolved.current=true;setTemplates(DashBuilder.demoTemplates());setRecoveries(Object.entries(dbuReadDrafts(null)));setError('');}else{setError(e.message || 'Could not load your workouts. Check your connection and retry.');setTemplates(null);}}}
-      try{const res=await fetch('/api/coach/soundtracks',{credentials:'same-origin'});if(!res.ok)return;const data=await res.json();if(on)setPlaylists((data.soundtracks||data.playlists||[]).map(x=>({name:x.name,meta:x.track_count?x.track_count+' tracks':''})));}catch(e){}
+      try{const res=await fetch('/api/coach/soundtracks',{credentials:'same-origin'});if(!res.ok)return;const data=await res.json();if(on)setPlaylists((data.soundtracks||data.playlists||[]).map(x=>(window.PlaylistAttach?window.PlaylistAttach.dayPlaylist(x):null)||({name:x.name,meta:x.tracks?x.tracks+' tracks':''})));}catch(e){}
     })();
     return()=>{on=false;};
   },[source,refresh]);

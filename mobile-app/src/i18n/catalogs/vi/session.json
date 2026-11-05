@@ -180,6 +180,7 @@
   "train.reg.tag": "Nhãn",
   "train.reg.time": "Thời lượng",
   "train.restChip": "Nghỉ",
+  "train.openPlaylistIn": "Mở {name} trong {service}",
   "train.restCopy": "Hôm nay không có buổi tập. Hãy phục hồi, ăn tốt, ngủ đủ.",
   "train.restHeadline": "Nghỉ trọn vẹn.",
   "train.restLine": "Phục hồi cũng là tập. Cứ nghỉ hôm nay.",

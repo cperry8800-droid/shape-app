@@ -8,6 +8,7 @@ import { SHAPE_KITCHEN_RECIPES, RECIPE_DIETS, RECIPE_PROTEINS, RECIPE_FREE_FROM,
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS, bsClientWorkoutForDay, bsBuildDemoTrainProgram, bsEmptyTrainProgram, bsApplyTrainAdjust, bsTrainT, bsTrainTagLabel } from './bsClientWeekDemo.js';
 import { bsReactionType, bsReactionVerb, bsReactionPalette } from '../services/reactionVerbs.mjs';
 import { suggestNextLoad } from '../services/suggestNextLoad.mjs';
+import { bsWorkoutPlaylist } from '../services/playlistLink.mjs';
 import { bsWorkoutDrafts, bsStoreWorkoutDraft, bsRemoveWorkoutDraft, bsSessionMoves, bsMoveBlocks, bsPreviewSession, bsNextSessionMove, bsSameGroup, bsApplyRemainingLoad, bsLoggedSet, bsLoadPrefill, bsGroupKey, bsPerSetLabels, bsHasLadder, bsSetPrefill, bsLadderRemoveSet, bsMoveTotalReps, bsApplyMoveSwap, bsLogSetLabel } from '../services/workoutSession.mjs';
 import { BS_WORKOUT_VIEWS, bsWorkoutView, bsReadWorkoutView, bsSaveWorkoutView, bsHrFresh, bsCollectHr, bsCloseHr, bsRestoreHr, bsHrSummary, bsHrSensorSamples } from '../services/workoutExperience.mjs';
 import { bsSdSplitUnit, bsSdFigure, bsSdFigureText, bsSdNeedle, bsSdPaceTraceIn, bsSdElevTraceIn, bsSdUnitizeStat, bsSdRankStats } from '../services/sessionLedger.mjs';
@@ -4338,9 +4339,8 @@ function bsBuildTrainProgram(workouts, t, tr) {
       // ("Chips on the client card") and the plan route has always delivered it, but
       // this mapping dropped it, so the app's Train hero never showed what the website
       // card does. Owner, 2026-10-07. Only a playlist with a name is one.
-      playlist: w.playlist && String(w.playlist.name || '').trim()
-        ? { name: String(w.playlist.name).trim(), meta: String(w.playlist.meta || '').trim() }
-        : null,
+      // With its link (2026-11-05): the card opens it in the member's own Spotify or Apple Music.
+      playlist: bsWorkoutPlaylist(w.playlist),
       meta: [w.durationMin ? T('session:train.minutes', `${w.durationMin} min`, { min: w.durationMin }) : null, movesLabel].filter(Boolean).join(' · '),
       copy: w.description || (isSelf ? selfByline : T('session:train.programmedByCoach', 'Programmed by your coach.')),
       moves,

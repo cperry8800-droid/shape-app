@@ -180,6 +180,7 @@
   "train.reg.tag": "Alama",
   "train.reg.time": "Lokaci",
   "train.restChip": "Hutu",
+  "train.openPlaylistIn": "Buɗe {name} a {service}",
   "train.restCopy": "Babu atisayen da aka tsara yau. Ka huta, ka ci abinci mai kyau, ka yi barci.",
   "train.restHeadline": "Cikakken hutu.",
   "train.restLine": "Hutu ma atisaye ne. Ka ɗauki ranar.",

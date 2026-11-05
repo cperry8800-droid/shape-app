@@ -180,6 +180,7 @@
   "train.reg.tag": "Étiquette",
   "train.reg.time": "Durée",
   "train.restChip": "Repos",
+  "train.openPlaylistIn": "Ouvrir {name} dans {service}",
   "train.restCopy": "Aucune séance prévue aujourd'hui. Récupérez, mangez bien, dormez.",
   "train.restHeadline": "Repos complet.",
   "train.restLine": "Récupérer, c'est s'entraîner. Prenez la journée.",
