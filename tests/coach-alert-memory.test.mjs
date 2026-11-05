@@ -286,7 +286,9 @@ test('the hourly run evaluates both rosters, each on its own memory: a client on
 });
 
 test('the run still reads the one snapshot from before the split, until that role posts its own', async () => {
-  const legacyState = { coachClients: { t1: 'amber' }, pendingDigest: [{ type: 'client_amber', key: 'n7', sig: 'amber:x', data: { providerRole: 'nutritionist' } }, { type: 'client_amber', key: 't7', sig: 'amber:y', data: { providerRole: 'trainer' } }] };
+  const legacyState = { coachClients: { t1: 'amber' }, pendingDigest: [{ type: 'client_amber', key: 'n7', sig: 'amber:x', data: { providerRole: 'nutritionist' } }, { type: 'client_amber', key: 't7', sig: 'amber:y', data: { providerRole: 'trainer' } },
+    // A held member notice (the account is also a member): no provider role, so no coach role's (Codex on #2622).
+    { type: 'checkin_due', key: 'm1', sig: 'due:w', data: {} }] };
   const tables = { user_goals: [
     { user_id: 'coach-1', kind: 'notify_snapshot', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(6) }), rosterClient('t2', { trainer: daysAgo(6) })] } },
     { user_id: 'coach-1', kind: 'notify_state', data: legacyState },
@@ -305,7 +307,7 @@ test('the run still reads the one snapshot from before the split, until that rol
   assert.deepEqual((await core.readNotifyState(shared, 'coach-1', 'dietitian')).pendingDigest.map((i) => i.key), ['n7']);
   const own = notifyDb({ user_goals: [{ user_id: 'coach-1', kind: 'notify_state', data: legacyState }, { user_id: 'coach-1', kind: 'notify_state:trainer', data: { coachClients: {} } }] });
   assert.deepEqual(await core.readNotifyState(own, 'coach-1', 'trainer'), { coachClients: {} }, 'once it has its own, only its own');
-  assert.equal((await core.readNotifyState(shared, 'coach-1', 'client')).pendingDigest.length, 2, "a member's is the plain one");
+  assert.equal((await core.readNotifyState(shared, 'coach-1', 'client')).pendingDigest.length, 3, "a member's is the plain one, its own held notice included");
   // The day's push count stays the person's (Codex on #2622): each role writes its memory to its own key
   // and the count to the shared one, and reads the count back from there, so two roles share one budget
   // when the day's pushes can't be read.

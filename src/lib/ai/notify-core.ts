@@ -394,7 +394,9 @@ export async function readNotifyState(client: SupabaseClient, userId: string, ro
     const held = Array.isArray(shared.pendingDigest) ? shared.pendingDigest : null;
     memory = !held ? shared : { ...shared, pendingDigest: held.filter((i) => {
       const pr = i && typeof i === 'object' ? ((i as { data?: { providerRole?: unknown } }).data || {}).providerRole : undefined;
-      return typeof pr !== 'string' || pr === provider;
+      // Only this role's own (Codex on #2622): a held item with no provider role is a member's, and
+      // stays in the shared state, never copied into a coach role's digest.
+      return pr === provider;
     }) };
   }
   const { date: _d, sentToday: _s, ...rest } = memory;

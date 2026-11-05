@@ -35,7 +35,8 @@ export default {
     { name: "the first run since the split forgets who was alerted", file: CORE, find: "  if (!Object.keys(own).length) {", replace: '  if (false) {' },
     { name: "each role counts its own pushes (a second daily budget)", file: CORE, find: "  return shared.date !== undefined ? { ...rest, date: shared.date, sentToday: shared.sentToday } : rest;", replace: '  return memory;' },
     { name: "the day's count never reaches the shared key", file: CORE, find: "  await writeUserGoal(client, userId, 'notify_state', { ...shared, date: nextState.date, sentToday: nextState.sentToday });", replace: '  void shared;' },
-    { name: "the other role's held alerts are carried over", file: CORE, find: "    return typeof pr !== 'string' || pr === provider;", replace: '    return true;' },
+    { name: "the other role's held alerts are carried over", file: CORE, find: "      return pr === provider;", replace: '      return true;' },
+    { name: "a member's held notice is copied into a coach role", file: CORE, find: "      return pr === provider;", replace: "      return typeof pr !== 'string' || pr === provider;" },
 
     // ── each role's program ──
     { name: "the rule reads the one pick, not the role's own", file: SIG, find: '  function ruleProgramEnding(c, now, role) {\n    var p = programForRole(c, role);', replace: '  function ruleProgramEnding(c, now, role) {\n    var p = c.program;' },
