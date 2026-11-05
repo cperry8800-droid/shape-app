@@ -95,8 +95,10 @@ export function BSTrainDay(p) {
           value={until ? (until.h > 0 ? tr('session:train.untilHourMin', { defaultValue: '{h}h {m}m', h: until.h, m: until.m }) : tr('session:train.untilMin', { defaultValue: '{m} min', m: until.m })) : null} />
         {/* Who wrote the day — honest byline: "Programmed by you" (or the program name · Wn) on self days,
             the real assigning trainer on coach days, and nothing at all when no coach authored it. */}
+        {/* Edit reaches 6px under this row and the lit Start 7px over its own (44px targets round smaller
+            words), so 5px more under this row keeps the two apart (8 + 5 = 13). */}
         {cur.selfAuthored ? (
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 8, marginBottom: 5, display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
             <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{cur.program && cur.program.name ? cur.program.name : tr('session:train.programmedByYou', { defaultValue: 'Programmed by you' })}{cur.program && cur.program.week ? ` · ${tr('session:train.yourProgramWeek', { defaultValue: 'Your program · Week {n}', n: cur.program.week })}` : ''}</span>
             {p.onEditYours && (
               <button type="button" onClick={p.onEditYours} style={{ background: 'transparent', border: 0, cursor: 'pointer', minHeight: 44, marginBlock: -6, padding: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.ACCENT }}>{tr('session:train.editYours', { defaultValue: 'Edit · Yours' })}</button>

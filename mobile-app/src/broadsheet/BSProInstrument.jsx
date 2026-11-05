@@ -107,9 +107,10 @@ export function BSProDeckWeek({ t, role, dates, todayIdx, selDay, onSelectDay, c
     <div data-deck-week="" role="group" aria-label={label} style={{ padding: `${dense ? 0 : 6}px ${t.padX - 6}px 0` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '0 6px' }}>
         <span style={bsDeckEyebrow(d.INK70)}>{label}</span>
-        {/* A 44px target; on the dense deck it reaches 8px past its row, so the row is 28px (owner, 2026-11-04:
-            "make them all smaller"). */}
-        {onMonth && <button type="button" onClick={onMonth} style={{ minHeight: 44, margin: dense ? '-8px 0' : 0, padding: '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(d.TEAL) }}>{monthLabel}</button>}
+        {/* A 44px target; on the dense deck (owner, 2026-11-04: "make them all smaller") it reaches 8px up over
+            the deck's line, never down over the day buttons under it (Codex P2 on #2617: the day buttons, painted
+            later, took the overlap), so the row is 36px; its top padding keeps the words level with THIS WEEK. */}
+        {onMonth && <button type="button" data-deck-month="" onClick={onMonth} style={{ minHeight: 44, margin: dense ? '-8px 0 0' : 0, padding: dense ? '8px 2px 0' : '0 2px', border: 0, background: 'transparent', cursor: 'pointer', ...bsDeckEyebrow(d.TEAL) }}>{monthLabel}</button>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
         {dates.map((day, idx) => {

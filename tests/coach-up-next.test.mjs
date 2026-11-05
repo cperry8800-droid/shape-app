@@ -67,6 +67,9 @@ test('Up next hangs from the deck: a dotted line into its rail, the countdown th
   // The deck's own box, with no warm corner (owner, 2026-11-04: "color of this box doesn't match").
   assert.match(card, /data-up-next="" style=\{\{ \.\.\.bsRaised\(t\), display: 'grid', gridTemplateColumns: '50px minmax\(0, 1fr\)'/);
   assert.match(KIT, /data-pro-deck=""[^\n]*\.\.\.bsRaised\(t\) \}\}>/, 'the deck is not bsRaised(t) either');
+  // Month view keeps its 44px target and reaches only up, over the deck's line, never down over the day buttons
+  // (Codex P2 on #2617: those, painted later, took the overlap).
+  assert.match(KIT, /data-deck-month="" onClick=\{onMonth\} style=\{\{ minHeight: 44, margin: dense \? '-8px 0 0' : 0, padding: dense \? '8px 2px 0' : '0 2px',/);
   // The rail: the pulse (still under Reduce Motion), the countdown, or a booking under way's start time.
   const rail = card.slice(card.indexOf('data-up-rail=""'), card.indexOf("tr('coach:today.upNextAt'"));
   assert.match(rail, /\.\.\.\(sdReduced \? null : \{ animation: 'bsLivePulse/);

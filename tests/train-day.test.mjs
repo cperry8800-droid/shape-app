@@ -191,6 +191,17 @@ test('On deck: the next three days, each opening on the page; Plan, the links an
   } finally { await m.close(); }
 });
 
+test('on a day you programmed, Edit and the lit Start keep their 44px targets apart', () => {
+  // Edit (marginBlock -6) reaches 6px under its row; the lit capsule's button (margin -7px 0) reaches 7px over its
+  // own, 8px under the byline (owner, 2026-11-04: "make them all smaller"), so the byline row adds 5px under it.
+  const DAY = readFileSync(new URL('../mobile-app/src/broadsheet/BSTrainDay.jsx', import.meta.url), 'utf8');
+  const FOCUS = readFileSync(new URL('../mobile-app/src/broadsheet/BSFocus.jsx', import.meta.url), 'utf8');
+  assert.match(DAY, /\{cur\.selfAuthored \? \(\n\s*<div style=\{\{ marginTop: 8, marginBottom: 5,/);
+  assert.match(DAY, /onClick=\{p\.onEditYours\} style=\{\{[^\n]*minHeight: 44, marginBlock: -6,/);
+  assert.match(FOCUS, /data-focus-primary="lit" style=\{\{ minHeight: 44, margin: '-7px 0',/);
+  assert.match(FOCUS, /gap: lit \? '0 16px' : '6px 20px', marginTop: lit \? 8 : 16 \}\}>/);
+});
+
 test('the glow is dark paper\'s: the picked tile, the burn total, the lead\'s spine and Start glow there, and none on light', async () => {
   for (const name of ['dark', 'light']) {
     paper = PAPERS[name];
