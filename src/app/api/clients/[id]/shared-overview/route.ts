@@ -32,6 +32,6 @@ export async function GET(
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = (await clientForRequest(req)) as unknown as OverviewClient;
 
-  const me = await resolveMe(supabase, user.id);
+  const me = await resolveMe(supabase, user.id, new URL(req.url).searchParams.get('tz'));
   return NextResponse.json(await buildSharedOverview(supabase, { clientId, me }));
 }

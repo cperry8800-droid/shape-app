@@ -147,3 +147,58 @@ export function wallClockInZone(t: number, zone: string): { date: string; time: 
   const pad = (n: number, w = 2) => String(n).padStart(w, '0');
   return { date: `${pad(p.y, 4)}-${pad(p.mo)}-${pad(p.d)}`, time: `${pad(p.h)}:${pad(p.mi)}` };
 }
+
+// ── A coach's day and week, on their own clock ──────────────────────────────
+// Added 2026-11-05 for the coach dashboards, which picked "today" with
+// `setHours(0, 0, 0, 0)` on the server: midnight UTC on Vercel, so a New York coach's
+// 7 pm session fell off Today and tomorrow's morning ones appeared from 7 pm on.
+
+/** The first instant of the calendar day y-mo-d in `zone`: midnight, or, where a DST change
+ * skips midnight (America/Santiago, Asia/Beirut), the first wall minute of that day that exists. */
+function dayStartInZone(y: number, mo: number, d: number, zone: string): number {
+  for (let m = 0; m <= 180; m += 15) {
+    const t = instantInZone(y, mo, d, Math.floor(m / 60), m % 60, zone);
+    if (Number.isFinite(t)) return t;
+  }
+  return NaN;
+}
+
+/** The calendar day y-mo-d moved by `n` days, by the calendar rather than by 24-hour steps. */
+function shiftCivil(y: number, mo: number, d: number, n: number): [number, number, number] {
+  const x = new Date(Date.UTC(y, mo - 1, d + n));
+  return [x.getUTCFullYear(), x.getUTCMonth() + 1, x.getUTCDate()];
+}
+
+/**
+ * The day `zone` shows at instant `t`, as [start, end): its midnight to the next midnight on that
+ * clock, so a day across a DST change is 23 or 25 hours, as it is on the wall. Null when the zone
+ * is unusable (an absent one included: partsAt refuses it rather than reading it as UTC).
+ */
+export function dayBoundsInZone(t: number, zone: string): { start: number; end: number } | null {
+  const p = partsAt(t, zone);
+  if (!p) return null;
+  const start = dayStartInZone(p.y, p.mo, p.d, zone);
+  const end = dayStartInZone(...shiftCivil(p.y, p.mo, p.d, 1), zone);
+  return Number.isFinite(start) && Number.isFinite(end) ? { start, end } : null;
+}
+
+/** The Monday-to-Monday week `zone` shows at instant `t`, as [start, end); null as above. */
+export function weekBoundsInZone(t: number, zone: string): { start: number; end: number } | null {
+  const p = partsAt(t, zone);
+  if (!p) return null;
+  const back = (new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay() + 6) % 7;   // 0 = Monday
+  const start = dayStartInZone(...shiftCivil(p.y, p.mo, p.d, -back), zone);
+  const end = dayStartInZone(...shiftCivil(p.y, p.mo, p.d, 7 - back), zone);
+  return Number.isFinite(start) && Number.isFinite(end) ? { start, end } : null;
+}
+
+/**
+ * The zone a coach's dashboard counts its days in: the zone stored on their listing (the one their
+ * open hours are kept in, which /api/calendar also places bookings in), else the zone their browser
+ * sent, else UTC. Unlike /api/calendar, the stored zone applies without a `tz`: this is a read with
+ * no write that has to agree with it, so an installed app build that sends none is better served by
+ * the coach's own clock than by UTC.
+ */
+export function coachDayZone(storedZone: unknown, sentZone: unknown): string {
+  return normalizeZone(storedZone) ?? normalizeZone(sentZone) ?? 'UTC';
+}

@@ -262,6 +262,18 @@
   function uid() { _uid += 1; return "m" + Date.now().toString(36) + "-" + _uid; }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
+  // The slot a meal added to a day takes (2026-11-05): the first of Breakfast, Lunch and Dinner
+  // the day does not have yet, in the day's order, and a Snack once it has all three. The builder
+  // gave the first meal Breakfast and every later one Lunch, so a day built in order came out
+  // Breakfast, Lunch, Lunch, Lunch, and the coach re-picked each slot by hand.
+  function nextSlot(slots) {
+    var taken = {};
+    (Array.isArray(slots) ? slots : []).forEach(function (m) { if (m && m.slot) taken[m.slot] = true; });
+    var mains = ["Breakfast", "Lunch", "Dinner"];
+    for (var i = 0; i < mains.length; i++) if (!taken[mains[i]]) return mains[i];
+    return "Snack";
+  }
+
   function newMeal(food, slot) {
     return {
       id: uid(), slot: slot || "Lunch", name: food.name,
@@ -729,7 +741,7 @@
 
   return {
     GOAL_PHASES: GOAL_PHASES, SLOTS: SLOTS, VARIANT_KEYS: VARIANT_KEYS, FOODS: FOODS,
-    searchFoods: searchFoods, newMeal: newMeal, newDay: newDay, newPlan: newPlan,
+    searchFoods: searchFoods, newMeal: newMeal, nextSlot: nextSlot, newDay: newDay, newPlan: newPlan,
     MADE_AHEAD_RECIPES: MADE_AHEAD_RECIPES, NIGHT_BEFORE_FOODS: NIGHT_BEFORE_FOODS, shapeMadeAhead: shapeMadeAhead, madeAheadMeal: madeAheadMeal, setNightBefore: setNightBefore,
     customFoodsFromTemplates: customFoodsFromTemplates, searchCustomFoods: searchCustomFoods,
     canCreateFood: canCreateFood, newCustomFood: newCustomFood,

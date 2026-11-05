@@ -128,18 +128,55 @@ function dscMonthEnd(k) { return k + "-" + String(new Date(Number(k.slice(0, 4))
 // a wall clock in the zone the route names, and the reschedule hands that zone back; a
 // coach who re-saves their hours from another zone mid-visit would otherwise get months
 // read on two clocks under one label, and drags priced in the wrong one.
+// The months whose plans read failed: a month read cleanly clears its own failure, so a refresh
+// that succeeds brings the Plans row back instead of leaving one failed read hidden all visit
+// (Codex on #2620). The row is unreadable while any month on screen is in the set.
+function dscPlansBad(prev, months, ok) {
+  const bad = new Set(prev ? (prev.plansBad || (prev.plansOk === false ? prev.months : [])) : []);
+  for (const m of months) { if (ok) bad.delete(m); else bad.add(m); }
+  return bad;
+}
+// Whether the plans row is unreadable for the months on screen. A cache from before plansBad (or
+// none) falls back to its single flag.
+function dscPlansUnread(cal, months) {
+  if (!cal) return false;
+  if (cal.plansBad instanceof Set) return months.some((m) => cal.plansBad.has(m));
+  return cal.plansOk === false;
+}
 function dscMergeRange(prev, res, months) {
   const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
-  // The plans row (step 4) rides along with each month: merged by id, and unreadable once any
+  // The plans row (step 4) rides along with each month: merged by id, and unreadable while any
   // month's read of it failed (`clientPlansReadable: false`), so a gap is said, not drawn empty.
   const plansIn = Array.isArray(res.clientPlans) ? res.clientPlans : [];
-  const plansOk = res.clientPlansReadable !== false;
-  if (!prev || prev.zone !== zone) return { zone, months: new Set(months), events: res.events.slice(), clientPlans: plansIn.slice(), plansOk };
+  const ok = res.clientPlansReadable !== false;
+  if (!prev || prev.zone !== zone) {
+    const plansBad = dscPlansBad(null, months, ok);
+    return { zone, months: new Set(months), events: res.events.slice(), clientPlans: plansIn.slice(), plansBad, plansOk: plansBad.size === 0 };
+  }
   const byId = new Map(prev.events.map((e) => [e.id, e]));
   for (const e of res.events) byId.set(e.id, e);
   const planById = new Map((prev.clientPlans || []).map((p) => [p.id, p]));
   for (const p of plansIn) planById.set(p.id, p);
-  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansOk: prev.plansOk !== false && plansOk };
+  const plansBad = dscPlansBad(prev, months, ok);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansBad, plansOk: plansBad.size === 0 };
+}
+// A re-read of months already on screen (the coach's return, 2026-11-05): the answer REPLACES what
+// those months held, where dscMergeRange only adds. Merging by id would keep a booking the client
+// cancelled meanwhile, because a cancelled session is no longer in the answer to be overwritten.
+// Months outside `months` keep what they had; an event or plan with no date is kept unless the
+// answer brings it back.
+function dscReplaceRange(prev, res, months) {
+  const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
+  if (!prev || prev.zone !== zone) return dscMergeRange(null, res, months);
+  const covered = new Set(months);
+  const outside = (x) => !(x && typeof x.date === "string" && covered.has(x.date.slice(0, 7)));
+  const byId = new Map(prev.events.filter(outside).map((e) => [e.id, e]));
+  for (const e of res.events) byId.set(e.id, e);
+  const plansIn = Array.isArray(res.clientPlans) ? res.clientPlans : [];
+  const planById = new Map((prev.clientPlans || []).filter(outside).map((x) => [x.id, x]));
+  for (const x of plansIn) planById.set(x.id, x);
+  const plansBad = dscPlansBad(prev, months, res.clientPlansReadable !== false);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansBad, plansOk: plansBad.size === 0 };
 }
 // A demo week of client plans for the signed-out preview: invented, like its bookings.
 function dscDemoPlans(monday) {
@@ -250,6 +287,16 @@ function dscZoneLabel(live, storedZone) {
 // save, not the one it booted in.
 function dscBrowserZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+// The calendar read for a run of months ("YYYY-MM", consecutive). ⚠ `tz` IS WHAT MAKES THE ROUTE
+// ANSWER ON A CLOCK at all — without it every booking comes back in UTC (the contract older app
+// builds rely on). With it the route uses the coach's stored zone for `role`, and this browser's
+// only when none is stored yet.
+function dscCalendarUrl(run, role) {
+  return "/api/calendar?from=" + run[0] + "-01&to=" + dscMonthEnd(run[run.length - 1])
+    + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "")
+    // A trainer's clients' training days, for the plans row (step 4).
+    + (role === "trainer" ? "&clientPlans=1" : "");
 }
 // Stored rows → seven days of 48 half-hour cells (index = getDay()). A cell is open when a row
 // covers ALL of it. `offGrid` says a row did not land on the half hour, so saving will round it.
@@ -1603,7 +1650,8 @@ const DSC_ROLES = {
 // ── The page ────────────────────────────────────────────────────────────────
 function CoachSchedulePage({ role }) {
   const cfg = DSC_ROLES[role];
-  const { triage, today: live, source } = useDashboard(role);
+  // Re-read when the coach comes back to the tab; the calendar's months re-read below.
+  const { triage, today: live, source } = useDashboard(role, { refreshOnFocus: true });
   const R = dscRules();
   const narrow = useDscNarrow();
   // What /api/calendar has answered so far: { zone, months: Set<"YYYY-MM">, events }, or null
@@ -1724,14 +1772,8 @@ function CoachSchedulePage({ role }) {
     setLoadNote("loading");
     for (const run of dscMonthRuns(missing)) {
       run.forEach((k) => inflight.current.add(k));
-      // ⚠ `tz` IS WHAT MAKES THE ROUTE ANSWER ON A CLOCK at all — without it every booking
-      // comes back in UTC (the contract older app builds rely on). With it the route uses the
-      // coach's stored zone for `role`, and this browser's only when none is stored yet.
-      const url = "/api/calendar?from=" + run[0] + "-01&to=" + dscMonthEnd(run[run.length - 1])
-        + "&role=" + encodeURIComponent(role) + "&tz=" + encodeURIComponent(dscBrowserZone() || "")
-        // A trainer's clients' training days, for the plans row (step 4).
-        + (role === "trainer" ? "&clientPlans=1" : "");
-      fetch(url, { credentials: "same-origin", cache: "no-store" })
+      // ⚠ dscCalendarUrl carries `tz`, which is what makes the route answer on a clock at all.
+      fetch(dscCalendarUrl(run, role), { credentials: "same-origin", cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null)).catch(() => null)
         .then((res) => {
           run.forEach((k) => inflight.current.delete(k));
@@ -1743,6 +1785,29 @@ function CoachSchedulePage({ role }) {
     }
   }, [role, wanted.join(","), cal, retryTick]);
   const retryLoad = () => { failed.current.clear(); setLoadNote(""); setRetryTick((n) => n + 1); };
+  // ⚠ THE MONTHS ON SCREEN RE-READ ON THE COACH'S RETURN (2026-11-05), with the roster above: a
+  // request, a cancellation or a booking made while the coach was in another tab showed only after a
+  // reload. Once a minute at most (useDashFocusRefresh), only months already read, never while a
+  // booking is being moved or dragged (its own answer is on the way), and the answer replaces those
+  // months (dscReplaceRange). A failed re-read keeps the bookings on screen.
+  const calRef = React.useRef(cal); calRef.current = cal;
+  const wantedRef = React.useRef(wanted); wantedRef.current = wanted;
+  const busyRef = React.useRef(busyId); busyRef.current = busyId;
+  useDashFocusRefresh(() => {
+    if (dragRef.current || busyRef.current != null || !calRef.current) return;
+    const months = wantedRef.current.filter((k) => calRef.current.months.has(k) && !inflight.current.has(k));
+    for (const run of dscMonthRuns(months)) {
+      run.forEach((k) => inflight.current.add(k));
+      fetch(dscCalendarUrl(run, role), { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+        .then((res) => {
+          run.forEach((k) => inflight.current.delete(k));
+          if (!mounted.current) return;
+          if (res && Array.isArray(res.events)) setCal((prev) => dscReplaceRange(prev, res, run));
+        });
+    }
+    loadToSchedule();
+  }, isLive);
 
   const liveEvents = cal != null;
   const allEvents = liveEvents ? cal.events : demoEvents;
@@ -1803,7 +1868,9 @@ function CoachSchedulePage({ role }) {
     plansByDate.get(p.date).push(p);
   }
   const plansFor = showPlans ? (iso) => plansByDate.get(iso) || [] : null;
-  const plansUnread = showPlans && liveEvents && cal.plansOk === false;
+  // Unreadable only when a month ON SCREEN failed: a failed month the coach has moved away from no
+  // longer hides the row for the months they're looking at (Codex on #2620).
+  const plansUnread = showPlans && liveEvents && dscPlansUnread(cal, wanted);
   // Clashes are judged against EVERY booking, filtered or not: a session hidden by a chip
   // still holds its hour.
   const sessionsByDate = React.useMemo(() => {

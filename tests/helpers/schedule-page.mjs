@@ -60,10 +60,13 @@ export async function mountSchedule({
     return fetch(new URL(String(url), 'https://shape.test'), init);
   };
   const code = babel.transformSync(SCHEDULE_SRC, { presets: [presetReact], babelrc: false, configFile: false, sourceType: 'script' }).code;
+  // dashData.jsx's useDashFocusRefresh (2026-11-05): the page's return-to-tab re-read, held here so a
+  // test can fire it (`returnToTab`) without a minute of waiting.
+  const focus = { fn: null, enabled: false };
   const Plain = ({ children }) => React.createElement('div', null, children);
   const { CoachSchedulePage } = new Function(
     'React', 'window', 'useDashboard', 'useRememberedChoices', 'useRememberedChoice', 'dashRouteParam', 'DashDemoBand', 'DashPage',
-    'dashTabHref', 'trainerNavItems', 'nutriNavItems', 'trainerPayoutCard', 'nutriPayoutCard', 'serif', 'DashClientDrawer',
+    'dashTabHref', 'trainerNavItems', 'nutriNavItems', 'trainerPayoutCard', 'nutriPayoutCard', 'serif', 'DashClientDrawer', 'useDashFocusRefresh',
     code + '\nreturn { CoachSchedulePage };',
   )(
     React, dom.window,
@@ -75,6 +78,7 @@ export async function mountSchedule({
     },
     (k) => (k in params ? params[k] : null),
     () => null, Plain, () => '#', () => [], () => [], null, null, 'serif', drawer || undefined,
+    (fn, enabled) => { focus.fn = fn; focus.enabled = !!enabled; },
   );
   const root = createRoot(dom.window.document.getElementById('root'));
   const doc = dom.window.document;
@@ -118,6 +122,14 @@ export async function mountSchedule({
     },
     async key(k) { await act(async () => dom.window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: k, bubbles: true }))); await settle(); },
     toast: () => { const t = doc.querySelector('[data-toast]'); return t ? t.textContent : ''; },
+    // The coach comes back to the tab (the gate's minute taken as passed): false when the page
+    // does not re-read on return.
+    async returnToTab() {
+      if (!focus.enabled || !focus.fn) return false;
+      await act(async () => focus.fn());
+      await settle();
+      return true;
+    },
     async unmount() {
       // Nothing to wait out: the page clears its toast timer and its minute tick on unmount.
       try { await act(async () => root.unmount()); } finally {

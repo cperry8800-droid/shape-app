@@ -109,7 +109,7 @@ const todayCode = compile(TODAY);
 const useChoice = (store, key, allowed, fallback) => React.useState(fallback);
 function today(win) {
   return new Function('React', 'window', 'useDashUnits', 'useRememberedChoice', 'serif', 'sans', 'mono', 'INK', 'TEAL_BRIGHT',
-    todayCode + ';return { DashNowColumn, DashNeedsYou, dashCountdown };')(React, win, () => null, useChoice, 'serif', 'sans', 'monospace', '#f2ede4', '#2ee0c4');
+    todayCode + ';return { DashNowColumn, DashNeedsYou, dashCountdown, dashFmtTime };')(React, win, () => null, useChoice, 'serif', 'sans', 'monospace', '#f2ede4', '#2ee0c4');
 }
 
 test('the countdown reads in hours and minutes, and never says zero', () => {
@@ -156,6 +156,29 @@ test('up next is the first session that has not ended: in progress, then the cou
     assert.match(m.text(), /UP NEXT14:00Sam O\./);
     assert.doesNotMatch(m.text(), /UP NEXT · IN/);
   } finally { await m.done(); }
+});
+
+test('Today\'s clocks print in the zone its day was cut in, not the browser\'s (Codex on #2620)', async () => {
+  const m = mount();
+  try {
+    const { DashNowColumn, dashFmtTime } = today(m.dom.window);
+    const iso = '2026-11-05T14:00:00Z';
+    assert.equal(dashFmtTime(iso, 'America/New_York'), '09:00');
+    assert.equal(dashFmtTime(iso, 'Europe/London'), '14:00');
+    assert.equal(dashFmtTime(iso, 'Not/AZone'), dashFmtTime(iso), 'a zone this browser cannot read prints local time');
+    assert.equal(dashFmtTime(iso, null), dashFmtTime(iso));
+    // The column's "until" and NOW clocks take the zone too.
+    const at = (min) => new Date(Date.now() + min * 60000);
+    const rows = [{ at: at(-10), end: at(35), time: 'hh:mm', who: 'Underway', sub: 'Intake' }];
+    await m.render(React.createElement(DashNowColumn, { rows, demoRows: null, clients: [], role: 'trainer', unit: 'session', onOpenCalendar: null, zone: 'Asia/Tokyo' }));
+    assert.ok(m.text().includes('UNTIL ' + dashFmtTime(rows[0].end, 'Asia/Tokyo')), 'the until clock is the browser\'s');
+    assert.ok(m.text().includes('NOW ' + dashFmtTime(new Date().toISOString(), 'Asia/Tokyo')), 'the NOW clock is the browser\'s');
+  } finally { await m.done(); }
+  // And the page hands the route's zone to both the rows and the column.
+  const page = body(TODAY, 'function CoachDashboardPage(', '\nObject.assign(window');
+  assert.equal((page.match(/dashFmtTime\(s\.scheduledAt, dayZone\)/g) || []).length, 2, 'a Today row prints in the browser\'s zone');
+  assert.match(page, /const dayZone = live && typeof live\.dayZone === "string"/);
+  assert.match(page, /<DashNowColumn [^\n]*zone=\{dayZone\}/);
 });
 
 test('Needs you opens on its first tab, switches tabs, and says so when a tab has nothing to show', async () => {

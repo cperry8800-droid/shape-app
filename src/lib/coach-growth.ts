@@ -44,7 +44,8 @@ export type CoachGrowth = {
   // null when there were none in the 30 before (no base to compare with).
   momPct: number | null;
 };
-export type CoachFunnel = { views: null; consults90: number; signed90: number };
+// consults90: intro sessions taken on in 90 days; null when they could not be counted.
+export type CoachFunnel = { views: null; consults90: number | null; signed90: number };
 
 type AddRow = { client_id?: string | null; price_cents?: number | null; created_at?: string | null; status?: string | null; fee_bps?: number | null };
 
@@ -60,7 +61,7 @@ function mondayISO(d: Date): string {
 // The rollup itself, from the rows created in the window and, for each client who had a
 // subscription before it, when that membership ended (Infinity while it runs). Pure, so
 // the counting is tested without a database.
-export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(), consults90, now = Date.now() }: { existing?: Map<string, number>; consults90: number; now?: number }): { growth: CoachGrowth; funnel: CoachFunnel } {
+export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(), consults90, now = Date.now() }: { existing?: Map<string, number>; consults90: number | null; now?: number }): { growth: CoachGrowth; funnel: CoachFunnel } {
   // Each client's first row in the window that became a subscription, oldest first.
   const firsts = new Map<string, AddRow>();
   const until = new Map(existing);
@@ -117,7 +118,7 @@ export async function coachGrowthAndFunnel(
   supabase: SupabaseClient,
   role: 'trainer' | 'nutritionist',
   providerId: number,
-  consults90: number
+  consults90: number | null
 ): Promise<{ growth: CoachGrowth; funnel: CoachFunnel }> {
   const since = new Date(Date.now() - 90 * DAY_MS).toISOString();
   // ⚠ A FAILED READ THROWS. Supabase answers { error } instead of throwing, and read as no

@@ -74,7 +74,8 @@ function useDashSidebarLive(role) {
         } });
         return;
       }
-      const r = await dsbFetch("/api/" + role + "/dashboard");
+      // The same URL the page hook reads (dashData.jsx, with the browser's zone), so the two share one read.
+      const r = await dsbFetch(typeof window !== "undefined" && window.dashRoleDashboardUrl ? window.dashRoleDashboardUrl(role) : "/api/" + role + "/dashboard");
       if (!on) return;
       if (r.signedOut) return setState({ kind: "demo" });
       const d = r.ok ? r.data : null;

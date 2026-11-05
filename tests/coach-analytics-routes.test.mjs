@@ -943,7 +943,8 @@ test('nutritionist: every snapshot in the window is read, and each client\'s fir
     'every page is the last 30 days, not every snapshot ever under a 30-day label')
   const cp = body.clientProgress
   assert.deepEqual([cp.totalDaysLogged, cp.avgLogsPerClient, cp.proteinAdherencePct, cp.weightsUnknown], [1200, 30, 50, false])
-  assert.equal(cp.roster.length, 12)
+  // Every client (2026-11-05: the roster was cut to the 12 most active).
+  assert.equal(cp.roster.length, 40)
   for (const r of cp.roster) assert.deepEqual([r.daysLogged30d, r.weightStart, r.weightLatest, r.weightChangeLb], [30, 200, 171, -29], r.client_id)
   // A failed read is unknown, not a roster that logged nothing.
   const failed = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(2) }, { errors: { daily_health_snapshot: 'timeout' } })
@@ -1036,7 +1037,7 @@ const practice = (role, n, named = () => true) => ({
   subscriptions: Array.from({ length: n }, (_, i) => ({ ...sub(cid(i), 1000), id: 'u' + String(i).padStart(6, '0'), provider_role: role })),
   profiles: Array.from({ length: n }, (_, i) => ({ id: cid(i), full_name: named(i) ? 'Name ' + i : null })),
 })
-// The clients `ids` are the busiest, so the payload's roster (its 12 busiest) is them.
+// The clients `ids` are the busiest, so the payload's roster (every client, busiest first) leads with them.
 const busiest = (role, ids) => (role === 'trainer'
   ? { workout_sessions: ids.map((c, k) => ({ id: 's' + String(k).padStart(4, '0'), client_id: c, started_at: recent, status: 'completed' })) }
   : { daily_health_snapshot: ids.map((c, k) => ({ id: 'h' + String(k).padStart(4, '0'), user_id: c, snapshot_date: recent.slice(0, 10), protein_g: 100, dietary_kcal: 2000, weight_lb: null })) })
@@ -1045,12 +1046,13 @@ const nameReads = (calls) => calls.filter((c) => c.table === 'profiles').map((c)
 
 test('both routes name every client, 100 ids a read: past the 1,000th they read "Client"', async () => {
   const N = 1200
-  // The last 12 in line are past the first 1,000 profiles rows, and the busiest, so the roster shows them.
+  // The last 12 in line are past the first 1,000 profiles rows, and the busiest, so the roster leads with them.
   const late = Array.from({ length: 12 }, (_, k) => cid(N - 12 + k))
   for (const [role, listing] of LISTINGS) {
     const { body, calls } = await loadRoute(role, { ...listing, ...practice(role, N), ...busiest(role, late) }, { rpcs: lifts({}) })
     const roster = body.clientProgress.roster
-    assert.deepEqual(roster.map((r) => r.client_id).sort(), late, role + ': the 12 busiest')
+    assert.equal(roster.length, N, role + ': every client, not the 12 busiest')
+    assert.deepEqual(roster.slice(0, 12).map((r) => r.client_id).sort(), late, role + ': the 12 busiest first')
     assert.deepEqual(roster.map((r) => [r.client_id, r.name, r.nameUnread]), roster.map((r) => [r.client_id, 'Name ' + Number(r.client_id.slice(1)), false]),
       role + ': each one named, though past the 1,000th')
     const batches = nameReads(calls)
@@ -1124,4 +1126,21 @@ test('nutritionist: the ticker sends no newClients7d, and no count of new subscr
   assert.ok(body.ticker && !('newClients7d' in body.ticker), JSON.stringify(body.ticker))
   assert.ok(!calls.some((c) => c.table === 'subscriptions' && (has(c, 'gte', 'created_at') || c.ops.some((o) => o[0] === 'select' && o[2]?.head === true))),
     'no count of the subscriptions created this week is read')
+})
+
+// ── Every client on the roster, not the 12 most active (2026-11-05) ──
+// clientProgress.roster was sorted by activity and cut to 12, so on a bigger practice the clients
+// who most needed a nudge were the ones dropped, and "Top weight loss" was drawn from the busiest dozen.
+test('the roster outcomes carry every active client, the quiet ones included', async () => {
+  const subs = Array.from({ length: 15 }, (_, i) => ({ ...sub(cid(i), 1000), id: 'u' + String(i).padStart(6, '0') }))
+  // Twelve busy clients, three who did nothing this month.
+  const busy = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + i, client_id: cid(i), started_at: recent, status: 'completed' }))
+  const t = await loadRoute('trainer', roster({ subscriptions: subs, workout_sessions: busy, workout_set_logs: [] }), { rpcs: lifts({}) })
+  assert.equal(t.body.clientProgress.roster.length, 15)
+  assert.deepEqual(t.body.clientProgress.roster.slice(-3).map((r) => r.workouts30d), [0, 0, 0], 'the quiet three are there, last')
+  const n = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(15) })
+  assert.equal(n.body.clientProgress.roster.length, 15)
+  for (const f of ['trainer', 'nutritionist']) {
+    assert.doesNotMatch(readFileSync(join(ROOT, `src/app/api/${f}/analytics/route.ts`), 'utf8'), /\.slice\(0, 12\)/, f)
+  }
 })

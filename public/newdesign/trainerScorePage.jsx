@@ -62,6 +62,9 @@ function TrainerScorePage() {
   const headline = score
     ? { title: score.total.toLocaleString(), eyebrow: `COACH SCORE · ${tierLabel}${read.state === "sample" ? " · SAMPLE" : ""}` }
     : { title: "—", eyebrow: read.state === "failed" ? "COACH SCORE · COULDN'T READ" : "COACH SCORE" };
+  // The Score fix (2026-11-05): one line, for 30 days from the day it shipped, on a coach's own read
+  // score (leaderboards.jsx coachScoreFixNote). Never on the sample.
+  const fixNote = read.state === "ok" && typeof coachScoreFixNote === "function" ? coachScoreFixNote("trainer") : null;
   const unreadNote = read.state === "failed"
     ? "Couldn't read your score just now. Nothing is shown in its place: reload the page to try again."
     : "Reading your score…";
@@ -158,6 +161,7 @@ function TrainerScorePage() {
     >
       {view === "board" ? <CoachLeaderboard role="trainer" /> : (
       <div style={{ display: "grid", gap: 16 }}>
+        {fixNote && <div role="note" data-score-fix style={{ fontSize: 13.5, lineHeight: 1.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", padding: "12px 16px", borderRadius: 8, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" }}>{fixNote}</div>}
         {tiersCard}
         <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 16, alignItems: "start" }}>
           {breakdownCard}

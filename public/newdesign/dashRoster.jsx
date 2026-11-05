@@ -80,6 +80,15 @@ function dashConsultLabel(rec) {
   if (d == null) return { text: "Not shared", dim: true };
   return { text: d === 0 ? "Today" : d + "d", warn: d >= 14 };
 }
+// ⚠ "ADHERENCE" WAS NOT WHAT THIS MEASURES (2026-11-05). trainingAdherence is get_client_stats'
+// sessions kept: completed over booked, the last 42 days, with ANY of the client's coaches (a
+// nutritionist's consults count), and a past booking nobody marked done counts as missed
+// (2026-10-31-client-stats-window.sql). It is labelled as that everywhere it shows: the column, the
+// sort, the drawer and Today's line. A coach-scoped seven-day figure would need the overview's
+// sessions on the record and would swing on one or two bookings; the label is the honest fix.
+// The column's 92px holds "KEPT · 42D" (written out in the sort map and the trainer heads, which
+// the roster tests lift on their own); the drawer section spells it out with DASH_KEPT_NOTE.
+const DASH_KEPT_NOTE = "Booked sessions with any of their coaches, last 42 days. A past booking nobody marked done counts as missed.";
 function dashAdherenceLabel(rec) {
   const a = rec.trainingAdherence;
   if (!a || a.pct == null) return { text: "Not shared", dim: true };
@@ -188,7 +197,7 @@ const DASH_ROSTER_SORTS = {
     const w = DashSignals.scoreWeekReading(r.client.shapeScoreHistory);
     return w && w.points != null ? w.points : null;
   } },
-  adherence: { label: "ADHERENCE", dir: "asc", of: (r) => {
+  adherence: { label: "KEPT · 42D", dir: "asc", of: (r) => {
     const a = r.client.trainingAdherence;
     return a && a.pct != null ? a.pct : null;
   } },
@@ -279,7 +288,7 @@ const DASH_ROSTER_VIEWS = {
     minWidth: 926,
     // PROGRAM names no comparator: it is a block name plus a week, and ordering blocks
     // alphabetically answers no question a coach has.
-    heads: [["SCORE · WK", "score"], ["ADHERENCE", "adherence"], ["PROGRAM", null], ["STREAK", "streak"], ["LAST CONTACT", "contact"], ["REVENUE", "revenue"], ["TENURE", "tenure"]],
+    heads: [["SCORE · WK", "score"], ["KEPT · 42D", "adherence"], ["PROGRAM", null], ["STREAK", "streak"], ["LAST CONTACT", "contact"], ["REVENUE", "revenue"], ["TENURE", "tenure"]],
     cells: (rec, role) => [
       dashScoreCell(rec),
       dashCellText(dashAdherenceLabel(rec)),
@@ -339,8 +348,9 @@ function DashSecAdherence({ rec }) {
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
         <span style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 22 }}>{a.pct}%</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50 }}>{a.done}/{a.planned} sessions · 42d</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, color: DASH_ROSTER_INK50 }}>{a.done} of {a.planned} sessions kept · 42d</span>
       </div>
+      <div style={{ fontSize: 10.5, color: DASH_ROSTER_INK50, marginTop: 4, lineHeight: 1.45 }}>{DASH_KEPT_NOTE}</div>
       <div style={{ position: "relative", height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 2, marginTop: 8 }}>
         <div style={{ position: "absolute", top: 0, left: 0, height: "100%", width: Math.min(100, a.pct) + "%", background: a.pct < 70 ? DASH_SEV_COLORS.amber : "var(--sh-accent, #2ee0c4)", borderRadius: 2 }} />
       </div>
@@ -495,7 +505,7 @@ function DashSecTrainingContext({ rec }) {
       <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Volume · 42d</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 20, marginTop: 5 }}>{adh ? adh.done + "/" + adh.planned : "—"}</div>
-        <div style={{ fontSize: 10.5, color: DASH_ROSTER_INK50, marginTop: 2 }}>{adh ? adh.pct + "% adherence" : "not shared"}</div>
+        <div style={{ fontSize: 10.5, color: DASH_ROSTER_INK50, marginTop: 2 }}>{adh ? adh.pct + "% of sessions kept" : "not shared"}</div>
       </div>
       <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "12px 14px" }}>
         <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>Shape Score · wk</div>
@@ -529,7 +539,7 @@ const DASH_DRAWER_VIEWS = {
     sections: [
       ["score", "Shape Score · 8 weeks", DashSecScore],
       ["goals", "Goals · projections", DashSecGoals],
-      ["adherence", "Session adherence", DashSecAdherence],
+      ["adherence", "Sessions kept · 42 days", DashSecAdherence],
       ["notes", "Coach notes", DashSecNotes],
       ["milestones", "Milestones", DashSecMilestones],
       ["nutrition", "From the nutritionist side · read-only", DashSecNutritionSummary],

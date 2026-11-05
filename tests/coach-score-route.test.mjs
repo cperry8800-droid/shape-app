@@ -82,8 +82,10 @@ async function call(tables, opts = {}) {
 }
 
 const recent = new Date(Date.now() - 5 * 86400000).toISOString();
-// Trainer 7: three clients on active plans (one more ended), four sessions in 90 days with three
-// completed, two programs. 3 × 50 + 75 × 10 + 2 × 80 = 1,060, a Pro.
+// Trainer 7: three clients on active plans (one more ended), four sessions held in 90 days with three
+// completed (the fourth confirmed and never marked: missed), two published programs in the library.
+// 3 × 50 + 75 × 10 + 2 × 80 = 1,060, a Pro. (Since 2026-11-05 the programs are coach_plans and a
+// missed session is a confirmed one left unmarked; tests/coach-score-fix.test.mjs drives both terms.)
 const PRACTICE = {
   trainers: [{ id: 7, owner_id: COACH.id }],
   nutritionists: [{ id: 9, owner_id: COACH.id }],
@@ -97,9 +99,12 @@ const PRACTICE = {
     { provider_id: 7, provider_role: 'trainer', status: 'completed', scheduled_at: recent },
     { provider_id: 7, provider_role: 'trainer', status: 'completed', scheduled_at: recent },
     { provider_id: 7, provider_role: 'trainer', status: 'completed', scheduled_at: recent },
-    { provider_id: 7, provider_role: 'trainer', status: 'scheduled', scheduled_at: recent },
+    { provider_id: 7, provider_role: 'trainer', status: 'confirmed', scheduled_at: recent },
   ],
-  client_workouts: [{ trainer_id: 7 }, { trainer_id: 7 }],
+  coach_plans: [
+    { owner_id: COACH.id, kind: 'program', published: true, detail: { buildType: 'program' } },
+    { owner_id: COACH.id, kind: 'program', published: true, detail: { buildType: 'program' } },
+  ],
 };
 const BEARER = { Authorization: `Bearer ${APP_TOKEN}` };
 
@@ -110,7 +115,8 @@ test('the app\'s Bearer token is read as the coach, and the reads run as that to
   assert.equal(r.body.total, 1060);
   assert.equal(r.body.current_tier, 'Pro');
   assert.deepEqual(r.body.breakdown.map((b) => [b.label, b.points]), [['Active clients', 150], ['Session completion', 750], ['Programs published', 160]]);
-  assert.deepEqual(r.providerOwner, [COACH.id], 'the listing read is the token\'s owner');
+  // The listing read and (since 2026-11-05) the programs read are both the token's owner's.
+  assert.deepEqual(r.providerOwner, [COACH.id, COACH.id], 'every owner read is the token\'s owner');
   assert.ok(r.bearer.length >= 1 && r.bearer.every((h) => h === `Bearer ${APP_TOKEN}`), `the token client was made for the token: ${r.bearer.join(', ')}`);
   // Every read ran on the token's client (RLS sees the coach), none on the cookie's (RLS sees nobody).
   assert.deepEqual(r.readsAs.cookie, [], 'a read ran on the cookie client');
@@ -151,7 +157,7 @@ test('the website\'s cookie still works, and a visitor with no session is a 401'
   assert.deepEqual(web.readsAs.token, []);
   const nutri = await call(PRACTICE, { role: 'nutritionist' });
   assert.equal(nutri.status, 200);
-  assert.ok(nutri.reads.includes('nutritionists') && !nutri.reads.includes('client_workouts'));
+  assert.ok(nutri.reads.includes('nutritionists') && !nutri.reads.includes('coach_plans'));
   const out = await call(PRACTICE, { cookieAuth: NO_COOKIE });
   assert.equal(out.status, 401);
   assert.deepEqual(out.reads, []);
@@ -226,5 +232,6 @@ test('the directory and the leaderboard count the same way (2026-10-18-coach-sco
   assert.match(code, /^begin;/m);
   assert.match(code, /do \$check\$[\s\S]*raise exception '%: does not count distinct open clients'[\s\S]*\$check\$;\s*commit;/);
   // the route says where its twin lives
-  assert.match(readFileSync(join(ROOT, 'src/app/api/coach/score/route.ts'), 'utf8'), /KEEP IN SYNC with supabase-migrations\/2026-10-18-coach-score-distinct-clients\.sql/);
+  // (2026-11-05: its twin is now 2026-11-05-coach-score-past-sessions.sql, which keeps this clients term.)
+  assert.match(readFileSync(join(ROOT, 'src/app/api/coach/score/route.ts'), 'utf8'), /KEEP IN SYNC with supabase-migrations\/2026-11-05-coach-score-past-sessions\.sql \(and, for the\s+\/\/ clients term, 2026-10-18-coach-score-distinct-clients\.sql/);
 });

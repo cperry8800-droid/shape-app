@@ -367,7 +367,8 @@ test('the roster\'s client count is the dashboard\'s activeClients on the same r
         ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
       ]),
     });
-    const badge = (await (await dash.GET()).json()).kpis.activeClients;
+    // The route reads the browser's `tz` off its request (2026-11-05), as Next always hands it one.
+    const badge = (await (await dash.GET(new Request(`https://x/api/${role}/dashboard`))).json()).kpis.activeClients;
     assert.equal(badge, 3, role + ': the badge counts a, b and c');
 
     // The list: everyone with a plan, and the person from a recent session, who stays on it.
@@ -402,7 +403,8 @@ test('the Clients pages count people on a plan, as the badge does, and say "—"
   assert.equal(dashPlanClientCount([rec(true)], undefined), 1, 'the preview has no route count');
   // useDashboard carries the roster route's totals.onPlan to the pages, on both live paints.
   const data = stripComments(readFileSync(join(ROOT, 'public/newdesign/dashData.jsx'), 'utf8'));
-  assert.match(data, /const planCount = roster\.totals && roster\.totals\.onPlan !== undefined \? roster\.totals\.onPlan : undefined;\n\s+if \(on\) setState\(\{ loading: false, clients: base, source: "live", today, planCount \}\);/);
+  // (The roster's fast paint is skipped on a quiet re-read when the coach returns to the tab, 2026-11-05.)
+  assert.match(data, /const planCount = roster\.totals && roster\.totals\.onPlan !== undefined \? roster\.totals\.onPlan : undefined;\n\s+if \(on && !had\) setState\(\{ loading: false, clients: base, source: "live", today, planCount \}\);/);
   assert.match(data, /source: "live",\n\s+today,\n\s+planCount,\n\s+\}\);/, 'the enriched paint keeps it');
   assert.match(data, /source: state\.source, tuning, planCount: state\.planCount \};/);
   for (const page of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {

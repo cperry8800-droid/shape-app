@@ -74,6 +74,7 @@ import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
 import { BSWorkoutSession } from './BSWorkoutSession.jsx';
 import { BSSessionFinish } from './BSSessionFinish.jsx';
@@ -30293,6 +30294,7 @@ function BSShapeScorePage({ onBack, onOpenStore, profile = SHAPE_SCORE_PROFILES.
               <span aria-hidden style={dotLead} />
               <span style={{ fontFamily: t.MONO, fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', color: t.INK }}>{Number(scoreTotal).toLocaleString()}</span>
             </div>
+            {profile.live && <BSScoreFixNote role={profile.coachRole} t={t} />}
           </React.Fragment>
         ))}
         {scoreTab === 'ledger' && !isCoach && ledger.map(([day, pts, label, row], i) => {

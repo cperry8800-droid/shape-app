@@ -521,9 +521,24 @@ function BuilderDrawer({ query, setQuery, items }) {
   );
 }
 
+// What the track list says beside the tracks it shows (2026-11-05): the builder repeated a
+// playlist's few sample tracks until the list was as long as its count, so a 28-track playlist
+// showed five tracks over and over. It shows the tracks it has, once each, and this line says how
+// many the playlist really holds and where the rest are. Null when every track is shown.
+function plTrackListNote(shown, total, provider) {
+  const n = Number(total) || 0;
+  if (shown >= n) return null;
+  const where = provider === "apple" ? "Apple Music" : "Spotify";
+  return (shown ? shown + " of " + n + " tracks shown." : n + (n === 1 ? " track" : " tracks") + " in this playlist.") + " The full list is in " + where + ".";
+}
+
 function BuilderDetailPane({ p }) {
   const ctx = React.useContext(PlaylistCtx);
   const targets = ctx.attachTargets;
+  // The tracks it has, once each, never more than the playlist holds; the count is the playlist's own.
+  const trackTotal = Number(p.trackCount) || 0;
+  const tracks = trackTotal > 0 ? p.sampleTracks.slice(0, trackTotal) : p.sampleTracks;
+  const trackNote = plTrackListNote(tracks.length, trackTotal, p.provider);
   return (
     <Card style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ height: 120, background: p.cover, padding: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
@@ -572,7 +587,7 @@ function BuilderDetailPane({ p }) {
           <div>
             <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>TRACKS</div>
             <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", borderRadius: 8, overflow: "hidden", maxHeight: 420, overflowY: "auto" }}>
-              {[...p.sampleTracks, ...p.sampleTracks, ...p.sampleTracks].slice(0, p.trackCount).map(([artist, title, dur], i) => (
+              {tracks.map(([artist, title, dur], i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", gap: 10, padding: "10px 14px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>{String(i + 1).padStart(2, "0")}</div>
                   <div>
@@ -582,6 +597,7 @@ function BuilderDetailPane({ p }) {
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>{dur}</div>
                 </div>
               ))}
+              {trackNote && <div data-track-note style={{ padding: "12px 14px", borderTop: tracks.length ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none", fontSize: 11.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>{trackNote}</div>}
             </div>
           </div>
         </div>

@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   const wanted = parseBatchIds(parsed.data);
   if (!wanted.ok) return NextResponse.json({ error: wanted.error }, { status: 400 });
 
-  const me = await resolveMe(supabase, user.id);
+  const me = await resolveMe(supabase, user.id, new URL(req.url).searchParams.get('tz'));
   const results: Record<string, unknown> = {};
   const failed: string[] = [];
   let next = 0;

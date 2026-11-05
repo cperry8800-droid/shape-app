@@ -1605,6 +1605,14 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
   );
 }
 
+// A saved playlist as the day's playlist picker lists it. ⚠ THE COLUMN IS `tracks`
+// (coach_soundtracks, 2026-06-13-coach-soundtracks.sql). This read `track_count`, which no row
+// has, so every playlist in the picker came with no count at all.
+function dbuPlaylistChoice(x) {
+  const n = Number(x && x.tracks);
+  return { name: x && x.name, meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? ' track' : ' tracks') : '' };
+}
+
 function DbuDialog({title,onClose,busy,children}) {
   const ref=React.useRef(null), latest=React.useRef({onClose,busy});latest.current={onClose,busy};
   React.useEffect(()=>{
@@ -3074,7 +3082,7 @@ function TrainerProgramsPage() {
       // failed read means nothing yet: stay on Loading instead of flashing an error at a
       // visitor who is a moment from the preview.
       }catch(e){if(on&&source!=null){if(source==='demo' && !libraryOwner.current){resolved.current=true;setTemplates(DashBuilder.demoTemplates());setRecoveries(Object.entries(dbuReadDrafts(null)));setError('');}else{setError(e.message || 'Could not load your workouts. Check your connection and retry.');setTemplates(null);}}}
-      try{const res=await fetch('/api/coach/soundtracks',{credentials:'same-origin'});if(!res.ok)return;const data=await res.json();if(on)setPlaylists((data.soundtracks||data.playlists||[]).map(x=>({name:x.name,meta:x.track_count?x.track_count+' tracks':''})));}catch(e){}
+      try{const res=await fetch('/api/coach/soundtracks',{credentials:'same-origin'});if(!res.ok)return;const data=await res.json();if(on)setPlaylists((data.soundtracks||data.playlists||[]).map(dbuPlaylistChoice));}catch(e){}
     })();
     return()=>{on=false;};
   },[source,refresh]);
