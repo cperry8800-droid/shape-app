@@ -36,7 +36,7 @@ function ClientOvHero() {
             Train smarter, eat better, and track every step of your progress. Shape puts certified coaches and tools in one place — so you can focus on becoming the best version of yourself.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a href="Marketplace.html" style={{ padding: "16px 28px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: clSans, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em" }}>Find your coach →</a>
+            <a href="Coaches.html" style={{ padding: "16px 28px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: clSans, fontSize: 14, fontWeight: 500, letterSpacing: "0.02em" }}>Find your coach →</a>
             <a href="/newdesign/Pricing.html" style={{ padding: "16px 28px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.25)", fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
           </div>
         </div>
@@ -185,7 +185,7 @@ function ClientOvPaths() {
       title: "Just a trainer",
       body: "One coach. Custom programming, check-ins, form reviews, calendar, and messages. Good for strength, endurance, or general.",
       price: "from $280/mo",
-      cta: ["Browse trainers", "Marketplace.html"],
+      cta: ["Browse trainers", "Coaches.html"],
       featured: false,
     },
     {
@@ -193,7 +193,7 @@ function ClientOvPaths() {
       title: "Just a nutritionist",
       body: "One specialist, dialed in. Custom meal plans, macro targets, and check-ins — your goals, your calendar, your review cycle.",
       price: "from $280/mo",
-      cta: ["Browse nutritionists", "Marketplace.html"],
+      cta: ["Browse nutritionists", "Coaches.html"],
       featured: true,
     },
     {
@@ -201,7 +201,7 @@ function ClientOvPaths() {
       title: "Build a full team",
       body: "Add PT, recovery, sport psych, massage. One roster, one calendar, one invoice. For serious training seasons or real rehab.",
       price: "custom",
-      cta: ["Browse specialists", "Marketplace.html"],
+      cta: ["Browse specialists", "Coaches.html"],
       featured: false,
     },
   ];
@@ -415,7 +415,7 @@ function ClientOvCTA() {
           Free intro calls. The right coach is usually a 20-minute conversation away.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="Marketplace.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>Browse coaches →</a>
+          <a href="Coaches.html" style={{ padding: "18px 32px", borderRadius: 6, background: TEAL, color: LIGHT, fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>Browse coaches →</a>
           <a href="/newdesign/Pricing.html" style={{ padding: "18px 32px", borderRadius: 6, background: "transparent", color: LIGHT, border: "1px solid rgba(233,239,237,0.3)", fontFamily: clSans, fontSize: 14, fontWeight: 500 }}>See pricing details</a>
         </div>
       </div>

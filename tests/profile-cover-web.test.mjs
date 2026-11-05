@@ -181,7 +181,8 @@ test('the marketplace card shows a real coach\'s cover only as their own listing
 
 test('the marketplace\'s demo coaches keep their covers', () => {
   const maya = mk.COACHES_FULL.find((c) => c.name === 'Maya Okafor');
-  assert.match(maya.cover, /^https:\/\/images\.unsplash\.com\//);
+  // Self-hosted since 2026-11-05: the cards used to hot-link images.unsplash.com.
+  assert.match(maya.cover, /^\/newdesign\/demo\/[\w-]+\.webp$/);
   assert.equal(inMarkup(renderToStaticMarkup(React.createElement(mk.CoachCard, { c: maya })), maya.cover), true, 'the demo card lost its cover');
   assert.equal(inMarkup(renderToStaticMarkup(React.createElement(mk.Spotlight, { tab: 'Trainer' })), maya.cover), true, 'the spotlight lost its cover');
 });

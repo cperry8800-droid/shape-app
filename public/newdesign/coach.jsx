@@ -30,7 +30,7 @@ function TrainerHero() {
           </p>
           <div style={{ display: "flex", gap: 14, marginTop: 40, flexWrap: "wrap" }}>
             <a href="SignupTrainer.html" style={{ padding: "16px 30px", borderRadius: 2, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer", letterSpacing: "0.01em" }}>Apply now — it's free</a>
-            <a href="Marketplace.html" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>See trainers on Shape</a>
+            <a href="Coaches.html" style={{ padding: "16px 30px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>See trainers on Shape</a>
           </div>
         </div>
         <div style={{ position: "relative" }}>

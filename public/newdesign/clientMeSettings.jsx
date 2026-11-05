@@ -128,13 +128,13 @@ function PlanBillingCard({ signedIn }) {
     : (sub || (pm && pm.hasMethod === false && signedIn) ? "Manage in billing portal" : "—");
   let coachingRows;
   if (!signedIn) {
-    coachingRows = <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
+    coachingRows = <Row label="Coaching plans" value="Managed with your coach" action="VIEW COACHES" onAction={() => window.location.href = "/newdesign/Coaches.html"} />;
   } else if (coaches === undefined) {
     coachingRows = <Row label="Coaching plans" value="Checking…" />;
   } else if (coaches.length) {
     coachingRows = coaches.map((c, i) => <Row key={i} label={c.name} value={c.plan || "Active"} action="MANAGE" onAction={() => openCoachBilling(c)} />);
   } else {
-    coachingRows = <Row label="Coaching plans" value="None active" action="FIND A COACH" onAction={() => window.location.href = "/newdesign/Marketplace.html"} />;
+    coachingRows = <Row label="Coaching plans" value="None active" action="FIND A COACH" onAction={() => window.location.href = "/newdesign/Coaches.html"} />;
   }
   return (
     <Card>

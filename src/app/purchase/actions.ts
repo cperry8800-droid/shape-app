@@ -46,7 +46,7 @@ export async function startOneTimeCheckout(formData: FormData): Promise<void> {
     !['booking', 'meal_plan'].includes(kind)
   ) {
     // Not `/`: the root redirect carries no error on, so the visitor heard nothing.
-    redirect('/newdesign/Marketplace.html?error=invalid_purchase');
+    redirect('/newdesign/Coaches.html?error=invalid_purchase');
   }
 
   // The coach's live profile (the living profile, by the listing's owner), where the visitor

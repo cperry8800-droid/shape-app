@@ -21,7 +21,7 @@ const legacyPages = ['contact', 'help', 'privacy', 'terms', 'radio'];
 const retiredPages: Array<[string, string]> = [
   ['home', '/'],
   ['landing', '/newdesign/Landing.html'],
-  ['marketplace', '/newdesign/Marketplace.html'],
+  ['marketplace', '/newdesign/Coaches.html'],
   ['for-trainers', '/newdesign/Coach.html'],
   ['for-nutritionists', '/newdesign/Nutritionist.html'],
   ['for-clients', '/newdesign/Client.html'],
@@ -93,14 +93,20 @@ const nextConfig: NextConfig = {
       ]),
       { source: '/index.html', destination: '/', permanent: true },
       { source: '/login.html', destination: '/newdesign/Login.html', permanent: true },
-      // On the matching side of the marketplace (it reads #trainers / #nutritionists).
-      { source: '/trainers.html', destination: '/newdesign/Marketplace.html#trainers', permanent: true },
-      { source: '/nutritionists.html', destination: '/newdesign/Marketplace.html#nutritionists', permanent: true },
+      // On the matching side of the marketplace (it reads #trainers / #nutritionists). The
+      // marketplace is the Coaches page since 2026-11-05 (owner: "turn coaches page into what you
+      // built"); Marketplace.html forwards there too, below.
+      { source: '/trainers.html', destination: '/newdesign/Coaches.html#trainers', permanent: true },
+      { source: '/nutritionists.html', destination: '/newdesign/Coaches.html#nutritionists', permanent: true },
+      // The old marketplace address. The query rides along (?role=, ?error=) and a browser keeps the
+      // #hash across a redirect. Temporary, like About, while the move is new; the page itself also
+      // forwards, for a host that serves public/ without these rules.
+      { source: '/newdesign/Marketplace.html', destination: '/newdesign/Coaches.html', permanent: false },
       ...['trainer', 'nutritionist'].flatMap((role) => [`/${role}-profile`, `/${role}-profile.html`].flatMap((source) => [
         { source, has: [{ type: 'query' as const, key: 'id', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
         // The old pages also took the listing as ?provider= (`params.get('id') || params.get('provider')`).
         { source, has: [{ type: 'query' as const, key: 'provider', value: '(?<id>\\d+)' }], destination: `/${role}s/:id`, permanent: true },
-        { source, destination: '/newdesign/Marketplace.html', permanent: true },
+        { source, destination: '/newdesign/Coaches.html', permanent: true },
       ])),
       // The /mobile preview is retired (owner, 2026-10-14: "3. Delete /mobile + explorations"): a
       // phone-frame copy of the app from before the app had its own build, 102 files that had

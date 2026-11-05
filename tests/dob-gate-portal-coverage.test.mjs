@@ -30,6 +30,7 @@ const BUILD = readFileSync(join(ROOT, 'scripts', 'build-newdesign.mjs'), 'utf8')
 const EXEMPT = new Set([
   'NutritionistPublic.html', // ~1KB public-profile redirect stub, no member session
   'TrainerPublic.html',      // ~1KB public-profile redirect stub, no member session
+  'Marketplace.html',        // redirect stub to Coaches.html (2026-11-05), which carries the gate
   'chatPopout.html',         // popout child window; its opener already carries the gate
 ]);
 

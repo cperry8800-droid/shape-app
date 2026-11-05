@@ -967,7 +967,7 @@ async function runTool(name: string, args: Record<string, unknown>, propose: Pro
       type: 'marketplace',
       label: browseRole ? `Browse all ${browseRole}s` : 'Browse the marketplace',
       role: browseRole,
-      url: `/newdesign/Marketplace.html${browseRole ? `?role=${browseRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'}` : ''}`,
+      url: `/newdesign/Coaches.html${browseRole ? `?role=${browseRole === 'nutritionist' ? 'Nutritionist' : 'Trainer'}` : ''}`,
     });
     return {
       result: {
@@ -1380,7 +1380,7 @@ async function fallbackReply(text: string, coach: CoachCtx, askedCoach = false):
   if (has('cancel', 'refund', 'billing', 'charge', 'subscription', 'payment'))
     return { reply: "I can't make billing changes from here. Email the Shape team at info@theshapecommunity.com with the date and amount you're asking about, and a person will answer.", actions: [{ type: 'screen', label: 'See pricing', screen: 'pricing', url: '/newdesign/Pricing.html' }] };
   if (has('nutrition', 'diet', 'meal', 'macro', 'eat', 'vegan', 'plant')) {
-    const browse: SupportAction = { type: 'marketplace', label: 'Browse all nutritionists', role: 'nutritionist', url: '/newdesign/Marketplace.html?role=Nutritionist' };
+    const browse: SupportAction = { type: 'marketplace', label: 'Browse all nutritionists', role: 'nutritionist', url: '/newdesign/Coaches.html?role=Nutritionist' };
     const { pool, unavailable } = await coachPool('nutritionist');
     if (unavailable) return { reply: "The marketplace couldn't be read just now — try again in a moment, or open it directly to see the nutritionists listed.", actions: [browse] };
     const { coaches, matched } = fallbackCoaches('nutritionist', pool);
@@ -1391,7 +1391,7 @@ async function fallbackReply(text: string, coach: CoachCtx, askedCoach = false):
     return { reply: `Here are a few nutritionists who could be a strong fit: ${names}. Tap one to see their full profile, or browse them all.`, actions };
   }
   if (has('coach', 'trainer', 'find', 'match', 'strength', 'run', 'fat loss', 'lose weight', 'muscle', 'hyrox')) {
-    const browse: SupportAction = { type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Marketplace.html' };
+    const browse: SupportAction = { type: 'marketplace', label: 'Browse all coaches', url: '/newdesign/Coaches.html' };
     // ⚠ A BARE ASK GETS A QUESTION, NOT A GUESS — owner, 2026-10-15, on "Find me a coach": "Nora
     // didnt ask any additional info on the type of coach member may be looking for". A sentence
     // made only of these words names no kind of coach and no goal, so any list is a guess (the

@@ -24,7 +24,7 @@ import { stripComments } from './helpers/strip-comments.mjs'
 const REDIRECTED = {
   home: '/',
   landing: '/newdesign/Landing.html',
-  marketplace: '/newdesign/Marketplace.html',
+  marketplace: '/newdesign/Coaches.html',
   'for-trainers': '/newdesign/Coach.html',
   'for-nutritionists': '/newdesign/Nutritionist.html',
   'for-clients': '/newdesign/Client.html',
@@ -52,8 +52,8 @@ const REDIRECTED = {
 const HTML_ONLY = {
   index: '/',
   login: '/newdesign/Login.html',
-  trainers: '/newdesign/Marketplace.html#trainers',
-  nutritionists: '/newdesign/Marketplace.html#nutritionists',
+  trainers: '/newdesign/Coaches.html#trainers',
+  nutritionists: '/newdesign/Coaches.html#nutritionists',
 }
 const NO_REDIRECT = ['gyms', 'for-gyms', 'for-gym-owners', 'gym-dashboard', 'signup-gym', 'ai-trainers', 'integrations', 'signup-radio']
 const PROFILES = ['trainer-profile', 'nutritionist-profile']
@@ -151,7 +151,7 @@ test('an old coach profile keeps its coach', async () => {
       assert.deepEqual(resolve(redirects, source, { id: '7', provider: '42' }), { destination: `/${route}/7`, permanent: true }, 'id comes first, as it did')
       // Not a listing id, or none: there is no coach to keep, so the marketplace, never /trainers/abc.
       for (const q of [{ id: 'abc' }, { id: '42x' }, { id: '' }, { provider: 'x' }, {}]) {
-        assert.deepEqual(resolve(redirects, source, q), { destination: '/newdesign/Marketplace.html', permanent: true }, `${source} ${JSON.stringify(q)}`)
+        assert.deepEqual(resolve(redirects, source, q), { destination: '/newdesign/Coaches.html', permanent: true }, `${source} ${JSON.stringify(q)}`)
       }
     }
   }
@@ -401,7 +401,7 @@ test('the marketplace opens the side a link names, by #hash or ?role=', () => {
   assert.match(src, /mkTabFromHash\(window\.location\.hash\)\s*\|\| mkTabFromHash\(new URLSearchParams\(window\.location\.search\)\.get\("role"\)\)/,
     'the first render does not read ?role=')
   // The website's own fallback link into the marketplace names the side that way.
-  assert.match(readFileSync('src/lib/coach-profile-path.mjs', 'utf8'), /\/newdesign\/Marketplace\.html\?role=\$\{r\}/)
+  assert.match(readFileSync('src/lib/coach-profile-path.mjs', 'utf8'), /\/newdesign\/Coaches\.html\?role=\$\{r\}/)
 })
 
 // Part 3: the /mobile preview and the design explorations.

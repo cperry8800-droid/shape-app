@@ -447,7 +447,7 @@ function CTA() {
           Join the <em style={{ fontStyle: "italic", fontWeight: 600, color: TEAL }}>community</em>.
         </h2>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="Marketplace.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 30px", borderRadius: 2, fontFamily: sans, fontWeight: 600, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Find your coach →</a>
+          <a href="Coaches.html" style={{ background: TEAL, color: PAPER, border: 0, padding: "16px 30px", borderRadius: 2, fontFamily: sans, fontWeight: 600, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Find your coach →</a>
           <a href="#events" style={{ background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", padding: "16px 30px", borderRadius: 2, fontFamily: sans, fontWeight: 600, fontSize: 15, cursor: "pointer", textDecoration: "none", display: "inline-block" }}>Browse events</a>
         </div>
       </div>

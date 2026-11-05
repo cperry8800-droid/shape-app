@@ -221,7 +221,7 @@ async function profile({ path, persona = 'trainer', variant = 'public' }) {
   const root = createRoot(document.getElementById('root'));
   await React.act(async () => root.render(React.createElement(DesktopProfile, {
     direction: persona === 'client' ? 'terrain' : 'signal', persona, variant, chrome: false,
-    coachingHref: '/newdesign/Marketplace.html', follow: { followers: 0, following: 0, posts: 0 }, onMessage: () => {}, onFollow: () => {},
+    coachingHref: '/newdesign/Coaches.html', follow: { followers: 0, following: 0, posts: 0 }, onMessage: () => {}, onFollow: () => {},
   })));
   return {
     selected: () => { const t = document.querySelector('[role="tab"][aria-selected="true"]'); return t ? t.textContent.trim() : null; },

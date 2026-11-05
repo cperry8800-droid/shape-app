@@ -48,8 +48,8 @@ test('the checkout and subscribe back links open the coach\'s living profile, by
   // Shape's own listings have no owner: by name, as the marketplace does.
   assert.equal(coachProfilePath('trainer', { owner_id: null, name: 'Maya Chen' }), '/newdesign/MemberProfile.html?name=Maya%20Chen&role=trainer');
   // No listing read: the marketplace, never a broken profile link.
-  assert.equal(coachProfilePath('trainer', null), '/newdesign/Marketplace.html?role=trainer');
-  assert.equal(coachProfilePath('bogus', {}), '/newdesign/Marketplace.html?role=trainer');
+  assert.equal(coachProfilePath('trainer', null), '/newdesign/Coaches.html?role=trainer');
+  assert.equal(coachProfilePath('bogus', {}), '/newdesign/Coaches.html?role=trainer');
   // Every result can take the actions' `&error=…` suffix.
   for (const r of [coachProfilePath('trainer', { owner_id: 'x' }), coachProfilePath('trainer', { name: 'y' }), coachProfilePath('trainer', null)]) {
     assert.ok(r.includes('?'), r + ' has no query for &error= to join');
@@ -92,8 +92,10 @@ test('the sitemap lists live pages only, on the www host, and each one exists', 
   for (const p of paths) {
     if (!p.startsWith('/newdesign/')) assert.ok(KEPT_ROOT.has(p), p + ' is an old root page in the sitemap');
   }
-  // The pages the header and footer link are all there.
-  for (const p of ['index', 'Coaches', 'Marketplace', 'Pricing', 'GetApp', 'Radio', 'Recipes', 'Client']) {
+  // The pages the header and footer link are all there. The marketplace is Coaches.html since
+  // 2026-11-05 (Marketplace.html forwards there, so it left the sitemap) and the coaches' pitch
+  // is ForCoaches.html.
+  for (const p of ['index', 'Coaches', 'ForCoaches', 'Pricing', 'GetApp', 'Radio', 'Recipes', 'Client']) {
     assert.ok(paths.includes(`/newdesign/${p}.html`), `/newdesign/${p}.html is missing from the sitemap`);
   }
   assert.match(read('public/robots.txt'), /^Sitemap: https:\/\/www\.theshapecommunity\.com\/sitemap\.xml$/m);

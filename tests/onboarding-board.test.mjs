@@ -1051,7 +1051,7 @@ test('a coach the plan read could not tell is unknown, not none: no marketplace 
   assert.equal(ok(null, true), false, 'the plan read failed');
   assert.equal(ok({ training: { coaching: { name: 'J' } } }, true), false);
   assert.match(train, /"Your trainer assigns the block and it lands here, week by week" \+ \(dtrFindCoachOk\(plan, live\) \? " — ask in chat, or browse the marketplace for a coach\." : "\."\)/);
-  assert.match(train, /\{findCoach && <> <a href="Marketplace\.html"/);
+  assert.match(train, /\{findCoach && <> <a href="Coaches\.html"/);
   assert.match(read('public/newdesign/dashNutri.jsx'), /with swaps and a grocery list\{plan && plan\.meals && plan\.meals\.coaching === null \? " — ask in chat, or find a coach in the marketplace\." : "\."\}/);
 });
 

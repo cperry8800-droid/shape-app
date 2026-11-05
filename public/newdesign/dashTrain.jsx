@@ -511,7 +511,7 @@ function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
         {/* Every trainer they pay, by name (owner, 2026-10-16: a member may pay two). */}
         {coaching
           ? (() => { const who = dashNameList(dashCoachingNames(coaching), "Your coach", "Your coaches"); return <>{who.text} {who.many ? "are" : "is"} preparing your plan. It shows up here the moment they publish it{coaching.weekOne ? <> (week-one target: {coaching.weekOne.count} {coaching.weekOne.count === 1 ? "workout" : "workouts"}{coaching.weekOne.startsOn ? ", starting " + new Date(coaching.weekOne.startsOn + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : ""}{who.many && coaching.weekOne.setBy ? ", set by " + coaching.weekOne.setBy : ""})</> : null}. Until then you can still build a session of your own. <a href="/newdesign/ClientApp.html#team" style={{ color: DTR_TEAL, textDecoration: "none" }}>{who.many ? "Message your coaches →" : "Message your coach →"}</a></>; })()
-          : <>A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands.{findCoach && <> <a href="Marketplace.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a></>}</>}
+          : <>A coach writes this <em>for</em> you — until then, build your own. Starter templates, a custom week, or ✦ a drafted program you approve before it lands.{findCoach && <> <a href="Coaches.html" style={{ color: DTR_TEAL, textDecoration: "none" }}>Find a coach →</a></>}</>}
       </div>
 
       {(yours.programs.length > 0 || yours.repeats.length > 0 || yours.oneOffs > 0) && (

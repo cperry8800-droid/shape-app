@@ -231,7 +231,7 @@
     } else if (rows.length === 0 && !nh && !asking) {
       html += '<div style="padding:12px 12px 8px;font-family:' + SANS + ';font-size:13.5px;color:rgba(242,237,228,0.55)">' +
         (signedIn
-          ? 'Nothing on Shape matches “' + esc(query) + '”. <a href="/newdesign/Marketplace.html" style="color:' + TEAL + ';text-decoration:none">Browse coaches →</a>'
+          ? 'Nothing on Shape matches “' + esc(query) + '”. <a href="/newdesign/Coaches.html" style="color:' + TEAL + ';text-decoration:none">Browse coaches →</a>'
           : 'Sign in to search every member &amp; coach on Shape. <a href="/newdesign/Login.html" style="color:' + TEAL + ';text-decoration:none">Log in →</a>') +
         '</div>';
     }

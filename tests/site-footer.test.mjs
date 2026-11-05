@@ -246,8 +246,9 @@ test('every page still carries a footer', () => {
   // deliberate bare surface rather than an oversight: two public coach profile
   // shells, a playlist page and the consultation booking flow. Pinned as a list
   // so a FIFTH page losing its footer fails, without pretending these four are
-  // fixed.
-  assert.deepEqual(without.sort(), ['ClientPlaylists.html', 'NutritionistPublic.html', 'TrainerPublic.html', 'consultation.html'],
+  // fixed. Marketplace.html joined them on 2026-11-05 as a redirect, like the two profile shells:
+  // the marketplace is the Coaches page now, and that page carries the footer.
+  assert.deepEqual(without.sort(), ['ClientPlaylists.html', 'Marketplace.html', 'NutritionistPublic.html', 'TrainerPublic.html', 'consultation.html'],
     'the set of pages with no footer changed: ' + without.join(', '));
 });
 
