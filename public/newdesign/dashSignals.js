@@ -79,6 +79,16 @@
     HUNGER_MIN_DAYS: 3,       // real hunger logs needed before the rule may fire
     HYDRATION_LOW_FRAC: 0.5,  // 7-day avg water STRICTLY under this fraction of target flags
     HYDRATION_MIN_DAYS: 4,    // real hydration logs needed before the rule may fire
+    // ── The coach signals added with the coach-action table (P2, 2026-11-05) ──
+    MISSED_SESSIONS: 3,       // booked sessions in the 42-day window not completed that flag (trainer)
+    MISSED_MIN_PLANNED: 4,    // booked sessions the window needs before missed_sessions may speak (evidence floor)
+    CHECKIN_RATING_LOW: 2,    // a 1-5 weekly rating at or under this is low (stress/hunger: at or over 6 minus this)
+    REPLY_WAIT_HOURS: 24,     // a client's message unanswered this long flags
+    PROGRAM_END_DAYS: 7,      // a program ending within this many days, with nothing lined up next, flags
+    PROGRAM_ENDED_DAYS: 14,   // …and one that ended up to this many days ago (after that the leg is stale)
+    RECOVERY_LOW: 33,         // a wearable's 7-day recovery / readiness average at or under this flags (0-100)
+    RECOVERY_MIN_DAYS: 3,     // device readings the recovery average needs (evidence floor)
+    PLAN_END_DAYS: 14,        // a cancelled plan ending within this many days flags (the field arrives with P3)
   };
 
   var DEFAULT_THRESHOLDS = {};
@@ -123,6 +133,14 @@
       help: "Average intake this far above target counts the ledger blown. A trainer sees this as routed context." },
     { key: "PROTEIN_UNDER_PCT",  label: "Protein under",       unit: "%",     min: 1,  max: 50, step: 1,
       help: "Average protein this far below target flags. A trainer sees this as routed context." },
+    { key: "MISSED_SESSIONS",    label: "Missed sessions",     unit: "sessions", min: 1, max: 10, step: 1,
+      help: "Booked sessions in the last six weeks not marked completed before it flags. A trainer's, or a nutritionist's when no trainer is on the client." },
+    { key: "REPLY_WAIT_HOURS",   label: "Reply wait",          unit: "hours", min: 2,  max: 72, step: 1,
+      help: "How long a client's message may wait for your reply before it flags." },
+    { key: "PROGRAM_END_DAYS",   label: "Program ending",      unit: "days",  min: 1,  max: 21, step: 1,
+      help: "Flag a program this many days before it ends when nothing is lined up next." },
+    { key: "RECOVERY_LOW",       label: "Low recovery",        unit: "/100",  min: 10, max: 70, step: 1,
+      help: "A wearable's recovery or readiness averaging at or under this over the week flags." },
   ];
   var TUNABLE_BY_KEY = {};
   for (var _i = 0; _i < TUNABLES.length; _i++) TUNABLE_BY_KEY[TUNABLES[_i].key] = TUNABLES[_i];
@@ -200,6 +218,9 @@
   function iso(d) {
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
+  // The Monday of `now`'s week, as the key a weekly reading's episode signature carries: a flag
+  // dismissed this week comes back next week if it still holds.
+  function weekKey(now) { return iso(mondayOf(now instanceof Date ? now : new Date())); }
   // Whole days since the client joined this coach (the earliest live subscription), or null.
   function clientDays(c, now) {
     var j = c && ((c.profile && c.profile.joinedAt) || (c.payments && c.payments.joinedAt));
@@ -494,7 +515,7 @@
     var s = c.streaks;
     if (!s || s.current == null || s.best == null) return null;
     if (s.current === 0 && s.best >= THRESHOLDS.STREAK_MIN_BEST) {
-      return { key: "streak_broken", label: "Streak broken", reason: "Streak broken — was " + s.best + " days", figures: { best: s.best } };
+      return { key: "streak_broken", label: "Streak broken", reason: "Streak broken — was " + s.best + " days", figures: { best: s.best }, sig: "best:" + s.best + "|" + (s.lastActiveOn || "") };
     }
     return null;
   }
@@ -530,6 +551,8 @@
       weekOf: newest.weekOf || null,
       partial: !!newest.partial,
       delta: delta,
+      // The newest COMPLETE week the delta reads — the score_drop episode a dismissal keys on.
+      completeWeekOf: complete.length ? complete[complete.length - 1].weekOf || null : null,
       // The series a sparkline should draw — the partial week is a real point.
       series: weeks.map(function (w) { return Number(w.points); }),
     };
@@ -540,7 +563,7 @@
     if (!r || r.delta == null) return null;
     var drop = -r.delta;
     if (drop >= THRESHOLDS.SCORE_DROP_PTS) {
-      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week", figures: { drop: drop } };
+      return { key: "score_drop", label: "Score \u2193" + drop, reason: "Shape Score down " + drop + " pts week-over-week", figures: { drop: drop }, sig: "wk:" + (r.completeWeekOf || "") };
     }
     return null;
   }
@@ -563,7 +586,7 @@
       if (bounded) gap = daysBetween(joinDay, now);
       else if (!joinDay && c.profile && c.profile.isNew) return null;
       if (gap >= THRESHOLDS.FOOD_GAP_DAYS) {
-        return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days", figures: { days: gap, sinceJoined: bounded } };
+        return { key: "food_gap", label: "No logs " + gap + "d", reason: bounded ? "No food logs in the " + gap + " days since they joined" : "No food logs in " + gap + " days", figures: { days: gap, sinceJoined: bounded }, sig: bounded ? "joined:" + iso(joinDay) : "last:" + iso(last) };
       }
       return null;
     }
@@ -582,7 +605,7 @@
       // date decides it; without one, the roster's 14-day "new" does.
       var days = clientDays(c, now);
       if (days != null ? days < 7 : !!(c.profile && c.profile.isNew)) return null;
-      return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week", figures: { lastWeek: true } };
+      return { key: "food_gap", label: "No logs 7d+", reason: "No food logs in the last week", figures: { lastWeek: true }, sig: "week:none" };
     }
     return null;
   }
@@ -595,7 +618,7 @@
     var last = toDate(ci.lastWeekOf);
     if (!last) {
       if (c.profile && c.profile.isNew) return null; // new clients get a pass
-      return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in", figures: { first: true } };
+      return { key: "checkin_overdue", missedWeeks: 99, label: "No first check-in", reason: "Hasn't completed a first check-in", figures: { first: true }, sig: "first" };
     }
     var missedWeeks = Math.max(0, Math.round(daysBetween(mondayOf(last), thisMonday) / 7));
     if (missedWeeks === 0) return null;
@@ -607,7 +630,7 @@
       ? "Check-in due — last was week of " + iso(mondayOf(last))
       : "No check-in for " + missedWeeks + " weeks";
     // `lastWeekOf` is the Monday the reason names, as the reason prints it (YYYY-MM-DD, local).
-    return { key: "checkin_overdue", missedWeeks: missedWeeks, label: missedWeeks === 1 ? "Check-in due" : "Check-in " + missedWeeks + "w late", reason: label, figures: { missedWeeks: missedWeeks, lastWeekOf: iso(mondayOf(last)) } };
+    return { key: "checkin_overdue", missedWeeks: missedWeeks, label: missedWeeks === 1 ? "Check-in due" : "Check-in " + missedWeeks + "w late", reason: label, figures: { missedWeeks: missedWeeks, lastWeekOf: iso(mondayOf(last)) }, sig: "last:" + iso(mondayOf(last)) };
   }
 
   function ruleContactGap(c, now, role) {
@@ -617,7 +640,7 @@
     var ob = onboardingFor(c, role);
     var hello = onboardingStep(ob, "hello");
     if (hello && hello.done === false && ob.day >= 3) {
-      return { key: "contact_gap", label: "Say hello", reason: "You haven't written to them since they joined " + (ob.day - 1) + " days ago" };
+      return { key: "contact_gap", label: "Say hello", reason: "You haven't written to them since they joined " + (ob.day - 1) + " days ago", sig: "hello", figures: { hello: true } };
     }
     var lc = c.lastContact;
     if (!lc) return null;
@@ -640,11 +663,11 @@
       if (!own || !Object.prototype.hasOwnProperty.call(lc, own) || lc[own] !== null) return null;
       var since = clientDays(c, now);
       if (since == null || since < THRESHOLDS.CONTACT_GAP_DAYS) return null;
-      return { key: "contact_gap", label: "Never messaged", reason: "No message in the " + since + " days since they joined" };
+      return { key: "contact_gap", label: "Never messaged", reason: "No message in the " + since + " days since they joined", sig: "never", figures: { never: true } };
     }
     var gap = daysBetween(last, now);
     if (gap >= THRESHOLDS.CONTACT_GAP_DAYS) {
-      return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days" };
+      return { key: "contact_gap", label: "Quiet " + gap + "d", reason: "No contact in " + gap + " days", sig: "last:" + last.toISOString(), figures: { days: gap } };
     }
     return null;
   }
@@ -652,22 +675,22 @@
   // Nutritionist-feed rules: intake quality vs the plan's targets. Both need
   // value AND target — live data carries averages today but no targets, so
   // these skip on live until targets reach the overview (no false alarms).
-  function ruleLedgerBlown(c) {
+  function ruleLedgerBlown(c, now) {
     var n = c.nutrition;
     if (!n || n.avgCalories == null || n.targetCalories == null || !n.targetCalories) return null;
     var overPct = Math.round(((n.avgCalories - n.targetCalories) / n.targetCalories) * 100);
     if (overPct >= THRESHOLDS.LEDGER_OVER_PCT) {
-      return { key: "ledger_blown", label: "Ledger +" + overPct + "%", reason: "Averaging " + n.avgCalories + " kcal vs a " + n.targetCalories + " kcal target" };
+      return { key: "ledger_blown", label: "Ledger +" + overPct + "%", reason: "Averaging " + n.avgCalories + " kcal vs a " + n.targetCalories + " kcal target", sig: "target:" + n.targetCalories + "|wk:" + weekKey(now) };
     }
     return null;
   }
 
-  function ruleProteinUnder(c) {
+  function ruleProteinUnder(c, now) {
     var n = c.nutrition;
     if (!n || n.avgProtein == null || n.targetProtein == null || !n.targetProtein) return null;
     var underPct = Math.round(((n.targetProtein - n.avgProtein) / n.targetProtein) * 100);
     if (underPct >= THRESHOLDS.PROTEIN_UNDER_PCT) {
-      return { key: "protein_under", label: "Protein low", reason: "Averaging " + n.avgProtein + "g protein vs a " + n.targetProtein + "g target" };
+      return { key: "protein_under", label: "Protein low", reason: "Averaging " + n.avgProtein + "g protein vs a " + n.targetProtein + "g target", sig: "target:" + n.targetProtein + "|wk:" + weekKey(now) };
     }
     return null;
   }
@@ -691,9 +714,9 @@
     var untitled = worstGoal.id === "overall" && (worstGoal.label === UNTITLED_WEIGHT_GOAL || !String(worstGoal.label || "").trim());
     var goalName = untitled ? null : worstGoal.label;
     if (!isFinite(worst)) {
-      return { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week", figures: { goal: goalName, untitled: untitled, lost: true } };
+      return { key: "goal_slip", label: "Goal ETA lost", reason: "“" + worstGoal.label + "” lost its projected date — the pace flattened this week", figures: { goal: goalName, untitled: untitled, lost: true }, sig: "goal:" + (worstGoal.id || worstGoal.label) + "|wk:" + weekKey(now) };
     }
-    return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week", figures: { goal: goalName, untitled: untitled, days: worst } };
+    return { key: "goal_slip", label: "Goal ETA +" + worst + "d", reason: "“" + worstGoal.label + "” slipped — the projected finish moved " + worst + " days later this week", figures: { goal: goalName, untitled: untitled, days: worst }, sig: "goal:" + (worstGoal.id || worstGoal.label) + "|wk:" + weekKey(now) };
   }
 
   // Recovery rule: a 7-day average sleep MORE than SLEEP_DEFICIT_H hours under
@@ -703,13 +726,13 @@
   // step 3), so this only escalates the genuinely concerning case — no alert fatigue.
   // Uses recoveryRead (needs rec.recovery), which reads nothing below SLEEP_MIN_NIGHTS logged
   // nights, so a single short night never flags.
-  function ruleSleepRecovery(c) {
+  function ruleSleepRecovery(c, now) {
     var rr = recoveryRead(c);
     if (!rr || rr.avg == null) return null;
     if (rr.target - rr.avg <= THRESHOLDS.SLEEP_DEFICIT_H) return null;
     var avgR = Math.round(rr.avg * 10) / 10;
     // `avg` and `n` as the vitals flags carry them, for Home's line in the member's own words.
-    return { key: "sleep_low", label: "Sleep low", reason: "Averaging " + avgR + "h sleep vs a " + rr.target + "h target — recovery is running down", avg: rr.avg, n: rr.n };
+    return { key: "sleep_low", label: "Sleep low", reason: "Averaging " + avgR + "h sleep vs a " + rr.target + "h target — recovery is running down", avg: rr.avg, n: rr.n, sig: "wk:" + weekKey(now) };
   }
 
   // ── Check-in vitals rules (spec §3A) ──────────────────────────────────────
@@ -730,19 +753,19 @@
   // The reason is a coach's wording, a figure out of 10. The flag also carries the raw
   // average and the day count (`avg`, `n`) so the member's view can say it in words
   // (memberVitalsReason) and the app can compose its own translated line from them.
-  function ruleEnergyLow(c) {
+  function ruleEnergyLow(c, now) {
     var v = vitalsLeg(c, "energy");
     if (!v || v.avg == null || v.n < THRESHOLDS.ENERGY_MIN_DAYS) return null;
     if (!(v.avg <= THRESHOLDS.ENERGY_LOW_AVG)) return null;
     var avgR = Math.round(v.avg * 10) / 10;
-    return { key: "energy_low", label: "Energy low", reason: "Energy has averaged " + avgR + "/10 this week — a lighter session still counts", avg: v.avg, n: v.n };
+    return { key: "energy_low", label: "Energy low", reason: "Energy has averaged " + avgR + "/10 this week — a lighter session still counts", avg: v.avg, n: v.n, sig: "wk:" + weekKey(now) };
   }
-  function ruleHungerHigh(c) {
+  function ruleHungerHigh(c, now) {
     var v = vitalsLeg(c, "hunger");
     if (!v || v.avg == null || v.n < THRESHOLDS.HUNGER_MIN_DAYS) return null;
     if (!(v.avg >= THRESHOLDS.HUNGER_HIGH_AVG)) return null;
     var avgR = Math.round(v.avg * 10) / 10;
-    return { key: "hunger_high", label: "Hunger high", reason: "Hunger has averaged " + avgR + "/10 this week — the plan may be running light on fuel", avg: v.avg, n: v.n };
+    return { key: "hunger_high", label: "Hunger high", reason: "Hunger has averaged " + avgR + "/10 this week — the plan may be running light on fuel", avg: v.avg, n: v.n, sig: "wk:" + weekKey(now) };
   }
 
   // ⚠ THE MEMBER IS NEVER QUOTED A SCALE THEY WERE NOT SHOWN (Morning check-in part 2, rulings
@@ -814,14 +837,142 @@
     var plan = onboardingStep(onboardingFor(c, role), "plan");
     if (!plan || plan.done !== false || typeof plan.due !== "string") return null;
     if (iso(now) < plan.due) return null;
-    return { key: "plan_due", label: "Week 1 not live", reason: "Week 1 was set to start " + plan.due + " and no plan is published" };
+    return { key: "plan_due", label: "Week 1 not live", reason: "Week 1 was set to start " + plan.due + " and no plan is published", sig: "due:" + plan.due };
   }
 
   function ruleScreening(c) {
     var s = c && c.screening;
-    if (s === "flagged") return { key: "screening_flagged", label: "Health flag", reason: "Answered yes on the health screening — read it before programming" };
-    if (s === "missing") return { key: "screening_missing", label: "No screening", reason: "Has not completed the health screening — ask them to fill it in" };
+    if (s === "flagged") return { key: "screening_flagged", label: "Health flag", reason: "Answered yes on the health screening — read it before programming", sig: "flagged" };
+    if (s === "missing") return { key: "screening_missing", label: "No screening", reason: "Has not completed the health screening — ask them to fill it in", sig: "missing" };
     return null;
+  }
+
+  // ── The coach signals added with the coach-action table (P2, 2026-11-05) ─────
+  // Each reads a field the shared input builder (recordFromOverview) carries, skips when that field
+  // is absent (absence is never a signal), and is a COACH view only: evaluateClient runs them for a
+  // trainer or nutritionist, never for the member's own record.
+
+  // Missed sessions (trainer). `trainingAdherence` is get_client_stats over the sessions calendar,
+  // the last 42 days up to now: done = completed, planned = completed + confirmed + requested. A
+  // booked session in the past that was never marked completed is the "missed" one — said as "weren't
+  // completed", because a request the coach never confirmed counts there too.
+  function ruleMissedSessions(c) {
+    var ta = c.trainingAdherence;
+    if (!ta) return null;
+    var planned = kpiNum(ta.planned), done = kpiNum(ta.done);
+    if (planned == null || done == null || planned < THRESHOLDS.MISSED_MIN_PLANNED) return null;
+    var missed = planned - done;
+    if (!(missed >= THRESHOLDS.MISSED_SESSIONS)) return null;
+    return { key: "missed_sessions", label: "Missed " + missed, reason: missed + " of " + planned + " booked sessions in the last 6 weeks weren't completed", figures: { missed: missed, planned: planned }, sig: "missed:" + missed };
+  }
+
+  // A 1-5 weekly rating that reads badly: low on the four where high is good, high on stress and
+  // hunger (the Week view's own rule, dashWeek.jsx DWK_RATINGS).
+  var CHECKIN_RATINGS = [
+    ["trainingAdherence", "training", "hi"], ["nutritionAdherence", "nutrition", "hi"], ["sleep", "sleep", "hi"],
+    ["energy", "energy", "hi"], ["stress", "stress", "lo"], ["hunger", "hunger", "lo"],
+  ];
+  function checkinLowRatings(ratings) {
+    var out = [];
+    var r = ratings && typeof ratings === "object" ? ratings : {};
+    for (var i = 0; i < CHECKIN_RATINGS.length; i++) {
+      var v = kpiNum(r[CHECKIN_RATINGS[i][0]]);
+      if (v == null || v < 1 || v > 5) continue;
+      var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v >= 6 - THRESHOLDS.CHECKIN_RATING_LOW;
+      if (low) out.push({ key: CHECKIN_RATINGS[i][0], name: CHECKIN_RATINGS[i][1], value: v });
+    }
+    return out;
+  }
+  // A check-in waiting on the coach's review, with a low rating or a question in it. Only a review
+  // state that was READ counts (`reviewed === false`): a surface that could not read the coach's
+  // reviews never says one is waiting. This week's check-in or last week's; an older one is the
+  // Week page's history, not a to-do.
+  function ruleCheckinWaiting(c, now) {
+    var latest = c.checkIn && c.checkIn.latest;
+    if (!latest || latest.reviewed !== false || typeof latest.weekOf !== "string") return null;
+    var wk = toDate(latest.weekOf);
+    if (!wk) return null;
+    var age = daysBetween(mondayOf(wk), mondayOf(now));
+    if (age < 0 || age > 7) return null;
+    var lows = checkinLowRatings(latest.ratings);
+    var asked = latest.asked === true;
+    if (!lows.length && !asked) return null;
+    var bits = [];
+    if (lows.length) bits.push("rated " + lows.slice(0, 2).map(function (l) { return l.name + " " + l.value + "/5"; }).join(" and ") + (lows.length > 2 ? " (+" + (lows.length - 2) + ")" : ""));
+    if (asked) bits.push("asked a question");
+    return { key: "checkin_waiting", label: asked ? "Question waiting" : "Check-in to review", reason: "Check-in waiting — " + bits.join(", and "), figures: { weekOf: iso(mondayOf(wk)), lows: lows.length, asked: asked }, sig: "wk:" + iso(mondayOf(wk)) };
+  }
+
+  // A client's message the coach has not answered. `replyWait` is the overview's per-role leg: the
+  // moment the client's oldest unanswered message was sent in the coach's own thread or the DM,
+  // null when nothing is waiting, absent when the messages could not be read.
+  function ruleReplyWaiting(c, now, role) {
+    var rw = c.replyWait;
+    if (!rw || typeof rw !== "object") return null;
+    var disc = disciplineForRole(role);
+    var own = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
+    var since = own ? toDate(rw[own]) : null;
+    if (!since) return null;
+    var hours = Math.floor((now.getTime() - since.getTime()) / 3600000);
+    if (!(hours >= THRESHOLDS.REPLY_WAIT_HOURS)) return null;
+    var said = hours >= 48 ? Math.floor(hours / 24) + " days" : hours + " hours";
+    return { key: "reply_waiting", label: "Reply " + (hours >= 48 ? Math.floor(hours / 24) + "d" : hours + "h"), reason: "Their message has waited " + said + " for your reply", figures: { hours: hours }, sig: "since:" + since.toISOString() };
+  }
+
+  // The coach's program (or plan) running out with nothing lined up next: the cue to write the next
+  // block before the last session. Reads the caller's own assignment (`program`, the overview's leg):
+  // its estimated end, else "in its last week". A paused block, or one with the next already
+  // assigned, is not ending.
+  function ruleProgramEnding(c, now, role) {
+    var p = c.program;
+    if (!p || typeof p !== "object" || p.paused || p.status === "paused" || p.nextAssigned) return null;
+    var what = disciplineForRole(role) === "nutrition" ? "Plan" : "Program";
+    var name = p.name ? "“" + String(p.name) + "”" : "Their " + what.toLowerCase();
+    var end = toDate(p.estimatedEndAt);
+    if (end) {
+      var left = Math.ceil((end.getTime() - now.getTime()) / DAY);
+      if (left > THRESHOLDS.PROGRAM_END_DAYS || left < -THRESHOLDS.PROGRAM_ENDED_DAYS) return null;
+      var when = left > 1 ? "ends in " + left + " days" : left === 1 ? "ends tomorrow" : left === 0 ? "ends today" : "ended " + (-left) + (left === -1 ? " day" : " days") + " ago";
+      return { key: "program_ending", label: what + (left >= 0 ? " ends " + left + "d" : " ended"), reason: name + " " + when + " and nothing is lined up next", figures: { daysLeft: left }, sig: "end:" + iso(end) };
+    }
+    var wk = kpiNum(p.week), total = kpiNum(p.weeks);
+    if (wk == null || total == null || total <= 0 || wk < total) return null;
+    return { key: "program_ending", label: what + " ends", reason: name + " is in its last week and nothing is lined up next", figures: { lastWeek: true }, sig: "last:" + (p.name || "") + "|" + total };
+  }
+
+  // A renewal Stripe is retrying (past_due). Still a client (owner, 2026-10-18); the coach hears of
+  // it once a week while it lasts.
+  function rulePaymentRetrying(c, now) {
+    var pay = c.payments;
+    var retrying = (pay && (pay.paymentRetrying === true || pay.status === "past_due")) || (c.profile && c.profile.paymentRetrying === true);
+    if (!retrying) return null;
+    return { key: "payment_retrying", label: "Payment retrying", reason: "Their last payment didn't go through — Stripe is retrying it", sig: "wk:" + weekKey(now) };
+  }
+
+  // A plan the client cancelled, ending at the period's end. ⚠ A HOOK: no table stores
+  // cancel_at_period_end today (coach-renewals.mjs reads it live from Stripe for the Money tab), so
+  // this fires only once the roster row carries `cancelAtPeriodEnd` and `periodEndsAt` — P3 adds both.
+  function rulePlanEnding(c, now) {
+    var pay = c.payments;
+    if (!pay || pay.cancelAtPeriodEnd !== true) return null;
+    var end = toDate(pay.periodEndsAt);
+    if (!end) return null;
+    var left = Math.ceil((end.getTime() - now.getTime()) / DAY);
+    if (left < 0 || left > THRESHOLDS.PLAN_END_DAYS) return null;
+    var on = end.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    return { key: "plan_ending", label: "Plan ends " + (left === 0 ? "today" : left + "d"), reason: "Cancelled — their plan ends " + on, figures: { endsOn: iso(end), daysLeft: left }, sig: "end:" + iso(end) };
+  }
+
+  // A wearable's own recovery / readiness score (WHOOP recovery, Oura readiness: the snapshot's
+  // recovery_score, 0-100) averaging low over the week. Needs RECOVERY_MIN_DAYS readings: one red
+  // morning after a hard session is not a signal.
+  function ruleRecoveryLow(c, now) {
+    var r = c.recovery && c.recovery.recoveryScore;
+    if (!r || typeof r !== "object") return null;
+    var avg = kpiNum(r.avg7), n = kpiNum(r.n);
+    if (avg == null || n == null || n < THRESHOLDS.RECOVERY_MIN_DAYS) return null;
+    if (!(avg <= THRESHOLDS.RECOVERY_LOW)) return null;
+    return { key: "recovery_low", label: "Recovery low", reason: "Their wearable's recovery has averaged " + Math.round(avg) + "/100 this week — ease the load", avg: avg, n: n, sig: "wk:" + weekKey(now) };
   }
 
   // ── Evaluation + triage ───────────────────────────────────────────────────
@@ -841,10 +992,10 @@
     if (ciFlag) flags.push(ciFlag);
     if ((f = ruleContactGap(c, now, role))) flags.push(f);
     if ((f = ruleGoalSlip(c, now))) flags.push(f);
-    if ((f = ruleSleepRecovery(c))) flags.push(f);
+    if ((f = ruleSleepRecovery(c, now))) flags.push(f);
     // energy_low is the RECOVERY discipline, and follows sleep_low's established
     // pattern exactly: pushed for every viewer.
-    if ((f = ruleEnergyLow(c))) flags.push(f);
+    if ((f = ruleEnergyLow(c, now))) flags.push(f);
     // hunger_high is the NUTRITION discipline (FLAG_DISCIPLINE), so it must not
     // escalate a TRAINER's severity — severity is `flags.length >= 2 -> red`, and
     // it is computed BEFORE readOnlyFlags/tagFlag mark a non-owner's flag
@@ -855,8 +1006,13 @@
     // (DIRECTIVE_VERDICTS.hunger / DIRECTIVE_MOVES.hunger) that would otherwise be
     // unreachable. So: everyone except the trainer, whose severity it is not.
     // The trainer still SEES it — readOnlyFlags surfaces it as routed context.
-    if (disciplineForRole(role) !== "training") {
-      if ((f = ruleHungerHigh(c))) flags.push(f);
+    // ⚠ AND A TRAINER WHO IS THE CLIENT'S ONLY COACH OWNS THE NUTRITION READS (P2). Routed to a
+    // dietitian who is not there, a trainer-only client's protein, calories and hunger flags read
+    // "→ dietitian" and never reached the one coach who could act. `pros` comes from the care team
+    // (recordFromOverview); unknown keeps the routing.
+    var soleTrainer = disciplineForRole(role) === "training" && !hasPro(c, "nutritionist");
+    if (disciplineForRole(role) !== "training" || soleTrainer) {
+      if ((f = ruleHungerHigh(c, now))) flags.push(f);
     }
     // Hydration is a CLIENT directive only (owner ruling) — never a coach flag.
     // disciplineForRole is 'general' exactly for the client/unknown viewer, so
@@ -864,24 +1020,82 @@
     if (disciplineForRole(role) === "general") {
       if ((f = ruleHydrationLow(c))) flags.push(f);
     }
-    if (disciplineForRole(role) === "nutrition") {
-      if ((f = ruleLedgerBlown(c))) flags.push(f);
-      if ((f = ruleProteinUnder(c))) flags.push(f);
+    if (disciplineForRole(role) === "nutrition" || soleTrainer) {
+      if ((f = ruleLedgerBlown(c, now))) flags.push(f);
+      if ((f = ruleProteinUnder(c, now))) flags.push(f);
     }
-    if (disciplineForRole(role) !== "general") {
+    var coachView = disciplineForRole(role) !== "general";
+    if (coachView) {
       if ((f = ruleScreening(c))) flags.push(f);
       if ((f = rulePlanDue(c, now, role))) flags.push(f);
+      // The P2 coach signals (missed sessions is the trainer's: the calendar is theirs to rebook).
+      // A nutritionist who is the client's only coach takes it too (their consults are on that calendar).
+      if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c))) flags.push(f);
+      if ((f = ruleCheckinWaiting(c, now))) flags.push(f);
+      if ((f = ruleReplyWaiting(c, now, role))) flags.push(f);
+      if ((f = ruleProgramEnding(c, now, role))) flags.push(f);
+      if ((f = rulePaymentRetrying(c, now))) flags.push(f);
+      if ((f = rulePlanEnding(c, now))) flags.push(f);
+      if ((f = ruleRecoveryLow(c, now))) flags.push(f);
     }
+
+    // ⚠ A DISMISSED OR SNOOZED REASON IS SKIPPED BEFORE SEVERITY, so it neither colours the row nor
+    // leads the directive nor alerts. It holds while its episode (`sig`) is the same and, for a
+    // snooze, until its time; a new episode of the same reason comes back on its own.
+    var dismissed = [];
+    if (Array.isArray(c.dismissals) && c.dismissals.length) {
+      flags = flags.filter(function (fl) {
+        if (isDismissed(c.dismissals, fl, now)) { dismissed.push(fl); return false; }
+        return true;
+      });
+    }
+
+    // ⚠ A COACH'S SEVERITY COUNTS ONLY THE FLAGS THAT COACH OWNS (P2). A nutritionist's row went red
+    // on the trainer's broken streak while a trainer's never counted the dietitian's hunger read; with
+    // the care team now on the record (`pros`), a flag routed to a co-coach who is really there is
+    // context, and one with nobody else to take it is the viewer's own. The member's view counts all.
+    // The money and calendar flags (SOFT_FLAGS) make a row amber on their own and never tip it red.
+    var counted = (coachView ? flags.filter(function (fl) { return tagFlag(fl, role, c).owned; }) : flags)
+      .filter(function (fl) { return !QUIET_FLAGS[fl.key]; });
+    var hard = counted.filter(function (fl) { return !SOFT_FLAGS[fl.key]; });
 
     // ⚠ A NEW CLIENT HAS NO RECENT DATA YET, AND THAT IS NOT "UNKNOWN" (client-onboarding review,
     // M13). Their progress read answers, with nothing in it, so they sat in "Progress unknown"
     // instead of reading "New". A read that failed or is still loading stays unknown.
     var progress = progressStatus(c, now);
     var severity = progress.state === "ready" || (progress.state === "insufficient" && c.profile && c.profile.isNew) ? "green" : "unknown";
-    if (flags.length >= 2) severity = "red";
-    else if (ciFlag && ciFlag.missedWeeks >= THRESHOLDS.CHECKIN_RED_WEEKS) severity = "red";
-    else if (flags.length === 1) severity = "amber";
-    return { flags: flags, severity: severity };
+    if (hard.length >= 2) severity = "red";
+    else if (ciFlag && counted.indexOf(ciFlag) >= 0 && ciFlag.missedWeeks >= THRESHOLDS.CHECKIN_RED_WEEKS) severity = "red";
+    else if (counted.length >= 1) severity = "amber";
+    return { flags: flags, severity: severity, dismissed: dismissed };
+  }
+
+  // The flags that colour a row amber but never tip it red: a practice's calendar, not the client's
+  // progress.
+  var SOFT_FLAGS = { program_ending: true, plan_ending: true };
+  // ⚠ AND ONE THAT NEVER COLOURS A ROW: a renewal Stripe is retrying is "a quiet mark only" (owner,
+  // 2026-10-18: "They stay normal clients until Stripe gives up"). It is on the row with its reason and
+  // its move, it can lead a row nothing else does, and it never makes anyone red, amber or a push.
+  var QUIET_FLAGS = { payment_retrying: true };
+
+  // ── Dismiss and snooze (P2) ────────────────────────────────────────────────
+  // record.dismissals: [{ key, sig, until }] — the coach's own rows from coach_signal_dismissals
+  // (attachCoachContext). A dismissal matches a flag of the same key AND the same episode `sig`;
+  // `until` null holds until the episode changes (Dismiss), a time holds until then as well
+  // (Snooze). An unreadable `until` is an expired one: the flag comes back rather than vanishing.
+  function isDismissed(dismissals, flag, now) {
+    if (!flag || !Array.isArray(dismissals)) return false;
+    var at = (now instanceof Date ? now : new Date()).getTime();
+    for (var i = 0; i < dismissals.length; i++) {
+      var d = dismissals[i];
+      if (!d || d.key !== flag.key || typeof d.sig !== "string" || d.sig !== flag.sig) continue;
+      if (d.until != null && d.until !== "") {
+        var u = toDate(d.until);
+        if (!u || u.getTime() <= at) continue;
+      }
+      return true;
+    }
+    return false;
   }
 
   // Availability is separate from attention. An empty/failed overview is never
@@ -927,6 +1141,13 @@
     screening_flagged: "general", // both pros program around it
     screening_missing: "general",
     plan_due: "general",          // each coach reads their own board's plan step
+    missed_sessions: "training",  // the trainer rebooks; a nutritionist-only client's coach owns it
+    recovery_low: "recovery",     // a wearable's recovery → ease the load, like sleep
+    checkin_waiting: "general",   // each coach reviews the check-in
+    reply_waiting: "general",     // each coach's own thread
+    program_ending: "general",    // each coach's own program or plan
+    payment_retrying: "general",  // each coach's own subscription
+    plan_ending: "general",
   };
   function flagDiscipline(key) { return FLAG_DISCIPLINE[key] || "general"; }
   function disciplineOwner(discipline) {
@@ -958,6 +1179,8 @@
     return {
       key: f.key, label: f.label, reason: f.reason, missedWeeks: f.missedWeeks,
       discipline: d, owned: owned, routeTo: owner,
+      // The episode a dismissal keys on (isDismissed); never the figures, which stay the member's.
+      sig: f.sig || null,
     };
   }
   // The OTHER discipline's flags this role doesn't already evaluate — surfaced as
@@ -967,16 +1190,17 @@
   // toward severity either way — severity stays exactly as evaluateClient says.
   function readOnlyFlags(c, now, role) {
     var out = [];
-    if (disciplineForRole(role) !== "nutrition") {
+    // Only while a nutritionist is on the client: a sole trainer evaluates these as their own flags.
+    if (disciplineForRole(role) !== "nutrition" && hasPro(c, "nutritionist")) {
       var f;
-      if ((f = ruleLedgerBlown(c))) out.push(tagFlag(f, role, c));
-      if ((f = ruleProteinUnder(c))) out.push(tagFlag(f, role, c));
+      if ((f = ruleLedgerBlown(c, now))) out.push(tagFlag(f, role, c));
+      if ((f = ruleProteinUnder(c, now))) out.push(tagFlag(f, role, c));
       // hunger_high joins its nutrition siblings here: the trainer keeps full
       // visibility of the under-fuelling read as routed context, without it
       // counting toward their severity.
-      if ((f = ruleHungerHigh(c))) out.push(tagFlag(f, role, c));
+      if ((f = ruleHungerHigh(c, now))) out.push(tagFlag(f, role, c));
     }
-    return out;
+    return out.filter(function (x) { return !isDismissed(c.dismissals, x, now); });
   }
 
   // getTriageFeed(role, clients, now) -> rows sorted red → amber → green,
@@ -990,17 +1214,25 @@
     return (clients || [])
       .map(function (c) {
         var r = evaluateClient(c, now, role);
-        return {
+        var tagged = r.flags.map(function (f) { return tagFlag(f, role, c); });
+        var row = {
           client: c,
           severity: r.severity,
           progress: progressStatus(c, now),
-          flags: r.flags.map(function (f) { return tagFlag(f, role, c); }),
+          flags: tagged,
           readOnly: readOnlyFlags(c, now, role),
           reasons: r.flags.map(function (x) { return x.reason; }),
           // The cross-domain directive (verdict + reason + the one action) + the
           // coach read, so every triage surface reuses ONE source for the reason.
           directive: buildDirective(c, now, role),
+          // What the coach set aside (dismissed or snoozed), so a surface can say so and undo it.
+          dismissed: (r.dismissed || []).map(function (f) { return tagFlag(f, role, c); }),
         };
+        // The coach's ONE move for this client: the most urgent flag THIS coach owns, its reason and
+        // the coach action for it (COACH_ACTIONS). Every surface reads this — the website's button,
+        // the app's YOUR MOVE, Nora's answer and the push body — so none of them re-derives it.
+        row.lead = coachLead(row, role);
+        return row;
       })
       .sort(function (a, b) {
         if (rank[b.severity] !== rank[a.severity]) return rank[b.severity] - rank[a.severity];
@@ -1109,6 +1341,10 @@
       // slip — the card shows the honest "no ETA" state without a flag.
       person(2, "Marcus T.", {
         payments: pay(18000, 6, 96, "marketplace"),
+        // The joint-attention case: a trainer AND a nutritionist on his care team (P2: joint attention
+        // needs a real co-coach). Both are listed so either role's preview finds its counterpart.
+        pros: { trainer: true, nutritionist: true },
+        coCoaches: [{ role: "trainer", userId: "demo-coach-trainer", name: "Alex" }, { role: "nutritionist", userId: "demo-coach-nutritionist", name: "Rae" }],
         streaks: { current: 0, best: 12, lastActiveOn: ago(4) },
         foodLogs: { lastLoggedOn: ago(3), daysLogged7d: 3 },
         shapeScoreHistory: history([62, 65, 60, 68, 64, 70, 71, 63]),
@@ -1323,17 +1559,37 @@
   // separate nudges. Evaluated with the nutritionist rule set (superset).
   var TRAINING_KEYS = { streak_broken: true };
   var NUTRITION_KEYS = { food_gap: true, ledger_blown: true, protein_under: true };
-  function findJointAttention(clients, now, thresholds) {
-    if (thresholds) return withThresholds(thresholds, function () { return findJointAttention(clients, now); });
+  // ⚠ ONLY FOR A CLIENT WHO REALLY HAS A CO-COACH OF THE OTHER DISCIPLINE (P2). It ran over every
+  // client and said "with their nutritionist" about people who had none, and its action wrote to the
+  // CLIENT. The record's `coCoaches` (recordFromOverview, from the overview's care team) names who is
+  // on the other side; the entry carries that coach, and the surfaces open the private care-team
+  // thread with them (/api/me/shared-clients/[clientId]/thread). `role` is the viewer's: a trainer's
+  // counterpart is the nutritionist, and the reverse. Without a role, any co-coach of either side.
+  function coCoachFor(c, role) {
+    var list = c && Array.isArray(c.coCoaches) ? c.coCoaches : [];
+    var want = disciplineForRole(role) === "training" ? "nutritionist" : disciplineForRole(role) === "nutrition" ? "trainer" : null;
+    for (var i = 0; i < list.length; i++) {
+      var x = list[i];
+      if (!x || typeof x.userId !== "string" || !x.userId) continue;
+      var xr = x.role === "dietitian" ? "nutritionist" : x.role;
+      if (want ? xr === want : (xr === "trainer" || xr === "nutritionist")) return { role: xr, userId: x.userId, name: x.name || null };
+    }
+    return null;
+  }
+  function findJointAttention(clients, now, thresholds, role) {
+    if (thresholds) return withThresholds(thresholds, function () { return findJointAttention(clients, now, null, role); });
     now = now || new Date();
     var out = [];
     for (var i = 0; i < (clients || []).length; i++) {
       var c = clients[i];
+      var coCoach = coCoachFor(c, role);
+      if (!coCoach) continue;
       var r = evaluateClient(c, now, "nutritionist");
       var training = r.flags.filter(function (f) { return TRAINING_KEYS[f.key]; });
       var nutrition = r.flags.filter(function (f) { return NUTRITION_KEYS[f.key]; });
       if (training.length && nutrition.length) {
-        out.push({ client: c, trainingFlags: training, nutritionFlags: nutrition });
+        out.push({ client: c, trainingFlags: training, nutritionFlags: nutrition, coCoach: coCoach,
+          action: { kind: "care_team", label: "Start joint note" } });
       }
     }
     return out;
@@ -1371,6 +1627,10 @@
     checkin: "Check-in due", goal: "Goal pace slipped", score: "Grab a win",
     contact: "Reconnect", energy: "Energy is running low", hunger: "Fuel is running short",
     hydration: "Water is behind", none: "On pace",
+    // The coach-only levers (P2): a coach's verdict, never a member's. They carry no DIRECTIVE_MOVES
+    // entry, so their directive has no member action — the coach's is COACH_ACTIONS.
+    plan: "Week 1 not live", reply: "Reply waiting", review: "Check-in to review", sessions: "Sessions slipping",
+    program: "Program ending", billing: "Payment retrying", renewal: "Plan ending", recovery: "Recovery is low",
   };
   function directiveKeyToLever(key) {
     return ({
@@ -1380,6 +1640,8 @@
       energy_low: "energy", hunger_high: "hunger", hydration_low: "hydration",
       // The screening is a conversation: reach out about it.
       screening_flagged: "contact", screening_missing: "contact",
+      plan_due: "plan", reply_waiting: "reply", checkin_waiting: "review", missed_sessions: "sessions",
+      program_ending: "program", payment_retrying: "billing", plan_ending: "renewal", recovery_low: "recovery",
     })[key] || null;
   }
 
@@ -1397,6 +1659,13 @@
     // soft-gauge read) and above score_drop, in energy → hunger → hydration order.
     energy_low: 34, hunger_high: 33, hydration_low: 32,
     score_drop: 30,
+    // The P2 coach signals. A client left waiting on the coach's reply leads everything but a
+    // months-late check-in: it is the coach's own debt, and the cheapest thing on the list to clear.
+    // A check-in with a low rating or a question sits beside contact; missed sessions above goal pace;
+    // a cancelled plan just under it; a wearable's low recovery just above sleep; the calendar and
+    // money reminders last.
+    reply_waiting: 110, checkin_waiting: 75, missed_sessions: 65, plan_ending: 58, recovery_low: 36,
+    program_ending: 25, payment_retrying: 20,
   };
   function flagPriority(f) {
     if (!f) return 0;
@@ -1635,6 +1904,383 @@
       cited: cited,
       evidence: pack,
     };
+  }
+
+  // ── THE COACH'S MOVE: one action per reason (P2, 2026-11-05) ─────────────────
+  // Owner: "I designed the shape engine to tell coaches, alert them, recommend to them on what they
+  // should do for certain clients based on the data that is received, making their job as easy as
+  // possible. I dont want coaches being overwhelmed with data."
+  //
+  // ⚠ ONE TABLE, KEYED BY THE FLAG, READ BY EVERY SURFACE. The website offered one-size Message for
+  // every reason, and the app's case file picked its button by regex over the reason text. Each kind
+  // is a move both surfaces can make:
+  //   message        — open the client's thread with `draft`, written to the MEMBER (memberDraft)
+  //   reply          — open the client's thread; they wrote, so no draft
+  //   review_checkin — the check-in, to read and mark reviewed (draft: the reply's opener)
+  //   read_screening — the client file's health screening
+  //   adjust_program — the training program (builder / the app's ADJUST)
+  //   adjust_plan    — the nutrition plan
+  //   schedule       — the calendar, to rebook
+  //   care_team      — the private thread with the co-coach (joint attention)
+  // `nora: true` marks a message where Nora's grounded draft (/api/ai/draft-message, the app's
+  // ✦ DRAFT) applies; the template draft is the fallback and the website's opener.
+  var COACH_ACTIONS = {
+    reply_waiting:     { kind: "reply", label: "Reply" },
+    checkin_overdue:   { kind: "message", label: "Ask for the check-in", draft: true, nora: true },
+    checkin_waiting:   { kind: "review_checkin", label: "Review check-in", draft: true },
+    screening_flagged: { kind: "read_screening", label: "Read health screening" },
+    plan_due:          { kind: "adjust_program", label: "Publish week 1", nutrition: { kind: "adjust_plan", label: "Publish the first plan" } },
+    contact_gap:       { kind: "message", label: "Message", draft: true, nora: true },
+    screening_missing: { kind: "message", label: "Ask for the screening", draft: true },
+    missed_sessions:   { kind: "schedule", label: "Schedule" },
+    goal_slip:         { kind: "message", label: "Ask for a weigh-in", draft: true, nora: true },
+    plan_ending:       { kind: "message", label: "Message", draft: true },
+    food_gap:          { kind: "message", label: "Nudge to log", draft: true, nora: true },
+    ledger_blown:      { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Message", draft: true } },
+    protein_under:     { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Message", draft: true } },
+    hunger_high:       { kind: "adjust_plan", label: "Adjust plan", training: { kind: "message", label: "Message", draft: true } },
+    streak_broken:     { kind: "message", label: "Message", draft: true, nora: true },
+    recovery_low:      { kind: "adjust_program", label: "Ease the load", nutrition: { kind: "message", label: "Message", draft: true } },
+    sleep_low:         { kind: "adjust_program", label: "Ease the load", nutrition: { kind: "message", label: "Message", draft: true } },
+    energy_low:        { kind: "adjust_program", label: "Ease the load", nutrition: { kind: "message", label: "Message", draft: true } },
+    score_drop:        { kind: "message", label: "Message", draft: true, nora: true },
+    program_ending:    { kind: "adjust_program", label: "Write the next block", nutrition: { kind: "adjust_plan", label: "Write the next plan" } },
+    payment_retrying:  { kind: "message", label: "Message", draft: true },
+  };
+  var COACH_ACTION_KINDS = ["message", "reply", "review_checkin", "read_screening", "adjust_program", "adjust_plan", "schedule", "care_team"];
+
+  function firstName(rec) {
+    var n = rec && rec.profile && rec.profile.name ? String(rec.profile.name).trim() : "";
+    return n ? n.split(/\s+/)[0] : "there";
+  }
+
+  // ⚠ THE CLIENT'S DRAFT IS WRITTEN TO THE CLIENT, NEVER FROM THE COACH'S REASON. The website pasted
+  // the reason into the opener ("I'm seeing answered yes on the health screening — read it before
+  // programming"), which is a note to the coach, sent to the member. Every line here is the member's
+  // own: what to do, said kindly, with a figure only where it is theirs to know (a date, their week).
+  // tests/coach-actions.test.mjs holds every draft free of every coach reason.
+  function memberDraft(key, rec, role, flag) {
+    var hi = "Hey " + firstName(rec) + " — ";
+    var ci = rec && rec.checkIn;
+    switch (key) {
+      case "contact_gap": {
+        var ob = onboardingFor(rec, role);
+        var hello = onboardingStep(ob, "hello");
+        // Never written to (the "Say hello" or "Never messaged" episode): a welcome, not a "been a while".
+        if ((hello && hello.done === false) || (flag && (flag.sig === "hello" || flag.sig === "never"))) return "Hi " + firstName(rec) + " — welcome aboard! I'm glad you're here. How's your first week going so far?";
+        return hi + "it's been a little while since we talked. How's this week going?";
+      }
+      case "checkin_overdue":
+        return ci && ci.lastWeekOf
+          ? hi + "I haven't seen your weekly check-in yet. Could you send it when you get a minute? It helps me plan your next week."
+          : hi + "when you get a minute, could you fill in your first weekly check-in? It helps me plan your next week.";
+      case "checkin_waiting": {
+        var wk = ci && ci.latest && ci.latest.weekOf ? ci.latest.weekOf : null;
+        return "Hi " + firstName(rec) + " — thanks for your check-in" + (wk ? " for the week of " + wk : "") + ". ";
+      }
+      case "screening_missing":
+        return "Hi " + firstName(rec) + " — before our next session, could you fill in your health screening? It takes a few minutes and helps me plan safely.";
+      case "goal_slip":
+        return hi + "could you log a weigh-in this week? I want to see how we're tracking and adjust if we need to.";
+      case "food_gap":
+        return hi + "your food log has gone quiet. No judgement — even a rough entry or a photo helps me see how the week is going.";
+      case "streak_broken":
+        return hi + "how has training felt this week? If something's getting in the way, let's adjust the plan so it fits.";
+      case "score_drop":
+        return hi + "how did this week feel? Tell me what got in the way and we'll pick one easy win for the next few days.";
+      case "ledger_blown":
+        return hi + "how's food going this week? Let's look at your meals together and find an easy swap or two.";
+      case "protein_under":
+        return hi + "how's food going? Protein has been coming in under where we want it — an extra serving at breakfast or lunch closes most of the gap.";
+      case "hunger_high":
+        return hi + "you've been hungry between meals this week. Let's look at your meals — the plan may need a bit more fuel.";
+      case "sleep_low": case "energy_low": case "recovery_low":
+        return hi + "how are you feeling this week? Recovery looks like it's running low, so let's keep things a little lighter for a few days.";
+      case "payment_retrying":
+        return "Hi " + firstName(rec) + " — quick heads-up: your latest payment for our plan didn't go through. Stripe will try again, and you can update your card in your membership settings.";
+      case "plan_ending": {
+        var end = rec && rec.payments && toDate(rec.payments.periodEndsAt);
+        return "Hi " + firstName(rec) + " — I saw your plan is set to end" + (end ? " on " + end.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "") + ". Before it does, is there anything I could change that would make it more useful for you?";
+      }
+      default:
+        return null;
+    }
+  }
+
+  // The coach's action for one reason, for this coach's role: { key, kind, label, draft, nora }.
+  // A key with no entry (a member-only flag) answers null; no surface invents a move.
+  function coachActionFor(key, role, rec, flag) {
+    var base = COACH_ACTIONS[key];
+    if (!base) return null;
+    var disc = disciplineForRole(role);
+    var v = (disc === "nutrition" && base.nutrition) || (disc === "training" && base.training) || base;
+    var draft = v.draft ? memberDraft(key, rec, role, flag) : null;
+    return { key: key, kind: v.kind, label: v.label, draft: draft || null, nora: !!v.nora };
+  }
+
+  // A triage row's lead: the most urgent flag THIS coach owns (DIRECTIVE_PRIORITY), its reason and its
+  // action. Null when nothing on the row is theirs — a row of routed flags asks nothing of them.
+  function coachLead(row, role) {
+    var owned = (row && Array.isArray(row.flags) ? row.flags : []).filter(function (f) { return f && f.owned !== false; });
+    if (!owned.length) return null;
+    // A quiet flag leads only a row nothing louder is on: payment_retrying has the lowest priority of
+    // every coach flag (DIRECTIVE_PRIORITY; tests/coach-actions.test.mjs holds it there).
+    var top = topFlag(owned);
+    return { key: top.key, label: top.label, reason: top.reason, sig: top.sig || null, action: coachActionFor(top.key, role, row.client, top) };
+  }
+
+  // Today's brief: "{name} first — {reason}" for the first client the feed says needs this coach, and
+  // how many more do; the clear-day line when nobody does (the app's bsProLeadVerdict wording).
+  function coachBrief(feed) {
+    var rows = Array.isArray(feed) ? feed : [];
+    var needs = rows.filter(function (r) { return r && (r.severity === "red" || r.severity === "amber") && r.lead; });
+    if (!needs.length) return { text: "Nothing needs you right now.", row: null, more: 0 };
+    var r = needs[0];
+    return { text: recName(r.client) + " first — " + r.lead.reason, row: r, more: needs.length - 1 };
+  }
+
+  // ── Check-in review state (the coach's `coach_week_reviews` doc) ───────────
+  // The same rule as dashData.jsx's dashCheckinReviewed, over the record's summary of the check-in:
+  // a review counts when it was stamped after the check-in was submitted, or — when the review kept
+  // the check-in's signature — when that signature is still the check-in's (an edit reopens it).
+  // The signature travels as a short hash so no check-in text rides in a stored snapshot.
+  function textHash(str) {
+    var h = 5381;
+    var s = String(str);
+    for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+  function checkinReviewed(review, latest) {
+    if (!review || !review.reviewedAt) return false;
+    if (!latest) return true;
+    if (review.checkinSignature) return textHash(review.checkinSignature) === latest.hash;
+    return !latest.submittedAt || latest.submittedAt <= review.reviewedAt;
+  }
+
+  // ── THE SHARED INPUT BUILDER (P2) ──────────────────────────────────────────
+  // ⚠ ONE RECORD PER CLIENT, BUILT ONE WAY, ON EVERY SURFACE. The website built its record from the
+  // roster + /api/clients/shared-overview, the app from get_client_* rollups, Nora from three RPCs and
+  // the push from whatever the app posted, so a client could be red on one and on track on another:
+  // the website never mapped sleep, energy and hunger, the app and Nora had no streak, Score, targets
+  // or last-logged day, Nora had no contact, screening or week-one board. Every surface reads the
+  // same overview now (the website and the app POST the batch route, Nora builds it server-side with
+  // buildSharedOverview), and this one function turns a roster row + that overview into the engine's
+  // inputs. tests/coach-signals-surfaces.test.mjs feeds one client to every surface's path and
+  // holds the flags and reasons equal.
+  //   row: { id, name, isNew, joinedAt, status?, paymentRetrying?, cancelAtPeriodEnd?, periodEndsAt? }
+  //   ov:  the overview (src/lib/shared-overview.ts), or null when it could not be read
+  function recordFromOverview(row, ov) {
+    row = row && typeof row === "object" ? row : {};
+    var o = ov && typeof ov === "object" ? ov : null;
+    var stats = o && o.stats && typeof o.stats === "object" ? o.stats : null;
+    var checkins = o && Array.isArray(o.checkins) ? o.checkins : null;
+    var goals = o && o.goals ? o.goals : null;
+    var weighIns = goals && goals.overall && Array.isArray(goals.overall.weighIns)
+      ? goals.overall.weighIns
+          .map(function (w) { return { on: w.on || w.date || w.d || null, weight: w.w != null ? w.w : w.weight != null ? w.weight : w.kg, unit: w.unit || (w.kg != null ? "kg" : "lb") }; })
+          .filter(function (w) { return w.on && w.weight != null; })
+      : null;
+    var phases = o && o.programPhases ? o.programPhases : null;
+    var logs = o && o.logs ? o.logs : null;
+    var score = o && o.scoreHistory ? o.scoreHistory : null;
+    // `partial` rides along: scoreWeekReading keeps the delta to two COMPLETE weeks.
+    var scoreWeeks = score && Array.isArray(score.weeks)
+      ? score.weeks
+          .filter(function (w) { return w && w.weekOf && w.points != null && isFinite(Number(w.points)); })
+          .map(function (w) { return { weekOf: w.weekOf, points: Number(w.points), partial: !!w.partial }; })
+          .slice(-8)
+      : null;
+    var streak = score && score.streak && score.streak.current != null ? score.streak : null;
+    var targets = o && o.nutritionTargets ? o.nutritionTargets : null;
+    var latestCk = checkins && checkins.length ? checkins[0] : null;
+    var rec = {
+      profile: { id: row.id != null ? row.id : null, name: row.name != null ? row.name : "Client", isNew: !!row.isNew, status: row.status || null, joinedAt: row.joinedAt || null },
+      onboarding: o && o.onboarding && typeof o.onboarding === "object" ? o.onboarding : null,
+      screening: o && o.screening ? o.screening : null,
+      trainingAdherence: stats && stats.sessionsPlanned
+        ? { pct: Math.round((stats.sessionsCompleted / stats.sessionsPlanned) * 100), done: stats.sessionsCompleted, planned: stats.sessionsPlanned }
+        : null,
+      // The rollup's 7-day count where it exists (the figure every surface quotes); the snapshot leg
+      // supplies the last logged day and fills the count only when the rollup has none.
+      foodLogs: stats && stats.daysLogged7d != null
+        ? { lastLoggedOn: logs ? logs.lastLoggedOn : null, daysLogged7d: stats.daysLogged7d }
+        : logs ? { lastLoggedOn: logs.lastLoggedOn, daysLogged7d: logs.daysLogged7d } : null,
+      shapeScoreHistory: scoreWeeks && scoreWeeks.length ? scoreWeeks : null,
+      weighIns: weighIns,
+      streaks: streak ? { current: streak.current, best: streak.best != null ? streak.best : streak.current, lastActiveOn: streak.lastActiveOn || null } : null,
+      lastContact: o && o.lastContact ? o.lastContact : null,
+      checkIn: checkins
+        ? (latestCk
+            ? { lastWeekOf: latestCk.week_of || latestCk.weekOf || null, latest: checkinSummary(latestCk) }
+            : { lastWeekOf: null })
+        : null,
+      // The coach's own targets (client_programs.detail.nutrition): the ledger and protein rules need
+      // a value AND a target.
+      nutrition: stats && (stats.avgCalories != null || stats.avgProtein != null)
+        ? { avgCalories: stats.avgCalories, targetCalories: targets ? targets.calories : null, avgProtein: stats.avgProtein, targetProtein: targets ? targets.protein : null }
+        : null,
+      goal: goals && goals.overall && goals.overall.target != null
+        ? { target: Number(goals.overall.target), unit: goals.overall.unit || "lb", now: goals.overall.now != null ? Number(goals.overall.now) : null }
+        : null,
+      goals: o && (o.coachGoals || goals)
+        ? goalsFromDoc({
+            coach: o.coachGoals || null,
+            overall: goals && goals.overall ? goals.overall : null,
+            weighIns: weighIns || [],
+            training: goals && goals.training, nutrition: goals && goals.nutrition,
+          })
+        : null,
+      goalPhase: phases ? phases.nutrition || phases.training || null : null,
+      program: o && o.program ? o.program : null,
+      recovery: recoveryFromOverview(o),
+      vitals: vitalsFromOverview(o && o.vitals),
+      replyWait: o && o.replyWait && typeof o.replyWait === "object" ? o.replyWait : null,
+      payments: {
+        status: row.paymentRetrying === true ? "past_due" : "active",
+        paymentRetrying: row.paymentRetrying === true,
+        joinedAt: row.joinedAt || null,
+        // P3 hook: a cancelled plan's end, once the roster row carries it.
+        cancelAtPeriodEnd: row.cancelAtPeriodEnd === true,
+        periodEndsAt: row.periodEndsAt || null,
+      },
+    };
+    var team = careTeamFrom(o);
+    if (team.pros) rec.pros = team.pros;
+    rec.coCoaches = team.coCoaches;
+    return rec;
+  }
+  // The check-in the engine reads: its week, its ratings, whether it asks something, when it was
+  // submitted and a hash of the whole row (the review signature). Never its text.
+  function checkinSummary(ck) {
+    if (!ck || typeof ck !== "object") return null;
+    var wk = ck.week_of || ck.weekOf || null;
+    return {
+      weekOf: wk ? String(wk).slice(0, 10) : null,
+      ratings: ck.ratings && typeof ck.ratings === "object" ? ck.ratings : null,
+      asked: typeof ck.question === "string" && ck.question.trim() !== "",
+      submittedAt: ck.updated_at || ck.submitted_at || ck.created_at || null,
+      hash: textHash(JSON.stringify(ck)),
+      reviewed: null,
+    };
+  }
+  // The overview's sleep leg as the engine's recovery.sleepHours, over the SAME seven calendar days the
+  // overview windowed (`series7`), plus the wearable's own recovery score when one is synced.
+  function recoveryFromOverview(o) {
+    var out = null;
+    var sl = o && o.sleep && typeof o.sleep === "object" ? o.sleep : null;
+    var pts = sl && Array.isArray(sl.series7) ? sl.series7.map(function (p) { return p ? kpiNum(p.value) : null; }).filter(function (v) { return v != null && v > 0; }) : [];
+    if (pts.length) {
+      var avg = pts.reduce(function (a, b) { return a + b; }, 0) / pts.length;
+      out = { sleepHours: { avg7: Math.round(avg * 100) / 100, lastNight: pts[pts.length - 1], target: 7.5, n: pts.length } };
+    }
+    var dr = o && o.deviceRecovery && typeof o.deviceRecovery === "object" ? o.deviceRecovery : null;
+    var davg = dr ? kpiNum(dr.avg7) : null, dn = dr ? kpiNum(dr.n) : null;
+    if (davg != null && dn != null && dn > 0) {
+      out = out || {};
+      out.recoveryScore = { avg7: davg, n: dn };
+    }
+    return out;
+  }
+  // The overview's daily check-in gauges, as the engine reads them (no series: a snapshot stays small).
+  function vitalsFromOverview(v) {
+    if (!v || typeof v !== "object") return null;
+    var out = {};
+    ["energy", "hunger"].forEach(function (k) {
+      var x = v[k];
+      if (x && kpiNum(x.avg7) != null) out[k] = { avg7: kpiNum(x.avg7), n: kpiNum(x.n) || 0 };
+    });
+    if (v.hydration && kpiNum(v.hydration.avg7L) != null) out.hydration = { avg7L: kpiNum(v.hydration.avg7L), targetL: null, n: kpiNum(v.hydration.n) || 0 };
+    return Object.keys(out).length ? out : null;
+  }
+  // Who else coaches this client, from the overview's care team. `pros` says which disciplines have a
+  // coach, so a flag routes to the other coach only when there is one; a care team read that came back
+  // partial names only the disciplines it saw, and an unseen one stays unknown (routing as before).
+  function careTeamFrom(o) {
+    var team = o && Array.isArray(o.careTeam) ? o.careTeam : null;
+    if (!team) return { pros: null, coCoaches: [] };
+    var has = { trainer: false, nutritionist: false };
+    var co = [];
+    for (var i = 0; i < team.length; i++) {
+      var m = team[i];
+      if (!m) continue;
+      var r = m.role === "dietitian" ? "nutritionist" : m.role;
+      if (r === "trainer" || r === "nutritionist") {
+        has[r] = true;
+        if (!m.isMe && typeof m.userId === "string" && m.userId) co.push({ role: r, userId: m.userId, name: m.name || null });
+      }
+    }
+    var pros = has;
+    if (o.careTeamPartial === true) {
+      pros = {};
+      if (has.trainer) pros.trainer = true;
+      if (has.nutritionist) pros.nutritionist = true;
+    }
+    return { pros: pros, coCoaches: co };
+  }
+
+  // ── The coach's own context, attached to the records (P2) ─────────────────
+  // ctx.dismissals: the coach's coach_signal_dismissals rows ({ client_id, reason_key, reason_sig,
+  //   until }) — null when the table could not be read (or does not exist yet: the migration is run
+  //   by hand), which attaches nothing, so every flag shows.
+  // ctx.reviews: the coach's coach_week_reviews doc ({ [weekOf]: { [clientId]: { reviewedAt, … } } }),
+  //   null when unread, which leaves each check-in's review state unknown (checkin_waiting is quiet).
+  // Returns NEW records; the inputs are not touched.
+  function attachCoachContext(records, ctx) {
+    ctx = ctx || {};
+    var byClient = null;
+    if (Array.isArray(ctx.dismissals)) {
+      byClient = {};
+      for (var i = 0; i < ctx.dismissals.length; i++) {
+        var d = ctx.dismissals[i];
+        if (!d || d.client_id == null || typeof d.reason_key !== "string") continue;
+        var k = String(d.client_id);
+        (byClient[k] = byClient[k] || []).push({ key: d.reason_key, sig: typeof d.reason_sig === "string" ? d.reason_sig : null, until: d.until || null });
+      }
+    }
+    var reviews = ctx.reviews && typeof ctx.reviews === "object" ? ctx.reviews : null;
+    return (Array.isArray(records) ? records : []).map(function (rec) {
+      if (!rec || typeof rec !== "object") return rec;
+      var id = rec.profile && rec.profile.id != null ? String(rec.profile.id) : null;
+      var out = {};
+      for (var key in rec) if (Object.prototype.hasOwnProperty.call(rec, key)) out[key] = rec[key];
+      if (byClient) out.dismissals = id && byClient[id] ? byClient[id] : [];
+      var latest = rec.checkIn && rec.checkIn.latest;
+      if (reviews && latest && latest.weekOf && id) {
+        var wk = reviews[latest.weekOf];
+        var review = wk && typeof wk === "object" ? wk[id] : null;
+        var nl = {};
+        for (var lk in latest) if (Object.prototype.hasOwnProperty.call(latest, lk)) nl[lk] = latest[lk];
+        nl.reviewed = checkinReviewed(review, latest);
+        var ci = {};
+        for (var ck in rec.checkIn) if (Object.prototype.hasOwnProperty.call(rec.checkIn, ck)) ci[ck] = rec.checkIn[ck];
+        ci.latest = nl;
+        out.checkIn = ci;
+      }
+      return out;
+    });
+  }
+
+  // What a surface posts to /api/ai/notify for the hourly push: the engine's inputs, and nothing a
+  // coach page only shows (intake rows, notes, check-in text, recent logs, the care team's names).
+  // `userId` is the id the route scope-checks (is_coach_on_client) and the alert opens.
+  var SNAPSHOT_KEYS = ["profile", "progressRead", "onboarding", "screening", "trainingAdherence", "foodLogs",
+    "shapeScoreHistory", "weighIns", "streaks", "lastContact", "checkIn", "nutrition", "goal", "goals", "goalPhase",
+    "program", "recovery", "vitals", "replyWait", "pros", "dismissals"];
+  function engineSnapshot(rec) {
+    if (!rec || typeof rec !== "object") return null;
+    var out = {};
+    for (var i = 0; i < SNAPSHOT_KEYS.length; i++) {
+      var k = SNAPSHOT_KEYS[i];
+      if (rec[k] !== undefined) out[k] = rec[k];
+    }
+    var pay = rec.payments;
+    if (pay && typeof pay === "object") {
+      out.payments = { status: pay.status || null, paymentRetrying: pay.paymentRetrying === true, joinedAt: pay.joinedAt || null,
+        cancelAtPeriodEnd: pay.cancelAtPeriodEnd === true, periodEndsAt: pay.periodEndsAt || null };
+    }
+    var id = rec.profile && rec.profile.id != null ? String(rec.profile.id) : null;
+    if (id) out.userId = id;
+    return out;
   }
 
   // ── THE CROSSOVER (spec 2026-07-13) — training × work-habit reads ────────
@@ -2517,6 +3163,23 @@
     groupKey: groupKey,
     groupLabels: groupLabels,
     workoutCardExercises: workoutCardExercises,
+    // P2 — one engine everywhere, plus coach actions.
+    COACH_ACTIONS: COACH_ACTIONS,
+    COACH_ACTION_KINDS: COACH_ACTION_KINDS,
+    DIRECTIVE_PRIORITY: DIRECTIVE_PRIORITY,
+    FLAG_DISCIPLINE: FLAG_DISCIPLINE,
+    coachActionFor: coachActionFor,
+    coachLead: coachLead,
+    coachBrief: coachBrief,
+    memberDraft: memberDraft,
+    topFlag: topFlag,
+    isDismissed: isDismissed,
+    checkinReviewed: checkinReviewed,
+    checkinLowRatings: checkinLowRatings,
+    recordFromOverview: recordFromOverview,
+    attachCoachContext: attachCoachContext,
+    engineSnapshot: engineSnapshot,
+    coCoachFor: coCoachFor,
     _internals: { mondayOf: mondayOf, daysBetween: daysBetween, toDate: toDate, calDays: calDays },
   };
 });

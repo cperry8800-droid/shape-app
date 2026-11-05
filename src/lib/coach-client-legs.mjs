@@ -302,6 +302,36 @@ export function bsLastContactLeg(conversations, mine, dm = null) {
   return { trainer: pick('trainer', t), nutritionist: pick('nutritionist', n) };
 }
 
+// ── A client's message waiting on the coach's reply (P2, 2026-11-05) ─────────
+// Per role, the moment the client's OLDEST unanswered message was sent, in the caller's own threads
+// with them: that role's coach thread and the member DM (the two places a coach writes). `messages`
+// are { conversation_id, sender_id, created_at } rows from those threads, any order. Walking newest
+// to oldest, a message from the client moves the wait back to it; a message from anyone else who is a
+// person (the coach — the threads hold only the two of them) ends the walk; Shape's own system
+// messages (no sender) are skipped, since they answer nobody. null = nothing waiting.
+// `threads` is { trainer: [ids], nutritionist: [ids] }; a role with no thread ids reads null.
+// ⚠ The caller OMITS the leg when the messages could not be read: an empty read is "nothing waiting",
+// which must never be claimed about an unreadable thread.
+export function bsReplyWaitLeg(messages, clientId, threads) {
+  const rows = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && typeof m.conversation_id === 'string' && ms(m.created_at) != null)
+    .sort((a, b) => ms(b.created_at) - ms(a.created_at));
+  const waitFor = (ids) => {
+    const set = new Set((Array.isArray(ids) ? ids : []).filter((v) => typeof v === 'string' && v));
+    if (!set.size) return null;
+    let since = null;
+    for (const m of rows) {
+      if (!set.has(m.conversation_id)) continue;
+      if (m.sender_id == null) continue;
+      if (String(m.sender_id) !== String(clientId)) break;
+      since = new Date(ms(m.created_at)).toISOString();
+    }
+    return since;
+  };
+  const t = threads && typeof threads === 'object' ? threads : {};
+  return { trainer: waitFor(t.trainer), nutritionist: waitFor(t.nutritionist) };
+}
+
 // ── The onboarding board, per role (client-onboarding review, fix 4) ─────────
 // One coach's first 30 days with a new client, built ONLY from records: the subscription, Shape's
 // welcome in the thread, the coach's own first message, the first plan the coach published, the

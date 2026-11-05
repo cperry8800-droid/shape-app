@@ -406,10 +406,10 @@ test('the Clients pages count people on a plan, as the badge does, and say "—"
   // (The roster's fast paint is skipped on a quiet re-read when the coach returns to the tab, 2026-11-05.)
   assert.match(data, /const planCount = roster\.totals && roster\.totals\.onPlan !== undefined \? roster\.totals\.onPlan : undefined;\n\s+if \(on && !had\) setState\(\{ loading: false, clients: base, source: "live", today, planCount \}\);/);
   assert.match(data, /source: "live",\n\s+today,\n\s+planCount,\n\s+\}\);/, 'the enriched paint keeps it');
-  assert.match(data, /source: state\.source, tuning, planCount: state\.planCount \};/);
+  assert.match(data, /source: state\.source, tuning, planCount: state\.planCount,/);
   for (const page of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {
     const src = stripComments(readFileSync(join(ROOT, 'public/newdesign', page), 'utf8'));
-    assert.match(src, /const \{ loading, clients, triage, today: liveToday, source, planCount \} = useDashboard\("(?:trainer|nutritionist)"\);/, page);
+    assert.match(src, /const \{ loading, clients, triage, today: liveToday, source, planCount(?:, dismissable, setDismissal, clearDismissal)? \} = useDashboard\("(?:trainer|nutritionist)"\);/, page);
     assert.match(src, /const activeCount = dashPlanClientCount\(clients, planCount\);/, page);
     assert.doesNotMatch(src, /const activeCount = clients\.length;/, page);
     assert.match(src, /const activeWord = activeCount == null \? "\\u2014" : String\(activeCount\);/, page);

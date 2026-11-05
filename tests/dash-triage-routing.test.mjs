@@ -72,9 +72,14 @@ test('one pro → everything routes to them (the nutrition flag is OWNED by a so
     nutrition: { avgProtein: 110, targetProtein: 175 },
     pros: { trainer: true, nutritionist: false }, // solo trainer
   };
-  const ro = row('trainer', c).readOnly.find((f) => f.key === 'protein_under');
-  assert.ok(ro, 'the solo trainer still sees the nutrition signal');
-  assert.equal(ro.owned, true, 'and OWNS it — no other pro to route to');
+  // ⚠ P2: OWNED MEANS IT IS THEIRS TO ACT ON — so it is one of their flags, counted and alerted, not
+  // routed context. As read-only context it was labelled owned and still never reached the trainer.
+  const r = row('trainer', c);
+  const own = r.flags.find((f) => f.key === 'protein_under');
+  assert.ok(own, 'the solo trainer still sees the nutrition signal');
+  assert.equal(own.owned, true, 'and OWNS it — no other pro to route to');
+  assert.equal(r.readOnly.some((f) => f.key === 'protein_under'), false, 'not shown twice');
+  assert.equal(r.severity, 'amber', 'and it counts');
 });
 
 test('severity ordering is unchanged — the sort + thresholds still hold', () => {

@@ -16,8 +16,8 @@
 
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
-import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
+import { bsVitals, bsVitalsLeg, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
+import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, bsReplyWaitLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
@@ -81,6 +81,28 @@ export async function resolveMe(supabase: OverviewClient, userId: string, sentZo
     // browser's, else UTC (bsCoachDay), as the dashboard routes count Today (Codex on #2620).
     dayZones: [t?.timezone ?? n?.timezone, sentZone],
   };
+}
+
+/**
+ * Several clients' overviews for one caller, `concurrency` at a time: { [clientId]: overview }. A client
+ * whose build throws is simply absent (the batch route's `failed`), which every consumer reads as not
+ * shared. Nora's "What needs me today?" reads its clients through this (P2), so she triages the same
+ * record the website and the app build from the batch route.
+ */
+export async function buildSharedOverviews(supabase: OverviewClient, userId: string, ids: string[], concurrency = 4): Promise<Record<string, unknown>> {
+  const me = await resolveMe(supabase, userId);
+  const list = [...new Set((ids || []).filter((v) => typeof v === 'string' && UUID.test(v)))];
+  const out: Record<string, unknown> = {};
+  let next = 0;
+  const lane = async () => {
+    while (next < list.length) {
+      const id = list[next++];
+      try { out[id] = await buildSharedOverview(supabase, { clientId: id, me }); }
+      catch (e) { console.error('[shared-overview] client build failed:', id, e instanceof Error ? e.message : e); }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, list.length) }, lane));
+  return out;
 }
 
 /** One client's overview, exactly what GET /api/clients/[id]/shared-overview returns. */
@@ -510,6 +532,11 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // reading from weeks ago under a cell labeled "7D".
   // Derivation lives in the pure, tested bsVitals (src/lib/vitals-leg.mjs).
   const vitals = bsVitals(snapRows as Array<Record<string, unknown>>);
+  // A wearable's own recovery / readiness score (WHOOP recovery, Oura readiness: `recovery_score`,
+  // 0-100) over the same seven calendar days, for the engine's recovery_low (P2). `select('*')` above
+  // means a database without the column simply has no values here.
+  const deviceRecoveryLeg = bsVitalsLeg(snapRows as Array<Record<string, unknown>>, 'recovery_score');
+  const deviceRecovery = deviceRecoveryLeg ? { avg7: deviceRecoveryLeg.avg7, n: deviceRecoveryLeg.n } : null;
 
   // ── The legs the roster columns and the signals engine read (review
   // 2026-09-09, R4). Until these existed, `_dashRecordFromLive` set six fields
@@ -554,6 +581,30 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     dm = dmErr ? undefined : (((dmRows ?? []) as Array<{ id: string; last_message_at: string | null }>)[0] ?? null);
   }
   const lastContact = convoErr || dm === undefined ? undefined : bsLastContactLeg(convoRows ?? [], mine, dm);
+  // A client's message waiting on the caller's reply (P2): the newest messages in the caller's own coach
+  // thread(s) and the member DM, per role. Omitted when the threads or the messages could not be read
+  // (bsReplyWaitLeg's note: an empty read is the claim "nothing waiting").
+  let replyWait: ReturnType<typeof bsReplyWaitLeg> | undefined;
+  if (coached && !convoErr && dm !== undefined) {
+    const own = (role: 'trainer' | 'nutritionist') => {
+      const id = mine[role];
+      if (id == null) return [] as string[];
+      const conv = ((convoRows ?? []) as Array<{ id: string; provider_role: string; provider_id: number }>)
+        .find((c) => c.provider_role === role && String(c.provider_id) === String(id));
+      return [conv?.id, dm?.id].filter((v): v is string => typeof v === 'string');
+    };
+    const threads = { trainer: own('trainer'), nutritionist: own('nutritionist') };
+    const ids = [...new Set([...threads.trainer, ...threads.nutritionist])];
+    if (!ids.length) {
+      replyWait = bsReplyWaitLeg([], clientId, threads);
+    } else {
+      const { data: waitRows, error: waitErr } = await supabase
+        .from('messages').select('conversation_id, sender_id, created_at')
+        .in('conversation_id', ids).order('created_at', { ascending: false }).limit(40);
+      if (waitErr) console.error('[shared-overview] reply-wait messages read failed:', waitErr.message);
+      replyWait = waitErr ? undefined : bsReplyWaitLeg(waitRows ?? [], clientId, threads);
+    }
+  }
   // The program: what the caller put on the client's calendar (bsWorkoutProgramLeg), else an
   // assignment row (the program-tools route's, which keeps its paused rule in bsProgramLeg).
   // ⚠ A FAILED READ IS UNKNOWN, NOT "Not set". Either read failing omits the key, which the roster
@@ -690,6 +741,9 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
       : null,
     sleep,
     vitals,
+    deviceRecovery,
+    // P2: per role, when the client's oldest unanswered message was sent; omitted when unreadable.
+    ...(replyWait === undefined ? {} : { replyWait }),
     // R4 legs — each null when its source is absent (never a zero). `logs` is
     // OMITTED entirely when the snapshot read failed, so the client can tell an
     // empty window from an unreadable one.

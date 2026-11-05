@@ -9,7 +9,7 @@ const TCP_FILTERS = [["all", "All"], ["red", "Needs you"], ["amber", "Watch"], [
 const TCP_FILTER_KEYS = TCP_FILTERS.map((f) => f[0]);
 
 function TrainerClientsPage() {
-  const { loading, clients, triage, today: liveToday, source, planCount } = useDashboard("trainer");
+  const { loading, clients, triage, today: liveToday, source, planCount, dismissable, setDismissal, clearDismissal } = useDashboard("trainer");
   const [sharedBadge, setSharedBadge] = React.useState(0);
   // ⚠ THE SEARCH BOX IS DELIBERATELY NOT REMEMBERED. A filter is a standing preference
   // about how you read your roster; a half-typed name is a moment. Restoring one would
@@ -88,7 +88,7 @@ function TrainerClientsPage() {
             </div>
             {loading
               ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
-              : <DashRosterTable triage={triage} role="trainer" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} />}
+              : <DashRosterTable triage={triage} role="trainer" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={{ ok: !!dismissable, set: setDismissal, clear: clearDismissal }} />}
           </Card>
         </React.Fragment>
       )}

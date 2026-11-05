@@ -138,19 +138,20 @@ test('the dashboard applies the tuning and its feeds depend on it', () => {
   assert.match(src, /function dashResolveCoachThresholds/);
   assert.match(src, /function useCoachThresholds/);
   // the resolved set is HANDED to the engine, per call
-  assert.match(src, /getTriageFeed\(role, state\.clients, undefined, thresholds/);
-  assert.match(src, /findJointAttention\(state\.clients, undefined, thresholds/);
+  // (`clients` is the records with the coach's dismissals and reviews attached, P2.)
+  assert.match(src, /getTriageFeed\(role, clients, undefined, thresholds/);
+  assert.match(src, /findJointAttention\(clients, undefined, thresholds/);
   // ⚠ BOTH FEEDS. getTriageFeed obviously reads the engine; findJointAttention calls
   // evaluateClient INTERNALLY, which is the one an author would miss — and a memo
   // without the dependency renders the previous tuning's output indefinitely.
   // ⚠ AND BOTH MEMOS DEPEND ON IT. A memo without the dependency renders the previous
   // tuning's output indefinitely — the coach changes a number and their roster keeps
   // showing the flags the old one produced.
-  for (const [call, what] of [['getTriageFeed(role, state.clients', 'triage'],
-                              ['findJointAttention(state.clients', 'joint-attention']]) {
+  for (const [call, what] of [['getTriageFeed(role, clients', 'triage'],
+                              ['findJointAttention(clients', 'joint-attention']]) {
     const at = src.indexOf(call);
     assert.ok(at > 0, 'the ' + what + ' call moved');
-    const deps = src.slice(at, src.indexOf(');', src.indexOf('[role, state.clients', at)));
+    const deps = src.slice(at, src.indexOf(');', src.indexOf('[role, clients', at)));
     assert.match(deps, /thresholdSig/, 'the ' + what + ' feed does not depend on the tuning');
   }
 });

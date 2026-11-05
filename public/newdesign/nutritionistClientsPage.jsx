@@ -9,7 +9,7 @@ const NCP_FILTERS = [["all", "All"], ["red", "Needs you"], ["amber", "Watch"], [
 const NCP_FILTER_KEYS = NCP_FILTERS.map((f) => f[0]);
 
 function NutritionistClientsPage() {
-  const { loading, clients, triage, today: liveToday, source, planCount } = useDashboard("nutritionist");
+  const { loading, clients, triage, today: liveToday, source, planCount, dismissable, setDismissal, clearDismissal } = useDashboard("nutritionist");
   const [sharedBadge, setSharedBadge] = React.useState(0);
   // ⚠ THE SEARCH BOX IS DELIBERATELY NOT REMEMBERED. A filter is a standing preference
   // about how you read your roster; a half-typed name is a moment. Restoring one would
@@ -88,7 +88,7 @@ function NutritionistClientsPage() {
             </div>
             {loading
               ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
-              : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} />}
+              : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={{ ok: !!dismissable, set: setDismissal, clear: clearDismissal }} />}
           </Card>
         </React.Fragment>
       )}

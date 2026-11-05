@@ -134,14 +134,22 @@ test('no pre-existing flag changed severity: two general flags still read red', 
   const before = evaluateClient(r, NOW, 'trainer');
   assert.deepEqual(before.flags.map((f) => f.key).sort(), ['score_drop', 'streak_broken']);
   assert.equal(before.severity, 'red');
-  // …and for the nutritionist, identically.
-  assert.equal(evaluateClient(r, NOW, 'nutritionist').severity, 'red');
+  // …and for a nutritionist who is their only coach, identically. (P2: with a trainer on the client,
+  // the broken streak is the trainer's to act on — routed context, not counted — so one general flag
+  // reads amber; the trainer's own view is unchanged.)
+  assert.equal(evaluateClient({ ...r, pros: { trainer: false, nutritionist: true } }, NOW, 'nutritionist').severity, 'red');
+  assert.equal(evaluateClient({ ...r, pros: { trainer: true, nutritionist: true } }, NOW, 'nutritionist').severity, 'amber');
 });
 
-test('sleep_low keeps escalating every role (its established pattern is untouched)', () => {
+test('sleep_low keeps escalating the coach who owns it (P2: owned flags count)', () => {
   const r = { profile: { name: 'Q' }, recovery: { sleepHours: { avg7: 5.5, lastNight: 5.5, target: 7.5, n: 7 } }, streaks: { current: 0, best: 9 } };
   assert.equal(evaluateClient(r, NOW, 'trainer').severity, 'red');
-  assert.equal(evaluateClient(r, NOW, 'nutritionist').severity, 'red');
+  // A nutritionist-only client: nobody else to take sleep or the streak, so both are theirs.
+  assert.equal(evaluateClient({ ...r, pros: { trainer: false, nutritionist: true } }, NOW, 'nutritionist').severity, 'red');
+  // With a trainer there, both are the trainer's: still on the nutritionist's row, never counted.
+  const shared = evaluateClient({ ...r, pros: { trainer: true, nutritionist: true } }, NOW, 'nutritionist');
+  assert.deepEqual(shared.flags.map((f) => f.key).sort(), ['sleep_low', 'streak_broken']);
+  assert.equal(shared.severity, 'green');
 });
 
 test('the nutrition siblings still gate exactly as they did', () => {

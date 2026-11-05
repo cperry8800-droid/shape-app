@@ -365,34 +365,65 @@ function dashMessageClient(name, role, draft, clientId) {
   if (b) { window.__openChatRequest = opts; b.click(); }
 }
 
-// One-tap drafts — the coach's opener, grounded in the engine's ONE cross-domain
-// directive reason (which already reasons across training/nutrition/sleep), with
-// a fallback to stitching the raw flag reasons.
+// One-tap drafts — the coach's opener for the client.
+// ⚠ WRITTEN TO THE CLIENT, NEVER FROM THE COACH'S REASON (P2, 2026-11-05). This pasted the engine's
+// reason into the opener, lower-cased into the coach's voice, so a client read "I'm seeing answered
+// yes on the health screening — read it before programming": a note to the coach, sent to them. The
+// draft is the coach action's own member wording (DashSignals.memberDraft, on the row's `lead`), and a
+// row whose move is not a message drafts nothing. tests/coach-actions.test.mjs holds every draft free
+// of every reason the engine can write.
 function dashMessageDraft(row) {
   if (!row || !row.client) return null;
-  const dir = row.directive;
-  const hasFlags = Array.isArray(row.flags) && row.flags.length > 0;
-  const leverActionable = dir && dir.lever && dir.lever !== "none";
-  // A clean row (no flags, no actionable lever) drafts nothing.
-  if (!hasFlags && !leverActionable) return null;
-  const first = String(row.client.profile.name).split(" ")[0];
-  if (dir && dir.reason && dir.reason !== "—") {
-    const r = dir.reason.charAt(0).toLowerCase() + dir.reason.slice(1);
-    return "Hey " + first + " — checking in. I'm seeing " + r + ". What's getting in the way this week?";
-  }
-  if (!hasFlags) return null;
-  const reasons = row.flags.slice(0, 2).map((f) => f.reason.charAt(0).toLowerCase() + f.reason.slice(1));
-  return "Hey " + first + " — checking in. I'm seeing " + reasons.join(", and ") + ". What's getting in the way this week?";
+  const action = row.lead && row.lead.action;
+  return action && action.kind === "message" && action.draft ? action.draft : null;
 }
 function dashCongratsDraft(client, hit) {
   const first = String(client.profile.name).split(" ")[0];
   return first + " — " + hit.label + ". That's earned, not given. What are we pointing at next?";
 }
+// Joint attention's note goes to the CO-COACH in the private care-team thread (P2): coach to coach, so
+// it may name what each side sees. It was a message to the client that told the other coach nothing.
 function dashJointDraft(j, role) {
-  const first = String(j.client.profile.name).split(" ")[0];
-  const other = role === "nutritionist" ? "trainer" : "nutritionist";
+  const client = String(j.client.profile.name).split(" ")[0];
+  const coach = j.coCoach && j.coCoach.name ? " " + String(j.coCoach.name).split(" ")[0] : "";
   const labels = j.trainingFlags.concat(j.nutritionFlags).slice(0, 2).map((f) => f.label.toLowerCase());
-  return "Hey " + first + " — your " + other + " and I compared notes: " + labels.join(" + ") + " in the same week. One reset plan from both of us. Quick call tomorrow?";
+  return "Hi" + coach + " — " + client + " is slipping on both sides this week (" + labels.join(" + ") + "). Can we agree one plan before either of us messages them?";
+}
+// Open the private care-team thread with the co-coach (the route the client page's Care team uses),
+// with the joint draft in the composer. False when it cannot: a preview client, or the route refused.
+async function dashOpenCareTeam(j, role) {
+  const co = j && j.coCoach;
+  const id = j && j.client && j.client.profile ? j.client.profile.id : null;
+  if (!co || !co.userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || ""))) return false;
+  try {
+    const res = await fetch("/api/me/shared-clients/" + encodeURIComponent(id) + "/thread", {
+      method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ counterpartUserId: co.userId }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.conversationId) return false;
+    const who = co.role === "trainer" ? "Trainer" : "Nutritionist";
+    const opts = { who: co.name || who, role: who + " · re: " + j.client.profile.name, conversationId: d.conversationId, draft: dashJointDraft(j, role) };
+    if (typeof window.__openChatTo === "function") window.__openChatTo(opts);
+    else if (typeof window.__openChat === "function") window.__openChat(opts);
+    return true;
+  } catch (e) { return false; }
+}
+// The coach's move for a row (DashSignals.COACH_ACTIONS through row.lead.action), made from the
+// website: a message opens the client's thread with the member's draft; a reply opens it bare; the
+// rest go where that work is done. One table for every surface, instead of one-size Message.
+function dashCoachActionGo(action, row, role) {
+  const c = row && row.client;
+  if (!c || !c.profile) return;
+  const id = c.profile.id, name = c.profile.name;
+  const kind = action && action.kind;
+  const go = (href) => { if (href) window.location.href = href; };
+  if (kind === "review_checkin") return go(dashTabHref("week", role));
+  if (kind === "read_screening") return go(dashWidgetClientHref(id, role, "health") || dashTabHref("clients", role));
+  if (kind === "adjust_program") return go(dashTabHref("programs", role));
+  if (kind === "adjust_plan") return go(dashTabHref("plans", role));
+  if (kind === "schedule") return go(dashTabHref("schedule", role));
+  return dashMessageClient(name, role, kind === "message" ? action.draft || null : null, id);
 }
 
 // Pre-session context from the unified record — the two most useful facts.
@@ -814,7 +845,7 @@ function DashWinsPanel({ clients, role }) {
   );
 }
 
-function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }) {
+function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs, dismiss }) {
   // Urgency order: at-risk (red, then amber — the feed is already sorted),
   // then brand-new clients, then on-track — with the coach's own pins lifted above it.
   //
@@ -823,6 +854,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   // flag from the list") is the kind of thing a filter chain gets wrong silently. It is
   // driven in tests/dash-pulse-pins.test.mjs rather than eyeballed on a card.
   const order = DashSignals.pulseOrder(feed, pinned);
+  const brief = feed && feed.length && typeof DashSignals.coachBrief === "function" ? DashSignals.coachBrief(feed) : null;
   const pinnedRows = order.pinned;
   const rows = order.rest;
   const canPin = typeof onTogglePin === "function";
@@ -860,6 +892,9 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
         const routedFlags = r.flags.filter((f) => !f.owned).concat(r.readOnly || []);
         const pills = ownedFlags.slice(0, 2).map((f) => f.label);
         const extra = ownedFlags.length - 2;
+        // The coach's one move for this client (P2): the lead reason, in words, and its action.
+        const lead = r.lead || null;
+        const act = lead && lead.action;
         return (
           <div key={c.profile.id || i}
             onClick={() => openDrawer(r)}
@@ -881,6 +916,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                 {r.severity === "green" && !isNew && <DashPill c={DASH_SEV_COLORS.green}>On track</DashPill>}
                 {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(c)).label}</DashPill>}
               </div>
+              {lead && <div style={{ marginTop: 4, fontSize: 12.5, lineHeight: 1.4, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{lead.reason}</div>}
               <div style={{ marginTop: 4, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.05em", color: ink50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {[
                   streak,
@@ -906,8 +942,8 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
                   style={{ flexShrink: 0, background: "transparent", border: 0, padding: "7px 4px", minWidth: 24, lineHeight: 1, fontSize: 13, cursor: "pointer", color: pinSet.has(c.profile.id) ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}
                 >{pinSet.has(c.profile.id) ? "\u2691" : "\u2690"}</button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); dashMessageClient(c.profile.name, role, dashMessageDraft(r), c.profile.id); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
-                Message
+              <button onClick={(e) => { e.stopPropagation(); if (act) dashCoachActionGo(act, r, role); else dashMessageClient(c.profile.name, role, null, c.profile.id); }} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer" }}>
+                {act ? act.label : "Message"}
               </button>
             </div>
           </div>
@@ -918,17 +954,19 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
   return (
     <div>
       <style>{"@keyframes dashTick{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}"}</style>
+      {/* The brief (P2): "{name} first — {reason}", the engine's own sentence for who to start with. */}
+      {brief && <div data-dash-brief="" style={{ fontSize: 13.5, lineHeight: 1.45, marginBottom: 12 }}>{brief.text}{brief.more > 0 ? <span style={{ color: ink50 }}>{" · " + brief.more + " more need" + (brief.more === 1 ? "s" : "") + " you"}</span> : null}</div>}
       {/* Joint attention (step 9.2): the same client is slipping on BOTH the
           training and nutrition side — one coordinated message, not two nudges. */}
       {joint.slice(0, 2).map((j, i) => (
         <div key={"joint-" + i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10, padding: "10px 13px", background: "rgba(224,100,75,0.07)", border: "1px solid rgba(224,100,75,0.3)", borderLeft: "3px solid var(--sh-rust, #e0644b)", borderRadius: 4 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-rust, #e0644b)" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}</div>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-rust, #e0644b)" }}>Joint attention · with their {role === "nutritionist" ? "trainer" : "nutritionist"}{j.coCoach && j.coCoach.name ? " " + j.coCoach.name : ""}</div>
             <div style={{ fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", marginTop: 4, lineHeight: 1.45 }}>
               <b>{j.client.profile.name}</b> is slipping on both sides — {j.trainingFlags.map((f) => f.label.toLowerCase()).join(", ")} and {j.nutritionFlags.map((f) => f.label.toLowerCase()).join(", ")}. One coordinated message beats two separate nudges.
             </div>
           </div>
-          <button onClick={() => dashMessageClient(j.client.profile.name, role, dashJointDraft(j, role), j.client.profile.id)} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
+          <button onClick={() => { dashOpenCareTeam(j, role); }} title={"Opens your private thread with their " + (role === "nutritionist" ? "trainer" : "nutritionist") + " — the client doesn't see it"} style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#fff", background: "var(--sh-rust, #e0644b)", border: 0, borderRadius: 4, padding: "8px 12px", cursor: "pointer" }}>Start joint note</button>
         </div>
       ))}
       {pinnedRows.length > 0 && (
@@ -946,7 +984,7 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs }
         </div>
       )}
       {rows.map((r, i) => renderRow(r, i))}
-      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setSelectedId(null)} prefs={prefs} />}
+      {openRow && <DashClientDrawer row={openRow} role={role} onClose={() => setSelectedId(null)} prefs={prefs} dismiss={dismiss} />}
     </div>
   );
 }
@@ -1891,7 +1929,9 @@ function DashNeedsYou({ tabs, prefs, role }) {
 function CoachDashboardPage({ role }) {
   const cfg = DASH_TODAY_ROLES[role];
   // Re-read when the coach comes back to the tab (dashData.jsx useDashFocusRefresh).
-  const { today: live, triage, clients, queue, joint, source } = useDashboard(role, { refreshOnFocus: true });
+  const { today: live, triage, clients, queue, joint, source, dismissable, setDismissal, clearDismissal } = useDashboard(role, { refreshOnFocus: true });
+  // Dismiss and snooze from the drawer (P2); `ok` false until the dismissals table answered.
+  const dismiss = { ok: !!dismissable, set: setDismissal, clear: clearDismissal };
   // The coach's pinned clients, per ACCOUNT (review 2026-09-09, R15) — the same
   // `dashboard_prefs` document the roster filter and the Schedule view already use, so a
   // pin follows them between devices and costs no second mechanism.
@@ -2013,7 +2053,7 @@ function CoachDashboardPage({ role }) {
       render: () => <DashNeedsYou prefs={prefs} role={role} tabs={[
         { key: "attention", label: "Attention", empty: !triage || triage.length === 0,
           emptyText: "No one needs your attention right now. Clients appear here when their logs, check-ins or Shape Score slip.",
-          render: () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} /> },
+          render: () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} /> },
         // The onboarding board for clients in their first 30 days (client-onboarding review, fix 4).
         { key: "new", label: "New clients", empty: dashOnboardingRows(clients, role).length === 0,
           emptyText: "No clients in their first 30 days with you. A new client's board appears here the day they subscribe.",
@@ -2032,7 +2072,7 @@ function CoachDashboardPage({ role }) {
       render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={source === "live"} />) },
     { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, size: "half",
       render: () => renderPanel("Capacity this week", <DashCapacityPanel role={role} live={source === "live"} />) },
-    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} />) },
+    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} />) },
     { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
     ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", size: "full", render: () => renderKpiStrip(practiceKpis),
@@ -2087,7 +2127,7 @@ function CoachDashboardPage({ role }) {
       schedule={schedule}
       pulseTitle="Client pulse"
       pulse={pulse}
-      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} /> : undefined}
+      pulseRender={cfg.triagePulse ? () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} /> : undefined}
       scheduleRender={cfg.expandSchedule ? () => <ExpandableSchedule schedule={schedule} clients={clients} role={role} /> : undefined}
       extraSections={[
         ...(cfg.programmingQueue ? [{
@@ -2114,4 +2154,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });
