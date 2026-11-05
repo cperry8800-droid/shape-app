@@ -63,6 +63,37 @@ test('a day built in order is Breakfast, Lunch, Dinner, then Snacks, never Lunch
   assert.match(source('public/newdesign/dashMealBuilder.jsx'), /DashMeals\.newMeal\(f, dmbNextSlot\(day\.slots\)\)/);
 });
 
+// ── 10. The playlist builder shows the real tracks once, and the real count ──
+test('the playlist builder lists each track it has once, and says how many the playlist holds', async () => {
+  const { createRequire } = await import('node:module');
+  const require_ = createRequire(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const file = 'public/newdesign/trainerPlaylistsPage.jsx';
+  const code = babel.transformSync(lift(file, 'plTrackListNote') + '\n' + lift(file, 'BuilderDetailPane'), { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const PlaylistCtx = React.createContext({ attachTargets: [], attachmentUnitPlural: 'workouts' });
+  const Card = ({ children }) => React.createElement('div', null, children);
+  const { BuilderDetailPane, plTrackListNote } = new Function('React', 'PlaylistCtx', 'Card', 'ProviderMark', 'serif', 'sans', 'INK', 'pillPrimary', 'pillGhost',
+    code + '\nreturn { BuilderDetailPane, plTrackListNote };')(React, PlaylistCtx, Card, () => null, 'serif', 'sans', '#fff', {}, {});
+  const sample = [['A', 'One', '3:00'], ['B', 'Two', '3:10'], ['C', 'Three', '3:20']];
+  const playlist = (o) => ({ name: 'Leg day', provider: 'spotify', cover: '', accent: '#000', bpm: '120', duration: '1h', listens: 0, note: 'n', attachedTo: [], sampleTracks: sample, trackCount: 28, ...o });
+  const html = renderToStaticMarkup(React.createElement(BuilderDetailPane, { p: playlist() }));
+  const titles = [...html.matchAll(/>(One|Two|Three)</g)].map((m) => m[1]);
+  assert.deepEqual(titles, ['One', 'Two', 'Three'], 'each sample track once, not looped to 28');
+  assert.match(html, /3 of 28 tracks shown\. The full list is in Spotify\./);
+  assert.match(html, />28<\/div>TRACKS/, 'the count is the playlist\'s own');
+  // A live playlist: no track list read, its real count said.
+  const live = renderToStaticMarkup(React.createElement(BuilderDetailPane, { p: playlist({ sampleTracks: [], trackCount: 12, provider: 'apple' }) }));
+  assert.match(live, /12 tracks in this playlist\. The full list is in Apple Music\./);
+  // Every track shown: nothing to add.
+  assert.equal(plTrackListNote(3, 3, 'spotify'), null);
+  assert.equal(plTrackListNote(0, 0, 'spotify'), null);
+  assert.equal(plTrackListNote(0, 1, 'spotify'), '1 track in this playlist. The full list is in Spotify.');
+  assert.doesNotMatch(source(file), /\.\.\.p\.sampleTracks, \.\.\.p\.sampleTracks/);
+});
+
 // ── 4. The Week page counts a past week's own food logs ─────────────────────
 function weekHelpers() {
   const file = 'public/newdesign/dashWeek.jsx';
