@@ -82,6 +82,10 @@ export const SHAPE_SCRUB_KEYS = [
                           // inherited indefinitely by a next user with no cloud goal
   'shape.notify.last',    // 30-min notification throttle stamp — suppresses the next
                           // account's evaluation until the previous account's expires
+  'shape.tz.account',     // the account's own time zone (shapeZone.mjs): left behind, the next
+                          // account's first paint prints every time on the previous one's clock
+  'shape.tz.declined',    // "keep my zone" for this device's zone: would silence the next
+                          // account's travel prompt
   'bs_coach_soundtracks',
   'bs_coach_soundtrack_assign',
   // The saveLocalRecord() fallback families (shapeBackend.js): records a
