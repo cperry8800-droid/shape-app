@@ -339,6 +339,12 @@ function mkReadListings(cl, tab) {
   return cl.from(table).select(columns).eq("listing_ready", true)
     .then(({ data, error }) => (error || !Array.isArray(data) ? [] : data.map((row) => mapLiveCoach(row, tab))), () => []);
 }
+// Runs fn over every item, at most `limit` at once.
+function mkEachLimited(items, limit, fn) {
+  let next = 0;
+  const worker = async () => { while (next < items.length) { const i = next++; await fn(items[i], i); } };
+  return Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
 // An account's open intro times, from the read the booking page lays its times out from.
 function mkReadOpenTimes(c) {
   const B = window.BookingSlots;
@@ -347,6 +353,10 @@ function mkReadOpenTimes(c) {
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
       if (!d || !Array.isArray(d.slots) || !B || !B.buildSlots) return null;
+      // Full, with intros at capacity off (the default): no intro times, as the coach's own booking
+      // page shows none (coachProfileWeb's introsAtCap rule). Its hours stay, but none can be booked,
+      // so the coach can't pass "Open this week" or rank as the soonest intro (Codex on #2619).
+      if (d.atCapacity === true && !(d.rules && d.rules.introsAtCapacity === true)) return [];
       const len = Number(d.rules && d.rules.consultMin);
       const introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
       if (d.slots.length && !(B.isZone && B.isZone(d.timezone))) return [];
@@ -384,7 +394,9 @@ function useLiveCoaches() {
           if (row && Number.isFinite(Number(row.points)) && row.points != null) c.points = Number(row.points);
         } catch (e) { /* keep initials */ }
       }));
-      await Promise.all(owned.slice(0, 24).map(async (c) => { c.openTimes = await mkReadOpenTimes(c); }));
+      // Every account's times, six reads at a time: a cap left the coaches past it with no times, so
+      // they failed "Open this week" and sank in the sort (Codex on #2619).
+      await mkEachLimited(owned, 6, async (c) => { c.openTimes = await mkReadOpenTimes(c); });
       if (on) setSt({ state: "ready", rows: [...rows] });
     }, () => { if (on) setSt({ state: "none", rows: [] }); });
     return () => { on = false; };

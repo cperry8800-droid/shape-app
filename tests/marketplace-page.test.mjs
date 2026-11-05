@@ -40,7 +40,7 @@ window.HTMLElement.prototype.scrollIntoView = function () {};
 globalThis.ReactDOM = { createRoot: () => ({ render() {} }) };
 const SRC = read('marketplace.jsx');
 const mk = await loadRealModule(join(ND, 'marketplace.jsx'), {
-  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash });',
+  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited });',
 });
 const { createRoot } = require('react-dom/client');
 globalThis.ReactDOM = require('react-dom');
@@ -228,4 +228,37 @@ test('the side a link names: #hash or ?role=, and Both by default', () => {
   assert.equal(mk.mkTabFromHash('trainer'), 'Trainer');
   assert.equal(mk.mkTabFromHash('#results'), null, 'an unknown hash picked a side');
   assert.match(SRC, /\|\| "Both" \}\)\);/, 'the page does not open on Both');
+});
+
+// Codex on #2619: a full coach whose intros at capacity are off offers no intro times, so it can't
+// pass "Open this week" or rank as the soonest intro; on, the times stand.
+test('a full coach with intros at capacity off has no open intro times', async () => {
+  const slot = { iso: '2026-11-06T14:00:00.000Z', ms: Date.parse('2026-11-06T14:00:00.000Z') };
+  window.BookingSlots = { buildSlots: () => [slot], isZone: () => true };
+  const answer = (body) => { globalThis.fetch = window.fetch = async () => ({ ok: true, json: async () => body }); };
+  const owned = mk.mapLiveCoach(OWNED, 'Trainer');
+  const base = { slots: [{ day: 4, start: '09:00', end: '12:00' }], booked: [], busy: [], timezone: 'America/New_York' };
+  answer({ ...base, atCapacity: true, rules: { introsAtCapacity: false } });
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), [], 'a full coach kept bookable intro times');
+  answer({ ...base, atCapacity: true, rules: {} });
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), [], 'the default (no rule) is intros off at capacity');
+  answer({ ...base, atCapacity: true, rules: { introsAtCapacity: true } });
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), [slot], 'intros at capacity on: the times stand');
+  answer({ ...base, atCapacity: false, rules: {} });
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), [slot]);
+});
+
+// Codex on #2619: every account's times are read, not the first 24, and never more than six at once.
+test('open times are read for every account, six at a time', async () => {
+  let live = 0; let peak = 0; const seen = [];
+  const items = Array.from({ length: 40 }, (_, i) => i);
+  await mk.mkEachLimited(items, 6, async (i) => {
+    live += 1; peak = Math.max(peak, live);
+    await new Promise((r) => setTimeout(r, 1));
+    seen.push(i); live -= 1;
+  });
+  assert.equal(seen.length, 40, 'an account past a cap was skipped');
+  assert.deepEqual([...seen].sort((a, b) => a - b), items);
+  assert.ok(peak <= 6, 'more than six reads at once: ' + peak);
+  assert.ok(!/owned\.slice\(0,\s*\d+\)/.test(SRC.replace(/\/\/.*$/gm, '')), 'a cap on the accounts whose times are read is back');
 });
