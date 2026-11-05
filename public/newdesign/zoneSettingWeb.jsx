@@ -364,8 +364,8 @@ function ZswZoneSetting({ coach, wrap, labelClassName, labelStyle, store }) {
       <div role="status" aria-live="polite" style={{ ...ZSW_NOTE, minHeight: 18, color: status.tone }}>{status.text}</div>
       <div style={ZSW_NOTE}>
         {zone
-          ? "Every time on Shape shows on this clock, including the times other people set."
-          : "Not set yet, so times show on this device's clock. Pick one and every time on Shape shows on it, including the times other people set."}
+          ? "Your day and your reminders run on this clock."
+          : "Not set yet, so Shape uses this device's clock. Pick one and your day and your reminders run on it."}
       </div>
       {hours}
     </div>
