@@ -193,7 +193,7 @@ test('a failed read says so with a Retry, never a picker, and writes no first de
     assert.equal(m.setting().getAttribute('data-zone-setting'), 'unreadable');
     assert.match(m.setting().textContent, /Time zone/);
     assert.match(m.setting().textContent, /Couldn't read your time zone\./);
-    assert.equal(m.doc.querySelector('select'), null, 'a picker over a value nobody read');
+    assert.ok(!m.doc.querySelector('select'), 'a picker over a value nobody read');
     assert.equal(m.travel(), null);
     ok = true;
     await m.click('Retry');
@@ -311,7 +311,7 @@ test('a dropped save whose read-back also fails stops showing a picker and says 
     await m.renderSetting();
     await m.click('Switch to London', m.travel());
     assert.equal(m.setting().getAttribute('data-zone-setting'), 'unreadable');
-    assert.equal(m.doc.querySelector('select'), null);
+    assert.ok(!m.doc.querySelector('select'), 'no picker');
     assert.match(m.travel().textContent, /Couldn't confirm the switch/);
     assert.equal(ShapeZone.getAccountZone(), NY, 'a zone nobody confirmed was adopted');
   } finally { await m.close(); }
