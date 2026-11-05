@@ -86,7 +86,10 @@
 <!-- The Schedule grid's rules (scheduleRules.mjs, shared with the booking routes): window.ShapeScheduleRules before babel runs dashSchedule.jsx.
      bookingRules.mjs (window.ShapeBookingRules) places time off on the coach's clock. -->
 <script type="module">import * as SR from "/newdesign/scheduleRules.mjs?v=20261007"; import * as BR from "/newdesign/bookingRules.mjs?v=20261007"; window.ShapeScheduleRules = SR; window.ShapeBookingRules = BR;</script>
+<!-- The account's time zone (P9): shapeZone.mjs (window.ShapeZone) holds the viewer's clock; zoneSettingWeb.jsx reads and sets it, asks on a device in another zone, and is the Settings control. -->
+<script type="module">import * as TZ from "/newdesign/shapeZone.mjs?v=20261105"; window.ShapeZone = TZ;</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
+<script type="text/babel" src="zoneSettingWeb.jsx"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx?v=20260614"></script>
 <script src="dashSignals.js?v=20260923"></script>

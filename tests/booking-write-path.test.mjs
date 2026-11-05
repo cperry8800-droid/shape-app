@@ -182,11 +182,17 @@ test('the availability write is ordered so that no failure needs undoing', async
   //   insert fails \u2192 the hours are gone, the new zone stands; no hours to misread.
   // "No hours" is always safe; hours read in the wrong zone is the defect this change removes.
   const del = src.indexOf('.delete()');
-  const stamp = src.indexOf('.update({ timezone: sentZone })');
+  const stamp = src.indexOf('.update({ timezone: zone })');
   const ins = src.indexOf('.insert(rows)');
   assert.ok(del > 0 && stamp > 0 && ins > 0, 'one of the three write steps moved or was renamed');
   assert.ok(del < stamp, 'the zone is stamped before the old hours are deleted');
   assert.ok(stamp < ins, 'the new hours are inserted before the zone is stamped');
+  // The account's first zone (P9) is a stamp too: after the delete, before the insert. Its read
+  // comes before the delete, so an unread setting refuses the save with nothing deleted.
+  const accountRead = src.indexOf('await readAccountZone(supabase, user.id)');
+  const accountSet = src.indexOf('await writeAccountZone(supabase, user.id, zone, { onlyIfUnset: true })');
+  assert.ok(accountRead > 0 && accountRead < del, 'the account zone is read after the delete, or not at all');
+  assert.ok(accountSet > del && accountSet < stamp, 'the account zone is set outside delete → stamp');
 
   // \u26a0 AND THERE IS NO COMPENSATING ROLLBACK, BY DESIGN. An earlier cut stamped first and
   // restored the prior zone on failure \u2014 which was itself a wrong-time bug (CodeRabbit's P1 on
@@ -199,7 +205,7 @@ test('the availability write is ordered so that no failure needs undoing', async
 
   // Every step FAILS THE SAVE rather than pressing on \u2014 a step that continues after a failed
   // stamp writes hours under a zone we could not commit to, which is hours nothing can place.
-  for (const marker of ['delete availability failed', 'stamp availability timezone failed', 'insert availability failed']) {
+  for (const marker of ['delete availability failed', 'set account timezone from availability failed', 'stamp availability timezone failed', 'insert availability failed']) {
     const at = src.indexOf(marker);
     assert.ok(at > 0, `the ${marker} branch moved`);
     const window = src.slice(at, at + 220);

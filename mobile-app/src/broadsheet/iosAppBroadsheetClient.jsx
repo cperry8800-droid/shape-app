@@ -74,6 +74,7 @@ import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSTimezoneSetting } from './BSTimezone.jsx';
 import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
 import { BSWorkoutSession } from './BSWorkoutSession.jsx';
@@ -1153,21 +1154,11 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     return () => window.removeEventListener('shape:startTour', start);
   }, []);
 
-  // Capture the device timezone once per login so coach-side SQL can bucket each
-  // member's Sat/Sun in their own zone (weekend-vs-weekday adherence split).
-  // identityVersion bumps on shape:identity (login / profile save), so this fires
-  // once on mount and again when the auth state settles — the `signedIn` guard
-  // ensures we only post for a real account, never for a signed-out preview.
-  const signedIn = !!(window.ShapeAuth?.getCachedState?.()?.user?.id);
-  React.useEffect(() => {
-    if (!signedIn) return;            // only persist for a real account
-    // Persist the device's RESOLVED zone — including a genuine 'UTC' (London/
-    // Reykjavik); only skip when detection fails, so real-UTC members aren't
-    // permanently suppressed on the coach path.
-    let tz = null;
-    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { tz = null; }
-    if (tz) { window.ShapeProfile?.setTimezone?.(tz); }
-  }, [signedIn]);
+  // ⚠ THE ACCOUNT'S TIME ZONE IS NOT SET HERE ANY MORE (P9). This shell posted the device's zone on
+  // every open, so a member who chose a zone was moved back to whatever clock the phone was on. The
+  // open-time flow now runs in the app shell over every role (iosAppBroadsheetMain.jsx mounts
+  // BSTimezone.jsx's BSTimezoneCheck): the device's zone is the first default only, and a phone on
+  // another clock later asks first.
 
   // First run, for a signed-in member: the goal ("What brings you here?"), whether they want
   // personal coaching, and the health screening ONLY for a yes (client-onboarding review, fix 2;
@@ -32204,13 +32195,6 @@ function bsNormalizeGroceryList(list) {
 // ═══════════════════════════════════════════════════════════
 // SETTINGS — full settings page from the corner gear
 // ═══════════════════════════════════════════════════════════
-// Full IANA time-zone list for the Settings dropdown (falls back to a curated
-// set on engines without Intl.supportedValuesOf).
-const BS_TIMEZONES = (() => {
-  try { if (typeof Intl.supportedValuesOf === 'function') return Intl.supportedValuesOf('timeZone'); } catch (e) {}
-  return ['America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'America/Anchorage', 'Pacific/Honolulu', 'America/Sao_Paulo', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Athens', 'Africa/Johannesburg', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Asia/Shanghai', 'Australia/Sydney', 'Pacific/Auckland', 'UTC'];
-})();
-
 // Text-size tiers — one source for the Settings pills AND the current-size
 // subtitle, so a renamed/added tier can't desync the two.
 const BS_TEXT_SIZE_OPTS = [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']];
@@ -32588,7 +32572,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     community:         ['Off', 'Mentions only', 'All activity'],
     units:             ['Imperial · lb / mi', 'Metric · kg / km'],
     weekStarts:        ['Monday', 'Sunday'],
-    timeZone:          ['America/Los_Angeles', 'America/New_York', 'America/Chicago', 'America/Denver', 'Europe/London', 'UTC'],
     language:          ['English (US)', 'English (UK)', 'Español', 'Français', 'Deutsch'],
     profileVisibility: ['Public', 'Just friends', 'Private'],
     agePublic: ['Off', 'On'],
@@ -33814,7 +33797,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       rows: [
         { l: tr('settings:pref.units', { defaultValue: 'Units' }),           key: 'units', segmented: PREF_OPTIONS.units, segLabels: [tr('settings:pref.unitsImperial', { defaultValue: 'Imperial' }), tr('settings:pref.unitsMetric', { defaultValue: 'Metric' })] },
         { l: tr('settings:pref.weekStarts', { defaultValue: 'Week starts' }),     key: 'weekStarts', dropdown: PREF_OPTIONS.weekStarts },
-        { l: tr('settings:pref.timeZone', { defaultValue: 'Time zone' }),       key: 'timeZone', dropdown: BS_TIMEZONES },
+        // No time zone row here: the account's one zone is the row under Language (BSTimezoneSetting,
+        // P9). This one wrote a `timeZone` label into client_settings that nothing printed by, and
+        // showed America/Los_Angeles to everyone who had never picked it.
         { l: tr('settings:language.row', { defaultValue: 'Language' }),        key: 'language', dropdown: PREF_OPTIONS.language },
         { l: tr('settings:pref.breakfast', { defaultValue: 'Breakfast time' }),  key: 'mealBreakfast', dropdown: PREF_OPTIONS.mealBreakfast },
         { l: tr('settings:pref.lunch', { defaultValue: 'Lunch time' }),      key: 'mealLunch',     dropdown: PREF_OPTIONS.mealLunch },
@@ -34758,6 +34743,9 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       {/* LANGUAGE — app-wide UI locale (i18n) */}
       <BSLanguageSetting t={t} />
+      {/* TIME ZONE — the account's one clock (P9; BSTimezone.jsx), every role: BSSettings is the
+          coach apps' Settings too. Hidden until the migration runs and when signed out. */}
+      <BSTimezoneSetting t={t} coach={isCoachRole} />
 
       {/* SHAPE RADIO — a heading and a reading, no switch. The station is always
           on air and has no off (owner, 2026-10-18: "remove the radio toggle");

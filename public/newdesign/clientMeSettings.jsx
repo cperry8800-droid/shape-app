@@ -488,6 +488,8 @@ function ClientMeSettings() {
   }
 
   const p = profile;
+  // The account's time zone control (zoneSettingWeb.jsx, its own script), read at render.
+  const ZoneSetting = typeof window.ShapeZoneSetting === "function" ? window.ShapeZoneSetting : null;
   return (
     <section style={{ maxWidth: 1240, margin: "0 auto", padding: "30px 40px 40px", fontFamily: sans, color: INK }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
@@ -565,6 +567,11 @@ function ClientMeSettings() {
           <Row label="Show me on leaderboards" value={lbPrivacy.kind !== "ready" ? "—" : lbPrivacy.value.leaderboard ? "On" : "Off"} action="TOGGLE" onAction={() => toggleLeaderboard("leaderboard")} />
           <Row label="Show me to my coach’s team" value={lbPrivacy.kind !== "ready" ? "—" : lbPrivacy.value.teamBoard === true ? "On" : "Off"} action="TOGGLE" onAction={() => toggleLeaderboard("teamBoard")} />
         </Card>
+
+        {/* The account's time zone (P9, zoneSettingWeb.jsx): every time on Shape prints on this
+            clock. The control frames itself, so signed out or before the migration there is no
+            empty card. */}
+        {ZoneSetting && <ZoneSetting labelStyle={{ fontSize: 14, fontWeight: 600 }} wrap={(body) => <Card>{body}</Card>} />}
       </div>
 
       <HealthProfileCard />
