@@ -1939,7 +1939,11 @@ function bsRowFromTriage(row, role, t) {
   // flag-reason fallback — merge both and take the first real reason.
   const rawReasons = Array.isArray(row.reasons) ? row.reasons : [];
   const flagReasons = (row.flags || []).map((f) => f && f.reason);
-  const reason = (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
+  // ⚠ THE COACH'S LEAD FIRST (P2): the most urgent flag THIS coach owns, the line the website's Today,
+  // Nora and the push lead with too. The directive's reason can be a flag routed to the other coach.
+  const lead = row.lead && row.lead.reason ? row.lead : null;
+  const reason = (lead ? lead.reason : null)
+    || (dir && dir.reason && dir.reason !== '—' ? dir.reason : null)
     || [...rawReasons, ...flagReasons].filter(Boolean)[0];
   const nut = role === 'nutritionist';
   const obNext = sev === 'new' ? bsOnboardingNext(bsOnboardingFor(rec, role), role) : null;
@@ -1979,7 +1983,9 @@ function bsRowFromTriage(row, role, t) {
     avgKcal: (rec.nutrition && Number.isFinite(rec.nutrition.avgCalories)) ? Math.round(rec.nutrition.avgCalories) : null,
     s: sev === 'red' ? 'missed' : sev === 'amber' ? 'review form' : sev === 'new' ? 'onboard' : 'on track',
     active: true,
-    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed },
+    // `lead` (P2): the flag behind the line, its episode and the coach action for it (COACH_ACTIONS),
+    // which the case file's YOUR MOVE reads instead of searching the line's words.
+    _sig: { sev, rank, label: sev === 'green' ? coachTr('coach:roster.labelOnTrack', { defaultValue: 'ON TRACK' }) : sev === 'new' ? coachTr('coach:sev.new', { defaultValue: 'NEW' }) : coachTr('coach:roster.labelNeedsYou', { defaultValue: 'NEEDS YOU' }), directive, routed, lead },
   };
 }
 // Severity for a roster row — prefers the live engine `_sig` when present, else
@@ -2010,7 +2016,10 @@ function useBSProRoster(role) {
   const uid = window.ShapeAuth?.getCachedState?.().user?.id || null;
   useEffectBSP(() => {
     const sub = window.ShapeAuth?.client?.auth?.onAuthStateChange?.(() => setReload(n => n + 1));
-    return () => sub?.data?.subscription?.unsubscribe();
+    // A dismissed or snoozed signal (ShapeSignals.dismiss) re-reads the roster without it.
+    const onSignals = () => setReload(n => n + 1);
+    window.addEventListener('shape:signalsChanged', onSignals);
+    return () => { sub?.data?.subscription?.unsubscribe(); window.removeEventListener('shape:signalsChanged', onSignals); };
   }, []);
   useEffectBSP(() => {
     let on = true;
@@ -4007,6 +4016,10 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const [showClientCalendar, setShowClientCalendar] = useStateBSP(false);
   const [showAssignPage, setShowAssignPage] = useStateBSP(false);
   const [showDraft, setShowDraft] = useStateBSP(false);
+  // YOUR MOVE's Snooze / Dismiss (P2): the reason being saved, and whether the save failed.
+  const [moveSaving, setMoveSaving] = useStateBSP(null);
+  const [moveFailed, setMoveFailed] = useStateBSP(false);
+  const screeningRef = React.useRef(null);
   const [showReconcile, setShowReconcile] = useStateBSP(false);
   const [view, setView] = useStateBSP('profile'); // 'profile' | 'manage'
   const [cStats, setCStats] = useStateBSP(null); // live KPI rollup (coach read)
@@ -4548,20 +4561,24 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   // both guarantee one), so this only trips if the severity lookup itself
   // failed to produce a signature.
   const hasDirective = !!(_sig && _sig.directive);
-  // Directive-KIND classifier — presentation-only inference over the existing
-  // reason text (no new engine intelligence; the engine's own vocabulary is
-  // reused: "check-in"/"check in", "session"/"missed", "protein"/"macro"/
-  // "kcal"/"nutrition"/"log", "program"/"stall"/"plateau"). Maps to the ONE
-  // underlined action per the brief.
-  const _dtext = String((_sig && _sig.directive) || '').toLowerCase();
+  // ⚠ THE MOVE COMES FROM THE ENGINE'S COACH-ACTION TABLE, NOT FROM THE LINE'S WORDS (P2). This picked
+  // the button by regex over the reason ("session" → SCHEDULE, "plan" → ADJUST…), so a reason's wording
+  // decided the coach's move. A live row carries its lead (bsRowFromTriage `_sig.lead`): the flag, and
+  // DashSignals.COACH_ACTIONS' kind for it — the same table the website's button reads. A sample row's
+  // fixed status names its kind. `_dirKind` keeps the evidence rows' grouping, from the flag's key.
   const _allClear = _sig.sev === 'green' || _sig.sev === 'past';
+  const _lead = _sig && _sig.lead ? _sig.lead : null;
+  const _act = _lead && _lead.action ? _lead.action : null;
+  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', food_gap: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', plan_due: 'program-stall', program_ending: 'program-stall' };
+  const _DEMO_GROUP = { missed: role === 'nutritionist' ? 'nutrition-slip' : 'check-in-due', 'review form': 'check-in-due', 'deload soon': 'program-stall' };
   const _dirKind = _allClear ? 'all-clear'
-    : _sig.sev === 'new' ? 'new-intake' // a fresh client → reach out with the intake; the directive's word "plan" must NOT route to program-stall/ADJUST (no program exists yet)
-    : /check-?in/.test(_dtext) ? 'check-in-due'
-    : /(missed|session|attendance|no-show|didn.?t (show|train)|skipped)/.test(_dtext) ? 'missed-sessions'
-    : /(protein|macro|kcal|calorie|nutrition|ledger|food log|logs? quiet|no food)/.test(_dtext) ? 'nutrition-slip'
-    : /(program|plateau|stall|plan|phase|deload)/.test(_dtext) ? 'program-stall'
-    : 'nutrition-slip'; // engine "needs attention" default reads as a message, not a fabricated program call
+    : _sig.sev === 'new' ? 'new-intake' // a fresh client → reach out with the intake (no program exists yet)
+    : _lead ? (_LEAD_GROUP[_lead.key] || 'other')
+    : (_DEMO_GROUP[client.s] || 'nutrition-slip');
+  // The kind: the table's for a live row; a sample row's from its group (check-in → Nora's draft, a slip
+  // → a message, a stalled block → adjust).
+  const _kind = _act ? _act.kind : _dirKind === 'program-stall' ? 'adjust_program' : 'message';
+  const _nora = _act ? !!_act.nora : _dirKind === 'check-in-due';
   // Next weekday label ("Thu") for the all-clear verdict — the client's next
   // weekly check-in is due at the start of next week; honest generic label
   // (no fabricated exact date without a real cadence source).
@@ -4574,17 +4591,33 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const moveVerdict = !hasDirective ? null
     : _allClear ? tr('coach:case.moveAllClear', { defaultValue: 'Everything holding — next check-in {weekday} ✓.', weekday: _nextCheckinWeekday })
     : _sig.directive;
+  // Each kind is one of the case file's own moves: a message with Nora's draft where one exists
+  // (✦ DRAFT), the thread (MESSAGE), the program (ADJUST), the calendar (SCHEDULE), the screening.
+  const _draftKind = _allClear || _kind === 'review_checkin' || (_kind === 'message' && _nora);
   const moveActionLabel = _allClear ? tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' })
     : _dirKind === 'new-intake' ? tr('coach:case.actMessage', { defaultValue: 'MESSAGE' })
-    : _dirKind === 'nutrition-slip' ? tr('coach:case.actMessage', { defaultValue: 'MESSAGE' })
-    : _dirKind === 'missed-sessions' ? tr('coach:case.actSchedule', { defaultValue: 'SCHEDULE' })
-    : _dirKind === 'program-stall' ? tr('coach:case.actAdjust', { defaultValue: 'ADJUST' })
-    : tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' });
-  const moveActionFn = _allClear || _dirKind === 'check-in-due' ? () => setShowDraft(true)
-    : _dirKind === 'new-intake' || _dirKind === 'nutrition-slip' ? () => fireEvt('shape:proMessageClient')
-    : _dirKind === 'missed-sessions' ? () => setShowSchedulePage(true)
-    : _dirKind === 'program-stall' ? () => setShowAdjustPage(true)
-    : () => setShowDraft(true);
+    : _kind === 'schedule' ? tr('coach:case.actSchedule', { defaultValue: 'SCHEDULE' })
+    : _kind === 'adjust_program' || _kind === 'adjust_plan' ? tr('coach:case.actAdjust', { defaultValue: 'ADJUST' })
+    : _kind === 'read_screening' ? tr('coach:case.actScreening', { defaultValue: 'READ SCREENING' })
+    : _draftKind ? tr('coach:case.actDraft', { defaultValue: '✦ DRAFT' })
+    : tr('coach:case.actMessage', { defaultValue: 'MESSAGE' });
+  const moveActionFn = _allClear ? () => setShowDraft(true)
+    : _dirKind === 'new-intake' ? () => fireEvt('shape:proMessageClient')
+    : _kind === 'schedule' ? () => setShowSchedulePage(true)
+    : _kind === 'adjust_program' || _kind === 'adjust_plan' ? () => setShowAdjustPage(true)
+    : _kind === 'read_screening' ? () => { setView('manage'); setTimeout(() => { try { screeningRef.current && screeningRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {} }, 80); }
+    : _draftKind ? () => setShowDraft(true)
+    : () => fireEvt('shape:proMessageClient');
+  // Snooze (3 days) or Dismiss (until the reason changes) the lead reason (P2): saved to the coach's
+  // coach_signal_dismissals, after which the roster re-reads without it and the file closes.
+  const canSetAside = !!(_lead && _lead.sig && clientUid && !_allClear && window.ShapeSignals && window.ShapeSignals.dismiss);
+  const setAside = async (until) => {
+    if (!canSetAside || moveSaving) return;
+    setMoveSaving(_lead.key); setMoveFailed(false);
+    const ok = await window.ShapeSignals.dismiss(clientUid, { key: _lead.key, sig: _lead.sig }, until).catch(() => false);
+    setMoveSaving(null);
+    if (ok) onBack(); else setMoveFailed(true);
+  };
   // THE EVIDENCE — ≤3 dot-leader rows from the SAME fields the directive
   // cites: the weekend split (when it fired), the check-in/log recency, and
   // the attendance/adherence figure — closing with the honest all-clear line
@@ -4627,6 +4660,13 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
             <button type="button" onClick={moveActionFn} style={{ marginTop: 12, minHeight: 40, borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', padding: '0 16px', fontFamily: BS_PRO_SANS, fontSize: 12, fontWeight: 650, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
               {moveActionLabel} →
             </button>{/* i18n: moveActionLabel is translated at source */}
+            {canSetAside && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                <button type="button" disabled={!!moveSaving} onClick={() => setAside(new Date(Date.now() + 3 * 864e5).toISOString())} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: 0, fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{tr('coach:case.moveSnooze', { defaultValue: 'SNOOZE 3 DAYS' })}</button>
+                <button type="button" disabled={!!moveSaving} onClick={() => setAside(null)} style={{ minHeight: 44, border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', padding: 0, fontFamily: BS_PRO_SANS, fontSize: 11.5, fontWeight: 650, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{tr('coach:case.moveDismiss', { defaultValue: 'DISMISS' })}</button>
+              </div>
+            )}
+            {moveFailed && <div role="alert" style={{ marginTop: 4, fontFamily: BS_PRO_SANS, fontSize: 12, color: t.INK70 }}>{tr('coach:case.moveSaveFailed', { defaultValue: "Couldn't save that. Try again in a moment." })}</div>}
           </div>
           {evidenceRows.length > 0 && (
             <div style={{ marginTop: 8, borderTop: `1px solid ${t.HAIR}`, paddingTop: 6 }}>
@@ -5239,9 +5279,9 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
         </div>
       )}
 
-      {/* SCREENING — health profile (PAR-Q); redaction when absent. */}
+      {/* SCREENING — health profile (PAR-Q); redaction when absent. YOUR MOVE's READ SCREENING lands here. */}
       {clientUid && (
-        <div style={{ marginTop: 22 }}>
+        <div ref={screeningRef} style={{ marginTop: 22 }}>
           {<BSProCaseHead t={t} heat={heat} INK={t.INK} label={tr('coach:case.screening', { defaultValue: 'SCREENING · HEALTH PROFILE' })} meta={cKit.health ? (cKit.health.flagged ? tr('coach:case.flagged', { defaultValue: 'FLAGGED' }) : tr('coach:case.allClear', { defaultValue: 'ALL CLEAR' })) : undefined} />}
           {cKit.health ? (() => {
             const h = cKit.health;

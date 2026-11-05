@@ -6554,6 +6554,36 @@ async function getRosterSleep(ids) {
 }
 window.ShapeRosterSleep = { get: getRosterSleep };
 
+// A coach's dismissed and snoozed signals (P2, 2026-11-05): their own rows in
+// coach_signal_dismissals (RLS: coach_id = auth.uid()), which the engine skips while the reason is the
+// same and, for a snooze, until its time. ⚠ The table arrives with a migration the owner runs by hand
+// (supabase-migrations/2026-11-05-coach-signal-dismissals.sql): until then `list` answers null (the
+// engine then hides nothing) and a write answers false (the case file says it could not save).
+async function listSignalDismissals() {
+  if (!supabase || !state.user?.id) return null;
+  try {
+    const { data, error } = await supabase.from('coach_signal_dismissals').select('client_id, reason_key, reason_sig, until').eq('coach_id', state.user.id);
+    return error || !Array.isArray(data) ? null : data;
+  } catch (e) { return null; }
+}
+async function setSignalDismissal(clientId, flag, until) {
+  if (!supabase || !state.user?.id || !clientId || !flag || !flag.key || typeof flag.sig !== 'string') return false;
+  try {
+    const { error } = await supabase.from('coach_signal_dismissals').upsert(
+      { coach_id: state.user.id, client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null },
+      { onConflict: 'coach_id,client_id,reason_key' });
+    return !error;
+  } catch (e) { return false; }
+}
+async function clearSignalDismissal(clientId, key) {
+  if (!supabase || !state.user?.id || !clientId || !key) return false;
+  try {
+    const { error } = await supabase.from('coach_signal_dismissals').delete().eq('coach_id', state.user.id).eq('client_id', clientId).eq('reason_key', key);
+    return !error;
+  } catch (e) { return false; }
+}
+window.ShapeSignalDismissals = { list: listSignalDismissals, set: setSignalDismissal, clear: clearSignalDismissal };
+
 // Batch weekend-adherence split for a coach's roster (one call per roster view).
 // POSTs { clientIds } to /api/coach/roster-weekend; degrades to an empty split so
 // the roster never blocks on this auxiliary data.
@@ -10048,9 +10078,16 @@ async function evaluateNotifications(force) {
     if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') {
       // Pass the discipline so a nutritionist/dietitian evaluates the NUTRITION
       // roster — not the trainer default coachRecords() would otherwise use.
-      const clients = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords(providerDiscipline(role)) : null;
-      if (!Array.isArray(clients) || !clients.length) return null; // honest: nothing to evaluate
-      body = { clients };
+      const records = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords(providerDiscipline(role)) : null;
+      if (!Array.isArray(records) || !records.length) return null; // honest: nothing to evaluate
+      // ⚠ THE ENGINE'S INPUTS, WITH THE CLIENT'S ID WHERE THE ROUTE READS IT (P2). The records carry
+      // their id at `profile.id` only, and the route's scope check read `userId || id`, so every client
+      // was dropped and no coach alert ever went out. DashSignals.engineSnapshot sets `userId` and keeps
+      // only what the engine reads; `role` names which listing the roster is (the route honours it only
+      // when the caller holds it).
+      const E = window.DashSignals;
+      const clients = E && typeof E.engineSnapshot === 'function' ? records.map((r) => E.engineSnapshot(r)).filter(Boolean) : records;
+      body = { clients, role: providerDiscipline(role) };
     } else {
       const record = window.ShapeSignals?.selfRecord ? await window.ShapeSignals.selfRecord() : null;
       if (!record) return null;
