@@ -739,7 +739,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
   return (
     <div>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: ink50, marginBottom: notices.length ? 5 : 10 }}>
-        {settling ? "\u2014" : remaining} ready to program · week of {weekKey}
+        {settling ? "\u2014" : remaining} checked in, ready to program{settling ? "" : (() => { const w = rows.filter((r) => !rowState(r.client.profile.id).done && r.state === "blocked").length; return w ? " · " + w + " waiting on a check-in" : ""; })()} · week of {weekKey}
       </div>
       {noticeBlock}
       {rows.map((r, i) => {

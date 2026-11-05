@@ -1943,12 +1943,16 @@
         return { value: real.length, unit: "count", sub: next ? "next " + next.time : "all done" };
       },
     },
+    // ⚠ IT COUNTS THE PROGRAMMING QUEUE, SO IT SAYS SO (owner decision A, 2026-11-05). "Programs due"
+    // with "N ready" read as programs written and waiting to send; Shape publishes on assign, and the
+    // queue is everyone whose check-in can be read, split by whether this week's is in.
     due: {
-      trainer: "Programs due", nutritionist: "Plans due",
+      trainer: "To program", nutritionist: "Plans to write",
       resolve: function (ctx) {
         var q = (ctx && Array.isArray(ctx.queue)) ? ctx.queue : [];
         var ready = q.filter(function (r) { return r && r.state === "ready"; }).length;
-        return { value: q.length, unit: "count", sub: ready + " ready" };
+        var waiting = q.length - ready;
+        return { value: q.length, unit: "count", sub: ready + " checked in" + (waiting ? " · " + waiting + " waiting on a check-in" : "") };
       },
     },
     compliance: {

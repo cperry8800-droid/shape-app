@@ -3118,6 +3118,7 @@ function TrainerProgramsPage() {
           <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
           <button type="button" className="dbu-library-refresh" onClick={()=>setRefresh(n=>n+1)}>Refresh</button>
         </div>
+        {typeof window.ProgramsDueLine==='function'&&<window.ProgramsDueLine role="trainer" clients={clients} queue={queue} live={isLive}/>}
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
         {planMissing&&<p role="status">That program isn’t in your library yet. If you just saved it from Nora, refresh in a moment.</p>}

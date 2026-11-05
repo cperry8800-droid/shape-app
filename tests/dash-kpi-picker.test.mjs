@@ -313,7 +313,9 @@ test('the strips still say the words they said before the picker', () => {
   assert.equal(S.dashKpiLabel('activeClients', 'trainer'), 'Active clients');
   assert.equal(S.dashKpiLabel('mrr', 'trainer'), 'Monthly recurring');
   assert.equal(S.dashKpiLabel('todaySessions', 'nutritionist'), 'Consults today');
-  assert.equal(S.dashKpiLabel('due', 'nutritionist'), 'Plans due');
+  // Relabelled to what it counts (owner decision A, 2026-11-05): the queue, not programs waiting to send.
+  assert.equal(S.dashKpiLabel('due', 'nutritionist'), 'Plans to write');
+  assert.equal(S.dashKpiLabel('due', 'trainer'), 'To program');
   // and the dead config really is gone, or the next reader will edit the wrong copy
   assert.doesNotMatch(TODAY, /weekLabel:/);
   assert.doesNotMatch(TODAY, /upcomingLabel:/);
