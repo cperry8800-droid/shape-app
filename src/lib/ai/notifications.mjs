@@ -512,13 +512,46 @@ export function coachCandidates(input) {
     if (!ownedFlags.length) continue;             // routed to the OTHER pro → not mine
     const prev = lastSeverity[row.clientId];
     if (prev === sev) continue;                   // unchanged → no re-nag
-    // only notify on appearance/worsening (green→amber/red, amber→red)
+    // only notify on appearance/worsening (green→amber/red, amber→red). The memory forgets a client
+    // who recovers (settleCoachMemory), so a later slip is an appearance again.
     if (prev === 'red' && sev === 'amber') continue;
-    const reason = (ownedFlags[0] && ownedFlags[0].reason) || row.reason || '';
+    // ⚠ THE REASON IS THE ONE TODAY LEADS WITH (P2): the engine's lead — the most urgent flag this coach
+    // owns — not the first owned flag in rule order, which made the push and Today say two things.
+    const reason = (row.lead && row.lead.reason) || (ownedFlags[0] && ownedFlags[0].reason) || row.reason || '';
     if (!nonEmpty(reason)) continue;              // honest: no reason → no notification
     const type = sev === 'red' ? 'client_red' : 'client_amber';
     const copy = sanitize(coachCopy(type, { clientName: row.clientName, reason }, tr));
-    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: ownedFlags[0].discipline || null, ...(providerRole ? { providerRole } : {}) }, title: copy.title, body: copy.body, ...(copy.titleCopy ? { titleCopy: copy.titleCopy } : {}), _severity: sev });
+    const leadFlag = (row.lead && ownedFlags.find((f) => f.key === row.lead.key)) || ownedFlags[0];
+    out.push({ type, key: row.clientId, sig: `${sev}:${reason}`, priority: NOTIFY_TYPES[type].priority, route: 'client', data: { clientId: row.clientId, discipline: leadFlag.discipline || null, reasonKey: leadFlag.key || null, ...(providerRole ? { providerRole } : {}) }, title: copy.title, body: copy.body, ...(copy.titleCopy ? { titleCopy: copy.titleCopy } : {}), _severity: sev });
+  }
+  return out;
+}
+
+// What this evaluation saw of each client, for the coach's alert memory: their severity when they
+// would alert (red or amber with a flag this coach owns), else 'clear'. decideNotifications settles the
+// memory from it (settleCoachMemory).
+export function coachSeen(triageRows) {
+  const seen = {};
+  for (const row of Array.isArray(triageRows) ? triageRows : []) {
+    if (!row || !nonEmpty(row.clientId)) continue;
+    const owned = (row.flags || []).some((f) => f && f.owned !== false);
+    seen[row.clientId] = (row.severity === 'red' || row.severity === 'amber') && owned ? row.severity : 'clear';
+  }
+  return seen;
+}
+
+// ⚠ THE ALERT MEMORY FORGETS A CLIENT WHO RECOVERS (P2). `coachClients[clientId]` was written when an
+// alert went out and never cleared, so a client alerted amber who recovered and slipped to amber again
+// was never alerted again, and one alerted red never again at all — though the comment above promised
+// "green→amber/red". A client this evaluation saw clear is forgotten, so their next slip alerts; one
+// that eased from red to amber is remembered as amber, so going red again alerts. A client the
+// evaluation did not see (off the snapshot) keeps what it had.
+export function settleCoachMemory(memory, seen) {
+  const out = { ...(memory && typeof memory === 'object' ? memory : {}) };
+  if (!seen || typeof seen !== 'object') return out;
+  for (const [id, sev] of Object.entries(seen)) {
+    if (sev !== 'red' && sev !== 'amber') delete out[id];
+    else if (out[id] === 'red' && sev === 'amber') out[id] = 'amber';
   }
   return out;
 }
@@ -609,7 +642,7 @@ export function pushCount({ send = [], digest = null } = {}) {
 // on the person's date today (loadPushedToday, notify-core.ts), this engine's included; the cap
 // reads the larger of the two, so nothing is counted twice. Null (the read failed) keeps the
 // engine's own count, as before. The digest is held to it too (below).
-export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null, tr }) {
+export function decideNotifications({ candidates = [], last = {}, prefs = {}, now = new Date(), audience = 'client', checkinOptedOut = false, pushedToday = null, tr, coachSeen: seen = null }) {
   const P = { ...DEFAULT_PREFS, ...prefs, matrix: { ...(prefs.matrix || {}) } };
   // The engine's own count resets on the cap's day (P.capTz, the habit cron's zone), the day the
   // other senders' pushes are counted on; quiet hours below stay on P.tz.
@@ -624,13 +657,28 @@ export function decideNotifications({ candidates = [], last = {}, prefs = {}, no
     // never repeat, and the self-keyed signatures carry the week, so they have already
     // changed several times over by the time one ages out.
     types: pruneStamps(last.types, now),
-    coachClients: { ...(last.coachClients || {}) },
+    // Settled first (settleCoachMemory): a client seen clear is forgotten, so a later slip alerts again.
+    coachClients: audience === 'coach' ? settleCoachMemory(last.coachClients, seen) : { ...(last.coachClients || {}) },
     // ⚠ A HELD ITEM OUTLIVES THE PREFERENCE THAT ALLOWED IT. Anything deferred by quiet
     // hours or the daily cap sits here across runs and is re-emitted WITHOUT being rebuilt,
     // so a check-in queued before the member opted out would still be delivered after.
     // Suppressing at the candidate stops the rebuild and does nothing about the queue.
     pendingDigest: (Array.isArray(last.pendingDigest) ? last.pendingDigest : []).slice(-MAX_PENDING_DIGEST),
   };
+  // ⚠ A RECOVERED CLIENT'S NEXT SLIP IS A NEW EVENT (P2), so the rest of what remembered the old one
+  // goes too: the delivered stamps (a 30-day dedupe keyed on `${severity}:${reason}` would otherwise
+  // swallow "No contact in 5 days" the second time it is true) and an alert still held for the digest,
+  // which would arrive after they had recovered.
+  if (audience === 'coach' && seen && typeof seen === 'object') {
+    const clear = new Set(Object.keys(seen).filter((id) => seen[id] !== 'red' && seen[id] !== 'amber'));
+    if (clear.size) {
+      for (const id of clear) { delete state.types[`client_red:${id}`]; delete state.types[`client_amber:${id}`]; }
+      state.pendingDigest = state.pendingDigest.filter((i) => !(i && (i.type === 'client_red' || i.type === 'client_amber') && clear.has(i.key)));
+    }
+    // One that eased from red to amber may go red again: that red is news, so its old stamp goes.
+    const prev = last.coachClients && typeof last.coachClients === 'object' ? last.coachClients : {};
+    for (const id of Object.keys(seen)) if (seen[id] === 'amber' && prev[id] === 'red') delete state.types[`client_red:${id}`];
+  }
   if (checkinOptedOut) {
     const kept = [];
     const purged = [];
