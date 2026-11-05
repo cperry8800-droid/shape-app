@@ -34,9 +34,9 @@
 // The coach's own rules (time off, buffer, daily limit, notice): the same module the server
 // refuses a booking with, imported by relative path like shapeBackend's shared modules.
 import { checkSlot } from '../../../public/newdesign/bookingRules.mjs';
+import { partsInZone, normalizeZone, viewerZone } from './shapeZone.mjs';
 
 const pad2 = (n) => String(n).padStart(2, '0');
-const isoDay = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 
 const _fmt = new Map();
 function fmtFor(zone) {
@@ -110,7 +110,9 @@ export function bsInstantInZone(y, mo, d, h, mi, zone) {
 // off, or one inside their buffer, past their daily limit or sooner than their notice, is not
 // offered. `sessionMin` is the length being booked (the app's intro consult is 15 minutes).
 // ⚠ ONLY WHEN PASSED: an older caller that sends neither gets the list it always did.
-export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now = new Date(), zone = null, busy = null, rules = null, sessionMin = 15 } = {}) {
+// `viewZone` is whose calendar and clock the display fields are on: the viewer's own by default
+// (P9: the account's zone, services/shapeZone.mjs viewerZone, else this phone's).
+export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now = new Date(), zone = null, busy = null, rules = null, sessionMin = 15, viewZone = null } = {}) {
   // ⚠ BELT-AND-BRACES, PROVEN: `fmtFor` refuses the same values, so removing THIS line
   // alone changes no answer (a mutation round confirmed it survives); removing both kills
   // the suite. Kept as a fast path — it avoids building the whole day map — and because it
@@ -167,6 +169,9 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
   const base = Date.UTC(today.y, today.mo - 1, today.d);
   const DAY = 86400000;
 
+  // The viewer's clock for the display fields, resolved once for the whole projection.
+  const vz = normalizeZone(viewZone) || viewerZone();
+
   const out = [];
   const seen = new Set();
   for (let i = 0; i < weeks * 7; i++) {
@@ -184,16 +189,17 @@ export function bsProjectAvailability({ slots = [], booked = [], weeks = 6, now 
       if (ruled && !checkSlot({ start: at, durationMin: sessionMin }, { ...ruled, now: nowMs, zone }).ok) continue;
       seen.add(at);
       // Display fields are the MEMBER's own calendar and clock — the calendar grid keys
-      // on `iso` and the member acts on `time`.
+      // on `iso` and the member acts on `time` — on the account's zone (P9), not this phone's.
       // ⚠ `coachDate` / `coachTime` ARE THE COACH'S OWN WALL CLOCK, the row this slot came from.
       // The booking goes through /api/consultation (2026-10-07, Schedule step 4), which takes
       // the coach's date and time and derives the instant itself; `at` rides along as the
       // cross-check it compares against.
-      const local = new Date(at);
+      const local = partsInZone(at, vz);
+      if (!local) continue;
       out.push({
-        iso: isoDay(local),
-        weekday: local.getDay(),
-        time: `${pad2(local.getHours())}:${pad2(local.getMinutes())}`,
+        iso: `${local.y}-${pad2(local.mo)}-${pad2(local.d)}`,
+        weekday: local.wd,
+        time: `${pad2(local.h)}:${pad2(local.mi)}`,
         durationMin: s.durationMin,
         at,
         coachDate: `${cy}-${pad2(cmo)}-${pad2(cd)}`,

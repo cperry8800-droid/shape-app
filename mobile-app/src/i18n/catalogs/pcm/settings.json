@@ -554,7 +554,7 @@
   "notifyPrefs.from": "From",
   "notifyPrefs.fromSub": "We go hold dem till quiet hours finish",
   "notifyPrefs.to": "Reach",
-  "notifyPrefs.toSub": "E dey use your phone time zone",
+  "notifyPrefs.toSub": "E dey use your account time zone",
   "notifyPrefs.dailyLimit": "Daily limit",
   "notifyPrefs.dailyLimitSub": "Extra ones go join for one summary",
   "notifyPrefs.perDay": "{n}/day",

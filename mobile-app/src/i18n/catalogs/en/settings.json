@@ -554,7 +554,7 @@
   "notifyPrefs.from": "From",
   "notifyPrefs.fromSub": "Held until quiet hours end",
   "notifyPrefs.to": "To",
-  "notifyPrefs.toSub": "Uses your device time zone",
+  "notifyPrefs.toSub": "Uses your account's time zone",
   "notifyPrefs.dailyLimit": "Daily limit",
   "notifyPrefs.dailyLimitSub": "Extra items batch into a digest",
   "notifyPrefs.perDay": "{n}/day",

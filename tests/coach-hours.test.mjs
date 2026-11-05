@@ -163,7 +163,7 @@ test('a coach in a new zone can move their hours to it without editing them', as
   const src = readFileSync(new URL('../mobile-app/src/broadsheet/BSCoachHours.jsx', import.meta.url), 'utf8');
   // A stored zone that differs, or none at all (hours saved before zones were), with hours to place.
   assert.match(src, /const zoneMoved = live && load === 'ready' && !!phoneZone && phoneZone !== zone && bsHoursTotal\(seed\) > 0;/);
-  assert.match(src, /tr\('coach:hours\.zoneSet', \{ defaultValue: 'Save my hours in \{zone\}', zone: phoneZone \}\)/);
+  assert.match(src, /tr\('coach:hours\.zoneSet', \{ defaultValue: 'Save my hours in \{zone\}', zone: zoneName\(phoneZone\) \}\)/);
   assert.match(src, /const save = async \(\{ force = false \} = \{\}\) => \{\n\s+if \(!live \|\| saving \|\| \(!dirty && !force\) \|\| !valid\) return false;/);
   assert.match(src, /\{zoneMoved && !dirty \? <div[^>]*><Chip t=\{t\} disabled=\{saving\} onClick=\{\(\) => save\(\{ force: true \}\)\}>\{zone\n\s+\? tr\('coach:hours\.zoneMove'/);
 });

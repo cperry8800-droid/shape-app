@@ -18,6 +18,7 @@ import { bsPaceSplits } from '../services/paceSplits.mjs';
 import { bsLiveProgressPayload, bsCookingPayload, bsLiveCoachPayload, bsValidLivePayload } from '../services/liveProgress.mjs';
 import { createLiveWorkoutPublisher } from '../services/liveWorkoutPublisher.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
+import { formatDate as bsZoneFormatDate, formatTime as bsZoneFormatTime, onZoneChange as bsOnZoneChange } from '../services/shapeZone.mjs';
 import { bsChatStamp, bsChatDayLabel, bsChatClock, bsChatDividerIndexes } from '../services/chatTime.mjs';
 import { bsReplyFor, bsReplyFromMetadata, bsReplySnippet, bsReplySwipeDecide, bsReplySwipeOffset, bsReplySwipeCommits, BS_REPLY_SWIPE } from '../services/chatReply.mjs';
 import { bsTypingSend, bsTypingWho, bsReceiptFor, bsMergeThreadHistory, BS_SIGNALS_EMPTY } from '../services/chatSignals.mjs';
@@ -26440,7 +26441,7 @@ function BSNotifyPrefs({ onBack, role }) {
             <React.Fragment>
               {Head(tr('settings:notifyPrefs.quietHours', { defaultValue: 'Quiet hours' }))}
               <Row label={tr('settings:notifyPrefs.from', { defaultValue: 'From' })} sub={tr('settings:notifyPrefs.fromSub', { defaultValue: 'Held until quiet hours end' })} right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
-              <Row label={tr('settings:notifyPrefs.to', { defaultValue: 'To' })} sub={tr('settings:notifyPrefs.toSub', { defaultValue: 'Uses your device time zone' })} right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
+              <Row label={tr('settings:notifyPrefs.to', { defaultValue: 'To' })} sub={tr('settings:notifyPrefs.toSub', { defaultValue: "Uses your account's time zone" })} right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
               <Row label={tr('settings:notifyPrefs.dailyLimit', { defaultValue: 'Daily limit' })} sub={tr('settings:notifyPrefs.dailyLimitSub', { defaultValue: 'Extra items batch into a digest' })} border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => tr('settings:notifyPrefs.perDay', { n, defaultValue: '{n}/day' })} onChange={(v) => saveSettings({ daily_cap: v })} />} />
 
               {Head(tr('settings:notifyPrefs.perChannel', { defaultValue: 'What you hear about · per channel' }))}
@@ -26493,15 +26494,14 @@ function BSNotifyPrefs({ onBack, role }) {
 // Live coach↔client bookings from /api/sessions/manage. Coaches confirm /
 // decline requests; confirming a video session mints a Jitsi room into
 // meeting_url. Either party joins the call inside Shape via BSVideoCall.
-function _bsFormatSessionWhen(iso) {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  let h = d.getHours();
-  const m = String(d.getMinutes()).padStart(2, '0');
-  const ap = h >= 12 ? 'PM' : 'AM';
-  h = h % 12 || 12;
-  return `${MON[d.getMonth()]} ${d.getDate()} · ${h}:${m} ${ap}`;
+// ⚠ A SESSION PRINTS ON THE VIEWER'S OWN CLOCK (P9, owner 2026-11-05: times from another person
+// "should automatically update to their own timezone"): the account's zone (services/shapeZone.mjs),
+// in the app's language, whoever booked it and wherever this phone is. `zone` only for a test.
+function _bsFormatSessionWhen(iso, zone) {
+  const locale = bsDateLocale();
+  const day = bsZoneFormatDate(iso, { zone, locale, month: 'short', day: 'numeric' });
+  const time = bsZoneFormatTime(iso, { zone, locale });
+  return day && time ? `${day} · ${time}` : '';
 }
 
 // Full-screen embedded call. The Jitsi room loads in an iframe with camera /
@@ -26530,6 +26530,9 @@ function BSSessionsScreen({ onBack }) {
   const [sessions, setSessions] = useStateBSC(null);
   const [busyId, setBusyId] = useStateBSC(null);
   const [call, setCall] = useStateBSC(null); // { url, title } when in a call
+  // The account's zone landing or changing reprints every card's time (_bsFormatSessionWhen).
+  const [, setZoneTick] = useStateBSC(0);
+  React.useEffect(() => bsOnZoneChange(() => setZoneTick((n) => n + 1)), []);
 
   const load = () => window.ShapeSessions?.getSessions?.()
     .then(list => setSessions(Array.isArray(list) ? list : []))

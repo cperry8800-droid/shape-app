@@ -554,7 +554,7 @@
   "notifyPrefs.from": "De",
   "notifyPrefs.fromSub": "Retenues jusqu’à leur fin",
   "notifyPrefs.to": "À",
-  "notifyPrefs.toSub": "Utilise le fuseau horaire de votre appareil",
+  "notifyPrefs.toSub": "Utilise le fuseau horaire de votre compte",
   "notifyPrefs.dailyLimit": "Limite quotidienne",
   "notifyPrefs.dailyLimitSub": "Le reste est regroupé dans un récapitulatif",
   "notifyPrefs.perDay": "{n}/jour",

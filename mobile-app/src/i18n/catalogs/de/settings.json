@@ -554,7 +554,7 @@
   "notifyPrefs.from": "Von",
   "notifyPrefs.fromSub": "Bis zum Ende der Ruhezeit zurückgehalten",
   "notifyPrefs.to": "Bis",
-  "notifyPrefs.toSub": "Nutzt die Zeitzone deines Geräts",
+  "notifyPrefs.toSub": "Nutzt die Zeitzone deines Kontos",
   "notifyPrefs.dailyLimit": "Tageslimit",
   "notifyPrefs.dailyLimitSub": "Weitere werden zu einer Zusammenfassung gebündelt",
   "notifyPrefs.perDay": "{n}/Tag",
