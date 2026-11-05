@@ -10,7 +10,7 @@
 # Runs on every PR into main + pushes to main/staging. To make it a hard
 # gate, add a branch protection rule on main requiring the "Web (typecheck
 # + build)", "Mobile (build + public/m sync)" and "Tests (unit + mount)"
-# checks. ⚠ A job in this file is ADVISORY until it is in that required list —
+# checks ("Tests (unit + mount)" is the gate over the four suite shards). ⚠ A job in this file is ADVISORY until it is in that required list —
 # adding the job is half the change.
 
 name: CI
@@ -76,9 +76,20 @@ jobs:
   # resolves a source file's bare imports with createRequire from the SOURCE's
   # location, so a mobile module under test pulls @sentry/capacitor and friends
   # from mobile-app/node_modules — root-only would fail at import, not at assert.
-  tests:
-    name: Tests (unit + mount)
+  #
+  # ⚠ THE SUITE RUNS ON FOUR MACHINES AT ONCE, AND `Tests (unit + mount)` IS THEIR GATE
+  # (owner, 2026-11-05: the waits "take forever"). One machine ran every file in about 15
+  # minutes; `node --test --test-shard=N/4` gives each machine a quarter of the files, so a
+  # run takes about 5. The required check keeps its name: it is the job below, which passes
+  # only when all four shards passed. `fail-fast: false` so one red shard doesn't cancel the
+  # others and hide their failures. The glob is `npm test`'s (package.json).
+  tests-shard:
+    name: Tests (shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,8 +114,19 @@ jobs:
         working-directory: mobile-app
         run: npm ci
 
-      - name: Run the suite
-        run: npm test
+      - name: Run a quarter of the suite
+        run: node --test --test-shard=${{ matrix.shard }}/4 "tests/**/*.test.mjs"
+
+  # ⚠ `if: always()`, BECAUSE A SKIPPED REQUIRED CHECK READS AS PASSED. Without it, a failed
+  # shard would skip this job, and branch protection treats a skipped check as satisfied.
+  tests:
+    name: Tests (unit + mount)
+    needs: tests-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        run: test "${{ needs.tests-shard.result }}" = "success"
 
   mobile:
     name: Mobile (build + public/m sync)

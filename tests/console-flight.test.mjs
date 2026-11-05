@@ -560,7 +560,24 @@ test('REQUIRED_CHECKS is every job ci.yml runs, derived from the workflow', () =
     '\n  Fix by writing the job name as a plain unquoted scalar, or teach this guard to ' +
     'resolve the form (a real YAML parse) — never by editing REQUIRED_CHECKS to match the ' +
     'raw text, which is how the board stops matching the real check.');
-  const jobs = pairs.map((x) => x[1]);
+  // ⚠ A MATRIX JOB REPORTS ONE CHECK PER CELL ("Tests (shard 1 of 4)" …), never the templated
+  // name written here, so it cannot be in REQUIRED_CHECKS. It is judged through the job that
+  // gates it: that job must be required, list the matrix job in `needs:`, and run `if: always()`
+  // (a skipped required check reads as passed, so without it a red shard would open the gate).
+  const matrix = pairs.filter(([, name]) => name.includes('${{'));
+  for (const [key, name] of matrix) {
+    const gates = pairs.filter(([k, n]) => {
+      if (n.includes('${{') || !REQUIRED_CHECKS.includes(n)) return false;
+      const body = block.slice(block.indexOf(`\n  ${k}:`) + 1).split(/\n {2}(?=[A-Za-z0-9_-]+:\s*$)/m)[0];
+      return new RegExp(`^ {4}needs: (\\[[^\\]]*\\b${key}\\b[^\\]]*\\]|${key})\\s*$`, 'm').test(body)
+        && /^ {4}if: always\(\)\s*$/m.test(body);
+    });
+    assert.ok(gates.length >= 1,
+      `the matrix job ${key} (${JSON.stringify(name)}) has no required gate: a job in REQUIRED_CHECKS ` +
+      `with \`needs: ${key}\` and \`if: always()\`. Its shards' checks are named per cell, so ` +
+      'without a gate the board never judges them.');
+  }
+  const jobs = pairs.filter(([, name]) => !name.includes('${{')).map((x) => x[1]);
   // ⚠ THE VACUITY FLOORS IN THIS TEST ARE BELT-AND-BRACES, measured rather than implied:
   // with both parses degraded to nothing AND every floor removed, this test still FAILS,
   // because the final comparison puts four names against an empty list and
