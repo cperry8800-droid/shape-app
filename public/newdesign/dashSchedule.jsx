@@ -276,11 +276,18 @@ const DSC_EDIT_PX = 14;
 // only before the first save, marked as the one about to be stamped. In the demo preview
 // there is no stored zone and nothing is written, so naming one would be a claim about a
 // coach who does not exist.
+// ⚠ THE HOURS ARE IN THE ACCOUNT'S ZONE (P9): the save stamps the account's own zone (the browser's
+// only as an account's first default), and the database copies it onto the listing, so the label
+// names it the way Settings does ("Tokyo · GMT+9", shapeZone.mjs zoneLabel) and says it is theirs.
+// Without shapeZone.mjs, the raw name and this browser's zone, as before.
 function dscZoneLabel(live, storedZone) {
   if (!live) return "";
-  if (storedZone) return "times in " + storedZone;
-  const b = dscBrowserZone();
-  return b ? "times will be saved in " + b : "";
+  let Z = null;
+  try { Z = window.ShapeZone && typeof window.ShapeZone.zoneLabel === "function" ? window.ShapeZone : null; } catch (e) { Z = null; }
+  const name = (z) => (Z && Z.zoneLabel(z)) || z;
+  if (storedZone) return "times in " + name(storedZone) + (Z && Z.getAccountZone() === storedZone ? ", your time zone" : "");
+  const b = Z ? Z.viewerZone() : dscBrowserZone();
+  return b ? "times will be saved in " + name(b) : "";
 }
 // This browser's IANA zone. Resolved once per render rather than cached in a module
 // constant: a laptop that changes zone mid-session should stamp the new one on the next
@@ -1569,7 +1576,7 @@ function DscToSchedule({ list, failed, onBook }) {
       {list.map((p) => (
         <span key={p.purchaseId} data-paid={p.purchaseId} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, paddingLeft: 10, borderLeft: "1px solid " + DSC_HAIR, flexWrap: "wrap" }}>
           <span style={{ fontWeight: 600 }}>{p.clientName}</span>
-          <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>paid {new Date(p.paidAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
+          <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>paid {window.ShapeZone && window.ShapeZone.formatDate ? window.ShapeZone.formatDate(p.paidAt, { month: "short", day: "numeric" }) : new Date(p.paidAt).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
           <button type="button" onClick={() => onBook(p)} style={{ ...dscBtn("on"), padding: "3px 7px", fontSize: 8.5 }}>Book</button>
         </span>
       ))}

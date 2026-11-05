@@ -33,6 +33,17 @@ const DWK_CHECKIN_LIMIT = 4;
 // coach reviews in their own week).
 function dwkIso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function dwkMonday(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+// Today on the viewer's own clock (P9: the account's zone, shapeZone.mjs's window.ShapeZone, read at
+// call time), as a local Date at noon, so "this week" is the week on the coach's own calendar
+// wherever this browser is. This browser's today without it.
+function dwkToday() {
+  try {
+    const Z = window.ShapeZone;
+    const p = Z && typeof Z.partsInZone === "function" ? Z.partsInZone(Date.now(), Z.viewerZone()) : null;
+    if (p) return new Date(p.y, p.mo - 1, p.d, 12);
+  } catch (e) { /* this browser's day */ }
+  return new Date();
+}
 function dwkAddDays(iso, n) { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return dwkIso(d); }
 function dwkFmt(iso) { const d = new Date(iso + "T00:00:00"); return DWK_MONTHS[d.getMonth()] + " " + d.getDate(); }
 function dwkWeekOfRow(c) { return String((c && (c.week_of || c.weekOf)) || "").slice(0, 10); }
@@ -411,7 +422,14 @@ function CoachWeekPage({ role }) {
   // Re-read when the coach comes back to the tab, so a check-in that arrived meanwhile shows.
   const { loading, triage, source } = useDashboard(role, { refreshOnFocus: true });
   const live = source === "live";
-  const thisMonday = dwkIso(dwkMonday(new Date()));
+  // The viewer's zone landing or changing re-renders "this week" (shapeZone.mjs's event).
+  const [, setZoneTick] = React.useState(0);
+  React.useEffect(() => {
+    const h = () => setZoneTick((n) => n + 1);
+    window.addEventListener("shape:timezone", h);
+    return () => window.removeEventListener("shape:timezone", h);
+  }, []);
+  const thisMonday = dwkIso(dwkMonday(dwkToday()));
   const [weekOf, setWeekOf] = React.useState(thisMonday);
   const [onlyOpen, setOnlyOpen] = React.useState(false);
   const reviews = useWeekReviews(live);

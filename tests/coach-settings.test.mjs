@@ -796,7 +796,8 @@ test('quiet hours carry the coach’s timezone, or they are evaluated in UTC', (
   // Los Angeles coach 15:00–00:00 local and pushed at 3 a.m.
   const src = stripComments(SETTINGS);
   assert.match(src, /tz: cstTz\(\)/, 'notification_settings is written without a timezone');
-  assert.match(src, /function cstTz\(\)[\s\S]{0,160}resolvedOptions\(\)\.timeZone/);
+  // P9: the account's zone first (shapeZone.mjs, read at call time), this browser's as the fallback.
+  assert.match(src, /function cstTz\(\) \{\n\s+try \{ const Z = window\.ShapeZone;[^\n]*Z\.viewerZone\(\)[^\n]*\n\s+try \{ return Intl\.DateTimeFormat\(\)\.resolvedOptions\(\)\.timeZone/);
 });
 
 test('a channel returning to the house default deletes its row rather than freezing it', () => {

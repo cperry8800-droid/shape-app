@@ -318,11 +318,24 @@
   // instant is the only clock they can act on — and it stays correct now that the instant
   // is built in the coach's zone, where before it was correct about an instant that was
   // itself wrong.
+  // ⚠ WHOSE CLOCK IS THE VIEWER'S OWN (P9, owner 2026-11-05: times from another person "should
+  // automatically update to their own timezone"): the zone a caller names, else the account's
+  // (shapeZone.mjs, globalThis.ShapeZone, read at call time: a module script that may land after
+  // this file), else this device's, as before.
+  function viewerTz(tz) {
+    if (tz) return tz;
+    try {
+      const Z = typeof globalThis !== "undefined" ? globalThis.ShapeZone : null;
+      const z = Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null;
+      return isZone(z) ? z : undefined;
+    } catch (e) { return undefined; }
+  }
   function slotLabel(iso, locale, tz) {
     const d = new Date(iso);
     if (!isFinite(d.getTime())) return null;
     const opt = { hour: "numeric", minute: "2-digit" };
-    if (tz) opt.timeZone = tz;
+    const z = viewerTz(tz);
+    if (z) opt.timeZone = z;
     return d.toLocaleTimeString(locale || undefined, opt);
   }
 
@@ -330,7 +343,8 @@
     const d = new Date(iso);
     if (!isFinite(d.getTime())) return null;
     const opt = { weekday: "short", month: "short", day: "numeric" };
-    if (tz) opt.timeZone = tz;
+    const z = viewerTz(tz);
+    if (z) opt.timeZone = z;
     return d.toLocaleDateString(locale || undefined, opt);
   }
 

@@ -850,7 +850,12 @@ const REM_DOW = [["Sun", 0], ["Mon", 1], ["Tue", 2], ["Wed", 3], ["Thu", 4], ["F
 function remKindLabel(k) { const f = REM_KINDS.find(x => x[0] === k); return f ? f[1] : "Reminder"; }
 function remDaysLabel(days) { if (days && days.length === 7) return "Every day"; return (days || []).slice().sort((a, b) => a - b).map(d => ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d]).join(" "); }
 function remFmt12(hhmm) { const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || ""); if (!m) return hhmm || ""; let h = parseInt(m[1], 10); const ap = h < 12 ? "AM" : "PM"; h = h % 12; if (h === 0) h = 12; return h + ":" + m[2] + " " + ap; }
-function remTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } }
+// The zone reminders and quiet hours are kept in: the account's (P9, shapeZone.mjs's window.ShapeZone,
+// read at call time), else this browser's, else UTC. A laptop in another zone no longer moves them.
+function remTz() {
+  try { const Z = window.ShapeZone; const z = Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null; if (z) return z; } catch (e) { /* this browser's */ }
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; }
+}
 
 function ReminderCard({ signedIn }) {
   const [reminders, setReminders] = React.useState(null); // null = loading
@@ -1092,7 +1097,8 @@ function NotificationDashboard({ signedIn }) {
   // Quiet hours and the daily limit set or undone by Nora's account setup (chatWidget.jsx).
   React.useEffect(() => { const again = () => load(); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, [load]);
 
-  const tz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } };
+  // Quiet hours are kept in the account's zone (remTz, P9), the one "Uses your time zone" means.
+  const tz = remTz;
   const cli = () => (window.shapeDb && window.shapeDb.client) || null;
 
   // A Supabase write RESOLVES with { error } on an RLS/constraint failure and REJECTS on a

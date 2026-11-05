@@ -11,24 +11,80 @@
 // coachNav → dashSignals.js (plain) → dashData.jsx → this file.
 
 // ── Shared formatters (were duplicated per page as td*/nd*) ─────────────────
+// ⚠ AN INSTANT PRINTS ON THE VIEWER'S CLOCK (P9, owner 2026-11-05: "all time zones should be set by
+// user"): the account's zone, from shapeZone.mjs (window.ShapeZone, a module script read at call
+// time, so it may land after this file). Without it, this browser's clock, as before.
 // ⚠ TODAY'S CLOCKS READ IN THE ZONE ITS DAY WAS CUT IN (Codex on #2620). The dashboard routes pick
-// Today's sessions on the coach's clock (`dayZone`: the listing's zone, else the browser's), so a
-// New York coach in London sees New York's day; its times print in that zone too, not the browser's.
-// No zone, or one this browser can't read, prints the browser's local time, as before.
+// Today's sessions on the coach's clock (`dayZone`: the listing's zone, which the database copies
+// from the account's), so a New York coach in London sees New York's day; its times print in that
+// zone too. No zone, or one this browser can't read, prints the viewer's clock.
+function dashZoneLib() {
+  try {
+    const Z = typeof window !== "undefined" ? window.ShapeZone : null;
+    return Z && typeof Z.partsInZone === "function" && typeof Z.viewerZone === "function" ? Z : null;
+  } catch (e) { return null; }
+}
 function dashFmtTime(iso, zone) {
+  const Z = dashZoneLib();
+  if (Z) { const s = Z.formatTime(iso, { zone: zone || undefined, hour12: false }); if (s) return s; }
   const opts = { hour: "2-digit", minute: "2-digit", hour12: false };
   try { return new Date(iso).toLocaleTimeString([], zone ? { ...opts, timeZone: zone } : opts); }
   catch (e) {
     try { return new Date(iso).toLocaleTimeString([], opts); } catch (e2) { return ""; }
   }
 }
-function dashCalDate(iso) {
-  try { const d = new Date(iso); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+// A local Date's own calendar fields as "YYYY-MM-DD": for the days this page builds itself.
+function dashLocalDate(d) {
+  try { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   catch (e) { return ""; }
 }
+// An instant's calendar date and "HH:MM" on the viewer's clock (the calendar and the week ahead).
+function dashCalDate(iso) {
+  const Z = dashZoneLib();
+  if (Z) return Z.dayKey(iso);
+  try { return dashLocalDate(new Date(iso)); } catch (e) { return ""; }
+}
 function dashCalTime(iso) {
+  const Z = dashZoneLib();
+  if (Z) return Z.clockHM(iso);
   try { const d = new Date(iso); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
   catch (e) { return ""; }
+}
+// Today on the viewer's clock, as a local Date at noon whose own fields are that day: the week
+// ahead (DashSignals.dashWeekAhead) walks local days from it. This browser's today without ShapeZone.
+function dashViewerToday() {
+  const Z = dashZoneLib();
+  const p = Z ? Z.partsInZone(Date.now(), Z.viewerZone()) : null;
+  return p ? new Date(p.y, p.mo - 1, p.d, 12) : new Date();
+}
+// "YYYY-MM-DD" `n` days from today on `zone`'s clock; this browser's without ShapeZone or a zone.
+function dashDayKeyFrom(zone, n) {
+  const Z = zone ? dashZoneLib() : null;
+  const p = Z && Z.normalizeZone(zone) ? Z.partsInZone(Date.now(), zone) : null;
+  if (!p) { const t = new Date(); return dashLocalDate(new Date(t.getFullYear(), t.getMonth(), t.getDate() + n)); }
+  const u = new Date(Date.UTC(p.y, p.mo - 1, p.d + n));
+  return u.getUTCFullYear() + "-" + String(u.getUTCMonth() + 1).padStart(2, "0") + "-" + String(u.getUTCDate()).padStart(2, "0");
+}
+// The instant `zone`'s wall clock reads `minute` past midnight on y-mo-d. Two passes, as
+// src/lib/time.ts instantInZone: an offset can only be asked for at an instant, and the second ask,
+// at the corrected one, is what makes a clock-change day right.
+function dashWallInstant(Z, zone, y, mo, d, minute) {
+  const naive = Date.UTC(y, mo - 1, d, 0, minute);
+  const o1 = Z.offsetMinutes(zone, naive);
+  let t = naive - o1 * 60000;
+  const o2 = Z.offsetMinutes(zone, t);
+  if (o2 !== o1) t = naive - o2 * 60000;
+  return t;
+}
+// Re-render when the viewer's zone is set or changes (shapeZone.mjs's event, sent by the Settings
+// control and the once-a-page account read).
+function useDashZoneTick() {
+  const [, setN] = React.useState(0);
+  React.useEffect(() => {
+    const h = () => setN((n) => n + 1);
+    window.addEventListener("shape:timezone", h);
+    return () => window.removeEventListener("shape:timezone", h);
+  }, []);
 }
 // The payouts strip in the signed-out preview. ⚠ EVERY FIGURE COMES OUT OF THE DEMO
 // ROSTER ON THE SAME PAGE (review 2026-09-09, V5): it used to read
@@ -1717,7 +1773,9 @@ function DashRepliesPanel({ role, live }) {
 // Union working-hour intervals and subtract booking intervals, never event counts.
 // Intersect actual instants, including overnight sessions and clock changes.
 // Working hours in another/unknown zone are explicitly unavailable.
-function dashCapacity(events, slots, now = new Date()) {
+// ⚠ THE DAYS ARE `zone`'S (P9): the hours are wall-clock minutes in the account's zone, so the week
+// is walked on that clock, whatever this browser's is. Without a zone or ShapeZone, this browser's.
+function dashCapacity(events, slots, now = new Date(), zone = null) {
   const merge = (ranges) => {
     const out = [];
     for (const [start,end] of ranges.sort((a,b) => a[0]-b[0])) {
@@ -1726,20 +1784,35 @@ function dashCapacity(events, slots, now = new Date()) {
     }
     return out;
   };
+  const Z = zone ? dashZoneLib() : null;
+  const zoned = !!(Z && Z.normalizeZone(zone));
+  const base = zoned ? Z.partsInZone(now, zone) : null;
+  // Day i's calendar fields; civil dates step in UTC, which has no clock change to trip on.
+  const dayAt = (i) => {
+    if (!zoned) { const d = new Date(now.getFullYear(),now.getMonth(),now.getDate()+i); return { y: d.getFullYear(), mo: d.getMonth()+1, d: d.getDate(), wd: d.getDay() }; }
+    const u = new Date(Date.UTC(base.y, base.mo-1, base.d+i));
+    return { y: u.getUTCFullYear(), mo: u.getUTCMonth()+1, d: u.getUTCDate(), wd: u.getUTCDay() };
+  };
+  const instant = (c, minute) => zoned ? dashWallInstant(Z, zone, c.y, c.mo, c.d, minute) : new Date(c.y,c.mo-1,c.d,0,minute).getTime();
+  const keyOf = (c) => c.y + "-" + String(c.mo).padStart(2,"0") + "-" + String(c.d).padStart(2,"0");
+  const dateOf = (t) => zoned ? Z.dayKey(t, zone) : dashLocalDate(new Date(t));
+  const minuteOf = (t) => { if (zoned) { const p = Z.partsInZone(t, zone); return p.h*60+p.mi; } const d = new Date(t); return d.getHours()*60+d.getMinutes(); };
+  const offsetAt = (t) => zoned ? Z.offsetMinutes(zone, t) : -new Date(t).getTimezoneOffset();
   const days = []; let available = 0, booked = 0, unreadable = 0;
   for (let i=0;i<7;i++) {
-    const day = new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
-    const endDay = new Date(day.getFullYear(),day.getMonth(),day.getDate()+1);
-    const date = dashCalDate(day);
-    const at = (minute) => new Date(day.getFullYear(),day.getMonth(),day.getDate(),0,minute).getTime();
-    const hours = merge((slots || []).filter((s) => s.weekday === day.getDay() && Number.isFinite(s.start_minute) && s.start_minute >= 0 && s.start_minute < 1440 && Number.isFinite(s.duration_min) && s.duration_min > 0).map((s) => [Math.max(at(s.start_minute), Math.ceil(now.getTime()/60000)*60000),at(Math.min(1440,s.start_minute+s.duration_min))]).filter(([a,b]) => b>a));
+    const c = dayAt(i);
+    const dayStart = instant(c, 0), dayEnd = instant(dayAt(i+1), 0);
+    const date = keyOf(c);
+    const at = (minute) => instant(c, minute);
+    const hours = merge((slots || []).filter((s) => s.weekday === c.wd && Number.isFinite(s.start_minute) && s.start_minute >= 0 && s.start_minute < 1440 && Number.isFinite(s.duration_min) && s.duration_min > 0).map((s) => [Math.max(at(s.start_minute), Math.ceil(now.getTime()/60000)*60000),at(Math.min(1440,s.start_minute+s.duration_min))]).filter(([a,b]) => b>a));
     const bookings = [];
     for (const event of events || []) {
       if (!["SESSION","CONSULT"].includes(event.kind) || ["cancelled","canceled","declined"].includes(event.status)) continue;
-      const start = event.scheduledAt ? new Date(event.scheduledAt).getTime() : /^\d{4}-\d{2}-\d{2}$/.test(event.date || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(event.time || "") ? new Date(event.date + "T" + event.time + ":00").getTime() : NaN;
-      if (!Number.isFinite(start) || !Number.isFinite(Number(event.durationMin)) || !(Number(event.durationMin)>0)) { if (event.date === date || (Number.isFinite(start) && dashCalDate(new Date(start)) === date)) unreadable++; continue; }
+      const wall = /^\d{4}-\d{2}-\d{2}$/.test(event.date || "") && /^([01]\d|2[0-3]):[0-5]\d$/.test(event.time || "") ? event.date.split("-").map(Number).concat(event.time.split(":").map(Number)) : null;
+      const start = event.scheduledAt ? new Date(event.scheduledAt).getTime() : wall ? instant({ y: wall[0], mo: wall[1], d: wall[2] }, wall[3]*60+wall[4]) : NaN;
+      if (!Number.isFinite(start) || !Number.isFinite(Number(event.durationMin)) || !(Number(event.durationMin)>0)) { if (event.date === date || (Number.isFinite(start) && dateOf(start) === date)) unreadable++; continue; }
       const end = start + Number(event.durationMin)*60000;
-      if (start < endDay.getTime() && end > day.getTime()) bookings.push([Math.max(day.getTime(),start),Math.min(endDay.getTime(),end)]);
+      if (start < dayEnd && end > dayStart) bookings.push([Math.max(dayStart,start),Math.min(dayEnd,end)]);
     }
     const busy = merge(bookings);
     const free = [];
@@ -1754,25 +1827,31 @@ function dashCapacity(events, slots, now = new Date()) {
       }
       if (cursor<end) free.push([cursor,end]);
     }
-    const minute = (stamp) => stamp === endDay.getTime() ? 1440 : new Date(stamp).getHours()*60+new Date(stamp).getMinutes();
-    days.push({date,free:free.map(([a,b]) => [minute(a),minute(b)]),freeInstants:free,clockChange:day.getTimezoneOffset() !== endDay.getTimezoneOffset()});
+    const minute = (stamp) => stamp === dayEnd ? 1440 : minuteOf(stamp);
+    days.push({date,free:free.map(([a,b]) => [minute(a),minute(b)]),freeInstants:free,clockChange:offsetAt(dayStart) !== offsetAt(dayEnd)});
   }
   return { available, booked, free:available-booked, unreadable, days };
 }
+// ⚠ CAPACITY IS COUNTED ON THE ACCOUNT'S CLOCK (P9). The hours are stored against the listing's zone,
+// which the database copies from the account's, so the two normally agree, wherever this browser
+// is. Without shapeZone.mjs this browser's zone stands in, as before.
 function DashCapacityPanel({ role, live }) {
-  const today = new Date();
-  const from = dashCalDate(new Date(today.getFullYear(),today.getMonth(),today.getDate()-1));
-  const to = dashCalDate(new Date(today.getFullYear(),today.getMonth(),today.getDate()+7));
+  useDashZoneTick();
+  const Z = dashZoneLib();
+  const zone = Z ? Z.viewerZone() : (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return null; } })();
+  const from = dashDayKeyFrom(zone, -1);
+  const to = dashDayKeyFrom(zone, 7);
   const read = useDashWidgetRead(["/api/calendar?capacityRole="+role+"&from="+from+"&to="+to, "/api/my-availability?role="+role],live);
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const comparable = read.data && read.data[0].bookingsReadable === true && read.data[1].timezone === zone;
-  const capacity = comparable ? dashCapacity(read.data[0].events,read.data[1].slots) : null;
+  const capacity = comparable ? dashCapacity(read.data[0].events,read.data[1].slots,new Date(),zone) : null;
   const hm = (minute) => String(Math.floor(minute/60)).padStart(2,"0")+":"+String(minute%60).padStart(2,"0");
-  const zonedTime = (stamp) => new Date(stamp).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",timeZoneName:"short"});
+  const zonedTime = (stamp) => Z ? Z.formatTime(stamp, { zone, hour12: false, withZone: true }) : new Date(stamp).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",timeZoneName:"short"});
+  const label = (z) => (Z && Z.zoneLabel(z)) || z;
+  const hoursZone = read.data && read.data[1] ? read.data[1].timezone : null;
   return <div>
-    {!live ? <p className="dw-note">Capacity appears once your bookings and working hours are saved.</p> : read.loading ? <p>Loading capacity…</p> : read.error || !read.data ? <p>Couldn't read capacity. <button type="button" style={DASH_WIDGET_BUTTON} onClick={read.retry}>Retry</button></p> : !comparable ? <p className="dw-note">Open Schedule to review working hours in {read.data[1].timezone || "your saved time zone"}. Capacity requires hours in this browser's time zone ({zone}).</p> : !capacity.available ? <p>Set your working hours in Schedule to see capacity.</p> : capacity.unreadable ? <p>Capacity unavailable: {capacity.unreadable} bookings have an unreadable time or duration.</p> : <>
+    {!live ? <p className="dw-note">Capacity appears once your bookings and working hours are saved.</p> : read.loading ? <p>Loading capacity…</p> : read.error || !read.data ? <p>Couldn't read capacity. <button type="button" style={DASH_WIDGET_BUTTON} onClick={read.retry}>Retry</button></p> : !comparable ? <p className="dw-note">{hoursZone && hoursZone !== zone ? "Your working hours are saved in " + label(hoursZone) + ", not your time zone (" + label(zone) + "). Open Schedule and save them to count capacity on your clock." : "Open Schedule and save your working hours to see capacity."}</p> : !capacity.available ? <p>Set your working hours in Schedule to see capacity.</p> : capacity.unreadable ? <p>Capacity unavailable: {capacity.unreadable} bookings have an unreadable time or duration.</p> : <>
       <div style={{ fontSize:22 }}>{(capacity.booked/60).toFixed(1)} of {(capacity.available/60).toFixed(1)} hours booked</div>
-      <p className="dw-note">Rest of today and the next 6 days · {zone} · {(capacity.free/60).toFixed(1)} hours free within working hours. Overlapping bookings count once.</p>
+      <p className="dw-note">Rest of today and the next 6 days · {label(zone)} · {(capacity.free/60).toFixed(1)} hours free within working hours. Overlapping bookings count once.</p>
       {capacity.days.filter((d) => d.free.length).map((d) => <div className="dw-row" key={d.date}><a className="dw-action" href={dashLinkedTab("schedule",role,{date:d.date})}>{d.date}</a><span className="dw-note">{d.clockChange ? d.freeInstants.map(([a,b]) => zonedTime(a)+"–"+zonedTime(b)).join(" · ") : d.free.map(([a,b]) => hm(a)+"–"+hm(b)).join(" · ")}</span></div>)}
     </>}
     <a className="dw-action" href={dashTabHref("schedule",role)}>Open Schedule →</a>
@@ -1927,6 +2006,7 @@ function DashNeedsYou({ tabs, prefs, role }) {
 }
 
 function CoachDashboardPage({ role }) {
+  useDashZoneTick();
   const cfg = DASH_TODAY_ROLES[role];
   // Re-read when the coach comes back to the tab (dashData.jsx useDashFocusRefresh).
   const { today: live, triage, clients, queue, joint, source, dismissable, setDismissal, clearDismissal } = useDashboard(role, { refreshOnFocus: true });
@@ -2013,7 +2093,8 @@ function CoachDashboardPage({ role }) {
   const sigOk = ["dashWeekAhead", "dashRosterStatus", "dashTopMovers", "dashTenureMilestones", "dashRevenueByClient", "dashProgramsEnding"]
     .every((fn) => typeof DashSignals[fn] === "function");
   const staleWhy = "reload the page to enable this widget";
-  const weekAhead = sigOk ? DashSignals.dashWeekAhead(calendarEvents) : null;
+  // The week ahead starts on the viewer's today, the same clock its dates were printed on.
+  const weekAhead = sigOk ? DashSignals.dashWeekAhead(calendarEvents, dashViewerToday()) : null;
   const rosterStatus = sigOk ? DashSignals.dashRosterStatus(triage) : null;
   const movers = sigOk ? DashSignals.dashTopMovers(clients) : null;
   const tenureMarks = sigOk ? DashSignals.dashTenureMilestones(clients) : null;
