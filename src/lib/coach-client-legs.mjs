@@ -97,6 +97,21 @@ export function bsProgramLeg(assignments, templatesById, mine, now = Date.now())
 
 }
 
+// The caller's calendar date (YYYY-MM-DD) in the first zone that works: their listing's, else their
+// browser's (as the dashboard routes count Today). Null when none works, and the leg uses UTC's.
+export function bsCoachDay(now, zones) {
+  for (const z of Array.isArray(zones) ? zones : []) {
+    if (typeof z !== 'string' || !z || z.length > 64) continue;
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: z, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(now));
+      const get = (t) => (parts.find((x) => x.type === t) || {}).value;
+      const day = `${get('year')}-${get('month')}-${get('day')}`;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+    } catch (e) { /* not a zone this runtime knows */ }
+  }
+  return null;
+}
+
 // ── The program the CALLER put on the client's calendar (2026-11-05) ────────
 // ⚠ THIS IS WHAT ASSIGNING A PROGRAM WRITES; `coach_program_assignments` IS NOT. The website's
 // builder, the app's coach Plans and Nora all assign through builderToAssignmentRows →
@@ -117,10 +132,14 @@ export function bsProgramLeg(assignments, templatesById, mine, now = Date.now())
 // (status 'assigned', no week). A run of one day is a single workout, not a program. A run starts
 // on its first training day (the start the coach chose, when that day trains). The week counts from
 // it in whole weeks, capped at the run's length; `overdue` once its last week has passed. Day arithmetic is on calendar dates, so no clock's offset moves a day.
-export function bsWorkoutProgramLeg(rows, now = Date.now()) {
+// `today` is the coach's own calendar date (YYYY-MM-DD, from their zone), so the week and overdue
+// turn over at the coach's midnight, not UTC's (Codex on #2620); without one, the UTC date.
+/** @param {unknown[]} rows @param {number} [now] @param {string | null} [today] */
+export function bsWorkoutProgramLeg(rows, now = Date.now(), today = null) {
   if (!Array.isArray(rows) || !rows.length) return null;
   const WEEK = 7 * DAY_MS;
-  const todayMs = Date.parse(isoDayUTC(now) + 'T00:00:00Z');
+  const day = typeof today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(today) ? today : isoDayUTC(now);
+  const todayMs = Date.parse(day + 'T00:00:00Z');
   const days = [];
   for (const r of rows) {
     if (!r) continue;

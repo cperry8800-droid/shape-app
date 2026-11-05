@@ -17,14 +17,14 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
+import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
 export type OverviewClient = Awaited<ReturnType<typeof createClient>>;
 // userId: the caller's account, which names the member DM with a client (fix 4). Optional so an
 // older caller still type-checks; without it the DM is not read.
-export type SharedOverviewMe = { trainerId: number | null; nutritionistId: number | null; userId?: string | null };
+export type SharedOverviewMe = { trainerId: number | null; nutritionistId: number | null; userId?: string | null; dayZones?: unknown[] };
 
 // The batched route's cap — one roster page. An unbounded list would let one
 // request fan a coach's whole history of reads out on the server instead of the
@@ -63,16 +63,23 @@ export function parseBatchIds(input: unknown): { ok: true; ids: string[] } | { o
 }
 
 /** The caller's own provider row ids, so the payload can label "me" vs the counterpart. */
-export async function resolveMe(supabase: OverviewClient, userId: string): Promise<SharedOverviewMe> {
+export async function resolveMe(supabase: OverviewClient, userId: string, sentZone?: unknown): Promise<SharedOverviewMe> {
   // Identify the caller's role(s) so the UI can label things correctly.
+  // ⚠ `select('*')`, as the dashboard routes read the listing: naming `timezone` would error the read
+  // on a database without 2026-09-11-provider-timezone.sql, and the caller would lose their role.
   const [trainerRow, nutriRow] = await Promise.all([
-    supabase.from('trainers').select('id').eq('owner_id', userId).maybeSingle(),
-    supabase.from('nutritionists').select('id').eq('owner_id', userId).maybeSingle(),
+    supabase.from('trainers').select('*').eq('owner_id', userId).maybeSingle(),
+    supabase.from('nutritionists').select('*').eq('owner_id', userId).maybeSingle(),
   ]);
+  const t = trainerRow.data as { id?: number; timezone?: unknown } | null;
+  const n = nutriRow.data as { id?: number; timezone?: unknown } | null;
   return {
-    trainerId: trainerRow.data?.id ?? null,
-    nutritionistId: nutriRow.data?.id ?? null,
+    trainerId: t?.id ?? null,
+    nutritionistId: n?.id ?? null,
     userId,
+    // The zones the caller's own day is read in for the program leg's week: the listing's, else the
+    // browser's, else UTC (bsCoachDay), as the dashboard routes count Today (Codex on #2620).
+    dayZones: [t?.timezone ?? n?.timezone, sentZone],
   };
 }
 
@@ -552,7 +559,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // ⚠ A FAILED READ IS UNKNOWN, NOT "Not set". Either read failing omits the key, which the roster
   // renders as its honest "Not shared"; null would tell the coach this client has no program.
   if (programDaysErr) console.error('[shared-overview] program days read failed:', programDaysErr.message);
-  const fromCalendar = programDaysErr ? undefined : bsWorkoutProgramLeg((programDays ?? []) as ProgramDayRow[], Date.now());
+  const fromCalendar = programDaysErr ? undefined : bsWorkoutProgramLeg((programDays ?? []) as ProgramDayRow[], Date.now(), bsCoachDay(Date.now(), me.dayZones));
   // Likewise: an unreadable TEMPLATE makes bsProgramLeg return null, which the
   // roster renders as "Not set" — "this client has no program" — for clients who
   // all have one. `templatesErr` is the only thing that can tell them apart.

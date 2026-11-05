@@ -136,6 +136,13 @@ function dscPlansBad(prev, months, ok) {
   for (const m of months) { if (ok) bad.delete(m); else bad.add(m); }
   return bad;
 }
+// Whether the plans row is unreadable for the months on screen. A cache from before plansBad (or
+// none) falls back to its single flag.
+function dscPlansUnread(cal, months) {
+  if (!cal) return false;
+  if (cal.plansBad instanceof Set) return months.some((m) => cal.plansBad.has(m));
+  return cal.plansOk === false;
+}
 function dscMergeRange(prev, res, months) {
   const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
   // The plans row (step 4) rides along with each month: merged by id, and unreadable while any
@@ -1861,7 +1868,9 @@ function CoachSchedulePage({ role }) {
     plansByDate.get(p.date).push(p);
   }
   const plansFor = showPlans ? (iso) => plansByDate.get(iso) || [] : null;
-  const plansUnread = showPlans && liveEvents && cal.plansOk === false;
+  // Unreadable only when a month ON SCREEN failed: a failed month the coach has moved away from no
+  // longer hides the row for the months they're looking at (Codex on #2620).
+  const plansUnread = showPlans && liveEvents && dscPlansUnread(cal, wanted);
   // Clashes are judged against EVERY booking, filtered or not: a session hidden by a chip
   // still holds its hour.
   const sessionsByDate = React.useMemo(() => {

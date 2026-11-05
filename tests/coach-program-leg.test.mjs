@@ -13,7 +13,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
-import { bsWorkoutProgramLeg, bsProgramLeg } from '../src/lib/coach-client-legs.mjs';
+import { bsWorkoutProgramLeg, bsProgramLeg, bsCoachDay } from '../src/lib/coach-client-legs.mjs';
+import { readFileSync } from 'node:fs';
 import { builderToAssignmentRows } from '../public/newdesign/workoutDocument.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -166,4 +167,24 @@ test('the overview sends the logged days, and where a full snapshot window stops
 test('a failed read of the days is unknown: the key is omitted, never "Not set"', async () => {
   const ov = await overview({ client_workouts: asTable(assigned()) }, { fail: ['client_workouts'] });
   assert.ok(!('program' in JSON.parse(JSON.stringify(ov))), 'the roster then says "Not shared"');
+});
+
+// Codex on #2620: the week turns over at the COACH's midnight. 5 Oct start, Monday 9 Nov 02:00 UTC
+// is still Sunday 8 Nov evening in New York: week 5 there, week 6 by the UTC date.
+test('the program week counts on the coach\'s calendar day, not UTC\'s', () => {
+  const late = Date.UTC(2026, 10, 9, 2, 0, 0);
+  assert.equal(bsWorkoutProgramLeg(assigned(), late).week, 6, 'no day given: the UTC date');
+  assert.equal(bsWorkoutProgramLeg(assigned(), late, '2026-11-08').week, 5, 'a New York coach on Sunday evening saw next week');
+  assert.equal(bsWorkoutProgramLeg(assigned(), late, 'not-a-day').week, 6, 'a bad day must fall back to the UTC date');
+});
+
+test('the coach\'s day: the listing\'s zone, else the browser\'s, and the overview passes it', () => {
+  const late = Date.UTC(2026, 10, 9, 2, 0, 0);
+  assert.equal(bsCoachDay(late, ['America/New_York', 'Europe/London']), '2026-11-08');
+  assert.equal(bsCoachDay(late, [null, 'Australia/Sydney']), '2026-11-09', 'no listing zone: the browser\'s');
+  assert.equal(bsCoachDay(late, ['Not/AZone', 'America/New_York']), '2026-11-08', 'a bad listing zone: the browser\'s');
+  assert.equal(bsCoachDay(late, [null, undefined]), null, 'no zone: null, and the leg uses the UTC date');
+  const src = readFileSync(join(ROOT, 'src/lib/shared-overview.ts'), 'utf8');
+  assert.match(src, /bsWorkoutProgramLeg\(\(programDays \?\? \[\]\) as ProgramDayRow\[\], Date\.now\(\), bsCoachDay\(Date\.now\(\), me\.dayZones\)\)/, 'the overview no longer counts the week on the coach\'s day');
+  assert.match(src, /dayZones: \[t\?\.timezone \?\? n\?\.timezone, sentZone\]/);
 });

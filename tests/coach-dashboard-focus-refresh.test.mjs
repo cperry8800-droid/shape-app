@@ -228,3 +228,18 @@ test('a successful re-read brings the Plans row back after a failed read', () =>
   // And a re-read that fails marks its month again.
   assert.equal(H.dscReplaceRange(healed, { zone: NY, events: [], clientPlans: [], clientPlansReadable: false }, ['2026-11']).plansOk, false);
 });
+
+// Codex on #2620 (second pass): only months ON SCREEN decide the Plans row. A failed month the coach
+// has moved away from must not hide the row for the clean months they're looking at.
+test('the Plans row reads unreadable only for a failed month on screen', () => {
+  const text = source('public/newdesign/dashSchedule.jsx');
+  const lift = (name) => { const at = text.indexOf('function ' + name + '('); const rest = text.slice(at); return rest.slice(0, rest.search(/\n(?:function |const |\/\/ )/)); };
+  const H = new Function(lift('dscPlansBad') + '\n' + lift('dscPlansUnread') + '\n' + lift('dscMergeRange') + '\nreturn { dscMergeRange, dscPlansUnread };')();
+  const NY = 'America/New_York';
+  const oct = H.dscMergeRange(null, { zone: NY, events: [], clientPlans: [], clientPlansReadable: false }, ['2026-10']);
+  const both = H.dscMergeRange(oct, { zone: NY, events: [], clientPlans: [], clientPlansReadable: true }, ['2026-11']);
+  assert.equal(H.dscPlansUnread(both, ['2026-11']), false, 'a failed month off screen hid the row');
+  assert.equal(H.dscPlansUnread(both, ['2026-10']), true);
+  assert.equal(H.dscPlansUnread(both, ['2026-10', '2026-11']), true);
+  assert.match(text, /const plansUnread = showPlans && liveEvents && dscPlansUnread\(cal, wanted\);/);
+});
