@@ -278,7 +278,7 @@ test('the panel governs every notification a coach receives, and says so', () =>
   }
   assert.doesNotMatch(src, /arrive whatever is set here/, 'the card still says some notifications ignore it');
   assert.match(src, /Every notification you get is switched here\. Quiet hours hold them until the morning;/);
-  assert.match(src, /the daily cap applies to the client alerts and friends' habits above\./,
+  assert.match(src, /the daily cap applies to the client alerts, client wins and friends' habits above\./,
     'the card does not say which notifications the cap covers');
 });
 

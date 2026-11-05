@@ -788,7 +788,7 @@ export async function POST(request: Request) {
   }
 
   // ⚠ A MEMBER'S OWN CANCEL TOLD NOBODY (owner, 2026-11-05): the coach found the slot open by looking.
-  // The coach hears it now, on their own clock, under their Sessions switch (client-cancel-notice.ts).
+  // The coach hears it now, on their own clock, under their Sessions switch (client-cancel-notice.mjs).
   // Only when this write moved the booking off a live status: a repeat cancel tells nobody again.
   if (action === 'cancel' && isClient && !isCoach && (statusBefore === 'requested' || statusBefore === 'confirmed')) {
     await tellCoachClientCancelled(createAdminClient(), session, { notify: createNotification });

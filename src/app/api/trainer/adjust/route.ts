@@ -340,7 +340,7 @@ export async function POST(request: Request) {
     }
   }));
 
-  // A shared client's other coaches hear about it in their care-team thread (src/lib/care-team.ts):
+  // A shared client's other coaches hear about it in their care-team thread (src/lib/care-team.mjs):
   // the mode, the sessions a week, and the first regenerated day. Best-effort, after the write.
   try {
     const firstDay = (rows || []).map((r) => String((r as { scheduled_date?: unknown }).scheduled_date || '')).filter((d) => d > todayISO).sort()[0] || null;

@@ -159,7 +159,7 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error('[shape-api] meal plan notice failed:', e instanceof Error ? e.message : e);
   }
-  // A shared client's other coaches hear what changed, in their care-team thread (src/lib/care-team.ts).
+  // A shared client's other coaches hear what changed, in their care-team thread (src/lib/care-team.mjs).
   // Best-effort and after the write: the plan is live whatever happens here.
   await tellCareTeamOfMenu(supabase, { clientId, actorId: user.id, title, weekStart, days, prev: prevPlan });
   // The "not medical advice" / individualized-care disclaimer rides on every

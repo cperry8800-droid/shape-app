@@ -3,7 +3,7 @@
 -- line reaches the other coach as an ordinary care-team "New message".
 --
 -- 1. notify_on_new_message: a care-team message the server posted as a plan hand-off
---    (messages.metadata.kind = 'handoff', src/lib/care-team.ts postHandoff) notifies the other coaches
+--    (messages.metadata.kind = 'handoff', src/lib/care-team.mjs postHandoff) notifies the other coaches
 --    as `care_team_handoff`, its own switch ("Care-team hand-offs"), titled with metadata.noticeTitle and
 --    carrying metadata.copy as data.copy (noticeCopy.mjs says it in the reader's language). Every other
 --    message is notified exactly as before. Restates 2026-10-26-push-notice-fixes.sql's body with that
@@ -26,7 +26,7 @@ declare
   conv record;
   recipient uuid;
   v_side text;
-  -- A care-team hand-off line (src/lib/care-team.ts postHandoff): a plan change the other coaches hear
+  -- A care-team hand-off line (src/lib/care-team.mjs postHandoff): a plan change the other coaches hear
   -- as a `care_team_handoff` notice, under its own switch, with the copy the server composed.
   v_handoff boolean := coalesce(new.metadata->>'kind', '') = 'handoff';
 begin

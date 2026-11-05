@@ -1,7 +1,7 @@
 // P5's new coach notices (owner, 2026-11-05: "Build package P5"):
 //   · check-in received (a trigger on client_checkins),
 //   · a member cancelled a session (sessions/manage),
-//   · a care-team hand-off when a co-coach changes a shared client's plan (src/lib/care-team.ts and
+//   · a care-team hand-off when a co-coach changes a shared client's plan (src/lib/care-team.mjs and
 //     the messages trigger),
 //   · a client's win: a PR, a goal reached, a streak milestone (/api/cron/client-wins).
 import test from 'node:test';
@@ -48,6 +48,9 @@ test('a target lowered on both kinds of day reads "every day"; two moves list bo
   const line = Handoff.mealPlanHandoff({ coach: 'Rae', client: 'Priya', plan: 'Cut', prevDays: prev, prevTitle: 'Cut', nextDays: both, from: '2026-11-09' });
   assert.equal(line.body, 'Rae lowered protein on every day, 150 → 140 g from Mon, Nov 9.');
   assert.deepEqual(line.copy.body, np('handoff.macroDown', { coach: 'Rae', metric: phrase('handoff.metric.p'), days: phrase('handoff.days.all'), from: 150, to: 140, unit: 'g', when: onDay('2026-11-09', 'weekday') }));
+  // The same start but a different end on each kind of day is two changes, not "every day".
+  const apart = menu({ cal: 2100, p: 160, c: 160, f: 70 }, { cal: 1900, p: 140, c: 120, f: 70 });
+  assert.deepEqual(Handoff.mealPlanChanges(prev, apart), [{ metric: 'p', days: 'training', from: 150, to: 160 }, { metric: 'p', days: 'rest', from: 150, to: 140 }]);
   // Different moves on the two kinds of day stay two changes.
   const split = menu({ cal: 2200, p: 150, c: 160, f: 70 }, { cal: 1800, p: 150, c: 120, f: 70 });
   const two = Handoff.mealPlanChanges(prev, split);
@@ -173,6 +176,10 @@ test('the team is read on the coach\'s own session; the others are every other p
   assert.equal(posted[0].conversation_id, 'conv-rae');
   assert.equal(posted[0].body, 'Maya started Base from Mon, Nov 9.');
   assert.equal(CareTeam.actorNameFrom(CareTeam.coCoachesFrom([], 'x'), 'maya', 'trainer'), null);
+  // The actor is named in the role they acted in: the same person's nutritionist listing for a menu.
+  const named = [{ userId: 'maya', role: 'trainer', name: 'Maya' }, { userId: 'maya', role: 'nutritionist', name: 'Maya N' }];
+  assert.equal(CareTeam.actorNameFrom(named, 'maya', 'nutritionist'), 'Maya N');
+  assert.equal(CareTeam.actorNameFrom(named, 'maya', 'trainer'), 'Maya');
   // Not shared (nobody else on the team), or the team unreadable: nothing composed, nothing posted.
   for (const answer of [{ data: [team[0]], error: null }, { data: null, error: { message: 'down' } }]) {
     const lone = fakeDb({ rpc: () => answer });

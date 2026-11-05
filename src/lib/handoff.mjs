@@ -2,7 +2,7 @@
 // automatic line to the care-team thread"): what changed, said once, in the English the thread keeps
 // and as the notice copy (noticeCopy.mjs) the other coach's bell and push say in their language.
 //
-// Pure: the save paths (src/lib/care-team.ts postHandoff) read what was there before, hand both
+// Pure: the save paths (src/lib/care-team.mjs tellCareTeam) read what was there before, hand both
 // sides here and post what comes back. Nothing here reads or writes.
 //
 //   mealPlanChanges(prevDays, nextDays)  the target changes between two published menus

@@ -72,7 +72,7 @@ const CST_COACH_TYPES = [
   ["shared_client", "Shared clients", "When a client of yours also hires another coach"],
   // A client sent their weekly check-in (the client_checkins trigger, 2026-11-05-coach-notices.sql).
   ["checkin_submitted", "Check-ins received", "When a client sends their weekly check-in"],
-  // A co-coach changed a shared client's plan (src/lib/care-team.ts, posted to the care-team thread).
+  // A co-coach changed a shared client's plan (src/lib/care-team.mjs, posted to the care-team thread).
   ["care_team_handoff", "Care-team hand-offs", "When a co-coach changes a shared client's plan"],
   // A PR, a goal reached or a streak milestone (/api/cron/client-wins); within your daily push limit.
   ["client_win", "Client wins", "A PR, a goal reached, a streak milestone"],
@@ -680,7 +680,7 @@ function CoachNotificationCard({ signedIn, acct }) {
         {/* Said plainly, because the alternative is a coach believing they muted
             something they did not. */}
         Every notification you get is switched here. Quiet hours hold them until the morning;
-        the daily cap applies to the client alerts and friends' habits above.
+        the daily cap applies to the client alerts, client wins and friends' habits above.
       </div>
     </React.Fragment>
   );

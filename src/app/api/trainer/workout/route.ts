@@ -228,7 +228,7 @@ export async function POST(request: Request) {
   }
 
   // A program's first week landing on a shared client: the other coaches hear it in their care-team
-  // thread (src/lib/care-team.ts). Keyed on the program and its start, so the line goes up once.
+  // thread (src/lib/care-team.mjs). Keyed on the program and its start, so the line goes up once.
   const startsProgram = incoming
     .map((s) => s.payload.template as { id?: unknown; name?: unknown; week?: unknown } | undefined)
     .find((t) => t && typeof t === 'object' && Number(t.week) === 1 && String(t.name || '').trim());
