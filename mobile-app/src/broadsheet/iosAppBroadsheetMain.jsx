@@ -8,6 +8,7 @@ import { initI18n, applyDir, useTr, i18n as bsI18n } from '../i18n/index.js';
 import BSLanguagePicker from './BSLanguagePicker.jsx';
 import BSDobGate from './BSDobGate.jsx';
 import BSUpdateGate from './BSUpdateGate.jsx';
+import { BSTimezoneCheck } from './BSTimezone.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
 import { bsCiLeadReason } from './BSCheckinCard.jsx';
 import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
@@ -2021,6 +2022,13 @@ function BSAppShell({ tweaks, setTweak }) {
     try { window.location.reload(); } catch (e) { setStage('app'); }
   };
 
+  // The account's time zone (P9; BSTimezone.jsx), for EVERY role: learned and remembered as soon as
+  // a signed-in session is restored, the device's zone set as the first default when there is none.
+  // The question about a phone on another clock waits for the app itself: the branch below that
+  // renders <App> for a member or an approved coach, never over the splash, the paywall, the age
+  // check or a previewer's demo.
+  const timezoneAsk = stage === 'app' && !memberGateLoading && !ageBlocked && memberAllowed && !bundleError && !!App && !dobState.needed;
+
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
   // (paused, askedPrompt, fxMode) survives stage transitions (gate, browse,
   // preview) without remounting — a remount re-fires its 600ms auto-prompt,
@@ -2141,6 +2149,7 @@ function BSAppShell({ tweaks, setTweak }) {
         )}
         {noraDoor && !noraSheet && <BSAskNoraDoor onAsk={askNora} />}
         {noraDoor && noraSheet && window.BSNoraSheet ? <window.BSNoraSheet onClose={() => setNoraSheet(false)} /> : null}
+        <BSTimezoneCheck uid={authUserId} ready={authReady} coach={isCoachRole} canAsk={timezoneAsk} />
         {/* Over every stage, signed in or not: an app too old for the server can't sign in either. */}
         <BSUpdateGate />
       </BSPhone>

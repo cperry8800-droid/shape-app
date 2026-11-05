@@ -9,6 +9,8 @@ import { signOutGen, bumpSignOutGen, signOutEnded } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
 import { attachRadioListening, listeningAllowed, RADIO_LISTEN_PATH } from '../../../public/newdesign/radioListening.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
+import { clearAccountZone } from './shapeZone.mjs';
+import { bsReadAccountZone, bsWriteAccountZone } from './accountZone.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
 import { bsDurationFacts } from '../../../public/newdesign/progressionGuardrail.mjs';
@@ -715,6 +717,10 @@ async function signOut() {
   // (it's not user CONTENT), so it clears here with the other cross-account
   // state.
   try { window.localStorage.removeItem('shape.notify.last'); } catch (e) {}
+  // The account's time zone (P9) is held in memory as well as in localStorage, where the scrub
+  // drops it: forgotten here too, so the next account on this device prints on its own clock
+  // from the first frame rather than the last one's until its read lands.
+  try { clearAccountZone(); } catch (e) {}
   // Clear viewer-relative caches so the next account never sees the previous user's
   // follow state / avatars (these are keyed by target id but hold viewer-relative data).
   for (const k in _followCache) delete _followCache[k];
@@ -6595,7 +6601,7 @@ window.ShapeSignalDismissals = { list: listSignalDismissals, set: setSignalDismi
 // the roster never blocks on this auxiliary data.
 async function rosterWeekendGet(clientIds) {
   const ids = Array.isArray(clientIds) ? clientIds.filter(Boolean) : [];
-  // '' apiBaseUrl is valid same-origin config (see setTimezone) — gate on the token only.
+  // '' apiBaseUrl is valid same-origin config (see getAccountTimezone) — gate on the token only.
   if (!ids.length || !state.session?.access_token) return { ok: true, split: {} };
   try {
     const res = await fetch(`${apiBaseUrl || ''}/api/coach/roster-weekend`, {
@@ -7708,25 +7714,25 @@ async function awardSleepPoints() {
 }
 window.ShapeSleepPoints = { check: awardSleepPoints };
 
-// Opportunistic, non-throwing: mirror the authenticated-fetch pattern used by
-// postProConsole (there is NO generic postJson helper in this file).
-async function setTimezone(tz) {
-  if (!tz || typeof tz !== 'string') return { ok: false };
-  // apiBaseUrl is '' on same-origin (/m/ web) builds — that's valid, not "missing
-  // config" — so gate only on the bearer token and use the `${apiBaseUrl || ''}`
-  // URL form the rest of the file uses for same-origin calls.
-  if (!state.session?.access_token) return { ok: false };
-  try {
-    const res = await fetch(`${apiBaseUrl || ''}/api/client/timezone`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
-      body: JSON.stringify({ tz }),
-    });
-    return res.ok ? { ok: true } : { ok: false };
-  } catch { return { ok: false }; }
+// The account's own time zone (P9): GET / PUT /api/me/timezone, every role. The HTTP and the
+// answers' shapes are services/accountZone.mjs; this passes the API base and the live Bearer token
+// (the installed app sends no cookie). Non-throwing: a failure comes back as { ok: false, reason }
+// (and, from the write, `notReady` before the migration runs, `invalid` for a zone the route
+// refuses). It replaced setTimezone, which posted this device's zone on every open: the device is
+// a first default only now (BSTimezone.jsx BSTimezoneCheck), and a moved device asks first.
+// apiBaseUrl is '' on same-origin (/m/ web) builds — that's valid, not "missing config" — so gate
+// only on the signed-in account and use the `${apiBaseUrl || ''}` URL form.
+const _zoneFetch = (url, init) => fetch(url, init);
+async function getAccountTimezone() {
+  if (!state.user?.id) return { ok: false, reason: 'signed_out', notReady: false, invalid: false };
+  return bsReadAccountZone(_zoneFetch, { base: apiBaseUrl || '', token: await liveAccessToken() });
+}
+async function setAccountTimezone(tz, { onlyIfUnset = false } = {}) {
+  if (!state.user?.id) return { ok: false, reason: 'signed_out', notReady: false, invalid: false };
+  return bsWriteAccountZone(_zoneFetch, tz, { base: apiBaseUrl || '', token: await liveAccessToken(), onlyIfUnset: onlyIfUnset === true });
 }
 // Opportunistic UI-locale mirror to client_profiles.locale (same auth pattern as
-// setTimezone). Best-effort + non-throwing; no-ops signed-out / pre-migration.
+// the time zone calls). Best-effort + non-throwing; no-ops signed-out / pre-migration.
 async function setLocale(code) {
   if (!code || typeof code !== 'string') return { ok: false };
   if (!state.session?.access_token) return { ok: false };
@@ -7739,7 +7745,7 @@ async function setLocale(code) {
     return res.ok ? { ok: true } : { ok: false };
   } catch { return { ok: false }; }
 }
-window.ShapeProfile = { ...(window.ShapeProfile || {}), setTimezone, setLocale };
+window.ShapeProfile = { ...(window.ShapeProfile || {}), getAccountTimezone, setAccountTimezone, setLocale };
 
 // Weekly commitment + stake. Reads score_commitments via the RLS-scoped client (owner
 // sees their own row); writes through set/accept RPCs. All no-op pre-migration.
