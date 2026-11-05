@@ -499,10 +499,13 @@ export async function GET(request: Request) {
       weightsUnknown,
       // The roster itself could not be read: an empty list below is not "no history".
       rosterUnknown: subsUnknown,
+      // ⚠ EVERY CLIENT, NOT THE 12 MOST ACTIVE (2026-11-05). The list was cut to the top 12 by
+      // activity, so on a bigger roster the clients who most needed a nudge were the ones dropped,
+      // and "Top weight loss" and the least-consistent picks were drawn from the busiest dozen. A row
+      // is a handful of numbers; the readers take their own top five from the whole roster.
       roster: roster
         .slice()
-        .sort((a, b) => (b.workouts30d ?? -1) - (a.workouts30d ?? -1))
-        .slice(0, 12),
+        .sort((a, b) => (b.workouts30d ?? -1) - (a.workouts30d ?? -1)),
     },
     ticker: {
       bookedToday: sessErr ? null : bookedToday,
