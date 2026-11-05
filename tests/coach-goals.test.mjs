@@ -66,6 +66,7 @@ test('a typed goal keeps a reading each day its CURRENT changes; rebinding drops
   let doc = CG.upsertGoal({ goals: [] }, { id: 'a', t: 'Typed', cur: 3, tgt: 10 }, { now: new Date(2026, 9, 20, 9) });
   doc = CG.upsertGoal(doc, { id: 'a', cur: 5 }, { now: new Date(2026, 9, 27, 9) });
   doc = CG.upsertGoal(doc, { id: 'a', cur: 6 }, { now: new Date(2026, 9, 27, 18) });
+  assert.deepEqual(doc.goals[0].history, [{ on: '2026-10-20', value: 3 }, { on: '2026-10-27', value: 6 }], 'a second change the same day replaces that day\'s reading as it is saved');
   doc = CG.upsertGoal(doc, { id: 'a', sub: 'note' }, { now: NOW });
   assert.deepEqual(doc.goals[0].history, [{ on: '2026-10-20', value: 3 }, { on: '2026-10-27', value: 6 }], 'one a day, the last kept; an edit that leaves CURRENT alone adds none');
   assert.equal(doc.goals.length, 1, 'edited in place, by id');

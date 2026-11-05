@@ -83,11 +83,9 @@
     });
     return Object.keys(byDay).sort().map(function (on) { return { on: on, value: byDay[on] }; });
   }
+  // A reading added last, so it is the one its day keeps.
   function addReading(history, on, value) {
-    var rest = cleanReadings(history).filter(function (p) { return p.on !== on; });
-    rest.push({ on: on, value: value });
-    rest.sort(function (a, b) { return a.on < b.on ? -1 : a.on > b.on ? 1 : 0; });
-    return rest.slice(-HISTORY_MAX);
+    return cleanReadings(list(history).concat([{ on: on, value: value }])).slice(-HISTORY_MAX);
   }
 
   // ── The document ────────────────────────────────────────────────────────

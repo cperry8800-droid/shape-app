@@ -79,7 +79,10 @@ export default {
     { name: 'programs published start from the bound figure', file: CG, find: 'var from = g.metric === "programsPublished" ? 0 : g.metric ? num(opts.current) : num(g.cur);', replace: 'var from = g.metric ? num(opts.current) : num(g.cur);' },
     { name: 'a bound goal keeps typed readings', file: CG, find: '      delete g.history;\n', replace: '' },
     { name: 'a typed goal records no readings', file: CG, find: '      if (cur != null && changed) g.history = addReading(had, today, cur);\n', replace: '' },
-    { name: 'a reading a day is not one', file: CG, find: '    var rest = cleanReadings(history).filter(function (p) { return p.on !== on; });', replace: '    var rest = cleanReadings(history);' },
+    // (Round 1: a filter in addReading survived. cleanReadings already keeps one reading a day, the
+    // last, so the filter was a no-op; it went, and the rule is mutated where it lives.)
+    { name: 'a day keeps its first reading, not its last', file: CG, find: '      byDay[p.on] = v;', replace: '      if (!(p.on in byDay)) byDay[p.on] = v;' },
+    { name: 'a day keeps every reading', file: CG, find: '    return Object.keys(byDay).sort().map(function (on) { return { on: on, value: byDay[on] }; });', replace: '    return list(raw).filter(function (p) { return p && isDay(p.on) && num(p.value) != null; }).map(function (p) { return { on: p.on, value: num(p.value) }; });' },
     { name: 'junk days are kept', file: CG, find: '    if (!isDay(out.due)) delete out.due;\n', replace: '' },
     { name: 'Archive deletes the goals', file: CG, find: '    return Object.assign({}, doc, { goals: [], archived: moved.concat(archivedOf(doc)).slice(0, ARCHIVE_MAX) });', replace: '    return Object.assign({}, doc, { goals: [], archived: archivedOf(doc) });' },
     { name: 'Archive loses the last quarter\'s archive', file: CG, find: 'moved.concat(archivedOf(doc)).slice(0, ARCHIVE_MAX)', replace: 'moved.slice(0, ARCHIVE_MAX)' },
