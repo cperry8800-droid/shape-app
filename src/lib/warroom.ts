@@ -322,6 +322,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/me/onboarding', 'POST'],
   ['/api/me/role', 'POST'],
   ['/api/me/staff', 'GET'],
+  ['/api/me/timezone', 'GET,PUT'],
   ['/api/me', 'GET'],
   ['/api/me/shared-clients/[clientId]/ack', 'POST,DELETE'],
   ['/api/me/shared-clients/[clientId]/thread', 'POST'],

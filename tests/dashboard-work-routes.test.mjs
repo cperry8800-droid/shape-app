@@ -30,6 +30,8 @@ async function api(path, results = {}, user = { id: 'coach-a' }) {
     ['@/lib/time',{...(await loadRealModule(fileURLToPath(new URL('../src/lib/time.ts',import.meta.url)),{typescript:true})),normalizeZone:(zone)=>zone || null}],
   ]);
   // The member calendar's activities (src/lib/calendar-activities.ts), on the same clock.
+  // The account's own zone (P9), real, over the same fake database.
+  registry.set('@/lib/account-timezone',await loadRealModule(fileURLToPath(new URL('../src/lib/account-timezone.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')],['@supabase/supabase-js',{}]])}));
   registry.set('@/lib/calendar-activities',await loadRealModule(fileURLToPath(new URL('../src/lib/calendar-activities.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')]])}));
   // The calendar dates a finished run by the day the app stored (src/lib/workout-days.ts).
   registry.set('@/lib/workout-days',await loadRealModule(fileURLToPath(new URL('../src/lib/workout-days.ts',import.meta.url)),{typescript:true,registry:new Map([['@/lib/time',registry.get('@/lib/time')],['@supabase/supabase-js',{}]])}));

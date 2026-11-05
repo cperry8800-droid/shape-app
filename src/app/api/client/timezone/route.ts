@@ -1,10 +1,19 @@
-// Opportunistic per-user IANA timezone capture. The client posts its resolved
-// Intl zone on app open; we store it on client_profiles for tz-aware reads
-// (weekend split, future reminders). Owner-scoped via the request's auth client.
+// The app's device zone on open. Until 2026-11-05 this overwrote the member's zone on EVERY open,
+// so a member on a trip moved silently, and their streaks, reminders and coach's view with them.
+//
+// ⚠ NOW A FIRST DEFAULT ONLY (P9, owner 2026-11-05: "all time zones should be set by user"). Once
+// 2026-11-05-account-timezone.sql has run, the device's zone becomes the account's only when the
+// person has none (profiles.timezone, which the database copies onto client_profiles and the
+// listings). A zone they chose stands; an app in another zone asks before switching
+// (shapeZone.mjs travelAsk), and the switch goes through /api/me/timezone. Installed builds that
+// still post here on every open are held to the same rule, because the rule is here.
+//
+// Before the migration runs, the old write stands: client_profiles.timezone, as before.
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { requireMembership } from '@/lib/require-membership';
+import { writeAccountZone } from '@/lib/account-timezone';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,6 +36,11 @@ export async function POST(request: Request) {
   try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); } catch { return NextResponse.json({ error: 'invalid_tz' }, { status: 400 }); }
 
   const supabase = await clientForRequest(request);
+  const set = await writeAccountZone(supabase, user.id, tz, { onlyIfUnset: true });
+  if (set.ok) return NextResponse.json({ ok: true, timezone: set.zone, changed: set.changed });
+  if (set.reason !== 'not_ready') return NextResponse.json({ error: 'write_failed' }, { status: 500 });
+
+  // Pre-migration only.
   // client_profiles is keyed by user_id (PK); `data` defaults to '{}' and a
   // trigger maintains updated_at, so a tz-only upsert is safe on insert + update
   // (RLS: client_profiles_insert_own + client_profiles_update_own).

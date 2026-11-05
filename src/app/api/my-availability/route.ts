@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
 import { normalizeZone } from '@/lib/time';
+import { readAccountZone, writeAccountZone } from '@/lib/account-timezone';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,8 +97,20 @@ export async function POST(req: NextRequest) {
   // The editor sends its own resolved Intl zone. A client too old to send one is only
   // refused if the coach has no stored zone either — so a coach who has saved once is
   // never locked out by a stale page.
+  //
+  // ⚠ THE ACCOUNT'S ZONE, ONCE SET, IS THE ZONE THE HOURS ARE IN (P9, owner 2026-11-05: "all time
+  // zones should be set by user"). The browser's zone used to win on every save, so saving from a
+  // laptop in another zone moved every open hour. Now the person's own setting (profiles.timezone,
+  // which the database copies onto this listing) decides, and the browser's zone is only the first
+  // default for an account with none. Before 2026-11-05-account-timezone.sql runs (`ready: false`),
+  // the browser's zone stands, as before.
   const sentZone = normalizeZone(body.timezone);
-  const zone = sentZone ?? owned.timezone;
+  const account = await readAccountZone(supabase, user.id);
+  if (account.error) {
+    // An unread setting is not "no setting": stamping the browser's zone could move every hour.
+    return NextResponse.json({ error: 'save_failed' }, { status: 500 });
+  }
+  const zone = (account.ready ? account.zone : null) ?? sentZone ?? owned.timezone;
   if (!zone) {
     return NextResponse.json(
       { error: 'timezone_required', detail: 'Availability hours are stored in your local time, so we need your timezone before saving them. Reload the page and try again.' },
@@ -145,12 +158,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'save_failed' }, { status: 500 });
   }
 
+  // The account's first zone: the browser's, set on the account so every surface follows it (the
+  // database copies it onto this listing). A failure is the stamp failing, as below.
+  if (account.ready && !account.zone && zone) {
+    const set = await writeAccountZone(supabase, user.id, zone, { onlyIfUnset: true });
+    if (!set.ok) {
+      console.error('[shape-app] set account timezone from availability failed', set.reason);
+      return NextResponse.json({ error: 'save_failed' }, { status: 500 });
+    }
+    // ⚠ A zone set a moment ago elsewhere (onlyIfUnset kept it) is the one the hours are in.
+    if (set.zone !== zone) {
+      return NextResponse.json({ error: 'timezone_changed', timezone: set.zone, detail: 'Your time zone was just set to ' + set.zone + '. Reload to see your hours in it.' }, { status: 409 });
+    }
+  }
+
   // Stamp only on a real change: the coach moved, or this is the first save. An
   // unconditional write would touch the row on every toggle for no reason.
-  if (sentZone && sentZone !== owned.timezone) {
+  if (zone !== owned.timezone) {
     const { error: tzError } = await supabase
       .from(table)
-      .update({ timezone: sentZone })
+      .update({ timezone: zone })
       .eq('id', owned.id);
     // ⚠ FAIL THE SAVE, do not press on. Hours written under a zone we could not commit to
     // are hours nothing can place — and pre-migration this is the branch that reports the
