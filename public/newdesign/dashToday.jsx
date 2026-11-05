@@ -11,9 +11,16 @@
 // coachNav → dashSignals.js (plain) → dashData.jsx → this file.
 
 // ── Shared formatters (were duplicated per page as td*/nd*) ─────────────────
-function dashFmtTime(iso) {
-  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }); }
-  catch (e) { return ""; }
+// ⚠ TODAY'S CLOCKS READ IN THE ZONE ITS DAY WAS CUT IN (Codex on #2620). The dashboard routes pick
+// Today's sessions on the coach's clock (`dayZone`: the listing's zone, else the browser's), so a
+// New York coach in London sees New York's day; its times print in that zone too, not the browser's.
+// No zone, or one this browser can't read, prints the browser's local time, as before.
+function dashFmtTime(iso, zone) {
+  const opts = { hour: "2-digit", minute: "2-digit", hour12: false };
+  try { return new Date(iso).toLocaleTimeString([], zone ? { ...opts, timeZone: zone } : opts); }
+  catch (e) {
+    try { return new Date(iso).toLocaleTimeString([], opts); } catch (e2) { return ""; }
+  }
 }
 function dashCalDate(iso) {
   try { const d = new Date(iso); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -1759,7 +1766,7 @@ function dashCountdown(ms) {
 // a cancelled 3pm read "UP NEXT" with a Message button. The set is the calendar's own
 // (`.in('status', ['confirmed', 'requested', 'completed'])` in both routes).
 const DASH_NOW_STATUSES = ["requested", "confirmed", "completed"];
-function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) {
+function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar, zone }) {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
     if (!rows) return undefined;
@@ -1779,7 +1786,7 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) 
   const fileHref = rec ? dashClientHref(rec, role) : null;
   const lead = !next ? null
     : !rows ? "UP NEXT"
-    : next.live ? "ON NOW · UNTIL " + dashFmtTime(next.end)
+    : next.live ? "ON NOW · UNTIL " + dashFmtTime(next.end, zone)
     : "UP NEXT · IN " + dashCountdown(+next.at - now);
   const eyebrow = { fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" };
   const btn = { flex: 1, minHeight: 38, borderRadius: 9, font: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", boxSizing: "border-box" };
@@ -1824,7 +1831,7 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) 
             <React.Fragment key={i}>
               {i === nextIdx && (rows || r.status === "NEXT") && (
                 <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{rows ? "NOW " + dashFmtTime(new Date(now).toISOString()) : "NOW"}</span>
+                  <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{rows ? "NOW " + dashFmtTime(new Date(now).toISOString(), zone) : "NOW"}</span>
                   <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
                 </div>
               )}
@@ -1838,7 +1845,7 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar }) 
           ))}
           {rows && nextIdx < 0 && (
             <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-              <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{"NOW " + dashFmtTime(new Date(now).toISOString())}</span>
+              <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{"NOW " + dashFmtTime(new Date(now).toISOString(), zone)}</span>
               <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
             </div>
           )}
@@ -1905,11 +1912,13 @@ function CoachDashboardPage({ role }) {
   const firstName = live ? live.user.firstName : cfg.mockName;
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
+  // The zone the route cut Today in, so its clocks print in it (dashFmtTime's note).
+  const dayZone = live && typeof live.dayZone === "string" && live.dayZone ? live.dayZone : null;
   const schedule = !todayRows
     ? cfg.mockSchedule
     : todayRows.length
       ? todayRows.map((s, i) => ({
-          time: dashFmtTime(s.scheduledAt),
+          time: dashFmtTime(s.scheduledAt, dayZone),
           who: s.clientName || "Client",
           sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · "),
           status: i === 0 ? (s.status === "confirmed" ? "NEXT" : "PENDING") : undefined,
@@ -1920,7 +1929,7 @@ function CoachDashboardPage({ role }) {
   const nowRows = todayRows
     ? todayRows.map((s) => {
         const at = new Date(s.scheduledAt);
-        return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt), status: s.status,
+        return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt, dayZone), status: s.status,
           who: s.clientName || "Client", sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · ") };
       })
     : null;
@@ -2063,7 +2072,7 @@ function CoachDashboardPage({ role }) {
       tourHero="hero-today"
       role={role}
       gridWidgets={gridWidgets}
-      nowColumn={(openCalendar) => <DashNowColumn rows={nowRows} demoRows={nowRows ? null : source === "live" ? [] : cfg.mockSchedule} clients={clients} role={role} unit={cfg.unit} onOpenCalendar={openCalendar} />}
+      nowColumn={(openCalendar) => <DashNowColumn rows={nowRows} demoRows={nowRows ? null : source === "live" ? [] : cfg.mockSchedule} clients={clients} role={role} unit={cfg.unit} onOpenCalendar={openCalendar} zone={dayZone} />}
       userName={firstName}
       date={cfg.date()}
       greeting={cfg.greeting(firstName)}
