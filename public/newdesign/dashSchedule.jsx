@@ -128,18 +128,30 @@ function dscMonthEnd(k) { return k + "-" + String(new Date(Number(k.slice(0, 4))
 // a wall clock in the zone the route names, and the reschedule hands that zone back; a
 // coach who re-saves their hours from another zone mid-visit would otherwise get months
 // read on two clocks under one label, and drags priced in the wrong one.
+// The months whose plans read failed: a month read cleanly clears its own failure, so a refresh
+// that succeeds brings the Plans row back instead of leaving one failed read hidden all visit
+// (Codex on #2620). The row is unreadable while any month on screen is in the set.
+function dscPlansBad(prev, months, ok) {
+  const bad = new Set(prev ? (prev.plansBad || (prev.plansOk === false ? prev.months : [])) : []);
+  for (const m of months) { if (ok) bad.delete(m); else bad.add(m); }
+  return bad;
+}
 function dscMergeRange(prev, res, months) {
   const zone = typeof res.zone === "string" && res.zone ? res.zone : null;
-  // The plans row (step 4) rides along with each month: merged by id, and unreadable once any
+  // The plans row (step 4) rides along with each month: merged by id, and unreadable while any
   // month's read of it failed (`clientPlansReadable: false`), so a gap is said, not drawn empty.
   const plansIn = Array.isArray(res.clientPlans) ? res.clientPlans : [];
-  const plansOk = res.clientPlansReadable !== false;
-  if (!prev || prev.zone !== zone) return { zone, months: new Set(months), events: res.events.slice(), clientPlans: plansIn.slice(), plansOk };
+  const ok = res.clientPlansReadable !== false;
+  if (!prev || prev.zone !== zone) {
+    const plansBad = dscPlansBad(null, months, ok);
+    return { zone, months: new Set(months), events: res.events.slice(), clientPlans: plansIn.slice(), plansBad, plansOk: plansBad.size === 0 };
+  }
   const byId = new Map(prev.events.map((e) => [e.id, e]));
   for (const e of res.events) byId.set(e.id, e);
   const planById = new Map((prev.clientPlans || []).map((p) => [p.id, p]));
   for (const p of plansIn) planById.set(p.id, p);
-  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansOk: prev.plansOk !== false && plansOk };
+  const plansBad = dscPlansBad(prev, months, ok);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansBad, plansOk: plansBad.size === 0 };
 }
 // A re-read of months already on screen (the coach's return, 2026-11-05): the answer REPLACES what
 // those months held, where dscMergeRange only adds. Merging by id would keep a booking the client
@@ -156,7 +168,8 @@ function dscReplaceRange(prev, res, months) {
   const plansIn = Array.isArray(res.clientPlans) ? res.clientPlans : [];
   const planById = new Map((prev.clientPlans || []).filter(outside).map((x) => [x.id, x]));
   for (const x of plansIn) planById.set(x.id, x);
-  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansOk: prev.plansOk !== false && res.clientPlansReadable !== false };
+  const plansBad = dscPlansBad(prev, months, res.clientPlansReadable !== false);
+  return { zone, months: new Set([...prev.months, ...months]), events: [...byId.values()], clientPlans: [...planById.values()], plansBad, plansOk: plansBad.size === 0 };
 }
 // A demo week of client plans for the signed-out preview: invented, like its bookings.
 function dscDemoPlans(monday) {

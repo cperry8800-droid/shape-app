@@ -194,7 +194,7 @@ test('the Schedule on screen re-reads its months on the coach\'s return: a cance
 test('a re-read month replaces what it held: a cancelled booking goes, other months stay', () => {
   const text = source('public/newdesign/dashSchedule.jsx');
   const lift = (name) => { const at = text.indexOf('function ' + name + '('); const rest = text.slice(at); return rest.slice(0, rest.search(/\n(?:function |const |\/\/ )/)); };
-  const { dscReplaceRange } = new Function(lift('dscMergeRange') + '\n' + lift('dscReplaceRange') + '\nreturn { dscReplaceRange };')();
+  const { dscReplaceRange } = new Function(lift('dscPlansBad') + '\n' + lift('dscMergeRange') + '\n' + lift('dscReplaceRange') + '\nreturn { dscReplaceRange };')();
   const prev = {
     zone: 'America/New_York', months: new Set(['2026-10', '2026-11']), plansOk: true,
     events: [{ id: 'oct', date: '2026-10-20' }, { id: 'kept', date: '2026-11-04' }, { id: 'cancelled', date: '2026-11-06' }, { id: 'undated' }],
@@ -208,4 +208,23 @@ test('a re-read month replaces what it held: a cancelled booking goes, other mon
   assert.deepEqual([...next.months].sort(), ['2026-10', '2026-11']);
   // Another zone: the answer stands alone, as a first read does.
   assert.deepEqual(dscReplaceRange(prev, { ...res, zone: 'UTC' }, ['2026-11']).events.map((e) => e.id).sort(), ['kept', 'new']);
+});
+
+// Codex on #2620: a plans read that failed once must not hide the Plans row for the whole visit.
+// A month re-read cleanly clears its own failure; a month that still fails keeps the row unread.
+test('a successful re-read brings the Plans row back after a failed read', () => {
+  const text = source('public/newdesign/dashSchedule.jsx');
+  const lift = (name) => { const at = text.indexOf('function ' + name + '('); const rest = text.slice(at); return rest.slice(0, rest.search(/\n(?:function |const |\/\/ )/)); };
+  const H = new Function(lift('dscPlansBad') + '\n' + lift('dscMergeRange') + '\n' + lift('dscReplaceRange') + '\nreturn { dscMergeRange, dscReplaceRange };')();
+  const NY = 'America/New_York';
+  const failed = H.dscMergeRange(null, { zone: NY, events: [], clientPlans: [], clientPlansReadable: false }, ['2026-11']);
+  assert.equal(failed.plansOk, false);
+  const healed = H.dscReplaceRange(failed, { zone: NY, events: [], clientPlans: [{ id: 'p', date: '2026-11-10' }], clientPlansReadable: true }, ['2026-11']);
+  assert.equal(healed.plansOk, true, 'a refresh that read the plans kept the row hidden');
+  // Two months, one still failing: the row stays unread until that month reads cleanly too.
+  const two = H.dscMergeRange(failed, { zone: NY, events: [], clientPlans: [], clientPlansReadable: true }, ['2026-12']);
+  assert.equal(two.plansOk, false, 'a clean read of another month hid the failed one');
+  assert.equal(H.dscReplaceRange(two, { zone: NY, events: [], clientPlans: [], clientPlansReadable: true }, ['2026-11']).plansOk, true);
+  // And a re-read that fails marks its month again.
+  assert.equal(H.dscReplaceRange(healed, { zone: NY, events: [], clientPlans: [], clientPlansReadable: false }, ['2026-11']).plansOk, false);
 });
