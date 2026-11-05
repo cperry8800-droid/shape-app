@@ -26,19 +26,17 @@ set local lock_timeout = '10s';
 alter table public.coach_signal_dismissals add column if not exists provider_role text;
 
 -- 2. The old key goes first: the copies below would collide with it.
+-- The key is dropped by its name (the default name 2026-11-05-coach-signal-dismissals.sql gave it, checked
+-- live), never through dynamic SQL, which the migration model (tests/definer-grants.test.mjs) can't read.
+-- A key by any other name is left in place, and the guard at the end then rolls the whole file back.
 do $$
-declare
-  v_name text;
-  v_has_role boolean;
 begin
-  select c.conname,
-         exists (select 1 from pg_attribute a
-                 where a.attrelid = c.conrelid and a.attnum = any (c.conkey) and a.attname = 'provider_role')
-    into v_name, v_has_role
-  from pg_constraint c
-  where c.conrelid = 'public.coach_signal_dismissals'::regclass and c.contype = 'p';
-  if v_name is not null and not v_has_role then
-    execute format('alter table public.coach_signal_dismissals drop constraint %I', v_name);
+  if exists (select 1 from pg_constraint c
+             where c.conrelid = 'public.coach_signal_dismissals'::regclass and c.contype = 'p'
+               and c.conname = 'coach_signal_dismissals_pkey'
+               and not exists (select 1 from pg_attribute a
+                               where a.attrelid = c.conrelid and a.attnum = any (c.conkey) and a.attname = 'provider_role')) then
+    alter table public.coach_signal_dismissals drop constraint coach_signal_dismissals_pkey;
   end if;
 end;
 $$;
