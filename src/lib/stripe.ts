@@ -34,6 +34,12 @@ export type StripeSummary = {
     monthlyAnchor: number | null;
     delayDays: number | null;
   } | null;
+  /**
+   * Every payout created since `payoutsSince` (newest first): the ones on their way and the history.
+   * ⚠ A PAYOUT IS WHAT STRIPE SENT THE COACH'S BANK FROM THEIR WHOLE STRIPE BALANCE. On the coach's own
+   * (Standard) account it can carry their other business, and it comes after Stripe's card fees on a
+   * direct charge, so it is never "Shape's net" and is never shown as one.
+   */
   payouts: Array<{
     id: string;
     amountCents: number;
@@ -42,20 +48,55 @@ export type StripeSummary = {
     arrivalDate: number | null;
     created: number;
   }>;
+  /** The oldest instant (ms) the payout read covers; null when nothing was read. */
+  payoutsSince?: number | null;
+  /** True when the read stopped at its page ceiling before reaching `payoutsSince`: older ones exist unread. */
+  payoutsCut?: boolean;
 };
 
-/** Balance + payout schedule + last 12 payouts for a connected account (or an empty/error summary). */
+// How far back the payout history reaches: four months and a little (the Business page's "last 4
+// months"), and the most pages of 100 read for it. A daily schedule makes about 125 payouts in that
+// time, so 5 pages cover it; past that the history says it is cut, never that it is complete.
+export const PAYOUT_HISTORY_DAYS = 125;
+export const PAYOUT_PAGES = 5;
+
+/**
+ * Every payout on `accountId` created since `sinceMs`, newest first, a page of 100 at a time.
+ * The 12 most recent were read and the rest dropped, which on a daily schedule was 12 days.
+ */
+export async function listPayoutsSince(
+  accountId: string,
+  sinceMs: number,
+  pages = PAYOUT_PAGES
+): Promise<{ data: Stripe.Payout[]; cut: boolean }> {
+  const out: Stripe.Payout[] = [];
+  let startingAfter: string | undefined;
+  for (let page = 0; page < pages; page++) {
+    const res = await stripe.payouts.list(
+      { limit: 100, created: { gte: Math.floor(sinceMs / 1000) }, ...(startingAfter ? { starting_after: startingAfter } : {}) },
+      { stripeAccount: accountId }
+    );
+    out.push(...res.data);
+    if (!res.has_more || !res.data.length) return { data: out, cut: false };
+    startingAfter = res.data[res.data.length - 1].id;
+  }
+  return { data: out, cut: true };
+}
+
+/** Balance + payout schedule + the payouts of the last ~4 months for a connected account (or an empty/error summary). */
 export async function loadStripe(
   accountId: string | null,
-  accountStatus: string | null
+  accountStatus: string | null,
+  now: number = Date.now()
 ): Promise<StripeSummary> {
   if (!accountId) {
     return { connected: false, status: accountStatus ?? 'not_connected', balanceCents: null, pendingCents: null, schedule: null, payouts: [] };
   }
   try {
+    const payoutsSince = now - PAYOUT_HISTORY_DAYS * 86400000;
     const [balance, payoutList, account] = await Promise.all([
       stripe.balance.retrieve({}, { stripeAccount: accountId }),
-      stripe.payouts.list({ limit: 12 }, { stripeAccount: accountId }),
+      listPayoutsSince(accountId, payoutsSince),
       stripe.accounts.retrieve(accountId).catch(() => null),
     ]);
     const balanceCents = (balance.available ?? []).reduce((sum, b) => sum + b.amount, 0);
@@ -77,7 +118,7 @@ export async function loadStripe(
           delayDays: sched.delay_days ?? null,
         }
       : null;
-    return { connected: true, status: accountStatus ?? 'connected', balanceCents, pendingCents, schedule, payouts };
+    return { connected: true, status: accountStatus ?? 'connected', balanceCents, pendingCents, schedule, payouts, payoutsSince, payoutsCut: payoutList.cut };
   } catch {
     // ⚠ FLAGGED, NOT LEFT TO THE STATUS. The status is the account's stored one ('active' for a
     // working account), so a failed read used to look connected with nothing in it, and the

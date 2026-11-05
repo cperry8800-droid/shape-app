@@ -404,10 +404,15 @@ test('webhook: invoice.paid announces nothing for a first invoice, a $0 one, or 
   assert.deepEqual((await runWebhook(invoicePaid({}), { tables: {} })).announced, [], 'no row: not Shape\'s');
   assert.deepEqual((await runWebhook(invoicePaid({}), { tables: { subscriptions: [{ ...tables().subscriptions[0], provider_role: 'gym' }] } })).announced, []);
 
+  // ⚠ Since 2026-11-05 the renewal is also RECORDED (coach_payments), so a read that can pass is answered
+  // 503 and Stripe sends it again: the notice is keyed on the invoice, so the retry sends nothing twice.
   const failed = await runWebhook(invoicePaid({}), { tables: tables(), errors: { 'select:subscriptions': { message: 'timeout' } } });
-  assert.equal(failed.status, 200, 'a notice is not worth a Stripe retry');
+  assert.equal(failed.status, 503, 'a payment not recorded yet is worth a Stripe retry');
   assert.deepEqual(failed.announced, []);
   assert.ok(failed.logs.some((l) => /renewal: subscription read failed/.test(l)));
+  // One that will read the same way tomorrow is acknowledged, as before.
+  const refused = await runWebhook(invoicePaid({}), { tables: tables(), errors: { 'select:subscriptions': { code: '42501', message: 'permission denied' } } });
+  assert.equal(refused.status, 200);
 });
 
 test('webhook: a connected account\'s invoice finds only rows on that account, and never the membership', async () => {
@@ -436,5 +441,7 @@ test('the notices sit after each save in the webhook, and the module is the only
   assert.match(src, /if \(membershipSaved && moneyMoved && !subEnded\) await welcomeMember\(admin, clientId\);[\s\S]{0,300}if \(membershipSaved && moneyMoved\) \{\s+await announcePayment\(admin, \{/);
   // A paid payment is announced whether or not the plan has ended since; only onboarding waits on a live one.
   assert.match(src, /if \(!subErr && moneyMoved && providerId && \(providerRole === 'trainer' \|\| providerRole === 'nutritionist'\)\) \{\s+const firstMonthCents/);
-  assert.match(src, /case 'invoice\.paid': \{[\s\S]{0,600}if \(invoice\.billing_reason !== 'subscription_cycle' \|\| !\(invoice\.amount_paid > 0\) \|\| !invoice\.id\) break;/);
+  // A plan's paid invoice is recorded whatever its billing reason (coach_payments); only a cycle's is announced.
+  assert.match(src, /case 'invoice\.paid': \{[\s\S]{0,900}if \(!INVOICE_BILLING\[String\(invoice\.billing_reason\)\] \|\| !\(invoice\.amount_paid > 0\) \|\| !invoice\.id\) break;\s+const renewal = invoice\.billing_reason === 'subscription_cycle';/);
+  assert.match(src, /if \(!renewal\) break;\s+const split = splitAtBps\(invoice\.amount_paid, row\.fee_bps\);/);
 });

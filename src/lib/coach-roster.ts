@@ -13,6 +13,7 @@ import { DAY_MS } from '@/lib/time';
 import { clientNames } from '@/lib/coach-messages';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { OPEN_SUB_STATUSES, openSubsAt } from './coach-trajectory.mjs';
+import { planEndingOf } from './plan-cancellation.mjs';
 
 // The columns the roster reads from a subscriptions row (select('*'), so a pre-migration database
 // simply leaves origin and fee_bps undefined).
@@ -24,6 +25,10 @@ type RosterSubRow = {
   fee_bps?: number | null;
   created_at: string | null;
   origin?: string | null;
+  // The plan's cancellation (2026-11-05-subscription-cancellations.sql): absent before the migration.
+  cancel_at_period_end?: boolean | null;
+  cancel_at?: string | null;
+  current_period_end?: string | null;
 };
 
 // `.toISOString()` throws on an invalid date; every caller here wants "no
@@ -56,6 +61,8 @@ type ClientEntry = {
   // them is past_due: a renewal Stripe is still retrying.
   plans: number;
   retrying: boolean;
+  // The open plans themselves, for whether they are all set to end (planEndingOf).
+  open: RosterSubRow[];
 };
 
 // A pre-feature row carries neither column and genuinely paid the marketplace
@@ -144,7 +151,7 @@ export async function coachClientsResponse(
     let e = byClient.get(key);
     if (!e) {
       e = { id: null, name: 'Client', sessions: 0, lastAt: null, mrrCents: 0, joinedAt: null,
-            feeCents: 0, origin: null, originAt: null, plans: 0, retrying: false };
+            feeCents: 0, origin: null, originAt: null, plans: 0, retrying: false, open: [] };
       byClient.set(key, e);
     }
     return e;
@@ -164,6 +171,7 @@ export async function coachClientsResponse(
     const e = ensure(sub.client_id || 'unknown');
     if (sub.client_id) e.id = sub.client_id;
     e.plans += 1;
+    e.open.push(sub);
     if (sub.status === 'past_due') e.retrying = true;
     const price = sub.price_cents ?? 0;
     e.mrrCents += price;
@@ -254,6 +262,12 @@ export async function coachClientsResponse(
         onPlan: subsUnknown ? null : e.plans > 0,
         // A renewal Stripe is retrying (past_due): still a client, with a mark beside the name.
         paymentRetrying: e.retrying,
+        // ⚠ FOR THE SIGNALS ENGINE ("plan set to end"): every open plan this client holds with the coach is
+        // set to end (cancel at period end, or a cancel date), and the last of those dates. A client with
+        // one plan ending and another renewing is not leaving (false). null when it can't be told: the
+        // subscriptions read failed, a row isn't synced from Stripe yet, or the database predates
+        // 2026-11-05-subscription-cancellations.sql. planEndsAt is ISO, set only when planEnding is true.
+        ...(subsUnknown || !e.plans ? { planEnding: null, planEndsAt: null } : planEndingOf(e.open)),
       };
     });
 

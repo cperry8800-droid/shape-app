@@ -408,8 +408,94 @@
     return { onWay: onWay.length, onWayCents, next, balanceCents, pendingCents, comingCents: onWayCents + (balanceCents || 0) + pendingCents };
   }
 
+  // ── The coach's payout schedule and history (2026-11-05) ──
+  // ⚠ EACH COACH'S SCHEDULE IS THEIR OWN STRIPE ACCOUNT'S (settings.payouts.schedule, read by
+  // src/lib/stripe.ts). Shape makes Standard accounts and sets no payout settings, so a US account
+  // typically pays out DAILY; the preview's "monthly, 7-day hold" was never anyone's real schedule.
+  const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const pad2 = (n) => String(n).padStart(2, "0");
+  // A calendar day in the viewer's own clock, as 'YYYY-MM-DD'.
+  function localDay(ms) {
+    const d = new Date(ms);
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  // When the next automatic payout is made, from the schedule:
+  //   → null                                no schedule read (not linked, or Stripe unread)
+  //   → { interval: 'manual' }              the coach starts payouts in Stripe: no date to give
+  //   → { interval: 'daily' }               every day: no single date worth naming
+  //   → { interval: 'weekly' | 'monthly', date: 'YYYY-MM-DD' }  the next anchor day, today included
+  //                                         unless a payout was already made today
+  // `delayDays` rides along: how long a charge waits before it can be paid out. Weekly on its anchor
+  // weekday; monthly on its anchor day, or the month's last day when the month is shorter (Stripe's rule).
+  function nextPayout(stripe, now = Date.now()) {
+    const s = stripe || {};
+    const sch = s.schedule;
+    if (!sch || !sch.interval) return null;
+    const delayDays = num(sch.delayDays);
+    if (sch.interval === "manual" || sch.interval === "daily") return { interval: sch.interval, delayDays };
+    const today = localDay(now);
+    const paidToday = (Array.isArray(s.payouts) ? s.payouts : []).some((p) => p && num(p.created) != null && localDay(p.created) === today);
+    const start = new Date(now);
+    start.setHours(12, 0, 0, 0);
+    for (let i = paidToday ? 1 : 0; i <= 62; i++) {
+      const d = new Date(start.getTime());
+      d.setDate(d.getDate() + i);
+      if (sch.interval === "weekly") {
+        const want = WEEKDAYS.indexOf(String(sch.weeklyAnchor || "monday").toLowerCase());
+        if (d.getDay() === (want < 0 ? 1 : want)) return { interval: "weekly", date: localDay(d.getTime()), delayDays };
+      } else if (sch.interval === "monthly") {
+        const anchor = Math.max(1, Math.min(31, num(sch.monthlyAnchor) || 1));
+        const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        if (d.getDate() === Math.min(anchor, last)) return { interval: "monthly", date: localDay(d.getTime()), delayDays };
+      } else {
+        return { interval: sch.interval, delayDays };
+      }
+    }
+    return { interval: sch.interval, delayDays };
+  }
+
+  // The payouts of the last `months` months, newest first, for "did it arrive?": paid, on the way,
+  // pending and failed (a cancelled payout moved nothing). Dated by when it lands, else when it was
+  // made. `complete` is false when the read didn't reach back that far (src/lib/stripe.ts stops at
+  // its page ceiling), so a page says the list is cut rather than implying nothing older was paid.
+  // ⚠ A PAYOUT IS NOT SHAPE'S NET: it is what Stripe sent the bank from the coach's whole balance,
+  // which can include their other business and comes after Stripe's card fees. `paidCents` is the
+  // sum of the ones that landed, and a page words it as money sent to the bank, never as earnings.
+  function payoutHistory(stripe, { now = Date.now(), months = 4 } = {}) {
+    const s = stripe || {};
+    const from = new Date(now);
+    from.setMonth(from.getMonth() - months);
+    const fromMs = from.getTime();
+    const at = (p) => num(p.arrivalDate) != null ? p.arrivalDate : num(p.created);
+    const rows = (Array.isArray(s.payouts) ? s.payouts : [])
+      .filter((p) => p && p.status !== "canceled" && at(p) != null && at(p) >= fromMs)
+      .map((p) => ({ id: p.id, amountCents: p.amountCents || 0, status: p.status, at: at(p), currency: p.currency || "usd" }))
+      .sort((a, b) => b.at - a.at);
+    return {
+      rows,
+      from: fromMs,
+      paidCents: rows.filter((r) => r.status === "paid").reduce((t, r) => t + r.amountCents, 0),
+      failed: rows.filter((r) => r.status === "failed").length,
+      complete: !s.payoutsCut && (num(s.payoutsSince) == null || s.payoutsSince <= fromMs),
+    };
+  }
+
+  // What the coach collected, from the routes' `earnings` (src/lib/coach-payments.mjs, read in the
+  // coach's own time zone): this month so far and since they started on Shape. null while it can't
+  // be told: not recorded yet (the migration), or unread. ⚠ NEVER A RUN RATE: the demo prorated the
+  // monthly net by the day of the month, which is an estimate and is labelled as one wherever it shows.
+  function collectedFrom(earnings) {
+    if (!earnings || earnings.state !== "ready" || !earnings.month || !earnings.lifetime) return null;
+    return {
+      month: { from: earnings.month.from, to: earnings.month.to, netCents: earnings.month.netCents, grossCents: earnings.month.grossCents, feeCents: earnings.month.feeCents, refundedCents: earnings.month.refundedCents, payments: earnings.month.payments },
+      lifetime: { since: earnings.lifetime.since, netCents: earnings.lifetime.netCents, grossCents: earnings.lifetime.grossCents, feeCents: earnings.lifetime.feeCents, refundedCents: earnings.lifetime.refundedCents, payments: earnings.lifetime.payments },
+    };
+  }
+
   return {
     FEE_RATE, CARD_PCT, CARD_FIXED_CENTS, BILLING_PCT, processingCents, PACE_DAYS, DEFAULT_RATE_CENTS, CHURN_LIST, CHURN_DAYS, netOf, earn, forecast, earnedOver, monthsTo, paceFrom, lifetime,
     churnWindow, departures, round1, churnPct, todayFrom, listedCents, planNumbers, planStart, rateRange, people, renewalsSum, moneyFrom,
+    nextPayout, payoutHistory, collectedFrom,
   };
 });

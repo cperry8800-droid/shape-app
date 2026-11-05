@@ -31,6 +31,10 @@ import { isRetryableDbError } from '@/lib/db-retryable';
 import { coachPaid, startCoaching, welcomeMember } from '@/lib/coach-thread';
 import { cancelRefundedSession } from '@/lib/refund-session';
 import { announcePayment } from '@/lib/payment-notices';
+// The record of what members paid each coach (coach_payments) and a plan's cancellation on its row.
+// Relative, so every harness that loads this route runs the real modules.
+import { INVOICE_BILLING, invoicePaymentRow, purchasePaymentRow, recordRefunds, savePayment } from '../../../../lib/coach-payments.mjs';
+import { cancellationLands, cancellationPatch, withoutCancellation } from '../../../../lib/plan-cancellation.mjs';
 
 export const runtime = 'nodejs';
 
@@ -691,6 +695,22 @@ export async function POST(request: Request) {
               shapeFeeCents: applicationFeeCents,
               itemName: planSnapshot && typeof planSnapshot.name === 'string' && planSnapshot.name.trim() ? planSnapshot.name.trim() : null,
             });
+            // The coach's money record (coach_payments): what Stripe charged and the fee its payment
+            // carries, as the notices say. Best effort: a miss is logged, and the backfill restores it.
+            await savePayment(admin, purchasePaymentRow({
+              sessionId: session.id,
+              paymentIntentId: pi,
+              account: acct,
+              clientId,
+              providerRole,
+              providerId,
+              kind,
+              grossCents: session.amount_total ?? priceCents,
+              applicationFeeCents,
+              feeBps: purchaseFeeBps,
+              currency: session.currency,
+              paidAt: event.created ?? Date.now(),
+            }));
           }
           // First-dibs: a completed purchase against an invited waitlist slot
           // is the client taking their spot — flip it to booked. Supabase
@@ -868,6 +888,24 @@ export async function POST(request: Request) {
             provider: { role: providerRole, id: Number(providerId) },
             shapeFeeCents: splitAtBps(firstMonthCents, subFeeBps)?.shape ?? null,
           });
+          // The first month in the coach's money record (coach_payments), keyed on its INVOICE: invoice.paid
+          // writes the same row from the same invoice, so whichever event lands first, the month is one
+          // row. It is read from Stripe here because invoice.paid can arrive before this checkout's
+          // subscription row exists, and then finds no plan to record against.
+          const firstInvoice = idOf(session.invoice);
+          if (firstInvoice) {
+            try {
+              const inv = await stripe.invoices.retrieve(firstInvoice, undefined, acctOpts(acct));
+              await savePayment(admin, invoicePaymentRow(inv, {
+                client_id: clientId, provider_role: providerRole, provider_id: Number(providerId), fee_bps: subFeeBps,
+                stripe_subscription_id: subRow.stripe_subscription_id,
+              }, { account: acct, fallbackPaidAt: event.created ?? Date.now() }));
+            } catch (err) {
+              console.error('[coach-payments] first month NOT RECORDED: its invoice could not be read — invoice.paid or the backfill restores it', {
+                session: session.id, invoice: firstInvoice, account: acct, error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          }
         }
         // First-dibs: a completed subscription against an invited waitlist
         // slot is the client taking their spot — flip it to booked. Check the
@@ -952,10 +990,39 @@ export async function POST(request: Request) {
         // ⚠ A CANCELLED SUBSCRIPTION STAYS CANCELLED (L9). Stripe never reopens one, so an update
         // event that still says otherwise is an older one delivered late, and moved the row back.
         const notReopened = <Q extends { neq: (c: string, v: string) => Q }>(q: Q) => (status === 'canceled' ? q : q.neq('status', 'canceled'));
-        await notReopened(onAccount(admin
+        // ⚠ THE CANCELLATION IS KEPT ON THE ROW (2026-11-05). Only status and period end were written, so
+        // a member who cancelled kept an `active` row and only a live Stripe read inside a 7-day window
+        // could tell. Whether it is set to end and when, when it was asked for and ended, and Stripe's
+        // cancellation_details land with the status, unless the row holds a newer cancellation than this
+        // event (an older update delivered late must not read "renews" again; a deletion always lands).
+        // Before 2026-11-05-subscription-cancellations.sql the columns are absent and the write retries
+        // without them, so the status still moves.
+        const eventAt = typeof event.created === 'number' && Number.isFinite(event.created) ? event.created : Math.floor(Date.now() / 1000);
+        let landCancel = true;
+        const { data: prior, error: priorErr } = await onAccount(admin
           .from('subscriptions')
-          .update(patch)
+          .select('*')
+          .eq('stripe_subscription_id', sub.id))
+          .maybeSingle();
+        if (!priorErr && prior) {
+          landCancel = cancellationLands((prior as { cancel_synced_at?: string | null }).cancel_synced_at ?? null, eventAt, event.type === 'customer.subscription.deleted');
+        }
+        const withCancel = landCancel
+          ? { ...patch, ...cancellationPatch(sub), cancel_synced_at: new Date(eventAt * 1000).toISOString() }
+          : patch;
+        const { error: subUpdateErr } = await notReopened(onAccount(admin
+          .from('subscriptions')
+          .update(withCancel)
           .eq('stripe_subscription_id', sub.id)));
+        if (subUpdateErr && landCancel && isUndefinedColumn(subUpdateErr)) {
+          console.warn('[stripe webhook] cancellation columns not there yet — status written without them; run 2026-11-05-subscription-cancellations.sql', { subscription: sub.id });
+          await notReopened(onAccount(admin
+            .from('subscriptions')
+            .update(withoutCancellation(withCancel))
+            .eq('stripe_subscription_id', sub.id)));
+        } else if (subUpdateErr) {
+          console.error('[stripe webhook] subscription update failed', { subscription: sub.id, error: subUpdateErr.message, code: subUpdateErr.code });
+        }
         // The membership is Shape's own account's alone: a Connect event never touches it.
         if (acct) break;
         const { error: platformError } = await notReopened(admin
@@ -1097,6 +1164,10 @@ export async function POST(request: Request) {
             }
           }
         }
+        // Each refund of a coach payment as its own negative row in coach_payments, dated when it was
+        // refunded, with Shape's fee going back in proportion (as reconcileConnectRefund returns it).
+        // A charge that is no recorded coach payment (the membership) writes nothing. Never throws.
+        await recordRefunds(admin, stripe, charge, { account: acct, opts: acctOpts(acct), invoiceId });
         break;
       }
 
@@ -1114,14 +1185,18 @@ export async function POST(request: Request) {
       }
 
       case 'invoice.paid': {
-        // A subscription's later month went through: the member's receipt, the owners' notice and,
-        // for a coach's plan, the coach's (payment-notices.ts). The first month is announced by
-        // checkout.session.completed, so only a cycle's invoice counts, and only one that took money.
+        // A subscription's month went through. A coach plan's paid invoice is recorded in the coach's
+        // money record (coach_payments): its first month, every renewal, and a mid-period change. Only
+        // a later month (a cycle's invoice) is announced here: the member's receipt, the owners' notice
+        // and the coach's (payment-notices.ts); the first month is announced by
+        // checkout.session.completed, which records it too, from the same invoice.
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.billing_reason !== 'subscription_cycle' || !(invoice.amount_paid > 0) || !invoice.id) break;
+        if (!INVOICE_BILLING[String(invoice.billing_reason)] || !(invoice.amount_paid > 0) || !invoice.id) break;
+        const renewal = invoice.billing_reason === 'subscription_cycle';
         const subId = extractSubscriptionId(invoice);
         if (!subId) break;
-        // The membership is sold on Shape's own account only.
+        // The membership is sold on Shape's own account only. ⚠ IT IS NOT COACH MONEY: it is never
+        // recorded in coach_payments, only announced on a renewal.
         if (!acct) {
           const { data: membership, error: membershipErr } = await admin
             .from('platform_subscriptions')
@@ -1133,7 +1208,7 @@ export async function POST(request: Request) {
           }
           const memberId = (membership as { client_id?: string | null } | null)?.client_id;
           if (memberId) {
-            await announcePayment(admin, { key: invoice.id, clientId: memberId, amountCents: invoice.amount_paid, paidFor: 'membership', renewal: true });
+            if (renewal) await announcePayment(admin, { key: invoice.id, clientId: memberId, amountCents: invoice.amount_paid, paidFor: 'membership', renewal: true });
             break;
           }
         }
@@ -1144,11 +1219,19 @@ export async function POST(request: Request) {
         if (acct) planQuery = planQuery.eq('stripe_account_id', acct);
         const { data: plan, error: planErr } = await planQuery.maybeSingle();
         if (planErr) {
-          console.error('[stripe webhook] renewal: subscription read failed — no notice', { invoice: invoice.id, error: planErr.message });
+          console.error('[stripe webhook] renewal: subscription read failed — no notice, not recorded', { invoice: invoice.id, error: planErr.message });
+          // A read that can pass is answered 503 so Stripe sends it again: the payment is not recorded yet.
+          if (isRetryableDbError(planErr)) {
+            return NextResponse.json({ received: false, retry: true, error: 'plan not read' }, { status: 503 });
+          }
           break;
         }
         const row = plan as { client_id?: string | null; provider_id?: number | null; provider_role?: string | null; fee_bps?: number | null } | null;
         if (!row?.client_id || !row.provider_id || (row.provider_role !== 'trainer' && row.provider_role !== 'nutritionist')) break;
+        await savePayment(admin, invoicePaymentRow(invoice, { ...row, stripe_subscription_id: subId }, {
+          account: acct, subscriptionId: subId, fallbackPaidAt: event.created ?? Date.now(),
+        }));
+        if (!renewal) break;
         const split = splitAtBps(invoice.amount_paid, row.fee_bps);
         await announcePayment(admin, {
           key: invoice.id,

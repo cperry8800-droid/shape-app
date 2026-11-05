@@ -498,17 +498,21 @@ export type PortalStripe = {
  * A billing-portal page for the member's customer on a coach's account. ⚠ A COACH'S ACCOUNT HAS NO
  * PORTAL OF ITS OWN until the coach saves one in their dashboard, and one they saved could offer
  * anything. So Shape makes its own configuration on the account once (kept in
- * stripe_account_portal): the card, past invoices, and cancel at the period's end. No plan
- * switching: a coach's price is set on Shape.
+ * stripe_account_portal): the card and past invoices. No plan switching: a coach's price is set
+ * on Shape.
+ * ⚠ NO CANCEL BUTTON HERE (owner, 2026-11-05: "user types response"). A member cancels a coach plan
+ * in Shape's own step (POST /api/stripe/cancel-plan, the app's Settings and the website's Me page),
+ * which asks why in their own words and cancels at the period's end through Stripe. The portal's
+ * own cancel would skip that question, so it is off.
  * ⚠ THE COACH CAN EDIT IT (Codex on #2403): it lives on their account, and Stripe lets the account
- * update a configuration's features, so a saved one could have lost the member's cancel. Shape's
- * features are written back onto it before every session, and one the account no longer has is
- * made again (replacing the saved id only where it still names the old one).
+ * update a configuration's features. Shape's features are written back onto it before every
+ * session, and one the account no longer has is made again (replacing the saved id only where it
+ * still names the old one).
  */
-const SHAPE_PORTAL_FEATURES = {
+export const SHAPE_PORTAL_FEATURES = {
   payment_method_update: { enabled: true },
   invoice_history: { enabled: true },
-  subscription_cancel: { enabled: true, mode: 'at_period_end' },
+  subscription_cancel: { enabled: false },
   customer_update: { enabled: false },
   subscription_update: { enabled: false },
 };

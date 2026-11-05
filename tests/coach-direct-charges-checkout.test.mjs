@@ -453,7 +453,9 @@ test('the portal on a coach\'s account uses Shape\'s own configuration, made onc
   assert.equal(url, 'https://billing.stripe.test/s');
   const [, params, opts] = calls[0];
   assert.deepEqual(opts, { stripeAccount: ACCT, idempotencyKey: `shape-portal-${ACCT}` });
-  assert.deepEqual(params.features.subscription_cancel, { enabled: true, mode: 'at_period_end' });
+  // ⚠ No cancel here since 2026-11-05 (owner: "user types response"): a member cancels in Shape's own
+  // step (POST /api/stripe/cancel-plan), which asks why; the portal's cancel would skip the question.
+  assert.deepEqual(params.features.subscription_cancel, { enabled: false });
   assert.equal(params.features.subscription_update.enabled, false, 'no plan switching: the price is set on Shape');
   assert.deepEqual(calls[1], ['session', { customer: 'cus_onCoach', configuration: 'bpc_1', return_url: 'https://shape.test/m/' }, { stripeAccount: ACCT }]);
   assert.deepEqual(db.tables.stripe_account_portal, [{ stripe_account_id: ACCT, configuration_id: 'bpc_1' }]);

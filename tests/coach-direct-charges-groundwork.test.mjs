@@ -507,7 +507,13 @@ test('webhook: a Connect subscription change finds only its own account\'s row, 
   assert.deepEqual(upd.eqs, [['stripe_subscription_id', 'sub_d1'], ['stripe_account_id', ACCT]]);
   assert.deepEqual(r.db.tables.subscriptions.map((s) => [s.stripe_account_id, s.status, s.price_cents]), [[ACCT, 'past_due', 21000], [OTHER_ACCT, 'active', 18000]], 'the other account\'s row is untouched');
   const gone = await runWebhook(changed('customer.subscription.deleted'), { tables: tables() });
-  assert.deepEqual(stmts(gone.db.calls, 'subscriptions', 'update')[0].payload, { status: 'canceled', current_period_end: '2027-01-15T08:00:00.000Z' }, 'a deletion writes no price');
+  const goneUpd = stmts(gone.db.calls, 'subscriptions', 'update')[0].payload;
+  assert.equal(goneUpd.status, 'canceled');
+  assert.equal(goneUpd.current_period_end, '2027-01-15T08:00:00.000Z');
+  assert.ok(!('price_cents' in goneUpd), 'a deletion writes no price');
+  // Since 2026-11-05 the cancellation rides along (plan-cancellation.mjs cancellationPatch).
+  assert.equal(goneUpd.cancel_at_period_end, false);
+  assert.ok('ended_at' in goneUpd && 'cancel_synced_at' in goneUpd);
   const notShape = await runWebhook(changed('customer.subscription.updated', { application: 'ca_someoneElse' }), { tables: tables() });
   assert.equal(stmts(notShape.db.calls, 'subscriptions', 'update').length, 0, 'a subscription Shape did not make is ignored');
   // A platform change writes no price and no account filter: as before.

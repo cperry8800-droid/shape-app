@@ -182,7 +182,8 @@ test('the two routes are not one file', () => {
   const t = readFileSync(join(ROOT, 'src/app/api/trainer/analytics/route.ts'), 'utf8')
   const n = readFileSync(join(ROOT, 'src/app/api/nutritionist/analytics/route.ts'), 'utf8')
   assert.notEqual(t, n)
-  assert.match(t, /\.from\('trainers'\)\s+\.select\('id, stripe_account_id, stripe_account_status'\)/)
+  // '*' since 2026-11-05: it carries the coach's time zone for what they collected this month.
+  assert.match(t, /\.from\('trainers'\)\s+(?:\/\/[^\n]*\n\s+)*\.select\('\*'\)/)
   assert.match(t, /return NextResponse\.json\(\{ isTrainer: false \}\);/)
 })
 
@@ -1124,4 +1125,24 @@ test('nutritionist: the ticker sends no newClients7d, and no count of new subscr
   assert.ok(body.ticker && !('newClients7d' in body.ticker), JSON.stringify(body.ticker))
   assert.ok(!calls.some((c) => c.table === 'subscriptions' && (has(c, 'gte', 'created_at') || c.ops.some((o) => o[0] === 'select' && o[2]?.head === true))),
     'no count of the subscriptions created this week is read')
+})
+
+// ── What the coach collected, and why a client left (2026-11-05) ─────────────
+test('both routes send what the coach collected (coach_payments, in the coach\'s zone) and the member\'s own reason for leaving', async () => {
+  const E = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const day = 86400000
+  const ago = (d) => new Date(Date.now() - d * day).toISOString()
+  for (const [role, listing] of [['trainer', { trainers: [{ id: 7, stripe_account_id: null, stripe_account_status: null, timezone: 'America/New_York' }] }], ['nutritionist', { nutritionists: [{ id: 9, stripe_account_id: null, stripe_account_status: null, timezone: 'America/New_York' }] }]]) {
+    const subs = [{ ...sub(E, 14000), id: 'r1', provider_role: role, created_at: ago(160), status: 'canceled', current_period_end: ago(40), member_cancel_reason: 'Budget. Back in the fall.' }]
+    const paid = [{ id: 'p1', provider_role: role, provider_id: 7, paid_at: ago(0), gross_cents: 14000, shape_fee_cents: 2100, coach_net_cents: 11900, billing: 'renewal', currency: 'usd' }]
+    const { body } = await loadRoute(role, { ...listing, subscriptions: subs, coach_payments: paid }, { rpcs: lifts({}), honorStatus: true })
+    assert.equal(body.churn[0].reason, 'Budget. Back in the fall.', role + ': the member\'s words reach their coach')
+    assert.equal(body.earnings.state, 'ready', role)
+    assert.equal(body.earnings.zone, 'America/New_York', role + ': the coach\'s own zone')
+    assert.equal(body.earnings.lifetime.netCents, 11900, role)
+    // Not set up yet: said, never a $0 month.
+    const early = await loadRoute(role, { ...listing, subscriptions: subs }, { rpcs: lifts({}), honorStatus: true, errors: { coach_payments: 'relation "coach_payments" does not exist' } })
+    assert.equal(early.body.earnings.state, 'unread', role)
+    assert.equal(early.body.churn[0].reason, 'Budget. Back in the fall.')
+  }
 })

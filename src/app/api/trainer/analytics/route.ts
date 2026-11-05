@@ -18,6 +18,10 @@ import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { profileNames } from '@/lib/client-names';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 import { rosterZones, memberWindow, rosterReadBounds } from '@/lib/roster-days';
+// What the coach collected (coach_payments) and why a plan ended, both by relative path so the test
+// harnesses that load this route run the real modules.
+import { coachEarnings } from '../../../../lib/coach-payments.mjs';
+import { churnReason } from '../../../../lib/plan-cancellation.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -74,7 +78,9 @@ export async function GET(request: Request) {
 
   const { data: trainerRow, error: trainerErr } = await supabase
     .from('trainers')
-    .select('id, stripe_account_id, stripe_account_status')
+    // '*' carries the coach's own time zone (2026-09-11-provider-timezone.sql) for what they collected
+    // this month, and is migration-safe.
+    .select('*')
     .eq('owner_id', user.id)
     .maybeSingle();
 
@@ -447,7 +453,9 @@ export async function GET(request: Request) {
       startedAt: r.created_at ?? null,
       endedAt: end.endedAt == null ? null : new Date(end.endedAt).toISOString(),
       priceCents: r.price_cents ?? null,
-      reason: null, // collects once the cancellation survey ships
+      // The member's own words from Shape's cancel step (or Stripe's comment), private to this coach:
+      // the rows are this coach's own (RLS). null when they gave none.
+      reason: churnReason(r),
     };
   });
 
@@ -455,11 +463,14 @@ export async function GET(request: Request) {
   // member who cancelled keeps an active row until the period ends (src/lib/coach-renewals.mjs).
   // Built from the active subscriptions: when they could not be read, neither can this.
   const due = subsUnknown || !wantRenewals ? [] : pickRenewals(subs as RenewalSource[]);
-  const [stripeSummary, cancelFlags] = await Promise.all([
+  const [stripeSummary, cancelFlags, earnings] = await Promise.all([
     loadStripe(trainerRow.stripe_account_id ?? null, trainerRow.stripe_account_status ?? null),
     // Each with the account it lives on: a coach's own account (direct charges) is listed once,
     // a legacy platform row is asked on its own (src/lib/stripe.ts).
     loadCancelFlags(due.filter((r) => !!r.stripe_subscription_id).map((r) => ({ id: String(r.stripe_subscription_id), account: r.stripe_account_id ?? null })), RENEWAL_CHECK_CAP),
+    // What members actually paid this coach (coach_payments), this month so far and lifetime, in the
+    // coach's own time zone. ⚠ Unread or not set up is said as such, never as a $0 month.
+    coachEarnings(supabase, { role: 'trainer', providerId, zone: typeof (trainerRow as { timezone?: unknown }).timezone === 'string' ? (trainerRow as { timezone?: string }).timezone : null }),
   ]);
   const renewals = subsUnknown
     ? null
@@ -513,5 +524,7 @@ export async function GET(request: Request) {
       avgAdherencePct,
     },
     stripe: stripeSummary,
+    // Collected money (coach_payments): { state: 'ready', month, lifetime, … } | { state: 'not_set_up' | 'unread' }.
+    earnings,
   });
 }

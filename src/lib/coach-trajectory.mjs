@@ -26,8 +26,9 @@
 // keeps a current_period_end in the FUTURE. Reading that verbatim counts them
 // as active today and buckets their departure into a week beyond the series,
 // where it is never drawn. The status says they are gone, so the span closes at
-// the earlier of its period end and now. (The optional canceled_at / ended_at
-// reads below cost nothing and would be exact if a migration ever adds them.)
+// the earlier of its period end and now. (ended_at, then canceled_at, are read
+// first: 2026-11-05-subscription-cancellations.sql adds them and the webhook
+// writes them from Stripe, so a row synced since then closes exactly.)
 //
 // ⚠ THE HISTORY IS RECONSTRUCTED FROM THE CURRENT STATUS, so a member who
 // paused and resumed reads as continuously active: the row remembers only where
@@ -84,7 +85,11 @@ export function subNeverStarted(row) {
 export function subEndedAt(row, now = Date.now()) {
   if (!row || subNeverStarted(row)) return null;
   if (OPEN_STATUSES.has(String(row.status || '').toLowerCase())) return null;
-  const at = ms(row.canceled_at) ?? ms(row.ended_at) ?? ms(row.current_period_end) ?? ms(row.updated_at) ?? ms(row.created_at);
+  // ⚠ ENDED, NOT CANCELLED, FIRST (2026-11-05, when the webhook began storing both). Stripe's
+  // canceled_at is when the cancellation was ASKED for: a member who cancels on Oct 5 at period end
+  // keeps paying until Nov 1, and dated by canceled_at they would have "left" a month early.
+  // ended_at is when the plan actually ended.
+  const at = ms(row.ended_at) ?? ms(row.canceled_at) ?? ms(row.current_period_end) ?? ms(row.updated_at) ?? ms(row.created_at);
   if (at == null) return null;
   return Math.min(at, now);
 }
