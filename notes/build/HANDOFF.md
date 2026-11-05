@@ -25,12 +25,8 @@ branch `claude/backup-plan-notes`: `git fetch origin claude/backup-plan-notes &&
 - **The session branch can't be force-pushed.** After a squash merge, reset to main and `git merge -s ours origin/<branch>` the old tip, then push normally.
 - **House rules:** AGENTS.md and docs/WORKLOG.md. Commits use `SKIP_VERIFY=1` with the tests run named, and the attribution trailers.
 
-## Work left, in order
-1. **Follow-ups from #2622**, one small PR:
-   - **The app posts every coach role it holds.** `mobile-app/src/services/shapeBackend.js` around lines 10070–10104 builds one roster from `state.profile.role` with one shared throttle. Post each held role (trainer and nutritionist; dietitian counts as nutritionist), with a throttle per role. An account whose primary role is `client` posts no coach roster today. (Codex on #2622.)
-   - **The roster's PROGRAM column per role.** `dashProgramLabel` in `public/newdesign/dashRoster.jsx` still reads the single `program`. Read `programs[role]`, as the engine now does.
-   - **The P2 mutation spec's stale anchors.** In `tests/mutations/coach-signals-p2-2026-11-05.mutations.mjs`, `ruleMissedSessions(c)` and `v > 5` no longer exist after #2621's review fixes, so `--fail-on-skipped` reports skips.
-2. **P9, time zones.** Owner: "all time zones should be set by user", and other people's times "should automatically update to their own timezone".
+## Work left, in order (owner, 2026-11-05: "the time zone build, then the dashboard")
+1. **P9, time zones.** Owner: "all time zones should be set by user", and other people's times "should automatically update to their own timezone".
    - **Phase 1:**
      - one zone per account: a `profiles.timezone` migration, backfilled and mirrored to `trainers`/`nutritionists`/`client_profiles.timezone`;
      - an API the app can call (Bearer);
@@ -40,15 +36,19 @@ branch `claude/backup-plan-notes`: `git fetch origin claude/backup-plan-notes &&
    - **Apply it first to:** the coach dashboard routes' `dayZone`; coach Today/Week/Schedule, including the week-ahead panel (`dashCalDate`/`dashCalTime`); booking slots in the member's zone; session lists in the app.
    - **Phase 2:** the rest of the ~360 device-zone call sites in 74 files.
    - The full brief is P9 in PLAN.md.
-3. **The new coach dashboard front-end, for all coaches.** No owner-only switch. Build it in the review's order, printing times through P9's formatter. The review artifacts are in the owner's claude.ai artifacts ("coach review").
-4. **P3–P7, saved on backup branches.** Rebase each onto main and land one PR at a time, each with its own migration if it has one:
-   - `claude/backup-p3-money` (money records, Stripe; a mutation round is required);
-   - `claude/backup-p4-goals-programs`;
-   - `claude/backup-p5-programs-messaging`;
-   - `claude/backup-p6-builders-nora`;
-   - `claude/backup-p7-parity`.
-5. **P8, member profile privacy.** Accepted followers see everything; withhold points from `get_public_profile` for viewers the profile isn't open to. See PLAN.md.
-6. **The War Room (`src/lib/warroom.ts`) and `docs/WORKLOG.md` updates** for #2620–#2622 and everything after, as the last commit of the last PR in flight (house rule). They were NOT done for #2620–#2622.
+2. **The new coach dashboard front-end, for all coaches.** No owner-only switch. Build it in the review's order, printing times through P9's formatter. The review artifacts are in the owner's claude.ai artifacts ("coach review").
+   - **Fold in #2622's small follow-ups:**
+     - The app posts every coach role it holds. `mobile-app/src/services/shapeBackend.js` around lines 10070–10104 builds one roster from `state.profile.role` with one shared throttle. Post each held role (dietitian counts as nutritionist), with a throttle per role. (Codex on #2622.)
+     - The roster's PROGRAM column per role. `dashProgramLabel` in `public/newdesign/dashRoster.jsx` should read `programs[role]`.
+     - The P2 mutation spec's stale anchors: `ruleMissedSessions(c)` and `v > 5` in `tests/mutations/coach-signals-p2-2026-11-05.mutations.mjs`.
+   - **P3–P7 are already built, on backup branches.** Land each as the dashboard's widgets need it: rebase onto main, one PR at a time, each with its own migration if it has one.
+     - `claude/backup-p3-money` (money records, Stripe; a mutation round is required);
+     - `claude/backup-p4-goals-programs`;
+     - `claude/backup-p5-programs-messaging`;
+     - `claude/backup-p6-builders-nora`;
+     - `claude/backup-p7-parity`.
+3. **Later:** P8, member profile privacy. Accepted followers see everything; withhold points from `get_public_profile` for viewers the profile isn't open to. See PLAN.md.
+4. **The War Room (`src/lib/warroom.ts`) and `docs/WORKLOG.md` updates** for #2620–#2622 and everything after, as the last commit of the last PR in flight (house rule). They were NOT done for #2620–#2622.
 
 ## Worth proposing
 - **Split CI's test job across 4 machines** (`node --test --test-shard=N/4` in a matrix, plus a gate job named "Tests (unit + mount)"). It would cut each wait from about 15 minutes to about 5. The owner hasn't answered this yet.
