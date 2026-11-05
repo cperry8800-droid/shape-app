@@ -513,16 +513,19 @@ test('website: a coach\'s Message with the client id opens the thread the client
   assert.match(src, /function dashMessageClient\(name, role, draft, clientId\) \{\s+const href = dashMessageHref\(role, clientId, draft\);\s+if \(href\) \{ window\.location\.href = href; return; \}/);
   // The coach call sites pass the id they hold.
   for (const [file, call] of [
-    ['public/newdesign/dashRoster.jsx', 'dashMessageDraft(row) : null, rec.profile.id)'],
+    // The drawer's and the pulse's move (P2): the coach action, whose message carries the id.
+    ['public/newdesign/dashRoster.jsx', 'dashMessageClient(rec.profile.name, role, null, rec.profile.id)'],
+    ['public/newdesign/dashToday.jsx', 'return dashMessageClient(name, role, kind === "message" ? action.draft || null : null, id);'],
+    ['public/newdesign/dashToday.jsx', 'dashMessageClient(c.profile.name, role, null, c.profile.id)'],
     ['public/newdesign/dashWeek.jsx', 'dashMessageDraft(row) : null, rec.profile.id)'],
     ['public/newdesign/dashMealBuilder.jsx', 'build your first week.", c.profile.id)'],
     ['public/newdesign/dashToday.jsx', 'dashCongratsDraft(r.client, r.hit), r.client.profile.id)'],
-    ['public/newdesign/dashToday.jsx', 'dashMessageDraft(r), c.profile.id)'],
     ['public/newdesign/dashToday.jsx', 'Well done!" : undefined, m.id)'],
     ['public/newdesign/dashToday.jsx', 'proudest of so far?", h.id)'],
     ['public/newdesign/dashToday.jsx', '". ", open.clientId)'],
     // Codex on #2360, fifth round: the joint note between a client's two coaches went to the bubble.
-    ['public/newdesign/dashToday.jsx', 'dashJointDraft(j, role), j.client.profile.id)'],
+    // P2: it is the two coaches' own note now, in their private care-team thread with the co-coach.
+    ['public/newdesign/dashToday.jsx', 'body: JSON.stringify({ counterpartUserId: co.userId }),'],
     ['public/newdesign/coachClientDetail.jsx', 'dashMessageClient(data.client.name, myRole, undefined, clientId)'],
   ]) assert.ok(read(file).includes(call), `${file}: ${call}`);
   // The standalone client page (no dashboard helper) goes to the same page.

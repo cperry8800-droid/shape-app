@@ -555,6 +555,7 @@ async function _dashReadReviews() {
 // (DashSignals.engineSnapshot: no notes, intake or check-in text), at most every 30 minutes per role;
 // quiet hours, the daily cap and the alert switches are applied server-side as for the app's post.
 const DASH_NOTIFY_EVERY_MS = 30 * 60 * 1000;
+const DASH_REVIEWS_EVENT = "shape:coach-reviews-changed";
 function dashPostNotifySnapshot(role, records) {
   try {
     if (role !== "trainer" && role !== "nutritionist") return false;
@@ -729,6 +730,13 @@ function useDashboard(role, opts) {
     // eslint-disable-next-line
     [role, clients, thresholdSig]
   );
+  // A check-in marked reviewed on Today or the Week page: re-read the reviews so it stops waiting here.
+  React.useEffect(() => {
+    if (role === "client") return undefined;
+    const onReviews = () => { _dashReadReviews().then((reviews) => { if (reviews) setCoachCtx((c) => ({ ...c, reviews })); }).catch(() => {}); };
+    window.addEventListener(DASH_REVIEWS_EVENT, onReviews);
+    return () => window.removeEventListener(DASH_REVIEWS_EVENT, onReviews);
+  }, [role]);
   // Dismiss (until the reason changes) or snooze (until `until`) one reason on one client, and undo it.
   // Optimistic: the row updates at once, and a write that fails puts it back and answers false.
   const setDismissal = React.useCallback(async (clientId, flag, until) => {
@@ -1027,13 +1035,18 @@ function useCoachDoc(goalKind, live, accountId) {
 function useCoachWeekReviews(live) {
   const account = useSignedIn();
   const store = useCoachDoc("coach_week_reviews", live && !!account, account);
-  const apply = (patches) => store.apply((doc) => {
-    const next = { ...doc };
-    for (const { weekOf, clientId, patch } of patches) {
-      next[weekOf] = { ...next[weekOf], [clientId]: { ...(next[weekOf] || {})[clientId], ...patch } };
-    }
-    return next;
-  });
+  const apply = (patches) => {
+    const done = store.apply((doc) => {
+      const next = { ...doc };
+      for (const { weekOf, clientId, patch } of patches) {
+        next[weekOf] = { ...next[weekOf], [clientId]: { ...(next[weekOf] || {})[clientId], ...patch } };
+      }
+      return next;
+    });
+    // The engine's "check-in waiting" reads these reviews (P2): useDashboard re-reads them on this.
+    Promise.resolve(done).then(() => { try { window.dispatchEvent(new CustomEvent(DASH_REVIEWS_EVENT)); } catch (e) {} }, () => {});
+    return done;
+  };
   return { ...store, kind: live && account === undefined ? "loading" : live && account === null ? "signedout" : store.kind, apply, accountId: account };
 }
 
