@@ -50,5 +50,19 @@ branch `claude/backup-plan-notes`: `git fetch origin claude/backup-plan-notes &&
 3. **Later:** P8, member profile privacy. Accepted followers see everything; withhold points from `get_public_profile` for viewers the profile isn't open to. See PLAN.md.
 4. **The War Room (`src/lib/warroom.ts`) and `docs/WORKLOG.md` updates** for #2620–#2622 and everything after, as the last commit of the last PR in flight (house rule). They were NOT done for #2620–#2622.
 
+## How to run the build agents (what worked here)
+- **One fresh agent per package, briefed like a peer.** Give it the goal and the owner's words; the exact files and line numbers; what other agents are touching right now (so it stays out); and the rules: targeted tests only (never `npm test`), `npx tsc --noEmit` once, parse-check the JSX, commit locally with `SKIP_VERIFY=1` and the trailers, no push, no PR. End with a report: commits, tests with counts, migration and what happens before it runs, open decisions.
+- **Run each agent in its own worktree** (`isolation: "worktree"`), in the background. One or two at a time, never more. Their full-suite runs and parallel builds starved the machine before.
+- **Base an agent on the right commit.** Give it `git checkout -b <name> <sha>`. After the PR before it squash-merges, `git rebase --onto origin/<session-branch> <old-base> <branch>`, then check `git diff <agent-head> HEAD` is empty when main's tree equals the old base. If it is, the agent's test results still hold.
+- **Review what it hands back before pushing.** Read every migration's SQL yourself: it runs on the live database. Check that it holds one transaction, is idempotent, drops nothing it didn't make, and ends in a guard. Run it twice on a local PostgreSQL 16 (`/usr/lib/postgresql/16/bin`, `initdb` as `postgres` under `/tmp`) after the migration it builds on, with a few seeded rows.
+- **Migrations:** no `execute` (dynamic SQL) inside a DO block, because `tests/definer-grants.test.mjs` can't model it. Drop a constraint by its name, checked live.
+- **Codex review rounds.** Fix every finding in one push, so CI restarts once. Answer each finding on its thread and resolve it. For each fix:
+  - add a test that fails without it;
+  - break the fix by hand, a few ways, and confirm the test fails;
+  - run the package's mutation spec with `--fail-on-skipped`, after moving its anchors to any lines the fix changed. The tool refuses a dirty tree, so commit first.
+- **When a round only finds edge cases** (the owner's own dual-role account, a role no one has), ask the owner. They usually choose to merge and fix the rest in the next PR.
+- **A CI failure:** download the job log (`get_job_logs` returns a URL; curl it), grep `not ok`, reproduce the failure locally, fix it, and show the same test passing.
+- **Usage:** a package agent costs roughly 150–500k tokens, and the long main conversation costs the most per turn. Keep the main session's turns few: batch fixes, don't poll, and let the owner say "check reviews".
+
 ## Worth proposing
 - **Split CI's test job across 4 machines** (`node --test --test-shard=N/4` in a matrix, plus a gate job named "Tests (unit + mount)"). It would cut each wait from about 15 minutes to about 5. The owner hasn't answered this yet.
