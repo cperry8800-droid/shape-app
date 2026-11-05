@@ -105,7 +105,7 @@ async function loadRoute(role, tables, { query = '', fail = [] } = {}) {
   Date.now = () => NOW;
   try {
     const res = await route.GET(new Request(`https://shape.test/api/${role}/dashboard${query}`));
-    return { status: res.status, body: await res.json(), calls: db.calls };
+    return { status: res.status, body: await res.json(), calls: db._calls };
   } finally {
     Date.now = realNow;
   }
@@ -153,6 +153,100 @@ for (const role of ['trainer', 'nutritionist']) {
     assert.equal(body.kpis[t], 4, 'all four sessions fall in the New York week of 2 Nov');
   });
 }
+
+// ── The funnel's consults are intros (2026-11-05) ──────────────────────────
+// "Consults booked" counted every one of the coach's sessions in 90 days, any kind and any status,
+// from the 500-row calendar read. A consult is an intro the coach took on, counted in the database.
+const DAY = 86400_000;
+function funnelPractice(role) {
+  const s = (daysAgo, o) => session(NOW - daysAgo * DAY, { provider_role: role, ...o });
+  return {
+    ...practice(role, 'America/New_York'),
+    sessions: [
+      s(3, { intro: true, status: 'completed' }),
+      s(10, { intro: true, status: 'confirmed' }),           // past, unmarked: still a consult held
+      s(20, { intro: true, status: 'cancelled' }),
+      s(25, { intro: true, status: 'declined' }),
+      s(30, { intro: true, status: 'requested' }),           // never taken on
+      s(95, { intro: true, status: 'completed' }),           // outside the 90 days
+      s(-2, { intro: true, status: 'confirmed' }),           // booked for next week: not yet held
+      s(4, { intro: true, status: 'completed', provider_id: 8 }),   // another coach's
+      ...Array.from({ length: 12 }, (_, i) => s(1 + i * 7, { status: 'completed' })),   // the regulars
+    ],
+  };
+}
+
+for (const role of ['trainer', 'nutritionist']) {
+  test(`${role}: consults are intros taken on in the last 90 days, not every session`, async () => {
+    const { body, calls } = await loadRoute(role, funnelPractice(role));
+    assert.equal(body.funnel.consults90, 2, 'the completed and the confirmed intro');
+    // Counted in the database: a head count, not the capped calendar.
+    assert.ok(calls.some((c) => c.table === 'sessions' && c.limit == null), 'its own count query');
+  });
+
+  test(`${role}: an intro count that fails is unread, not every session and not 0`, async () => {
+    const tables = funnelPractice(role);
+    // Fail only the count (the calendar read of sessions still answers): drop the column the
+    // count filters on, as a database without 2026-10-15-intro-length.sql would.
+    const db = fakeSupabase({ tables });
+    const from = db.from;
+    db.from = (table) => {
+      const chain = from(table);
+      if (table !== 'sessions') return chain;
+      const eq = chain.eq;
+      let intro = false;
+      chain.eq = (col, v) => { if (col === 'intro') intro = true; return eq(col, v); };
+      const then = chain.then;
+      chain.then = (res, rej) => (intro ? Promise.resolve({ data: null, count: null, error: { message: 'column sessions.intro does not exist' } }).then(res, rej) : then(res, rej));
+      return chain;
+    };
+    db.auth = { getUser: async () => ({ data: { user: COACH } }) };
+    const ts = (p, registry = new Map()) => loadRealModule(join(ROOT, p), { typescript: true, registry });
+    const trajectory = await import(pathToFileURL(join(ROOT, 'src/lib/coach-trajectory.mjs')).href);
+    const readAll = await ts('src/lib/read-all-by-id.ts');
+    const route = await loadRealModule(join(ROOT, `src/app/api/${role}/dashboard/route.ts`), {
+      typescript: true,
+      registry: new Map([
+        ['next/server', nextServer],
+        ['@/lib/supabase/server', { createClient: async () => db }],
+        ['@/lib/time', await ts('src/lib/time.ts')],
+        ['@/lib/coach-growth', await ts('src/lib/coach-growth.ts', new Map([['@/lib/coach-trajectory.mjs', trajectory], ['@/lib/read-all-by-id', readAll]]))],
+        ['@/lib/platform-fee', await import(pathToFileURL(join(ROOT, 'src/lib/platform-fee.mjs')).href)],
+        ['@/lib/coach-trajectory.mjs', trajectory],
+        ['@/lib/read-all-by-id', readAll],
+      ]),
+    });
+    const warn = console.warn; console.warn = () => {};
+    let body;
+    try { body = await (await route.GET(new Request(`https://shape.test/api/${role}/dashboard`))).json(); } finally { console.warn = warn; }
+    assert.equal(body.funnel.consults90, null);
+    assert.ok(body.today.length >= 0 && body.kpis, 'the rest of the dashboard still answers');
+  });
+}
+
+test('the funnel says an uncounted consult total, and gives no close rate on it', async () => {
+  const { createRequire: cr } = await import('node:module');
+  const require_ = cr(import.meta.url);
+  const React = require_('react');
+  const { renderToStaticMarkup } = require_('react-dom/server');
+  const babel = require_('next/dist/compiled/babel/core');
+  const presetReact = require_('next/dist/compiled/babel/preset-react');
+  const src = readFileSync(join(ROOT, 'public/newdesign/dashToday.jsx'), 'utf8');
+  const pick = (re) => re.exec(src)[0];
+  const code = [
+    pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
+    pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
+    pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
+    pick(/function DashFunnelPanel\([\s\S]*?\n\}/),
+  ].join('\n');
+  const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { DashFunnelPanel, dashCloseWhy } = new Function('React', 'DASH_DEMO_FUNNEL', js + '\nreturn { DashFunnelPanel, dashCloseWhy };')(React, {});
+  const text = renderToStaticMarkup(React.createElement(DashFunnelPanel, { live: { funnel: { views: null, consults90: null, signed90: 3 } } })).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
+  assert.match(text, /Consults · 90d couldn't be read just now/);
+  assert.match(text, /Your consults couldn't be read just now, so there's no close rate/);
+  assert.doesNotMatch(text, /More clients signed|YOU ·|undefined/);
+  assert.equal(dashCloseWhy({ consults90: null, signed90: 3 }), 'unread');
+});
 
 test('the website sends its zone, and the sidebar asks for the same URL', () => {
   const data = readFileSync(join(ROOT, 'public/newdesign/dashData.jsx'), 'utf8');

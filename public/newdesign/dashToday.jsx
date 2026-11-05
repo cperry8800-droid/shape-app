@@ -996,11 +996,12 @@ const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace 
 function dashCloseRate(f) {
   return f && f.consults90 > 0 && f.signed90 != null && f.signed90 <= f.consults90 ? Math.round((f.signed90 / f.consults90) * 100) : null;
 }
-// Why there is no close rate, or null when there is one: "unread" (the signings couldn't be read),
-// "over" (more clients signed than booked a consult), "none" (nothing to measure yet).
+// Why there is no close rate, or null when there is one: "unread" (the consults or the signings
+// couldn't be read; the dashboards send either as null), "over" (more clients signed than booked a
+// consult), "none" (nothing to measure yet).
 function dashCloseWhy(f) {
   if (!f || dashCloseRate(f) != null) return null;
-  if (f.signed90 == null) return "unread";
+  if (f.signed90 == null || f.consults90 == null) return "unread";
   return f.signed90 > (f.consults90 || 0) ? "over" : "none";
 }
 function DashFunnelPanel({ live }) {
@@ -1009,7 +1010,8 @@ function DashFunnelPanel({ live }) {
   if (!f) return <div style={{ fontSize: 13, color: ink50 }}>Funnel data connects soon.</div>;
   const stages = [
     { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
-    { l: "Consults · 90d", v: f.consults90 },
+    // Intro sessions the coach took on (2026-11-05), not every session; null when uncounted.
+    { l: "Consults · 90d", v: f.consults90, note: f.consults90 == null ? "couldn't be read just now" : null },
     { l: "Signed from Shape · 90d", v: f.signed90, note: f.signed90 == null ? "couldn't be read just now" : null },
   ];
   const maxV = Math.max(...stages.map((s) => s.v || 0), 1);
@@ -1019,7 +1021,7 @@ function DashFunnelPanel({ live }) {
     ? close >= DASH_FUNNEL_BENCHMARK
       ? "Your consult→client close rate is " + close + "% — above the ~" + DASH_FUNNEL_BENCHMARK + "% marketplace benchmark. The lever now is more consults at the top."
       : "Your consult→client close rate is " + close + "% vs the ~" + DASH_FUNNEL_BENCHMARK + "% benchmark — tightening the intake call converts more of the consults you already get."
-    : why === "unread" ? "Your signings couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
+    : why === "unread" ? "Your " + (f.consults90 == null ? "consults" : "signings") + " couldn't be read just now, so there's no close rate to show. Nothing is lost; reload to try again."
     : why === "over" ? "More clients signed than booked a consult, so there's no close rate to show: some signed without one."
     : "Book consults from the marketplace to start the funnel — signings are tracked automatically.";
   return (

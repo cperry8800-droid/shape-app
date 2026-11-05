@@ -16,6 +16,9 @@ export const dynamic = 'force-dynamic';
 // How many session rows this route reads. Named so the cap can be REPORTED rather than
 // implied: a count taken over a capped window is a floor, not a total.
 const SESSION_CAP = 500;
+// An intro the coach took on: the funnel's consults (below). A requested intro nobody answered, a
+// declined one and a cancelled one never became a conversation.
+const INTRO_KEPT_STATUSES = ['confirmed', 'completed'];
 
 type SessionRow = {
   scheduled_at: string;
@@ -237,19 +240,34 @@ export async function GET(request: Request) {
   let growth = null;
   let funnel = null;
   if (providerId != null) {
-    const since90 = Date.now() - 90 * 86400000;
-    const consults90 = calendar.filter((c) => {
-      const t = new Date(c.at as string).getTime();
-      return t >= since90 && t <= Date.now() && c.kind !== 'NUTRITION' && c.kind !== 'TRAINING';
-    }).length;
+    // ⚠ A CONSULT IS AN INTRO (2026-11-05). This counted every one of the coach's own sessions in
+    // the 90 days from the capped calendar read above, any kind and any status, so a practice of
+    // weekly regulars read dozens of "consults" for a handful of intros and the close rate came
+    // out a fraction of the truth. A consult is a session booked as an intro (`sessions.intro`,
+    // 2026-10-15-intro-length.sql) that the coach took on (confirmed or completed), in the last 90
+    // days up to now: counted in the database, so no cap can shorten it. A failed count (or a
+    // database without the column) is null, which the funnel says it could not read.
+    const nowIso = new Date(Date.now()).toISOString();
+    const since90Iso = new Date(Date.now() - 90 * 86400000).toISOString();
+    const { count: introCount, error: introErr } = await supabase
+      .from('sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_role', 'nutritionist')
+      .eq('provider_id', providerId)
+      .eq('intro', true)
+      .in('status', INTRO_KEPT_STATUSES)
+      .gte('scheduled_at', since90Iso)
+      .lte('scheduled_at', nowIso);
+    if (introErr) console.warn('[shape-app] nutritionist dashboard: intro count failed — consults render "couldn\'t be read":', introErr.message);
+    const consults90: number | null = introErr ? null : introCount ?? 0;
     try {
       const g = await coachGrowthAndFunnel(supabase, 'nutritionist', providerId, consults90);
       growth = g.growth;
       funnel = g.funnel;
     } catch (e) {
       // The subscriptions could not be read (coachGrowthAndFunnel throws rather than read a
-      // failure as no history). Growth goes unread; the consults were counted above from the
-      // calendar, so the funnel keeps them and only the signings go unread.
+      // failure as no history). Growth goes unread; the consults were counted above, so the
+      // funnel keeps them and only the signings go unread.
       funnel = { views: null, consults90, signed90: null };
     }
   }
