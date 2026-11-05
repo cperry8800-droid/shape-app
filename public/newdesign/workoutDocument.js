@@ -608,11 +608,157 @@
     }));
     return out.sort((a,b) => a.scheduledDate.localeCompare(b.scheduledDate));
   }
+  // ── Nora's draft, kept beside the template (owner, 2026-11-05: "nora able to assist to create a
+  // template program and workout builder where the coach can then just go in and edit") ──────────
+  // A draft lands in the builder as ordinary rows whose ids carry the draft's prefix (`ai-<hex>-wN-dN-rN`,
+  // src/lib/ai/workoutDraft.mjs). The snapshot keeps what Nora wrote for each of those rows, compact
+  // (one array per row, DRAFT_FIELDS order), in `detail.draft` next to the template, so the builder can
+  // say what the coach changed: "6 of her 7 moves kept · 4 values changed", and mark the changed cells.
+  // ⚠ A MOVE IS COUNTED ONCE, NOT ONCE A WEEK. A 12-week program repeats week 1, so the same move is
+  // twelve rows; a load the coach changed in week 1 moves every later week through the progression,
+  // and that is ONE change ("Back squat · load"), not twelve. Rows are matched by id, so a move dragged
+  // elsewhere is still the move it was; a row whose id the draft never held is the coach's own.
+  const DRAFT_FIELDS = ['name', 'sets', 'reps', 'load', 'loadType', 'rpe', 'rest', 'tempo', 'cue', 'group'];
+  const DRAFT_ROW_ID = /^ai-[a-z0-9]{1,16}-w(\d+)-d(\d+)-r(\d+)$/;
+  const draftNum = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? '' : Number(v));
+  function draftCell(row, field) {
+    if (field === 'sets' || field === 'load' || field === 'rpe') return draftNum(row[field]);
+    if (field === 'group') return supersetKey(row.group);
+    if (field === 'loadType') return text(row.loadType || 'lb');
+    return text(row[field]).trim();
+  }
+  function draftSnapshot(builder, meta) {
+    const rows = {};
+    for (const week of (builder && builder.weeks) || []) for (const day of week.days || []) for (const block of day.blocks || []) for (const row of block.rows || []) {
+      const id = text(row && row.id);
+      if (DRAFT_ROW_ID.test(id)) rows[id] = DRAFT_FIELDS.map(f => draftCell(row, f));
+    }
+    const m = meta && typeof meta === 'object' ? meta : {};
+    return {by:'nora', v:1, at:text(m.at) || new Date().toISOString(), source:m.source === 'template' ? 'template' : 'ai',
+      kind:m.kind === 'program' ? 'program' : 'day', brief:text(m.brief).slice(0, 500), ...(text(m.notes) ? {notes:text(m.notes).slice(0, 500)} : {}), rows};
+  }
+  // The move a draft row stands for: its day and its place, whatever week it is in.
+  const draftMoveKey = id => { const m = DRAFT_ROW_ID.exec(text(id)); return m ? `d${m[2]}-r${m[3]}` : ''; };
+  // Which of a row's cells differ from what Nora wrote ([] for a row she never held, or one unchanged).
+  function draftRowChanges(snapshot, row) {
+    const was = snapshot && snapshot.rows && row ? snapshot.rows[text(row.id)] : null;
+    if (!Array.isArray(was)) return [];
+    // A load she left blank keeps its unit label only: a blank load in kg and one in lb are the same blank.
+    return DRAFT_FIELDS.filter((f, i) => {
+      if (f === 'loadType' && was[DRAFT_FIELDS.indexOf('load')] === '' && draftCell(row, 'load') === '') return false;
+      return String(draftCell(row, f)) !== String(was[i]);
+    });
+  }
+  function draftChanges(snapshot, builder) {
+    const snap = snapshot && snapshot.rows && typeof snapshot.rows === 'object' ? snapshot.rows : {};
+    const now = new Map();
+    for (const week of (builder && builder.weeks) || []) for (const day of week.days || []) for (const block of day.blocks || []) for (const row of block.rows || []) if (row && row.id != null) now.set(text(row.id), row);
+    const moves = new Map(); // move key → { name, present, fields:Set }
+    for (const [id, was] of Object.entries(snap)) {
+      const key = draftMoveKey(id);
+      if (!key) continue;
+      const m = moves.get(key) || {name:text(was[0]), present:false, fields:new Set()};
+      const row = now.get(id);
+      if (row) {
+        m.present = true;
+        for (const f of draftRowChanges(snapshot, row)) m.fields.add(f);
+      }
+      moves.set(key, m);
+    }
+    const all = [...moves.values()];
+    const kept = all.filter(m => m.present);
+    const changes = kept.flatMap(m => [...m.fields].map(field => ({name:m.name, field})));
+    const added = [...now.entries()].filter(([id]) => !Object.prototype.hasOwnProperty.call(snap, id)).map(([, r]) => text(r.name).trim()).filter(Boolean);
+    return {total:all.length, kept:kept.length, removed:all.filter(m => !m.present).map(m => m.name), added:[...new Set(added)], valuesChanged:changes.length, changes};
+  }
+  // "6 of her 7 moves kept · 4 values changed" (and what the coach added), or '' with no draft.
+  function draftChangeLine(c) {
+    if (!c || !c.total) return '';
+    const parts = [`${c.kept} of her ${c.total} ${c.total === 1 ? 'move' : 'moves'} kept`];
+    parts.push(c.valuesChanged ? `${c.valuesChanged} ${c.valuesChanged === 1 ? 'value' : 'values'} changed` : 'no values changed');
+    if (c.added.length) parts.push(`${c.added.length} added`);
+    return parts.join(' · ');
+  }
+
+  // ── How long a session takes: sets × (work + rest) ──────────────────────────
+  // An ESTIMATE, labelled as one ("≈62 min"). The work of a set is its reps at the tempo (3 s a rep
+  // when none is written), a hold's time, or a distance at a walking-to-running pace; the rest is what
+  // the row says, else 60 s (30 s in a warm-up). A superset's first move rests only as written, because
+  // the pair rests after its last move. Each move adds 30 s to set up. A day planned at a length
+  // (`plannedMinutes`, the app editor's field) is that length instead.
+  // ⚠ NO VOLUME FIGURE (builders review, 2026-11-05): sets × reps × load is empty or wrong whenever a
+  // load is blank (every Nora draft), bodyweight, a carry or "each side", and coaches don't act on it.
+  function parseClock(v) {
+    const s = text(v).trim().toLowerCase();
+    if (!s) return null;
+    let m = /^(\d{1,2}):(\d{2})$/.exec(s);
+    if (m) return Number(m[1]) * 60 + Number(m[2]);
+    m = /^(\d+(?:\.\d+)?)\s*(s|sec|secs|seconds?)?$/.exec(s);
+    if (m) return Math.round(Number(m[1]));
+    m = /^(\d+(?:\.\d+)?)\s*(m|min|mins|minutes?)$/.exec(s);
+    if (m) return Math.round(Number(m[1]) * 60);
+    return null;
+  }
+  function tempoSeconds(tempo) {
+    const parts = text(tempo).toUpperCase().replace(/[^0-9X]/g, '').split('');
+    if (parts.length < 2) return 3;
+    return parts.reduce((n, c) => n + (c === 'X' ? 1 : Number(c)), 0) || 3;
+  }
+  function workSeconds(row) {
+    const reps = text(repsLabel(row)).trim().toLowerCase();
+    let m = /^(\d+(?:\.\d+)?)\s*(s|sec|secs|seconds?)\b/.exec(reps);
+    if (m) return Number(m[1]);
+    m = /^(\d+(?:\.\d+)?)\s*(min|mins|minutes?)\b/.exec(reps);
+    if (m) return Number(m[1]) * 60;
+    m = /^(\d+(?:\.\d+)?)\s*(m|meters?|metres?)\b/.exec(reps);
+    if (m) return Number(m[1]) / 2.5;
+    m = /^(\d+(?:\.\d+)?)\s*km\b/.exec(reps);
+    if (m) return Number(m[1]) * 1000 / 2.5;
+    if (/amrap/.test(reps)) return 45;
+    const nums = (reps.match(/\d+/g) || []).map(Number).filter(n => n > 0 && n < 200);
+    if (!nums.length) return 30;
+    const per = /\/\s*(side|leg|arm)|\bea(ch)?\b/.test(reps) ? 2 : 1;
+    // "8-10" counts the top; "8/6/4" (a ladder) counts its average set.
+    const count = /\d\s*[-–]\s*\d/.test(reps) ? Math.max(...nums) : nums.reduce((a, b) => a + b, 0) / nums.length;
+    return count * per * tempoSeconds(row.tempo);
+  }
+  function sessionEstimate(day) {
+    const blocks = (day && day.blocks) || [];
+    let seconds = 0, workingSets = 0, moves = 0;
+    const muscles = {};
+    for (const block of blocks) {
+      const rows = block.rows || [];
+      rows.forEach((row, i) => {
+        const sets = Math.max(0, Math.round(Number(row.sets) || 0));
+        if (!sets) return;
+        moves += 1;
+        const warm = blockKind(block.kind) === 'warmup';
+        const g = supersetKey(row.group);
+        const pairedNext = !!g && rows[i + 1] && supersetKey(rows[i + 1].group) === g;
+        const written = parseClock(row.rest);
+        const rest = written != null ? written : row.restSeconds != null && Number.isFinite(Number(row.restSeconds)) ? Number(row.restSeconds) : pairedNext ? 0 : warm ? 30 : 60;
+        seconds += sets * (workSeconds(row) + rest) + 30;
+        if (!warm) {
+          workingSets += sets;
+          const mu = text(row.muscle).trim();
+          if (mu) muscles[mu] = (muscles[mu] || 0) + sets;
+        }
+      });
+    }
+    const planned = Number(day && day.plannedMinutes);
+    const estimated = moves ? Math.max(5, Math.round(seconds / 60)) : 0;
+    return {
+      minutes:Number.isFinite(planned) && planned > 0 ? Math.round(planned) : estimated,
+      planned:Number.isFinite(planned) && planned > 0,
+      estimated, moves, blocks:blocks.filter(b => (b.rows || []).length).length, workingSets,
+      muscles:Object.entries(muscles).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([muscle, sets]) => ({muscle, sets})),
+    };
+  }
   function builderToOutlineBlocks(builder) {
     return builder.weeks.flatMap((week,wi) => week.days.flatMap((day,di) => day.blocks.flatMap(block => block.rows.map(row => ({
       ...row, week:wi, day:di, dayName:day.name, weekday:day.weekday,
       text:`${row.name} — ${row.sets} × ${repsLabel(row)}${loadLabel(row) ? ' · ' + loadLabel(row) : ''}`,
     })))));
   }
-  return {normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, rpeProgressionStatus, pinLoadEdits, unpinned, deloadWeek, undeloadWeek, legacyDeload};
+  return {draftSnapshot, draftChanges, draftRowChanges, draftChangeLine, draftMoveKey, DRAFT_FIELDS, sessionEstimate, normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows, builderToOutlineBlocks, exerciseFromRow, rowFromBlock, loadLabel, weightLabel, repsLabel, ladder, setTarget, perSetEntries, normalizePerSet, LADDER_MAX, SET_REPS_MAX, rpeValue, splitLegacyRpe, supersetKey, blockKind, BLOCK_KINDS, videoUrl, TIME_DISTANCE_UNITS, normalizeProgression, applyProgramProgression, progressionStatus, rpeProgressionStatus, pinLoadEdits, unpinned, deloadWeek, undeloadWeek, legacyDeload};
 });

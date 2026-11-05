@@ -5,7 +5,17 @@
 // POST /api/ai/draft-workout
 //   { request, kind?: 'day'|'program', minutes?, equipment?, level?, weeks?, daysPerWeek?,
 //     unit?: 'lb'|'kg', clientId?, name? }
-//   → { source: 'openai'|'template', notice?, draft: { name, buildType, builder }, lines, notes }
+//   → { source: 'openai'|'template', notice?, draft: { name, buildType, builder, snapshot }, lines, notes }
+//
+// Two doors on the website use it (the day editor's ✦ Draft with Nora, one day; the New flow's
+// Start with Nora, a whole program: weeks, days a week, minutes, level, equipment and an optional
+// client), and the app's ＋ New composer. A program is one drafted week repeated with the stated
+// progression (workoutDraft.mjs). `snapshot` is Nora's draft kept compactly (workoutDocument.js
+// draftSnapshot): the caller saves it as `detail.draft` beside the template, so the builder can show
+// what the coach changed.
+//
+// ⚠ A DAILY BUDGET (noraLimits.ts, `coach_draft`), counted per account before the model is asked, as
+// Nora's other costly calls are. Past it the answer is a 429 that says so and when it resets.
 //
 // It writes NOTHING: the builder loads the draft and the coach saves it, as with any
 // program they wrote by hand. The drafting itself is src/lib/ai/workoutDraft.mjs, the
@@ -25,9 +35,11 @@ import { computeMembership } from '@/lib/membership-core';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
+import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 import {
-  cleanBrief, generateDraft, expandDraft, summarizeDraft, readCoachLoadUnit, readClientContext, TEMPLATE_NOTICE,
+  cleanBrief, generateDraft, expandDraft, summarizeDraft, readCoachLoadUnit, readClientContext, briefNumbers, TEMPLATE_NOTICE,
 } from '@/lib/ai/workoutDraft.mjs';
+import { draftSnapshot } from '../../../../../public/newdesign/workoutDocument.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,10 +77,12 @@ export async function POST(request: Request) {
 
   // ⚠ A CLIENT IS CONTEXT, AND ONLY FOR SOMEONE THIS COACH COACHES. The id is checked
   // with is_coach_on_client on the coach's own session — the check Nora's coach actions
-  // and the coach routes use — before anything about the client is read, and what is
-  // read is the training phase alone. `client` from the body is never forwarded: the
-  // brief takes the server-built one, which overrides it.
-  let client: Record<string, string> | null = null;
+  // and the coach routes use — before anything about the client is read. What is read
+  // then (readClientContext) is read on that same session, so each read is gated again:
+  // the training phase, their goals, what their screening and injuries name (as fixed
+  // words, to keep clear of), and the working loads they logged under this coach.
+  // `client` from the body is never forwarded: the brief takes the server-built one.
+  let client: Record<string, unknown> | null = null;
   if (body.clientId != null && body.clientId !== '') {
     const clientId = String(body.clientId);
     if (!UUID.test(clientId)) return NextResponse.json({ error: 'That client id is not valid.' }, { status: 400 });
@@ -78,10 +92,19 @@ export async function POST(request: Request) {
     client = await readClientContext(sb, clientId);
   }
 
-  const brief0 = cleanBrief({ ...body, client });
+  // Numbers written into the brief count where no field was sent ("12 weeks, 3 days a week").
+  const said = briefNumbers(typeof body.request === 'string' ? body.request : '');
+  const fill = Object.fromEntries(Object.entries(said).filter(([k]) => body[k] == null || body[k] === ''));
+  const brief0 = cleanBrief({ ...fill, ...body, client });
   if (!brief0.request) {
     return NextResponse.json({ error: "Describe the workout — e.g. 'lower body, 50 min, barbell, intermediate'." }, { status: 400 });
   }
+
+  const budget = await countBudget(sb, user.id, 'coach_draft');
+  if (!budget.allowed) {
+    return NextResponse.json({ error: budgetReply('coach_draft', budget.resetSeconds), code: 'daily_budget' }, { status: 429, headers: { 'Retry-After': String(Math.max(60, budget.resetSeconds)) } });
+  }
+
   const unit = brief0.unit || await readCoachLoadUnit(sb, user.id);
   const brief = { ...brief0, unit };
 
@@ -94,11 +117,13 @@ export async function POST(request: Request) {
   const built = expandDraft(gen.spec);
   const summary = summarizeDraft(built.builder, gen.spec);
   const template = gen.source === 'template';
+  const snapshot = draftSnapshot(built.builder, { source: gen.source, kind: gen.spec.kind, brief: brief.request, notes: gen.spec.notes || '' });
   return NextResponse.json({
     source: template ? 'template' : 'openai',
     ...(template ? { notice: TEMPLATE_NOTICE } : {}),
-    draft: { name: built.name, buildType: built.buildType, builder: built.builder },
+    draft: { name: built.name, buildType: built.buildType, builder: built.builder, snapshot },
     lines: summary.lines,
     notes: gen.spec.notes || '',
+    ...(client ? { client: { read: Object.keys(client) } } : {}),
   });
 }

@@ -40,12 +40,16 @@ const DAY = 86400;
 // Like the question limits they fail OPEN: a limiter fault never takes a feature down.
 // account_setup: the cards Nora drafts to set an account up (set_up_account, src/lib/ai/accountSetup.mjs).
 // A first run is one or two; thirty is a person changing their mind all day, never a script's thousands.
-export type AiBudgetKind = 'speak' | 'transcribe' | 'draft_program' | 'account_setup';
+// coach_draft: a coach's drafts with Nora in the builders and the app's ＋ New composer: /api/ai/draft-workout,
+// /api/ai/draft-meal-plan and /api/ai/generate-plan, and Nora's draft_workout in chat. Eighty is a full day
+// of building (a dozen programs, each redrafted a few times); a script's hundreds stop here.
+export type AiBudgetKind = 'speak' | 'transcribe' | 'draft_program' | 'account_setup' | 'coach_draft';
 export const AI_DAILY_BUDGETS: Record<AiBudgetKind, number> = {
   speak: 200,
   transcribe: 300,
   draft_program: 40,
   account_setup: 30,
+  coach_draft: 80,
 };
 
 /** Count one call against the account's daily budget for `kind`. allowed:false once spent. */
@@ -64,6 +68,9 @@ export async function countBudget(
 export function budgetReply(kind: AiBudgetKind, resetSeconds: number): string {
   const hours = Math.max(1, Math.ceil(resetSeconds / 3600));
   const when = `in about ${hours} hour${hours === 1 ? '' : 's'}`;
+  if (kind === 'coach_draft') {
+    return `That's today's ${AI_DAILY_BUDGETS.coach_draft} drafts with Nora used up. It resets ${when}; until then, build from blank or copy one of yours.`;
+  }
   const what = kind === 'speak' ? "Nora's voice" : kind === 'transcribe' ? 'voice input' : kind === 'account_setup' ? 'setting up your account with Nora' : 'AI drafting';
   return `That's today's limit for ${what}. It resets ${when}.`;
 }

@@ -1,15 +1,28 @@
 // Nora drafts a meal plan for a nutritionist (the Ask Nora plan, step 5), the way she
 // drafts workouts for a trainer (workoutDraft.mjs). PURE: no I/O, no model, no clock.
 //
-// ⚠ EVERY MEAL AND EVERY NUMBER COMES FROM SHAPE'S MEAL LIBRARY. The model only reads the
-// nutritionist's brief into structured fields (goal phase, targets they stated, days,
-// meals per day, what to leave out, most prep minutes). This file picks one library food
-// per meal, closest to the day's targets and varied across days, and the macros are the
-// library's own. Nothing here invents a dish or a figure; a target they did not give is the
-// builder's own default for the phase, and the card says so.
+// ⚠ EVERY MEAL AND EVERY NUMBER COMES FROM SHAPE'S OWN RECIPES. The model (in chat) or the
+// builder's brief only says what to draft (goal phase, targets they stated, days, meals per
+// day, what to leave out, most prep minutes). This file picks one dish per meal, closest to
+// the day's targets and varied across days, and the macros are the dish's own. Nothing here
+// invents a dish or a figure; a target they did not give is the builder's own default for
+// the phase, and the card says so.
+//
+// ⚠ THE DISHES ARE SHAPE KITCHEN'S RECIPES (P6, 2026-11-05: "Meal drafts from Shape Kitchen's
+// 100 recipes, not the 24 library foods"), through src/lib/kitchenFoods.mjs. The builder's 24
+// foods remain the fallback for a meal no Kitchen recipe fits (a snack after "no dairy, no
+// nuts"), and the card names that slot. `source: 'library'` drafts from the 24 alone.
+//
+// ⚠ TWO TARGET SETS: a training day's and a rest day's. Each drafted day is tagged one or the
+// other (`day.type`), and a rest day's targets hold protein and fat and drop carbs (50 g, so
+// 200 kcal) unless they gave a rest-day figure. The document keeps both (`targets`, the
+// training day's as before, and `restTargets`), so an old plan with one target still reads as
+// it did: no rest targets means the training day's everywhere.
 //
 // The draft is the website builder's document (coach_plans.detail.mealBuilder,
 // public/newdesign/dashMealCore.js), saved unpublished for them to edit and assign there.
+
+import { kitchenFoods } from '../kitchenFoods.mjs';
 
 // The builder's library (DashMeals.FOODS), copied because dashMealCore.js is a browser
 // script; tests/ai-meal-draft.test.mjs fails if the two drift.
@@ -57,8 +70,33 @@ export const SLOT_FOODS = {
 };
 export const MAX_DAYS = 7;
 export const DRAFT_NOTICE = "Every meal is from Shape's meal library, with its own macros; swap in your own foods in the builder.";
+export const KITCHEN_NOTICE = 'Every meal is a Shape Kitchen recipe, with its own macros; swap in your own foods in the builder.';
 
-const byId = new Map(MEAL_LIBRARY.map((f) => [f.id, f]));
+// Shape Kitchen's recipes as foods, built once (src/lib/kitchenFoods.mjs).
+export const KITCHEN_FOODS = kitchenFoods().foods;
+const byId = new Map([...MEAL_LIBRARY, ...KITCHEN_FOODS].map((f) => [f.id, f]));
+export const foodById = (id) => byId.get(id) || null;
+
+// A rest day's targets when they gave none: protein and fat hold, carbs drop 50 g (200 kcal).
+export const REST_CARB_DROP = 50;
+export function restTargetsFrom(train, restKcal = null) {
+  const t = { kcal: train.kcal, p: train.p, c: train.c, f: train.f };
+  if (restKcal != null) {
+    const c = Math.max(0, Math.round((restKcal - t.p * 4 - t.f * 9) / 4));
+    return { kcal: restKcal, p: t.p, c, f: t.f };
+  }
+  const c = Math.max(0, t.c - REST_CARB_DROP);
+  return { kcal: Math.max(0, t.kcal - (t.c - c) * 4), p: t.p, c, f: t.f };
+}
+// Training weekdays for a week with this many (Mon = 0), spread out: the workout drafter's spread.
+const TRAIN_SPREAD = { 0: [], 1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 2, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6] };
+/** Each drafted day's type: a week of 7 puts its rest days between training days; a shorter rotation ends on them. */
+export function dayTypesFor(days, restDays) {
+  const n = Math.max(1, days | 0);
+  const rest = Math.max(0, Math.min(n - 1, restDays | 0));
+  if (n === 7) { const train = TRAIN_SPREAD[7 - rest]; return Array.from({ length: 7 }, (_, d) => (train.includes(d) ? 'train' : 'rest')); }
+  return Array.from({ length: n }, (_, d) => (d >= n - rest ? 'rest' : 'train'));
+}
 const clip = (v, n) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '');
 const num = (v, lo, hi) => {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
@@ -84,16 +122,26 @@ export function cleanMealBrief(input) {
   const exclusions = Array.isArray(i.exclude)
     ? [...new Set(i.exclude.map((x) => clip(String(x), 30).toLowerCase()).filter((x) => x.length >= 2))].slice(0, 12)
     : [];
+  const days = num(i.days, 1, MAX_DAYS) || 3;
+  // Rest days in the rotation: what they said, else three in a week, one in a shorter rotation, none in a single day.
+  const restAsked = num(i.restDays, 0, MAX_DAYS);
+  const restDays = Math.min(days - 1, restAsked != null ? restAsked : days === 7 ? 3 : days > 1 ? 1 : 0);
+  const restKcal = num(i.restKcal, 1000, 6000);
   return {
     name: clip(i.name, 80),
     goalPhase: phaseKey,
     targets,
+    restTargets: restTargetsFrom(targets, restKcal),
+    restStated: restKcal != null,
     stated,
-    days: num(i.days, 1, MAX_DAYS) || 3,
+    days,
+    restDays,
+    dayTypes: dayTypesFor(days, restDays),
     slots,
     exclusions,
     maxPrep: num(i.maxPrepMinutes, 1, 180),
     proteinFloor: given.p != null ? given.p : defaults.p - 20,
+    source: i.source === 'library' ? 'library' : 'kitchen',
   };
 }
 
@@ -142,10 +190,42 @@ function allowed(food, brief) {
   return !brief.exclusions.some((ex) => exclusionTerms(ex).some((term) => tags.includes(term) || name.includes(term) || ingredients.some((n) => n.includes(term))));
 }
 
+function libraryPool(slot, brief) {
+  return SLOT_FOODS[slot].map((id) => byId.get(id)).filter((f) => allowed(f, brief));
+}
+/**
+ * Each meal's dishes, inside what they left out. Kitchen recipes that suit the meal (kitchenFoods.mjs
+ * kitchenSlots), else (no Kitchen recipe fits) the builder's own foods for it, and `fallback` says so.
+ */
 export function slotPools(brief) {
   const pools = {};
-  for (const slot of brief.slots) pools[slot] = SLOT_FOODS[slot].map((id) => byId.get(id)).filter((f) => allowed(f, brief));
+  const fallback = [];
+  for (const slot of brief.slots) {
+    if (brief.source === 'library') { pools[slot] = libraryPool(slot, brief); continue; }
+    const kitchen = KITCHEN_FOODS.filter((f) => f.slots.includes(slot) && allowed(f, brief));
+    if (kitchen.length) pools[slot] = kitchen;
+    else { pools[slot] = libraryPool(slot, brief); if (pools[slot].length) fallback.push(slot); }
+  }
+  Object.defineProperty(pools, 'fallback', { value: fallback, enumerable: false });
   return pools;
+}
+
+// The share of the day each meal carries, for narrowing a long list of dishes to the ones near it.
+const SLOT_SHARE = { Breakfast: 0.25, Lunch: 0.3, Dinner: 0.3, Snack: 0.15 };
+const CANDIDATES = 12;
+// ⚠ A LONG LIST IS NARROWED BEFORE THE SEARCH, deterministically: ~80 Kitchen lunches and dinners
+// would make every combination of a day millions. Each meal keeps the dishes nearest its share of the
+// day's calories, protein-dense first, a dish already used twice last, then by id, so the same brief
+// still gives the same plan. The library's short lists pass whole.
+function narrow(pool, slot, slots, t, used) {
+  if (pool.length <= CANDIDATES) return pool;
+  const share = (SLOT_SHARE[slot] || 0.25) / slots.reduce((n, s) => n + (SLOT_SHARE[s] || 0.25), 0);
+  const want = t.kcal * share;
+  const score = (f) => {
+    const scaled = Math.min(SCALE_MAX, Math.max(SCALE_MIN, want / Math.max(1, f.kcal)));
+    return Math.abs(f.kcal * scaled - want) / want - (f.p * 4) / Math.max(1, f.kcal) * 0.6 + (used.get(f.id) || 0) * 0.35;
+  };
+  return pool.map((f) => ({ f, s: score(f) })).sort((a, b) => a.s - b.s || (a.f.id < b.f.id ? -1 : 1)).slice(0, CANDIDATES).map((x) => x.f);
 }
 
 // Portions move with the day's calories: each day is scaled to its kcal target by one
@@ -169,11 +249,14 @@ export function pickMeals(brief) {
   const pools = slotPools(brief);
   const slots = brief.slots.filter((s) => pools[s].length);
   const missing = brief.slots.filter((s) => !pools[s].length);
-  const t = brief.targets;
   const used = new Map();
   const days = [];
   let yesterday = [];
   for (let d = 0; d < brief.days; d += 1) {
+    const type = (brief.dayTypes && brief.dayTypes[d]) === 'rest' ? 'rest' : 'train';
+    const t = type === 'rest' && brief.restTargets ? brief.restTargets : brief.targets;
+    const dayPools = {};
+    for (const s of slots) dayPools[s] = narrow(pools[s], s, slots, t, used);
     let best = null;
     const walk = (k, picks, sum) => {
       if (k === slots.length) {
@@ -187,7 +270,7 @@ export function pickMeals(brief) {
         if (!best || score < best.score) best = { score, picks: picks.slice(), scale };
         return;
       }
-      for (const f of pools[slots[k]]) {
+      for (const f of dayPools[slots[k]]) {
         if (picks.some((x) => x.id === f.id)) continue; // one food once a day
         picks.push(f);
         walk(k + 1, picks, { kcal: sum.kcal + f.kcal, p: sum.p + f.p, c: sum.c + f.c, f: sum.f + f.f });
@@ -198,16 +281,19 @@ export function pickMeals(brief) {
     const picks = best ? best.picks : [];
     picks.forEach((f) => used.set(f.id, (used.get(f.id) || 0) + 1));
     yesterday = picks.map((f) => f.id);
-    days.push({ scale: best ? best.scale : 1, meals: picks.map((f, j) => ({ slot: slots[j], id: f.id })) });
+    days.push({ type, scale: best ? best.scale : 1, meals: picks.map((f, j) => ({ slot: slots[j], id: f.id })) });
   }
-  return { days, missing };
+  return { days, missing, fallback: pools.fallback.filter((s) => slots.includes(s)) };
 }
 
 // DashMeals.scaleMeal, exactly (a test holds the two equal).
 export function scaleMeal(meal, k) {
   const m = JSON.parse(JSON.stringify(meal));
   ['kcal', 'p', 'c', 'f'].forEach((key) => { m[key] = Math.round((Number(m[key]) || 0) * k); });
-  m.ingredients = (m.ingredients || []).map((ing) => ({ name: ing.name, qty: Math.round((Number(ing.qty) || 0) * k * 10) / 10, unit: ing.unit || '' }));
+  // An amount the recipe never gave ("to taste") stays one: it is not scaled into a number.
+  m.ingredients = (m.ingredients || []).map((ing) => (ing.qty == null
+    ? { name: ing.name, qty: null, unit: '', ...(ing.qtyText ? { qtyText: ing.qtyText } : {}) }
+    : { name: ing.name, qty: Math.round((Number(ing.qty) || 0) * k * 10) / 10, unit: ing.unit || '' }));
   m.swaps = (m.swaps || []).map((x) => ({ name: x.name, kcal: Math.round(x.kcal * k), p: Math.round(x.p * k), c: Math.round(x.c * k), f: Math.round(x.f * k) }));
   return m;
 }
@@ -222,13 +308,17 @@ export function dayTotals(meals) {
 // position, so the token's picks rebuild exactly the document the card showed.
 export function buildMealDoc(brief, picked, planId) {
   const tag = String(planId || 'draft').replace(/[^a-z0-9]/gi, '').slice(0, 8);
+  const typed = picked.days.some((day) => day.type === 'rest');
   return {
     version: 1,
     goalPhase: brief.goalPhase,
     targets: { ...brief.targets },
+    // Only a plan with a rest day carries a rest day's targets; one without reads exactly as before.
+    ...(typed && brief.restTargets ? { restTargets: { ...brief.restTargets } } : {}),
     constraints: { proteinFloor: brief.proteinFloor, exclusions: brief.exclusions.slice(), maxPrep: brief.maxPrep },
     days: picked.days.map((day, d) => ({
       name: DAY_NAMES[d],
+      ...(typed ? { type: day.type === 'rest' ? 'rest' : 'train' } : {}),
       slots: day.meals.map((m, j) => {
         const food = byId.get(m.id);
         return scaleMeal({
@@ -236,6 +326,7 @@ export function buildMealDoc(brief, picked, planId) {
           kcal: food.kcal, p: food.p, c: food.c, f: food.f,
           prepMin: food.prepMin != null ? food.prepMin : null,
           ingredients: clone(food.ingredients || []), swaps: [],
+          ...(food.kitchen ? { kitchen: true } : {}),
         }, day.scale);
       }),
       variants: {},
@@ -248,26 +339,85 @@ export function draftName(brief) {
 }
 
 // The card: the targets (and which are theirs), each day's total, then its meals.
+/** @param {any} brief @param {any} doc @param {any} [picked] */
 export function mealDraftDiff(brief, doc, picked = null) {
   const missing = picked ? picked.missing : [];
+  const fallback = picked && Array.isArray(picked.fallback) ? picked.fallback : [];
   const t = brief.targets;
   const label = PHASES[brief.goalPhase].label;
   const yours = brief.stated.map((k) => (k === 'kcal' ? 'kcal' : k.toUpperCase())).join(', ');
   const whose = !brief.stated.length ? `the builder's ${label} defaults; edit them there`
     : brief.stated.length === 4 ? 'yours'
     : `yours: ${yours}; ${label} defaults for the rest`;
+  const kitchen = brief.source !== 'library';
   const rows = [
-    { label: 'Source', after: DRAFT_NOTICE },
+    { label: 'Source', after: kitchen ? KITCHEN_NOTICE : DRAFT_NOTICE },
     { label: 'Targets', after: `${t.kcal} kcal · ${t.p} P · ${t.c} C · ${t.f} F (${whose})` },
   ];
+  if (doc.restTargets) {
+    const r = doc.restTargets;
+    rows.push({ label: 'Rest days', after: `${r.kcal} kcal · ${r.p} P · ${r.c} C · ${r.f} F (${brief.restStated ? 'your rest-day calories; protein and fat hold' : `protein and fat hold, carbs ${REST_CARB_DROP} g lower`})` });
+  }
   if (brief.exclusions.length) rows.push({ label: 'Leaves out', after: brief.exclusions.join(', ') });
   if (brief.maxPrep != null) rows.push({ label: 'Prep', after: `${brief.maxPrep} min or less a meal` });
-  if (missing.length) rows.push({ label: 'Not filled', after: `${missing.join(', ')}: no library food fits what you left out; add your own in the builder` });
+  if (fallback.length) rows.push({ label: 'From the basics', after: `${fallback.join(', ')}: no Kitchen recipe fits what you left out, so these come from Shape's basic foods` });
+  if (missing.length) rows.push({ label: 'Not filled', after: `${missing.join(', ')}: no ${kitchen ? 'Shape dish' : 'library food'} fits what you left out; add your own in the builder` });
   doc.days.forEach((day, d) => {
     const tot = dayTotals(day.slots);
     const k = picked && picked.days[d] ? picked.days[d].scale : 1;
-    rows.push({ label: day.name, after: `${tot.kcal} kcal · ${tot.p} P · ${tot.c} C · ${tot.f} F${k !== 1 ? ` · portions ×${k}` : ''}` });
+    const type = day.type ? ` · ${day.type === 'rest' ? 'rest' : 'train'}` : '';
+    rows.push({ label: day.name + type, after: `${tot.kcal} kcal · ${tot.p} P · ${tot.c} C · ${tot.f} F${k !== 1 ? ` · portions ×${k}` : ''}` });
     day.slots.forEach((m) => rows.push({ label: '', after: `${m.slot} · ${m.name} · ${m.kcal} kcal` }));
   });
   return rows;
+}
+
+// ── a brief in the nutritionist's own words, read without a model ──────────────
+// The builders' Start with Nora and the app's composer send the fields they have (phase, targets,
+// days, meals, what to leave out, prep); a coach who only typed "a cut at 1,900 kcal, 7 days, no
+// shellfish, 35 min prep at most" still means those. Read here only where no field was sent.
+const DIET_WORDS = ['vegetarian', 'vegan', 'pescatarian'];
+export function mealBriefFromText(text) {
+  const s = clip(String(text || ''), 400).toLowerCase().replace(/,(\d{3})/g, '$1');
+  if (!s) return {};
+  const out = {};
+  const phase = /\b(cut|fat loss|lean(?:ing)? out)\b/.test(s) ? 'cut' : /\b(build|bulk|lean bulk|muscle gain|gain)\b/.test(s) ? 'build' : /\b(maintain|maintenance)\b/.test(s) ? 'maintain' : null;
+  if (phase) out.goalPhase = phase;
+  const kcal = s.match(/(\d{4})\s*(?:kcal|cal|calories)\b/);
+  if (kcal) out.kcal = Number(kcal[1]);
+  const rest = s.match(/rest(?:[- ]days?)?\s*(?:at|of|:)?\s*(\d{4})\s*(?:kcal|cal)?/);
+  if (rest) out.restKcal = Number(rest[1]);
+  const protein = s.match(/(\d{2,3})\s*g?\s*(?:of\s*)?protein\b/);
+  if (protein) out.protein = Number(protein[1]);
+  const days = s.match(/(\d)\s*[- ]?days?\b(?!\s*(?:a|per)\s*week)/);
+  if (days) out.days = Number(days[1]);
+  else if (/\b(a|one|1)\s*week\b|\bweekly\b/.test(s)) out.days = 7;
+  const prep = s.match(/(\d{1,3})\s*min(?:ute)?s?\s*(?:of\s*)?prep|prep\s*(?:at most|under|<|≤|max(?:imum)?)?\s*(\d{1,3})\s*min/);
+  if (prep) out.maxPrepMinutes = Number(prep[1] || prep[2]);
+  const exclude = [];
+  for (const m of s.matchAll(/\b(?:no|without|hates?|avoid|leave out|exclude|free of|allergic to)\s+([a-z][a-z ]{1,24}?)(?=[,.;]|\band\b|$)/g)) exclude.push(m[1].trim());
+  for (const w of DIET_WORDS) if (new RegExp(`\\b${w}\\b`).test(s)) exclude.push(w);
+  if (exclude.length) out.exclude = [...new Set(exclude)];
+  return out;
+}
+
+// ── Nora's draft, kept beside the plan ─────────────────────────────────────────────
+// What she wrote for each meal she placed (ids `nora-<tag>-<day>-<slot>`), compact, saved as
+// `detail.draft` next to the plan, so the builder can say what the nutritionist changed ("4 of her
+// 28 meals changed") and ring the changed meals (dashMealCore.js mealDraftChanges reads it). Pure:
+// `at` is the caller's, minted once, so the same draft always gives the same snapshot.
+export function mealDraftSnapshot(doc, meta = {}) {
+  const meals = {};
+  for (const day of (doc && doc.days) || []) {
+    for (const m of day.slots || []) {
+      if (m && /^nora-/.test(String(m.id))) meals[m.id] = [String(m.name || ''), Number(m.kcal) || 0, Number(m.p) || 0, Number(m.c) || 0, Number(m.f) || 0, String(m.slot || '')];
+    }
+  }
+  return {
+    by: 'nora', v: 1, kind: 'meal_plan',
+    at: typeof meta.at === 'string' ? meta.at : '',
+    source: meta.source === 'library' ? 'library' : 'kitchen',
+    brief: clip(String(meta.brief || ''), 400),
+    meals,
+  };
 }

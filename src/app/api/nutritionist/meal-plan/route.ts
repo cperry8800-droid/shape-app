@@ -2,9 +2,14 @@
 // client_meal_plans. RLS enforces nutritionist ownership; this route resolves
 // the caller's nutritionist row and validates the payload shape.
 //
-// POST { clientId, title, weekStart?, days:[...] } -> { ok, id }
+// POST { clientId, title, weekStart?, days:[...], template?: { id, version } } -> { ok, id }
 //   Replaces (archives) the client's current published plan from this
 //   nutritionist, then inserts the new one.
+//
+// ⚠ THE TEMPLATE IT CAME FROM IS STAMPED ON THE ASSIGNMENT (P6, 2026-11-05), as a program's sessions
+// carry theirs (payload.template): payload.template = { id, name, version }, so "who's on this plan"
+// and "Most used" read it (/api/coach/plans/usage?kind=meal_plan). It is a label, checked for shape
+// and owned by this nutritionist's own library; a plan assigned without one is stored as before.
 //
 // Auth: cookie session OR Bearer token (native coach app sends Bearer).
 
@@ -33,6 +38,9 @@ export async function POST(request: Request) {
   const title = String(body.title ?? '').trim();
   const weekStart = body.weekStart ? String(body.weekStart) : null;
   const days = Array.isArray(body.days) ? body.days : null;
+  const tpl = body.template && typeof body.template === 'object' && !Array.isArray(body.template) ? body.template as Record<string, unknown> : null;
+  const templateId = tpl && typeof tpl.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tpl.id) ? tpl.id : null;
+  const templateVersion = tpl && Number.isInteger(Number(tpl.version)) && Number(tpl.version) > 0 ? Number(tpl.version) : null;
 
   if (!clientId) return NextResponse.json({ error: 'clientId is required.' }, { status: 400 });
   if (!title) return NextResponse.json({ error: 'title is required.' }, { status: 400 });
@@ -79,6 +87,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // The template must be one of this nutritionist's own plans (RLS scopes coach_plans to its owner).
+  // One that is not, or cannot be read, is simply not stamped: the assignment itself still lands.
+  let template: { id: string; name: string; version: number | null } | null = null;
+  if (templateId) {
+    const { data: own } = await supabase.from('coach_plans').select('id, name').eq('id', templateId).eq('owner_id', user.id).eq('kind', 'meal_plan').maybeSingle();
+    if (own && typeof (own as { id?: unknown }).id === 'string') template = { id: templateId, name: String((own as { name?: unknown }).name ?? '').slice(0, 160), version: templateVersion };
+  }
+
   // Retire the client's current published plan from this nutritionist.
   await supabase
     .from('client_meal_plans')
@@ -95,7 +111,7 @@ export async function POST(request: Request) {
       title,
       week_start: weekStart,
       status: 'published',
-      payload: { days },
+      payload: template ? { days, template } : { days },
     })
     .select('id')
     .single();

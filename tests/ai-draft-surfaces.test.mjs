@@ -44,16 +44,18 @@ const RAW = {
 const modelText = (raw) => ({ output_text: typeof raw === 'string' ? raw : JSON.stringify(raw), output: [] });
 
 // ── /api/ai/draft-workout ───────────────────────────────────────────────────────
-async function loadDraftRoute({ user = { id: COACH, email: 'c@x' }, gate = { isMember: true, isCoach: true, isAdmin: false, isKnownMinor: false }, profile = { role: 'trainer', roles: [] }, hasKey = true, answers = [{ ok: true, data: modelText(RAW) }], units = null, coached = [CLIENT], phase = 'Build', denied = null } = {}) {
+async function loadDraftRoute({ user = { id: COACH, email: 'c@x' }, gate = { isMember: true, isCoach: true, isAdmin: false, isKnownMinor: false }, profile = { role: 'trainer', roles: [] }, hasKey = true, answers = [{ ok: true, data: modelText(RAW) }], units = null, coached = [CLIENT], phase = 'Build', denied = null, budget = { allowed: true, resetSeconds: 0 }, tables = {}, rpcs = {} } = {}) {
   const sb = fakeSupabase({
     tables: {
       profiles: [{ id: COACH, ...profile }],
       user_goals: units ? [{ user_id: COACH, kind: 'client_settings', data: { units } }] : [],
       client_programs: [{ user_id: CLIENT, training_phase: phase, detail: { health: 'PRIVATE-NOTE' } }],
+      ...tables,
     },
-    rpcs: { is_coach_on_client: (a) => coached.includes(a.p_client_id) },
+    rpcs: { is_coach_on_client: (a) => coached.includes(a.p_client_id), ...rpcs },
   });
   const ai = [];
+  const budgets = [];
   let i = 0;
   const registry = new Map([
     ['next/server', nextServer],
@@ -63,9 +65,11 @@ async function loadDraftRoute({ user = { id: COACH, email: 'c@x' }, gate = { isM
     ['@/lib/require-membership', { requireMembership: async () => denied }],
     ['@/lib/ai', { hasOpenAIKey: () => hasKey, callAI: async (body, opts) => { ai.push({ body, opts }); const a = answers[Math.min(i++, answers.length - 1)]; if (a instanceof Error) throw a; return a; } }],
     ['@/lib/ai/workoutDraft.mjs', draftCore],
+    // The real budget rule is tested in tests/p6-nora-drafting.test.mjs; here it answers as told and records.
+    ['@/lib/ai/noraLimits', { countBudget: async (_sb, uid, kind) => { budgets.push({ uid, kind }); return { allowed: budget.allowed, limit: 80, resetSeconds: budget.resetSeconds }; }, budgetReply: (kind, s) => `BUDGET:${kind}:${s}` }],
   ]);
   const mod = await loadRealModule(join(ROOT, 'src/app/api/ai/draft-workout/route.ts'), { typescript: true, registry });
-  return { mod, ai, sb };
+  return { mod, ai, sb, budgets };
 }
 const draftPost = (body) => new Request('https://x/api/ai/draft-workout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
@@ -129,14 +133,15 @@ test('draft route: off-topic is a 422 question; an empty brief is a 400', async 
   assert.equal((await empty.mod.POST(draftPost({ request: '   ' }))).status, 400);
 });
 
-test('draft route: a client is context only for someone this coach coaches — the phase, never the body\'s own "client"', async () => {
+test('draft route: a client is context only for someone this coach coaches — what the server read, never the body\'s own "client"', async () => {
   const r = await loadDraftRoute();
   const ok = await r.mod.POST(draftPost({ request: 'legs', clientId: CLIENT, client: { goal: 'INJECTED-BY-BODY' } }));
   assert.equal(ok.status, 200);
   const prompt = r.ai[0].body.input[1].content;
+  // With nothing else on file (no intake, screening or logs in this fake), the phase is all there is.
   assert.deepEqual(JSON.parse(prompt).brief.client, { trainingPhase: 'Build' });
   assert.ok(!prompt.includes('INJECTED-BY-BODY'));
-  assert.ok(!prompt.includes('PRIVATE-NOTE'), 'no health notes, no other columns');
+  assert.ok(!prompt.includes('PRIVATE-NOTE'), 'no free-text program notes, no other columns');
   const stranger = await loadDraftRoute();
   const no = await stranger.mod.POST(draftPost({ request: 'legs', clientId: STRANGER }));
   assert.equal(no.status, 403);
@@ -196,7 +201,7 @@ async function loadChat({ role = 'trainer', user = { id: COACH, email: 'c@x' }, 
     ['@/lib/ai/noraStatus.mjs', await import(join(ROOT, 'src/lib/ai/noraStatus.mjs'))],
     ['@/lib/request-auth', { clientForRequest: async () => sb }],
     // Nora's daily limits and bot check are tested in support-chat-route; here every question passes.
-    ['@/lib/ai/noraLimits', { noraTier: () => 'member', visitorGate: async () => ({ ok: true, id: 'v', setCookie: null }), countQuestion: async () => ({ allowed: true, limit: null, resetSeconds: 0 }), limitReply: () => '', requestIp: () => 'ip', CHECK_REPLY: '' }],
+    ['@/lib/ai/noraLimits', { noraTier: () => 'member', visitorGate: async () => ({ ok: true, id: 'v', setCookie: null }), countQuestion: async () => ({ allowed: true, limit: null, resetSeconds: 0 }), limitReply: () => '', requestIp: () => 'ip', CHECK_REPLY: '', countBudget: async () => ({ allowed: true, limit: 80, resetSeconds: 0 }), budgetReply: () => '' }],
     ['@/lib/ai/noraGreeting.mjs', noraGreeting],
     ['@/lib/ai/noraContext.mjs', noraContext],
     ['@/lib/ai/noraForms.mjs', noraForms],

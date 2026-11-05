@@ -4,6 +4,7 @@ import { computeMembership } from '@/lib/membership-core';
 import { readJson } from '@/lib/request-utils';
 import { callAI, hasOpenAIKey } from '@/lib/ai';
 import { requireMembership } from '@/lib/require-membership';
+import { countBudget, budgetReply } from '@/lib/ai/noraLimits';
 // ONE implementation of the meal-slot / calorie split, shared with the
 // nutritionist builder that renders the same template client-side — the
 // established pattern in this repo (see food-search, self-training,
@@ -582,7 +583,8 @@ export async function POST(request: Request) {
   // resolver `requireMembership` uses, and it reads BOTH `profiles.role` and the
   // `roles` array against the canonical COACH_ROLES — so a dual-role account and
   // a dietitian both resolve correctly.
-  const gate = await computeMembership(await clientForRequest(request), user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
+  const sb = await clientForRequest(request);
+  const gate = await computeMembership(sb, user.id, user.email ?? null, { emailConfirmed: !!user.email_confirmed_at });
   if (!gate.isCoach && !gate.isAdmin) {
     return NextResponse.json({ error: 'Coach access required.' }, { status: 403 });
   }
@@ -590,6 +592,14 @@ export async function POST(request: Request) {
   const jsonResult = await readJson<unknown>(request, { allowEmpty: true });
   if (!jsonResult.ok) return jsonResult.response;
   const json = jsonResult.data;
+
+  // ⚠ A DAILY BUDGET, the coach drafting one (noraLimits.ts `coach_draft`, shared with
+  // /api/ai/draft-workout and /api/ai/draft-meal-plan): counted per account before the model is
+  // asked. Past it, a 429 that says so, never a silent template.
+  const budget = await countBudget(sb, user.id, 'coach_draft');
+  if (!budget.allowed) {
+    return NextResponse.json({ error: budgetReply('coach_draft', budget.resetSeconds), code: 'daily_budget' }, { status: 429, headers: { 'Retry-After': String(Math.max(60, budget.resetSeconds)) } });
+  }
 
   const body = cleanBody(json);
   const generated = await generateWithOpenAI(body).catch((error) => {

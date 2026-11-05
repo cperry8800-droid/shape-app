@@ -31,7 +31,8 @@ const M = require_('../public/newdesign/dashMealCore.js');
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 // A plan as Nora saves it: three days, four meals each, no dairy.
-const brief = cleanMealBrief({ goalPhase: 'cut', days: 3, exclude: ['dairy'] });
+// The 24-food library's draft (its rice is in grams, which the grocery edit below names).
+const brief = cleanMealBrief({ goalPhase: 'cut', days: 3, exclude: ['dairy'], source: 'library', restDays: 0 });
 const NORA = buildMealDoc(brief, pickMeals(brief), 'plan-1');
 // And one with every meal of the day (no dairy leaves no breakfast in Shape's library).
 const fullBrief = cleanMealBrief({ goalPhase: 'cut', days: 3 });

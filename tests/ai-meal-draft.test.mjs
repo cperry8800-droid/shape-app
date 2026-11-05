@@ -9,8 +9,12 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  MEAL_LIBRARY, PHASES, SLOTS, SLOT_FOODS, DRAFT_NOTICE, SCALE_MIN, SCALE_MAX, PROTEIN_TAGS, cleanMealBrief, pickMeals, slotPools, buildMealDoc, mealDraftDiff, dayTotals, draftName, scaleMeal,
+  MEAL_LIBRARY, PHASES, SLOTS, SLOT_FOODS, DRAFT_NOTICE, SCALE_MIN, SCALE_MAX, PROTEIN_TAGS, cleanMealBrief as cleanAnyBrief, pickMeals, slotPools, buildMealDoc, mealDraftDiff, dayTotals, draftName, scaleMeal, mealDraftSnapshot,
 } from '../src/lib/ai/mealDraft.mjs';
+// ⚠ THESE TESTS ARE THE 24-FOOD LIBRARY'S, which stays the fallback and `source: 'library'`: Kitchen is
+// the default since P6 (tests/p6-kitchen-meals.test.mjs), and one set of targets every day (restDays 0)
+// is what these assertions measure against.
+const cleanMealBrief = (input = {}) => cleanAnyBrief({ source: 'library', restDays: 0, ...input });
 import { createRegistry, proposeChange, confirmChange, undoChange, inMemoryAudit, verifyToken } from '../src/lib/ai/proposals.mjs';
 import { NORA_ACTIONS } from '../src/lib/ai/actions.mjs';
 
@@ -215,7 +219,10 @@ test('draft_meal_plan · preview writes nothing; confirm saves exactly the card,
   assert.equal(post.body.expectedOwnerId, 'nutri-1');
   assert.equal(post.body.meta, '3-day rotation · 1900 kcal');
   const expected = buildMealDoc(plan.confirmedPayload.brief, plan.confirmedPayload.picked, planId);
-  assert.deepEqual(post.body.detail, { mealBuilder: expected }, 'what lands is what the card showed');
+  assert.equal(plan.confirmedPayload.brief.source, 'kitchen', 'Nora drafts from Shape Kitchen');
+  const draft = mealDraftSnapshot(expected, { at: plan.confirmedPayload.at, source: 'kitchen' });
+  assert.ok(Object.keys(draft.meals).length >= 9, 'her draft is kept beside the plan');
+  assert.deepEqual(post.body.detail, { mealBuilder: expected, draft }, 'what lands is what the card showed, and her draft beside it');
   assert.ok(expected.days.every((d) => d.slots.every((m) => !/shrimp/i.test(m.name))), 'what was left out stays out');
   assert.ok(!ctx._calls.some((x) => x.path === '/api/nutritionist/meal-plan'), 'never assigned from here');
   assert.deepEqual(c.result.open, { kind: 'coach_plan', planKind: 'meal_plan', planId, url: `/newdesign/NutritionistApp.html#plans?plan=${planId}&client=client-4` });
@@ -224,8 +231,8 @@ test('draft_meal_plan · preview writes nothing; confirm saves exactly the card,
   assert.equal(u.ok, true, u.message);
   const del = supabase._calls.deletes[0];
   assert.deepEqual(del.filters, { id: planId, owner_id: 'nutri-1', kind: 'meal_plan', published: false });
-  assert.deepEqual(del.contains, { k: 'detail', v: { mealBuilder: expected } });
-  assert.deepEqual(del.containedBy, { k: 'detail', v: { mealBuilder: expected } }, '⚠ the row must still hold exactly the saved draft');
+  assert.deepEqual(del.contains, { k: 'detail', v: { mealBuilder: expected, draft } });
+  assert.deepEqual(del.containedBy, { k: 'detail', v: { mealBuilder: expected, draft } }, '⚠ the row must still hold exactly the saved draft');
 });
 
 test('draft_meal_plan · an edited or published draft is not undone; a stranger client is refused; nothing fits is said', async () => {
@@ -238,9 +245,9 @@ test('draft_meal_plan · an edited or published draft is not undone; a stranger 
   const stranger = await proposeChange({ registry: reg, action: 'draft_meal_plan', input: { clientId: 'x', clientName: 'Sam' }, actor, ctx: ctxFor(db({ coachOn: false })), secret: SECRET });
   assert.equal(stranger.ok, false);
   assert.match(stranger.message, /not an active coach on this client/);
-  const nothing = await proposeChange({ registry: reg, action: 'draft_meal_plan', input: { slots: ['Breakfast'], exclude: ['dairy'] }, actor, ctx, secret: SECRET });
+  const nothing = await proposeChange({ registry: reg, action: 'draft_meal_plan', input: { slots: ['Breakfast'], exclude: ['vegan'] }, actor, ctx, secret: SECRET });
   assert.equal(nothing.ok, false);
-  assert.match(nothing.message, /No meal in Shape's library fits/);
+  assert.match(nothing.message, /No Shape dish fits/);
 });
 
 test('draft_meal_plan · nutrition roles only, held roles counted: a trainer or a member cannot propose it', async () => {

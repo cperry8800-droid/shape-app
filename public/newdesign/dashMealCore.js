@@ -6,9 +6,12 @@
 //     version: n,
 //     goalPhase: 'cut'|'maintain'|'build',
 //     targets: { kcal, p, c, f },                  // set FIRST; everything measures against these
+//                                                   // (a TRAINING day's, when the plan has rest days)
+//     restTargets: { kcal, p, c, f } | absent,     // a REST day's (P6); absent = the same every day
 //     constraints: { proteinFloor: n|null, exclusions: ['shellfish',…], maxPrep: n|null },
 //     days: [ {
 //       name: 'Day A',
+//       type: 'train'|'rest' | absent,              // P6: what the day's menu is for; absent = train
 //       slots: [ meal ],                            // base = the TRAINING-day version
 //       variants: {                                 // FIRST-CLASS: overlays, not copies
 //         rest:   { overrides: { [mealId]: meal|null }, extras: [meal] },
@@ -379,7 +382,9 @@
   function scaleMeal(meal, k) {
     var m = clone(meal);
     ["kcal", "p", "c", "f"].forEach(function (key) { m[key] = Math.round((Number(m[key]) || 0) * k); });
+    // An amount the recipe never gave ("to taste") stays one: it is not scaled into a number.
     m.ingredients = (m.ingredients || []).map(function (ing) {
+      if (ing.qty == null) { var none = { name: ing.name, qty: null, unit: "" }; if (ing.qtyText) none.qtyText = ing.qtyText; return none; }
       return { name: ing.name, qty: Math.round((Number(ing.qty) || 0) * k * 10) / 10, unit: ing.unit || "" };
     });
     m.swaps = (m.swaps || []).map(function (s) {
@@ -437,15 +442,19 @@
       meals.forEach(function (m) {
         (m.ingredients || []).forEach(function (ing) {
           var key = (ing.name + "|" + (ing.unit || "")).toLowerCase();
-          if (!byKey[key]) byKey[key] = { name: ing.name, unit: ing.unit || "", qty: 0, meals: {} };
-          byKey[key].qty += (Number(ing.qty) || 0) * k;
+          if (!byKey[key]) byKey[key] = { name: ing.name, unit: ing.unit || "", qty: 0, measured: false, meals: {} };
+          // ⚠ AN AMOUNT NOBODY GAVE IS NOT A ZERO. A Kitchen recipe's "to taste" or "handful" has no
+          // quantity; the line reads "as needed" rather than adding a figure nobody measured.
+          if (ing.qty != null && ing.qty !== "") { byKey[key].qty += (Number(ing.qty) || 0) * k; byKey[key].measured = true; }
           byKey[key].meals[m.name] = true;
         });
       });
     });
     return Object.keys(byKey).map(function (key) {
       var g = byKey[key];
-      return { name: g.name, qty: Math.round(g.qty * 10) / 10, unit: g.unit, meals: Object.keys(g.meals).slice(0, 3) };
+      var out = { name: g.name, qty: g.measured ? Math.round(g.qty * 10) / 10 : null, unit: g.unit, meals: Object.keys(g.meals).slice(0, 3) };
+      if (!g.measured) out.asNeeded = true;
+      return out;
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
   }
 
@@ -462,19 +471,58 @@
   // client grocery surface auto-builds from the plan's meals.
   var SLOT_TIMES = { Breakfast: "08:00", Lunch: "12:30", Snack: "16:00", Dinner: "19:00" };
   function groceryKey(ing) { return (ing.name + "|" + (ing.unit || "")).toLowerCase(); }
+  // ── Training and rest days (P6) ─────────────────────────────────────────────
+  // A plan holds a training day's targets (`targets`, as every plan always has) and, when it has rest
+  // days, a rest day's (`restTargets`). A day of the rotation is tagged for one or the other
+  // (`day.type`); an untagged day is a training day, so a plan from before reads exactly as it did.
+  var REST_CARB_DROP = 50;
+  function dayType(day) { return day && day.type === "rest" ? "rest" : "train"; }
+  function targetsFor(plan, type) {
+    var t = (plan && plan.targets) || { kcal: 0, p: 0, c: 0, f: 0 };
+    return type === "rest" && plan && plan.restTargets ? plan.restTargets : t;
+  }
+  // A rest day's starting targets: protein and fat hold, carbs drop 50 g (Nora's rule, mealDraft.mjs).
+  function restTargetsFrom(t) {
+    var c = Math.max(0, (Number(t.c) || 0) - REST_CARB_DROP);
+    return { kcal: Math.max(0, (Number(t.kcal) || 0) - ((Number(t.c) || 0) - c) * 4), p: Number(t.p) || 0, c: c, f: Number(t.f) || 0 };
+  }
+  // Whether the rotation names its rest days: at least one of each kind.
+  function planTyped(plan) {
+    var days = (plan && plan.days) || [];
+    var rest = days.filter(function (d) { return dayType(d) === "rest"; }).length;
+    return rest > 0 && rest < days.length;
+  }
+
   function buildMealAssignment(plan, opts) {
     opts = opts || {};
     var scale = opts.scale || 1;
     var trainingDows = opts.trainingDows || [0, 2, 4]; // Mon/Wed/Fri
     var edits = opts.groceryEdits || null;
+    // ⚠ A ROTATION THAT NAMES ITS REST DAYS FOLLOWS THE CLIENT'S WEEK: each of their training days takes
+    // the next training-day menu, each rest day the next rest-day menu. An untyped rotation runs by
+    // weekday as it always has, a rest day taking the day's rest version when it has one.
+    var typed = planTyped(plan);
+    var trainPool = typed ? plan.days.filter(function (d) { return dayType(d) !== "rest"; }) : null;
+    var restPool = typed ? plan.days.filter(function (d) { return dayType(d) === "rest"; }) : null;
+    var nextTrain = 0, nextRest = 0;
     // Resolve + scale every weekday's meals once.
     var weekMeals = [];
     var meta = [];
     for (var dow = 0; dow < 7; dow++) {
-      var src = plan.days[dow % plan.days.length];
-      var variant = trainingDows.indexOf(dow) >= 0 ? "training" : (src.variants && src.variants.rest ? "rest" : "training");
+      var training = trainingDows.indexOf(dow) >= 0;
+      var src, variant;
+      if (typed) {
+        src = training ? trainPool[nextTrain++ % trainPool.length] : restPool[nextRest++ % restPool.length];
+        variant = "training";
+      } else {
+        src = plan.days[dow % plan.days.length];
+        variant = training ? "training" : (src.variants && src.variants.rest ? "rest" : "training");
+      }
+      // A rest day: one the rotation names, one taking a rest version, or any non-training day of a
+      // plan with rest-day targets. Without any of those it reads as before (TRAIN, the one target).
+      var restDay = !training && (typed || variant === "rest" || !!plan.restTargets);
       weekMeals.push(resolveDay(src, variant).map(function (m) { return scaleMeal(m, scale); }));
-      meta.push({ src: src, variant: variant });
+      meta.push({ src: src, variant: variant, rest: restDay });
     }
     // Apply grocery edits onto the ingredients themselves.
     if (edits) {
@@ -503,19 +551,20 @@
       });
     }
     var days = weekMeals.map(function (meals, dow) {
+      var t = targetsFor(plan, meta[dow].rest ? "rest" : "train");
       return {
         dow: dow,
-        title: meta[dow].src.name + (meta[dow].variant === "rest" ? " · rest" : ""),
-        tag: meta[dow].variant === "rest" ? "REST" : "TRAIN",
+        title: meta[dow].src.name + (meta[dow].rest ? " · rest" : ""),
+        tag: meta[dow].rest ? "REST" : "TRAIN",
         targets: {
-          cal: Math.round(plan.targets.kcal * scale), p: Math.round(plan.targets.p * scale),
-          c: Math.round(plan.targets.c * scale), f: Math.round(plan.targets.f * scale),
+          cal: Math.round(t.kcal * scale), p: Math.round(t.p * scale),
+          c: Math.round(t.c * scale), f: Math.round(t.f * scale),
         },
         meals: meals.map(function (sm) {
           var out = {
             slot: sm.slot, time: SLOT_TIMES[sm.slot] || "",
             title: sm.name, kcal: sm.kcal, p: sm.p, c: sm.c, f: sm.f,
-            ingredients: (sm.ingredients || []).map(function (ing) { return { qty: ing.qty + (ing.unit ? " " + ing.unit : ""), name: ing.name }; }),
+            ingredients: (sm.ingredients || []).map(function (ing) { return { qty: ing.qty == null ? (ing.qtyText || "as needed") : ing.qty + (ing.unit ? " " + ing.unit : ""), name: ing.name }; }),
             alts: sm.swaps || [],
           };
           // Night-before prep (Phase 2): only a meal that needs it carries the key, so every other
@@ -545,6 +594,114 @@
       if (queueReady[c.profile.id]) expiring.push(c);
     });
     return { intake: intake, phaseChange: phase, expiring: expiring };
+  }
+
+  // ── Who needs a new plan, once each (P6) ──────────────────────────────────────
+  // The lifecycle's "expiring this week" and "ready for a phase change" overlap (the audit counted 9 and
+  // 8, mostly the same people), so a client on both read as two jobs. This is ONE list: each client once,
+  // with every reason they are on it, closing on the check-in week's Sunday (the week runs Monday to
+  // Sunday, as the plan queue's does). "3 need a new plan by Sun · Nov 8".
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function weekSunday(now) {
+    var d = new Date(now || Date.now());
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+    return d;
+  }
+  function planNeeds(lifecycle, now) {
+    var seen = Object.create(null), list = [];
+    function take(c, why) {
+      var id = c && c.profile && c.profile.id;
+      if (!id) return;
+      if (!seen[id]) { seen[id] = { client: c, reasons: [] }; list.push(seen[id]); }
+      if (seen[id].reasons.indexOf(why) < 0) seen[id].reasons.push(why);
+    }
+    ((lifecycle && lifecycle.expiring) || []).forEach(function (c) { take(c, "expiring"); });
+    ((lifecycle && lifecycle.phaseChange) || []).forEach(function (c) { take(c, "phase"); });
+    var by = weekSunday(now);
+    var iso = by.getFullYear() + "-" + String(by.getMonth() + 1).padStart(2, "0") + "-" + String(by.getDate()).padStart(2, "0");
+    var label = list.length
+      ? list.length + " need" + (list.length === 1 ? "s" : "") + " a new plan by Sun · " + MONTHS[by.getMonth()] + " " + by.getDate()
+      : "Nobody needs a new plan this week";
+    return { clients: list, count: list.length, by: iso, label: label };
+  }
+
+  // ── Shape Kitchen in the builder (P6) ─────────────────────────────────────────
+  // The Kitchen's recipes arrive as foods (GET /api/kitchen/foods, built on the server from the app's
+  // catalog by src/lib/kitchenFoods.mjs), each with the tags a plan's exclusions read. The plan's
+  // constraints filter them exactly as they filter Shape's 24 foods: an excluded word in a tag, the
+  // name or any ingredient leaves the recipe out, and so does a prep time over the plan's maximum.
+  var KITCHEN_FILTERS = [
+    { key: "protein", label: "High protein", test: function (f) { return (Number(f.p) || 0) >= 30; } },
+    { key: "veg", label: "Vegetarian", test: function (f) { var t = f.tags || []; return t.indexOf("meat") < 0 && t.indexOf("seafood") < 0 && t.indexOf("fish") < 0 && t.indexOf("shellfish") < 0; } },
+    { key: "quick", label: "Prep < 20 min", test: function (f) { return f.prepMin != null && f.prepMin < 20; } },
+  ];
+  function kitchenAllowed(f, constraints) {
+    var ex = (constraints && constraints.exclusions) || [];
+    var name = String(f.name || "").toLowerCase();
+    var ings = (f.ingredients || []).map(function (x) { return String((x && x.name) || "").toLowerCase(); });
+    for (var i = 0; i < ex.length; i++) {
+      var tag = String(ex[i]).toLowerCase();
+      if ((f.tags || []).indexOf(tag) >= 0 || name.indexOf(tag) >= 0) return false;
+      for (var j = 0; j < ings.length; j++) if (ings[j].indexOf(tag) >= 0) return false;
+    }
+    var maxPrep = constraints && constraints.maxPrep;
+    if (maxPrep != null && f.prepMin != null && f.prepMin > maxPrep) return false;
+    return true;
+  }
+  // Quickest first, as the Kitchen panel lists them; at most `limit` (all when it is 0).
+  function searchKitchen(list, q, constraints, filters, limit) {
+    var s = String(q || "").trim().toLowerCase();
+    var on = KITCHEN_FILTERS.filter(function (k) { return filters && filters[k.key]; });
+    var out = (list || []).filter(function (f) {
+      if (!kitchenAllowed(f, constraints)) return false;
+      for (var i = 0; i < on.length; i++) if (!on[i].test(f)) return false;
+      if (!s) return true;
+      return String(f.name).toLowerCase().indexOf(s) >= 0 || (f.labels || []).join(" ").toLowerCase().indexOf(s) >= 0 || String(f.diet || "").toLowerCase() === s;
+    }).sort(function (a, b) {
+      var pa = a.prepMin == null ? 999 : a.prepMin, pb = b.prepMin == null ? 999 : b.prepMin;
+      return pa - pb || String(a.name).localeCompare(String(b.name));
+    });
+    return limit === 0 ? out : out.slice(0, limit || 40);
+  }
+  // A Kitchen recipe placed on the plan: the builder's meal, marked as the Kitchen's.
+  function kitchenMeal(food, slot) {
+    var m = newMeal(food, slot);
+    m.kitchen = true;
+    return m;
+  }
+
+  // ── What changed since Nora's draft (P6) ──────────────────────────────────────
+  // Her draft is kept beside the plan (`detail.draft`, src/lib/ai/mealDraft.mjs mealDraftSnapshot):
+  // what she placed in each meal she drafted, by meal id. A meal still carrying her id is hers; it is
+  // "changed" when its dish, its numbers or its slot moved, or the nutritionist added swaps or a note.
+  function mealDraftMark(snapshot, meal) {
+    var was = snapshot && snapshot.meals && meal ? snapshot.meals[meal.id] : null;
+    if (!was) return "";
+    var same = String(meal.name || "") === was[0] && (Number(meal.kcal) || 0) === was[1] && (Number(meal.p) || 0) === was[2]
+      && (Number(meal.c) || 0) === was[3] && (Number(meal.f) || 0) === was[4] && String(meal.slot || "") === was[5];
+    return same && !(meal.swaps || []).length && !meal.note ? "nora" : "changed";
+  }
+  function mealDraftChanges(snapshot, plan) {
+    var was = (snapshot && snapshot.meals) || {};
+    var ids = Object.keys(was);
+    var now = Object.create(null), own = 0;
+    ((plan && plan.days) || []).forEach(function (d) {
+      ((d && d.slots) || []).forEach(function (m) {
+        if (!m) return;
+        if (Object.prototype.hasOwnProperty.call(was, m.id)) now[m.id] = m; else own += 1;
+      });
+    });
+    var changed = [], removed = [];
+    ids.forEach(function (id) {
+      if (!now[id]) { removed.push(was[id][0]); return; }
+      if (mealDraftMark(snapshot, now[id]) === "changed") changed.push(id);
+    });
+    var total = ids.length;
+    var line = !total ? "" : (changed.length + removed.length)
+      ? (changed.length + removed.length) + " of her " + total + " meal" + (total === 1 ? "" : "s") + " changed" + (own ? " · " + own + " yours" : "")
+      : "All " + total + " of her meals as she drafted them" + (own ? " · " + own + " yours" : "");
+    return { total: total, changed: changed, removed: removed, own: own, line: line };
   }
 
   // ── The library's filters ───────────────────────────────────────────────────
@@ -739,6 +896,10 @@
     mealsTotals: mealsTotals, scaleMeal: scaleMeal, phaseShift: phaseShift,
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,
     buildMealAssignment: buildMealAssignment, buildPlanLifecycle: buildPlanLifecycle,
+    dayType: dayType, targetsFor: targetsFor, restTargetsFrom: restTargetsFrom, planTyped: planTyped, REST_CARB_DROP: REST_CARB_DROP,
+    planNeeds: planNeeds, weekSunday: weekSunday,
+    KITCHEN_FILTERS: KITCHEN_FILTERS, kitchenAllowed: kitchenAllowed, searchKitchen: searchKitchen, kitchenMeal: kitchenMeal,
+    mealDraftMark: mealDraftMark, mealDraftChanges: mealDraftChanges,
     demoMealTemplates: demoMealTemplates,
     ALLERGENS: ALLERGENS, mealDiet: mealDiet, planServed: planServed, planDiet: planDiet, planPrep: planPrep,
     mealPlanFacts: mealPlanFacts, MEAL_FACETS: MEAL_FACETS, mealPhaseFacet: mealPhaseFacet,

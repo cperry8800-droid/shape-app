@@ -56,7 +56,7 @@ test('counts distinct CLIENTS per program, from this coach\'s published sessions
   ];
   const { route, calls } = await api([{ data: [{ id: 't1' }, { id: 't2' }], error: null }, { data: rows, error: null, count: rows.length }]);
   const body = await (await route.GET(get())).json();
-  assert.deepEqual(body, { usage: { p1: { clients: 2 }, p2: { clients: 1 } }, capped: false });
+  assert.deepEqual(body, { usage: { p1: { clients: 2, clientIds: ['c1', 'c2'], weeks: {} }, p2: { clients: 1, clientIds: ['c3'], weeks: {} } }, capped: false });
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'owner_id' && c[2] === 'coach-a'), 'the trainer rows are the caller\'s own');
   assert.ok(calls.some((c) => c[0] === 'in' && c[1] === 'trainer_id' && c[2].join() === 't1,t2'));
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'status' && c[2] === 'published'), 'a draft is on nobody\'s calendar');
@@ -66,7 +66,7 @@ test('counts distinct CLIENTS per program, from this coach\'s published sessions
 
 test('a read past the cap says so, because it can only under-count', async () => {
   const { route } = await api([{ data: [{ id: 't1' }], error: null }, { data: [{ client_id: 'c1', template_id: 'p1' }], error: null, count: 9000 }]);
-  assert.deepEqual(await (await route.GET(get())).json(), { usage: { p1: { clients: 1 } }, capped: true });
+  assert.deepEqual(await (await route.GET(get())).json(), { usage: { p1: { clients: 1, clientIds: ['c1'], weeks: {} } }, capped: true });
   const unknown = await api([{ data: [{ id: 't1' }], error: null }, { data: [], error: null, count: null }]);
   assert.equal((await (await unknown.route.GET(get())).json()).capped, true, 'an unknown count is not a complete one');
 });
@@ -95,7 +95,41 @@ test('a template id is only ever an own key of the map', async () => {
   const { route } = await api([{ data: [{ id: 't1' }], error: null }, { data: rows, error: null, count: 2 }]);
   const body = await (await route.GET(get())).json();
   assert.deepEqual(Object.keys(body.usage).sort(), ['__proto__', 'constructor']);
-  assert.deepEqual(body.usage.constructor, { clients: 1 });
+  assert.deepEqual(body.usage.constructor, { clients: 1, clientIds: ['c1'], weeks: {} });
+});
+
+// ── P6: who is on it, at their own week, and the meal plans ─────────────────────────
+test('each client\'s OWN week of a program: the week of their next session, never one week for everyone', async () => {
+  const rows = [
+    // newest first, as the route orders them
+    { client_id: 'jonah', template_id: 'p1', template_week: '7', scheduled_date: '2026-11-16' },
+    { client_id: 'jonah', template_id: 'p1', template_week: '6', scheduled_date: '2026-11-09' },
+    { client_id: 'tess', template_id: 'p1', template_week: '1', scheduled_date: '2026-11-10' },
+    { client_id: 'sam', template_id: 'p1', template_week: null, scheduled_date: '2026-11-11' },
+  ];
+  const { route } = await api([{ data: [{ id: 't1' }], error: null }, { data: rows, error: null, count: rows.length }]);
+  const body = await (await route.GET(get())).json();
+  assert.deepEqual(body.usage.p1, { clients: 3, clientIds: ['jonah', 'tess', 'sam'], weeks: { jonah: 6, tess: 1 } });
+});
+
+test('meal plans: the clients whose current plan came from each template, from this nutritionist\'s rows only', async () => {
+  const rows = [
+    { client_id: 'priya', template_id: 'm1' }, { client_id: 'tess', template_id: 'm1' }, { client_id: 'priya', template_id: 'm1' },
+    { client_id: 'nadia', template_id: 'm2' }, { client_id: 'x', template_id: null },
+  ];
+  const { route, calls } = await api([{ data: [{ id: 41 }], error: null }, { data: rows, error: null, count: rows.length }]);
+  const body = await (await route.GET(get('?kind=meal_plan&today=2026-11-05'))).json();
+  assert.deepEqual(body, { usage: { m1: { clients: 2, clientIds: ['priya', 'tess'] }, m2: { clients: 1, clientIds: ['nadia'] } }, capped: false });
+  assert.ok(calls.some((c) => c[0] === 'from' && c[1] === 'nutritionists'));
+  assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'owner_id' && c[2] === 'coach-a'), 'the nutritionist rows are the caller\'s own');
+  assert.ok(calls.some((c) => c[0] === 'in' && c[1] === 'nutritionist_id' && c[2].join() === '41'));
+  assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'status' && c[2] === 'published'), 'an archived plan is nobody\'s current one');
+  assert.ok(calls.some((c) => c[0] === 'from' && c[1] === 'client_meal_plans'));
+  assert.ok(!calls.some((c) => c[0] === 'from' && c[1] === 'client_workouts'));
+  const none = await api([{ data: [], error: null }]);
+  assert.deepEqual(await (await none.route.GET(get('?kind=meal_plan'))).json(), { usage: {}, capped: false });
+  const failed = await api([{ data: [{ id: 41 }], error: null }, { data: null, error: { message: 'boom' } }]);
+  assert.equal((await failed.route.GET(get('?kind=meal_plan'))).status, 500, 'a failed read is an error, never "nobody"');
 });
 
 test('the route is registered on the War Room board', async () => {

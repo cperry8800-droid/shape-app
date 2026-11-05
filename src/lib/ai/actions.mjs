@@ -22,7 +22,8 @@ import {
 // The chat route's no-model path reads a trainer's request with this (it imports Nora's
 // actions, never the draft core directly).
 export { briefFromText as draftBriefFromText } from './workoutDraft.mjs';
-import { cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, draftName as mealDraftName } from './mealDraft.mjs';
+import { cleanMealBrief, pickMeals, buildMealDoc, mealDraftDiff, mealDraftSnapshot, draftName as mealDraftName } from './mealDraft.mjs';
+import { draftSnapshot } from '../../../public/newdesign/workoutDocument.mjs';
 import { cleanNutritionBrief, generatePlanBody, nutritionDraftFrom, nutritionPlanRow, nutritionDraftDiff, NUTRITION_TEMPLATE_NOTICE } from './nutritionDraft.mjs';
 import { planSetupChanges, buildSetupPreview, applySetupCells, stampSetupCells, REFUSED_REASONS, NOTHING_MSG, NOT_ALLOWED_MSG } from './accountSetup.mjs';
 // The chat route offers set_up_account and its note from here (it imports Nora's actions, never the
@@ -425,7 +426,7 @@ export const draftWorkoutAction = {
       target: { userId: ctx.actor.id, kind: 'coach_plan', id: planId },
       beforeState: { planId: planId },
       afterState: { planId: planId, name: built.name },
-      confirmedPayload: { mode: 'save', planId: planId, clientId: clientId, spec: spec },
+      confirmedPayload: { mode: 'save', planId: planId, clientId: clientId, spec: spec, source: gen.source, request: brief.request },
       open: { kind: 'coach_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: programsUrl(planId, clientId) },
       note: (gen.source === 'template' ? 'This is a TEMPLATE, not an AI draft: AI drafting is unavailable right now — say so. ' : '')
         + 'Nothing is saved until the trainer confirms; it is saved unpublished and opens in the builder for editing'
@@ -445,9 +446,11 @@ export const draftWorkoutAction = {
       return r.data;
     }
     var weeks = built.builder.weeks.length;
+    // Nora's draft rides beside the template (`detail.draft`), so the builder can show what the coach changes.
+    var snapshot = draftSnapshot(built.builder, { source: p.source === 'template' ? 'template' : 'ai', kind: p.spec && p.spec.kind, brief: p.request || '', notes: (p.spec && p.spec.notes) || '' });
     var res = await ctx.call('POST', '/api/coach/plans', {
       id: p.planId, kind: 'program', name: built.name, meta: weeks + (weeks === 1 ? ' week' : ' weeks'),
-      published: false, expectedOwnerId: ctx.actor.id, detail: { buildType: built.buildType, builder: built.builder },
+      published: false, expectedOwnerId: ctx.actor.id, detail: { buildType: built.buildType, builder: built.builder, draft: snapshot },
     });
     // Relayed as the route says it ("This draft was already saved…", a 409, a 500).
     if (!res.ok) throw new Error((res.data && res.data.error) || 'Could not save the draft to your programs.');
@@ -486,7 +489,10 @@ function mealPlansUrl(planId, clientId) {
 }
 function mealDraftDetail(confirmed) {
   var doc = buildMealDoc(confirmed.brief, confirmed.picked, confirmed.planId);
-  return { doc: doc, detail: { mealBuilder: doc } };
+  // Nora's draft rides beside the plan (`detail.draft`), minted at the preview (`at`), so the undo's
+  // exact-match guard still compares like with like. A token from before it carries no `at` and no draft.
+  var draft = confirmed.at ? mealDraftSnapshot(doc, { at: confirmed.at, source: confirmed.brief && confirmed.brief.source }) : null;
+  return { doc: doc, detail: draft ? { mealBuilder: doc, draft: draft } : { mealBuilder: doc } };
 }
 export const draftMealPlanAction = {
   name: 'draft_meal_plan',
@@ -508,10 +514,10 @@ export const draftMealPlanAction = {
     }
     var picked = pickMeals(brief);
     if (!picked.days.length || !picked.days[0].meals.length) {
-      throw new Error("No meal in Shape's library fits what you've left out. Start it in the builder with your own foods, or leave out less.");
+      throw new Error("No Shape dish fits what you've left out. Start it in the builder with your own foods, or leave out less.");
     }
     var planId = randomUUID();
-    var confirmed = { planId: planId, clientId: clientId, brief: brief, picked: picked };
+    var confirmed = { planId: planId, clientId: clientId, brief: brief, picked: picked, at: new Date().toISOString() };
     var doc = mealDraftDetail(confirmed).doc;
     var name = mealDraftName(brief);
     return {
@@ -522,7 +528,7 @@ export const draftMealPlanAction = {
       afterState: { planId: planId, name: name },
       confirmedPayload: confirmed,
       open: { kind: 'coach_plan', planKind: 'meal_plan', planId: planId, ...(clientId ? { clientId: clientId } : {}), url: mealPlansUrl(planId, clientId) },
-      note: "Every meal and number on the card is from Shape's meal library; say so, and never add a meal or a figure of your own. Nothing is saved until they confirm; it is saved unpublished to their meal plans, where they edit it and assign it: on the Plans page of the Shape app, or in the meal builder on the website (the compliance check runs when it is assigned)."
+      note: "Every meal and number on the card is from Shape Kitchen's recipes (or Shape's basic foods, where the card says so); say so, and never add a meal or a figure of your own. Nothing is saved until they confirm; it is saved unpublished to their meal plans, where they edit it and assign it: on the Plans page of the Shape app, or in the meal builder on the website (the compliance check runs when it is assigned)."
         + (picked.missing.length ? ' No library food fit the ' + picked.missing.join(' and ') + ' after what they left out: say so, and that they can add their own in the builder.' : ''),
     };
   },

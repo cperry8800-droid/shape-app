@@ -440,7 +440,13 @@ test('draft_workout · SAVE: preview drafts once, confirm saves exactly those ro
   assert.equal(saved.published, false, 'saved as a draft');
   assert.equal(saved.kind, 'program');
   assert.equal(saved.expectedOwnerId, 'coach-1');
-  assert.deepEqual(saved.detail, { buildType: 'workout', builder: expandDraft(plan.confirmedPayload.spec).builder }, 'byte-identical to the previewed draft');
+  const { draft, ...detail } = saved.detail;
+  assert.deepEqual(detail, { buildType: 'workout', builder: expandDraft(plan.confirmedPayload.spec).builder }, 'byte-identical to the previewed draft');
+  // Nora's draft rides beside the template, so the builder can show what the coach changes.
+  assert.equal(draft.by, 'nora');
+  assert.equal(draft.kind, 'day');
+  assert.equal(draft.brief, 'lower body, 50 min, barbell');
+  assert.deepEqual(Object.keys(draft.rows), saved.detail.builder.weeks[0].days[0].blocks.flatMap((b) => b.rows.map((r) => r.id)), 'every drafted row, by id');
   assert.equal(saved.detail.builder.weeks[0].days[0].blocks[1].rows[0].load, '', 'no invented weight reaches the library');
   assert.equal(c.result.open.planId, planId);
   assert.equal(audit._rows[0].action, 'draft_workout');

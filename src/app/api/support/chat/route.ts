@@ -518,7 +518,7 @@ const NUTRITION_TOOLS = [
     type: 'function',
     name: 'draft_meal_plan',
     description:
-      "DRAFT a meal plan for the NUTRITIONIST from their brief. Use whenever they ask you to draft, build, create, write or make a meal plan, for a client or for their library. The server picks every meal from Shape's meal library (with the library's own macros) to come close to the daily targets, varies it across the days, and shows a card to review. It is saved UNPUBLISHED to their meal plans for them to edit and assign in the builder; nothing is saved until they confirm, and it is never assigned to a client from here. Pass only what they said: the goal phase, daily targets they gave as numbers, how many days in the rotation, which meals of the day, what to leave out (allergens, foods), and the most prep minutes per meal.",
+      "DRAFT a meal plan for the NUTRITIONIST from their brief. Use whenever they ask you to draft, build, create, write or make a meal plan, for a client or for their library. The server picks every meal from Shape Kitchen's recipes (with each recipe's own macros) to come close to the daily targets, training days' and rest days' apart, varies it across the days, and shows a card to review. It is saved UNPUBLISHED to their meal plans for them to edit and assign in the builder; nothing is saved until they confirm, and it is never assigned to a client from here. Pass only what they said: the goal phase, daily targets they gave as numbers, how many days in the rotation, which meals of the day, what to leave out (allergens, foods), and the most prep minutes per meal.",
     parameters: {
       type: 'object',
       properties: {
@@ -529,6 +529,8 @@ const NUTRITION_TOOLS = [
         carbs: { type: 'integer', description: 'Daily carbs in grams, only if they gave a number.' },
         fat: { type: 'integer', description: 'Daily fat in grams, only if they gave a number.' },
         days: { type: 'integer', description: 'Days in the rotation (1-7), only if they said; 3 if not.' },
+        restDays: { type: 'integer', description: 'How many of those days are rest days, only if they said (a week has 3 if not; 0 for one set of targets every day).' },
+        restKcal: { type: 'integer', description: 'Rest-day calories, only if they gave a number.' },
         slots: { type: 'array', items: { type: 'string', enum: ['Breakfast', 'Lunch', 'Dinner', 'Snack'] }, description: 'The meals of the day, only if they said; all four if not.' },
         exclude: { type: 'array', items: { type: 'string' }, description: "What to leave out, one word each, e.g. 'dairy', 'nuts', 'gluten', 'shellfish', 'fish', 'egg', 'soy', 'beef'." },
         maxPrepMinutes: { type: 'integer', description: 'The most prep minutes per meal, only if they said.' },
@@ -564,9 +566,9 @@ const NUTRITION_TOOLS = [
   },
 ];
 const NUTRITION_PROMPT_NOTE = [
-  'MEAL PLAN DRAFTING: You CAN draft meal plans for this nutritionist — the one exception to "never invent a meal", because every meal comes from Shape\'s meal library, not from you.',
+  'MEAL PLAN DRAFTING: You CAN draft meal plans for this nutritionist — the one exception to "never invent a meal", because every meal comes from Shape Kitchen\'s recipes, not from you.',
   'When they ask you to draft, build, create, write or make a meal plan, call draft_meal_plan with what they said: the goal phase, daily targets only if they gave numbers, days in the rotation, the meals of the day, what to leave out, the most prep minutes. For a client, find_client first; never guess one.',
-  "The server picks each meal and adds up the macros: never name a meal or state a number it did not return. Targets they did not give are the builder's defaults for the phase, and the card says which. Shape's library is small (about two dozen dishes), so say they can swap in their own foods in the builder.",
+  "The server picks each meal and adds up the macros: never name a meal or state a number it did not return. Targets they did not give are the builder's defaults for the phase, and the card says which. Each day is a training day or a rest day; a rest day keeps protein and fat and drops carbs unless they gave rest-day calories. Every dish is a Shape Kitchen recipe (about a hundred); say they can swap in their own foods in the builder.",
   'Nothing is saved until they confirm; it is saved unpublished to their meal plans, and the card opens it in the builder, where they edit it and assign it to a client: the Plans page in the Shape app, or the meal builder on the website. You never assign it from here. Say that, never that it is done.',
   "PROGRAMS AND DIETS: When they ask you to draft, build, create, write or make a nutrition program (what to work on week by week) or a diet (options for each meal, foods to favour and avoid), call draft_nutrition_program with kind 'program' or 'diet' and their request in their own words, passing the goal, the diet, the weeks and the calories only as they said them. The server writes every line with the plan builder's generator: never write a line, a meal or a number of your own, and if the card says it is a template, say so. It is saved unpublished to their programs or diets on the Plans page of the Shape app, where they edit it and publish or assign it; a program holds no meals, so it is never put on a client's Eat tab. Say that, never that it is done.",
 ].join(' ');
@@ -1123,6 +1125,12 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean, d
     if (name === 'draft_nutrition_program') {
       const budget = await countBudget(actor.supabase, actor.user.id, 'draft_program');
       if (!budget.allowed) return { result: { error: 'daily_budget', message: budgetReply('draft_program', budget.resetSeconds) }, actions: [] };
+    }
+    // A workout or program Nora drafts in chat is the same draft the builders ask /api/ai/draft-workout
+    // for, so it spends the same budget (`coach_draft`), before the preview drafts it.
+    if (name === 'draft_workout') {
+      const budget = await countBudget(actor.supabase, actor.user.id, 'coach_draft');
+      if (!budget.allowed) return { result: { error: 'daily_budget', message: budgetReply('coach_draft', budget.resetSeconds) }, actions: [] };
     }
     const res = await proposeChange({
       registry: serverRegistry,
