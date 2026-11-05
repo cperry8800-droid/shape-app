@@ -141,6 +141,10 @@ function lastArchive(state) {
 function NutritionistGoalPage() {
   const [state, setState] = React.useState(() => ({ ...DEFAULT_GOALS_STATE, goals: withGoalIds(DEFAULT_GOALS_STATE.goals) }));
   const [signedIn, setSignedIn] = React.useState(false);
+  // ⚠ EVERY SAVE IS BOUND TO THE ACCOUNT THIS PAGE LOADED (Codex on #2626). saveUserGoals writes to
+  // whoever is signed in at save time, so a sign-in to another account in another tab, while a
+  // question was open here, wrote this page's goals over that account's. It now refuses instead.
+  const ownerId = React.useRef(null);
   const [toast, setToast] = React.useState(null);
   const [editGoalId, setEditGoalId] = React.useState(null); // goal id | 'new' | null
   // Holds the ROWS to edit (or false) — the modal is seeded with whatever the
@@ -154,6 +158,7 @@ function NutritionistGoalPage() {
       if (!window.shapeDb) return;
       const user = await window.shapeDb.getUser();
       if (!user) return;
+      ownerId.current = user.id;
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("nutritionist");
       if (remote && Object.keys(remote).length > 0) {
@@ -170,8 +175,8 @@ function NutritionistGoalPage() {
   async function persist(next) {
     setState(next);
     if (window.shapeDb && window.shapeDb.saveUserGoals) {
-      const res = await window.shapeDb.saveUserGoals("nutritionist", next);
-      showToast(res && res.error ? (res.error.message || "Save failed") : (signedIn ? "Saved." : "Sample view — sign in to save."));
+      const res = await window.shapeDb.saveUserGoals("nutritionist", next, ownerId.current ? { expectedUserId: ownerId.current } : undefined);
+      showToast(res && res.error ? (res.error.message === "Account changed" ? "Not saved: another account is signed in now. Reload this page." : (res.error.message || "Save failed")) : (signedIn ? "Saved." : "Sample view — sign in to save."));
     } else {
       showToast("Sample view — sign in to save.");
     }

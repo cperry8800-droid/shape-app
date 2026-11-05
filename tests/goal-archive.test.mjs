@@ -34,3 +34,19 @@ test('the restore offers the newest archived quarter that holds goals', () => {
   const b = { at: '2026-11-06', goals: [{ id: 'g2' }] };
   assert.equal(lastArchive({ archived: [a, b] }), b);
 });
+
+for (const p of PAGES) {
+  test(`${p}: every save is bound to the account the page loaded (Codex on #2626)`, () => {
+    const src = read(p);
+    assert.match(src, /ownerId\.current = user\.id;/, 'the page no longer remembers whose goals it loaded');
+    assert.match(src, /saveUserGoals\("(trainer|nutritionist)", next, ownerId\.current \? \{ expectedUserId: ownerId\.current \} : undefined\)/,
+      'a save writes to whoever is signed in at save time again');
+    assert.equal((src.match(/saveUserGoals\(/g) || []).length, 1, 'a second save path skips the account binding');
+    assert.match(src, /res\.error\.message === "Account changed" \? "Not saved: another account is signed in now\. Reload this page\."/);
+  });
+}
+
+test('saveUserGoals refuses a save for an account that is no longer signed in', () => {
+  const src = readFileSync(new URL('../public/supabase.js', import.meta.url), 'utf8');
+  assert.match(src, /if \(options && options\.expectedUserId && u\.id !== options\.expectedUserId\) return \{ error: \{ message: 'Account changed' \} \};/);
+});
