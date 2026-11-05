@@ -55,6 +55,7 @@ function TrainerClientsPage() {
       title="Clients"
       subtitle="Find a client, review their progress, and open their plan or private notes."
       actions={<>
+        {source === "live" && typeof window.GroupMessageButton === "function" && <window.GroupMessageButton role="trainer" triage={triage} />}
         <a href="TrainerLiveConsole.html" style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, textDecoration: "none", display: "inline-block" }}>Live console</a>
         <a href="MemberProfile.html" title="Share your public page - how clients find and subscribe to you" style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer", display: "inline-block", textDecoration: "none" }}>Invite client</a>
       </>}
