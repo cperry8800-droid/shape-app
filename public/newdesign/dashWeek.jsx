@@ -210,6 +210,43 @@ function dwkDemoAdherence(rec, weekOf) {
   return { pct: 55 + ((h + d * 7) % 41), prev: 55 + ((h + d * 3) % 41) };
 }
 
+// ── Food logs and the weigh-in, for the week on screen (2026-11-05) ──────────
+// ⚠ A PAST WEEK SHOWED THIS WEEK'S LOGGING. The row read `foodLogs.daysLogged7d`, the seven
+// days ending today, on every week the coach paged back to. A past week now counts the logged
+// days inside that week, from the overview's logged days (`foodLogDays`: the snapshot window's
+// days, and `from`, the first day a full window holds). A week before `from` was not read, which
+// is said, never counted as 0. This week keeps its seven days to today.
+function dwkLoggedInWeek(logDays, weekOf) {
+  if (!logDays || !Array.isArray(logDays.days) || !/^\d{4}-\d{2}-\d{2}$/.test(String(weekOf || ""))) return null;
+  if (logDays.from && weekOf < logDays.from) return null;
+  const end = dwkAddDays(weekOf, 6);
+  return logDays.days.filter((d) => d >= weekOf && d <= end).length;
+}
+function dwkDemoLogs(rec, weekOf) {
+  const name = (rec && rec.profile && rec.profile.name) || "";
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 13 + name.charCodeAt(i)) % 6151;
+  return 2 + ((h + Number(String(weekOf).slice(8, 10))) % 6);
+}
+// { n, label, note } for the row's food-log figure.
+function dwkFoodLogs(rec, weekOf, isCurrent, live) {
+  if (isCurrent) {
+    const n = rec.foodLogs && rec.foodLogs.daysLogged7d != null ? rec.foodLogs.daysLogged7d : null;
+    return { n, label: "Food logs · 7d", note: n == null ? "not shared" : null };
+  }
+  if (!live) return { n: dwkDemoLogs(rec, weekOf), label: "Food logs · week", note: null };
+  if (!rec.foodLogDays) return { n: null, label: "Food logs · week", note: "not shared" };
+  const n = dwkLoggedInWeek(rec.foodLogDays, weekOf);
+  return { n, label: "Food logs · week", note: n == null ? "older than the logs read" : null };
+}
+// The weigh-ins to read for the week on screen: every one, this week; on a past week only those on
+// or before its Sunday, so the row shows the weight the client had then, not today's.
+function dwkWeighInsFor(weighIns, weekOf, isCurrent) {
+  const list = Array.isArray(weighIns) ? weighIns.filter((x) => x && x.weight != null) : [];
+  if (isCurrent) return list;
+  const end = dwkAddDays(weekOf, 6);
+  return list.filter((x) => x.on && String(x.on).slice(0, 10) <= end);
+}
+
 // ── Row pieces ───────────────────────────────────────────────────────────────
 const DWK_RATINGS = [["trainingAdherence", "Training", "hi"], ["nutritionAdherence", "Nutrition", "hi"], ["sleep", "Sleep", "hi"], ["energy", "Energy", "hi"], ["stress", "Stress", "lo"], ["hunger", "Hunger", "lo"]];
 function DwkRatings({ ratings }) {
@@ -264,12 +301,13 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
   else if (adherence && adherence[id]) { const a = adherence[id][weekOf], p = adherence[id][dwkAddDays(weekOf, -7)]; adh = a ? a.pct : null; adhPrev = p ? p.pct : null; if (a && a.pct == null) adhNote = "too few units to rate"; else if (!a) adhNote = "not in the window"; }
   else adhNote = adherence ? "not shared" : "—";
   const adhDelta = adh != null && adhPrev != null ? adh - adhPrev : null;
-  const logs = rec.foodLogs && rec.foodLogs.daysLogged7d != null ? rec.foodLogs.daysLogged7d : null;
+  const food = dwkFoodLogs(rec, weekOf, isCurrent, live);
+  const logs = food.n;
   // ⚠ SORTED BEFORE INDEXING. The coach JSONB path (overall.weighIns) carries no
   // order guarantee — dashSignals ships its own sortedWeighIns for exactly this —
   // and a newest-first array read positionally shows the client's FIRST weight as
   // current and inverts the gained/lost sign.
-  const w = (Array.isArray(rec.weighIns) ? rec.weighIns.filter((x) => x && x.weight != null) : [])
+  const w = dwkWeighInsFor(rec.weighIns, weekOf, isCurrent)
     .slice()
     .sort((a, b) => new Date(a.on || 0).getTime() - new Date(b.on || 0).getTime());
   const wLast = w.length ? w[w.length - 1] : null, wPrev = w.length > 1 ? w[w.length - 2] : null;
@@ -327,7 +365,7 @@ function DwkRow({ row, role, weekOf, thisMonday, live, review, adherence, readou
           {/* The numbers */}
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12 }}>
             <DwkStat label={isCurrent ? "Adherence · this week" : "Adherence · week"} value={adh != null ? adh + "%" : "—"} sub={adhDelta != null ? (adhDelta >= 0 ? "▲ +" : "▼ −") + Math.abs(adhDelta) + " vs week before" : adhNote} tone={adh != null && adh < 70 ? DWK_AMBER : null} />
-            <DwkStat label="Food logs · 7d" value={logs != null ? logs + "/7" : "—"} sub={logs == null ? "not shared" : logs <= 3 ? "thin week" : null} tone={logs != null && logs <= 3 ? DWK_AMBER : null} />
+            <DwkStat label={food.label} value={logs != null ? logs + "/7" : "—"} sub={logs == null ? food.note : logs <= 3 ? "thin week" : null} tone={logs != null && logs <= 3 ? DWK_AMBER : null} />
             <DwkStat label="Weigh-in" value={wLast ? units.fmt(Number(wLast.weight), wLast.unit || "lb") : (ck && ck.weight != null ? units.fmt(Number(ck.weight), ck.unit || "kg") : "—")} sub={wDelta != null ? (wDelta > 0 ? "+" : "") + wDelta + " since the one before" : wLast ? "first shared weigh-in" : "none shared"} />
           </div>
           {/* Note */}

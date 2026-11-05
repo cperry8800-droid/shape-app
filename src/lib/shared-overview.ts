@@ -17,7 +17,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
+import { bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
@@ -36,6 +36,8 @@ export const BATCH_MAX_IDS = 50;
 // first. A trainer assigns a client a few hundred days a year at most; past the cap the oldest go,
 // which only shortens the start of a run the newest days already date.
 const PROGRAM_DAYS_BACK = 371;
+// The daily snapshots every per-day leg reads: the newest rows, up to this many.
+const SNAPSHOT_WINDOW = 30;
 const PROGRAM_DAY_CAP = 1000;
 type ProgramDayRow = { scheduled_date: string | null; template_id: string | null; template_name: string | null; template_week: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -398,7 +400,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     .eq('user_id', clientId)
     .lte('snapshot_date', snapCeiling)
     .order('snapshot_date', { ascending: false })
-    .limit(30);
+    .limit(SNAPSHOT_WINDOW);
   // A snapshot dated in the FUTURE is never a current readout. `/api/client/checkin`
   // takes the day from the REQUEST, so a row can carry any syntactically valid
   // `YYYY-MM-DD` — including 2099-01-01. Such a row is newest-first, so it would be
@@ -567,6 +569,9 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // yields no rows — so when the read itself failed the key is OMITTED and the
   // drawer keeps its "isn't shared to the web yet", which is then the truth.
   const logs = snapReadFailed ? undefined : bsLogsLeg(snapRows as Array<Record<string, unknown>>, Date.now());
+  // The logged days themselves, for the Week page's count in a week other than this one; `from`
+  // says where a full window stops knowing. Omitted on a failed read, as `logs` is.
+  const logDays = snapReadFailed ? undefined : bsLogDaysLeg(snapRows as Array<Record<string, unknown>>, { full: (snapRowsDesc ?? []).length >= SNAPSHOT_WINDOW });
 
   // The coach's own nutrition targets. Without these the ledger and protein
   // rules skip every live client — they need value AND target.
@@ -683,6 +688,7 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     ...(lastContact === undefined ? {} : { lastContact }),
     ...(program === undefined ? {} : { program }),
     ...(logs === undefined ? {} : { logs }),
+    ...(logDays === undefined ? {} : { logDays }),
     nutritionTargets,
     scoreHistory: scoreHistory ?? null,
     // The onboarding board per role, for a client in their first 30 days with the caller; omitted

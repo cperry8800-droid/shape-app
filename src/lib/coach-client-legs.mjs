@@ -196,6 +196,28 @@ export function bsLogsLeg(snapRows, now = Date.now(), recentLimit = 3) {
   return { lastLoggedOn: logged[0].on, daysLogged7d, recent: logged.slice(0, recentLimit) };
 }
 
+// ── Which days were logged, for a week other than this one (2026-11-05) ─────
+// The coach's Week page counted every week's food logs from `daysLogged7d`, the seven days
+// ending TODAY, so a week three weeks back showed this week's logging. This is the set of
+// logged days (calories eaten, the logs leg's definition) inside the snapshot window, with
+// `from`: the first day the window is sure to hold. The window is the newest rows up to a cap,
+// so when the read came back full (`full`), the days before its oldest row were not read and
+// a week before `from` is unknown, not empty; when it came back short it holds every row the
+// member has, and `from` is null. Days are the member's own calendar dates, newest first.
+export function bsLogDaysLeg(snapRows, { full = false } = {}) {
+  if (!Array.isArray(snapRows)) return null;
+  const read = [];
+  const days = new Set();
+  for (const r of snapRows) {
+    const day = dayOf(r);
+    if (!day) continue;
+    read.push(day);
+    if (num(r.dietary_kcal) != null) days.add(day);
+  }
+  const oldest = read.length ? read.reduce((a, b) => (b < a ? b : a)) : null;
+  return { days: [...days].sort().reverse(), from: full ? oldest : null };
+}
+
 // ── The client's nutrition targets (client_programs.detail.nutrition) ───────
 // The same override the member's Eat hero reads. A HALF-SET pair is kept, not
 // discarded: a calories-only target legitimately drives ruleLedgerBlown, and a

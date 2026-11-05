@@ -266,6 +266,10 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
       ? [{ on: note.updatedAt ? String(note.updatedAt).slice(0, 10) : null, text: noteText }]
       : notesRead ? [] : notesPending ? undefined : null,
     recentLogs: logs ? logs.recent : logsKnown ? [] : null,
+    // The logged days in the snapshot window, and `from`, the first day a full window holds
+    // (null: it holds them all), so the Week page counts a past week's own logs (2026-11-05).
+    // null when the overview did not send them (an unreadable window, or an older deploy).
+    foodLogDays: ov && ov.logDays && Array.isArray(ov.logDays.days) ? { days: ov.logDays.days, from: ov.logDays.from || null } : null,
     milestones: null,
     // ⚠ `?? null`, NEVER `|| 0`. The roster route sends mrrCents: null when its
     // subscriptions read FAILED; `|| 0` would relabel that as a measured $0/mo
