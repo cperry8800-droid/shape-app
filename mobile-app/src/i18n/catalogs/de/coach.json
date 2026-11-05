@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: {done} von {total, plural, one {# Beratung} other {# Beratungen}} erledigt.",
   "today.dayBooked": "{day}: {total, plural, one {# Session} other {# Sessions}} gebucht.",
   "today.dayBookedNutri": "{day}: {total, plural, one {# Beratung} other {# Beratungen}} gebucht.",
-  "today.booked": "GEBUCHT"
+  "today.booked": "GEBUCHT",
+  "plans.draftLimit": "Die Entwürfe mit Nora für heute sind aufgebraucht. Versuch es morgen wieder oder starte leer.",
+  "plans.draftOffTopic": "Das klingt nicht nach einem Training. Beschreib die Einheit, z. B. Unterkörper, 50 Minuten, Langhantel.",
+  "diet.draftNothingFits": "Kein Shape-Gericht passt zu dem, was du ausschließt. Schließ weniger aus oder starte leer.",
+  "diet.draftSaveFailed": "Nora hat den Entwurf erstellt, aber er konnte nicht gespeichert werden. Prüfe deine Verbindung und versuch es erneut."
 }

@@ -1094,6 +1094,44 @@ async function generatePlanDraft(input = {}) {
   }
 }
 
+// ── Nora's drafts for the ＋ New composer: the website's core (P6, 2026-11-05) ─────────────────
+// "One draft core for the app": the trainer's composer asks /api/ai/draft-workout (the rows the
+// website builder and Nora's chat draft) and the nutritionist's meal plan asks /api/ai/draft-meal-plan
+// (Shape Kitchen's recipes, training and rest days). generatePlanDraft stays for the programs and
+// diets that still read the text generator.
+// Resolves { ok: true, data } or { ok: false, status, code, error } — an answer the composer can say
+// (a spent daily budget, a brief that is not a workout, nothing that fits) is never a silent template.
+// Bounded like generatePlanDraft: headers and body inside one deadline; offline or timed out is
+// { ok: false, status: 0 }, and the composer falls back to its own outline.
+async function postDraft(path, input) {
+  if (!apiBaseUrl) return { ok: false, status: 0, code: 'offline', error: '' };
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  let timer = null;
+  const deadline = new Promise((resolve) => { timer = setTimeout(() => { if (controller) controller.abort(); resolve(GENERATE_TIMED_OUT); }, GENERATE_TIMEOUT_MS); });
+  try {
+    const response = await Promise.race([
+      fetch(`${apiBaseUrl}${path}`, {
+        method: 'POST',
+        headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(input || {}),
+        ...(controller ? { signal: controller.signal } : {}),
+      }),
+      deadline,
+    ]);
+    if (response === GENERATE_TIMED_OUT) return { ok: false, status: 0, code: 'timeout', error: '' };
+    const payload = await Promise.race([response.json().catch(() => ({})), deadline]);
+    if (payload === GENERATE_TIMED_OUT) return { ok: false, status: 0, code: 'timeout', error: '' };
+    if (!response.ok) return { ok: false, status: response.status, code: (payload && payload.code) || '', error: (payload && payload.error) || '' };
+    return { ok: true, data: payload };
+  } catch (error) {
+    return { ok: false, status: 0, code: 'offline', error: '' };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+const draftWorkout = (input) => postDraft('/api/ai/draft-workout', input);
+const draftMealPlan = (input) => postDraft('/api/ai/draft-meal-plan', input);
+
 async function requestRefund({ subscriptionId, oneTimePurchaseId, reason } = {}) {
   if (!state.user?.id) {
     throw new Error('Sign in before requesting a refund.');
@@ -6406,6 +6444,8 @@ window.ShapeWorkouts = {
 
 window.ShapeAI = {
   generatePlanDraft,
+  draftWorkout,
+  draftMealPlan,
 };
 
 // Per-client program phase (training block + nutrition phase). Self-scoped by

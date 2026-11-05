@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day} : {done} sur {total, plural, one {# consultation} other {# consultations}} terminées.",
   "today.dayBooked": "{day} : {total, plural, one {# séance prévue} other {# séances prévues}}.",
   "today.dayBookedNutri": "{day} : {total, plural, one {# consultation prévue} other {# consultations prévues}}.",
-  "today.booked": "PRÉVUES"
+  "today.booked": "PRÉVUES",
+  "plans.draftLimit": "Les brouillons du jour avec Nora sont épuisés. Réessayez demain ou partez de zéro.",
+  "plans.draftOffTopic": "Cela ne ressemble pas à un entraînement. Décrivez la séance, p. ex. bas du corps, 50 minutes, barre.",
+  "diet.draftNothingFits": "Aucun plat Shape ne convient à ce que vous avez exclu. Excluez moins, ou partez de zéro.",
+  "diet.draftSaveFailed": "Nora l'a rédigé, mais il n'a pas pu être enregistré. Vérifiez votre connexion et réessayez."
 }

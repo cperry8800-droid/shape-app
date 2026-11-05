@@ -218,7 +218,8 @@ async function addCustom(m, key, words) {
 test('composer: the chips are compact (30px drawn in a 44px button), and a custom focus is added, picked, removed and sent as Nora\'s goal', async () => {
   signOut();
   const sent = [];
-  W.ShapeAI = { generatePlanDraft: async (body) => { sent.push(body); return null; } };
+  // P6: the composer asks the website's drafter (/api/ai/draft-workout). No answer: the outline floor.
+  W.ShapeAI = { draftWorkout: async (body) => { sent.push(body); return { ok: false, status: 0 }; }, generatePlanDraft: async () => { throw new Error('the trainer composer no longer asks the text generator'); } };
   const m = await mount(PROS.BSTrainerPrograms);
   try {
     await m.click(m.q('button[aria-label="Open Starting Strength"]'));
@@ -247,15 +248,16 @@ test('composer: the chips are compact (30px drawn in a 44px button), and a custo
     await m.click([...group(m, 'focus').querySelectorAll('[role="radio"]')].find((b) => b.textContent === 'Glutes and hips'));
     await m.click(m.q('[data-dc-generate]'));
     assert.equal(sent.length, 1);
-    assert.equal(sent[0].goal, 'Glutes and hips');
-    assert.equal(sent[0].kind, 'training_plan');
+    assert.equal(sent[0].request.split(' · ')[0], 'Glutes and hips', 'the focus leads the brief Nora reads');
+    assert.equal(sent[0].kind, 'program', 'a plan is a multi-week program');
   } finally { await m.close(); W.ShapeAI = undefined; }
 });
 
 test('composer, nutritionist: a custom goal reaches Nora\'s request the same way; the meals-a-day chips stay round', async () => {
   signOut();
   const sent = [];
-  W.ShapeAI = { generatePlanDraft: async (body) => { sent.push(body); return null; } };
+  // P6: a meal plan asks the Kitchen drafter (/api/ai/draft-meal-plan); a program or diet the generator.
+  W.ShapeAI = { draftMealPlan: async (body) => { sent.push({ via: 'meal', ...body }); return { ok: false, status: 0 }; }, generatePlanDraft: async (body) => { sent.push({ via: 'generate', ...body }); return null; } };
   const m = await mount(PROS.BSNutriPlans);
   try {
     await m.click(m.q('button[aria-label="Open Performance"]'));
@@ -265,7 +267,7 @@ test('composer, nutritionist: a custom goal reaches Nora\'s request the same way
     assert.deepEqual(picked(m, 'goal'), ['Gut health']);
     await m.click(m.q('[data-dc-generate]'));
     assert.equal(sent.length, 1);
-    assert.equal(sent[0].goal, 'Gut health');
+    assert.equal(sent[0].via === 'meal' ? sent[0].request.split(' · ')[0] : sent[0].goal, 'Gut health');
   } finally { await m.close(); W.ShapeAI = undefined; }
 });
 

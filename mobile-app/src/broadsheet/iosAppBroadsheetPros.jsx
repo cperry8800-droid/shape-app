@@ -5829,6 +5829,8 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
   const [equip, setEquip] = useStateBSP('Full gym');
   const [length, setLength] = useStateBSP('45 min');
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  // An answer the composer says instead of drafting (a spent daily budget, a brief that is not a workout).
+  const [draftError, setDraftError] = useStateBSP('');
   const draftBusyRef = React.useRef(false);
   // Bumped by CANCEL. A generation already in flight compares the id it started
   // with against this and drops its result rather than committing it — see the
@@ -6040,7 +6042,11 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
   // effort, so offering the row on the nutritionist editor would collect a
   // figure nothing scores.
   if (editingPlan) return <BSPage><BSWorkoutDocumentEditor key={editingPlan.id || 'new'} plan={editingPlan} plans={library.all} t={t} tr={tr} onSave={saveWorkout} onClose={() => setEditingPlan(null)} /></BSPage>;
-  if (editDraft) return <BSPage><BSWorkoutDocumentEditor key="draft" plan={{ name: editDraft.name, kind: 'program', price: buildType === 'plan' ? '$110' : null, detail: normalizeWorkoutDetail({ buildType, focus, exp, equip, length, blocks: editDraft.blocks, note: editDraft.note || '', media: editDraft.media || [] }, { name: editDraft.name, buildType }) }} plans={library.all} t={t} tr={tr} onSave={async (plan) => { await saveWorkout(plan); setEditDraft(null); setDrafting(false); }} onClose={() => { setEditDraft(null); setDrafting(false); }} /></BSPage>;
+  // A draft from the website's core arrives as the builder's own rows (`builder`) and Nora's draft beside
+  // them (`draft`), which the editor keeps in `detail` and saves with the plan; the outline floor is lines.
+  if (editDraft) return <BSPage><BSWorkoutDocumentEditor key="draft" plan={{ name: editDraft.name, kind: 'program', price: buildType === 'plan' ? '$110' : null, detail: editDraft.builder
+    ? normalizeWorkoutDetail({ buildType, focus, exp, equip, length, builder: editDraft.builder, ...(editDraft.draft ? { draft: editDraft.draft } : {}), note: editDraft.note || '', media: [] }, { name: editDraft.name, buildType })
+    : normalizeWorkoutDetail({ buildType, focus, exp, equip, length, blocks: editDraft.blocks, note: editDraft.note || '', media: editDraft.media || [] }, { name: editDraft.name, buildType }) }} plans={library.all} t={t} tr={tr} onSave={async (plan) => { await saveWorkout(plan); setEditDraft(null); setDrafting(false); }} onClose={() => { setEditDraft(null); setDrafting(false); }} /></BSPage>;
 
   // ── AI draft sheet (workout builder) ──
   if (drafting) {
@@ -6056,22 +6062,36 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
         : buildType === 'program'
         ? ['Mon — Upper (push)', 'Tue — Lower (squat)', 'Wed — Rest / mobility', 'Thu — Upper (pull)', 'Fri — Lower (hinge)', 'Sat — Conditioning', 'Sun — Rest']
         : ['Week 1 — Accumulation', 'Week 2 — Accumulation', 'Week 3 — Intensification', 'Week 4 — Deload', 'Week 5 — Peak', 'Week 6 — Retest'];
-      // ⚠ The generated draft is USED. It used to be awaited and thrown away —
-      // real money and a real wait, for an outline the model never saw.
-      // `bsDraftMode` maps the builder kind onto the wire mode; sending
-      // `buildType` raw is what made `plan` ask for a single session.
       const run = draftRunRef.current;
-      let used = null;
+      setDraftError('');
       if (!blankMode) {
-        const mode = bsDraftMode('training', buildType);
-        if (mode) {
-          try {
-            const res = await window.ShapeAI?.generatePlanDraft?.({ kind: mode, goal: focus, client: '', level: exp, duration: length, preferences: `${desc} · ${equip}`, equipment: equip });
-            used = bsDraftFromResponse(mode, res && res.draft);
-          } catch (e) { used = null; }
+        // ⚠ ONE DRAFT CORE (P6, 2026-11-05). The composer asks the website's own drafter
+        // (/api/ai/draft-workout, src/lib/ai/workoutDraft.mjs): real rows (sets, reps, RPE, rest, tempo,
+        // a cue), loads blank unless the brief names one, and Nora's draft kept beside them. A workout is
+        // one day; a program is a reusable week; a plan is a multi-week block (weeks read from the
+        // brief, 4 when it names none). An answer the coach must read (a spent budget, an off-topic brief)
+        // is said here and the composer stays; only no answer at all falls to the outline below.
+        const kind = buildType === 'workout' ? 'day' : 'program';
+        const minutes = parseInt(String(length), 10);
+        let res = null;
+        try {
+          res = await window.ShapeAI?.draftWorkout?.({ request: [focus, desc, equip].filter(Boolean).join(' · '), kind, ...(buildType === 'program' ? { weeks: 1 } : {}), ...(minutes > 0 ? { minutes } : {}), equipment: equip, level: exp });
+        } catch (e) { res = null; }
+        if (run !== draftRunRef.current) return;
+        if (res && res.ok && res.data && res.data.draft && res.data.draft.builder) {
+          setDrafting(false);
+          setEditDraft({ name: res.data.draft.name || `${focus} ${BUILD_LABEL[buildType]}`, builder: res.data.draft.builder, draft: res.data.draft.snapshot || null, note: res.data.notes || '' });
+          return;
         }
+        if (res && !res.ok && (res.status === 429 || res.status === 422)) {
+          setDraftError(res.status === 429
+            ? tr('coach:plans.draftLimit', { defaultValue: "That's today's drafts with Nora used up. Try again tomorrow, or build from blank." })
+            : tr('coach:plans.draftOffTopic', { defaultValue: "That doesn't read like a workout. Describe the session to build, e.g. lower body, 50 minutes, barbell." }));
+          return;
+        }
+        // No answer (offline, timed out, signed out): the builder's own outline below, the floor it always had.
       }
-      const outline = blankMode ? [] : mk((used && used.lines) || template);
+      const outline = blankMode ? [] : mk(template);
       const blockLabel = buildType === 'workout' ? tr('coach:plans.blockExercises', { defaultValue: 'Exercises' }) : buildType === 'program' ? tr('coach:plans.blockWeeklySplit', { defaultValue: 'Weekly split' }) : tr('coach:plans.blockWeeks', { defaultValue: 'Weeks' });
       // ⚠ Commit ONLY if this run is still the current one. CANCEL bumps the
       // run id, so a request already in flight resolves into a no-op instead of
@@ -6081,7 +6101,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
       // the coach cancelled, seconds after they left the screen.
       if (run !== draftRunRef.current) return;
       setDrafting(false);
-      setEditDraft({ name: (used && used.name) || `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: (used && used.note) || '', blockLabel });
+      setEditDraft({ name: `${focus} ${BUILD_LABEL[buildType]}`, blocks: outline, note: '', blockLabel });
     };
     // ⚠ The guard is a REF, not state: two taps in the same tick both read a
     // state flag as false before React re-renders, which is exactly the
@@ -6136,7 +6156,7 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
               { key: 'length', label: tr('coach:plans.lengthLabel', { defaultValue: 'LENGTH' }), value: length, onPick: setLength, options: ['30 min', '45 min', '60 min', '75 min'] },
             ]}
             generate={{ label: draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' })), busy: !!draftStatus, onClick: generate }}
-            hint={tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })} />
+            hint={draftError || tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })} />
         </BSProCleanType>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:plans.footerAiWorkout', { defaultValue: 'Workout' })} />
       </BSPage>
@@ -7008,6 +7028,8 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
   const [cals, setCals] = useStateBSP('~2100');
   const [mealsDay, setMealsDay] = useStateBSP(4);
   const [draftStatus, setDraftStatus] = useStateBSP('');
+  // An answer the composer says instead of drafting (a spent daily budget, nothing that fits).
+  const [draftError, setDraftError] = useStateBSP('');
   const draftBusyRef = React.useRef(false);
   // Bumped by CANCEL. A generation already in flight compares the id it started
   // with against this and drops its result rather than committing it — see the
@@ -7217,7 +7239,41 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
       // `mealplan` and `diet` are not route modes and were silently coerced.
       const run = draftRunRef.current;
       let used = null;
-      if (!blankMode) {
+      setDraftError('');
+      if (!blankMode && buildType === 'mealplan') {
+        // ⚠ ONE DRAFT CORE (P6, 2026-11-05). A meal plan is the website builder's own document, drafted
+        // by the core Nora uses (/api/ai/draft-meal-plan, src/lib/ai/mealDraft.mjs): a Shape Kitchen
+        // recipe for every meal, training and rest days with their own targets, a week of it. It is
+        // saved unpublished as the plan, with Nora's draft beside it, and opens in the meal-plan editor
+        // here (BSMealBuilderEditor), the same document the website's builder opens. An answer to say
+        // (a spent budget, nothing that fits) stays on the composer; no answer at all takes the outline.
+        const phase = goal === 'Cut' ? 'cut' : goal === 'Lean bulk' ? 'build' : goal === 'Maintain' || goal === 'Performance' ? 'maintain' : undefined;
+        const slots = mealsDay >= 4 ? ['Breakfast', 'Lunch', 'Dinner', 'Snack'] : ['Breakfast', 'Lunch', 'Dinner'];
+        let res = null;
+        try {
+          res = await window.ShapeAI?.draftMealPlan?.({ request: [goal, desc].filter(Boolean).join(' · '), ...(phase ? { goalPhase: phase } : {}), kcal: kcalTarget, days: 7, slots, ...(diet !== 'Omnivore' ? { exclude: [diet.toLowerCase()] } : {}) });
+        } catch (e) { res = null; }
+        if (run !== draftRunRef.current) return;
+        if (res && res.ok && res.data && res.data.draft && res.data.draft.doc) {
+          const d = res.data.draft;
+          try {
+            const row = await window.ShapeCoachPlans.create({ kind: 'meal_plan', name: d.name, meta: `${d.doc.days.length}-day rotation · ${d.doc.targets.kcal} kcal`, published: false, detail: { mealBuilder: d.doc, draft: d.snapshot } });
+            if (run !== draftRunRef.current) return;
+            rememberRow(row);
+            setDrafting(false);
+            setBuilderPlan(row);
+          } catch (e) {
+            if (run === draftRunRef.current) setDraftError(tr('coach:diet.draftSaveFailed', { defaultValue: "Nora drafted it, but it couldn't be saved. Check your connection and try again." }));
+          }
+          return;
+        }
+        if (res && !res.ok && (res.status === 429 || res.status === 422)) {
+          setDraftError(res.status === 429
+            ? tr('coach:plans.draftLimit', { defaultValue: "That's today's drafts with Nora used up. Try again tomorrow, or build from blank." })
+            : tr('coach:diet.draftNothingFits', { defaultValue: "No Shape dish fits what you've left out. Leave out less, or build it from blank." }));
+          return;
+        }
+      } else if (!blankMode) {
         const mode = bsDraftMode('nutrition', buildType);
         if (mode) {
           try {
@@ -7268,7 +7324,7 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
               { key: 'meals', label: tr('coach:diet.mealsPerDay', { defaultValue: 'MEALS / DAY' }), value: mealsDay, onPick: setMealsDay, options: [3, 4, 5, 6], round: true },
             ]}
             generate={{ label: draftStatus || (blankMode ? tr('coach:plans.createType', { defaultValue: 'Create {type}', type: BUILD_LABEL[buildType] }) : tr('coach:plans.generateDraft', { defaultValue: '✦ Generate draft' })), busy: !!draftStatus, onClick: generate }}
-            hint={tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })} />
+            hint={draftError || tr('coach:plans.editBeforePublish', { defaultValue: 'You can edit everything before publishing' })} />
         </BSProCleanType>
         <BSFooter left={tr('coach:plans.footerAiDraft', { defaultValue: 'AI draft' })} right={tr('coach:diet.footerAiMealPlan', { defaultValue: 'Meal plan' })} />
       </BSPage>

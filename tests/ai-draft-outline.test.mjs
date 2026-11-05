@@ -551,7 +551,10 @@ test('both coach builders invalidate a cancelled generation run', () => {
   // which is the guard doing its job; it is widened to the new shape, not
   // loosened, because the two paired assertions below pin each capture's use.
   assert.equal(count(/const run = draftRunRef\.current;/g), 4, 'each builder captures its run id for commit AND release');
-  assert.equal(count(/if \(run !== draftRunRef\.current\) return;/g), 2,
+  // FIVE since P6 (one draft core): the trainer's run checks after the draft answers and at the outline
+  // commit; the nutritionist's after the draft, after the save it opens, and at the outline commit. Every
+  // await that can outlive a CANCEL is followed by its own check before anything is committed.
+  assert.equal(count(/if \(run !== draftRunRef\.current\) return;/g), 5,
     'each run must drop its result if it is no longer current');
   assert.equal(count(/draftRunRef\.current \+= 1;/g), 2, 'each CANCEL must invalidate the in-flight run');
 

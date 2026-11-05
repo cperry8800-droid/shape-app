@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: {total, plural, other {# görüşmenin}} {done} tanesi bitti.",
   "today.dayBooked": "{day}: {total, plural, other {# seans}} planlandı.",
   "today.dayBookedNutri": "{day}: {total, plural, other {# görüşme}} planlandı.",
-  "today.booked": "PLANLI"
+  "today.booked": "PLANLI",
+  "plans.draftLimit": "Nora ile bugünkü taslak hakkın doldu. Yarın tekrar dene ya da boştan başla.",
+  "plans.draftOffTopic": "Bu bir antrenman gibi görünmüyor. Seansı anlat, ör. alt vücut, 50 dakika, halter.",
+  "diet.draftNothingFits": "Çıkardıklarına uyan bir Shape yemeği yok. Daha azını çıkar ya da boştan başla.",
+  "diet.draftSaveFailed": "Nora taslağı hazırladı ama kaydedilemedi. Bağlantını kontrol edip tekrar dene."
 }

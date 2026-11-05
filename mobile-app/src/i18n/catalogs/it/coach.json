@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: {done} su {total, plural, one {# consulenza} other {# consulenze}} fatte.",
   "today.dayBooked": "{day}: {total, plural, one {# sessione in agenda} other {# sessioni in agenda}}.",
   "today.dayBookedNutri": "{day}: {total, plural, one {# consulenza in agenda} other {# consulenze in agenda}}.",
-  "today.booked": "IN AGENDA"
+  "today.booked": "IN AGENDA",
+  "plans.draftLimit": "Le bozze di oggi con Nora sono esaurite. Riprova domani o parti da zero.",
+  "plans.draftOffTopic": "Non sembra un allenamento. Descrivi la seduta, ad es. parte inferiore, 50 minuti, bilanciere.",
+  "diet.draftNothingFits": "Nessun piatto Shape è compatibile con ciò che hai escluso. Escludi meno, o parti da zero.",
+  "diet.draftSaveFailed": "Nora l'ha preparata, ma non è stato possibile salvarla. Controlla la connessione e riprova."
 }

@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: đã xong {done}/{total, plural, other {# buổi tư vấn}}.",
   "today.dayBooked": "{day}: đã đặt {total, plural, other {# buổi}}.",
   "today.dayBookedNutri": "{day}: đã đặt {total, plural, other {# buổi tư vấn}}.",
-  "today.booked": "ĐÃ ĐẶT"
+  "today.booked": "ĐÃ ĐẶT",
+  "plans.draftLimit": "Bạn đã dùng hết lượt soạn nháp với Nora hôm nay. Hãy thử lại vào ngày mai, hoặc bắt đầu từ trang trống.",
+  "plans.draftOffTopic": "Nội dung này không giống một buổi tập. Hãy mô tả buổi tập, ví dụ: thân dưới, 50 phút, tạ đòn.",
+  "diet.draftNothingFits": "Không có món Shape nào phù hợp với những gì bạn loại trừ. Hãy loại trừ ít hơn, hoặc bắt đầu từ trang trống.",
+  "diet.draftSaveFailed": "Nora đã soạn xong nhưng không lưu được. Hãy kiểm tra kết nối và thử lại."
 }

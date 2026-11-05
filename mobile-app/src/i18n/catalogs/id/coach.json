@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: {done} dari {total, plural, other {# konsultasi}} selesai.",
   "today.dayBooked": "{day}: {total, plural, other {# sesi}} terjadwal.",
   "today.dayBookedNutri": "{day}: {total, plural, other {# konsultasi}} terjadwal.",
-  "today.booked": "TERJADWAL"
+  "today.booked": "TERJADWAL",
+  "plans.draftLimit": "Jatah draf dengan Nora hari ini sudah habis. Coba lagi besok, atau mulai dari kosong.",
+  "plans.draftOffTopic": "Itu tidak terbaca seperti latihan. Jelaskan sesinya, mis. tubuh bawah, 50 menit, barbel.",
+  "diet.draftNothingFits": "Tidak ada hidangan Shape yang cocok dengan yang kamu kecualikan. Kecualikan lebih sedikit, atau mulai dari kosong.",
+  "diet.draftSaveFailed": "Nora sudah membuat drafnya, tetapi tidak bisa disimpan. Periksa koneksimu dan coba lagi."
 }

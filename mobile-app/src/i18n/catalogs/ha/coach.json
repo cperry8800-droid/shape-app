@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: an gama {done} daga cikin {total, plural, one {shawara #} other {shawarwari #}}.",
   "today.dayBooked": "{day}: an tsara {total, plural, one {zama #} other {zama #}}.",
   "today.dayBookedNutri": "{day}: an tsara {total, plural, one {shawara #} other {shawarwari #}}.",
-  "today.booked": "AN TSARA"
+  "today.booked": "AN TSARA",
+  "plans.draftLimit": "An gama daftarin da Nora na yau. Sake gwadawa gobe, ko fara daga farko.",
+  "plans.draftOffTopic": "Wannan bai yi kama da motsa jiki ba. Bayyana zaman, misali ƙasan jiki, minti 50, barbell.",
+  "diet.draftNothingFits": "Babu abincin Shape da ya dace da abin da ka cire. Cire kaɗan, ko fara daga farko.",
+  "diet.draftSaveFailed": "Nora ta rubuta shi, amma ba a iya ajiye shi ba. Duba haɗin intanet ɗinka ka sake gwadawa."
 }

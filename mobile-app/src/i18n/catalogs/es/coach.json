@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: {done} de {total, plural, one {# consulta} other {# consultas}} hechas.",
   "today.dayBooked": "{day}: {total, plural, one {# sesión agendada} other {# sesiones agendadas}}.",
   "today.dayBookedNutri": "{day}: {total, plural, one {# consulta agendada} other {# consultas agendadas}}.",
-  "today.booked": "AGENDADAS"
+  "today.booked": "AGENDADAS",
+  "plans.draftLimit": "Ya usaste los borradores de hoy con Nora. Vuelve a intentarlo mañana o empieza desde cero.",
+  "plans.draftOffTopic": "Eso no parece un entrenamiento. Describe la sesión, p. ej. tren inferior, 50 minutos, barra.",
+  "diet.draftNothingFits": "Ningún plato de Shape encaja con lo que has excluido. Excluye menos o empieza desde cero.",
+  "diet.draftSaveFailed": "Nora lo redactó, pero no se pudo guardar. Revisa tu conexión e inténtalo de nuevo."
 }

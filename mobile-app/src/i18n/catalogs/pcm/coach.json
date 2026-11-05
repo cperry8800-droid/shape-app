@@ -1560,5 +1560,9 @@
   "today.dayDoneOfNutri": "{day}: {done} out of {total, plural, one {# consult} other {# consults}} don finish.",
   "today.dayBooked": "{day}: {total, plural, one {# session} other {# sessions}} dey booked.",
   "today.dayBookedNutri": "{day}: {total, plural, one {# consult} other {# consults}} dey booked.",
-  "today.booked": "BOOKED"
+  "today.booked": "BOOKED",
+  "plans.draftLimit": "Today drafts wey you fit do with Nora don finish. Try again tomorrow, or start from blank.",
+  "plans.draftOffTopic": "Dat one no sound like workout. Talk the session wey you wan build, like lower body, 50 minutes, barbell.",
+  "diet.draftNothingFits": "No Shape food fit wetin you comot. Comot less, or build am from blank.",
+  "diet.draftSaveFailed": "Nora don draft am, but e no fit save. Check your connection and try again."
 }
