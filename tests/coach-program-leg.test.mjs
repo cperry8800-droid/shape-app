@@ -200,10 +200,18 @@ test("a coach with both listings: the overview carries each role's own program",
   assert.equal(ov.program.name, 'Strength Block 3', 'the one pick stays the trainer\'s calendar, for the readers that show one');
   assert.equal(ov.programs.trainer.name, 'Strength Block 3');
   assert.equal(ov.programs.nutritionist.name, 'Cut Phase', 'the nutritionist\'s own plan');
-  // No plan of the nutritionist's: none, never the trainer's block.
-  const noPlan = await dual({ client_workouts: asTable(assigned()) });
+  // No plan of the nutritionist's: none, never the trainer's block or the trainer's assignment.
+  const trainerRow = {
+    coach_program_assignments: [{ id: 'as-t', client_id: A, status: 'active', provider_role: 'trainer', provider_id: 7, program_template_id: 'tt', created_at: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:00Z', notes: null }],
+    coach_program_templates: [{ id: 'tt', title: 'Old Block', goal: null, level: null, duration_weeks: 6, days_per_week: 3 }],
+  };
+  const noPlan = await dual({ client_workouts: asTable(assigned()), ...trainerRow });
   assert.equal(noPlan.programs.nutritionist, null);
-  assert.equal(noPlan.programs.trainer.name, 'Strength Block 3');
+  assert.equal(noPlan.programs.trainer.name, 'Strength Block 3', 'the calendar first, as `program`');
+  // Nothing on the calendar: the trainer's is the trainer's assignment, never the nutritionist's.
+  const onlyPlan = await dual({ client_workouts: [], ...plan });
+  assert.equal(onlyPlan.programs.trainer, null);
+  assert.equal(onlyPlan.programs.nutritionist.name, 'Cut Phase');
   // The calendar unread: the trainer's is unknown (left out), the nutritionist's still read.
   const failed = JSON.parse(JSON.stringify(await dual({ client_workouts: asTable(assigned()), ...plan }, { fail: ['client_workouts'] })));
   assert.equal('trainer' in failed.programs, false);
