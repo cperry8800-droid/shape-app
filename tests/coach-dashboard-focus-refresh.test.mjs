@@ -39,12 +39,19 @@ test.after(() => { Date.now = realNow; });
 // The server, as the page reads it: the roster, the dashboard and the overviews.
 let up = true;
 let version = 'v1';
+// 'partial': the roster answers, the dashboard and the overviews do not; 'garbled': the roster
+// answers 200 with a body the page cannot read.
+let mode = 'ok';
+// When set, the overviews' answer waits on it: the page's in-between paint is then on screen.
+let holdOverviews = null;
 const asked = [];
 globalThis.fetch = async (url, init) => {
   asked.push(String(url));
   if (!up) throw new TypeError('Failed to fetch');
+  if (holdOverviews && String(url) === '/api/clients/shared-overview') await holdOverviews.promise;
   const json = (body) => ({ ok: true, status: 200, json: async () => body });
-  if (String(url).startsWith('/api/trainer/clients')) return json({ isTrainer: true, clients: [{ id: A, name: 'Ada' }], totals: { onPlan: 1 } });
+  if (String(url).startsWith('/api/trainer/clients')) return json({ isTrainer: true, clients: mode === 'garbled' ? 'oops' : [{ id: A, name: 'Ada' }], totals: { onPlan: 1 } });
+  if (mode === 'partial') return { ok: false, status: 503, json: async () => ({}) };
   if (String(url).startsWith('/api/trainer/dashboard')) return json({ isTrainer: true, user: { firstName: 'Maya' }, kpis: { activeClients: 1 }, today: [{ scheduledAt: '2026-11-05T23:00:00Z', clientName: version }] });
   if (String(url) === '/api/clients/shared-overview' && init && init.method === 'POST') return json({ results: { [A]: { client: { id: A, name: 'Ada' }, stats: { sessionsPlanned: 4, sessionsCompleted: 3 } } }, failed: [] });
   return { ok: false, status: 404, json: async () => ({}) };
@@ -102,13 +109,39 @@ test('a live page re-reads on the coach\'s return, quietly, and a failed re-read
   assert.ok(seen.slice(rendersBefore).every((d) => d.source === 'live'), 'no render showed the preview');
 
   // Back again, online, with a new booking on the server: it shows, with no "loading" in between.
+  // The overviews are held until the rest has landed, so a paint in between would be rendered.
   clock += 61_000;
   up = true;
   version = 'v2';
+  let release;
+  holdOverviews = { promise: new Promise((r) => { release = r; }) };
   const from = seen.length;
   await back('visibilitychange');
+  assert.ok(asked.filter((u) => u === '/api/clients/shared-overview').length >= 2, 'the overviews were asked again');
+  release();
+  holdOverviews = null;
+  await flush();
   assert.equal(last().today.today[0].clientName, 'v2');
+  assert.ok(seen.slice(from).length > 0);
   assert.ok(seen.slice(from).every((d) => d.clients.every((c) => c.progressRead.state !== 'loading')), 'the columns never flashed loading');
+
+  // The roster answers but the dashboard and the overviews do not: Today keeps its sessions and the
+  // client keeps the record it had, rather than "unavailable".
+  clock += 61_000;
+  mode = 'partial';
+  version = 'v3';
+  await back('focus');
+  assert.equal(last().source, 'live');
+  assert.equal(last().today.today[0].clientName, 'v2', 'the last good Today, not the preview\'s');
+  assert.equal(last().clients[0].progressRead.state, 'ready', 'the record it had, not "unavailable"');
+
+  // An answer the page cannot read: still the live page.
+  clock += 61_000;
+  mode = 'garbled';
+  await back('focus');
+  assert.equal(last().source, 'live');
+  assert.equal(last().clients.length, 1);
+  mode = 'ok';
   await React.act(async () => root.unmount());
 });
 

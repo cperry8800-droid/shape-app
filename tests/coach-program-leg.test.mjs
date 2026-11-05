@@ -60,6 +60,12 @@ test('the length is the run\'s own, and a finished block is overdue at its last 
   // Its last week: not yet overdue.
   const last = bsWorkoutProgramLeg(assigned({ weeks: 5, start: '2026-10-05' }), NOW);
   assert.deepEqual([last.week, last.weeks, last.overdue], [5, 5, false]);
+  // Thursdays from 8 Oct for four weeks: the last session was 29 Oct, and today, 5 Nov, is the
+  // first day after its fourth week.
+  const ended = bsWorkoutProgramLeg(assigned({ weeks: 4, start: '2026-10-08', weekdays: [3] }), NOW);
+  assert.deepEqual([ended.week, ended.overdue, ended.estimatedEndAt], [4, true, '2026-11-05T00:00:00.000Z']);
+  const lastDay = bsWorkoutProgramLeg(assigned({ weeks: 4, start: '2026-10-08', weekdays: [3] }), NOW - 86400000);
+  assert.equal(lastDay.overdue, false, 'on its last day it is not yet overdue');
 });
 
 test('the oldest days falling out of the read still date the run', () => {
@@ -141,6 +147,20 @@ test('with no program on the calendar, an assignment row still counts, paused ru
   });
   assert.equal(ov.program.name, 'Block 3');
   assert.equal(ov.program.status, 'paused');
+});
+
+// The Week page's logged days ride on the same overview (2026-11-05): `from` is where a full
+// snapshot window stops knowing, and null when the window holds every row the member has.
+test('the overview sends the logged days, and where a full snapshot window stops knowing', async () => {
+  const day = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  const rows = (n) => Array.from({ length: n }, (_, i) => ({ user_id: A, snapshot_date: day(i), dietary_kcal: i % 2 ? null : 1900 }));
+  const full = await overview({ daily_health_snapshot: rows(40) });
+  assert.equal(full.logDays.from, day(29), 'thirty rows read: nothing before the oldest of them is known');
+  assert.equal(full.logDays.days.length, 15);
+  const short = await overview({ daily_health_snapshot: rows(12) });
+  assert.equal(short.logDays.from, null, 'twelve rows: every row the member has');
+  const failed = await overview({ daily_health_snapshot: rows(12) }, { fail: ['daily_health_snapshot'] });
+  assert.ok(!('logDays' in failed), 'a failed read omits it');
 });
 
 test('a failed read of the days is unknown: the key is omitted, never "Not set"', async () => {

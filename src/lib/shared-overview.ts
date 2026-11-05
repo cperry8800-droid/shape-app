@@ -36,9 +36,9 @@ export const BATCH_MAX_IDS = 50;
 // first. A trainer assigns a client a few hundred days a year at most; past the cap the oldest go,
 // which only shortens the start of a run the newest days already date.
 const PROGRAM_DAYS_BACK = 371;
+const PROGRAM_DAY_CAP = 1000;
 // The daily snapshots every per-day leg reads: the newest rows, up to this many.
 const SNAPSHOT_WINDOW = 30;
-const PROGRAM_DAY_CAP = 1000;
 type ProgramDayRow = { scheduled_date: string | null; template_id: string | null; template_name: string | null; template_week: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -304,11 +304,6 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
-  // The client's goals — only when they've left sharing on (the RPC gates on
-  // is_coach_on_client + the `share` flag, using this coach's session).
-  // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client),
-  // plus the check-in kit: latest weekly check-ins, girth measurements, progress
-  // photos, and the health profile (PAR-Q screening — never share-gated).
   // The program the caller put on this client's calendar (2026-11-05): the days assigning a program
   // writes, read light (the template's id, name and week, never the exercises) and only for a caller
   // who is this client's trainer. A year back covers a 52-week block; the newest rows are kept.
@@ -327,6 +322,12 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
         .gte('scheduled_date', programSince)
         .order('scheduled_date', { ascending: false })
         .limit(PROGRAM_DAY_CAP);
+
+  // The client's goals — only when they've left sharing on (the RPC gates on
+  // is_coach_on_client + the `share` flag, using this coach's session).
+  // Live KPI + strength rollups ride alongside (each gated on is_coach_on_client),
+  // plus the check-in kit: latest weekly check-ins, girth measurements, progress
+  // photos, and the health profile (PAR-Q screening — never share-gated).
   const [
     { data: goals }, { data: stats }, { data: lifts },
     { data: checkins, error: checkinsError }, { data: measurements, error: measurementsError }, { data: progressPhotos }, { data: healthProfile, error: healthError },
