@@ -259,7 +259,6 @@ const SITES = {
   'src/app/api/trainer/adjust/route.ts': 1,
   'src/app/api/trainer/week/route.ts': 1,
   'src/app/api/trainer/workout/route.ts': 1,
-  'src/app/api/program-tools/templates/route.ts': 1,
   'src/app/api/sessions/request/route.ts': 1,
   'src/app/api/sessions/manage/route.ts': 1,
   'src/app/api/clients/[id]/week-one/route.ts': 1,

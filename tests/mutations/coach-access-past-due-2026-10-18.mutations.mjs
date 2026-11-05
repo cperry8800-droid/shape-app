@@ -18,7 +18,6 @@ const READS = [
   'src/app/api/trainer/adjust/route.ts',
   'src/app/api/trainer/week/route.ts',
   'src/app/api/trainer/workout/route.ts',
-  'src/app/api/program-tools/templates/route.ts',
   'src/app/api/sessions/request/route.ts',
   'src/app/api/sessions/manage/route.ts',
   'src/app/api/clients/[id]/week-one/route.ts',
