@@ -232,13 +232,22 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
   ].filter(Boolean);
   const coming = m.comingCents;
   if (metrics && metrics.mrrNetCents != null) {
+    // A rate, not money collected: "a month, at today's clients" (what was collected is its own zone).
     rows.push({ k: "Net a month, at today's clients", s: dashMoney(metrics.mrrGrossCents) + " billed · " + dashMoney((metrics.mrrGrossCents || 0) - metrics.mrrNetCents) + " Shape fee", v: metrics.mrrNetCents });
   }
   const b = (t) => <b style={{ color: DBZ_INK, fontWeight: 600 }}>{t}</b>;
+  // ⚠ THE NEXT PAYOUT IS THE COACH'S OWN SCHEDULE (coachForecast.js nextPayout), never "monthly": a
+  // Standard account Shape made pays out on whatever the coach's Stripe says, often daily.
+  const np = !next ? window.CoachForecast.nextPayout(data) : null;
+  const npLine = !np ? null
+    : np.interval === "manual" ? " You start each payout yourself in Stripe."
+    : np.interval === "daily" ? " Stripe pays out every day."
+    : np.date ? <React.Fragment> The next payout is {b(dbzYmdDay(np.date))}.</React.Fragment> : null;
+  const hist = window.CoachForecast.payoutHistory(data, { months: 4 });
   return (
     <div>
       <p style={{ margin: "0 0 4px", fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
-        {b(dashMoney(coming))} is coming to you.{next && next.arrivalDate ? <React.Fragment> The next payout, {b(dashMoney(next.amountCents))}, lands {b(dbzDate(next.arrivalDate))}.</React.Fragment> : null}
+        {b(dashMoney(coming))} is coming to you.{next && next.arrivalDate ? <React.Fragment> The next payout, {b(dashMoney(next.amountCents))}, lands {b(dbzDate(next.arrivalDate))}.</React.Fragment> : npLine}
       </p>
       {rows.map((r, i) => (
         <div key={r.k} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
@@ -250,6 +259,81 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
         </div>
       ))}
       {dbzScheduleLine(data.schedule) && <div style={{ ...DBZ_NOTE, marginTop: 8 }}>{dbzScheduleLine(data.schedule)}.</div>}
+      <DbzPayoutHistory hist={hist} />
+    </div>
+  );
+}
+
+// ── Payouts to the bank, the last four months (2026-11-05) ──────────────────
+// They were read (12 of them) and dropped. Kept now, read back four months with paging
+// (src/lib/stripe.ts), and listed for the one question a coach asks of them: did it arrive?
+// ⚠ A PAYOUT IS NOT SHAPE'S NET, AND THE NOTE SAYS SO: it is what Stripe sent the bank from the coach's
+// whole Stripe balance, which can carry their other business and comes after Stripe's card fees.
+const DBZ_PAYOUT_STATUS = { paid: "arrived", in_transit: "on its way", pending: "pending", failed: "failed · check Stripe" };
+function DbzPayoutHistory({ hist }) {
+  if (!hist || !hist.rows.length) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={DBZ_LBL}>Paid to your bank · last 4 months</div>
+      {hist.rows.map((r, i) => (
+        <div key={r.id || i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "8px 0", borderBottom: i < hist.rows.length - 1 ? DBZ_RULE : 0 }}>
+          <div style={{ fontSize: 13 }}>{dbzDate(r.at)} <span style={{ fontSize: 12, color: r.status === "failed" ? DBZ_RED : DBZ_INK50 }}>· {DBZ_PAYOUT_STATUS[r.status] || r.status}</span></div>
+          <div style={{ fontFamily: serif, fontSize: 16, fontVariantNumeric: "tabular-nums", color: r.status === "failed" ? DBZ_RED : undefined }}>{dashMoney(r.amountCents)}</div>
+        </div>
+      ))}
+      <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
+        A payout is what Stripe sends your bank from your whole Stripe balance. It can include other business on your Stripe account and comes after Stripe's card fees, so it won't match your net on Shape.{hist.complete ? "" : " Older payouts are in your Stripe dashboard."}
+      </div>
+    </div>
+  );
+}
+
+// A day the server sent as 'YYYY-MM-DD' (already in the coach's zone), read as that calendar day.
+function dbzYmd(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ""));
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+}
+function dbzYmdDay(ymd) {
+  const d = dbzYmd(ymd);
+  if (!d) return "—";
+  try { return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); } catch (e) { return String(ymd); }
+}
+function dbzYmdShort(ymd) {
+  const d = dbzYmd(ymd);
+  if (!d) return "—";
+  try { return d.toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return String(ymd); }
+}
+
+// ── What you collected (2026-11-05) ─────────────────────────────────────────
+// From the record of what members actually paid (coach_payments), in the coach's own time zone:
+// this month so far and since they started on Shape. ⚠ COLLECTED MONEY, NEVER A RUN RATE: the preview
+// prorated the monthly net by the day of the month, which is an estimate; this is what was paid, after
+// Shape's fee and any refund, before Stripe's own card fees. Unread or not recorded yet is said, never $0.
+function DbzCollectedZone({ live, earnings }) {
+  if (!live) return null;
+  if (earnings === undefined) return <div style={{ ...DBZ_NOTE, marginTop: 14 }}>What you've collected loads with the analytics rollup…</div>;
+  if (earnings === null || earnings.state === "unread") return <div style={{ ...DBZ_NOTE, marginTop: 14 }}>Couldn't read what you've collected just now. Nothing is lost; reload to try again.</div>;
+  if (earnings.state === "not_set_up") return <div style={{ ...DBZ_NOTE, marginTop: 14 }}>What you've collected shows here once Shape's payment record is switched on.</div>;
+  const c = window.CoachForecast.collectedFrom(earnings);
+  if (!c) return null;
+  const n = (k) => k + (k === 1 ? " payment" : " payments");
+  const rows = [
+    { k: "Collected this month", s: dbzYmdShort(c.month.from) + "–" + dbzYmdShort(c.month.to) + " · " + n(c.month.payments) + (c.month.refundedCents ? " · " + dashMoney(c.month.refundedCents) + " refunded" : ""), v: c.month.netCents },
+    { k: "Lifetime on Shape", s: c.lifetime.since ? "since " + new Date(c.lifetime.since).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) + " · " + n(c.lifetime.payments) : "no payments recorded yet", v: c.lifetime.netCents },
+  ];
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={DBZ_LBL}>What you collected</div>
+      {rows.map((r, i) => (
+        <div key={r.k} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14 }}>{r.k}</div>
+            <div style={{ fontSize: 12, color: DBZ_INK50, marginTop: 2 }}>{r.s}</div>
+          </div>
+          <div style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums" }}>{dashMoney(r.v)}</div>
+        </div>
+      ))}
+      <div style={{ ...DBZ_NOTE, marginTop: 8 }}>What members paid you on Shape, after Shape's fee and any refund, before Stripe's own card fees.</div>
     </div>
   );
 }
@@ -312,7 +396,7 @@ function DbzChurnZone({ live, churn, pace = null, now = Date.now() }) {
                 {r.endedAt ? "ended " + dbzDate(r.endedAt) : "ended —"}{tenure ? " · " + tenure + " mo client" : ""}
               </div>
               <div style={{ fontSize: 12, color: r.reason ? "rgba(var(--sh-ink-rgb, 242,237,228),0.78)" : DBZ_INK50, fontStyle: r.reason ? "normal" : "italic", lineHeight: 1.45, marginTop: 4 }}>
-                {r.reason ? "“" + r.reason + "”" : "Exit reason — collects once the cancellation survey ships"}
+                {r.reason ? "“" + r.reason + "”" : "No reason given"}
               </div>
             </div>
             <span style={{ fontFamily: serif, fontSize: 15, color: DBZ_RED, whiteSpace: "nowrap" }}>{r.priceCents != null ? "−" + dashMoney(r.priceCents) + "/mo" : "—"}</span>
@@ -1648,6 +1732,7 @@ function CoachBusinessPage({ role }) {
   const payouts = plate(DBZ_GREEN, <React.Fragment>
         {head("Your money", DBZ_GREEN, stripeLink)}
         <DbzPayoutsZone live={isLive} stripe={extra ? stripe : fromExtra("stripe")} providerId={extra && extra.providerId} role={role} metrics={moneyMetrics} />
+        <DbzCollectedZone live={isLive} earnings={fromExtra("earnings")} />
       </React.Fragment>);
   const renewalsHead = dbzRenewalsHead(isLive, fromExtra("renewals"));
   const renewals = plate(DBZ_RED, <React.Fragment>
@@ -1767,4 +1852,4 @@ function CoachBusinessPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachBusinessPage, DbzGoalEarn, DbzListingNotice, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone });
+Object.assign(window, { CoachBusinessPage, DbzGoalEarn, DbzListingNotice, DbzPayoutsZone, DbzChurnZone, DbzOutcomesZone, DbzBringClientsZone, DbzOriginZone, DbzCollectedZone, DbzPayoutHistory });

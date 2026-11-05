@@ -87,6 +87,77 @@ const CST_COACH_TYPES = [
 // it — same inert row, registered too.)
 const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber"];
 
+// ── Payouts (2026-11-05) ─────────────────────────────────────────────────────
+// The slim /api/coach/money: what the coach collected this month (coach_payments, in their own time
+// zone, after Shape's fee) and their Stripe account's balance and next payout from its own schedule.
+// ⚠ TWO DIFFERENT THINGS, SAID APART: "collected" is what members paid on Shape; a payout is what Stripe
+// sends the bank from the whole Stripe balance (coachForecast.js payoutHistory). Signed in only; a
+// failed or not-yet-recorded read says so, never $0.
+function cstYmd(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ""));
+  if (!m) return "—";
+  try { return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return String(ymd); }
+}
+function cstMoney(cents) {
+  return cents == null ? "—" : "$" + Math.round(Number(cents) / 100).toLocaleString();
+}
+function CoachPayoutsCard({ role }) {
+  const [state, setState] = React.useState({ kind: "loading" });
+  React.useEffect(() => {
+    let on = true;
+    fetch("/api/coach/money?role=" + encodeURIComponent(role), { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (on) setState(d && d.isCoach ? { kind: "live", d } : d && d.isCoach === false ? { kind: "none" } : { kind: "error" }); })
+      .catch(() => { if (on) setState({ kind: "error" }); });
+    return () => { on = false; };
+  }, [role]);
+  const CF = window.CoachForecast;
+  const row = (k, sub, v) => (
+    <div key={k} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13.5 }}>{k}</div>
+        {sub && <div style={{ fontSize: 11.5, color: CST_INK50, marginTop: 2 }}>{sub}</div>}
+      </div>
+      <div style={{ fontSize: 15, fontVariantNumeric: "tabular-nums" }}>{v}</div>
+    </div>
+  );
+  let body;
+  if (state.kind === "loading") body = <div style={{ fontSize: 12, color: CST_INK50, marginTop: 10 }}>Loading your payouts…</div>;
+  else if (state.kind === "none") body = <div style={{ fontSize: 12, color: CST_INK50, marginTop: 10 }}>No listing on this account yet.</div>;
+  else if (state.kind === "error" || !CF) body = <div style={{ fontSize: 12, color: CST_INK50, marginTop: 10 }}>Couldn't read your payouts just now. Nothing is lost; reload to try again.</div>;
+  else {
+    const { earnings, stripe } = state.d;
+    const rows = [];
+    const c = CF.collectedFrom(earnings);
+    rows.push(c
+      ? row("This month · collected", cstYmd(c.month.from) + "–" + cstYmd(c.month.to) + " · after Shape's fee", cstMoney(c.month.netCents))
+      : row("This month · collected", earnings && earnings.state === "not_set_up" ? "shows once Shape's payment record is switched on" : "couldn't be read just now", "—"));
+    if (!stripe || !stripe.connected) rows.push(row("Stripe", "not linked yet: Business → Set up payouts", "—"));
+    else if (stripe.error) rows.push(row("Stripe", "couldn't reach Stripe just now", "—"));
+    else {
+      const m = CF.moneyFrom(stripe);
+      const np = m.next ? null : CF.nextPayout(stripe);
+      const nextText = m.next && m.next.arrivalDate ? new Date(m.next.arrivalDate).toLocaleDateString([], { month: "short", day: "numeric" })
+        : np && np.date ? cstYmd(np.date)
+        : np && np.interval === "daily" ? "Daily"
+        : np && np.interval === "manual" ? "You start it"
+        : "—";
+      rows.push(row("Next payout", m.next ? "on its way to your bank" : np && np.delayDays != null ? "each payment clears " + np.delayDays + " day" + (np.delayDays === 1 ? "" : "s") + " after it is charged" : null, nextText));
+      rows.push(row("Balance · ready to pay out", "your whole Stripe balance, other business included", cstMoney(m.balanceCents)));
+    }
+    body = <div style={{ marginTop: 10 }}>{rows}</div>;
+  }
+  return cstCard(
+    <React.Fragment>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <span className="dash-eyebrow">Payouts</span>
+        <a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer" style={{ fontFamily: CST_MONO, fontSize: 9.5, color: CST_TEAL, textDecoration: "none" }}>Open your Stripe ↗</a>
+      </div>
+      {body}
+    </React.Fragment>
+  );
+}
+
 function cstCard(children, extra) {
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": CST_TEAL, paddingLeft: 24, ...(extra || {}) }}>
@@ -373,6 +444,13 @@ function CoachSettingsPage({ role }) {
             </React.Fragment>
           )}
         </div>
+
+        {/* ── payouts: what was collected, and what Stripe pays out ───────── */}
+        {live && (
+          <div style={{ marginTop: 16 }}>
+            <CoachPayoutsCard key={acct || "anon"} role={role} />
+          </div>
+        )}
 
         {/* ── notifications ───────────────────────────────────────────────── */}
         <div style={{ marginTop: 16 }}>

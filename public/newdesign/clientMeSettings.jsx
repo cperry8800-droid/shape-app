@@ -106,16 +106,80 @@ async function openCoachBilling(c) {
   window.location.href = (r.ok && r.d && r.d.url) ? r.d.url : "/pricing";
 }
 
+// ── Cancel a coach plan, in Shape's own step (owner, 2026-11-05: "user types response") ─────────
+// One optional question, "Why are you leaving?", answered in the member's own words, then the plan is
+// cancelled at its period's end through Stripe (POST /api/stripe/cancel-plan). The portal on a coach's
+// account no longer offers its own cancel, so this is where a member cancels. ⚠ The answer never
+// blocks the cancellation, and only that coach and Shape read it.
+const ME_REASON_MAX = 500;
+function CancelPlanDialog({ plan, onClose, onDone }) {
+  const [reason, setReason] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState(null);
+  const who = plan.name || (plan.providerRole === "nutritionist" ? "your nutritionist" : "your coach");
+  const until = plan.renewsAt ? new Date(plan.renewsAt).toLocaleDateString(undefined, { month: "long", day: "numeric" }) : null;
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape" && !busy) onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [busy, onClose]);
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch("/api/stripe/cancel-plan", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId: plan.subscriptionId, reason: reason.trim() || undefined }),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok && d && d.ok) { onDone(d.endsAt || plan.renewsAt || null); return; }
+      setErr((d && d.error) || "Couldn't cancel just now. Nothing changed; try again.");
+    } catch (e) {
+      setErr("Couldn't cancel just now. Nothing changed; try again.");
+    }
+    setBusy(false);
+  };
+  const rust = "#e07856";
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="me-cancel-title" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+      style={{ position: "fixed", inset: 0, zIndex: 100000, background: "rgba(7,8,7,0.66)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ width: "100%", maxWidth: 440, background: "#171310", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + rust, borderRadius: 12, padding: "22px 22px 18px", color: "var(--sh-ink, #f2ede4)" }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: rust }}>Cancel plan</div>
+        <div id="me-cancel-title" style={{ fontSize: 21, fontWeight: 600, marginTop: 6 }}>Cancel your plan with {who}?</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.5, opacity: 0.75, marginTop: 10 }}>
+          {until ? "You keep it until " + until + ". It won't renew after that." : "You keep it until the end of this billing period. It won't renew after that."}
+        </div>
+        <label htmlFor="me-cancel-reason" style={{ display: "block", fontSize: 13, fontWeight: 600, marginTop: 16 }}>Why are you leaving? <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+        <textarea id="me-cancel-reason" value={reason} maxLength={ME_REASON_MAX} rows={4} onChange={(e) => setReason(e.target.value)} placeholder="In your own words"
+          style={{ width: "100%", boxSizing: "border-box", marginTop: 8, padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", background: "rgba(0,0,0,0.25)", color: "inherit", fontSize: 14, lineHeight: 1.45, resize: "vertical", outline: "none" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11.5, opacity: 0.6, marginTop: 4 }}>
+          <span>Only {who} and Shape will read this.</span>
+          <span>{reason.length}/{ME_REASON_MAX}</span>
+        </div>
+        {err && <div role="alert" style={{ fontSize: 13, color: rust, marginTop: 10, lineHeight: 1.45 }}>{err}</div>}
+        <div style={{ display: "flex", gap: 9, marginTop: 18 }}>
+          <button type="button" onClick={onClose} disabled={busy} style={{ flex: "0 0 auto", padding: "12px 20px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", background: "transparent", color: "inherit", opacity: 0.8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Keep my plan</button>
+          <button type="button" onClick={submit} disabled={busy} style={{ flex: 1, minHeight: 46, borderRadius: 999, border: 0, background: rust, color: "#fff", fontSize: 14, fontWeight: 700, cursor: busy ? "default" : "pointer", opacity: busy ? 0.7 : 1 }}>{busy ? "Cancelling…" : "Cancel plan"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PlanBillingCard({ signedIn }) {
   const [sub, setSub] = React.useState(undefined);  // undefined=loading, null=inactive, obj=active
   const [coaches, setCoaches] = React.useState(undefined); // undefined=loading, array when known
   const [pm, setPm] = React.useState(undefined);    // undefined=loading, {hasMethod,…}
+  // The coach plans a member can cancel here (Shape's own step), each with whether it already ends.
+  const [plans, setPlans] = React.useState([]);
+  const [cancelling, setCancelling] = React.useState(null);
   React.useEffect(() => {
-    if (!signedIn) { setSub(null); setCoaches(null); setPm(null); return; }
+    if (!signedIn) { setSub(null); setCoaches(null); setPm(null); setPlans([]); return; }
     const j = (p) => fetch(p, { credentials: "same-origin", cache: "no-store" }).then(r => (r.ok ? r.json() : null)).catch(() => null);
     j("/api/stripe/subscription").then(d => setSub(d && d.active ? d : null));
     j("/api/client/team").then(d => setCoaches(d && Array.isArray(d.coaches) ? d.coaches : []));
     j("/api/stripe/payment-method").then(d => setPm(d || { hasMethod: false }));
+    j("/api/stripe/cancel-plan").then(d => setPlans(d && Array.isArray(d.plans) ? d.plans : []));
   }, [signedIn]);
   const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) + " / month" : "$5 / month");
   const date = (s) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null; } catch (e) { return null; } };
@@ -141,7 +205,14 @@ function PlanBillingCard({ signedIn }) {
       <SectionTitle>Plan &amp; billing</SectionTitle>
       <Row label="Shape membership" value={memberValue} action={sub ? "MANAGE" : "JOIN"} onAction={() => window.location.href = "/pricing"} />
       {coachingRows}
+      {plans.map((p) => (
+        <Row key={p.subscriptionId} label={(p.name || "Coaching") + " · plan"}
+          value={p.ending ? "Ends " + (date(p.endsAt) || "at period end") : p.renewsAt ? "Renews " + date(p.renewsAt) : "Active"}
+          action={p.ending ? undefined : "CANCEL"} onAction={p.ending ? undefined : () => setCancelling(p)} />
+      ))}
       <Row label="Payment method" value={pmValue} action={(pm && pm.hasMethod) || sub ? "UPDATE" : undefined} onAction={(pm && pm.hasMethod) || sub ? () => window.location.href = "/pricing" : undefined} />
+      {cancelling && <CancelPlanDialog plan={cancelling} onClose={() => setCancelling(null)}
+        onDone={(endsAt) => { setPlans((list) => list.map((x) => (x.subscriptionId === cancelling.subscriptionId ? { ...x, ending: true, endsAt: endsAt || x.endsAt } : x))); setCancelling(null); }} />}
     </Card>
   );
 }
