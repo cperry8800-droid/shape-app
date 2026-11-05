@@ -113,6 +113,7 @@ or past 12 KB.
   `api/nutrition/meal-note` (private `meal-notes` bucket), `api/nutrition/voice` (Whisper),
   and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
 - **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
+- **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`.
 - ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes
   it: `services/userGoalsRefresh.mjs`'s hook in its read's deps (`tests/user-goals-refresh.test.mjs`
   holds every broadsheet reader to it); website pages listen for `shape:accountSetup`.
@@ -165,5 +166,3 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - The old version of this file, with every reviewer ruling and why:
   [`-conventions-2026-10-16`](WORKLOG-ARCHIVE-conventions-2026-10-16.md).
 - Handoffs (`docs/HANDOFF-*.md`) are history.
-- Search them with `grep -n "<term>" docs/WORKLOG-ARCHIVE-*.md`, then read one entry
-  with `sed -n` (AGENTS.md: never `cat` one).
