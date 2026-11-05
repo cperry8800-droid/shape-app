@@ -365,9 +365,12 @@ test('the builder\'s exclusions and the Diet filter are ONE list', () => {
 test('meal plans have no Status filter — every one of them is published', () => {
   // The meal builder never sends `published` and the route defaults it to true, so a
   // Draft option would match nothing, ever — the defect this rewrite retired on Programs.
+  // ⚠ ONE EXCEPTION, NAMED (P6): a draft Nora just wrote in the New flow is saved unpublished on its
+  // FIRST save, as her chat drafts are; every later save leaves the flag alone.
   assert.ok(!DM.MEAL_FACETS.some((f) => f.key === 'status'));
   const builder = readFileSync(new URL('../public/newdesign/dashMealBuilder.jsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(builder, /published\s*:/);
+  assert.deepEqual(builder.match(/published\s*:[^,}]*/g), ['published:false'], 'only Nora\'s new draft, unpublished');
+  assert.match(builder, /persisted\.current\?\{expectedRevision:revRef\.current\}:publishedRef\.current===false\?\{published:false\}:\{\}/, 'and only on the first save');
 });
 
 // ── The chips' text on both papers ─────────────────────────────────────────

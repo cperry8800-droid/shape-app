@@ -40,12 +40,42 @@ function dmbWriteDraft(id, name, doc) {
   } catch (e) { return false; }
 }
 
+// ── Shape Kitchen's recipes, read once for the page (P6) ────────────────────
+// GET /api/kitchen/foods: the app's Kitchen catalog as the builder's foods (src/lib/kitchenFoods.mjs),
+// public like /recipes. One read per page, shared by every picker; null while it loads, [] if it fails
+// (the picker then offers Shape's basic foods and the coach's own, as before).
+let dmbKitchenCache = null;
+let dmbKitchenLoad = null;
+function useDmbKitchen() {
+  const [list, setList] = React.useState(dmbKitchenCache);
+  React.useEffect(() => {
+    if (dmbKitchenCache) return undefined;
+    let on = true;
+    if (!dmbKitchenLoad) {
+      dmbKitchenLoad = fetch("/api/kitchen/foods", { credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { dmbKitchenCache = d && Array.isArray(d.foods) ? d.foods : []; return dmbKitchenCache; })
+        .catch(() => { dmbKitchenLoad = null; return []; });
+    }
+    dmbKitchenLoad.then((v) => { if (on) setList(v); });
+    return () => { on = false; };
+  }, []);
+  return list;
+}
+
 // ── Food picker popover — search is FILTERED by the plan's constraints ──────
+// Two shelves (P6, "Kitchen 100 / Mine"): Shape Kitchen's recipes, with the builder's basic foods
+// under them, and the nutritionist's own dishes. Both are filtered by the plan's exclusions and prep.
 function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
   const [q, setQ] = React.useState("");
+  const [shelf, setShelf] = React.useState("kitchen");
+  const [chips, setChips] = React.useState({});
+  const kitchenAll = useDmbKitchen();
   const term = q.trim();
-  const mine = DashMeals.searchCustomFoods(customFoods, term, constraints);
-  const shape = DashMeals.searchFoods(term, constraints);
+  const mineAll = DashMeals.searchCustomFoods(customFoods, "", constraints);
+  const mine = shelf === "mine" || term ? DashMeals.searchCustomFoods(customFoods, term, constraints) : [];
+  const kitchen = shelf === "kitchen" ? DashMeals.searchKitchen(kitchenAll || [], term, constraints, chips, 40) : [];
+  const shape = shelf === "kitchen" ? DashMeals.searchFoods(term, constraints) : [];
   // ⚠ THE PLAN'S CONSTRAINTS GATE THE CREATE OFFER TOO, and the gate is the SHIPPED
   // predicate run over the CANDIDATE — so the object that is tested is the object that
   // gets inserted, and there is no second copy of the rule to drift. Without it the picker
@@ -97,6 +127,16 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
           if (e.key === "Enter" && canCreate) { e.preventDefault(); onPick(candidate); }
         }}
         placeholder="Search foods & recipes…" style={{ ...dmbField, width: "100%", marginBottom: 6 }} />
+      <div role="group" aria-label="Which foods" style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+        {[["kitchen", "Kitchen " + (kitchenAll ? kitchenAll.length : "…")], ["mine", "Mine " + mineAll.length]].map(([k, l]) => (
+          <button key={k} type="button" aria-pressed={shelf === k} onClick={() => setShelf(k)} style={{ ...dmbBtn(false), flex: 1, padding: "5px 8px", fontSize: 11, color: shelf === k ? DMB_GOLD : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", borderColor: shelf === k ? "rgba(var(--sh-gold-rgb, 216,162,58),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{l}</button>
+        ))}
+      </div>
+      {shelf === "kitchen" && <div role="group" aria-label="Kitchen filters" style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+        {DashMeals.KITCHEN_FILTERS.map((k) => (
+          <button key={k.key} type="button" aria-pressed={!!chips[k.key]} onClick={() => setChips({ ...chips, [k.key]: !chips[k.key] })} style={{ ...dmbBtn(false), padding: "3px 8px", fontSize: 10, minHeight: 28, color: chips[k.key] ? "var(--sh-accent-ink, #2ee0c4)" : DMB_INK50, borderColor: chips[k.key] ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{chips[k.key] ? "✓ " : ""}{k.label}</button>
+        ))}
+      </div>}
       {(excluded > 0 || (constraints && constraints.maxPrep != null)) && (
         <div style={{ fontFamily: DMB_MONO, fontSize: 8, letterSpacing: "0.08em", color: DMB_GOLD, marginBottom: 6 }}>
           FILTERED · {[excluded ? "no " + constraints.exclusions.join(", ") : null, constraints.maxPrep != null ? "≤" + constraints.maxPrep + " min prep" : null].filter(Boolean).join(" · ")}
@@ -124,9 +164,12 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
       <div className="dash-thin-scroll" style={{ maxHeight: 260, overflowY: "auto" }}>
         {!!mine.length && head("Your foods")}
         {mine.map(row)}
-        {!!shape.length && head("Shape library")}
+        {shelf === "kitchen" && kitchenAll == null && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>Loading Shape Kitchen…</div>}
+        {!!kitchen.length && head("Shape Kitchen")}
+        {kitchen.map(row)}
+        {!!shape.length && head("Shape basics")}
         {shape.map(row)}
-        {!mine.length && !shape.length && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>No match inside the plan's constraints.</div>}
+        {!mine.length && !kitchen.length && !shape.length && kitchenAll != null && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>No match inside the plan's constraints.</div>}
       </div>
     </div>
   );
@@ -219,7 +262,12 @@ function DmbTotalsBar({ meals, targets, warnings }) {
 // ── Day editor with first-class variant tabs ────────────────────────────────
 // Controlled: the builder owns the variant selection so the running macro bar
 // and the client preview always show the SAME resolved day as the editor.
-function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods }) {
+// ✦ on a meal Nora drafted, "✦ edited" on one the nutritionist changed since (P6, the change list).
+function dmbNoraBadge(noraDraft, meal) {
+  const mark = noraDraft ? DashMeals.mealDraftMark(noraDraft, meal) : "";
+  return mark === "nora" ? { label: "✦ Nora", c: "var(--sh-accent, #2ee0c4)" } : mark === "changed" ? { label: "✦ edited", c: DMB_GOLD } : null;
+}
+function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods, noraDraft = null }) {
   const [picker, setPicker] = React.useState(false);
   const applyDecisions = React.useRef({}); // mealId → true once "apply to variants" accepted
   const hasVariant = (k) => !!(day.variants && day.variants[k]);
@@ -268,7 +316,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods })
       {cur === "training" ? (
         <React.Fragment>
           {day.slots.map((m) => (
-            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods}
+            <DmbMealRow key={m.id} meal={m} constraints={plan.constraints} customFoods={customFoods} badge={dmbNoraBadge(noraDraft, m)}
               followers={DashMeals.hasVariantFollowers(day, m.id)}
               onChange={(next) => editBase(m.id, next)}
               onRemove={() => onChange({ ...day, slots: day.slots.filter((x) => x.id !== m.id) })} />
@@ -399,6 +447,23 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   });
   const [trainingDows, setTrainingDows] = React.useState({ 0: true, 2: true, 4: true });
+  // ⚠ EACH CLIENT'S OWN TRAINING DAYS (P6), not Mon/Wed/Fri for everyone: read from their scheduled
+  // workouts, else their program's week (/api/coach/clients/training-days). The ticks above are the
+  // coach's override, and the days for a client with neither. Never guessed: unknown says so.
+  const [ownDays, setOwnDays] = React.useState(null); // { [clientId]: { dows, source } | null } once read
+  const [override, setOverride] = React.useState(false);
+  React.useEffect(() => {
+    if (!live) { setOwnDays({}); return undefined; }
+    const ids = (clients || []).map((c) => c.profile.id).filter(Boolean);
+    if (!ids.length) { setOwnDays({}); return undefined; }
+    let on = true;
+    const d = new Date();
+    const today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    fetch("/api/coach/clients/training-days?ids=" + encodeURIComponent(ids.slice(0, 50).join(",")) + "&today=" + today, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null)).then((data) => { if (on) setOwnDays(data && data.days && typeof data.days === "object" ? data.days : {}); })
+      .catch(() => { if (on) setOwnDays({}); });
+    return () => { on = false; };
+  }, [live]);
   const [state, setState] = React.useState("");
   const queueState = (id) => { const q = (queue || []).find((r) => r.client.profile.id === id); return q ? q.state : null; };
   const lcBadge = (id) => {
@@ -411,6 +476,16 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
   const ids = Object.keys(picked).filter((k) => picked[k]);
   const dows = Object.keys(trainingDows).filter((k) => trainingDows[k]).map(Number);
   const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const theirs = (id) => (!override && ownDays && ownDays[id] && Array.isArray(ownDays[id].dows) ? ownDays[id] : null);
+  const dowsFor = (id) => { const own = theirs(id); return own ? own.dows : dows; };
+  const daysLine = (id) => {
+    if (ownDays == null) return "Reading their training days…";
+    const own = theirs(id);
+    if (own) return own.dows.map((i) => DOW_LABELS[i]).join(" ") + (own.source === "sessions" ? " · from their sessions" : " · from their program");
+    return (override ? "Your days: " : "No training days on file · your days: ") + (dows.map((i) => DOW_LABELS[i]).join(" ") || "none");
+  };
+  // The template it came from rides with each assignment (P6), so "who's on it" and "Most used" read it.
+  const tplStamp = template && template.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(template.id)) ? { id: template.id, version: Number(doc.version) || 1 } : null;
 
   const assign = async () => {
     if (!ids.length || state === "working" || state === "done") return;
@@ -418,12 +493,12 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
     try {
       for (const id of ids) {
         const scale = Number(scales[id]) > 0 ? Number(scales[id]) : 1;
-        const out = DashMeals.buildMealAssignment(doc, { scale, trainingDows: dows, groceryEdits: groceryEdits && Object.keys(groceryEdits).length ? groceryEdits : null });
+        const out = DashMeals.buildMealAssignment(doc, { scale, trainingDows: dowsFor(id), groceryEdits: groceryEdits && Object.keys(groceryEdits).length ? groceryEdits : null });
         if (live) {
           const res = await fetch("/api/nutritionist/meal-plan", {
             method: "POST", credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clientId: id, title: template.name + (scale !== 1 ? " · ×" + scale : ""), weekStart: startDate, days: out.days }),
+            body: JSON.stringify({ clientId: id, title: template.name + (scale !== 1 ? " · ×" + scale : ""), weekStart: startDate, days: out.days, ...(tplStamp ? { template: tplStamp } : {}) }),
           });
           if (!res.ok) throw new Error("HTTP " + res.status);
         }
@@ -454,12 +529,15 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={dmbField} />
           </div>
           <div>
-            <span style={dmbLabel}>Training days · base meals (others get the rest variant)</span>
+            <span style={dmbLabel}>{override ? "Training days · for everyone" : "Training days · for a client with none on file"}</span>
             <div style={{ display: "flex", gap: 4 }}>
               {DOW_LABELS.map((l, i) => (
                 <button key={l} onClick={() => setTrainingDows({ ...trainingDows, [i]: !trainingDows[i] })} style={{ ...dmbBtn(false), padding: "5px 7px", fontSize: 8, color: trainingDows[i] ? DMB_GOLD : "var(--sh-ink2, #a09b94)", borderColor: trainingDows[i] ? "rgba(var(--sh-gold-rgb, 216,162,58),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{l}</button>
               ))}
             </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11.5, color: DMB_INK50, cursor: "pointer" }}>
+              <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} /> Use these days for everyone instead of their own
+            </label>
           </div>
         </div>
         <span style={dmbLabel}>Clients · portion scale never edits the template</span>
@@ -471,7 +549,7 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
             return (
               <label key={id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 10, alignItems: "center", padding: "8px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}>
                 <input type="checkbox" checked={!!picked[id]} onChange={(e) => setPicked({ ...picked, [id]: e.target.checked })} />
-                <span style={{ fontSize: 13 }}>{c.profile.name}</span>
+                <span style={{ fontSize: 13, minWidth: 0 }}>{c.profile.name}{picked[id] && <span style={{ display: "block", fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50, marginTop: 2 }}>{daysLine(id)}</span>}</span>
                 {lb ? <DashPill c={lb.c}>{lb.label}</DashPill> : qs ? <DashPill c={qs === "ready" ? "var(--sh-accent, #2ee0c4)" : DMB_GOLD}>{qs === "ready" ? "Ready" : "Awaiting check-in"}</DashPill> : <span />}
                 {picked[id] ? (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -533,7 +611,7 @@ function DmbClientPreview({ doc, day, variant }) {
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
-function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId }) {
+function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId, onUndoDraft = null }) {
   const prefs = useRememberedChoices(!!live);
   const [layout, setLayout] = useRememberedChoice(prefs, "mealBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
   const [step, setStep] = React.useState(0);
@@ -565,7 +643,9 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   // editor, or another tab) is refused with the route's words, never written over (Codex on #2594).
   const revRef = React.useRef(Number(template.detail && template.detail.revision) || 0);
   const latest = React.useRef({name,doc}); latest.current = {name,doc};
-  const saved = React.useRef(JSON.stringify({name,doc}));
+  // ⚠ A DRAFT NORA JUST WROTE SAVES AT ONCE, UNPUBLISHED (P6), as the workout builder's does.
+  const saved = React.useRef(template.noraNew ? "" : JSON.stringify({name,doc}));
+  const publishedRef = React.useRef(template.noraNew ? false : null);
   const flight = React.useRef(null), active = React.useRef(true);
   React.useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
   // Save, autosave, leave and assign share one lane. Reusing a template must POST
@@ -579,7 +659,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
     flight.current=(async()=>{
       try{
         if(live){
-          const res=await fetch("/api/coach/plans",{method:persisted.current?"PATCH":"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:idRef.current,kind:"meal_plan",name:value.name,expectedOwnerId:ownerRef.current,...(persisted.current?{expectedRevision:revRef.current}:{}),meta:value.doc.targets.kcal+" kcal · "+dmbPhase(value.doc.goalPhase).label,detail:{...(template.detail||{}),mealBuilder:value.doc}})});
+          const res=await fetch("/api/coach/plans",{method:persisted.current?"PATCH":"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:idRef.current,kind:"meal_plan",name:value.name,expectedOwnerId:ownerRef.current,...(persisted.current?{expectedRevision:revRef.current}:publishedRef.current===false?{published:false}:{}),meta:value.doc.targets.kcal+" kcal · "+dmbPhase(value.doc.goalPhase).label,detail:{...(template.detail||{}),mealBuilder:value.doc}})});
           const data=await res.json();
           if(!res.ok || !data.plan?.id)throw Error(data.error || "Save failed. Keep this page open and retry to save your edits.");
           idRef.current=data.plan.id;persisted.current=true;revRef.current=Number(data.plan.detail&&data.plan.detail.revision)||0;
@@ -610,6 +690,33 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   const day = doc.days[sel];
   const setDay = (next) => setDoc({ ...doc, days: doc.days.map((d, i) => (i === sel ? next : d)) });
   const setTargets = (k, v) => setDoc({ ...doc, targets: { ...doc.targets, [k]: Math.max(0, Number(v) || 0) } });
+  // ── Training and rest days (P6): a rest day's targets, and each day tagged for one or the other ──
+  const setRestTargets = (k, v) => setDoc({ ...doc, restTargets: { ...(doc.restTargets || DashMeals.restTargetsFrom(doc.targets)), [k]: Math.max(0, Number(v) || 0) } });
+  const toggleRestTargets = (on) => {
+    if (on) { setDoc({ ...doc, restTargets: DashMeals.restTargetsFrom(doc.targets) }); return; }
+    const { restTargets, ...rest } = doc;
+    setDoc({ ...rest, days: rest.days.map(({ type, ...d }) => d) });
+  };
+  const setDayType = (i, type) => setDoc({ ...doc, days: doc.days.map((d, j) => (j === i ? (type === "rest" ? { ...d, type: "rest" } : (({ type: _t, ...x }) => x)(d)) : d)) });
+  const dayTargets = day ? DashMeals.targetsFor(doc, DashMeals.dayType(day)) : doc.targets;
+  // ── Nora's draft, beside the plan (P6) ──
+  const noraDraft = template.detail && template.detail.draft && template.detail.draft.by === "nora" && template.detail.draft.meals ? template.detail.draft : null;
+  const noraChanges = noraDraft ? DashMeals.mealDraftChanges(noraDraft, doc) : null;
+  const noraUntouched = !!noraChanges && !noraChanges.changed.length && !noraChanges.removed.length && !noraChanges.own && name === template.name;
+  const [undoing, setUndoing] = React.useState(false);
+  const undoNoraDraft = async () => {
+    if (!onUndoDraft || undoing) return;
+    setUndoing(true);
+    try {
+      if (flight.current) await flight.current;
+      if (live && persisted.current) {
+        const res = await fetch("/api/coach/plans", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: idRef.current }) });
+        if (!res.ok) throw Error("Could not undo the draft. Retry, or delete it from the library.");
+      }
+      saved.current = JSON.stringify(latest.current);
+      onUndoDraft();
+    } catch (e) { setSaveError(e.message || "Could not undo the draft."); setUndoing(false); }
+  };
   const setConstraint = (k, v) => setDoc({ ...doc, constraints: { ...doc.constraints, [k]: v } });
   const duplicateDay = (i) => {
     const copy = JSON.parse(JSON.stringify(doc.days[i]));
@@ -662,6 +769,15 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
         <button hidden={guided && step !== 3} onClick={async()=>{if(await flush())setAssigning(true);}} style={dmbBtn(true)}>Assign to clients →</button>
       </div>
 
+      {noraDraft && (
+        <div className="dash-plate" role="region" aria-label="Nora's draft" style={{ "--dac": "var(--sh-accent, #2ee0c4)", padding: "12px 16px", marginBottom: 14 }}>
+          <div className="dash-eyebrow" style={{ color: "var(--sh-accent-ink, #2ee0c4)" }}>✦ Nora's draft · {noraDraft.source === "library" ? "Shape's basic foods" : "Shape Kitchen recipes"}</div>
+          {noraDraft.brief && <div style={{ fontSize: 13, color: DMB_INK50, marginTop: 6 }}>“{noraDraft.brief}”</div>}
+          <div style={{ fontSize: 13.5, marginTop: 6 }}>{noraChanges.line}.{noraChanges.removed.length ? " Removed: " + noraChanges.removed.slice(0, 3).join(", ") + "." : ""}</div>
+          <div style={{ fontSize: 12, color: DMB_INK50, marginTop: 4 }}>✦ marks her meals; “✦ edited” the ones you changed. Every dish and number is Shape's; assigning stays yours.</div>
+          {onUndoDraft && noraUntouched && <button type="button" disabled={undoing} onClick={undoNoraDraft} style={{ ...dmbBtn(false), marginTop: 10 }}>{undoing ? "Undoing…" : "Undo draft"}</button>}
+        </div>
+      )}
       {saveError && <p role="alert">{saveError} <button style={dmbBtn(false)} onClick={flush}>Retry save</button></p>}
       {templateSaved && <p role="status">{live ? "Template saved to your library. Use as template makes a separate copy next time." : "Template draft saved on this device. Sign in to save to your library."}</p>}
       <div className="dmb-layout">
@@ -674,6 +790,20 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
                 <div key={k}><span style={dmbLabel}>{l}</span><input aria-label={"Daily " + l + " target"} type="number" value={doc.targets[k]} onChange={(e) => setTargets(k, e.target.value)} style={{ ...dmbField, width: "100%" }} /></div>
               ))}
             </div>
+            {/* Two target sets (P6): a training day's (above) and a rest day's. Off, every day measures
+                against the one set, as plans always have. */}
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 12.5, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!doc.restTargets} onChange={(e) => toggleRestTargets(e.target.checked)} />
+              Rest days have their own targets
+            </label>
+            {doc.restTargets && <>
+              <div style={{ fontSize: 11.5, color: DMB_INK50, margin: "6px 0 2px" }}>Above is a training day. A rest day starts with protein and fat held and {DashMeals.REST_CARB_DROP} g fewer carbs; tag each day TRAIN or REST in the rotation.</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 6 }}>
+                {[["kcal", "Rest kcal"], ["p", "Rest protein g"], ["c", "Rest carbs g"], ["f", "Rest fat g"]].map(([k, l]) => (
+                  <div key={k}><span style={dmbLabel}>{l}</span><input aria-label={l + " target"} type="number" value={doc.restTargets[k]} onChange={(e) => setRestTargets(k, e.target.value)} style={{ ...dmbField, width: "100%" }} /></div>
+                ))}
+              </div>
+            </>}
           </div>
 
           <div hidden={guided && step !== 0} className="dash-plate" style={{ "--dac": DMB_GOLD, padding: "14px 16px" }}>
@@ -715,6 +845,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
                       {d.slots.length} meals · {DashMeals.mealsTotals(d.slots).kcal} kcal{Object.keys(d.variants || {}).length ? " · " + Object.keys(d.variants).length + " variant" + (Object.keys(d.variants).length === 1 ? "" : "s") : ""}
                     </span>
                   </button>
+                  {doc.restTargets && <button type="button" onClick={() => setDayType(i, DashMeals.dayType(d) === "rest" ? "train" : "rest")} aria-label={d.name + ": " + (DashMeals.dayType(d) === "rest" ? "rest day, make it a training day" : "training day, make it a rest day")} title="Training or rest day" style={{ ...dmbBtn(false), padding: "3px 7px", fontSize: 8, fontFamily: DMB_MONO, letterSpacing: "0.1em", color: DashMeals.dayType(d) === "rest" ? DMB_INK50 : "var(--sh-accent-ink, #2ee0c4)" }}>{DashMeals.dayType(d) === "rest" ? "REST" : "TRAIN"}</button>}
                   <button onClick={() => duplicateDay(i)} title="Duplicate day" style={{ ...dmbBtn(false), padding: "3px 7px", fontSize: 8 }}>⧉</button>
                   {doc.days.length > 1 && <button onClick={() => { setDoc({ ...doc, days: doc.days.filter((_, j) => j !== i) }); setSel(0); }} aria-label={"Delete " + d.name} style={{ ...dmbBtn(false), padding: "3px 7px", fontSize: 8, color: DMB_RED }}>×</button>}
                 </div>
@@ -737,11 +868,11 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
 
         {/* Middle — running bar + the day editor (one shared variant tab) */}
         <div hidden={guided && step !== 1 && step !== 2} className="dash-plate dash-plate--tick dmb-content" style={{ "--dac": DMB_GOLD, paddingLeft: 24 }}>
-          <span className="dash-eyebrow" style={{ color: DMB_GOLD }}>{day ? day.name : "Day"} · {curVariant === "training" ? "training day" : curVariant + " day"} · running total</span>
+          <span className="dash-eyebrow" style={{ color: DMB_GOLD }}>{day ? day.name : "Day"} · {doc.restTargets ? (DashMeals.dayType(day) === "rest" ? "rest-day menu" : "training-day menu") + " · " : ""}{curVariant === "training" ? "training day" : curVariant + " day"} · running total</span>
           <div className="dash-ledger" style={{ "--dac": DMB_GOLD, margin: "9px 0 10px" }} />
-          <DmbTotalsBar meals={resolved} targets={doc.targets} warnings={warnings} />
+          <DmbTotalsBar meals={resolved} targets={dayTargets} warnings={warnings} />
           {day
-            ? <DmbDayEditor day={day} onChange={setDay} plan={doc} variant={curVariant} setVariant={setPreviewVariant} customFoods={ownFoods} />
+            ? <DmbDayEditor day={day} onChange={setDay} plan={doc} variant={curVariant} setVariant={setPreviewVariant} customFoods={ownFoods} noraDraft={noraDraft} />
             : <div style={{ color: DMB_INK50, fontSize: 13 }}>Pick a day on the left.</div>}
         </div>
 
@@ -769,19 +900,31 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   );
 }
 
-// ── Lifecycle zone — expiring / phase change / intake pending ───────────────
+// ── Lifecycle zone — who needs a new plan (once each) / intake pending ──────
+// ⚠ ONE LIST, EACH CLIENT ONCE (P6). "Expiring this week" and "Ready for phase change" overlapped (the
+// audit counted 9 and 8, mostly the same people), so one client read as two jobs. They are one list
+// now, every reason on its row, under one line: "3 need a new plan by Sun · Nov 8" (DashMeals.planNeeds).
 function DmbLifecyclePanel({ lifecycle, onWritePlan }) {
-  const groups = [
-    { key: "expiring", label: "Expiring this week", c: DMB_RED, sub: "Check-in reviewed — this week's plan isn't written yet", action: "Write plan" },
-    { key: "phaseChange", label: "Ready for phase change", c: DMB_GOLD, sub: "At or past 50% to goal — consider the next phase's targets", action: "Write plan" },
-    { key: "intake", label: "Intake pending", c: "var(--sh-accent, #2ee0c4)", sub: "No first check-in yet — chase the intake before assigning", action: null },
-  ];
+  const needs = DashMeals.planNeeds(lifecycle);
+  const REASON = { expiring: { label: "Expiring", c: DMB_RED }, phase: { label: "Phase change", c: DMB_GOLD } };
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DMB_GOLD, paddingLeft: 24 }}>
       <div className="dash-eyebrow" style={{ color: DMB_GOLD }}>Plan lifecycle · who needs one</div>
+      <div style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 15, fontWeight: 600, marginTop: 8 }}>{needs.label}</div>
       <div className="dash-ledger" style={{ "--dac": DMB_GOLD, marginTop: 9 }} />
-      <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-        {groups.map((g) => {
+      <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, color: DMB_INK50, lineHeight: 1.45, margin: "4px 0 8px" }}>Check-in reviewed with this week's plan not written, or at 50% to goal: consider the next phase's targets.</div>
+          {needs.clients.map(({ client: c, reasons }) => (
+            <div key={c.profile.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", flexWrap: "wrap" }}>
+              <span style={{ flex: 1, fontSize: 12.5, fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.profile.name}</span>
+              {reasons.map((r) => <DashPill key={r} c={REASON[r].c}>{REASON[r].label}</DashPill>)}
+              <button onClick={() => onWritePlan(c.profile.id)} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>Write plan →</button>
+            </div>
+          ))}
+          {!needs.count && <div style={{ fontSize: 11.5, color: DMB_INK50, padding: "6px 0" }}>Nobody — clear.</div>}
+        </div>
+        {[{ key: "intake", label: "Intake pending", c: "var(--sh-accent, #2ee0c4)", sub: "No first check-in yet — chase the intake before assigning", action: null }].map((g) => {
           const list = lifecycle[g.key] || [];
           return (
             <div key={g.key}>
@@ -824,6 +967,103 @@ function dmbCardFacts(info) {
   return parts.join(" · ");
 }
 
+// ── The New flow: how do you want to start? (P6, builder-start.html#nutri) ─────────────────────
+// "+ New meal plan" opens this first: Start with Nora (the brief: phase, targets, days, meals, what to
+// leave out, most prep, an optional client), Start blank, or Copy one of yours. Nora picks a Shape
+// Kitchen recipe for every meal and adds up the macros (POST /api/ai/draft-meal-plan, the core her
+// chat uses); the draft opens in the builder unpublished and saves at once, with Undo while untouched.
+// ⚠ NOT A NORA BOX ON THE LIBRARY (owner, 2026-11-04, #2590): this is the New flow.
+const DMB_START_BRIEF = { text: "", phase: "cut", kcal: "", restKcal: "", days: 7, slots: { Breakfast: true, Lunch: true, Dinner: true, Snack: true }, exclude: [], maxPrep: "", clientId: "" };
+function DmbStart({ brief, setBrief, clients = [], templates = [], live, onBlank, onCopy, onDraft, onBack }) {
+  const b = brief;
+  const set = (k, v) => setBrief({ ...b, [k]: v });
+  const [st, setSt] = React.useState({ state: "idle" });
+  const ask = React.useRef(0);
+  React.useEffect(() => () => { ask.current++; }, []);
+  const seg = (on) => ({ ...dmbBtn(false), padding: "6px 11px", color: on ? DMB_GOLD : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", borderColor: on ? "rgba(var(--sh-gold-rgb, 216,162,58),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" });
+  const phase = dmbPhase(b.phase);
+  const draft = async () => {
+    if (!live) { setSt({ state: "error", error: "Drafting with Nora needs a signed-in nutritionist account. This is the preview." }); return; }
+    const slots = DashMeals.SLOTS.filter((x) => b.slots[x]);
+    if (!slots.length) { setSt({ state: "error", error: "Pick at least one meal of the day." }); return; }
+    const mine = ++ask.current;
+    setSt({ state: "busy" });
+    try {
+      const num = (v) => (String(v).trim() === "" ? undefined : Number(v));
+      const body = { request: String(b.text || "").trim(), goalPhase: b.phase, kcal: num(b.kcal), restKcal: num(b.restKcal), days: b.days, slots,
+        exclude: b.exclude, maxPrepMinutes: num(b.maxPrep), ...(b.clientId ? { clientId: b.clientId } : {}) };
+      const res = await fetch("/api/ai/draft-meal-plan", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => null);
+      if (mine !== ask.current) return;
+      if (!res.ok || !data || !data.draft || !data.draft.doc) throw new Error((data && data.error) || "Nora couldn't draft that just now. Try again in a moment, or start blank.");
+      setSt({ state: "idle" });
+      onDraft({ id: null, name: data.draft.name, noraNew: true, detail: { mealBuilder: data.draft.doc, draft: data.draft.snapshot } }, b.clientId || null);
+    } catch (e) {
+      if (mine === ask.current) setSt({ state: "error", error: (e && e.message) || "Nora couldn't draft that." });
+    }
+  };
+  const field = (label, el) => <div><span style={dmbLabel}>{label}</span>{el}</div>;
+  return (
+    <section aria-label="How do you want to start?" style={{ display: "grid", gap: 16, marginBottom: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button type="button" onClick={onBack} style={dmbBtn(false)}>← Library</button>
+        <h2 style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 24, margin: 0 }}>How do you want to start?</h2>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+        <div className="dash-plate dash-plate--tick" style={{ "--dac": "var(--sh-accent, #2ee0c4)", padding: "16px 18px 16px 22px", flex: "2 1 min(520px,100%)", minWidth: 0 }}>
+          <div className="dash-eyebrow" style={{ color: "var(--sh-accent-ink, #2ee0c4)" }}>✦ Start with Nora</div>
+          <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 21, margin: "6px 0 4px" }}>Tell Nora the plan. She fills the week; you edit it.</div>
+          <div style={{ fontSize: 12.5, color: DMB_INK50, marginBottom: 10 }}>She picks a Shape Kitchen recipe for every meal and adds up the macros. It saves unpublished; you edit it and assign it.</div>
+          <textarea aria-label="The brief" value={b.text} maxLength={400} rows={3} onChange={(e) => set("text", e.target.value)} placeholder="A cut at 1,900 kcal, 7 days, no shellfish, 35 min prep at most." style={{ ...dmbField, width: "100%", resize: "vertical", lineHeight: 1.45 }} />
+          <div style={{ fontSize: 11, color: DMB_INK50, margin: "4px 0 12px" }}>In your own words: the goal, numbers you want, what to leave out. The fields below count first.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(200px,100%),1fr))", gap: 12 }}>
+            {field("Phase", <div role="group" aria-label="Phase" style={{ display: "flex", gap: 5 }}>{DashMeals.GOAL_PHASES.map((g) => <button key={g.key} type="button" aria-pressed={b.phase === g.key} onClick={() => set("phase", g.key)} style={seg(b.phase === g.key)}>{g.label}</button>)}</div>)}
+            {field("Daily kcal · blank = " + phase.targets.kcal, <input aria-label="Daily calories" type="number" value={b.kcal} placeholder={String(phase.targets.kcal)} onChange={(e) => set("kcal", e.target.value)} style={{ ...dmbField, width: "100%" }} />)}
+            {field("Rest-day kcal · blank = 50 g fewer carbs", <input aria-label="Rest-day calories" type="number" value={b.restKcal} placeholder={String(phase.targets.kcal - 200)} onChange={(e) => set("restKcal", e.target.value)} style={{ ...dmbField, width: "100%" }} />)}
+            {field("Days in the rotation", <div role="group" aria-label="Days in the rotation" style={{ display: "flex", gap: 5 }}>{[3, 5, 7].map((d) => <button key={d} type="button" aria-pressed={b.days === d} onClick={() => set("days", d)} style={seg(b.days === d)}>{d}</button>)}</div>)}
+            {field("Meals", <div role="group" aria-label="Meals" style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>{DashMeals.SLOTS.map((x) => <button key={x} type="button" aria-pressed={!!b.slots[x]} onClick={() => set("slots", { ...b.slots, [x]: !b.slots[x] })} style={seg(!!b.slots[x])}>{x}</button>)}</div>)}
+            {field("Most prep a meal (min)", <input aria-label="Most prep minutes a meal" type="number" value={b.maxPrep} placeholder="—" onChange={(e) => set("maxPrep", e.target.value)} style={{ ...dmbField, width: "100%" }} />)}
+            {field("For a client · names the plan only", <select aria-label="For a client" value={b.clientId || ""} onChange={(e) => set("clientId", e.target.value)} style={{ ...dmbField, width: "100%" }}><option value="">Nobody yet: save to my library</option>{clients.map((c) => <option key={c.profile.id} value={c.profile.id}>{c.profile.name}</option>)}</select>)}
+          </div>
+          <span style={{ ...dmbLabel, marginTop: 12 }}>Leave out</span>
+          <div role="group" aria-label="Leave out" style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {[...DashMeals.ALLERGENS, "vegetarian", "vegan"].map((x) => {
+              const on = b.exclude.indexOf(x) >= 0;
+              return <button key={x} type="button" aria-pressed={on} onClick={() => set("exclude", on ? b.exclude.filter((y) => y !== x) : [...b.exclude, x])} style={{ ...dmbBtn(false), padding: "4px 8px", fontSize: 8, color: on ? DMB_RED : "var(--sh-ink2, #a09b94)", borderColor: on ? "rgba(var(--sh-rust-rgb, 224,100,75),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)" }}>{on ? "× " : ""}{x}</button>;
+            })}
+          </div>
+          <ul style={{ margin: "12px 0 0", paddingLeft: 18, fontSize: 12, lineHeight: 1.55, color: DMB_INK50 }}>
+            <li>Every meal and number is Shape's, from its Kitchen recipes. Nora never invents a dish or a macro.</li>
+            <li>She reads none of the client's data: allergies and dislikes count only if you set them here.</li>
+            <li>Assigning stays yours. The licence check runs when you assign, never from Nora.</li>
+          </ul>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+            <button type="button" onClick={draft} disabled={st.state === "busy"} style={{ ...dmbBtn(true), opacity: st.state === "busy" ? 0.6 : 1 }}>{st.state === "busy" ? "Nora is drafting…" : "✦ Draft it with Nora →"}</button>
+            <span style={{ fontSize: 12.5, color: DMB_INK50 }}>Opens in the builder, <strong>unpublished</strong></span>
+          </div>
+          <div role="status" aria-live="polite">{st.state === "error" && <p role="alert" style={{ fontSize: 13, color: DMB_RED, margin: "10px 0 0" }}>{st.error}</p>}</div>
+        </div>
+        <div style={{ display: "grid", gap: 16, flex: "1 1 min(280px,100%)", minWidth: 0 }}>
+          <div className="dash-plate" style={{ padding: "14px 16px" }}>
+            <div className="dash-eyebrow" style={{ color: DMB_INK50 }}>Start blank</div>
+            <div style={{ fontSize: 12.5, color: DMB_INK50, margin: "6px 0 10px" }}>Targets first, then the week.</div>
+            <button type="button" onClick={onBlank} style={dmbBtn(false)}>Start blank</button>
+          </div>
+          {!!templates.length && <div className="dash-plate" style={{ padding: "14px 16px" }}>
+            <div className="dash-eyebrow" style={{ color: DMB_INK50 }}>Copy one of yours</div>
+            {templates.slice(0, 8).map((t) => (
+              <div key={t.id || t.name} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                <button type="button" onClick={() => onCopy(t)} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>Copy</button>
+              </div>
+            ))}
+          </div>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function NutritionistPlansPage() {
   const { clients, queue, today: live, source } = useDashboard("nutritionist");
   const forClient = typeof dashRouteParam === "function" ? dashRouteParam("client") : null;
@@ -835,6 +1075,12 @@ function NutritionistPlansPage() {
   const [error, setError] = React.useState("");
   const [appOnly, setAppOnly] = React.useState(0);
   const [refresh, setRefresh] = React.useState(0);
+  // The New flow (P6): the start screen, its brief kept so Undo draft comes back to it, and the client a
+  // draft was for (Assign starts on them).
+  const [starting, setStarting] = React.useState(false);
+  const [startBrief, setStartBrief] = React.useState(DMB_START_BRIEF);
+  // Who is on each plan (P6): the template id every assignment now carries (/api/coach/plans/usage?kind=meal_plan).
+  const [usage, setUsage] = React.useState(null);
   const libraryOwner = React.useRef(null);
   // Whether the library has answered once. "+ New meal plan" works while it is still
   // loading, and the first answer is not an account CHANGE — treating it as one closed the
@@ -862,7 +1108,7 @@ function NutritionistPlansPage() {
         // A different account is a different library: nothing from the last one — the
         // open plan, the assign sheet, the filters — may carry across.
         const owner = d.ownerId || null;
-        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); }
+        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); setStarting(false); }
         resolved.current = true;
         libraryOwner.current = owner;
         setTemplates(rows);
@@ -895,6 +1141,23 @@ function NutritionistPlansPage() {
     openedPlan.current = openPlan;
     setError("That meal plan isn't in your library yet. Refresh in a moment.");
   }, [openPlan, templates]);
+  React.useEffect(() => {
+    if (!live) { setUsage(null); return undefined; }
+    let on = true;
+    const d = new Date();
+    const today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    fetch("/api/coach/plans/usage?kind=meal_plan&today=" + today, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.json() : null)).then((data) => { if (on) setUsage(data && data.usage && typeof data.usage === "object" ? data.usage : null); })
+      .catch(() => { if (on) setUsage(null); });
+    return () => { on = false; };
+  }, [!!live, refresh]);
+  const mostUsed = usage ? (Object.entries(usage).filter(([, v]) => Number(v && v.clients) > 1).sort((a, b) => b[1].clients - a[1].clients || (a[0] < b[0] ? -1 : 1))[0] || [null])[0] : null;
+  const onPlan = (id) => {
+    const entry = usage && Object.prototype.hasOwnProperty.call(usage, id) ? usage[id] : null;
+    if (!entry || !Array.isArray(entry.clientIds) || !entry.clientIds.length) return "";
+    const names = entry.clientIds.map((cid) => { const c = (clients || []).find((x) => x.profile.id === cid); return c ? String(c.profile.name || "").split(" ")[0] : null; }).filter(Boolean);
+    return entry.clients + " on it" + (names.length ? " · " + names.slice(0, 4).join(", ") + (names.length > 4 ? " +" + (names.length - 4) : "") : "");
+  };
   // A plan saved on the phone shows up here without a reload.
   React.useEffect(() => {
     const update = () => { if (!document.hidden) setRefresh((n) => n + 1); };
@@ -937,19 +1200,26 @@ function NutritionistPlansPage() {
             key={view.template.id || view.template.name}
             template={view.template} ownerId={libraryOwner.current}
             clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
-            assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null}
+            assignClientId={view.assignClientId} preselectId={view.draftClient || (targetClient ? forClient : null)}
             customFoods={customFoods}
+            onUndoDraft={view.template.noraNew ? () => { setView(null); setStarting(true); setRefresh((n) => n + 1); } : null}
             onBack={() => { setView(null); setRefresh((n) => n + 1); }}
             onSaved={({ id, name, doc, revision }) => {
               // The saved revision rides into the library's copy, so reopening it names the right one.
               setTemplates(prev => [{id,name,detail:{...view.template.detail,mealBuilder:doc,revision}},...(prev||[]).filter(t=>t.id!==id)]);
             }}
           />
+        ) : starting ? (
+          <DmbStart brief={startBrief} setBrief={setStartBrief} clients={clients || []} templates={templates || []} live={isLive}
+            onBack={() => { setStarting(false); setRefresh((n) => n + 1); }}
+            onBlank={() => { setStarting(false); setView({ template: newPlan(startBrief.phase || "maintain") }); }}
+            onCopy={(t) => { setStarting(false); setView({ template: coachTemplateCopy(t) }); }}
+            onDraft={(tpl, clientId) => { setStarting(false); setView({ template: tpl, assignClientId: null, draftClient: clientId }); }} />
         ) : (
           <React.Fragment>
             {/* Zone 1 — Library */}
             <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-              <button onClick={() => setView({ template: newPlan("maintain") })} style={dmbBtn(true)}>+ New meal plan</button>
+              <button onClick={() => setStarting(true)} style={dmbBtn(true)}>+ New meal plan</button>
               <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Refresh</button>
             </div>
             {error && <p role="alert" style={{ fontSize: 13.5, color: "var(--sh-ink, #f2ede4)" }}>{error} <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Retry</button></p>}
@@ -984,6 +1254,7 @@ function NutritionistPlansPage() {
                     <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 21, letterSpacing: "-0.015em", margin: "7px 0 3px" }}>{t.name}</div>
                     <div style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_INK50 }}>{b.targets.kcal} kcal · {b.targets.p}P · {b.days.length}-day rotation{variants ? " · " + variants + " variant" + (variants === 1 ? "" : "s") : ""}</div>
                     <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.6, color: DMB_INK50, marginTop: 6 }}>{dmbCardFacts(info)}</div>
+                    {(t.id === mostUsed || onPlan(t.id)) && <div style={{ fontSize: 12, lineHeight: 1.5, marginTop: 6, color: DMB_INK50 }}>{t.id === mostUsed && <strong style={{ color: DMB_GOLD }}>Most used{onPlan(t.id) ? " · " : ""}</strong>}{onPlan(t.id)}</div>}
                     <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
                       <button onClick={() => setAssignFor({ template: t, clientId: targetClient ? forClient : null })} style={dmbBtn(true)}>Assign to client</button>
                       <button onClick={() => setView({ template: coachTemplateCopy(t) })} style={dmbBtn(true)}>Use as template</button>

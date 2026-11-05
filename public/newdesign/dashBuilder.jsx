@@ -1032,7 +1032,9 @@ function dbuRankMoves(list, term) {
 // walks the line like a spreadsheet; each one names its move for a screen reader.
 // Focus anywhere in the line selects it, so the detail follows the coach's cursor.
 // Usable on its own (two suites mount it bare), with selection and drag handed in.
-function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '', rpeProgress = '' }) {
+// The cells a changed field marks (P6): a dotted rule under what the coach changed from Nora's draft.
+const DBU_DRAFT_CELL = { sets: "sx", reps: "sx", load: "ld", loadType: "ld", rpe: "rp", rest: "rs" };
+function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '', rpeProgress = '', nora = null }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
     // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
     if(k==='rest') delete next.restSeconds; onChange(next);};
@@ -1049,23 +1051,31 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
     // it would promise a climb that no longer happens.
     ...dbuProgressMarks(progress, rpeProgress),
     ladder && ['≡', 'Per-set targets · ' + [ladder.reps, ladder.weight].filter(Boolean).join(' · ')],
+    // ⚠ A LOAD FROM THE CLIENT'S OWN LOG SAYS SO (P6): Nora never invents a weight, and the one she may
+    // fill is their last session's on that move. ↺ with U+FE0E stays type, never a colour emoji.
+    row.loadFrom === 'last_session' && Number(row.load) > 0 && ['↺︎', 'Load from their last session'],
   ].filter(Boolean);
+  // ✦ before a move Nora drafted; its changed cells carry a dotted rule (P6, the change list).
+  const changed = nora && Array.isArray(nora.changed) ? nora.changed : [];
+  const cellChanged = (key) => changed.some((f) => DBU_DRAFT_CELL[f] === key) ? " chg" : "";
+  const noraTitle = nora ? (changed.length ? "Nora drafted this; you changed " + changed.join(", ") : "Nora drafted this") : "";
   const pick = () => { if (onSelect) onSelect(); };
   return <div className={'dr' + (selected ? ' on' : '') + (row.group ? ' grp' : '') + (dragging ? ' drag' : '')} data-rk={rowKey} role="listitem"
     onFocus={pick} onClick={pick} onKeyDown={onRowKeyDown} style={dragging ? { transform: 'translateY(' + dy + 'px)' } : undefined}>
     <button type="button" className="rh" tabIndex={-1} aria-label={'Drag to reorder ' + who} title="Drag to reorder. From the keyboard: Alt+↑ or Alt+↓" {...(handle || {})}>⠿</button>
     <i className={'ix' + (row.group ? ' ss' : '')}>{label}</i>
     <span className="nmc">
+      {nora && <b className="nora" title={noraTitle}><span aria-hidden="true">✦</span><span className="sr">{noraTitle}</span></b>}
       <button type="button" className="nm" data-cell="name" title={who} aria-expanded={onSelect ? selected : undefined} aria-controls={onSelect && selected ? detailId : undefined} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">{who}</button>
       {!!marks.length && <span className="mk">{marks.map(([g, t]) => <b key={t} title={t}><span aria-hidden="true">{g}</span><span className="sr">{t}</span></b>)}</span>}
     </span>
     <span className="dcells">
-      <span className="c sx">
+      <span className={"c sx" + cellChanged("sx")}>
         <input className="ci n" data-cell="sets" aria-label={who+' Sets'} type="number" min="1" value={row.sets ?? ''} onChange={e=>set('sets',e.target.value)}/>
         <span className="tm" aria-hidden="true">×</span>
         <input className="ci" data-cell="reps" aria-label={who+' Reps'} value={row.reps ?? ''} onChange={e=>set('reps',e.target.value)}/>
       </span>
-      <span className="c ld">
+      <span className={"c ld" + cellChanged("ld")}>
         <DbuLoadInput row={row} who={who} className="ci n" onLoad={v=>set('load',v)}/>
         {/* ⚠ RPE LEFT THIS LIST AND GOT ITS OWN. As a fourth `loadType` it was
                EXCLUSIVE with a weight — a coach could say 100 kg or RPE 8 and never
@@ -1077,8 +1087,8 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
         {dbuShowsUnit(row) && <select className="ci u" data-cell="unit" aria-label={who+' load unit'} value={row.loadType || 'kg'} onChange={e=>set('loadType',e.target.value)}><option value="kg">kg</option><option value="lb">lb</option><option value="pct">% 1RM</option></select>}
       </span>
       {/* No target RPE reads "—", as an empty load does: a placeholder, not a word. */}
-      <span className="c rp"><select className="ci" data-cell="rpe" aria-label={who+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))}><option value="">—</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></span>
-      <span className="c rs"><input className="ci" data-cell="rest" aria-label={who+' Rest'} placeholder="—" value={row.rest ?? ''} onChange={e=>set('rest',e.target.value)}/></span>
+      <span className={"c rp" + cellChanged("rp")}><select className="ci" data-cell="rpe" aria-label={who+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))}><option value="">—</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></span>
+      <span className={"c rs" + cellChanged("rs")}><input className="ci" data-cell="rest" aria-label={who+' Rest'} placeholder="—" value={row.rest ?? ''} onChange={e=>set('rest',e.target.value)}/></span>
     </span>
   </div>;
 }
@@ -1297,7 +1307,7 @@ function DbuAiDraft({ live, clientId, hasRows, onApply, onClose }) {
   const run = async () => {
     const request = text.trim();
     if (!request) { setSt({ state: "error", error: "Describe the day first, for example “Lower body, 50 min, barbell, intermediate”." }); return; }
-    if (!live) { setSt({ state: "error", error: "Drafting with AI needs a signed-in trainer account. This is the preview." }); return; }
+    if (!live) { setSt({ state: "error", error: "Drafting with Nora needs a signed-in trainer account. This is the preview." }); return; }
     const mine = ++ask.current;
     setSt({ state: "busy" });
     try {
@@ -1315,7 +1325,7 @@ function DbuAiDraft({ live, clientId, hasRows, onApply, onClose }) {
   };
   const ready = st.state === "ready";
   return (
-    <section className="dai" aria-label="Draft this day with AI">
+    <section className="dai" aria-label="Draft this day with Nora">
       <div className="dai-row">
         <label className="sr" htmlFor={id}>Describe the day</label>
         <input id={id} ref={inputRef} className="dai-in" value={text} placeholder="Lower body, 50 min, barbell, intermediate" maxLength={500}
@@ -1327,9 +1337,9 @@ function DbuAiDraft({ live, clientId, hasRows, onApply, onClose }) {
             else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
           }} />
         <button type="button" className="dbtn" onClick={run} disabled={st.state === "busy"}>{st.state === "busy" ? "Drafting…" : ready ? "Draft again" : "Draft"}</button>
-        <button type="button" className="dq" aria-label="Close Draft with AI" onClick={onClose}>×</button>
+        <button type="button" className="dq" aria-label="Close Draft with Nora" onClick={onClose}>×</button>
       </div>
-      <p className="dai-hint">Name the focus, time, equipment and level. Loads stay empty unless you give one.</p>
+      <p className="dai-hint">Name the focus, time, equipment and level. Loads stay empty unless you give one{clientId ? ", or the client logged one on that move (marked ↺︎)" : ""}.</p>
       <div role="status" aria-live="polite">
         {st.state === "busy" && <p className="dai-msg">Drafting the day…</p>}
         {st.state === "error" && <p className="dai-msg err">{st.error}</p>}
@@ -1371,7 +1381,7 @@ function dbuMergeDraft(blocks, draftBlocks) {
   return next;
 }
 
-function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null, progress = {}, rpeProgress = {}, rule = null }) {
+function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null, progress = {}, rpeProgress = {}, rule = null, noraDraft = null }) {
   const [pickerFor, setPickerFor] = React.useState(null); // block index
   const blocks = day.blocks || [];
   const flat = dbuFlatRows(day);
@@ -1516,6 +1526,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
     setSay((replace ? "Day replaced with the draft: " : "Draft added: ") + count + (count === 1 ? " exercise." : " exercises.") + " Undo draft is under the list.");
   };
   const canUndoDraft = !!aiUndo.current && aiUndo.current.after === JSON.stringify(day.blocks || []);
+  const est = ShapeWorkoutDocument.sessionEstimate(day);
   const undoDraft = () => {
     const u = aiUndo.current;
     if (!u) return;
@@ -1561,6 +1572,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
                           selected={!!current && current.key === x.key} onSelect={() => select(x.key)}
                           dragging={!!drag && drag.key === x.key} dy={drag && drag.key === x.key ? drag.dy : 0}
                           handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)} progress={progress[x.key] || ''} rpeProgress={rpeProgress[x.key] || ''}
+                          nora={noraDraft && noraDraft.rows && Object.prototype.hasOwnProperty.call(noraDraft.rows, String(x.row.id)) ? { changed: ShapeWorkoutDocument.draftRowChanges(noraDraft, x.row) } : null}
                           onChange={(next) => updateRow(x.key, next)} />
                       ))}
                     </div>
@@ -1581,8 +1593,13 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
           {aiOpen && <DbuAiDraft live={live} clientId={clientId} hasRows={flat.length > 0} onApply={applyDraft} onClose={() => setAiOpen(false)} />}
           <div className="dfoot">
             <button type="button" className="dbtn ghost" onClick={() => write([...blocks, { kind: "accessory", rows: [] }])}>+ Block</button>
-            <button type="button" className="dbtn ghost" aria-expanded={aiOpen} onClick={() => setAiOpen((o) => !o)}>✦ Draft with AI</button>
+            <button type="button" className="dbtn ghost" aria-expanded={aiOpen} onClick={() => setAiOpen((o) => !o)}>✦ Draft with Nora</button>
             {canUndoDraft && <button type="button" className="dbtn" onClick={undoDraft}>Undo draft</button>}
+            {/* ⚠ AN ESTIMATE, AND SAID AS ONE: sets × (work + rest), ShapeWorkoutDocument.sessionEstimate.
+                No volume figure: it is empty or wrong on a blank load, bodyweight or a carry (P6). */}
+            {est.moves > 0 && <span className="dest" title={est.planned ? "The length you planned for this day" : "Estimated: sets × (work + rest), plus setting up"}>
+              {(est.planned ? "" : "≈") + est.minutes + " min · " + est.workingSets + " working " + (est.workingSets === 1 ? "set" : "sets") + (est.muscles.length ? " · " + est.muscles.slice(0, 3).map((m) => m.muscle + " " + m.sets).join(" · ") : "")}
+            </span>}
           </div>
         </div>
         {current ? (
@@ -1660,7 +1677,7 @@ function DbuFutureUpdates({template,clients,onClose}) {
 }
 
 // ── Assign modal — multi-client + start date; marks the programming queue ───
-function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose }) {
+function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, onUpdateTheirs = null }) {
   const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
   React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [startDate, setStartDate] = React.useState(() => {
@@ -1751,6 +1768,11 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
         <div style={{ fontFamily: DBU_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Assign · {template.name}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
         <div style={{ fontSize: 12, color: DBU_INK50, marginBottom: 14 }}>{doc.weeks.length} week{doc.weeks.length === 1 ? "" : "s"} · {dayCount} days · snapshot v{doc.version} — your later template edits won't change what they get.</div>
+        {/* ⚠ "UPDATE THEIRS" IS THE UPDATE-FUTURE-WORKOUTS FEATURE THAT ALREADY EXISTS (P6 verified it:
+            /api/coach/plans/assignments previews each client's not-yet-done sessions of this template,
+            never a past or logged one, and /api/trainer/workout applies them week by week through the
+            same gates). It is offered here, where a coach who has just changed the template assigns it. */}
+        {onUpdateTheirs && <p style={{ fontSize: 12.5, margin: "0 0 14px", color: DBU_INK50 }}>Clients already on it keep what they started with. <button type="button" onClick={onUpdateTheirs} style={{ background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: DBU_BODY, fontSize: 12.5, fontWeight: 600, color: DBU_TEAL }}>Update theirs ↗︎</button></p>}
         <span style={dbuLabel}>Start date</span>
         <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="dbu-field" style={{ ...dbuField, marginBottom: 12 }} />
         <details style={{marginBottom:12}}><summary>Preview scheduled workouts</summary>{DashBuilder.buildAssignmentRows(doc,template,startDate || '2000-01-01').map((r,i)=><p key={i} style={{fontSize:12}}>{r.scheduledDate} · {r.title} · {r.payload.exercises.length} exercises</p>)}</details>
@@ -2223,7 +2245,7 @@ function DbuDeleteDay({ day, wi, onDelete, onCancel }) {
   );
 }
 
-function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved }) {
+function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved, onUndoDraft = null }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
@@ -2293,6 +2315,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const [error,setError] = React.useState('');
   const [saveConflict,setSaveConflict] = React.useState(false);
   const [assigning,setAssigning] = React.useState(false);
+  // "Update theirs" from the assign step: the existing update-future-workouts preview (DbuFutureUpdates).
+  const [updatingTheirs,setUpdatingTheirs] = React.useState(false);
   const [uploads,setUploads] = React.useState(0);
   // Focus goes back to whatever opened the day, or, when nothing on the canvas did (the
   // day the builder opens on), to ＋ Add a day, so the keyboard is never left on nothing.
@@ -2322,7 +2346,9 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const copiedFrom = React.useRef(null);
   const active=React.useRef(true), flight=React.useRef(null);
   const latest = React.useRef({name,doc}); latest.current={name,doc};
-  const saved = React.useRef(template.recovered ? '' : JSON.stringify({name,doc}));
+  // ⚠ A DRAFT NORA JUST WROTE SAVES AT ONCE, UNPUBLISHED (P6): a draft costs a call from the day's budget,
+  // and one left unsaved behind a closed tab is lost. It is a new, unpublished template from the start.
+  const saved = React.useRef(template.recovered || template.noraNew ? '' : JSON.stringify({name,doc}));
   const draft = value => dbuWriteDraft(ownerRef.current,idRef.current,{...value,detail:{...(template.detail || {}),builder:value.doc},published:published.current,revision:revision.current,persisted:persisted.current,at:Date.now()});
   const flush = async (publish=false) => {
     if (uploads) {setError('Wait for the demonstration upload to finish.');return false;}
@@ -2476,6 +2502,29 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
 
   const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you", programVideo:doc.video }) : null;
+  // ── Nora's draft, beside the template (P6) ───────────────────────────────────
+  // `detail.draft` is what she wrote (workoutDocument.js draftSnapshot); the change list compares the
+  // open document against it by row id, a move counted once however many weeks repeat it.
+  const noraDraft = template.detail && template.detail.draft && template.detail.draft.by === 'nora' && template.detail.draft.rows ? template.detail.draft : null;
+  const noraChanges = React.useMemo(() => (noraDraft ? ShapeWorkoutDocument.draftChanges(noraDraft, doc) : null), [noraDraft, doc]);
+  // Undo is offered only while nothing has been touched since she drafted it: one that also threw away
+  // the coach's edits would lose work.
+  const untouched = !!noraChanges && noraChanges.kept === noraChanges.total && !noraChanges.valuesChanged && !noraChanges.added.length && name === initial.current.name;
+  const [undoing, setUndoing] = React.useState(false);
+  const undoNoraDraft = async () => {
+    if (!onUndoDraft || undoing) return;
+    setUndoing(true);
+    try {
+      if (flight.current) await flight.current;
+      if (live && persisted.current) {
+        const res = await fetch('/api/coach/plans', { method: 'DELETE', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: idRef.current }) });
+        if (!res.ok) throw new Error('Could not undo the draft. Retry, or delete it from the library.');
+      }
+      dbuWriteDraft(ownerRef.current, idRef.current, null);
+      saved.current = JSON.stringify(latest.current);
+      onUndoDraft();
+    } catch (e) { setError(e.message || 'Could not undo the draft.'); setUndoing(false); }
+  };
   const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? "Saved" : "New template · not saved yet") : "Draft saved locally";
 
   // The reference Monday the dates on this page are drawn for. It lives ON the document
@@ -2761,6 +2810,14 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dai-msg.err{color:${DBU_RUST}}
 .dbu2 .dai-msg.note{color:${DBU_GOLD}}
 .dbu2 .dai-lines{list-style:none;margin:10px 0;padding:8px 10px;max-height:260px;overflow:auto;border:1px solid ${DBU_LINE};border-radius:8px;background:${DBU_WH};font-size:13px;line-height:1.55}
+.dbu2 .dr .nora{flex:0 0 auto;margin-right:6px;font-size:12px;font-weight:700;color:${DBU_TEAL}}
+.dbu2 .dr .c.chg .ci{text-decoration:underline dotted ${DBU_TEAL};text-underline-offset:4px;text-decoration-thickness:2px}
+.dbu2 .dfoot .dest{margin-left:auto;font-size:13px;color:${DBU_INK2};font-variant-numeric:tabular-nums}
+.dbu2 .ncard{border:1px solid ${DBU_LINE2};border-left:3px solid ${DBU_TEAL};border-radius:10px;background:${DBU_TEALBG};padding:12px 14px;margin:0 0 14px}
+.dbu2 .ncard .ey{font-family:${DBU_MONO};font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${DBU_TEAL}}
+.dbu2 .ncard p{margin:6px 0 0;font-size:13.5px;line-height:1.5;color:${DBU_INK}}
+.dbu2 .ncard p.q{color:${DBU_INK2}}
+.dbu2 .ncard .acts2{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
 .dbu2 .dai-lines li.head{font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_INK3}}
 /* The detail. */
 .dbu2 .ddetail{min-width:0;padding:14px 16px 16px;border:1px solid ${DBU_LINE2};border-top:3px solid ${DBU_RUST};border-radius:12px;background:${DBU_PG}}
@@ -2832,6 +2889,17 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
             <button type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
           </div>
         </div>
+
+        {noraDraft && (
+          <section className="ncard" aria-label="Nora's draft">
+            <div className="ey">✦ Nora's draft{noraDraft.source === 'template' ? ' · a template (AI drafting was unavailable)' : ''}</div>
+            {noraDraft.brief && <p className="q">“{noraDraft.brief}”</p>}
+            <p>{ShapeWorkoutDocument.draftChangeLine(noraChanges)}{noraChanges && noraChanges.removed.length ? ". Removed: " + noraChanges.removed.slice(0, 3).join(", ") : ""}{noraChanges && noraChanges.added.length ? ". Added: " + noraChanges.added.slice(0, 3).join(", ") : ""}.</p>
+            {noraDraft.notes && <p className="q">{noraDraft.notes}</p>}
+            <p className="q">Loads stay blank unless your brief named one or the client logged it (↺︎ from their last session). A ✦ marks her moves; a dotted line, what you changed.</p>
+            {onUndoDraft && untouched && <div className="acts2"><button type="button" className="dbtn" disabled={undoing} onClick={undoNoraDraft}>{undoing ? "Undoing…" : "Undo draft"}</button></div>}
+          </section>
+        )}
 
         <details className="cb-details">
           <summary>Program details <small>Tags, start date &amp; introduction video{doc.video ? " · Video added" : ""}</small></summary>
@@ -2969,6 +3037,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               progress={progress}
               rpeProgress={rpeProgress}
               rule={rule}
+              noraDraft={noraDraft}
             />
           </div>
         )}
@@ -2992,7 +3061,9 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         )}
       </div>
 
-      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} onClose={() => setAssigning(false)} />}
+      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} onClose={() => setAssigning(false)}
+        onUpdateTheirs={live && persisted.current ? () => { setAssigning(false); setUpdatingTheirs(true); } : null} />}
+      {updatingTheirs && <DbuFutureUpdates template={{ id: idRef.current, name }} clients={clients} onClose={() => setUpdatingTheirs(false)} />}
     </fieldset>
   );
 }
@@ -3012,6 +3083,129 @@ function dbuCardFacts(info) {
   return [...focus.map((k) => dbuFacetLabel("focus", k)), ...kit.map((k) => dbuFacetLabel("equipment", k))].join(" · ");
 }
 
+// ── The New flow: how do you want to start? (P6, builder-start.html) ──────────────────────────
+// Owner, 2026-11-05: "for the program, workout, plan builder, I have nora able to assist to create a
+// template progam and workout builder where the coach can then just go in and edit". ＋ Single workout
+// day and ＋ Program open this first: Start with Nora (the brief: weeks, days a week, minutes, level,
+// equipment and an optional client), Start blank, or Copy one of yours.
+// ⚠ NOT A NORA BOX ON THE LIBRARY (owner's ruling of 2026-11-04, #2590): Nora lives in the New flow and
+// inside the builders. This screen is the New flow; the library itself carries no brief.
+// Nora's draft opens in the builder UNPUBLISHED and saves at once; its card there has Undo while the
+// coach has changed nothing, which deletes it and comes back here with the brief kept.
+const DBU_WEEK_CHOICES = [4, 6, 8, 12];
+const DBU_MINUTE_CHOICES = [30, 45, 60, 75];
+const DBU_LEVELS = ["Beginner", "Intermediate", "Advanced"];
+function dbuSeg(on) {
+  return { flex: "1 1 0", minWidth: 44, minHeight: 38, padding: "0 10px", borderRadius: 8, border: "1px solid " + (on ? DBU_TEAL : DBU_LINE2), cursor: "pointer",
+    background: on ? DBU_TEALBG : "transparent", color: on ? DBU_TEAL : DBU_INK, fontFamily: DBU_BODY, fontSize: 13.5, fontWeight: 600 };
+}
+function DbuStart({ type, setType, brief, setBrief, clients = [], templates = [], live, onBlank, onCopy, onDraft, onBack }) {
+  const b = brief;
+  const set = (k, v) => setBrief({ ...b, [k]: v });
+  const [st, setSt] = React.useState({ state: "idle" });
+  const [find, setFind] = React.useState("");
+  const ask = React.useRef(0);
+  React.useEffect(() => () => { ask.current++; }, []);
+  const program = type === "program";
+  const weeks = b.weeks === "custom" ? Math.max(1, Math.min(12, Number(b.customWeeks) || 0)) : b.weeks;
+  const draft = async () => {
+    const request = String(b.text || "").trim();
+    if (!request) { setSt({ state: "error", error: "Tell Nora what to build first, for example “Strength block, 12 weeks, Mon and Thu, 60 min, barbell, intermediate”." }); return; }
+    if (!live) { setSt({ state: "error", error: "Drafting with Nora needs a signed-in trainer account. This is the preview." }); return; }
+    const mine = ++ask.current;
+    setSt({ state: "busy" });
+    try {
+      const body = { request, kind: program ? "program" : "day", minutes: b.minutes, level: b.level, equipment: b.equipment,
+        ...(program ? { weeks, daysPerWeek: b.days } : {}), ...(b.clientId ? { clientId: b.clientId } : {}) };
+      const res = await fetch("/api/ai/draft-workout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => null);
+      if (mine !== ask.current) return;
+      if (!res.ok || !data || !data.draft || !data.draft.builder) throw new Error((data && data.error) || "Nora couldn't draft that just now. Try again in a moment, or start blank.");
+      setSt({ state: "idle" });
+      onDraft({ name: data.draft.name, published: false, noraNew: true, detail: { buildType: data.draft.buildType, builder: data.draft.builder, draft: data.draft.snapshot } }, b.clientId || null);
+    } catch (e) {
+      if (mine === ask.current) setSt({ state: "error", error: (e && e.message) || "Nora couldn't draft that." });
+    }
+  };
+  const shown = templates.filter((t) => !find.trim() || String(t.name || "").toLowerCase().includes(find.trim().toLowerCase())).slice(0, 8);
+  const label = (t) => <span style={dbuLabel}>{t}</span>;
+  return (
+    <section aria-label="How do you want to start?" style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button type="button" onClick={onBack} style={dbuLibBtn(false)}>← Library</button>
+        <h2 style={{ fontFamily: DBU_DISPLAY, fontSize: 26, fontWeight: 600, margin: 0, color: DBU_INK, flex: "1 1 auto" }}>How do you want to start?</h2>
+        <div role="group" aria-label="What to build" style={{ display: "flex", gap: 6 }}>
+          <button type="button" aria-pressed={!program} onClick={() => setType("workout")} style={dbuSeg(!program)}>Single workout day</button>
+          <button type="button" aria-pressed={program} onClick={() => setType("program")} style={dbuSeg(program)}>Program</button>
+        </div>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+        <div className="dash-plate" style={{ "--dac": DBU_TEAL, padding: 18, flex: "2 1 min(520px,100%)", minWidth: 0 }}>
+          <div style={{ ...dbuLibMeta, color: DBU_TEAL }}>✦ Start with Nora</div>
+          <h3 style={{ fontFamily: DBU_DISPLAY, fontSize: 21, fontWeight: 600, margin: "8px 0 4px", color: DBU_INK }}>{program ? "Tell Nora the program. She writes it; you edit it." : "Tell Nora the session. She writes it; you edit it."}</h3>
+          <p style={{ fontSize: 13.5, color: DBU_INK2, margin: "0 0 12px" }}>She drafts real rows (sets, reps, RPE, rest, tempo, a cue) into the builder. It opens there unpublished; nothing is assigned until you say so.</p>
+          <label htmlFor="dbu-start-brief" className="sr">The brief</label>
+          <textarea id="dbu-start-brief" className="dbu-field" value={b.text} maxLength={500} rows={3} onChange={(e) => set("text", e.target.value)}
+            placeholder={program ? "Strength block, 12 weeks, Mon and Thu, 60 min, barbell and machines, intermediate. Squat 4 × 5 at 255." : "Lower push, 60 min, barbell, intermediate. Back squat 4 × 5 at 255."}
+            style={{ ...dbuField, height: "auto", minHeight: 84, width: "100%", padding: "10px 12px", lineHeight: 1.45, resize: "vertical" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: DBU_INK3, margin: "4px 0 12px" }}><span>In your own words: focus, days, time, kit, level. Name a weight to use it.</span><span>{String(b.text || "").length} / 500</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(220px,100%),1fr))", gap: 12 }}>
+            {program && <div>{label("Weeks · up to 12")}<div role="group" aria-label="Weeks" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {DBU_WEEK_CHOICES.map((w) => <button key={w} type="button" aria-pressed={b.weeks === w} onClick={() => set("weeks", w)} style={dbuSeg(b.weeks === w)}>{w}</button>)}
+              <button type="button" aria-pressed={b.weeks === "custom"} onClick={() => set("weeks", "custom")} style={dbuSeg(b.weeks === "custom")}>Custom</button>
+              {b.weeks === "custom" && <input aria-label="Weeks, 1 to 12" className="dbu-field" type="number" min="1" max="12" value={b.customWeeks || ""} onChange={(e) => set("customWeeks", e.target.value)} style={{ ...dbuField, width: 70 }} />}
+            </div></div>}
+            {program && <div>{label("Days a week")}<div role="group" aria-label="Days a week" style={{ display: "flex", gap: 6 }}>
+              {[1, 2, 3, 4, 5, 6, 7].map((d) => <button key={d} type="button" aria-pressed={b.days === d} onClick={() => set("days", d)} style={dbuSeg(b.days === d)}>{d}</button>)}
+            </div></div>}
+            <div>{label("Minutes a session")}<div role="group" aria-label="Minutes a session" style={{ display: "flex", gap: 6 }}>
+              {DBU_MINUTE_CHOICES.map((m) => <button key={m} type="button" aria-pressed={b.minutes === m} onClick={() => set("minutes", m)} style={dbuSeg(b.minutes === m)}>{m}</button>)}
+            </div></div>
+            <div>{label("Level")}<div role="group" aria-label="Level" style={{ display: "flex", gap: 6 }}>
+              {DBU_LEVELS.map((l) => <button key={l} type="button" aria-pressed={b.level === l} onClick={() => set("level", l)} style={dbuSeg(b.level === l)}>{l}</button>)}
+            </div></div>
+            <div>{label("Equipment")}<input aria-label="Equipment" className="dbu-field" value={b.equipment} maxLength={80} placeholder="Barbell, machines" onChange={(e) => set("equipment", e.target.value)} style={{ ...dbuField, width: "100%" }} /></div>
+            <div>{label("For a client · optional")}
+              <select aria-label="For a client" className="dbu-field" value={b.clientId || ""} onChange={(e) => set("clientId", e.target.value)} style={{ ...dbuField, width: "100%" }}>
+                <option value="">Nobody yet: save to my library</option>
+                {clients.map((c) => <option key={c.profile.id} value={c.profile.id}>{c.profile.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <ul style={{ margin: "14px 0 0", paddingLeft: 18, fontSize: 13, lineHeight: 1.55, color: DBU_INK2 }}>
+            <li><strong style={{ color: DBU_INK }}>Loads stay blank</strong> unless your brief names one, or a client you named logged that move (she uses their last session's, and says so). She never guesses a weight.</li>
+            <li><strong style={{ color: DBU_INK }}>For a client she reads</strong> their training phase, goals, health screening and injuries (to keep clear of) and their recent logged loads.</li>
+            {program && <li><strong style={{ color: DBU_INK }}>One week, repeated</strong>, with RPE rising and deload weeks. Add your own load rule in the builder.</li>}
+          </ul>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14 }}>
+            <button type="button" onClick={draft} disabled={st.state === "busy"} style={{ ...dbuLibBtn(true), opacity: st.state === "busy" ? 0.6 : 1 }}>{st.state === "busy" ? "Nora is drafting…" : "✦ Draft it with Nora →"}</button>
+            <span style={{ fontSize: 13, color: DBU_INK2 }}>Opens in the builder, <strong>unpublished</strong></span>
+          </div>
+          <div role="status" aria-live="polite">{st.state === "error" && <p role="alert" style={{ fontSize: 13.5, color: DBU_RUST, margin: "10px 0 0" }}>{st.error}</p>}</div>
+        </div>
+        <div style={{ display: "grid", gap: 16, flex: "1 1 min(280px,100%)", minWidth: 0 }}>
+          <div className="dash-plate" style={{ padding: 18 }}>
+            <div style={{ ...dbuLibMeta, color: DBU_INK2 }}>Start blank</div>
+            <p style={{ fontSize: 13.5, color: DBU_INK2, margin: "8px 0 12px" }}>{program ? "An empty week 1, Day 1 on Monday." : "An empty day."} Add moves from the library or type them in.</p>
+            <button type="button" onClick={onBlank} style={dbuLibBtn(false)}>Start blank</button>
+          </div>
+          {!!templates.length && <div className="dash-plate" style={{ padding: 18 }}>
+            <div style={{ ...dbuLibMeta, color: DBU_INK2 }}>Copy one of yours</div>
+            <input aria-label="Find a program" className="dbu-field" value={find} onChange={(e) => setFind(e.target.value)} placeholder="Find a program" style={{ ...dbuField, width: "100%", margin: "10px 0" }} />
+            {shown.map((t) => (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + DBU_LINE }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: DBU_INK, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                <button type="button" onClick={() => onCopy(t)} style={dbuLibBtn(false)}>Copy</button>
+              </div>
+            ))}
+          </div>}
+        </div>
+      </div>
+    </section>
+  );
+}
+const DBU_START_BRIEF = { text: "", weeks: 4, customWeeks: "", days: 3, minutes: 60, level: "Intermediate", equipment: "", clientId: "" };
+
 function TrainerProgramsPage() {
   const {clients,queue,today:live,source}=useDashboard('trainer');
   const forClient = typeof dashRouteParam === 'function' ? dashRouteParam('client') : null;
@@ -3025,6 +3219,8 @@ function TrainerProgramsPage() {
   // closed the builder under the coach's hands. The meal library carries the same flag.
   const resolved = React.useRef(false);
   const [playlists,setPlaylists]=React.useState([]),[assignFor,setAssignFor]=React.useState(null),[updateFor,setUpdateFor]=React.useState(null);
+  // The New flow (P6): which kind is being started, and the brief, kept so Undo draft comes back to it.
+  const [starting,setStarting]=React.useState(null),[startBrief,setStartBrief]=React.useState(DBU_START_BRIEF),[draftClient,setDraftClient]=React.useState(null);
   const [recoveries,setRecoveries]=React.useState([]);
   // ⚠ WHO IS ON EACH PROGRAM IS ITS OWN READ, and an unread one is not "nobody". Until
   // it lands (and in the preview, where no program is on anyone's calendar) the In use
@@ -3086,6 +3282,15 @@ function TrainerProgramsPage() {
     const entry=usage.state==='ready' && Object.prototype.hasOwnProperty.call(usage.map,t.id) ? usage.map[t.id] : null;
     return {t,...DashBuilder.programFacts(t,usage.state==='ready'?{clients:entry?Number(entry.clients)||0:0,capped:usage.capped}:null)};
   }),[templates,usage]);
+  // "Most used" and "who's on it" (P6): from the template id every assigned session carries, each client
+  // at their OWN week of it (/api/coach/plans/usage: weeks), never one week for everyone.
+  const mostUsed=usage.state==='ready'?Object.entries(usage.map).filter(([,v])=>Number(v&&v.clients)>1).sort((a,b)=>b[1].clients-a[1].clients||(a[0]<b[0]?-1:1))[0]?.[0]||null:null;
+  const whoOn=id=>{
+    const entry=usage.state==='ready'&&Object.prototype.hasOwnProperty.call(usage.map,id)?usage.map[id]:null;
+    if(!entry||!Array.isArray(entry.clientIds))return '';
+    const named=entry.clientIds.map(cid=>{const c=(clients||[]).find(x=>x.profile.id===cid);if(!c)return null;const wk=entry.weeks&&entry.weeks[cid];return String(c.profile.name||'').split(' ')[0]+(wk?' wk '+wk:'');}).filter(Boolean);
+    return named.length?named.slice(0,5).join(' · ')+(named.length>5?' +'+(named.length-5):''):'';
+  };
   const useNote=usage.state==='ready'?null
     :usage.state==='error'?<>Couldn’t read who is on each program just now.<br/><button type="button" style={dbuLibBtn(false)} onClick={loadUsage}>Retry</button></>
     :isLive?'Checking who is on each program…':'Live only — in the preview no program is on anyone’s calendar.';
@@ -3105,17 +3310,21 @@ function TrainerProgramsPage() {
     ...(t.detail.media||[]).filter(m=>m.type==='video').map(m=>({name:m.name||t.name,url:ShapeWorkoutDocument.videoUrl(m.url)})),
     ...t.detail.builder.weeks.flatMap(w=>w.days.flatMap(d=>d.blocks.flatMap(b=>b.rows.filter(r=>r.video).map(r=>({name:r.name,url:ShapeWorkoutDocument.videoUrl(r.video)}))))),
   ]).filter(c=>c.url).map(c=>[c.url,c])).values()];
-  const create=type=>{const builder=DashBuilder.newProgram();builder.weeks[0].days[0].name='Day 1';setView({name:type==='workout'?'New workout':'New program',published:false,detail:{buildType:type,builder}});};
+  const create=type=>{const builder=DashBuilder.newProgram();builder.weeks[0].days[0].name='Day 1';setStarting(null);setView({name:type==='workout'?'New workout':'New program',published:false,detail:{buildType:type,builder}});};
   const saved=({plan})=>{setTemplates(prev=>[plan,...(prev||[]).filter(t=>t.id!==plan.id)]);setRecoveries(Object.entries(dbuReadDrafts(ownerId)));};
   return <React.Fragment>
     {source==='demo'&&<DashDemoBand/>}
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={live?dashLivePayoutCard(live.kpis):trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {targetClient && <p role="status">Choose a program for {targetClient.profile.name}. The assignment will have this client selected.</p>}
-      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetClient ? forClient : null} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={draftClient || (targetClient ? forClient : null)} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setDraftClient(null);setRefresh(n=>n+1);}} onSaved={saved}
+        onUndoDraft={view.noraNew?()=>{setView(null);setStarting(view.detail.buildType==='program'?'program':'workout');setRefresh(n=>n+1);}:null}/>
+      :starting?<DbuStart type={starting} setType={setStarting} brief={startBrief} setBrief={setStartBrief} clients={clients} templates={templates||[]} live={isLive}
+        onBack={()=>setStarting(null)} onBlank={()=>create(starting)} onCopy={t=>{setStarting(null);setView(coachTemplateCopy(t));}}
+        onDraft={(tpl,clientId)=>{setStarting(null);setDraftClient(clientId);setView(tpl);}}/>:<>
         <div className="dbu-library-actions">
-          <button type="button" style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button>
-          <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
+          <button type="button" style={dbuLibBtn(true)} onClick={()=>setStarting('workout')}>＋ Single workout day</button>
+          <button type="button" style={dbuLibBtn(false)} onClick={()=>setStarting('program')}>＋ Program</button>
           <button type="button" className="dbu-library-refresh" onClick={()=>setRefresh(n=>n+1)}>Refresh</button>
         </div>
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
@@ -3142,6 +3351,7 @@ function TrainerProgramsPage() {
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(290px,100%),1fr))',gap:14}}>{run.shown.map(({t,info})=>{
             const facts=dbuCardFacts(info);
             const inUse=info.clients!=null&&info.clients>0;
+            const onIt=inUse?whoOn(t.id):'';
             return <div key={t.id} className="dash-plate" style={{'--dac':DBU_RUST,display:'flex',flexDirection:'column',gap:0}}>
               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9}}>
                 <span style={{...dbuLibMeta,color:DBU_INK2}}>{t.detail.buildType==='workout'?'Single day':'Program'}</span>
@@ -3158,6 +3368,7 @@ function TrainerProgramsPage() {
                 : info.weeks+' '+(info.weeks===1?'week':'weeks')+' · '+info.perWeek+' '+(info.perWeek===1?'day':'days')+' a week'}</p>
               {!!info.tags.length&&<div style={{display:'flex',gap:6,flexWrap:'wrap',margin:'0 0 10px'}}>{info.tags.map(tag=><span key={tag.key} className="dash-chip dash-chip--sm" style={{'--c':tag.c,cursor:'default'}}>{tag.label}</span>)}</div>}
               {facts&&<p style={{...dbuLibMeta,fontSize:9,lineHeight:1.6,color:DBU_INK2,margin:'0 0 14px'}}>{facts}</p>}
+              {(onIt||mostUsed===t.id)&&<p style={{fontSize:12.5,lineHeight:1.5,color:DBU_INK2,margin:'0 0 12px'}}>{mostUsed===t.id&&<strong style={{color:DBU_TEAL}}>Most used{onIt?' · ':''}</strong>}{onIt&&<>On it now: {onIt}</>}</p>}
               <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'auto'}}>
                 <button style={dbuLibBtn(true)} onClick={()=>setView(coachTemplateCopy(t))}>Use as template</button>
                 <button style={dbuLibBtn(false)} onClick={()=>setView(t)}>Edit template</button>

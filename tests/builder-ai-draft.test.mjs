@@ -116,7 +116,7 @@ function stubDraft(reply) {
   return { asked };
 }
 async function openDraft() {
-  await click(button('✦ Draft with AI'));
+  await click(button('✦ Draft with Nora'));
   const input = document.querySelector('.dai-in');
   assert.ok(input, 'the draft panel did not open');
   return input;
