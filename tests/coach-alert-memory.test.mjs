@@ -29,7 +29,7 @@ function run(records, last, now = NOON, prefs = PREFS) {
   }));
   const candidates = coachCandidates({ triageRows: rows, lastSeverity: last.coachClients || {}, providerRole: 'trainer' });
   const d = decideNotifications({ candidates, last, prefs, now, audience: 'coach', coachSeen: coachSeen(rows) });
-  return { sent: d.send.map((s) => s.type + ':' + s.data.clientId), held: d.suppressed.map((s) => s.reason), state: d.nextState };
+  return { sent: d.send.map((s) => s.type + ':' + s.data.clientId), held: d.suppressed.map((s) => s.reason), state: d.nextState, digest: d.digest };
 }
 const client = (over) => ({ userId: 'c1', profile: { id: 'c1', name: 'Sam R.' }, checkIn: { lastWeekOf: '2026-11-02' }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: '2026-11-03', daysLogged7d: 6 }, ...over });
 const quiet = (days) => client({ lastContact: { trainer: new Date(NOON.getTime() - days * DAY).toISOString() } });
@@ -82,7 +82,10 @@ test('an alert held for the digest is dropped when the client recovers before it
   assert.deepEqual(held.held, ['quiet_hours'], 'quiet hours hold a coach alert');
   assert.equal(held.state.pendingDigest.length, 1);
   const ok = run([fine], held.state);
-  assert.equal(ok.state.pendingDigest.length, 0, 'not delivered after they recovered');
+  assert.equal(ok.digest, null, 'not delivered after they recovered');
+  assert.equal(ok.state.pendingDigest.length, 0);
+  // Still slipping by morning: the held alert goes out in the digest, as before.
+  assert.ok(run([quiet(6)], held.state).digest, 'a client still amber gets the held alert');
 });
 
 test("the alert switches hold: a coach who turned 'Client went amber' off is not sent one", () => {

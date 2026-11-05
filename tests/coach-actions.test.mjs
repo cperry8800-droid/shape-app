@@ -52,7 +52,7 @@ test('a check-in waiting: only unreviewed, this week or last, with a low rating 
   assert.deepEqual(keys(trainer(ck({ asked: true, reviewed: null }))), [], 'an unread review state never says one is waiting');
   assert.deepEqual(keys(trainer(ck({ asked: true, weekOf: '2026-10-26' }))), ['checkin_waiting'], 'last week\'s still waits');
   assert.deepEqual(keys(trainer(base({ checkIn: { lastWeekOf: '2026-10-19', latest: { weekOf: '2026-10-19', asked: true, reviewed: false } } }))).includes('checkin_waiting'), false, 'two weeks back is history');
-  assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 9 } }))), [], 'a rating off the 1-5 scale is not read');
+  assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 0, stress: 9 } }))), [], 'a rating off the 1-5 scale is not read');
   assert.equal(trainer(ck({ asked: true })).lead.action.kind, 'review_checkin');
 });
 
