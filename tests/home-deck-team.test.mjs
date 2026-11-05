@@ -284,7 +284,7 @@ test('the band under the hill: Start, Current, Pace and the date at that pace, e
   assert.equal(band.props['data-climb-band'], 'start current pace eta');
   assert.equal(band.props.style.gridTemplateColumns, 'repeat(4, minmax(0, 1fr))');
   const cells = d.nodes().filter((n) => n.props && n.props['data-climb-band-cell'] != null);
-  assert.deepEqual(cells.map((c) => textOf(c)), [`Start176.4`, `Current171.1`, `Pace${pace}`, `Goal≈ ${eta}`]);
+  assert.deepEqual(cells.map((c) => textOf(c)), [`Start176.4`, `Current171.1`, `Pace${pace}`, `Goal≈\u00a0${eta}`]);
   // Each edge in its colour on the run: the start teal, the date gold.
   const gold = C.bsClimbGold(THEME);
   assert.match(cells[0].props.style.boxShadow, /inset 0 2px 0 rgba\(/);
@@ -296,6 +296,49 @@ test('the band under the hill: Start, Current, Pace and the date at that pace, e
   assert.equal(eb.props['data-climb-band'], 'start current');
   assert.equal(eb.props.style.gridTemplateColumns, 'repeat(2, minmax(0, 1fr))');
   assert.doesNotMatch(early.text, /lb\/wk|—|≈/);
+}));
+
+test('the band on a narrow phone: a value wraps at its spaces rather than losing its unit (Codex P2 on #2618)', () => withPounds(() => {
+  const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
+  const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
+  const values = d.nodes().filter((n) => n.props && n.props['data-climb-band-value'] != null);
+  assert.equal(values.length, 4);
+  for (const v of values) {
+    assert.equal(v.props.style.whiteSpace, 'normal', 'wraps');
+    assert.equal(v.props.style.textOverflow, undefined, 'never cut to an ellipsis');
+    assert.notEqual(v.props.style.overflow, 'hidden', 'never clipped');
+  }
+  assert.match(textOf(values[3]), /^≈ /, 'the ≈ stays with its date');
+}));
+
+test('a flat pace reads 0.0, never +0.0 (Codex P2 on #2618)', () => withPounds(() => {
+  // The same weight a fortnight apart: a pace of exactly 0, and no date at that pace.
+  const flat = [{ d: '2026-10-08', kg: 78 }, { d: '2026-10-22', kg: 78 }];
+  assert.equal(W.bsHomeGoalRead({ weighIns: flat, startKg: 80, targetKg: 75, todayIso: '2026-10-22' }).paceKgWk, 0);
+  const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 75 }, weighIns: flat } }));
+  const pace = d.nodes().find((n) => n.props && n.props['data-climb-band-cell'] === 'pace');
+  assert.equal(textOf(pace), 'Pace0.0 lb/wk');
+  // A pace that rounds to zero in the reader's units reads the same.
+  const tiny = [{ d: '2026-10-08', kg: 78 }, { d: '2026-10-22', kg: 77.99 }];
+  const t = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 75 }, weighIns: tiny } }));
+  assert.equal(textOf(t.nodes().find((n) => n.props && n.props['data-climb-band-cell'] === 'pace')), 'Pace0.0 lb/wk');
+  // A real one keeps its sign.
+  const losing = drive(D.BSHomeClimbView, GOAL_PROPS({ data: { primary: 'fat_loss', overall: { unit: 'kg', start: 80, target: 75 }, weighIns: LOSING } }));
+  assert.match(textOf(losing.nodes().find((n) => n.props && n.props['data-climb-band-cell'] === 'pace')), /^Pace−\d/);
+}));
+
+test('the route\'s capitals are the reader\'s locale\'s: Turkish "şimdi" is ŞİMDİ (Codex P2 on #2618)', () => withPounds(() => {
+  const prev = globalThis.ShapeI18n;
+  const tr = { 'home:climb.nowWord': 'şimdi', 'goal:terms.whenStart': 'Başlangıç' };
+  globalThis.ShapeI18n = { t: (key, opts = {}) => (tr[key] ?? new IntlMessageFormat(String(opts.defaultValue ?? key), 'en').format(opts)), intlLocale: () => 'tr-TR' };
+  try {
+    const data = { primary: 'fat_loss', overall: { title: 'Lean', unit: 'kg', start: 80, target: 75 }, weighIns: LOSING };
+    const d = drive(D.BSHomeClimbView, GOAL_PROPS({ data }));
+    const chip = textOf(d.nodes().find((n) => n.props && n.props['data-climb-now-chip'] != null));
+    assert.match(chip, /ŞİMDİ$/, `the chip in Turkish capitals: ${chip}`);
+    assert.doesNotMatch(chip, /ŞIMDI/);
+    assert.match(textOf(d.nodes().find((n) => n.props && n.props['data-climb-start'] != null)), /^BAŞLANGIÇ /);
+  } finally { globalThis.ShapeI18n = prev; }
 }));
 
 test('the climb\'s light: the sun inside the box, the hill shaded, a lit crest, a glow under the walked line, the dot breathing but not under reduced motion', () => withPounds(() => {

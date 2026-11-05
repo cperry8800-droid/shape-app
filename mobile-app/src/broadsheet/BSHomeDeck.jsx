@@ -179,18 +179,21 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
   const onWay = st.kind === 'progress' && !!read;
   const nowP = bsClimbPoint(pct / 100);
   const summit = bsClimbPoint(1);
-  const signed = (kg) => `${kg < 0 ? '−' : '+'}${fmt(Math.abs(kg))}`;
+  // A pace with its sign, unless it shows as zero: a flat trend reads 0.0, never +0.0 (Codex P2 on #2618).
+  const signed = (kg) => (Math.round(Math.abs(Number(disp(kg)) || 0) * 10) === 0 ? fmt(0) : `${kg < 0 ? '−' : '+'}${fmt(Math.abs(kg))}`);
+  // Capitals in the reader's locale: Turkish "şimdi" is ŞİMDİ, not ŞIMDI (Codex P2 on #2618).
+  const upper = (str) => { try { return String(str).toLocaleUpperCase(bsHdLocale()); } catch (e) { return String(str).toUpperCase(); } };
   const nowWord = tr('home:climb.nowWord', { defaultValue: 'now' });
   const band = onWay ? [
     read.startKg != null ? { k: 'start', label: tr('goal:terms.whenStart', { defaultValue: 'Start' }), value: fmt(read.startKg), c: teal } : null,
     read.nowKg != null ? { k: 'current', label: tr('goal:cover.statCurrent', { defaultValue: 'Current' }), value: fmt(read.nowKg), c: along(pct / 100) } : null,
     read.paceKgWk != null ? { k: 'pace', label: tr('goal:cover.statPace', { defaultValue: 'Pace' }), value: tr('home:climb.paceWeek', { defaultValue: '{pace} {unit}/wk', pace: signed(read.paceKgWk), unit }), c: along(0.7) } : null,
-    read.etaIso ? { k: 'eta', label: tr('goal:terms.whenGoal', { defaultValue: 'Goal' }), value: `≈ ${bsHdDate(read.etaIso, { month: 'short', day: 'numeric' })}`, c: gold } : null,
+    read.etaIso ? { k: 'eta', label: tr('goal:terms.whenGoal', { defaultValue: 'Goal' }), value: `≈\u00a0${bsHdDate(read.etaIso, { month: 'short', day: 'numeric' })}`, c: gold } : null,
   ].filter(Boolean) : [];
   // The weight now over the dot, or under it where the dot is too near the top for the chip to clear the
   // goal's corner; always inside the box.
   const chip = onWay && walked && pct < 100 && read.nowKg != null ? (() => {
-    const text = `${fmt(read.nowKg)} ${nowWord}`.toUpperCase();
+    const text = upper(`${fmt(read.nowKg)} ${nowWord}`);
     const w = Math.round(text.length * 5.2 + 12);
     const above = nowP.y - 28 >= 22;
     return { text, w, x: Math.max(4, Math.min(BS_CLIMB_W - w - 4, nowP.x - w / 2)), y: above ? nowP.y - 28 : nowP.y + 9, above };
@@ -282,7 +285,7 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           </g>
         ) : null}
         {onWay && read.startKg != null ? (
-          <text data-climb-start="" x="12" y="148" style={{ ...sv, fontSize: 7.5 }} fill={teal}>{`${tr('goal:terms.whenStart', { defaultValue: 'Start' })} ${fmt(read.startKg)}`.toUpperCase()}</text>
+          <text data-climb-start="" x="12" y="148" style={{ ...sv, fontSize: 7.5 }} fill={teal}>{upper(`${tr('goal:terms.whenStart', { defaultValue: 'Start' })} ${fmt(read.startKg)}`)}</text>
         ) : null}
       </svg>
       {band.length ? (
@@ -291,7 +294,9 @@ export function BSHomeClimbView({ data, docKg, isWeightGoal, goalWords, onOpen, 
           {band.map((b) => (
             <div key={b.k} data-climb-band-cell={b.k} style={{ minWidth: 0, padding: '6px 8px 7px', borderRadius: 11, background: ink(t.isLight ? 0.045 : 0.07), border: `1px solid ${ink(t.isLight ? 0.08 : 0.1)}`, boxShadow: `inset 0 2px 0 ${ha(b.c, 0.75)}` }}>
               <div style={{ ...mono, fontSize: 7.5, letterSpacing: '0.12em', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.label}</div>
-              <div data-climb-band-value="" style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: b.value.length > 8 ? 12.5 : 14, color: fg, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums' }}>{b.value}</div>
+              {/* A value wraps at its spaces rather than losing its unit where a slot is narrow, as on a 320px
+                  phone (Codex P2 on #2618); the slots of a row grow together. */}
+              <div data-climb-band-value="" style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: b.value.length > 8 ? 12.5 : 14, lineHeight: 1.15, color: fg, whiteSpace: 'normal', overflowWrap: 'anywhere', fontVariantNumeric: 'tabular-nums' }}>{b.value}</div>
             </div>
           ))}
         </div>
