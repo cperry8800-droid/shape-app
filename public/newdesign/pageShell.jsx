@@ -919,7 +919,7 @@ function DashInbox({ signedIn, role, roles, inbox }) {
                 <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Couldn't read your notifications just now. Reload to try again.</div>
               ) : rows.length === 0 ? (
                 <div style={{ padding: "22px 14px", fontSize: 12.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.5)" }}>Nothing new.</div>
-              ) : rows.map((n) => {
+              ) : (() => { const renderRow = (n) => {
                 const href = dashInboxHref(n, role, accountCoach);
                 const inner = (
                   <>
@@ -958,7 +958,12 @@ function DashInbox({ signedIn, role, roles, inbox }) {
                     )}
                   </div>
                 );
-              })}
+              };
+              // A coach's bell is grouped, one action a notice, with how each reached them (coachBellList.jsx,
+              // 2026-11-05), on the pages that load it; every other bell is the plain list.
+              return typeof window.CoachBellList === "function" && (role === "trainer" || role === "nutritionist")
+                ? <window.CoachBellList rows={rows} role={role} markOne={markOne} renderRow={renderRow} />
+                : rows.map(renderRow); })()}
             </div>
           </div>
         </div>
