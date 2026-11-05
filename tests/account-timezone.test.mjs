@@ -143,7 +143,7 @@ const time = await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: t
 // A stateful stand-in for the few tables these routes touch. `profiles` rows carry `timezone`
 // only when the migration has run (`ready`). Filters are applied, writes land, and every call
 // is recorded, so a test reads what the database would hold.
-function fakeDb({ ready = true, zone = null, failProfilesRead = false, failProfilesUpdate = false, listing = null, raceZone = null } = {}) {
+function fakeDb({ ready = true, zone = null, failProfilesRead = false, failProfilesUpdate = false, silentUpdate = false, listing = null, raceZone = null } = {}) {
   const uid = 'user-1';
   const t = {
     profiles: [ready ? { id: uid, timezone: zone } : { id: uid }],
@@ -167,6 +167,8 @@ function fakeDb({ ready = true, zone = null, failProfilesRead = false, failProfi
         if (st.op === 'update') {
           // A first default racing another device: the zone that won lands just before ours.
           if (table === 'profiles' && raceZone) { for (const r of rows) r.timezone = raceZone; raceZone = null; }
+          // Row security that refuses an update answers no error and changes nothing.
+          if (table === 'profiles' && silentUpdate) return { data: null, error: null };
           for (const r of rows.filter((r) => st.filters.every((f) => f.fn(r)))) Object.assign(r, st.patch);
           return { data: null, error: null };
         }
@@ -264,6 +266,9 @@ test('a write that lands nowhere, or before the migration, is not reported as sa
   let db = fakeDb({ zone: null, failProfilesUpdate: true });
   let r = await (await routeOf('src/app/api/me/timezone/route.ts', db)).PUT(put({ timezone: 'Asia/Tokyo' }));
   assert.equal(r.status, 500);
+  db = fakeDb({ zone: null, silentUpdate: true });
+  r = await (await routeOf('src/app/api/me/timezone/route.ts', db)).PUT(put({ timezone: 'Asia/Tokyo', onlyIfUnset: true }));
+  assert.equal(r.status, 500, 'an update that changed nothing is not a saved first default');
   db = fakeDb({ ready: false });
   r = await (await routeOf('src/app/api/me/timezone/route.ts', db)).PUT(put({ timezone: 'Asia/Tokyo' }));
   assert.equal(r.status, 503);
