@@ -119,7 +119,7 @@ test('the session on a lit lead: its kicker, title and coach, the glowing Start,
     // The capsule: a 999px radius, Start session and its arrow.
     const start = m.q('[data-focus-primary="lit"]');
     assert.equal(start.textContent, 'Start session →');
-    assert.equal(start.style.borderRadius, '999px');
+    assert.equal(start.querySelector('[data-focus-pill]').style.borderRadius, '999px', 'the capsule is drawn inside the 44px button');
     await m.click(start);
     assert.equal(calls.start, 1, 'Start calls the page\'s start');
     await m.click([...lead.querySelectorAll('button')].find((b) => /^Swap →$/.test(b.textContent)));
@@ -191,18 +191,29 @@ test('On deck: the next three days, each opening on the page; Plan, the links an
   } finally { await m.close(); }
 });
 
+test('on a day you programmed, Edit and the lit Start keep their 44px targets apart', () => {
+  // Edit (marginBlock -6) reaches 6px under its row; the lit capsule's button (margin -7px 0) reaches 7px over its
+  // own, 8px under the byline (owner, 2026-11-04: "make them all smaller"), so the byline row adds 5px under it.
+  const DAY = readFileSync(new URL('../mobile-app/src/broadsheet/BSTrainDay.jsx', import.meta.url), 'utf8');
+  const FOCUS = readFileSync(new URL('../mobile-app/src/broadsheet/BSFocus.jsx', import.meta.url), 'utf8');
+  assert.match(DAY, /\{cur\.selfAuthored \? \(\n\s*<div style=\{\{ marginTop: 8, marginBottom: 5,/);
+  assert.match(DAY, /onClick=\{p\.onEditYours\} style=\{\{[^\n]*minHeight: 44, marginBlock: -6,/);
+  assert.match(FOCUS, /data-focus-primary="lit" style=\{\{ minHeight: 44, margin: '-7px 0',/);
+  assert.match(FOCUS, /gap: lit \? '0 16px' : '6px 20px', marginTop: lit \? 8 : 16 \}\}>/);
+});
+
 test('the glow is dark paper\'s: the picked tile, the burn total, the lead\'s spine and Start glow there, and none on light', async () => {
   for (const name of ['dark', 'light']) {
     paper = PAPERS[name];
     const m = await mount({ calls: freshCalls() });
     try {
       const picked = m.q('[data-week-strip="lit"] button[aria-pressed="true"]');
-      const start = m.q('[data-focus-primary="lit"]');
+      const start = m.q('[data-focus-primary="lit"] [data-focus-pill]');
       const spine = m.q('[data-focus-lead="lit"]').querySelector('span[aria-hidden]');
       const total = m.q('[data-train-burn-total]');
       if (name === 'dark') {
         assert.match(picked.style.boxShadow, /0 0 16px -2px/);
-        assert.match(start.style.boxShadow, /0 0 22px -6px/);
+        assert.match(start.style.boxShadow, /0 0 18px -6px/);
         assert.match(spine.style.boxShadow, /0 0 14px/);
         assert.match(total.style.textShadow, /0 0 12px/);
       } else {

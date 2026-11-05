@@ -105,8 +105,9 @@ test('the preview\'s head: the cover, the photo, the sample\'s coach band; Log a
   assert.equal(withAttr(nodes, 'data-member-coach').length, 1, 'the preview shows its sample coach');
   assert.match(textOf(withAttr(nodes, 'data-member-coach')[0]), /coached by/i);
   // The ＋ is the tile's icon now (BSMemberBento.jsx, 2026-11-04), so the words are the name alone.
-  assert.equal(textOf(withAttr(nodes, 'data-member-log')[0]).trim(), 'Log activity');
-  assert.equal(textOf(withAttr(nodes, 'data-member-edit')[0]).trim(), 'Edit profile');
+  assert.equal(textOf(withAttr(nodes, 'data-member-log')[0]).replace('＋', '').trim(), 'Log activity');
+  // Edit profile went: the masthead's ✎ opens Customize (owner, 2026-11-04).
+  assert.equal(withAttr(nodes, 'data-member-edit').length, 0, 'Edit profile is back');
   // On your own page Back is not drawn (the Me tab is a root); another's has it, in white on the cover.
   assert.equal(nodes.filter(named('BSBackRow')).length, 0);
   const other = drive(mod.BSTerrainProfile, { person: { who: 'Priya Shah', kind: 'CLIENT', tier: 'PEAK', init: 'PS', userId: 'u-priya' }, onBack() {}, onMessage() {} });
@@ -394,20 +395,20 @@ test('the Shape Score row: on your page it opens the Score page (through the hos
   assert.match(CLIENT, /onEdit=\{\(\) => \{ setShowPublicProfile\(false\); startEdit\(\); \}\} onOpenScore=\{\(\) => setShowScore\(true\)\} \/>/, 'Settings → Public profile opens its own score page');
 });
 
-test('Edit profile opens the host\'s editor when it hands one, else the profile\'s', () => {
-  // Codex P2 on #2546: from Settings → Public profile, Edit profile ignored the onEdit Settings hands it
-  // (its name and initials) and always opened the profile's own editor.
+test('no Edit profile tile: the masthead\'s ✎ opens Customize, from the Me page and from Settings', () => {
+  // Owner, 2026-11-04: "remove that edit profile box, that is already an icon in masthead on that page". The tile
+  // opened the host's editor when it had one (Codex P2 on #2546, Settings → Public profile's name and initials);
+  // Customize's foot row (Name, @handle and details) opens Settings, so that editor is still a tap away.
   signedOut();
-  let edited = 0;
-  const fromSettings = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true, onEdit() { edited += 1; } });
-  withAttr(fromSettings.nodes(), 'data-member-edit')[0].props.onClick();
-  fromSettings.render();
-  assert.equal(edited, 1, 'the host\'s editor did not open');
-  assert.equal(fromSettings.nodes().filter(named('BSProfileCustomizer')).length, 0);
-  const me = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true, meMode: true, onOpenScore() {} });
-  withAttr(me.nodes(), 'data-member-edit')[0].props.onClick();
-  me.render();
-  assert.equal(me.nodes().filter(named('BSProfileCustomizer')).length, 1, 'the Me page\'s Edit profile opens no editor');
+  for (const props of [{ onEdit() {} }, { meMode: true, onOpenScore() {} }]) {
+    const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, isSelf: true, ...props });
+    assert.equal(withAttr(d.nodes(), 'data-member-edit').length, 0, 'Edit profile is back');
+    const pencil = d.nodes().find((n) => n && n.type === 'button' && /Edit (public )?profile/.test(String(n.props['aria-label'] || '')));
+    assert.ok(pencil, 'the masthead lost its ✎');
+    pencil.props.onClick();
+    d.render();
+    assert.equal(d.nodes().filter(named('BSProfileCustomizer')).length, 1, 'the ✎ opens no editor');
+  }
   const sig = CLIENT.split('\n').find((l) => l.startsWith('function BSPublicProfile('));
   assert.ok(sig.includes('onEdit = null'), 'BSPublicProfile defaults to an editor that does nothing');
 });

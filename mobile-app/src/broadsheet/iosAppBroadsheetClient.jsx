@@ -17182,22 +17182,24 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   {metaBits ? (() => {
                     const scoreBody = (
                       <>
-                        <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: c }}>
+                        <span aria-hidden style={{ flex: 'none', width: 26, height: 26, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: c }}>
                           <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK }}>
-                            <BSMpIcon name="award" size={13} stroke={2.2} />
+                            <BSMpIcon name="award" size={12} stroke={2.2} />
                           </span>
                         </span>
                         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                           <span style={{ lineHeight: 1.25, overflowWrap: 'anywhere' }}>
-                            <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>Shape Score</span>{' '}
-                            <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{scoreTierWords}</span>
+                            <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>Shape Score</span>{' '}
+                            <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em' }}>{scoreTierWords}</span>
                           </span>
-                          {scoreFigures ? <span style={{ marginTop: 1, fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, lineHeight: 1.3, color: bsTHexA(INK, 0.62), fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{scoreFigures}</span> : null}
+                          {scoreFigures ? <span style={{ marginTop: 0, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 500, lineHeight: 1.3, color: bsTHexA(INK, 0.62), fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere' }}>{scoreFigures}</span> : null}
                         </span>
                         {isSelf ? <span aria-hidden style={{ flex: 'none', color: bsTHexA(INK, 0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
                       </>
                     );
-                    const rowStyle = { ...bsMpTile(tTheme, INK), borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '10px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: INK };
+                    // A step smaller (owner, 2026-11-04, of the Score row and Coached by: "reduce the size of these
+                    // box"): 44px, a 26px ring, a size down in the words.
+                    const rowStyle = { ...bsMpTile(tTheme, INK), borderRadius: 12, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 44, margin: '10px 0 0', padding: '3px 10px 3px 6px', textAlign: 'left', color: INK };
                     return isSelf ? (
                       <button type="button" data-tour="hero-score" data-member-meta="" data-member-score=""
                         onClick={typeof onOpenScore === 'function' ? onOpenScore : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {} }}
@@ -17208,26 +17210,11 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                   })() : null}
                 </BSFollowBlock>
               </div>
-              {/* Your own actions as tiles: Log activity lit in the tier's colour over three fifths, Edit
-                  profile a quiet tile beside it (two fifths, so its words hold one line at 390px), 44px thin
-                  with 10px between (owner, 2026-11-04: "dont have to be such think bubbles, with slightly more
-                  spacing between them"); the tiles keep the weights they are written with (BSCleanType), the
-                  counts above keep theirs. */}
+              {/* No action tiles here any more (owner, 2026-11-04): Log activity sits over the activity list ("move
+                  log activity down to just above where the activities are listed on page. And make that box much
+                  smaller"), and Edit profile went ("remove that edit profile box, that is already an icon in
+                  masthead on that page"): the masthead's ✎ opens Customize, whose foot row opens Settings. */}
               <BSCleanType t={tTheme}>
-              {isSelf ? (
-                <div data-member-actions="" style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 2fr)', gridAutoRows: 'minmax(44px, auto)', gap: 10 }}>
-                  <button type="button" data-member-log="" onClick={() => setShowLog(true)} style={bsMpAction({ t: tTheme, INK, c, onC, lit: true })}>
-                    <BSMpIconBox name="plus" ink={onC} />
-                    <span>{tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}</span>
-                  </button>
-                  {/* The host's own editor when it has one (Settings → Public profile: the name and initials;
-                      Codex P2 on #2546), else the profile's; the ✎ above always opens the profile's. */}
-                  <button type="button" data-member-edit="" onClick={() => { if (typeof onEdit === 'function') onEdit(); else setShowCustomizer(true); }} style={bsMpAction({ t: tTheme, INK, c, onC, compact: true })}>
-                    <BSMpIconBox name="pencil" ink={INK} size={20} />
-                    <span>{tr('profile:coach.editProfileAria', { defaultValue: 'Edit profile' })}</span>
-                  </button>
-                </div>
-              ) : null}
               {/* Coached by: their real coach or program on your own page, the sample's in the preview;
                   never a made-up coach on someone else's real profile. A wide tile: the coach's initials in
                   a ring of their colour, their name, the phase as chips. */}
@@ -17235,15 +17222,15 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
                 <div data-member-coach="" style={{ marginTop: 10, display: 'flex' }}>
                   {showCoachLink ? (
                     <button type="button" onClick={() => setFollowProfile({ who: coachNameEff, kind: (coachReal && coachReal.role) === 'nutritionist' ? 'NUTRI' : 'TRAINER', init: coachInitEff, userId: (coachReal && coachReal.userId) || undefined, public: true })}
-                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 14, flex: 1, minWidth: 0, minHeight: 48, display: 'flex', alignItems: 'center', gap: 8, padding: '5px 10px 5px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
-                      <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
-                        <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 10.5, fontWeight: 700 }}>{coachInitEff}</span>
+                      style={{ ...bsMpTile(tTheme, INK), borderRadius: 12, flex: 1, minWidth: 0, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '3px 10px 3px 6px', color: INK, textAlign: 'left', cursor: 'pointer' }}>
+                      <span aria-hidden style={{ flex: 'none', width: 26, height: 26, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: bsMpCoachRing(tTheme, coachReal && coachReal.role) }}>
+                        <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${tTheme.PAPER}`, background: tTheme.PAPER2, color: INK, fontFamily: BS_CLEAN_HEAD, fontSize: 9.5, fontWeight: 700 }}>{coachInitEff}</span>
                       </span>
                       {/* One line for who (owner, 2026-11-04: "condense these"): "Coached by" and the name, then the phase. */}
                       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.25 }}>
-                          <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11.5, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{capFirst(tr('profile:terrain.coachedBy', { defaultValue: 'coached by' }))}</span>{' '}
-                          <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em' }}>{coachNameEff}</span>
+                          <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 500, color: bsTHexA(INK, 0.62) }}>{capFirst(tr('profile:terrain.coachedBy', { defaultValue: 'coached by' }))}</span>{' '}
+                          <span style={{ fontFamily: BS_CLEAN_HEAD, fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em' }}>{coachNameEff}</span>
                         </span>
                         {phaseLine ? phaseChips : null}
                       </span>
@@ -17590,7 +17577,20 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
             {tab === 'activity' && (
             <div>
               <BSProfileExtras custom={customEff} demo={demoFill} c={c} INK={INK} BG={BG} isSelf={isSelf} userId={feedAuthorId} bleed={8} ledger clean seen={tabFresh} showPrompts={false} onCustomize={() => setShowCustomizer(true)} stats={{ score: { label: 'Shape Score', value: points != null ? Number(points).toLocaleString() : '—' }, tier: { label: tr('profile:stat.tier', { defaultValue: 'Tier' }), value: tierName }, streak: { label: tr('profile:stat.dayStreak', { defaultValue: 'Day streak' }), value: streakEff }, since: { label: tr('profile:stat.memberSince', { defaultValue: 'Member since' }), value: since }, lift: { label: (liftsEff[0] && liftsEff[0][0]) || tr('profile:stat.topLift', { defaultValue: 'Top lift' }), value: (liftsEff[0] && liftsEff[0][1]) || '—' } }} />
-              {/* Log activity is the head's own button now (owner, 2026-10-31: the coach profile's look). */}
+              {/* Log activity, just above the activity it adds to, and much smaller (owner, 2026-11-04: "move log
+                  activity down to just above where the activities are listed on page. And make that box much
+                  smaller"): a 32px pill in the tier's colour inside a 44px button. Your own page only. */}
+              {isSelf ? (
+                <div style={{ display: 'flex', padding: '2px 0 4px' }}>
+                  <button type="button" data-member-log="" onClick={() => setShowLog(true)}
+                    style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <span data-member-log-pill="" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 32, padding: '0 13px 0 10px', borderRadius: 999, background: c, color: bsReadableOn(c), fontFamily: BS_CLEAN_HEAD, fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', boxShadow: `0 4px 10px -6px ${bsTHexA(c, 0.6)}` }}>
+                      <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>＋</span>
+                      {tr('profile:trainer.logActivity', { defaultValue: 'Log activity' })}
+                    </span>
+                  </button>
+                </div>
+              ) : null}
               <div>
                 {feedEff.length === 0 && (
                   <BSTRedact INK={INK} label={isSelf ? tr('profile:terrain.nothingLogged', { defaultValue: 'Nothing logged yet' }) : tr('profile:terrain.noActivityRecord', { defaultValue: 'No activity on record' })} />

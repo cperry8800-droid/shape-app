@@ -36,9 +36,11 @@ test('the Me page wears the coach profile\'s head: the cover, the round photo, t
   const [head] = withAttr('data-member-head');
   assert.ok(head, 'the coach look\'s head is gone');
   assert.equal(head.props['data-tour'], 'hero-me', 'the tour\'s first stop lost the head');
-  for (const a of ['data-member-cover', 'data-member-avatar', 'data-member-name', 'data-member-meta', 'data-member-log', 'data-member-edit']) {
+  for (const a of ['data-member-cover', 'data-member-avatar', 'data-member-name', 'data-member-meta', 'data-member-log']) {
     assert.equal(withAttr(a).length, 1, `${a} on the Me page`);
   }
+  // Edit profile went (owner, 2026-11-04: "that is already an icon in masthead on that page").
+  assert.equal(withAttr('data-member-edit').length, 0, 'Edit profile is back');
   assert.equal(withAttr('data-member-meta')[0].type, 'button', 'your own tier line opens the Shape Score page');
   assert.equal(withAttr('data-member-meta')[0].props['data-tour'], 'hero-score');
   for (const gone of ['BSProfileIdentityHead', 'BSSdBars', 'BSTPullQuote', 'BSProfileDock']) {

@@ -108,9 +108,9 @@ test('the counts sit right under the photo, above the bio; a visitor\'s Follow a
   const follow = nodes.find(named('BSFollowBlock'));
   const [nameEl] = withAttr(nodes, 'data-member-name');
   const [meta] = withAttr(nodes, 'data-member-meta');
-  const [actions] = withAttr(nodes, 'data-member-actions');
+  const [log] = withAttr(nodes, 'data-member-log');
   assert.ok(at(nameEl) < at(follow), 'the counts went above the name');
-  assert.ok(at(follow) < at(meta) && at(meta) < at(actions), 'the counts are not between the photo and the tier line');
+  assert.ok(at(follow) < at(meta) && at(meta) < at(log), 'the counts are not between the photo and the tier line');
   // The bio and the tier line ride inside the follow block, so one block holds the counts and the Follow
   // that changes them.
   const body = fnBody('function BSTerrainProfile(');
@@ -137,28 +137,33 @@ test('the counts sit right under the photo, above the bio; a visitor\'s Follow a
   assert.equal(none.text, 'the bio');
 });
 
-test('on your own page Log activity is the lit tile over two columns, Edit profile the quiet one', () => {
+test('Log activity is a small lit pill just above the activity list; no Edit profile tile, no tiles under the head', () => {
+  // Owner, 2026-11-04: "move log activity down to just above where the activities are listed on page. And make
+  // that box much smaller", and "remove that edit profile box, that is already an icon in masthead on that page".
   signedOut();
   const d = drive(mod.BSTerrainProfile, { person: QUINN, onBack() {}, onMessage() {}, isSelf: true, meMode: true });
   const nodes = d.nodes();
-  const [grid] = withAttr(nodes, 'data-member-actions');
-  // Owner, 2026-11-04: "dont have to be such think bubbles, with slightly more spacing between them":
-  // Log three fifths, Edit two (its words on one line at 390px), 44px thin, 10px apart.
-  assert.equal(grid.props.style.gridTemplateColumns, 'minmax(0, 3fr) minmax(0, 2fr)');
-  assert.equal(grid.props.style.gap, 10);
+  assert.equal(withAttr(nodes, 'data-member-actions').length, 0, 'the tiles under the head are back');
+  assert.equal(withAttr(nodes, 'data-member-edit').length, 0, 'Edit profile is back');
   const [log] = withAttr(nodes, 'data-member-log');
-  const [edit] = withAttr(nodes, 'data-member-edit');
-  assert.equal(log.props.style.gridColumn, undefined);
-  assert.equal(log.props.style.borderRadius, 14);
-  assert.equal(log.props.style.backgroundImage, bento.BS_MP_SHEEN);
-  assert.equal(log.props.style.boxShadow.startsWith('0 6px 14px -6px rgba('), true);
-  assert.equal(grid.props.style.gridAutoRows, 'minmax(44px, auto)', 'the tiles are not condensed');
-  assert.equal(edit.props.style.backgroundImage, undefined, 'Edit profile is lit');
-  assert.equal(edit.props.style.alignItems, 'center', 'Edit profile is not the narrow tile');
-  assert.equal(edit.props.style.overflowWrap, 'anywhere', 'a long word ("Редактировать") runs out of the narrow tile');
+  const [pill] = withAttr(nodes, 'data-member-log-pill');
+  assert.equal(log.type, 'button');
+  assert.equal(log.props.style.minHeight, 44, 'the target under 44');
+  assert.equal(pill.props.style.minHeight, 32, 'the pill is not the small one');
+  assert.equal(pill.props.style.borderRadius, 999);
+  assert.equal(pill.props.style.fontSize, 13);
+  // Just above the list: after the head's extras, before the first card.
+  const body = fnBody('function BSTerrainProfile(');
+  const tabAt = body.indexOf("{tab === 'activity' && (");
+  const logAt = body.indexOf('data-member-log=""');
+  assert.ok(tabAt > 0 && logAt > body.indexOf('<BSProfileExtras ', tabAt) && logAt < body.indexOf('<BSActivityCard ', tabAt), 'Log activity is not just above the activity');
+  assert.ok(body.slice(logAt - 300, logAt).includes('{isSelf ? ('), 'Log activity on someone else\'s page');
+  log.props.onClick();
+  d.render();
+  assert.equal(d.nodes().filter(named('BSLogActivitySheet')).length, 1, 'Log activity opens no sheet');
   // The coach is a wide tile with the phase as chips, and still opens the coach.
   const [coach] = withAttr(nodes, 'data-member-coach');
-  assert.equal(coach.props.style.marginTop, 10, 'the coach tile sits tight under the tiles again');
+  assert.equal(coach.props.style.marginTop, 10, 'the coach tile does not sit 10px under the Score row');
   // Condensed: "Coached by" and the name on one line.
   assert.match(textOf(coach), /^MOCoached by Maya Okafor/);
   assert.equal(withAttr(nodes, 'data-member-phase').length, 1, 'the phase lost its chips');
@@ -168,7 +173,7 @@ test('on your own page Log activity is the lit tile over two columns, Edit profi
     return walk(parent && parent.props && parent.props.children);
   };
   const boxes = nodes.filter(named('BSCleanType'));
-  assert.ok(boxes.some((b) => contains(b, grid) && contains(b, coach)), 'the tiles left the clean box');
+  assert.ok(boxes.some((b) => contains(b, coach)), 'the coach tile left the clean box');
   const follow = nodes.find(named('BSFollowBlock'));
   assert.ok(follow && !boxes.some((b) => contains(b, follow)), 'the counts went into the clean box');
 });
@@ -291,8 +296,9 @@ test('the Shape Score row and the Coached by card are one kind of tile; Log acti
   for (const prop of ['borderRadius', 'background', 'border', 'boxShadow', 'minHeight', 'padding', 'gap', 'alignItems']) {
     assert.deepEqual(s[prop], k[prop], `the Score row's ${prop} is not the coach card's`);
   }
-  assert.equal(s.borderRadius, 14, 'the tiles\' radius');
-  assert.equal(s.minHeight, 48);
+  // A step smaller (owner, 2026-11-04: "reduce the size of these box").
+  assert.equal(s.borderRadius, 12, 'the tiles\' radius');
+  assert.equal(s.minHeight, 44);
   assert.equal(s.boxShadow === undefined || !/inset 3px 0 0/.test(String(s.boxShadow)), true, 'the gold spine is back');
   // Its words: a label then the bold tier, the points and the streak under them; a chevron, no →.
   assert.match(textOf(score), /^Shape Score .+ tier1,284 pts · .+-day streak$/);
@@ -305,10 +311,11 @@ test('the Shape Score row and the Coached by card are one kind of tile; Log acti
   const [phase] = withAttr(nodes, 'data-member-phase');
   const chips = [phase.props.children].flat(3).filter((n) => n && n.props && n.props.style && n.props.style.borderRadius === 99);
   assert.ok(chips.length >= 1, 'the phase lost its chips');
-  const [log] = withAttr(nodes, 'data-member-log');
+  // Log activity is now a small pill over the activity list (owner, 2026-11-04), still in the tier's colour.
+  const [log] = withAttr(nodes, 'data-member-log-pill');
   const rgb = (hex) => { const h = String(hex).replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', '); };
   const tier = rgb(log.props.style.background);
   assert.match(tier, /^\d+, \d+, \d+$/, 'the tier colour reads as a hex colour');
   for (const chip of chips) assert.ok(!chip.props.style.background.includes(tier), `a chip is in the tier's colour again (${chip.props.style.background})`);
-  assert.equal(log.props.style.backgroundImage, bento.BS_MP_SHEEN, 'Log activity is still the lit tile');
+  assert.equal(withAttr(nodes, 'data-member-actions').length, 0, 'a lit tile is back under the head');
 });

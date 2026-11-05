@@ -215,7 +215,7 @@ test('the next meal on a lit lead: its time and status, how long until it, the m
     assert.match(lead.textContent, /7:30 AM · Breakfast ✓/, 'the meal before it, on the arrival line');
     const log = m.q('[data-focus-primary="lit"]');
     assert.equal(log.textContent, 'Log it →');
-    assert.equal(log.style.borderRadius, '999px');
+    assert.equal(log.querySelector('[data-focus-pill]').style.borderRadius, '999px', 'the capsule is drawn inside the 44px button');
     await m.click(log);
     assert.deepEqual(calls.log, ['m2'], 'Log it opens the meal');
     await m.click([...lead.querySelectorAll('button')].find((b) => /^Swap →$/.test(b.textContent)));
@@ -275,11 +275,11 @@ test('the glow is dark paper\'s, and every target is at least 44px tall on both 
     const m = await mount(props, paper);
     try {
       const dot = m.q('[data-week-strip="round"] button[aria-pressed="true"] [data-day-dot]');
-      const log = m.q('[data-focus-primary="lit"]');
+      const log = m.q('[data-focus-primary="lit"] [data-focus-pill]');
       const spine = m.q('[data-focus-lead="lit"]').querySelector('span[aria-hidden]');
       if (paper === 'dark') {
         assert.match(dot.style.boxShadow, /0 0 16px -2px/);
-        assert.match(log.style.boxShadow, /0 0 22px -6px/);
+        assert.match(log.style.boxShadow, /0 0 18px -6px/);
         assert.match(spine.style.boxShadow, /0 0 14px/);
       } else {
         assert.equal(dot.style.boxShadow, 'none');

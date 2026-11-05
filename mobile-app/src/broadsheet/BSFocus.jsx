@@ -126,9 +126,13 @@ export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, chil
   const head = raw.replace(/\.\s*$/, '');
   // A step down (owner, 2026-10-24, of Home's and Train's leads: "make these smaller"). Eat's next
   // meal shares this lead, so it steps down with them.
-  const size = head.length <= 14 ? 30 : head.length <= 24 ? 26 : 22;
+  // The lit card two steps smaller (owner, 2026-11-04, of Train's and Eat's: "reduce the size of these box", then
+  // "make them all smaller"): its title, padding and the gaps inside it.
+  const size = lit
+    ? (head.length <= 14 ? 20 : head.length <= 24 ? 18 : 16)
+    : (head.length <= 14 ? 30 : head.length <= 24 ? 26 : 22);
   const frame = lit
-    ? { ...bsMpGlass(t, t.INK, { radius: 18 }), margin: '0 10px 0', padding: '14px 16px 16px 20px', overflow: 'hidden' }
+    ? { ...bsMpGlass(t, t.INK, { radius: 14 }), margin: '0 10px 0', padding: '9px 12px 9px 15px', overflow: 'hidden' }
     : { margin: `10px ${t.padX}px 0`, padding: '2px 0 16px 15px' };
   return (
     <React.Fragment>
@@ -136,13 +140,13 @@ export function BSFocusLead({ color, kicker, kickerRight, title, sub, tour, chil
     <section data-tour={tour || undefined} data-focus-lead={lit ? 'lit' : 'plain'} style={{ position: 'relative', ...frame }}>
       <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: lit ? 4 : 3, background: c, boxShadow: lit && !t.isLight ? `0 0 14px ${hexA(c, 0.8)}` : 'none' }} />
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: c }}>{kicker}</span>
+        <span style={{ minWidth: 0, fontFamily: t.MONO, fontSize: lit ? 9 : 9.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: c }}>{kicker}</span>
         {kickerRight ? <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap' }}>{kickerRight}</span> : null}
       </div>
-      <h2 style={{ margin: '7px 0 0', ...bsFocusHeadFace(t, t.W.display), fontSize: size, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK, overflowWrap: 'anywhere' }}>
+      <h2 style={{ margin: lit ? '3px 0 0' : '7px 0 0', ...bsFocusHeadFace(t, t.W.display), fontSize: size, lineHeight: 1.06, letterSpacing: '-0.03em', color: t.INK, overflowWrap: 'anywhere' }}>
         {head}{ends ? null : <span style={{ color: c }}>.</span>}
       </h2>
-      {sub ? <div style={{ marginTop: 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1.5, color: t.INK50 }}>{sub}</div> : null}
+      {sub ? <div style={{ marginTop: lit ? 4 : 7, fontFamily: t.MONO, fontSize: 9, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', lineHeight: 1.5, color: t.INK50 }}>{sub}</div> : null}
       {children}
     </section>
     </React.Fragment>
@@ -185,18 +189,24 @@ export function BSFocusCountdown({ label, value }) {
 }
 
 // One filled action (the Train "Start session →" button) and one text action. `lit` (Train's C): the filled
-// action is a capsule that glows on dark paper.
+// action is a capsule that glows on dark paper, drawn 30px tall inside its 44px button (owner, 2026-11-04:
+// "reduce the size of these box", then "make them all smaller"); each lit button reaches 7px past what it draws
+// over the card's padding, so the target keeps its size and the card loses the height.
 export function BSFocusActions({ primary, secondary, color, lit = false }) {
   const t = window.useBS();
   const c = color || t.ACCENT;
   if (!primary && !secondary) return null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 20px', marginTop: 16 }}>
-      {primary ? (
-        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} data-focus-primary={lit ? 'lit' : 'plain'} style={{ minHeight: 44, padding: lit ? '8px 22px' : '8px 14px', borderRadius: lit ? 999 : 4, border: 0, background: c, boxShadow: lit && !t.isLight ? `0 0 22px -6px ${c}` : 'none', color: t.isLight ? '#ffffff' : '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{primary.label}</button>
+    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: lit ? '0 16px' : '6px 20px', marginTop: lit ? 8 : 16 }}>
+      {primary && lit ? (
+        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} data-focus-primary="lit" style={{ minHeight: 44, margin: '-7px 0', padding: 0, border: 0, background: 'transparent', display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+          <span data-focus-pill="" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 30, padding: '0 14px', borderRadius: 999, background: c, boxShadow: !t.isLight ? `0 0 18px -6px ${c}` : 'none', color: t.isLight ? '#ffffff' : '#031f1c', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800 }}>{primary.label}</span>
+        </button>
+      ) : primary ? (
+        <button type="button" onClick={primary.onClick} aria-label={primary.ariaLabel || undefined} data-focus-primary="plain" style={{ minHeight: 44, padding: '8px 14px', borderRadius: 4, border: 0, background: c, boxShadow: 'none', color: t.isLight ? '#ffffff' : '#031f1c', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800 }}>{primary.label}</button>
       ) : null}
       {secondary ? (
-        <button type="button" onClick={secondary.onClick} style={{ minHeight: 44, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{secondary.label}</button>
+        <button type="button" onClick={secondary.onClick} style={{ minHeight: 44, margin: lit ? '-7px 0' : 0, padding: '0 2px', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: t.MONO, fontSize: lit ? 9 : 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: c }}>{secondary.label}</button>
       ) : null}
     </div>
   );

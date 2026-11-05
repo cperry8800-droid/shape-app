@@ -49,9 +49,10 @@ test('Open their file asks for the booking\'s client by id, else by name, throug
 
 test('Up next hangs from the deck: a dotted line into its rail, the countdown there, its buttons still 44 to tap', () => {
   // Owner, 2026-11-04, of the deck and Up next: "also need to make these 2 sections flow and look better
-  // together", then of three built in the app "this one" (the timeline). The name stays 17 (2026-10-31).
+  // together", then of three built in the app "this one" (the timeline). The name was 17 (2026-10-31).
   // Then of the two: "can we make these a little more condensed on home page with a tad more spacing [from]
-  // shape radio": Today's deck is `dense` (16px under the radio, a step tighter), the rail 64px.
+  // shape radio": Today's deck is `dense` (16px under the radio, a step tighter). Then of both, "reduce the size of
+  // these box" and "make them all smaller": the rail 50px, the name 14.5, the pills 28.
   const at = PROS.indexOf('<div data-up-next=""');
   const card = PROS.slice(at, PROS.indexOf('{/* YOUR DAY', at));
   // The deck's width: both sit 10px in from the page, so they line up.
@@ -61,24 +62,27 @@ test('Up next hangs from the deck: a dotted line into its rail, the countdown th
   assert.match(KIT, /data-pro-deck=""[^\n]*margin: dense \? '16px 10px 0' : '6px 10px 0', \.\.\.bsRaised\(t\)/, 'the deck moved off its 10px');
   assert.ok(PROS.includes('<BSProDeck dense t={t} role={role} tour="hero-today"'), 'Today\'s deck is not the dense one');
   assert.ok(PROS.includes('<BSProDeckWeek dense t={t}') && PROS.includes('<BSProDeckSegments dense t={t}'), 'Today\'s week and bar are not dense');
-  // The dotted line from the deck, in the role's heat, into the rail's middle (the rail is 64px wide).
-  assert.match(wrap, /data-up-link="" style=\{\{ marginLeft: 31, width: 0, height: 10, borderLeft: `2px dotted \$\{heat\}` \}\}/);
+  // The dotted line from the deck, in the role's heat, into the rail's middle (the rail is 50px wide).
+  assert.match(wrap, /data-up-link="" style=\{\{ marginLeft: 24, width: 0, height: 8, borderLeft: `2px dotted \$\{heat\}` \}\}/);
   // The deck's own box, with no warm corner (owner, 2026-11-04: "color of this box doesn't match").
-  assert.match(card, /data-up-next="" style=\{\{ \.\.\.bsRaised\(t\), display: 'grid', gridTemplateColumns: '64px minmax\(0, 1fr\)'/);
+  assert.match(card, /data-up-next="" style=\{\{ \.\.\.bsRaised\(t\), display: 'grid', gridTemplateColumns: '50px minmax\(0, 1fr\)'/);
   assert.match(KIT, /data-pro-deck=""[^\n]*\.\.\.bsRaised\(t\) \}\}>/, 'the deck is not bsRaised(t) either');
+  // Month view keeps its 44px target and reaches only up, over the deck's line, never down over the day buttons
+  // (Codex P2 on #2617: those, painted later, took the overlap).
+  assert.match(KIT, /data-deck-month="" onClick=\{onMonth\} style=\{\{ minHeight: 44, margin: dense \? '-8px 0 0' : 0, padding: dense \? '8px 2px 0' : '0 2px',/);
   // The rail: the pulse (still under Reduce Motion), the countdown, or a booking under way's start time.
   const rail = card.slice(card.indexOf('data-up-rail=""'), card.indexOf("tr('coach:today.upNextAt'"));
   assert.match(rail, /\.\.\.\(sdReduced \? null : \{ animation: 'bsLivePulse/);
   assert.match(rail, /\{upIn != null && \(/, 'no countdown for a booking already under way');
   assert.match(rail, /data-up-countdown=""[\s\S]*tr\('coach:today\.toGo'/, 'the countdown');
   assert.match(rail, /\{upIn == null && <span[^\n]*\{fmtAt\(upB\.time\)\}/);
-  assert.match(card, /fontFamily: BS_PRO_HEAD, fontSize: 17,/, 'the name at 17');
+  assert.match(card, /fontFamily: BS_PRO_HEAD, fontSize: 14\.5,/, 'the name at 14.5');
   const buttons = card.match(/<button [^\n]*/g) || [];
   assert.ok(buttons.length >= 2);
-  // Each is a 44px target (upHit) round a 36px pill; its -4px margins let the pill sit 36 in the card.
+  // Each is a 44px target (upHit) round a 28px pill; its -8px margins let the pill sit 28 in the card.
   assert.match(PROS, /const upHit = \{ minHeight: 44,/, 'the target under 44');
-  assert.match(PROS, /const upPill = \{[^\n]*height: 36,/);
-  for (const b of buttons) assert.match(b, /style=\{\{ \.\.\.upHit, margin: '-4px 0' \}\}><span style=\{\{ \.\.\.upPill,/, 'a button off the 44px target');
+  assert.match(PROS, /const upPill = \{[^\n]*height: 28,/);
+  for (const b of buttons) assert.match(b, /style=\{\{ \.\.\.upHit, margin: '-8px 0' \}\}><span style=\{\{ \.\.\.upPill,/, 'a button off the 44px target');
 });
 
 test('the week strip sits at the top, under Today, above Up next and To do', () => {
