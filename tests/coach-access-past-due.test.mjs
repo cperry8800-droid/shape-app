@@ -367,7 +367,8 @@ test('the roster\'s client count is the dashboard\'s activeClients on the same r
         ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
       ]),
     });
-    const badge = (await (await dash.GET()).json()).kpis.activeClients;
+    // The route reads the browser's `tz` off its request (2026-11-05), as Next always hands it one.
+    const badge = (await (await dash.GET(new Request(`https://x/api/${role}/dashboard`))).json()).kpis.activeClients;
     assert.equal(badge, 3, role + ': the badge counts a, b and c');
 
     // The list: everyone with a plan, and the person from a recent session, who stays on it.

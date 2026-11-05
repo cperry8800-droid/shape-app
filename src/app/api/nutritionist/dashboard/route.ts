@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { DAY_MS, startOfWeek } from '@/lib/time';
+import { coachDayZone, dayBoundsInZone, weekBoundsInZone } from '@/lib/time';
 import { coachGrowthAndFunnel } from '@/lib/coach-growth';
 import { coachCutCents, bpsToRate } from '@/lib/platform-fee';
 import { OPEN_SUB_STATUSES, practiceToday } from '@/lib/coach-trajectory.mjs';
@@ -27,7 +27,7 @@ type SessionRow = {
   client_id: string | null;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -48,9 +48,12 @@ export async function GET() {
     ? fullName.split(/\s+/)[0]
     : (user.email ?? '').split('@')[0] || 'there';
 
+  // ⚠ `select('*')`, FOR THE SAME REASON AS /api/calendar's calendarZone: naming `timezone` would
+  // error the whole read on a database without 2026-09-11-provider-timezone.sql, and a coach whose
+  // listing could not be read gets the preview instead of their own dashboard.
   const { data: nutriRow } = await supabase
     .from('nutritionists')
-    .select('id')
+    .select('*')
     .eq('owner_id', user.id)
     .maybeSingle();
 
@@ -71,6 +74,8 @@ export async function GET() {
   let today: Array<Record<string, unknown>> = [];
   let calendar: Array<Record<string, unknown>> = [];
   let pulse: Array<Record<string, unknown>> = [];
+  // The zone Today and this week were counted in (null when there is no listing to count for).
+  let dayZone: string | null = null;
 
   if (providerId != null) {
     // Today's clients + monthly recurring revenue.
@@ -122,13 +127,22 @@ export async function GET() {
     totalConsults = rows.length;
     totalCapped = rows.length >= SESSION_CAP;
 
+    // ⚠ TODAY AND THIS WEEK ARE THE COACH'S, NOT THE SERVER'S (2026-11-05). They were
+    // `setHours(0, 0, 0, 0)` and `startOfWeek(new Date())` on the server's clock, which is UTC on
+    // Vercel: a New York coach's 7 pm session dropped off Today, tomorrow's morning sessions showed
+    // from 7 pm on, and "this week" turned over on Sunday evening. The day and the week are now
+    // midnight to midnight on the coach's own clock (coachDayZone: the zone on their listing, else
+    // the one their browser sent, else UTC).
     const now = Date.now();
-    const weekStart = startOfWeek(new Date());
-    const weekEnd = weekStart + 7 * DAY_MS;
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayStartMs = todayStart.getTime();
-    const todayEndMs = todayStartMs + DAY_MS;
+    const zone = coachDayZone((nutriRow as { timezone?: unknown } | null)?.timezone, new URL(request.url).searchParams.get('tz'));
+    // A zone the runtime accepts always has a day and a week; UTC is the floor under one that hasn't.
+    dayZone = dayBoundsInZone(now, zone) && weekBoundsInZone(now, zone) ? zone : 'UTC';
+    const day = dayBoundsInZone(now, dayZone)!;
+    const week = weekBoundsInZone(now, dayZone)!;
+    const weekStart = week.start;
+    const weekEnd = week.end;
+    const todayStartMs = day.start;
+    const todayEndMs = day.end;
 
     for (const r of rows) {
       const t = new Date(r.scheduled_at).getTime();
@@ -245,6 +259,7 @@ export async function GET() {
     isNutritionist: providerId != null,
     kpis: { activeClients, monthlyNetCents, consultsThisWeek, upcomingConsults, totalConsults, totalCapped },
     today,
+    dayZone,
     calendar,
     pulse,
     growth,

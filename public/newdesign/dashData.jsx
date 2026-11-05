@@ -518,6 +518,16 @@ function useCoachThresholds(role) {
   return resolved;
 }
 
+// The role dashboard's URL, with this browser's zone (2026-11-05). The route counts Today and this
+// week on the coach's clock: the zone on their listing when one is stored, else this one. Without
+// it a coach with no stored zone had the server's UTC day. One function, so the page hook and the
+// sidebar card (trainerDashboard.jsx) ask for the same URL and share the one cached read.
+function dashRoleDashboardUrl(role) {
+  let tz = "";
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { tz = ""; }
+  return "/api/" + role + "/dashboard" + (tz ? "?tz=" + encodeURIComponent(tz) : "");
+}
+
 function useDashboard(role) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null, planCount: undefined });
   const lastProgressRead = React.useRef(new Map());
@@ -573,7 +583,7 @@ function useDashboard(role) {
         const notesPromise = _dashCoachNotes();
         const [roster, todayRes] = await Promise.all([
           _dashJson("/api/" + role + "/clients").catch(() => null),
-          _dashJson("/api/" + role + "/dashboard").catch(() => null),
+          _dashJson(dashRoleDashboardUrl(role)).catch(() => null),
         ]);
         const today = todayRes && todayRes[roleKey] ? todayRes : null;
         if (!roster || !roster[roleKey]) return demo(today);
@@ -1752,4 +1762,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });
+Object.assign(window, { useDashboard, dashRoleDashboardUrl, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });

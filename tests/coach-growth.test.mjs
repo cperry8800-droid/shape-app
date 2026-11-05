@@ -197,7 +197,8 @@ async function dashboardGET(role, db) {
       ['@/lib/read-all-by-id', await loadRealModule(ROOT + 'src/lib/read-all-by-id.ts', { typescript: true })],
     ]),
   });
-  return (await route.GET()).json();
+  // The route reads the browser's `tz` off its request (2026-11-05), as Next always hands it one.
+  return (await route.GET(new Request(`https://x/api/${role}/dashboard`))).json();
 }
 
 // ── The sweep after #2394 round 10: Today counts today's practice by the Business page's rule ──
