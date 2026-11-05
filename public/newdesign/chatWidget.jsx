@@ -527,6 +527,15 @@ function CwNoraTalk({ view, ringRef, onTap, onEnd }) {
   );
 }
 
+// The read rule both surfaces share (chatRead.mjs, P7), loaded once at run time: 25 of the pages that
+// carry this widget load no module scripts, so it is imported here rather than by a tag. null when it
+// cannot load: nothing is then marked read and the counts stay at 0, never guessed.
+function cwChatRead() {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (!window.__shapeChatRead) window.__shapeChatRead = import("/newdesign/chatRead.mjs").catch(() => null);
+  return window.__shapeChatRead;
+}
+
 function ChatWidget(props) {
   // normalize to tabs[]
   // ── THE FEED TAB ─────────────────────────────────────────────────
@@ -1295,6 +1304,16 @@ function ChatWidget(props) {
   // store, so they are a different read rather than one more bucket, and the
   // Channels tab keeps its sample set until that lands.
   const [threadsLive, setThreadsLive] = React.useState(null); // null = not read yet
+  // ⚠ LIVE, WITH THE APP'S READ STATE (P7; owner, 2026-11-05: "the website and app need to fully
+  // communicate"). The bubble polled only the open thread every 8 seconds, showed every live thread as
+  // unread 0 and never marked anything read, so reading a thread here left its badge up in the app. Now
+  // the counts come from dm_unread() (the app's), a new message arrives over realtime, and a thread open
+  // and in view is marked read by the app's own rule (chatRead.mjs: cwChatRead). `cwLiveRef` holds the
+  // account client the loader found; `cwReadRef` the open thread's read state.
+  const cwLiveRef = React.useRef(null);
+  const cwReadRef = React.useRef(null);
+  const [cwReadReady, setCwReadReady] = React.useState(0);
+  const [cwListRev, setCwListRev] = React.useState(0);
   React.useEffect(() => {
     // ⚠ A MEASURED SIGNED-OUT VISITOR IS THE ONLY ONE THIS REFUSES TO LOAD FOR.
     // `authProbe` is the /api/me answer the hydrate already fetched, so the gate
@@ -1441,13 +1460,35 @@ function ChatWidget(props) {
           unread: 0, conversationId: r.conversation_id, messages: [],
         }));
 
+        // The unread counts the app shows (dm_unread), by the shared rule's reader (P7). A failed read
+        // leaves them at 0, as before: a count is never invented.
+        const CR = await cwChatRead();
+        if (cancelled) return;
+        try {
+          const ur = CR ? await db.rpc("dm_unread") : null;
+          const counts = ur && !ur.error && CR ? CR.unreadByConversation(ur.data) : {};
+          for (const t of [...coachThreads, ...dmThreads]) t.unread = counts[t.conversationId] || 0;
+        } catch (e) { /* counts stay 0 */ }
+        if (cancelled) return;
+        cwLiveRef.current = { db, me, CR };
+        if (CR && !cwReadRef.current) {
+          cwReadRef.current = CR.createReadTracker({
+            isHidden: () => typeof document !== "undefined" && document.visibilityState === "hidden",
+            // Stored, and the badge cleared here; the app's clears from the same store.
+            mark: (id) => {
+              setThreadsByTab((prev) => prev.map((ts) => ts.map((t) => (t.conversationId === id && t.unread ? { ...t, unread: 0 } : t))));
+              return Promise.resolve(db.rpc("mark_conversation_read", { p_conversation_id: id })).catch(() => null);
+            },
+          });
+          setCwReadReady((n) => n + 1);
+        }
         if (!cancelled) setThreadsLive({ circle: coachThreads, friends: dmThreads });
       } catch (e) {
         if (!cancelled) setThreadsLive(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [authProbe, authWho]);
+  }, [authProbe, authWho, cwListRev]);
 
   // Install the real threads over the sample ones, by TAB ID rather than index
   // — the tab list differs between the two files that supply it, so a positional
@@ -2237,6 +2278,56 @@ function ChatWidget(props) {
     const id = setInterval(fetchOnce, 8000);
     return () => { cancelled = true; clearInterval(id); };
   }, [open, tabIdx, activeIdx, threadsByTab]);
+
+  // ── Live messages and read state (P7) ──
+  // A message for any of the member's threads arrives here: the open thread in view reads it (the
+  // poll effect above reads the thread again when its row changes), any other thread counts it, and a
+  // thread the list doesn't have yet reloads the list. The latest state rides in a ref, so one
+  // subscription serves the whole session.
+  const cwStateRef = React.useRef({});
+  cwStateRef.current = { threadsByTab, tabIdx, activeIdx, isOpen };
+  React.useEffect(() => {
+    if (!threadsLive || threadsLive === true) return undefined;
+    const live = cwLiveRef.current;
+    if (!live || !live.db || !live.me || typeof live.db.channel !== "function") return undefined;
+    const { db, me, CR } = live;
+    let ch = null;
+    try {
+      ch = db.channel("cw-messages:" + me + ":" + Math.random().toString(36).slice(2, 8))
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
+          const row = payload && payload.new;
+          if (!row || typeof row.conversation_id !== "string") return;
+          const st = cwStateRef.current;
+          const act = (st.threadsByTab[st.tabIdx] || [])[st.activeIdx];
+          const openId = st.isOpen && act && act.conversationId ? act.conversationId : null;
+          const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+          const mine = row.sender_id === me;
+          const known = (st.threadsByTab || []).some((ts) => (ts || []).some((t) => t.conversationId === row.conversation_id));
+          if (!known) { if (!mine) setCwListRev((n) => n + 1); return; }
+          setThreadsByTab((prev) => prev.map((ts) => ts.map((t) => {
+            if (t.conversationId !== row.conversation_id) return t;
+            const counts = CR ? CR.unreadAfterInsert({ [t.conversationId]: t.unread || 0 }, row, { myId: me, openId, hidden }) : { [t.conversationId]: t.unread || 0 };
+            return { ...t, last: (mine ? "You" : t.who) + ": " + String(row.body || ""), time: "now", unread: counts[t.conversationId] || 0 };
+          })));
+          if (cwReadRef.current) cwReadRef.current.arrived(row, me);
+        })
+        .subscribe();
+    } catch (e) { ch = null; }
+    return () => { if (ch) { try { db.removeChannel(ch); } catch (e) {} } };
+  }, [threadsLive]);
+  // The open thread is read while it is open and in view, and once it is back in view.
+  const cwOpenConv = isOpen && active && active.conversationId ? active.conversationId : null;
+  React.useEffect(() => {
+    const tr = cwReadRef.current;
+    if (!tr) return;
+    if (cwOpenConv) tr.open(cwOpenConv); else tr.close();
+  }, [cwOpenConv, cwReadReady]);
+  React.useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onVis = () => { const tr = cwReadRef.current; if (tr && document.visibilityState !== "hidden") tr.shown(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   const selectThread = (i) => {
     setActiveByTab(prev => prev.map((v, ti) => ti === tabIdx ? i : v));

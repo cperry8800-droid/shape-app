@@ -44,7 +44,8 @@ test('the library search filters the signed-in workout clips, with the same miss
 test('the calendar read is keyed to the week the strip shows', () => {
   const today = body('BSProToday', 'BSTrainerToday');
   assert.match(today, /const calendarWeek = _ds\(bsProWeek\(\)\.dates\[0\]\);/);
-  assert.match(today, /\}, \[isNutri, calendarReload, calendarOwner, calendarWeek\]\);/);
+  // ...and read again, in place, on a session notice or the foreground (changeSignal.mjs, P7).
+  assert.match(today, /\}, \[isNutri, calendarReload, calendarOwner, calendarWeek, calendarChangeRev\]\);/);
 });
 
 test('To do: paid sessions share the five-row budget and the rest open in place', () => {

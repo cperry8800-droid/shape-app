@@ -89,6 +89,8 @@
 <!-- Single-page client dashboard: every tab module is loaded + compiled ONCE here,
      then the router below swaps the active page client-side on #hash change — no
      full reload, no Babel recompile per tab. Shared chrome -->
+<!-- The notice row as the change signal (P7): open screens read again when a notice says their data changed. -->
+<script type="module">import * as CS from "/newdesign/changeSignal.mjs"; window.ShapeChange = CS; CS.startWebsiteChangeFeed(window);</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="communityFeed.jsx"></script>
 <script type="text/babel" src="chatWidget.jsx?v=20260715"></script>

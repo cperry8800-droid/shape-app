@@ -86,6 +86,8 @@
 <!-- The Schedule grid's rules (scheduleRules.mjs, shared with the booking routes): window.ShapeScheduleRules before babel runs dashSchedule.jsx.
      bookingRules.mjs (window.ShapeBookingRules) places time off on the coach's clock. -->
 <script type="module">import * as SR from "/newdesign/scheduleRules.mjs?v=20261007"; import * as BR from "/newdesign/bookingRules.mjs?v=20261007"; window.ShapeScheduleRules = SR; window.ShapeBookingRules = BR;</script>
+<!-- The notice row as the change signal (P7): open screens read again when a notice says their data changed. -->
+<script type="module">import * as CS from "/newdesign/changeSignal.mjs"; window.ShapeChange = CS; CS.startWebsiteChangeFeed(window);</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script type="text/babel" src="coachNav.jsx?v=20260614"></script>

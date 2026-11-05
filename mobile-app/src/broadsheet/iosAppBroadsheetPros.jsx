@@ -35,6 +35,9 @@ import { BSProCatalog } from './BSProCatalog.jsx';
 import { BSProDraftComposer } from './BSProDraftComposer.jsx';
 import { BSProDeck, BSProDeckWeek, BSProDeckSegments, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsRaised, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 import { BSProClients } from './BSProClients.jsx';
+import { changeRevHook } from '../services/changeSignal.mjs';
+// A number that moves when a notice or the foreground says what a coach screen shows has changed (P7).
+const useBSProChangeRev = changeRevHook(React);
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in
 // front and the live sign-in token. A root-relative '/api/…' fetch reaches nothing in the
@@ -1131,10 +1134,16 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   // The week the strip shows keys the read: the minute tick moves the strip to a new week at Sunday
   // midnight, and the read follows it (Codex on #2458).
   const calendarWeek = _ds(bsProWeek().dates[0]);
+  // A booking, a member's cancel or move, or the app back in the foreground (changeSignal.mjs, P7):
+  // the week is read again in place, without blanking the schedule while it loads.
+  const calendarChangeRev = useBSProChangeRev(['sessions']);
+  const calendarSeenRev = React.useRef(0);
   React.useEffect(() => {
-    setRealByDate(null);
+    const quiet = calendarChangeRev !== calendarSeenRev.current;
+    calendarSeenRev.current = calendarChangeRev;
+    if (!quiet) setRealByDate(null);
     if (!calendarOwner) { setCalendarStatus('ready'); return undefined; }
-    setCalendarStatus('loading');
+    if (!quiet) setCalendarStatus('loading');
     if (!window.ShapeCalendar?.list) { setCalendarStatus('error'); return undefined; }
     let on = true;
     const wk = bsProWeek().dates;
@@ -1174,9 +1183,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       });
       Object.values(byDate).forEach((list) => { if (list.length) list[list.length - 1].last = true; });
       setRealByDate(byDate); setCalendarStatus('ready');
-    }).catch(() => { if (on) setCalendarStatus('error'); });
+    }).catch(() => { if (on && !quiet) setCalendarStatus('error'); });
     return () => { on = false; };
-  }, [isNutri, calendarReload, calendarOwner, calendarWeek]);
+  }, [isNutri, calendarReload, calendarOwner, calendarWeek, calendarChangeRev]);
   // Per-day bookings dataset (demo). "Today" (offset 0) is always the busy
   // roster regardless of the real weekday. Trainer keys off 21; nutritionist off 22.
   // The sample week books the sample trainer's own roster (bsTrainerDemoRoster), so "Open their file"
@@ -2011,13 +2020,19 @@ function useBSProRoster(role) {
     const sub = window.ShapeAuth?.client?.auth?.onAuthStateChange?.(() => setReload(n => n + 1));
     return () => sub?.data?.subscription?.unsubscribe();
   }, []);
+  // A new client, a check-in, a message or a session, or the app back in the foreground
+  // (changeSignal.mjs, P7): the roster is read again past its 30-second cache, in place.
+  const changeRev = useBSProChangeRev(['clients', 'checkins', 'messages', 'sessions']);
+  const seenChangeRev = React.useRef(0);
   useEffectBSP(() => {
     let on = true;
     const S = (typeof window !== 'undefined' && window.ShapeSignals) || null;
-    setLive(null); setLoadedFor(`${uid}:${role}`); setStatus(uid ? 'loading' : 'ready');
+    const quiet = changeRev !== seenChangeRev.current && loadedFor === `${uid}:${role}`;
+    seenChangeRev.current = changeRev;
+    if (!quiet) { setLive(null); setLoadedFor(`${uid}:${role}`); setStatus(uid ? 'loading' : 'ready'); }
     if (!uid) return undefined;
     if (!S || !S.triageLive) { setStatus('error'); return undefined; }
-    S.triageLive(role, { force: reload > 0 }).then((feed) => {
+    S.triageLive(role, { force: reload > 0 || quiet }).then((feed) => {
       if (!on) return;
       if (!Array.isArray(feed)) throw new Error('Roster unavailable');
       setStatus('ready');
@@ -2054,9 +2069,9 @@ function useBSProRoster(role) {
           return Object.keys(extra).length ? { ...r, ...extra } : r;
         }));
       }).catch(() => {});
-    }).catch(() => { if (on) setStatus('error'); });
+    }).catch(() => { if (on && !quiet) setStatus('error'); });
     return () => { on = false; };
-  }, [role, uid, reload]);
+  }, [role, uid, reload, changeRev]);
   // Signed-in with no live clients → empty roster (not the demo cast). The demo
   // roster is preview-only; signed-out shows it as the example coach book.
   const signedIn = !!(typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id);

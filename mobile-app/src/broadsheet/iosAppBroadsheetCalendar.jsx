@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS } from './bsClientWeekDemo.js';
 import { BSCalendarWeeks, bsCalWeeksOf, bsCalIso } from './BSCalendarWeeks.jsx';
 import { BSProDeck, BSProDeckGauges, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsProLedgerTop, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
+import { changeRevHook } from '../services/changeSignal.mjs';
+// A number that moves when a notice or the foreground says the calendar's data changed (P7).
+const useBSCalChangeRev = changeRevHook(React);
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + the calendar screen (Month | Weeks).
 // Newspaper-styled. Role-aware events (client / trainer / nutritionist).
@@ -381,7 +384,10 @@ function BSCalendarScreen({ role = 'client', onProfile, initialMode = 'week', on
       .then(d => { if (seq !== loadSeq.current) return; setServerZone(typeof d.zone === 'string' && d.zone ? d.zone : null); setServerEvents((d.events || []).map(e => _bsMapServerCalEvent(e, t, d.zone))); })
       .catch(() => { if (seq === loadSeq.current) setServerEvents([]); });
   }, [loggedIn, viewYear, viewMonth, clientId, role, view]);
-  React.useEffect(() => { loadMonth(); }, [loadMonth]);
+  // A booking, a cancel or a move on either side, a coach's publish, or the app back in the foreground
+  // (changeSignal.mjs, P7): the month is read again in place.
+  const calChangeRev = useBSCalChangeRev(['sessions', 'training', 'meals']);
+  React.useEffect(() => { loadMonth(); }, [loadMonth, calChangeRev]);
 
   // Trainer/nutritionist demo events are authored on days 20-26 and remapped onto
   // the current demo week. Client events are already authored on real May days

@@ -168,7 +168,8 @@ test('the bundle is loaded only for a session, and "cannot tell" TRIES', () => {
   assert.doesNotMatch(BLOCK, /authProbe === "unknown"/,
     'an unreadable /api/me now skips the load — it must try, or a blip costs a member their inbox');
   // And again for another account (authWho), so a switch reads that account's list (Codex, #2391).
-  assert.match(BLOCK, /\}, \[authProbe, authWho\]\);/, 'the read does not re-run when the probe resolves, or for another account');
+  // ...and when a live message names a thread the list doesn't have (cwListRev, P7).
+  assert.match(BLOCK, /\}, \[authProbe, authWho, cwListRev\]\);/, 'the read does not re-run when the probe resolves, or for another account');
 });
 
 test('a COACH viewer never sees their own name on every thread', () => {

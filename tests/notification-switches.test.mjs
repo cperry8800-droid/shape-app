@@ -143,7 +143,11 @@ test('the toast waits for the first read of the switches, then goes by it (Codex
   const head = 'useEffectBSM(() => {\n    if (!authUserId || !window.ShapeNotifications?.subscribe) return () => {};';
   const at = main.indexOf(head);
   assert.ok(at > 0, 'the toast effect was not found');
-  const effect = new Function('window', 'authUserId', 'preferenceTypeFor', main.slice(at + 'useEffectBSM(() => {'.length, main.indexOf('  }, [authUserId]);', at)));
+  // The same subscription feeds the change signal (changeSignal.mjs, P7): its helpers come in as the
+  // module's own.
+  const CS = await import('../public/newdesign/changeSignal.mjs');
+  const effect0 = new Function('window', 'authUserId', 'preferenceTypeFor', 'createChangeBatcher', 'changeScopesOf', 'announceChange', main.slice(at + 'useEffectBSM(() => {'.length, main.indexOf('  }, [authUserId]);', at)));
+  const effect = (win, uid, pref) => effect0(win, uid, pref, CS.createChangeBatcher, CS.changeScopesOf, CS.announceChange);
   const tick = () => new Promise((r) => setTimeout(r, 0));
   const mount = (center) => {
     const ui = { toasts: [], send: null };

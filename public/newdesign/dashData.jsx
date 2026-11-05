@@ -24,6 +24,27 @@
 const DASH_CACHE_TTL = 60 * 1000;
 const _dashCache = new Map(); // key -> { at, data }
 
+// ⚠ THE NOTICE ROW IS THE CHANGE SIGNAL (changeSignal.mjs, P7; owner, 2026-11-05: "the website and app
+// need to fully communicate"). A coach's publish, a meal plan, a session change or a message writes a
+// notice for the person it concerns, and the page's feed (startWebsiteChangeFeed) announces what it is
+// about. A number that moves on each announcement naming one of `scopes`, for a read's effect deps;
+// 0 until the first. Read at call time: the module may not be on window when this file is parsed.
+function useDashChangeRev(scopes) {
+  const [rev, setRev] = React.useState(0);
+  const key = (Array.isArray(scopes) ? scopes : []).join("|");
+  React.useEffect(() => {
+    const C = typeof window !== "undefined" ? window.ShapeChange : null;
+    if (!C || typeof C.onShapeChange !== "function" || !key) return undefined;
+    return C.onShapeChange(key.split("|"), () => setRev((n) => n + 1));
+  }, [key]);
+  return rev;
+}
+// What each role's dashboard shows: a member's plan, sessions and check-in; a coach's roster.
+const DASH_CHANGE_SCOPES = {
+  client: ["training", "meals", "sessions", "checkins", "goals"],
+  coach: ["clients", "checkins", "messages", "sessions"],
+};
+
 async function _dashJson(url) {
   const hit = _dashCache.get(url);
   if (hit && hit.pending) return hit.pending;
@@ -532,6 +553,13 @@ function useDashboard(role) {
     window.addEventListener("shape:coach-progress-refresh", refresh);
     return () => window.removeEventListener("shape:coach-progress-refresh", refresh);
   }, []);
+  // A notice about what this dashboard shows (P7): read again past the 60-second cache.
+  const changeRev = useDashChangeRev(role === "client" ? DASH_CHANGE_SCOPES.client : DASH_CHANGE_SCOPES.coach);
+  React.useEffect(() => {
+    if (!changeRev) return;
+    _dashCache.clear();
+    setRefreshKey((v) => v + 1);
+  }, [changeRev]);
 
   React.useEffect(() => {
     let on = true;

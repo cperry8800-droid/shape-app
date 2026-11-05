@@ -14,10 +14,14 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<!-- The notice row as the change signal (P7): open screens read again when a notice says their data changed. -->
+<script type="module">import * as CS from "/newdesign/changeSignal.mjs"; window.ShapeChange = CS; CS.startWebsiteChangeFeed(window);</script>
 <script type="text/babel" src="pageShell.jsx?v=20260714d"></script>
 <script type="text/babel" src="trainerDashboard.jsx?v=20260622a"></script>
 <script src="dashSignals.js?v=20260923"></script>
 <script type="text/babel" src="coachNav.jsx"></script>
+<!-- Live inbox, unread counts, read state and an honest send (P7). -->
+<script type="text/babel" src="coachInboxLive.jsx"></script>
 <script type="text/babel">
 function msgRelTime(iso) {
   if (!iso) return "";
@@ -67,6 +71,23 @@ function NutritionistMessagesPage() {
   const scrollRef = React.useRef(null);
 
   const [notice, setNotice] = React.useState("");
+  // Read the inbox again in place (a thread the live layer doesn't have yet), keeping the open thread.
+  const [inboxRev, setInboxRev] = React.useState(0);
+  React.useEffect(() => {
+    if (!inboxRev) return undefined;
+    let cancelled = false;
+    fetch('/api/nutritionist/messages', { credentials: 'same-origin' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (cancelled || !d || !d.isNutritionist || !Array.isArray(d.threads)) return;
+        setThreads(prev => d.threads.map(t => {
+          const had = prev.find(p => p.id === t.id);
+          return had && had.unread != null ? { ...t, unread: had.unread } : t;
+        }));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [inboxRev]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -128,25 +149,38 @@ function NutritionistMessagesPage() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [selectedId, selected ? selected.messages.length : 0]);
 
-  function send() {
+  // Live: new messages, unread counts and the open thread read, by the app's rule (coachInboxLive.jsx).
+  if (typeof useCoachInboxLive === "function") useCoachInboxLive({ live, threads, setThreads, selectedId, reload: () => setInboxRev(n => n + 1) });
+
+  // ⚠ A SEND IS SENT ONLY WHEN THE ROUTE SAYS SO (P7). This had no res.ok check and `.catch(() => {})`,
+  // so a refused or failed send stayed on screen as sent and the client never got it. The message shows
+  // as sending, takes the stored id when it lands, and otherwise comes back off the thread, its words
+  // back in the box, with a note saying it wasn't sent.
+  async function send() {
     const text = draft.trim();
     if (!text || !selected || sending) return;
     const now = new Date().toISOString();
-    const optimistic = { id: "tmp-" + Date.now(), body: text, mine: true, createdAt: now };
-    setThreads(prev => prev.map(t => t.id === selected.id
+    const tmpId = "tmp-" + Date.now();
+    const optimistic = { id: tmpId, body: text, mine: true, createdAt: now, pending: !!live };
+    const convId = selected.id;
+    setThreads(prev => prev.map(t => t.id === convId
       ? { ...t, messages: [...t.messages, optimistic], lastMessage: text, lastMessageAt: now }
       : t));
     setDraft("");
     if (!live) return;
     setSending(true);
-    fetch('/api/nutritionist/messages', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: selected.id, message: text }),
-    })
-      .catch(() => {})
-      .finally(() => setSending(false));
+    setNotice("");
+    const r = typeof coachInboxSend === "function" ? await coachInboxSend('nutritionist', convId, text) : { ok: false };
+    setSending(false);
+    if (r.ok) {
+      setThreads(prev => prev.map(t => t.id === convId
+        ? { ...t, messages: t.messages.filter(m => m.id !== r.message.id).map(m => (m.id === tmpId ? { ...r.message } : m)) }
+        : t));
+      return;
+    }
+    setThreads(prev => prev.map(t => t.id === convId ? { ...t, messages: t.messages.filter(m => m.id !== tmpId) } : t));
+    setDraft(d => (d ? d : text));
+    setNotice(r.error ? "Your message wasn't sent: " + r.error : "Your message wasn't sent. Check your connection and try again.");
   }
 
   return (
@@ -176,7 +210,10 @@ function NutritionistMessagesPage() {
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 500 }}>{t.clientName}</div>
-                <div style={{ fontSize: 10, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{msgRelTime(t.lastMessageAt)}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {t.unread > 0 && t.id !== selectedId && <span aria-label={t.unread + " unread"} style={{ background: TEAL, color: PAPER, fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace", padding: "1px 6px", borderRadius: 999 }}>{t.unread}</span>}
+                  <div style={{ fontSize: 10, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{msgRelTime(t.lastMessageAt)}</div>
+                </div>
               </div>
               <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.lastMessage}</div>
             </div>
@@ -210,7 +247,7 @@ function NutritionistMessagesPage() {
                   <div key={m.id} style={{ display: "flex", justifyContent: m.mine ? "flex-end" : "flex-start" }}>
                     <div style={{ maxWidth: "68%", background: m.mine ? TEAL : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", color: m.mine ? PAPER : INK, padding: "10px 14px", borderRadius: 14, fontSize: 13.5, lineHeight: 1.5 }}>
                       {m.body}
-                      <div style={{ fontSize: 10, color: m.mine ? "var(--sh-ground, #1a1612)" : "var(--sh-ink2, #a09b94)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{msgClock(m.createdAt)}</div>
+                      <div style={{ fontSize: 10, color: m.mine ? "var(--sh-ground, #1a1612)" : "var(--sh-ink2, #a09b94)", marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{m.pending ? "Sending…" : msgClock(m.createdAt)}</div>
                     </div>
                   </div>
                 ))}

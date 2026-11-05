@@ -704,6 +704,9 @@ function ClientWorkoutsPage() {
     })();
     return () => { on = false; };
   }, [reloadTick]);
+  // A coach's publish while this page is open (the notice row as the change signal, P7).
+  const trainChangeRev = typeof useDashChangeRev === "function" ? useDashChangeRev(["training"]) : 0;
+  React.useEffect(() => { if (trainChangeRev) setReloadTick((n) => n + 1); }, [trainChangeRev]);
   const live = source === "live";
   // Read once: the workout this visit was opened for, if any (dtrFocusId). Only live rows can
   // match it, so the demo preview never marks one.

@@ -7139,62 +7139,68 @@ async function listWeighIns() {
     .map(r => ({ d: r.logged_on, kg: _weighInToKg(r.weight, r.unit), unit: 'kg', storedUnit: r.unit || 'kg' }))
     .filter(r => r.kg != null);
 }
+// ⚠ THE WEIGH-IN IS WRITTEN BY THE SERVER, WHICH AWARDS ANY MILESTONE IT REACHED (/api/client/weigh-in,
+// P7). This upserted client_weigh_ins itself and Goals then called award_my_goal_milestones, while the
+// website wrote the same row and never awarded. Both surfaces write through the route now, and the award
+// is its (refused while the stored goal is still in pounds). Resolves the row with `milestones`, the
+// ones this weigh-in credited; throws when the weigh-in did not land.
 async function logWeighIn({ weight, unit = 'kg', bodyFat = null } = {}) {
   if (!supabase || !state.user?.id) return null;
   const w = _weighInToKg(weight, unit);
   if (!Number.isFinite(w)) return null;
-  const today = _localDate();
   const bf = Number(bodyFat);
-  const row = { user_id: state.user.id, logged_on: today, weight: w, unit: 'kg' };
-  if (Number.isFinite(bf) && bf > 0 && bf < 75) row.body_fat_pct = bf;
-  let { data, error } = await supabase
-    .from('client_weigh_ins')
-    .upsert(row, { onConflict: 'user_id,logged_on' })
-    .select('logged_on, weight')
-    .maybeSingle();
-  // Pre-migration safety: retry without body_fat_pct if the column is missing.
-  if (error && row.body_fat_pct != null && /body_fat_pct/.test(String(error.message || ''))) {
-    delete row.body_fat_pct;
-    ({ data, error } = await supabase
-      .from('client_weigh_ins')
-      .upsert(row, { onConflict: 'user_id,logged_on' })
-      .select('logged_on, weight')
-      .maybeSingle());
-  }
-  if (error) throw error;
+  const body = { weight: w, unit: 'kg', date: _localDate() };
+  if (Number.isFinite(bf) && bf > 0 && bf < 75) body.bodyFat = bf;
+  const res = await fetch(`${apiBaseUrl || ''}/api/client/weigh-in`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+    body: JSON.stringify(body),
+  });
+  const d = await res.json().catch(() => null);
+  if (!res.ok || !d || !d.ok) throw new Error((d && d.error) || 'Could not save your weigh-in.');
   invalidateClientMetrics();
-  return data;
+  const row = d.weighIn && typeof d.weighIn === 'object' ? d.weighIn : { logged_on: body.date, weight: w };
+  return { ...row, milestones: Array.isArray(d.milestones) ? d.milestones : [] };
 }
 // Meal-log macros → today's daily_health_snapshot (accumulating server-side),
 // so the Nutrition tab / macro adherence reflect what was actually logged.
-async function logMealMacros({ kcal, protein, carbs, fat, hydrationL } = {}) {
+// `mealId` (a planned meal's key, mealLogged.mjs) records the meal as logged in the account, once: the
+// route answers `already: true` for a meal logged that day on any surface, and adds nothing (P7).
+async function logMealMacros({ kcal, protein, carbs, fat, hydrationL, mealId, mealTitle } = {}) {
   if (!supabase || !state.user?.id) return null;
   try {
     const res = await fetch(`${apiBaseUrl || ''}/api/nutrition/meal-log`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
-      body: JSON.stringify({ kcal, protein, carbs, fat, hydrationL, date: _localDate() }),
+      body: JSON.stringify({ kcal, protein, carbs, fat, hydrationL, date: _localDate(), ...(mealId ? { mealId: String(mealId), mealTitle: mealTitle ? String(mealTitle) : undefined } : {}) }),
     });
     if (!res.ok) return null;
     invalidateClientMetrics();
-    // Shape Score: +10 once/day for logging a meal (server-gated + deduped;
-    // mirrors award_workout_session). Fire-and-forget — never blocks the log —
-    // but the RESULT ({awarded, points}) rides back on the resolved value so the
-    // confirmation can show +10 only when it was actually granted (not on an
-    // already-earned day). Errors + no-user resolve to null, never reject.
-    let awardPromise = Promise.resolve(null);
-    try {
-      if (state.user?.id) {
-        awardPromise = supabase.rpc('award_meal_log', { p_day: _localDate() })
-          .then((r) => (r && r.data && typeof r.data === 'object' ? r.data : null), () => null);
-      }
-    } catch (e) {}
     const snap = await res.json().catch(() => ({}));
-    return { ...(snap && typeof snap === 'object' ? snap : {}), awardPromise };
+    // ⚠ THE +10 IS THE SERVER'S (P7). The snapshot trigger pays the day's meal award whoever writes the
+    // macros, and the route says whether THIS log earned it (`award`, from award_meal_log on the member's
+    // session). The confirmation shows +10 only then; this module no longer calls the RPC itself, so the
+    // website and the app earn and report the same way. `awardPromise` keeps its shape for the callers.
+    const award = snap && typeof snap === 'object' && snap.award && typeof snap.award === 'object' ? snap.award : null;
+    return { ...(snap && typeof snap === 'object' ? snap : {}), awardPromise: Promise.resolve(award) };
   } catch (e) { return null; }
 }
-window.ShapeMealLog = { log: logMealMacros };
+// The planned meals the account records as logged on a day ({ '<meal key>': true }), and that day's
+// swaps, from /api/client/meal-day (P7). null when it could not be read: a failed read is never
+// "nothing logged".
+async function getMealDay(date) {
+  if (!state.user?.id) return null;
+  const day = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : _localDate();
+  try {
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/meal-day?date=${day}`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    return d && d.ok && d.logged && typeof d.logged === 'object' ? d : null;
+  } catch (e) { return null; }
+}
+window.ShapeMealLog = { log: logMealMacros, day: getMealDay };
 // Hydration logger — GET today's intake + target; POST a delta (liters).
 async function getHydration() {
   // Pass the client LOCAL date so the read targets the same snapshot row the
@@ -7217,17 +7223,23 @@ async function addHydration(deltaL) {
   return d;
 }
 window.ShapeHydration = { get: getHydration, add: addHydration };
-// Goal-milestone Shape points: the RPC checks the Overall goal trajectory
-// against the latest weigh-in and credits any newly reached 25/50/75/goal
-// milestone into score_ledger (idempotent — same pattern as award_tier_bonuses).
-// Returns [{ milestone, points }] for the milestones credited by THIS call.
+// Goal-milestone Shape points, the catch-up Goals asks on opening (a target edited since the last
+// weigh-in): the server's award (/api/client/weigh-in { check: true }, P7), the same one a weigh-in
+// runs, which credits any newly reached 25/50/75/goal milestone once and refuses while the stored goal
+// is in pounds. Returns [{ milestone, points }] for the milestones credited by THIS call.
 async function awardGoalMilestones() {
   if (!supabase || !state.user?.id) return [];
   try {
-    const { data, error } = await supabase.rpc('award_my_goal_milestones');
-    if (error || !Array.isArray(data) || !data.length) return [];
-    invalidateClientMetrics();
-    return data;
+    const res = await fetch(`${apiBaseUrl || ''}/api/client/weigh-in`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...sessionsAuthHeaders() },
+      body: JSON.stringify({ check: true }),
+    });
+    const d = res.ok ? await res.json().catch(() => null) : null;
+    const list = d && Array.isArray(d.milestones) ? d.milestones : [];
+    if (list.length) invalidateClientMetrics();
+    return list;
   } catch (e) { return []; }
 }
 window.ShapeWeighIns = { list: listWeighIns, log: logWeighIn };

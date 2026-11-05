@@ -15,6 +15,7 @@ import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 import { bumpSignOutGen } from '../services/signOutGen.mjs';
 import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
+import { ALL as BS_CHANGE_ALL, announceChange, changeScopesOf, createChangeBatcher, foregroundGate } from '../services/changeSignal.mjs';
 import { heldCoachRoles, coachPlanSwitch, holdCoachPlan } from '../services/coachPlanRoute.mjs';
 import { mayLeave } from '../services/leaveGuard.mjs';
 import { copyIndex } from '../../../src/lib/click-capture.mjs';
@@ -1922,12 +1923,44 @@ function BSAppShell({ tweaks, setTweak }) {
     };
     readSwitches();
     window.addEventListener('shape:notifyprefs', readSwitches);
+    // ⚠ THE SAME SUBSCRIPTION IS THE CHANGE SIGNAL (changeSignal.mjs; owner, 2026-11-05: "the website and
+    // app need to fully communicate"). A coach's publish, a session change or a message writes a notice
+    // for this person, so the screens showing what it is about read again (Home, Train, Eat, Team, the
+    // coach's Today and calendar), whatever the switches say about toasting it. Fed from here rather
+    // than a second subscription: supabase.channel() hands back the topic's existing channel, which
+    // takes no new listener once it is joined.
+    const changes = createChangeBatcher((scopes) => {
+      // A coach's publish lands past the 60-second plan and metrics cache.
+      try { window.ShapeMetrics?.invalidate?.(); } catch (e) {}
+      announceChange(scopes, window, 'notice');
+    });
     const unsub = window.ShapeNotifications.subscribe((n) => {
+      if (n) changes.push(changeScopesOf(n));
       if (!n || !n.title) return;
       if (early) { early.push(n); return; }
       toast(n);
     });
-    return () => { alive = false; window.removeEventListener('shape:notifyprefs', readSwitches); try { unsub(); } catch (e) {} };
+    return () => { alive = false; changes.stop(); window.removeEventListener('shape:notifyprefs', readSwitches); try { unsub(); } catch (e) {} };
+  }, [authUserId]);
+  // ⚠ BACK IN THE FOREGROUND, THE SCREENS READ AGAIN (P7). Home read the plan once per mount, and Train
+  // and Eat only when they remounted, so an app left open in the background showed last week's plan
+  // after the coach published (and a suspended socket can miss the notice outright). Back in view after
+  // FOREGROUND_MIN_AWAY_MS, the metrics cache is dropped and every listening screen reads again; the
+  // habit reminders on this device are reconciled with the account's (ShapeHabitReminders.sync).
+  useEffectBSM(() => {
+    if (!authUserId || typeof document === 'undefined' || !document.addEventListener) return () => {};
+    let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : null;
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+      const back = foregroundGate(hiddenAt, Date.now());
+      hiddenAt = null;
+      if (!back) return;
+      try { window.ShapeMetrics?.invalidate?.(); } catch (e) {}
+      announceChange([BS_CHANGE_ALL], window, 'foreground');
+      try { window.ShapeHabitReminders?.sync?.(); } catch (e) {}
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
   }, [authUserId]);
 
   // Register for native push once signed in (no-op off native / until the

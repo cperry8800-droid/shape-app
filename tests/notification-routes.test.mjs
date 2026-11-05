@@ -587,5 +587,6 @@ test('a conversation opened by id is read, however it was opened', () => {
   const body = CLIENT.slice(at, CLIENT.indexOf('\n}\n', at)); // to the function's end: its effects grew (read receipts)
   // The stored read is then announced, so the other side's Sent turns to Seen (read receipts, 2026-11-02).
   // Opened out of sight (a notification can open it before the app is in view), it is read once it is in view.
-  assert.match(body, /React\.useEffect\(\(\) => \{\s+\/\/[^\n]*\n\s+if \(thread\.conversationId && bsPageHidden\(\)\) unreadWhileHiddenRef\.current = true;\s+else if \(thread\.conversationId\) announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\);\s+\}, \[thread\.conversationId\]\);/);
+  // The decision is the rule the website shares (chatRead.mjs readOnArrival, P7).
+  assert.match(body, /React\.useEffect\(\(\) => \{\s+\/\/[^\n]*\n\s+\/\/[^\n]*\n\s+const what = readOnArrival\(\{ isOpenThread: !!thread\.conversationId, fromOther: true, hidden: bsPageHidden\(\) \}\);\s+if \(what === 'wait'\) unreadWhileHiddenRef\.current = true;\s+else if \(what === 'read'\) announceRead\(window\.ShapeUnread\?\.markConversationRead\?\.\(thread\.conversationId\)\);\s+\}, \[thread\.conversationId\]\);/);
 });

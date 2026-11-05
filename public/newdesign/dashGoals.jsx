@@ -307,6 +307,19 @@ function DashGoalsSection({ rec, role }) {
   );
 }
 
+// ── The weigh-in route (P7): the row and the milestone award, written by the server ──
+async function dgoWeighInPost(body) {
+  try {
+    const res = await fetch("/api/client/weigh-in", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await res.json().catch(() => null);
+    if (!res.ok || !d || !d.ok) return { ok: false, error: d && d.error };
+    return { ok: true, milestones: Array.isArray(d.milestones) ? d.milestones : [] };
+  } catch (e) { return { ok: false }; }
+}
+function dgoAwardToasts(milestones, toast) {
+  for (const m of milestones || []) if (m && m.milestone && m.points > 0) toast("+" + m.points + " pts · " + m.milestone);
+}
+
 // ── The migrated client page (ClientGoal.html) — view-only goals ────────────
 function ClientGoalsPage() {
   const [src, setSrc] = React.useState(() => dgoDemoSrc());
@@ -356,7 +369,12 @@ function ClientGoalsPage() {
         if (data && data.detail && Array.isArray(data.detail.goals)) coach = data.detail.goals;
       } catch (e) {}
       try {
-        const { data } = await window.shapeDb.client.from("client_weigh_ins").select("logged_on, weight, unit").eq("user_id", user.id).order("logged_on", { ascending: true }).limit(104);
+        // ⚠ THE NEWEST 104, OLDEST FIRST (the client audit's B2). Ascending with a limit read the OLDEST
+        // 104, so a daily logger's goal "current" and pace froze after about three months, and the
+        // projection disagreed with the app's. Read newest first and turned round, as the dashboard and
+        // progress routes do.
+        const { data: newest } = await window.shapeDb.client.from("client_weigh_ins").select("logged_on, weight, unit").eq("user_id", user.id).order("logged_on", { ascending: false }).limit(104);
+        const data = Array.isArray(newest) ? newest.slice().reverse() : newest;
         // Legacy rows may be pounds; normalise by the row's OWN unit so the
         // series is one unit, the same repair the app's listWeighIns does.
         if (Array.isArray(data)) weighIns = data.map((w) => {
@@ -516,14 +534,23 @@ function ClientGoalsPage() {
       // stale pound goal awards points they have not earned, which is not
       // recoverable. When the document cannot be trusted, the row is not written.
       if (saved && saved.ok === false) return;
-      try {
-        await window.shapeDb.client.from("client_weigh_ins").upsert(
-          { user_id: (await window.shapeDb.getUser()).id, logged_on: today, weight: kg, unit: "kg" },
-          { onConflict: "user_id,logged_on" }
-        );
-      } catch (e) {}
+      // ⚠ THE SERVER WRITES THE ROW AND AWARDS THE MILESTONES (P7). This upserted client_weigh_ins
+      // itself, swallowed any error and never awarded, so a website weigh-in earned no milestone the
+      // app's would. /api/client/weigh-in writes it on the member's own day and runs the award (refused
+      // while the stored goal is still in pounds); a failed write says so.
+      const r = await dgoWeighInPost({ weight: kg, unit: "kg", date: today });
+      if (!r.ok) { showToast(r.error || "Your weigh-in wasn't saved. Try again."); return; }
+      dgoAwardToasts(r.milestones, showToast);
     }
   };
+  // The server's catch-up on opening (a target edited since the last weigh-in may have reached a
+  // milestone), the same one the app's Goals asks (P7). Idempotent: a repeat never credits twice.
+  React.useEffect(() => {
+    if (!signedIn) return undefined;
+    let on = true;
+    dgoWeighInPost({ check: true }).then((r) => { if (on && r.ok) dgoAwardToasts(r.milestones, showToast); });
+    return () => { on = false; };
+  }, [signedIn]);
 
   // ⚠ `goals[0].unit` is already the DISPLAY unit after the conversion above, so the
   // weigh-in modal prefills and labels in the member's own unit — and `logWeighIn`

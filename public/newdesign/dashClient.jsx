@@ -203,6 +203,136 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
   );
 }
 
+// ── The day's swaps and "✓ Logged", in the account (P7) ─────────────────────
+// Read from /api/client/meal-day (the app's own day document, mealDays.mjs, and the meal-log route's
+// record, mealLogged.mjs), written through it. Shared by Today and Nutrition.
+const DCL_LEGACY_MEAL_KEYS = ["shape.dashMealSwap.", "shape.dashNutriSwap.", "shape.dashMealLog."];
+// A plan meal's key, as Eat names it: the plan's id, else `live-<weekday>-<index>` (Monday 0).
+function dclPlanMealKey(m, dow, j) {
+  return m && m.id != null && m.id !== "" ? String(m.id) : "live-" + dow + "-" + j;
+}
+// The meal as eaten: its approved alternate `idx` applied, or the meal itself.
+function dclEffectiveMeal(m, idx) {
+  const alt = idx != null && idx >= 0 && m && m.alts && m.alts[idx];
+  return alt ? { ...m, title: alt.name, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f, _swapped: true } : m;
+}
+// A stored day swap read back as the alternate it is (the swap keeps the alternate's own words); -1
+// when it is none of the meal's alternates (a swap made in the app from its own list shows as the meal).
+function dclSwapIndexOf(m, swap) {
+  if (!m || !swap || !Array.isArray(m.alts)) return -1;
+  return m.alts.findIndex((a) => a && String(a.name || "").trim() === String(swap.title || "").trim());
+}
+// The day swap that alternate `idx` is, as the account stores it.
+function dclSwapOf(m, idx) {
+  const a = m && m.alts && m.alts[idx];
+  if (!a || !String(a.name || "").trim()) return null;
+  const n = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : 0);
+  return { title: String(a.name).trim(), kcal: n(a.kcal), p: n(a.p), c: n(a.c), f: n(a.f) };
+}
+// The swaps this browser still holds for today, as account swaps by today's meal keys, and every legacy
+// key to drop once they are in the account. Today's key held { '<old id>': index } with the old ids
+// (`m.id || "live-" + j`), Nutrition's the same with `m.id || "pm-" + j` under today's weekday. A meal the
+// account already swapped keeps the account's: it is the newer word. Keys for other days are dropped.
+function dclLegacySwaps(storage, todayIso, todayDow, meals, accountSwap) {
+  const keys = [];
+  const held = {};
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k && DCL_LEGACY_MEAL_KEYS.some((p) => k.indexOf(p) === 0)) keys.push(k);
+    }
+    for (const k of ["shape.dashMealSwap." + todayIso, "shape.dashNutriSwap." + todayIso + "." + todayDow]) {
+      const raw = storage.getItem(k);
+      const map = raw ? JSON.parse(raw) : null;
+      if (map && typeof map === "object") for (const [id, idx] of Object.entries(map)) if (Number.isInteger(idx) && held[id] == null) held[id] = idx;
+    }
+  } catch (e) { /* an unreadable store moves nothing */ }
+  const swaps = {};
+  (meals || []).forEach((m, j) => {
+    const raw = m.raw || m;
+    const idx = [raw.id, "live-" + j, "pm-" + j].map((id) => (id != null ? held[String(id)] : undefined)).find((v) => v != null);
+    if (idx == null || idx < 0 || (accountSwap && accountSwap[m.id])) return;
+    const s = dclSwapOf(m, idx);
+    if (s) swaps[m.id] = s;
+  });
+  return { swaps, keys };
+}
+// One planned meal logged through the meal-log route with its key, so the account records it (and
+// refuses it a second time). Resolves { ok, already } only on a log that landed: the ✓ follows that.
+async function dclLogPlannedMeal(m, todayIso) {
+  try {
+    const res = await fetch("/api/nutrition/meal-log", {
+      method: "POST", credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kcal: m.kcal || 0, protein: m.p || 0, carbs: m.c || 0, fat: m.f || 0, date: todayIso, mealId: m.id, mealTitle: m.title || undefined }),
+    });
+    const d = res.ok ? await res.json().catch(() => null) : null;
+    return d && d.ok ? { ok: true, already: d.already === true } : { ok: false };
+  } catch (e) { return { ok: false }; }
+}
+// The day as the account keeps it, for a member's page: `swaps` (meal key → alternate index), `logged`
+// ({ key: true }), `setSwap(meal, index)` (optimistic, taken back when the write fails) and
+// `markLogged(key)`. Read again on a meals notice (useDashChangeRev). Signed out: nothing is read, the
+// chips cycle on screen and nothing is stored.
+function useDclMealDay(live, todayIso, todayDow, meals) {
+  const [day, setDay] = React.useState(null);           // { swap, logged } once read
+  const [localTicks, setLocalTicks] = React.useState({}); // ticks this page made (and the preview's)
+  const [note, setNote] = React.useState("");
+  const changeRev = typeof useDashChangeRev === "function" ? useDashChangeRev(["meals"]) : 0;
+  React.useEffect(() => {
+    if (!live) return undefined;
+    let on = true;
+    fetch("/api/client/meal-day?date=" + encodeURIComponent(todayIso), { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((d) => { if (on && d && d.ok) setDay({ swap: d.swap || {}, logged: d.logged || {} }); });
+    return () => { on = false; };
+  }, [live, todayIso, changeRev]);
+  // The one-time move of this browser's swaps into the account, once the day and the meals are known.
+  const moved = React.useRef(false);
+  React.useEffect(() => {
+    if (!live || !day || !meals.length || moved.current) return;
+    moved.current = true;
+    let storage = null;
+    try { storage = window.localStorage; } catch (e) { storage = null; }
+    if (!storage) return;
+    const { swaps, keys } = dclLegacySwaps(storage, todayIso, todayDow, meals, day.swap);
+    const drop = () => { for (const k of keys) { try { storage.removeItem(k); } catch (e) {} } };
+    if (!Object.keys(swaps).length) { drop(); return; }
+    fetch("/api/client/meal-day", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date: todayIso, today: todayIso, swaps }) })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((d) => { if (d && d.ok) { setDay((cur) => (cur ? { ...cur, swap: d.swap || cur.swap } : cur)); drop(); } });
+  }, [live, day, meals.length, todayIso, todayDow]);
+  const swaps = {};
+  for (const m of meals || []) {
+    const s = day && day.swap ? day.swap[m.id] : null;
+    const idx = s ? dclSwapIndexOf(m, s) : -1;
+    if (idx >= 0) swaps[m.id] = idx;
+  }
+  const setSwap = async (m, idx) => {
+    if (!live) { setDay((cur) => ({ swap: { ...((cur && cur.swap) || {}), [m.id]: idx >= 0 ? dclSwapOf(m, idx) : undefined }, logged: (cur && cur.logged) || {} })); return true; }
+    const before = day;
+    const next = idx >= 0 ? dclSwapOf(m, idx) : null;
+    setNote("");
+    setDay((cur) => {
+      const swap = { ...((cur && cur.swap) || {}) };
+      if (next) swap[m.id] = next; else delete swap[m.id];
+      return { swap, logged: (cur && cur.logged) || {} };
+    });
+    let ok = false;
+    try {
+      const res = await fetch("/api/client/meal-day", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date: todayIso, today: todayIso, mealId: m.id, swap: next }) });
+      const d = res.ok ? await res.json().catch(() => null) : null;
+      ok = !!(d && d.ok);
+      if (ok) setDay((cur) => ({ swap: d.swap || {}, logged: (cur && cur.logged) || {} }));
+    } catch (e) { ok = false; }
+    if (!ok) { setDay(before); setNote("The swap wasn't saved. Try again."); }
+    return ok;
+  };
+  const markLogged = (key) => setLocalTicks((t) => ({ ...t, [key]: true }));
+  const logged = { ...((day && day.logged) || {}), ...localTicks };
+  return { day, swaps, logged, setSwap, markLogged, note };
+}
+
 // The client meals + macro ledger card — SHARED: the client dashboard renders
 // it live, and the nutritionist's meal-builder preview renders this exact
 // component. Meals: { id, slot, time?, title, kcal, p, c, f, alts?: [≤3
@@ -211,28 +341,26 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
 // what gets logged follow the chosen alternate, so swapping never breaks the
 // ledger math. Bars go red when a macro runs over target (the builder's
 // running total mirrors this exact treatment).
-function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, headerNote, swapStorageKey, interactive = true }) {
+// ⚠ THE SWAPS ARE THE ACCOUNT'S, NOT THIS BROWSER'S (P7). A member's page passes `swaps` (meal key →
+// alternate index, read from /api/client/meal-day) and `onSwap(meal, index)`, which writes the day's
+// swap where the app, the other page and tonight's prep reminder read it (useDclMealDay). Without
+// them (the meal builder's preview) the chip cycles on screen only, and nothing is stored anywhere.
+// `logging` names meals whose log is on its way: no second tap, and no ✓ until the account says so.
+function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, logging = {}, onLog, headerNote, swaps, onSwap, interactive = true }) {
   const ink50 = DCL_INK50;
   const mono = "'JetBrains Mono', monospace";
   const teal = "var(--sh-accent, #2ee0c4)", green = "var(--sh-green, #7bbf5a)", red = "var(--sh-rust, #e0644b)";
-  const [swapSel, setSwapSel] = React.useState(() => {
-    if (!swapStorageKey) return {};
-    try { return JSON.parse(localStorage.getItem(swapStorageKey) || "{}"); } catch (e) { return {}; }
-  });
+  const [ownSel, setOwnSel] = React.useState({});
+  const swapSel = swaps || ownSel;
   const cycleSwap = (m) => {
     const n = (m.alts || []).length;
     const cur = swapSel[m.id] == null ? -1 : swapSel[m.id];
     const nxt = cur + 1 >= n ? -1 : cur + 1; // -1 = the base meal
-    const next = { ...swapSel, [m.id]: nxt };
-    setSwapSel(next);
-    if (swapStorageKey) { try { localStorage.setItem(swapStorageKey, JSON.stringify(next)); } catch (e) {} }
+    if (onSwap) onSwap(m, nxt);
+    else setOwnSel({ ...ownSel, [m.id]: nxt });
   };
   // The effective meal — base, or the chosen approved alternate.
-  const effective = (m) => {
-    const i = swapSel[m.id];
-    const alt = i != null && i >= 0 && m.alts && m.alts[i];
-    return alt ? { ...m, title: alt.name, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f, _swapped: true } : m;
-  };
+  const effective = (m) => dclEffectiveMeal(m, swapSel[m.id]);
   const remaining = targets.kcal - ledger.kcal;
   const ghost = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
   return (
@@ -275,7 +403,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
                 )}
                 {isLogged
                   ? <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: green, textTransform: "uppercase" }}>✓ Logged</span>
-                  : interactive && <button onClick={() => onLog && onLog(m)} style={ghost}>Log meal</button>}
+                  : interactive && <button onClick={() => onLog && onLog(m)} disabled={!!logging[m.id]} style={{ ...ghost, opacity: logging[m.id] ? 0.55 : 1 }}>{logging[m.id] ? "Logging…" : "Log meal"}</button>}
               </div>
             </div>
           );
@@ -731,7 +859,9 @@ function ClientDashboardPage() {
     for (let i = 0; i < 7 && seq.length; i++) if (byDow[i] == null) byDow[i] = seq.shift();
     const day = byDow[dow];
     meals = day && Array.isArray(day.meals) ? day.meals.map((m, j) => ({
-      id: m.id || "live-" + j, slot: m.slot || "Meal", time: dclFmt12(m.time), title: m.title || "Meal",
+      // Eat's own key for the meal (mealLogged.mjs bsPlanMealKey): the account's swaps and "✓ Logged"
+      // name it the same way on every surface.
+      id: dclPlanMealKey(m, dow, j), slot: m.slot || "Meal", time: dclFmt12(m.time), title: m.title || "Meal",
       kcal: m.kcal || 0, p: m.p || 0, c: m.c || 0, f: m.f || 0,
       alts: Array.isArray(m.alts) ? m.alts : [], // approved swap alternates from the plan
     })) : [];
@@ -745,23 +875,32 @@ function ClientDashboardPage() {
     : live ? { kcal: 0, p: 0, c: 0, f: 0 } : DCL_DEMO.consumed;
   const [ledger, setLedger] = React.useState(seeded);
   React.useEffect(() => { setLedger(seeded); }, [JSON.stringify(seeded)]);
-  const logKey = "shape.dashMealLog." + todayIso;
-  const [logged, setLogged] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem(logKey) || "{}"); } catch (e) { return {}; }
-  });
-  const logMeal = (m) => {
-    if (logged[m.id]) return;
-    const next = { ...logged, [m.id]: true };
-    setLogged(next);
-    try { localStorage.setItem(logKey, JSON.stringify(next)); } catch (e) {}
-    setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
-    if (live) {
-      fetch("/api/nutrition/meal-log", {
-        method: "POST", credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kcal: m.kcal || 0, protein: m.p || 0, carbs: m.c || 0, fat: m.f || 0, date: new Date().toLocaleDateString("en-CA") }),
-      }).catch(() => {});
+  // ⚠ THE DAY'S SWAPS AND "✓ LOGGED" ARE THE ACCOUNT'S (P7; the client audit's B3). They were
+  // localStorage on this browser (`shape.dashMealSwap.<date>`, `shape.dashMealLog.<date>`), so the app
+  // never saw them and a failed log still ticked. useDclMealDay reads and writes them where the app
+  // does, and moves any this browser still holds into the account once.
+  const mealDay = useDclMealDay(live, todayIso, dow, meals);
+  const logged = mealDay.logged;
+  const [logging, setLogging] = React.useState({});
+  const [logNote, setLogNote] = React.useState("");
+  const logMeal = async (base) => {
+    // The meal as it will be eaten: the day's swap applied (the Now column hands over the plan's meal).
+    const m = dclEffectiveMeal(meals.find((x) => x.id === base.id) || base, mealDay.swaps[base.id]);
+    if (logged[m.id] || logging[m.id]) return;
+    // The signed-out preview ticks on screen and stores nothing.
+    if (!live) {
+      mealDay.markLogged(m.id);
+      setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
+      return;
     }
+    setLogging((s) => ({ ...s, [m.id]: true }));
+    setLogNote("");
+    const r = await dclLogPlannedMeal(m, todayIso);
+    setLogging((s) => { const n = { ...s }; delete n[m.id]; return n; });
+    if (!r.ok) { setLogNote("That meal wasn't logged. Try again."); return; }
+    mealDay.markLogged(m.id);
+    // A meal already logged (on the app, in another tab) added nothing, so the ledger doesn't either.
+    if (!r.already) setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
   };
   // ── Hero numbers ──
   const hero = live
@@ -889,10 +1028,11 @@ function ClientDashboardPage() {
             { key: "meals", title: "Today's Meals", size: "full", render: () => (
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <DashMealLedgerCard
-                  meals={meals} targets={targets} ledger={ledger} logged={logged}
+                  meals={meals} targets={targets} ledger={ledger} logged={logged} logging={logging}
                   onLog={logMeal} headerNote={planLive ? "from your plan" : null}
-                  swapStorageKey={"shape.dashMealSwap." + todayIso}
+                  swaps={mealDay.swaps} onSwap={mealDay.setSwap}
                 />
+                {(logNote || mealDay.note) && <div role="status" style={{ fontSize: 12, color: DCL_RED, marginTop: 6 }}>{logNote || mealDay.note}</div>}
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", textAlign: "right" }}>
                   <a href={dashShellHref("ClientNutri.html")} style={{ fontFamily: DCL_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_TEAL, textDecoration: "none" }}>Full meal plan · week &amp; swaps →</a>
                 </div>

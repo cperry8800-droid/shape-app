@@ -1358,11 +1358,11 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
         // keeps that true. Found by reviewing my own fix batch: the comment
         // below already CLAIMED this invariant and the code did not have it.
         .catch(() => null)
-        .then((res) => {
-          const canonical = !!(res && res.ok);
-          return window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat })
-            .then(() => (canonical ? window.ShapeGoalAwards?.check?.() : null));
-        })
+        // The weigh-in's own answer carries the milestones it reached: the server awards them, and only
+        // once the stored goal is in kilograms (/api/client/weigh-in, P7), so a goal write that did not
+        // land can no longer award against a pound goal.
+        .then(() => window.ShapeWeighIns.log({ weight: kg, unit: 'kg', bodyFat }))
+        .then((row) => (row && Array.isArray(row.milestones) ? row.milestones : null))
         .then((awards) => (awards || []).forEach(a => window.__bsToast?.(tr('goal:award.toast', { defaultValue: '+{points} pts · {milestone}', points: a.points, milestone: a.milestone }), 'ok')))
         .catch(() => {});
     } else {

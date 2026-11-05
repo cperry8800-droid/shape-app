@@ -32,10 +32,12 @@ function dnuFmt12(t) {
 }
 
 // ── Plan day → DashMealLedgerCard meals (cal→kcal, swap groups preserved) ───
-function dnuDayMeals(day) {
+// The meal keys are Eat's (dclPlanMealKey, mealLogged.mjs), so the account's swaps and "✓ Logged" name
+// the same meal on every surface. `dow` is the day's weekday, Monday 0.
+function dnuDayMeals(day, dow) {
   if (!day || !Array.isArray(day.meals)) return [];
   return day.meals.map((m, i) => ({
-    id: m.id || "pm-" + i,
+    id: typeof dclPlanMealKey === "function" ? dclPlanMealKey(m, dow, i) : (m.id || "live-" + dow + "-" + i),
     slot: m.slot || "Meal",
     time: dnuFmt12(m.time),
     title: m.title || "Meal",
@@ -248,6 +250,9 @@ function ClientNutritionPage() {
     })();
     return () => { on = false; };
   }, [reloadTick]);
+  // A nutritionist's new plan while this page is open (the notice row as the change signal, P7).
+  const nutriChangeRev = typeof useDashChangeRev === "function" ? useDashChangeRev(["meals"]) : 0;
+  React.useEffect(() => { if (nutriChangeRev) setReloadTick((n) => n + 1); }, [nutriChangeRev]);
   const live = source === "live";
 
   // PREPPED display (Cook Mode PR C — the web's ONLY prep surface, ruling
@@ -287,7 +292,11 @@ function ClientNutritionPage() {
   // detail.nutrition the mobile Eat hero reads) outranks the menu's authored
   // day targets: it is the CURRENT prescription (spec #1707 parity fix).
   const pickedDay = days.find((d) => d.dow === pickedDow) || days[pickedDow] || null;
-  const meals = dnuDayMeals(pickedDay);
+  const meals = dnuDayMeals(pickedDay, pickedDow);
+  // Today's swaps and "✓ Logged" from the account, the same ones Today and the app show (P7). The
+  // hook reads today; another day picked shows its plan without them (logging happens on the day).
+  const todayMeals = pickedDow === todayDow ? meals : dnuDayMeals(days.find((d) => d.dow === todayDow) || days[todayDow] || null, todayDow);
+  const mealDay = typeof useDclMealDay === "function" ? useDclMealDay(live, dnuIso(new Date()), todayDow, todayMeals) : null;
   const coachTargets = live && plan && plan.meals && plan.meals.coachTargets && plan.meals.coachTargets.kcal
     ? { kcal: Number(plan.meals.coachTargets.kcal) || 0, p: Number(plan.meals.coachTargets.p) || 0, c: Number(plan.meals.coachTargets.c) || 0, f: Number(plan.meals.coachTargets.f) || 0 }
     : null;
@@ -359,12 +368,13 @@ function ClientNutritionPage() {
         { key: "meals", title: "Today's meals", size: "full", render: () => (
           <div data-tour="hero-nutrition" className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DNU_TEAL, paddingLeft: 24 }}>
             <DashMealLedgerCard
-              meals={meals} targets={targets} ledger={ledger} logged={{}}
+              meals={meals} targets={targets} ledger={ledger} logged={isToday && mealDay ? mealDay.logged : {}}
               onLog={() => { window.location.href = "ClientDashboard.html"; }}
               headerNote={pickedDay ? (pickedDay.title || (isToday ? "today" : DNU_DOW[pickedDow])) : null}
-              swapStorageKey={"shape.dashNutriSwap." + dnuIso(new Date()) + "." + pickedDow}
+              swaps={isToday && mealDay ? mealDay.swaps : {}} onSwap={isToday && mealDay ? mealDay.setSwap : undefined}
               interactive={isToday}
             />
+            {isToday && mealDay && mealDay.note && <div role="status" style={{ fontSize: 12, color: "var(--sh-rust, #e0644b)", marginTop: 6 }}>{mealDay.note}</div>}
             {(() => {
               // PREPPED stamps for the picked day's meals — exact title/id
               // match against fresh records only; nothing matched → nothing.

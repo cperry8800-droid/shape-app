@@ -35,6 +35,8 @@ import { bsProfileStreak, bsProfileWeek, bsProfileTrajectory, bsProfileLifts, bs
 import { BS_PREF_OPTIONS, bsPrefOptionLabel, bsPrefOptionDisplay, bsPrefOptionToken, bsGoalKind } from '../services/prefOptions.mjs';
 import { bsFirstRunStage, bsFirstRunNeedsSeed } from '../services/firstRun.mjs';
 import { bsUserGoalsRevHook, bsAnnounceUserGoals, BS_ACCOUNT_SETUP_KINDS } from '../services/userGoalsRefresh.mjs';
+import { changeRevHook } from '../services/changeSignal.mjs';
+import { readOnArrival } from '../services/chatRead.mjs';
 import { bsLiveEffort, BS_EFFORT_RAMP, BS_EFFORT_HRMAX } from '../services/liveEffort.mjs';
 import { bsAssignWeekLine, bsAssignDayLine, bsWeekUnits, bsWeekSpan } from '../services/planOutline.mjs';
 import { BS_BATCH_KEY, bsReadBatch, bsWriteBatch } from '../services/cookBatchResume.mjs';
@@ -3454,18 +3456,25 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // route sends training.read false when its workouts read failed; both look like no plan, so Week so
   // far calls an untrained day a rest day only once the plan was read (Codex P2s on #2449).
   const [planRead, setPlanRead] = useStateBSC(false);
+  // ⚠ READ AGAIN ON A CHANGE (changeSignal.mjs, P7): a coach's publish, a meal plan or a session
+  // notice, or the app coming back to the foreground. Home read the plan once per mount, so an open
+  // app showed last week's plan after the coach published. A plan taken away reads as none, once
+  // both halves of the read answered (a failed read keeps what Home had).
+  const homeChangeRev = useBSChangeRev(['training', 'meals', 'sessions', 'goals']);
   React.useEffect(() => {
     let on = true;
     if (window.ShapePlan?.get) {
       window.ShapePlan.get().then((p) => {
-        if (on && p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan))) setLivePlan(p);
+        const any = !!(p && ((p.training && p.training.hasPlan) || (p.meals && p.meals.hasPlan)));
+        if (on && any) setLivePlan(p);
+        else if (on && homeChangeRev && bsPlanPartRead(p, 'training') && bsPlanPartRead(p, 'meals')) setLivePlan(null);
         if (on && p) setPlanCoaches(bsHomeCoachesOf(p));
         if (on && bsHomeCoachesKnown(p)) setCoachesKnown(true);
         if (on && bsPlanPartRead(p, 'training')) setPlanRead(true);
       }).catch(() => {});
     }
     return () => { on = false; };
-  }, []);
+  }, [homeChangeRev]);
   // Signed in with no assigned plan → an EMPTY week (no workouts/meals/dots), NOT
   // the demo week. There are no coaches on Shape yet, so a real account shows its
   // real (empty) plan; the demo week is only the signed-out preview.
@@ -3490,7 +3499,23 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const pickIdx = pickedDay != null && pickedDay >= 0 && pickedDay < 7 ? pickedDay : todayIdx;
   const pickToday = pickIdx === todayIdx;
   const pickWorkout = pickToday ? selWorkout : (liveWeek ? liveWeek.workoutByIdx[pickIdx] : bsClientWorkoutForDay(pickIdx));
-  const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged this session
+  const [mealLogged, setMealLogged] = useStateBSC({});      // meal id → logged (this session, or on the account)
+  // ⚠ "✓ LOGGED" COMES FROM THE ACCOUNT (mealLogged.mjs, P7; the client audit's B3). A meal of today's
+  // plan logged on the website, in another session or by Nora reads ✓ here too: the meal-log route
+  // records each planned meal it logs, by Eat's own id (planMealId). Read on mount and on a change; a
+  // tick this session made stays (a free log carries no meal id), and a failed read changes nothing.
+  React.useEffect(() => {
+    if (!liveWeek || !window.ShapeMealLog?.day) return undefined;
+    let on = true;
+    window.ShapeMealLog.day(bsLocalDay(Date.now())).then((d) => {
+      if (!on || !d || !d.logged) return;
+      const today = liveWeek.mealsByIdx[todayIdx] || [];
+      const add = {};
+      today.forEach((m) => { if (m && m.planMealId && d.logged[m.planMealId]) add[m.id] = true; });
+      if (Object.keys(add).length) setMealLogged((prev) => ({ ...prev, ...add }));
+    }).catch(() => {});
+    return () => { on = false; };
+  }, [liveWeek, homeChangeRev]);
   const [loggingMealId, setLoggingMealId] = useStateBSC(null); // meal that opened the logger
   const [mealToLog, setMealToLog] = useStateBSC(null); // the meal object being logged → real title/macros/time into the logger
   const [stepsHistory, setStepsHistory] = useStateBSC(false); // STEPS door → BSStepsHistory overlay (Home now owns this; BSStepsCard's own copy was deleted with its mount)
@@ -3533,7 +3558,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       } catch (e) { /* honest: no engine move */ }
     })();
     return () => { on = false; };
-  }, []);
+  }, [homeChangeRev]);
   const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
@@ -3577,7 +3602,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       setCheckinDue(!(rows || []).some((r) => String(r.week_of) === wk));
     }).catch(() => {});
     return () => { on = false; };
-  }, []);
+  }, [homeChangeRev]);
   const [showLogActivity, setShowLogActivity] = useStateBSC(false);
   const [showMood, setShowMood] = useStateBSC(false);
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
@@ -3653,7 +3678,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       .then(d => { if (d) { if (d.ticker) setTicker(d.ticker); setAnalytics(d); } })
       .catch(() => {});
   }, []);
-  React.useEffect(() => { refreshAnalytics(); }, [refreshAnalytics]);
+  React.useEffect(() => { refreshAnalytics(); }, [refreshAnalytics, homeChangeRev]);
 
   // Today's Shape Score additions for the home "Score" chip. Sums the score
   // ledger entries earned *today* (local day) so the chip reflects what's been
@@ -3672,7 +3697,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [homeChangeRev]);
 
   // Per-day logs + week-strip dots are both derived from the SHARED client demo
   // week (bsClientWeekDemo.js) — the same source the month calendar uses — so the
@@ -5185,7 +5210,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Pull the client's assigned OR self-authored plan. A self-save/program lands
   // in the same table, so a rebuild after saving picks it up. On no plan for a
   // signed-in member, the Build-your-week door renders (below).
-  const loadPlan = React.useCallback(async () => {
+  // `keepDay`: a read on a change (a coach's publish, the foreground) leaves the day the member is
+  // looking at where it is; only the first read lands on today.
+  const loadPlan = React.useCallback(async ({ keepDay = false } = {}) => {
     try {
       window.ShapeMetrics?.invalidate?.();
       const p = await window.ShapePlan?.get?.();
@@ -5194,7 +5221,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
       setPlanFailed(!read);
       // A failed read keeps the plan an earlier read found (a reload after a builder save).
       if (!read) return;
-      if (p.training.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); setDay(bsWeekdayIdx()); }
+      if (p.training.hasPlan) { setLiveWorkouts(p.training.workouts); setLiveTrainCoach(p.training.coach || null); if (!keepDay) setDay(bsWeekdayIdx()); }
       else { setLiveWorkouts(null); setLiveTrainCoach(null); }
     } catch (e) { setPlanFailed(true); }
     finally { setPlanLoaded(true); }
@@ -5204,6 +5231,9 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
     try { await loadPlan(); } finally { setPlanRetrying(false); }
   };
   React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })(); return () => { cancelled = true; }; }, []);
+  // A coach's publish while Train is open, or the app back in the foreground (changeSignal.mjs, P7).
+  const trainChangeRev = useBSChangeRev(['training']);
+  React.useEffect(() => { if (trainChangeRev) loadPlan({ keepDay: true }); }, [trainChangeRev]);
 
   // ⚠ THE BUILT WEEK IS DERIVED, NEVER STORED. bsBuildTrainProgram bakes tr()
   // output (kicker, titles, tags, the rest-day copy) into every day, and the
@@ -11268,6 +11298,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
   const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
   const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
+  // A nutritionist's new plan while Eat is open, a swap made on the website, or the app back in the
+  // foreground (changeSignal.mjs, P7): the plan, the swaps and the day plan are read again past the
+  // cache, leaving the day the member is looking at where it is.
+  const eatChangeRev = useBSChangeRev(['meals']);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -11275,7 +11309,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       if (!cancelled && saved && typeof saved === 'object') setMealOverrides(saved);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [eatChangeRev]);
   // The member's own day plan (Phase 2, mealDays.mjs): meals they planned for today or tomorrow and a
   // morning's swap. null until it is read, and while a read has failed: then nothing of it is drawn
   // and nothing offers to write it, so a failed read is never shown as "nothing planned". A write
@@ -11302,7 +11336,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     const onSaved = (e) => { if (e && e.detail && typeof e.detail === 'object') setMyDays(e.detail); };
     window.addEventListener('shape:dayPlanSaved', onSaved);
     return () => { cancelled = true; window.removeEventListener('shape:dayPlanSaved', onSaved); };
-  }, []);
+  }, [eatChangeRev]);
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
   const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
@@ -11400,7 +11434,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       let read = false;
       try {
         // Try again reads past the 60-second cache, which keeps the failed answer.
-        if (eatPlanReads) window.ShapeMetrics?.invalidate?.();
+        if (eatPlanReads || eatChangeRev) window.ShapeMetrics?.invalidate?.();
         const p = await window.ShapePlan?.get?.();
         read = bsPlanPartRead(p, 'meals');
         if (!cancelled) setEatCoaching(p && p.meals && 'coaching' in p.meals ? (p.meals.coaching || null) : undefined);
@@ -11408,13 +11442,13 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         setLiveMealDays(p.meals.days);
         setLiveMealCoach(p.meals.coach || null);
         setLiveMealTitle(p.meals.title || null);
-        setDay(bsWeekdayIdx());
+        if (!eatChangeRev) setDay(bsWeekdayIdx());
       } catch (e) { /* keep demo menu */ } finally {
         if (!cancelled) { setEatPlanRead(read); setEatPlanFailed(!read); setEatPlanRetrying(false); }
       }
     })();
     return () => { cancelled = true; };
-  }, [eatPlanReads]);
+  }, [eatPlanReads, eatChangeRev]);
 
   // ⚠ THE BUILT MENU IS DERIVED, NEVER STORED — the Train twin of this defect,
   // one tab over. buildMealProgram bakes tr() output (kicker, title, headline,
@@ -22509,7 +22543,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       .then(res => { const list = (res && Array.isArray(res.data)) ? res.data : (Array.isArray(res) ? res : []); if (list.length) setCoachThreads(list); })
       .catch(() => {});
   }, []);
-  React.useEffect(() => { loadCoachThreads(); }, [loadCoachThreads]);
+  // A message or a new coach while the list is open, or the app back in view (changeSignal.mjs, P7).
+  const threadsChangeRev = useBSChangeRev(['messages', 'clients']);
+  React.useEffect(() => { loadCoachThreads(); }, [loadCoachThreads, threadsChangeRev]);
   const _threadPalette = ['#147b68', '#c0533b', '#a07a2e', '#2e6fa0', '#8a5cf6'];
   // A coach's own client threads come back marked `as_coach` (named after the client). A member
   // view never lists them: an account that both coaches and is coached reads its clients' threads
@@ -24590,6 +24626,8 @@ const BS_SETUP_REFUSED = {
 // profile's climb, a coach's own profile, and (in their own modules) Home's goal, Goals and the
 // coach page.
 const useBSUserGoalsRev = bsUserGoalsRevHook(React);
+// A number that moves when a notice or the foreground says what a screen shows has changed (P7).
+const useBSChangeRev = changeRevHook(React);
 const BS_PREF_KINDS = ['client_training_prefs', 'client_nutrition_prefs'];
 const BS_GOALS_KINDS = ['client_goals'];
 const BS_SETTINGS_KINDS = ['client_settings'];
@@ -25349,8 +25387,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // dm_unread(), and the badge came back after a reload. Marked here, where every opener lands.
   React.useEffect(() => {
     // Out of sight (a notification can open it before the app is in view): read once it is (Codex P2 on #2565).
-    if (thread.conversationId && bsPageHidden()) unreadWhileHiddenRef.current = true;
-    else if (thread.conversationId) announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
+    // The rule is the website's too (chatRead.mjs, P7).
+    const what = readOnArrival({ isOpenThread: !!thread.conversationId, fromOther: true, hidden: bsPageHidden() });
+    if (what === 'wait') unreadWhileHiddenRef.current = true;
+    else if (what === 'read') announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
   }, [thread.conversationId]);
   React.useEffect(() => {
     setHistory(null);
@@ -25486,14 +25526,15 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         if (!row || row.conversation_id !== thread.conversationId || row.sender_id === myId) return;
         // Shape's welcome is shown as a note, and the thread is open, so it is read like any other
         // message (dm_unread counts it: it is not the viewer's).
-        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', at: row.created_at || null, me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); if (bsPageHidden()) unreadWhileHiddenRef.current = true; else announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId)); return; }
+        if (isShapeWelcome(row)) { setExtras(e => [...e, { id: row.id || null, who: 'Shape', t: row.body, time: 'now', at: row.created_at || null, me: false, shape: { body: row.body, sender_id: null, metadata: row.metadata } }]); if (readOnArrival({ isOpenThread: true, fromOther: true, hidden: bsPageHidden() }) === 'wait') unreadWhileHiddenRef.current = true; else announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId)); return; }
         // Carry the live-boost stamp on realtime appends too — a boost landing
         // while this thread is OPEN (the time-sensitive case) must render with
         // its eyebrow immediately, not only after a reload re-maps metadata.
         setExtras(e => [...e, { id: row.id || null, who: thread.who || 'Member', t: row.body, time: 'now', at: row.created_at || null, me: false, userId: row.sender_id || null, boost: (row.metadata && row.metadata.kind === 'live_boost' && (row.metadata.activity === 'cooking' || row.metadata.activity === 'workout')) ? row.metadata.activity : null, coachInvite: (row.metadata && row.metadata.kind === 'coach_invite' && row.metadata.providerId != null) ? { role: row.metadata.role === 'nutritionist' ? 'nutritionist' : 'trainer', providerId: Number(row.metadata.providerId), name: String(row.metadata.name || 'Your coach') } : null, grocery: bsGroceryFromMetadata(row.metadata), reply: bsReplyFromMetadata(row.metadata), voice: bsVoiceFromMetadata(row.metadata, { kind: 'dm', threadId: thread.conversationId, senderId: row.sender_id }) }]);
         if (row.sender_id) window.ShapeThreadSignals?.typing?.(sigKey, { userId: row.sender_id, on: false }); // they sent it: no longer typing
-        // Read while open and in view: stored, then announced, so their Sent turns to Seen.
-        if (bsPageHidden()) unreadWhileHiddenRef.current = true;
+        // Read while open and in view: stored, then announced, so their Sent turns to Seen (chatRead.mjs,
+        // the website's rule too).
+        if (readOnArrival({ isOpenThread: true, fromOther: true, hidden: bsPageHidden() }) === 'wait') unreadWhileHiddenRef.current = true;
         else announceRead(window.ShapeUnread?.markConversationRead?.(thread.conversationId));
       });
     }

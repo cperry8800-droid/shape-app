@@ -54,7 +54,8 @@ test('the route says when its workouts read or its meal plan read failed', () =>
 
 // Train's loader, run as it ships with stand-ins for its setters and the plan read.
 function trainLoader(answer) {
-  const body = slice(client, '  const loadPlan = React.useCallback(async () => {', '  React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })();');
+  // `keepDay` (P7): a read on a change leaves the member's day where it is.
+  const body = slice(client, '  const loadPlan = React.useCallback(async ({ keepDay = false } = {}) => {', '  React.useEffect(() => { let cancelled = false; (async () => { if (!cancelled) await loadPlan(); })();');
   const state = { workouts: 'before', failed: null, loaded: false, invalidated: 0 };
   const win = { ShapeMetrics: { invalidate: () => { state.invalidated++; } }, ShapePlan: { get: async () => (typeof answer === 'function' ? answer() : answer) } };
   const React = { useCallback: (f) => f };
@@ -97,8 +98,9 @@ async function eatLoad(answer, reads = 0) {
   const win = { ShapeMetrics: { invalidate: () => { state.invalidated++; } }, ShapePlan: { get: async () => answer } };
   const React = { useEffect: (f) => { f(); } };
   const set = (k) => (v) => { state[k] = v; if (k === 'retrying') done(); };
-  new Function('React', 'window', 'bsPlanPartRead', 'eatPlanReads', 'setEatCoaching', 'setLiveMealDays', 'setLiveMealCoach', 'setLiveMealTitle', 'setDay', 'bsWeekdayIdx', 'setEatPlanRead', 'setEatPlanFailed', 'setEatPlanRetrying', fx)(
-    React, win, bsPlanPartRead, reads, set('coaching'), set('days'), () => {}, () => {}, () => {}, () => 0, set('read'), set('failed'), set('retrying'));
+  // `eatChangeRev` (P7): a notice or the foreground reads past the cache too; 0 on the first read.
+  new Function('React', 'window', 'bsPlanPartRead', 'eatPlanReads', 'eatChangeRev', 'setEatCoaching', 'setLiveMealDays', 'setLiveMealCoach', 'setLiveMealTitle', 'setDay', 'bsWeekdayIdx', 'setEatPlanRead', 'setEatPlanFailed', 'setEatPlanRetrying', fx)(
+    React, win, bsPlanPartRead, reads, 0, set('coaching'), set('days'), () => {}, () => {}, () => {}, () => 0, set('read'), set('failed'), set('retrying'));
   await finished;
   return state;
 }

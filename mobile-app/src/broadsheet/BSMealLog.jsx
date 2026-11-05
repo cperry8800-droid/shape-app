@@ -707,7 +707,10 @@ export function BSLogMealFlow({ onClose, onLogged = () => {}, meal = null, daySo
     // (Home's Team fuel, Codex P2 on #2583).
     let write = null;
     try {
-      const r = window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F });
+      // A meal of the member's plan carries its key (Eat's id), so the account records it as logged and
+      // never counts it twice, whichever surface logs it (mealLogged.mjs, P7). A free log has none.
+      const mealId = meal && meal.planMealId ? String(meal.planMealId) : null;
+      const r = window.ShapeMealLog?.log?.({ kcal, protein: P, carbs: C, fat: F, ...(mealId ? { mealId, mealTitle } : {}) });
       if (r && typeof r.then === 'function') {
         write = r;
         r.then((d) => (d && d.awardPromise) || null)

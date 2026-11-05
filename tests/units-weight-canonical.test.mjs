@@ -154,7 +154,13 @@ test('the weigh-in table is written in kilograms by every caller', () => {
   // Two writers filled this column in different units and nothing reconciled
   // them. Both must now hand `logWeighIn` a unit it will canonicalise, and the
   // upsert itself must stamp kg — otherwise the mixing simply resumes.
-  assert.match(backendSrc, /logged_on: today, weight: w, unit: 'kg'/,
+  // The row is written by /api/client/weigh-in now (P7): the app hands it kilograms, and the route
+  // converts what it is given and stamps kilograms on the row.
+  assert.match(backendSrc, /const body = \{ weight: w, unit: 'kg', date: _localDate\(\) \};/,
+    'the app must send kilograms');
+  const routeSrc = readFileSync(new URL('../src/app/api/client/weigh-in/route.ts', import.meta.url), 'utf8');
+  assert.match(routeSrc, /const kg = weighInKg\(body\.weight, body\.unit\);/, 'the route must canonicalise');
+  assert.match(routeSrc, /\{ user_id: user\.id, logged_on: day, weight: kg, unit: 'kg' \}/,
     'the upsert must stamp kilograms');
   assert.match(backendSrc, /const w = _weighInToKg\(weight, unit\);/,
     'the write must canonicalise before it stores');
