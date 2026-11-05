@@ -70,6 +70,12 @@ const CST_COACH_TYPES = [
   ["new_client", "New clients", "When someone signs up with you"],
   // A client of yours hired another coach, or you were hired by one who has (coach-thread.ts tellSharedCoaches).
   ["shared_client", "Shared clients", "When a client of yours also hires another coach"],
+  // A client sent their weekly check-in (the client_checkins trigger, 2026-11-05-coach-notices.sql).
+  ["checkin_submitted", "Check-ins received", "When a client sends their weekly check-in"],
+  // A co-coach changed a shared client's plan (src/lib/care-team.ts, posted to the care-team thread).
+  ["care_team_handoff", "Care-team hand-offs", "When a co-coach changes a shared client's plan"],
+  // A PR, a goal reached or a streak milestone (/api/cron/client-wins); within your daily push limit.
+  ["client_win", "Client wins", "A PR, a goal reached, a streak milestone"],
   ["sessions", "Sessions", "Requests, payments and cancellations"],
   ["payments", "Payments", "Sales and monthly renewals"],
   ["credentials", "Credentials", "Verified, a fix needed, or a renewal due"],
@@ -78,14 +84,11 @@ const CST_COACH_TYPES = [
 ];
 // The registry's coach types, which this panel must cover in full — the extra entries
 // above are preference-gated sends that never become candidates.
-// ⚠ `checkin_submitted` IS IN THE REGISTRY AND IS NOT HERE, BECAUSE NOTHING SENDS IT.
-// `coachCandidates` emits only client_red / client_amber, and a repo-wide search finds
-// no event-driven creator either — so all three of its switches were inert while the
-// panel presented them as governed controls, which is the exact failure this file's
-// header rails against. Registered rather than wired: giving check-in submissions a
-// notification is a feature, not a settings fix. (The MOBILE coach settings still list
-// it — same inert row, registered too.)
-const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber"];
+// `checkin_submitted` is in the registry and, since 2026-11-05, sent: a trigger on
+// client_checkins tells every coach on the client (2026-11-05-coach-notices.sql). Its row
+// is in the list above; it was left out while nothing sent it, because a switch that
+// governs nothing is the failure this file's header rails against.
+const CST_REGISTRY_COACH_TYPES = ["client_red", "client_amber", "checkin_submitted"];
 
 function cstCard(children, extra) {
   return (

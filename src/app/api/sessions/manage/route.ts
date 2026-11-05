@@ -26,6 +26,7 @@ import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { videoRoomUrl } from '@/lib/video';
 import { createNotification } from '@/lib/notify';
+import { tellCoachClientCancelled } from '../../../../lib/client-cancel-notice.mjs';
 import { atTime, np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { afterSessionStep, type SessionForEmail } from '@/lib/session-emails';
 import { linkPaidSession, openPaidSessions } from '@/lib/paid-sessions';
@@ -536,6 +537,10 @@ async function runFollowing(o: {
   if (o.action === 'cancel') {
     const { error: updErr } = await o.supabase.from('sessions').update({ status: 'cancelled' }).in('id', ids);
     if (updErr) return dbError(updErr, 'session run cancel', 500);
+    // The member cancelled the rest of their own run: the coach hears it once, from its first booking.
+    if (!o.isCoach && o.session.client_id === o.userId) {
+      await tellCoachClientCancelled(createAdminClient(), { ...o.session, id: run[0].id, scheduled_at: run[0].scheduled_at }, { count: run.length, notify: createNotification });
+    }
     await notify(run.length === 1 ? 'Session cancelled' : 'Sessions cancelled', 'session_cancelled',
       (when) => run.length === 1 ? `Your coach cancelled your session on ${when}.` : `Your coach cancelled ${run.length} sessions, from ${when} on.`, run[0].scheduled_at,
       run.length === 1 ? { title: 'session.cancelled.title', body: 'session.cancelled.body' } : { title: 'session.cancelledMany.title', body: 'session.cancelledMany.body', count: run.length });
@@ -780,6 +785,13 @@ export async function POST(request: Request) {
     } catch {
       /* best-effort */
     }
+  }
+
+  // ⚠ A MEMBER'S OWN CANCEL TOLD NOBODY (owner, 2026-11-05): the coach found the slot open by looking.
+  // The coach hears it now, on their own clock, under their Sessions switch (client-cancel-notice.ts).
+  // Only when this write moved the booking off a live status: a repeat cancel tells nobody again.
+  if (action === 'cancel' && isClient && !isCoach && (statusBefore === 'requested' || statusBefore === 'confirmed')) {
+    await tellCoachClientCancelled(createAdminClient(), session, { notify: createNotification });
   }
 
   // The member's email after a confirm (the time, the call link, a calendar invite), and the one

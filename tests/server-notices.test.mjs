@@ -175,6 +175,8 @@ const WRITERS = [
   'src/app/api/cron/score-accountability/route.ts', 'src/app/dashboard/credentials/actions.ts', 'src/app/api/cron/credential-expiry/route.ts',
   'src/lib/workout-share.ts', 'src/app/api/nutritionist/meal-plan/route.ts', 'src/lib/ai/notifications.mjs', 'src/app/api/push/dispatch/route.ts',
   'mobile-app/src/services/noticeCopy.mjs',
+  // A coach's P5 notices: a member's own cancel, a care-team hand-off line, a client's win.
+  'src/lib/client-cancel-notice.mjs', 'src/lib/handoff.mjs', 'src/lib/client-wins.mjs',
 ];
 const BUILT = [
   ...['weighIn', 'checkin', 'morning', 'water', 'photo', 'custom'].flatMap((k) => [`reminder.${k}.title`, `reminder.${k}.body`]),
@@ -190,6 +192,12 @@ const BUILT = [
   ...['body', 'bodyAnon', 'bodyList', 'bodyListAnon'].map((k) => `grocery.ready.${k}`),
   // Written by a migration's trigger (listing_time_requests_tell, 2026-10-29-listing-time-requests.sql).
   'listingJoined.title', 'listingJoined.body',
+  // Written by a migration's trigger (notify_coaches_on_checkin, 2026-11-05-coach-notices.sql).
+  'checkin.received.title', 'checkin.received.body', 'checkin.received.bodyQuestion',
+  // The hand-off line's parts, built from the change (src/lib/handoff.mjs).
+  ...['cal', 'p', 'c', 'f'].map((k) => `handoff.metric.${k}`),
+  ...['training', 'rest', 'all'].map((k) => `handoff.days.${k}`),
+  ...['deload', 'maintain', 'progress'].map((k) => `handoff.mode.${k}`),
 ];
 
 test('every key a writer names is in the catalog, and every catalog key is named', () => {
@@ -266,6 +274,9 @@ test('every notice reads cleanly in every language: no brace left, no shaming, t
     slot: phrase('prep.slot.dinner'), days: listOf([weekdayOf(0), weekdayOf(4)]), list: 'Costco', what: phrase('payment.aProgram'),
     topic: 'Knee pain', state: 'CA', tier: 'Form', activity: phrase('activity.hike'), site: 'theshapecommunity.com',
     time: '0:12',
+    // A care-team hand-off and a client's win (2026-11-05).
+    metric: phrase('handoff.metric.c'), from: 160, to: 190, unit: 'g', plan: 'Hypertrophy Reset', mode: phrase('handoff.mode.deload'),
+    move: 'Back squat', value: '245 lb', goal: 'Bodyweight',
   };
   const argsOf = (v) => [...new Set([...v.matchAll(/\{\s*([A-Za-z_]\w*)\s*[,}]/g)].map((m) => m[1]))];
   for (const loc of ACTIVE_LOCALES) {
@@ -278,7 +289,7 @@ test('every notice reads cleanly in every language: no brace left, no shaming, t
         assert.ok(said, `${loc} ${key} says nothing`);
         assert.doesNotMatch(said, /[{}]/, `${loc} ${key}`);
         assert.equal(containsShaming(said), false, `${loc} ${key}: ${said}`);
-        for (const a of ['name', 'coach', 'client', 'habit', 'recipe', 'topic', 'state', 'list']) {
+        for (const a of ['name', 'coach', 'client', 'habit', 'recipe', 'topic', 'state', 'list', 'plan', 'move', 'goal', 'value']) {
           if (a in vars) assert.ok(said.includes(SAMPLE[a]), `${loc} ${key} drops {${a}}: ${said}`);
         }
       }

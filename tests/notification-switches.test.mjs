@@ -67,8 +67,14 @@ test('the app and the website offer the same switches, and every switch a sent k
   // A member's and a coach's own kinds are on their own list.
   for (const k of ['coach_message', 'direct_message', 'coach_content', 'sessions', 'score_drop', 'follows', 'payments', 'account']) assert.ok(appMember.includes(k), `member: ${k}`);
   for (const k of ['client_red', 'client_amber', 'client_message', 'direct_message', 'new_client', 'sessions', 'payments', 'credentials', 'follows', 'waitlist_join', 'account']) assert.ok(appCoach.includes(k), `coach: ${k}`);
-  // Nothing sends checkin_submitted, so its switch changed nothing: offered nowhere.
-  assert.ok(!offered.has('checkin_submitted') && !webCoach.includes('checkin_submitted'));
+  // A check-in, a co-coach's plan change and a client's win are sent since 2026-11-05 (the
+  // client_checkins and messages triggers, /api/cron/client-wins): each has its switch on both screens.
+  for (const k of ['checkin_submitted', 'care_team_handoff', 'client_win']) {
+    assert.ok(appCoach.includes(k) && webCoach.includes(k), `coach: ${k}`);
+    assert.ok(!appMember.includes(k) && !webMember.includes(k), `a member is offered ${k}`);
+  }
+  // A member cancelling answers to the coach's Sessions switch.
+  assert.equal(preferenceTypeFor('client_cancelled'), 'sessions');
   assert.match(typesBlock, /\['score_drop', 'Shape Score', 'When it dips, and your weekly commitment'\]/);
 });
 

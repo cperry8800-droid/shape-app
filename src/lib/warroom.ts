@@ -206,6 +206,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/cron/prep-reminders', 'GET,POST'],
   ['/api/cron/nora-sets', 'GET,POST'],
   ['/api/cron/habit-watch', 'GET'],
+  ['/api/cron/client-wins', 'GET,POST'],
   ['/api/analytics/track', 'POST'],
   ['/api/analytics/clicks', 'POST'],
   ['/api/analytics/radio-listen', 'POST'],

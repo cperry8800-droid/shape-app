@@ -543,7 +543,7 @@ test('a reschedule onto another booking is refused server-side, and nudging with
   assert.equal(new Date(tables.sessions[0].scheduled_at).toISOString(), '2026-10-08T14:15:00.000Z');
 });
 
-test('a coach\'s cancel tells the member; a member\'s own cancel tells nobody', async () => {
+test('a coach\'s cancel tells the member; a member\'s own cancel tells the coach (P5), never the member', async () => {
   const tables = world({ sessions: [sess('s-1', '2026-10-08T14:00:00+00:00', { client_id: 'member-1' })] });
   const byCoach = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 's-1' }, { tables, user: COACH });
   assert.equal(byCoach.status, 200);
@@ -552,7 +552,14 @@ test('a coach\'s cancel tells the member; a member\'s own cancel tells nobody', 
   const tables2 = world({ sessions: [sess('s-1', '2026-10-08T14:00:00+00:00', { client_id: 'member-1' })] });
   const byMember = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 's-1' }, { tables: tables2, user: MEMBER });
   assert.equal(byMember.status, 200);
-  assert.equal(byMember.notices.length, 0);
+  // ⚠ IT TOLD NOBODY (owner, 2026-11-05): the coach now hears it, on the coach's own clock, under Sessions.
+  assert.equal(byMember.notices.length, 1);
+  assert.deepEqual([byMember.notices[0].userId, byMember.notices[0].type, byMember.notices[0].route], ['coach-1', 'client_cancelled', 'schedule']);
+  assert.match(byMember.notices[0].body, /cancelled their session on Thu, Oct 8, 10:00 AM\.$/);
+  assert.equal(byMember.notices[0].data.dedupe, 'client-cancel:s-1');
+  // A second cancel of the same booking moves nothing and tells nobody again.
+  const again = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 's-1' }, { tables: tables2, user: MEMBER });
+  assert.equal(again.notices.length, 0);
 });
 
 const ask = (body, opts) => post('request', '/api/sessions/request', { providerRole: 'trainer', providerId: 7, scheduledAt: '2026-10-08T14:00:00.000Z', durationMin: 60, ...body }, { user: MEMBER, ...opts });
@@ -758,12 +765,14 @@ test('cancel "this and following" cancels this booking and every later one of it
   assert.equal(r.body.series.count, 3);
   assert.equal(r.notices.length, 1);
   assert.match(r.notices[0].body, /^Your coach cancelled 3 sessions, from .+ on\.$/);
-  // The member may cancel the rest of their own run too, and is not told about their own act.
+  // The member may cancel the rest of their own run too: their coach is told once, the member never.
   const t2 = world({ sessions: runOf(3) });
   const mine = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 'r1', scope: 'following' }, { tables: t2, user: MEMBER });
   assert.equal(mine.status, 200, JSON.stringify(mine.body));
   assert.ok(t2.sessions.every((x) => x.status === 'cancelled'));
-  assert.equal(mine.notices.length, 0);
+  assert.equal(mine.notices.length, 1);
+  assert.deepEqual([mine.notices[0].userId, mine.notices[0].type], ['coach-1', 'client_cancelled']);
+  assert.match(mine.notices[0].body, / cancelled 3 sessions, from .+ on\.$/);
   // A single booking has no "following".
   const single = await post('manage', '/api/sessions/manage', { action: 'cancel', sessionId: 's-1', scope: 'following' }, { tables: world({ sessions: [sess('s-1', '2026-10-08T14:00:00.000Z')] }), user: COACH });
   assert.equal(single.status, 400);

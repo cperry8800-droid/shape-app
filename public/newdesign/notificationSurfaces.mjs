@@ -55,7 +55,7 @@ export const emailOnByDefault = (type) => EMAIL_ON_BY_DEFAULT.includes(type);
 // push (/api/push/dispatch), the app's list and the website's bell (/api/notifications) and the
 // app's toast. A type not listed answers to its own name, which is the switch for every
 // preference-aware writer's type (waitlist_invite, tier_up, meal_prep, friend_habit, new_client,
-// shared_client, the AI's). The reminders a member sets (reminder_*) are switched one by one where
+// shared_client, the AI's, and a coach's checkin_submitted, care_team_handoff and client_win). The reminders a member sets (reminder_*) are switched one by one where
 // they are set.
 // ⚠ EVERY KIND A PERSON CAN RECEIVE HAS A SWITCH (owner, 2026-10-26: "make sure users have the ability
 // to customize/toggle which notifications they want"): tests/notification-switches.test.mjs holds the
@@ -75,6 +75,9 @@ export const PREFERENCE_OF = Object.freeze({
   session_declined: 'sessions',
   session_rescheduled: 'sessions',
   session_cancelled: 'sessions',
+  // A member cancelled their own booking: the coach's notice (sessions/manage), under the Sessions
+  // switch, whose help says "cancellations".
+  client_cancelled: 'sessions',
   session_paid: 'sessions',
   intro_followup: 'sessions',
   booking_request: 'sessions',

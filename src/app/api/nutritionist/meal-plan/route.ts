@@ -17,9 +17,28 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notify';
 import { np } from '../../../../../mobile-app/src/services/noticeCopy.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { tellCareTeam } from '../../../../lib/care-team.mjs';
+import { mealPlanHandoff } from '../../../../lib/handoff.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+async function tellCareTeamOfMenu(
+  supabase: SupabaseClient,
+  a: { clientId: string; actorId: string; title: string; weekStart: string | null; days: unknown[]; prev: { title?: string | null; payload?: { days?: unknown } | null } | null },
+): Promise<void> {
+  try {
+    const from = a.weekStart && /^\d{4}-\d{2}-\d{2}$/.test(a.weekStart) ? a.weekStart : new Date().toISOString().slice(0, 10);
+    const prevDays = a.prev && a.prev.payload && Array.isArray(a.prev.payload.days) ? (a.prev.payload.days as unknown[]) : null;
+    await tellCareTeam(supabase, {
+      clientId: a.clientId, actorId: a.actorId, role: 'nutritionist',
+      compose: ({ coach, client }) => mealPlanHandoff({ coach, client, plan: a.title, prevDays, prevTitle: a.prev?.title ?? null, nextDays: a.days, from }),
+    });
+  } catch (e) {
+    console.error('[shape-api] meal plan hand-off failed:', e instanceof Error ? e.message : e);
+  }
+}
 
 export async function POST(request: Request) {
   const user = await currentUser(request);
@@ -79,6 +98,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // The menu this one replaces, read before it is retired: the care-team hand-off names the targets
+  // that moved (src/lib/handoff.mjs). A read that fails only costs the line its detail.
+  // Publishing archives the one before, so there is at most one; the newest wins if a race left two.
+  let prevPlan: { title?: string | null; payload?: { days?: unknown } | null } | null = null;
+  try {
+    const { data: prevRows } = await supabase
+      .from('client_meal_plans')
+      .select('title, payload, created_at')
+      .eq('nutritionist_id', nutriRow.id)
+      .eq('client_id', clientId)
+      .eq('status', 'published');
+    prevPlan = ((Array.isArray(prevRows) ? prevRows : []) as { title?: string | null; payload?: { days?: unknown } | null; created_at?: string | null }[])
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))[0] ?? null;
+  } catch {
+    prevPlan = null;
+  }
+
   // Retire the client's current published plan from this nutritionist.
   await supabase
     .from('client_meal_plans')
@@ -123,6 +159,9 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error('[shape-api] meal plan notice failed:', e instanceof Error ? e.message : e);
   }
+  // A shared client's other coaches hear what changed, in their care-team thread (src/lib/care-team.ts).
+  // Best-effort and after the write: the plan is live whatever happens here.
+  await tellCareTeamOfMenu(supabase, { clientId, actorId: user.id, title, weekStart, days, prev: prevPlan });
   // The "not medical advice" / individualized-care disclaimer rides on every
   // assignment, plus a warning if compliance is in observe-only (not enforced) mode.
   return NextResponse.json({

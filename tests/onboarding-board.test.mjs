@@ -460,8 +460,11 @@ test('the week-one route writes the coach\'s own discipline through set_program_
   const { post, calls } = await weekOneRoute();
   const ok = await post(A, { role: 'trainer', count: 4, startsOn: '2026-10-20' });
   assert.equal(ok.status, 200);
-  assert.equal(calls.length, 1);
-  const [name, args] = calls[0];
+  // The write, then the care-team read for the hand-off a shared client's other coaches get (P5).
+  const writes = () => calls.filter((c) => c[0] === 'set_program_detail');
+  assert.equal(writes().length, 1);
+  assert.deepEqual(calls.map((c) => c[0]), ['set_program_detail', 'get_client_coaches']);
+  const [name, args] = writes()[0];
   assert.equal(name, 'set_program_detail');
   assert.equal(args.p_client_id, A);
   assert.equal(args.p_discipline, 'training');
@@ -469,8 +472,10 @@ test('the week-one route writes the coach\'s own discipline through set_program_
   assert.deepEqual({ ...args.p_detail.weekOne, setAt: 'x' }, { count: 4, startsOn: '2026-10-20', setAt: 'x', setBy: 'coach', providerId: 7 }, 'the listing that set it rides with it (Codex on #2378)');
   const nutri = await post(A, { role: 'nutritionist', count: null });
   assert.equal(nutri.status, 200);
-  assert.equal(calls[1][1].p_discipline, 'nutrition');
-  assert.equal(calls[1][1].p_detail.weekOne, null, 'null clears it');
+  assert.equal(writes()[1][1].p_discipline, 'nutrition');
+  assert.equal(writes()[1][1].p_detail.weekOne, null, 'null clears it');
+  // A target cleared says nothing to the care team.
+  assert.equal(calls.filter((c) => c[0] === 'get_client_coaches').length, 1);
 });
 
 test('the week-one route refuses the client themselves, bad input, and a caller who is not that coach', async () => {

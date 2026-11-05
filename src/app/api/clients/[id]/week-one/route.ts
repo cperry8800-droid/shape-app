@@ -24,6 +24,8 @@ import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson, dbError } from '@/lib/request-utils';
 import { OPEN_SUB_STATUSES } from '../../../../../lib/coach-trajectory.mjs';
+import { tellCareTeam } from '../../../../../lib/care-team.mjs';
+import { weekOneHandoff } from '../../../../../lib/handoff.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -112,6 +114,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: `You don't coach this client as their ${role}.` }, { status: 403 });
     }
     return dbError(error, 'week-one target write', 500);
+  }
+  // A shared client's other coaches hear the new target in their care-team thread. Best-effort.
+  if (target) {
+    try {
+      const count = target.count;
+      await tellCareTeam(supabase, {
+        clientId, actorId: user.id, role,
+        compose: ({ coach, client }) => weekOneHandoff({ coach, client, role, count }),
+      });
+    } catch (err) {
+      console.error('[shape-api] week-one hand-off failed:', err instanceof Error ? err.message : err);
+    }
   }
   return NextResponse.json({ ok: true, weekOne });
 }

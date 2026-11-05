@@ -28,6 +28,9 @@ import { BS_WEEK_SESSION_MAX } from '@/lib/week-publish.mjs';
 import { bsWeekStartOf } from '@/lib/week-merge.mjs';
 import { publishMergedWeekForClient, type PublishResult } from '@/lib/week-publish-server';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { tellCareTeam } from '../../../../lib/care-team.mjs';
+import { programHandoff } from '../../../../lib/handoff.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,6 +46,20 @@ function keyFor(seed: string): string {
 function addDays(iso: string, n: number): string {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+async function tellCareTeamOfProgram(
+  supabase: SupabaseClient,
+  a: { clientId: string; actorId: string; plan: string; from: string; key: string },
+): Promise<void> {
+  try {
+    await tellCareTeam(supabase, {
+      clientId: a.clientId, actorId: a.actorId, role: 'trainer', dedupe: a.key,
+      compose: ({ coach, client }) => programHandoff({ coach, client, plan: a.plan, from: a.from }),
+    });
+  } catch (e) {
+    console.error('[shape-api] program hand-off failed:', e instanceof Error ? e.message : e);
+  }
 }
 
 export async function POST(request: Request) {
@@ -208,6 +225,20 @@ export async function POST(request: Request) {
         user.id, clientId, weekStartISO, JSON.stringify(sessions),
       ].join('\u0000')),
     }));
+  }
+
+  // A program's first week landing on a shared client: the other coaches hear it in their care-team
+  // thread (src/lib/care-team.ts). Keyed on the program and its start, so the line goes up once.
+  const startsProgram = incoming
+    .map((s) => s.payload.template as { id?: unknown; name?: unknown; week?: unknown } | undefined)
+    .find((t) => t && typeof t === 'object' && Number(t.week) === 1 && String(t.name || '').trim());
+  if (startsProgram) {
+    const from = incoming.map((s) => s.scheduledDate).filter(Boolean).sort()[0] || weekStartISO;
+    const plan = String(startsProgram.name).trim();
+    for (const r of results) {
+      if (r.status !== 'accepted') continue;
+      await tellCareTeamOfProgram(supabase, { clientId: String(r.clientId), actorId: user.id, plan, from, key: `program:${String(startsProgram.id || plan)}:${from}` });
+    }
   }
 
   const errored = results.some((r) => r.status === 'error' || r.status === 'key_reused');

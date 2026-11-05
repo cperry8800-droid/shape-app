@@ -8,7 +8,7 @@
 import test from 'node:test';
 import { PREFERENCE_OF } from '../public/newdesign/notificationSurfaces.mjs';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import { NOTIFY_TYPES, channelsForType } from '../src/lib/ai/notifications.mjs';
@@ -236,6 +236,12 @@ test('the coach matrix matches the registry’s coach-audience types exactly', (
   const ccBody = cc.slice(cc.indexOf('export function coachCandidates'));
   const emitted = new Set([...ccBody.slice(0, ccBody.indexOf('\n}')).matchAll(/'(client_[a-z]+)'/g)].map((m) => m[1]));
   assert.ok(emitted.size > 0, 'coachCandidates emits nothing — this guard is vacuous');
+  // A registry type a database trigger sends (checkin_submitted: notify_coaches_on_checkin,
+  // 2026-11-05-coach-notices.sql) is emitted too.
+  const migrations = readdirSync(new URL('../supabase-migrations/', import.meta.url)).filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(new URL('../supabase-migrations/' + f, import.meta.url), 'utf8')).join('\n');
+  const sqlSends = (k) => new RegExp("insert into public\\.notifications[^;]*?(?:values \\(\\s*[^,]+,\\s*|then )'" + k + "'").test(migrations);
+  for (const k of fromRegistry) if (sqlSends(k)) emitted.add(k);
   for (const k of fromRegistry) {
     if (emitted.has(k)) assert.ok(inPanel.includes(k), 'the panel dropped the registry coach type ' + k);
     else assert.ok(!inPanel.includes(k), k + ' is offered as a switch but nothing sends it');
@@ -254,6 +260,8 @@ test('the coach matrix matches the registry’s coach-audience types exactly', (
   const mapped = new Set([...Object.values(PREFERENCE_OF), 'coach_message', 'client_message', 'direct_message']);
   for (const k of extras) {
     if (mapped.has(k)) continue;
+    // Sent by a database trigger (care_team_handoff: notify_on_new_message, 2026-11-05-coach-notices.sql).
+    if (sqlSends(k)) continue;
     const hit = execSync("grep -rlE \"type: '" + k + "'|type: \\\"" + k + "\\\"\" src --include=*.ts", { encoding: 'utf8' }).trim();
     assert.ok(hit, k + ' is offered as a switch but nothing sends it');
   }

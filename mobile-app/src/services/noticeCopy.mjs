@@ -22,7 +22,7 @@ export const np = (key, vars) => (vars ? [key, vars] : [key]);
 // A moment in a zone: "Oct 21, 9:00 AM" in the reader's language, on the clock the writer named.
 // With no zone it is UTC and says so, as the English did (sessions/manage memberClock).
 export const atTime = (iso, tz, weekday) => ({ $at: iso, ...(tz ? { tz } : {}), ...(weekday ? { weekday: true } : {}) });
-// A calendar day, YYYY-MM-DD: "Oct 21" (short) or "October 21, 2026" (long).
+// A calendar day, YYYY-MM-DD: "Oct 21" (short), "October 21, 2026" (long) or "Wed, Oct 21" (weekday).
 export const onDay = (ymd, style) => ({ $day: ymd, ...(style ? { style } : {}) });
 export const usdOf = (cents) => ({ $usd: cents });
 // A phrase of the catalog's own (an activity, a reason), said in the reader's language.
@@ -58,6 +58,7 @@ function resolve(v, tr, locale) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v.$day);
     if (!m) return null;
     const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+    if (v.style === 'weekday') return dateIn(locale, d, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
     return dateIn(locale, d, v.style === 'long' ? { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' } : { month: 'short', day: 'numeric', timeZone: 'UTC' });
   }
   if (typeof v.$usd === 'number' && Number.isFinite(v.$usd)) {

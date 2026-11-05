@@ -34,6 +34,8 @@ import { bsAdjustProposedWeeks, bsAdjustOutcome } from '@/lib/adjust-publish.mjs
 import { bsAdjustRegen } from '../../../../../mobile-app/src/services/adjustRegen.mjs';
 import { bsProgressionGuardrail, bsGuardrailCopy } from '../../../../../public/newdesign/progressionGuardrail.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
+import { tellCareTeam } from '../../../../lib/care-team.mjs';
+import { adjustHandoff } from '../../../../lib/handoff.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -337,6 +339,19 @@ export async function POST(request: Request) {
       console.error('[shape-api] guardrail_evaluated threw:', err);
     }
   }));
+
+  // A shared client's other coaches hear about it in their care-team thread (src/lib/care-team.ts):
+  // the mode, the sessions a week, and the first regenerated day. Best-effort, after the write.
+  try {
+    const firstDay = (rows || []).map((r) => String((r as { scheduled_date?: unknown }).scheduled_date || '')).filter((d) => d > todayISO).sort()[0] || null;
+    const sessionsAWeek = Number(adjustment.sessions);
+    await tellCareTeam(supabase, {
+      clientId, actorId: user.id, role: 'trainer',
+      compose: ({ coach, client }) => adjustHandoff({ coach, client, mode: adjustMode, sessions: Number.isInteger(sessionsAWeek) ? sessionsAWeek : null, from: firstDay }),
+    });
+  } catch (err) {
+    console.error('[shape-api] adjust hand-off failed:', err instanceof Error ? err.message : err);
+  }
 
   return NextResponse.json({
     ok: true,
