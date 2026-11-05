@@ -281,5 +281,7 @@
   "coach.footer": "Skor coach",
   "coach.sub.clients": "{n, plural, other {# klien}}",
   "coach.sub.completion": "{n}% · 90 hari terakhir",
-  "coach.sub.programs": "{n, number} aktif"
+  "coach.sub.programs": "{n, number} aktif",
+  "coach.fixNote": "Pada {date} kami memperbaiki cara Skor menghitung sesi dan program. Skormu mungkin berubah.",
+  "coach.fixNoteNutri": "Pada {date} kami memperbaiki cara Skor menghitung sesi. Skormu mungkin berubah."
 }

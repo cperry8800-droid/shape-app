@@ -479,6 +479,24 @@ function CoachScoreActions({ view, onView }) {
   );
 }
 
+// ── The Score fix note (2026-11-05) ─────────────────────────────────────────
+// Score was corrected: completion counts only sessions that have happened, and "Programs published"
+// counts published programs, not assigned workouts (2026-11-05-coach-score-past-sessions.sql).
+// Every coach's score moved, so their Score page says so for 30 days from the day it shipped.
+// ⚠ SET COACH_SCORE_FIX_ON TO THE DAY THE FIX SHIPS (the PR merges and the migration runs), and
+// BS_SCORE_FIX_ON in mobile-app/src/broadsheet/BSScoreFixNote.jsx to the same day:
+// tests/coach-score-fix.test.mjs holds the two equal. Null outside the 30 days.
+const COACH_SCORE_FIX_ON = "2026-11-05";
+const COACH_SCORE_FIX_DAYS = 30;
+function coachScoreFixNote(role, now) {
+  const start = Date.parse(COACH_SCORE_FIX_ON + "T00:00:00Z");
+  const at = typeof now === "number" ? now : Date.now();
+  if (!Number.isFinite(start) || at < start || at >= start + COACH_SCORE_FIX_DAYS * 86400000) return null;
+  const day = new Date(start).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+  // A nutritionist's score has no programs term, so their line names sessions alone.
+  return "We corrected how Score counts " + (role === "nutritionist" ? "sessions" : "sessions and programs") + " on " + day + ". Your score may have moved.";
+}
+
 // The coach Score page's subtitle, from the board itself: "#14 of 212 trainers on Shape." It
 // replaces a fixed "Top 4% of trainers on Shape" that no data stood behind. Until the board
 // answers (or when it cannot), the line names no rank at all.
@@ -525,4 +543,4 @@ function useLeaderboardPrivacy() {
   return [state, save];
 }
 
-Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });
+Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, coachScoreFixNote, COACH_SCORE_FIX_ON, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });

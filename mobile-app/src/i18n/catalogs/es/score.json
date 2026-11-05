@@ -281,5 +281,7 @@
   "coach.footer": "Puntuación de coach",
   "coach.sub.clients": "{n, plural, one {# cliente} other {# clientes}}",
   "coach.sub.completion": "{n} % · últimos 90 días",
-  "coach.sub.programs": "{n, plural, one {# activo} other {# activos}}"
+  "coach.sub.programs": "{n, plural, one {# activo} other {# activos}}",
+  "coach.fixNote": "El {date} corregimos cómo la puntuación cuenta las sesiones y los programas. Puede que tu puntuación haya cambiado.",
+  "coach.fixNoteNutri": "El {date} corregimos cómo la puntuación cuenta las sesiones. Puede que tu puntuación haya cambiado."
 }

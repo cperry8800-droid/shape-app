@@ -281,5 +281,7 @@
   "coach.footer": "Makin koci",
   "coach.sub.clients": "{n, plural, one {abokin ciniki #} other {abokan ciniki #}}",
   "coach.sub.completion": "{n}% · kwanaki 90 da suka wuce",
-  "coach.sub.programs": "{n, number} suna aiki"
+  "coach.sub.programs": "{n, number} suna aiki",
+  "coach.fixNote": "A ranar {date} mun gyara yadda Maki ke ƙidaya zama da shirye-shirye. Makinka na iya canzawa.",
+  "coach.fixNoteNutri": "A ranar {date} mun gyara yadda Maki ke ƙidaya zama. Makinka na iya canzawa."
 }

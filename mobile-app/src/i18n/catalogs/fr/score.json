@@ -281,5 +281,7 @@
   "coach.footer": "Score de coach",
   "coach.sub.clients": "{n, plural, one {# client} other {# clients}}",
   "coach.sub.completion": "{n} % · 90 derniers jours",
-  "coach.sub.programs": "{n, number} en ligne"
+  "coach.sub.programs": "{n, number} en ligne",
+  "coach.fixNote": "Le {date}, nous avons corrigé la façon dont le score compte les séances et les programmes. Votre score a peut-être changé.",
+  "coach.fixNoteNutri": "Le {date}, nous avons corrigé la façon dont le score compte les séances. Votre score a peut-être changé."
 }

@@ -281,5 +281,7 @@
   "coach.footer": "Điểm HLV",
   "coach.sub.clients": "{n, plural, other {# khách}}",
   "coach.sub.completion": "{n}% · 90 ngày qua",
-  "coach.sub.programs": "{n, number} đang mở"
+  "coach.sub.programs": "{n, number} đang mở",
+  "coach.fixNote": "Ngày {date}, chúng tôi đã sửa cách Điểm tính các buổi tập và chương trình. Điểm của bạn có thể đã thay đổi.",
+  "coach.fixNoteNutri": "Ngày {date}, chúng tôi đã sửa cách Điểm tính các buổi tập. Điểm của bạn có thể đã thay đổi."
 }

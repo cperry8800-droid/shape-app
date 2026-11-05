@@ -102,12 +102,16 @@ export function fakeSupabase({ tables = {}, rpcs = {}, fail = [], maxRows = null
           if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; } else cur += ch;
         }
         if (cur) parts.push(cur);
-        const terms = parts.map((t) => { const [col, op, ...rest] = t.split('.'); return { col, op, val: rest.join('.') }; });
-        state.filters.push((r) => terms.some(({ col, op, val }) => {
-          if (op === 'is' && val === 'null') return r[col] == null;
-          if (op === 'gte') return r[col] != null && String(r[col]) >= val;
-          if (op === 'eq') return String(r[col]) === val;
-          if (op === 'in') return val.replace(/^\(|\)$/g, '').split(',').includes(String(r[col]));
+        // A term's column may be a JSON text path ('detail->>buildType'), read as `val` reads one;
+        // `neq` is SQL's <>, so a null is neither equal nor unequal and the term fails.
+        const terms = parts.map((t) => { const [col, op, ...rest] = t.split('.'); return { col, op, value: rest.join('.') }; });
+        state.filters.push((r) => terms.some(({ col, op, value }) => {
+          const cell = val(r, col);
+          if (op === 'is' && value === 'null') return cell == null;
+          if (op === 'gte') return cell != null && String(cell) >= value;
+          if (op === 'eq') return String(cell) === value;
+          if (op === 'neq') return cell != null && String(cell) !== value;
+          if (op === 'in') return value.replace(/^\(|\)$/g, '').split(',').includes(String(cell));
           throw new Error(`fake-supabase: unsupported or() operator ${op}`);
         }));
         return chain;

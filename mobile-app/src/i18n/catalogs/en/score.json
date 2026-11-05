@@ -281,5 +281,7 @@
   "coach.footer": "Coach score",
   "coach.sub.clients": "{n, plural, one {# client} other {# clients}}",
   "coach.sub.completion": "{n}% · last 90 days",
-  "coach.sub.programs": "{n, number} live"
+  "coach.sub.programs": "{n, number} live",
+  "coach.fixNote": "We corrected how Score counts sessions and programs on {date}. Your score may have moved.",
+  "coach.fixNoteNutri": "We corrected how Score counts sessions on {date}. Your score may have moved."
 }

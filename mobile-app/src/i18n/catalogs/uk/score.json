@@ -281,5 +281,7 @@
   "coach.footer": "Очки тренера",
   "coach.sub.clients": "{n, plural, one {# клієнт} few {# клієнти} many {# клієнтів} other {# клієнта}}",
   "coach.sub.completion": "{n}% · останні 90 днів",
-  "coach.sub.programs": "{n, number} в роботі"
+  "coach.sub.programs": "{n, number} в роботі",
+  "coach.fixNote": "{date} ми виправили те, як очки враховують сесії та програми. Твої очки могли змінитися.",
+  "coach.fixNoteNutri": "{date} ми виправили те, як очки враховують сесії. Твої очки могли змінитися."
 }
