@@ -14,10 +14,10 @@ export default {
   mutations: [
     // ── Where it comes back ──
     { name: 'a purchase form missing its coach goes to the homepage again', file: PURCHASE,
-      find: "redirect('/newdesign/Marketplace.html?error=invalid_purchase');",
+      find: "redirect('/newdesign/Coaches.html?error=invalid_purchase');",
       replace: "redirect('/?error=invalid_purchase');" },
     { name: 'a subscribe form missing its coach goes to the homepage again', file: SUBSCRIBE,
-      find: "redirect('/newdesign/Marketplace.html?error=invalid_subscribe');",
+      find: "redirect('/newdesign/Coaches.html?error=invalid_subscribe');",
       replace: "redirect('/?error=invalid_subscribe');" },
     { name: 'the detour\'s Cancel comes back with no code', file: DETOUR,
       find: 'cancelPath: `${backHref}&error=membership_cancelled`',

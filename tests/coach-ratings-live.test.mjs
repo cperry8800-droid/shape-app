@@ -357,7 +357,10 @@ test('the website: cards, profile and the review form', () => {
   assert.equal(ctx.mkRatingLabel({ ratingLive: true, rating10: null }), 'New')
   assert.equal(ctx.mkRatingLabel({ ratingLive: true, rating10: 7.25 }), '★ 7.3/10')
   assert.equal(ctx.mkRating10({ ratingLive: true, rating10: null }), 0, 'an unreviewed coach ranks last')
-  assert.match(stripComments(mkt), /rate, rating: row\.owner_id \? null : Number\(row\.rating \|\| 4\.8\),/)
+  // A listing is rated by its reviews or not at all, with or without an account (2026-11-05: the old
+  // `row.owner_id ? null : Number(row.rating || 4.8)` put 9.6/10 on every seeded listing).
+  assert.match(stripComments(mkt), /rating: null, ratingLive: true, rating10: null, reviewCount: 0,/)
+  assert.doesNotMatch(stripComments(mkt), /row\.rating \|\| 4\.8|Number\(row\.rating/, 'a listing\'s own rating column is read again')
 
   const page = stripComments(read('public/newdesign/livingProfilePage.jsx'))
   assert.match(page, /if \(coach && !isDerived\) \{\n\s+person\.rating = null;\n\s+person\.reviewCount = 0;\n\s+person\.reviews = \[\];\n\s+person\.lifts = \(person\.lifts \|\| \[\]\)\.filter\(\(l\) => l && l\[0\] !== "Rating"\);/)

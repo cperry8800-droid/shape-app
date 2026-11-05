@@ -240,28 +240,23 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
   );
 }
 
-// ⚠ COACHES IS A PAGE AND A MENU. Clicking goes to the Coaches page — the one
-// place the site pitches itself to trainers AND nutritionists, and previews the
-// dashboard they get once an account exists; hovering opens ONE item, the
-// marketplace.
+// ⚠ COACHES IS A PAGE AND A MENU. Clicking goes to the Coaches page, which IS the coach
+// marketplace since 2026-11-05 (owner: "lets change that whole concept and turn coaches page
+// into what you built"): the goal-first matcher, the filters and the cards, trainers and
+// nutritionists on one page with the switch at its top. Hovering opens ONE item, For coaches,
+// the page that pitches Shape to trainers AND nutritionists and previews the dashboard they get
+// (ForCoaches.html, which was Coaches.html until then). The old Marketplace.html forwards to
+// Coaches.html and keeps its hash.
 //
-// ⚠ ONE ITEM, NOT TWO. Owner, 2026-09-14: "just have 1 link and have it say
-// marketplace, since both coaches and nutritionists are on same page. both of
-// those tabs now take you to same place". The menu used to carry Trainers and
-// Nutritionists, each deep-linking one of the marketplace's own two tabs — but
-// those tabs are one page with the switch at the top of it, so the menu was
-// offering one destination as two. `marketplace.jsx` still reads a
-// `#trainers` / `#nutritionists` hash for anything that deep-links a tab (its
-// own switch writes one, so a copied URL lands where it was copied from); the
-// nav simply no longer picks a side.
+// ⚠ ONE ITEM, NOT TWO. Owner, 2026-09-14: "just have 1 link" — the menu used to carry Trainers
+// and Nutritionists, each deep-linking one of the marketplace's own two tabs, so it offered one
+// destination as two. `marketplace.jsx` still reads a `#trainers` / `#nutritionists` hash for
+// anything that deep-links a side (its own switch writes one); the nav does not pick a side.
 //
-// This pointed at `Marketplace.html` for one PR, because the page did not exist
-// yet and a nav entry to a 404 on all 70 pages is worse than a nav entry to the
-// next-best page. `tests/site-nav.test.mjs` now requires it to name a file that
-// is actually in the repo, so the placeholder cannot outlive its reason.
+// `tests/site-nav.test.mjs` requires both targets to name files that are in the repo.
 const COACHES_HREF = "Coaches.html";
 const COACHES_ITEMS = [
-  ["Marketplace", "Marketplace.html"],
+  ["For coaches", "ForCoaches.html"],
 ];
 
 // ⚠ THE STORE IS A REWARDS MENU ITEM SIGNED OUT AND A TAB OF ITS OWN SIGNED IN.
@@ -1199,7 +1194,7 @@ function SiteSearch({ signedIn = false }) {
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>{state === "limited" ? "Searching a little fast — give it a moment and try again." : "Couldn’t search just now — check your connection and try again."}</div>
                 ) : rows !== null && rows.length === 0 && !noraHit && !asking ? (
                   <div style={{ padding: "12px 12px 8px", fontFamily: sans, fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.55)" }}>
-                    {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Marketplace.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}
+                    {signedIn ? <>Nothing on Shape matches “{q.trim()}”. <a href="/newdesign/Coaches.html" style={{ color: TEAL, textDecoration: "none" }}>Browse coaches →</a></> : <>Sign in to search every member & coach on Shape. <a href="/newdesign/Login.html" style={{ color: TEAL, textDecoration: "none" }}>Log in →</a></>}
                   </div>
                 ) : <>{rows.map((p) => (
                   <a key={p.id} href={`/newdesign/MemberProfile.html?u=${encodeURIComponent(p.id)}`} style={rowStyle}
@@ -1791,7 +1786,9 @@ function Footer({ logoHeight = 36 } = {}) {
                signed-out visitor to Login.html. They were dead ends for the entire
                audience of a marketing footer. Owner's ruling: repoint at public
                pages. Pricing.html carries the coach fee and payout facts;
-               Coaches.html is the coaches' pitch page.
+               ForCoaches.html is the coaches' pitch page (it was Coaches.html
+               until 2026-11-05, when the Coaches page became the marketplace,
+               which Product's "Find a coach" names).
 
                ⚠ AND "PRESS" IS GONE. It pointed at `Team.html#press` in all three
                footers — but Team.html is the CLIENT'S "My Team" page (its own
@@ -1804,7 +1801,7 @@ function Footer({ logoHeight = 36 } = {}) {
                body points at Coach.html or Nutritionist.html — so
                without this table they are reachable only by typing a URL.
                (`directionB.jsx` names all three and is a retired exploration,
-               loaded only by the *-print / index-explorations pages.) Coaches.html
+               loaded only by the *-print / index-explorations pages.) ForCoaches.html
                sits above them in the nav and does NOT replace them: each still
                carries its own copy and its own application.
 
@@ -1817,8 +1814,8 @@ function Footer({ logoHeight = 36 } = {}) {
                are absent from the nav table AND that both exceptions are present in
                it, so the next tab promoted out of the footer fails a test instead of
                quietly leaving a wrong claim here. */
-            ["Product",     [["Marketplace", "Marketplace.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
-            ["For coaches", [["For coaches", "Coaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
+            ["Product",     [["Find a coach", "Coaches.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
+            ["For coaches", [["For coaches", "ForCoaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
             ["Company",     [["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
             ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
           ].map(([h, items]) => (
@@ -3229,7 +3226,7 @@ window.shapeClearLocalUserContent = function (opts) {
 // ⚠ A CHECKOUT THAT DIDN'T START SAID NOTHING. /purchase, /subscribe and the membership detour
 // (src/lib/membership-detour.ts) send the visitor back to the coach's profile with `&error=<code>`,
 // Stripe's Cancel comes back the same way (the detour's own with membership_cancelled), a form
-// missing its coach lands on Marketplace, and the membership checkout's Cancel lands on Pricing
+// missing its coach lands on the Coaches page, and the membership checkout's Cancel lands on Pricing
 // with `?error=subscribe_cancelled`. No page read the code, so a visitor whose coach was full, or
 // whose code was refused, was put back on the profile without a word. The shell shows the code's
 // line on every page it renders, once: the code leaves the address, so a reload or a shared link

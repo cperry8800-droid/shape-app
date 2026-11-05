@@ -3,14 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Shape — For coaches</title>
+<title>Shape — Find a coach</title>
+<meta name="description" content="Find a trainer or nutritionist on Shape: pick your goal, your budget and how you want to meet, compare coaches side by side and book a free intro before you pay." />
+<link rel="canonical" href="https://www.theshapecommunity.com/newdesign/Coaches.html" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<!-- The page's own faces. The NAV's two families are requested by pageShell's own
-     stylesheet, so they are not repeated here. Both axes are named on Anybody:
-     Google Fonts serves only the axes you ask for and pins the rest, so a missing
-     `wdth` renders every width setting on this page inert with no error. -->
-<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Doto:ROND,wght@0..100,100..900&family=Schibsted+Grotesk:wght@400..700&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<!-- The Coaches page is the coach marketplace (owner, 2026-11-05: "turn coaches page into what you
+     built"); the coaches' own pitch moved to ForCoaches.html. The page is drawn in the homepage's
+     three faces: Anybody (display, both axes named, or every width setting is inert), Doto (every
+     measured figure, ROND named for the same reason) and Schibsted Grotesk. JetBrains Mono, Fraunces
+     and Space Grotesk are the shared footer's and chat's, as on every other page. -->
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Doto:ROND,wght@0..100,100..900&family=Schibsted+Grotesk:wght@400..800&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -25,8 +28,12 @@
 <body>
 <script src="/newdesign/mobile-redirect.js"></script>
 <div id="root"></div>
+<!-- Coach listing-media guard (canonical ES module): assigns window.ShapeListingLib for the cards' cover and portrait. -->
+<script type="module">import * as LM from "/newdesign/listingMedia.mjs?v=20260723"; window.ShapeListingLib = LM;</script>
+<!-- A coach's open intro times, from /api/availability, as the profile and the booking page lay them out. -->
+<script src="bookingSlots.js"></script>
 <script type="text/babel" data-presets="react" src="pageShell.jsx?v=20260714d"></script>
-<script type="text/babel" data-presets="react" src="coaches.jsx?v=1"></script>
+<script type="text/babel" data-presets="react" src="marketplace.jsx?v=10"></script>
 <script type="text/babel" data-presets="react" src="communityFeed.jsx"></script>
 <script type="text/babel" data-presets="react" src="chatWidget.jsx?v=20260715"></script>
 <script type="text/babel" data-presets="react" src="clientChatThreads.jsx?v=20260609"></script>

@@ -667,7 +667,7 @@ function FinalCTA({ p, kind }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={() => window.__openBookIntro && window.__openBookIntro()} style={{ padding: "18px 28px", borderRadius: 8, background: TEAL, color: PAPER, border: 0, fontFamily: sans, fontSize: 15, fontWeight: 500, cursor: "pointer" }}>Book intro — $0</button>
           <a href={kind === "trainer" ? "TrainerMessages.html" : "NutritionistMessages.html"} style={{ padding: "16px 28px", borderRadius: 8, background: "rgba(242,237,228,0.04)", color: INK, border: "1px solid rgba(242,237,228,0.15)", fontFamily: sans, fontSize: 14, cursor: "pointer", textAlign: "center", textDecoration: "none", display: "block", boxSizing: "border-box" }}>Message {p.name.split(" ")[0]}</a>
-          <a href="Marketplace.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 12, textAlign: "center", textDecoration: "underline", textUnderlineOffset: 3 }}>or browse other {kind === "trainer" ? "trainers" : "nutritionists"}</a>
+          <a href="Coaches.html" style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.55)", marginTop: 12, textAlign: "center", textDecoration: "underline", textUnderlineOffset: 3 }}>or browse other {kind === "trainer" ? "trainers" : "nutritionists"}</a>
         </div>
       </div>
     </section>
@@ -908,7 +908,7 @@ function ThemedHero({ p, kind, theme, onUploadCover }) {
         {!fullBleed && <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.55) 65%, var(--p-paper) 100%)` }}/>}
         <div style={{ position: "absolute", top: 20, left: 0, right: 0 }}>
           <div style={{ maxWidth: 1320, margin: "0 auto", padding: "0 40px" }}>
-            <a href="Marketplace.html" style={{ fontFamily: "var(--p-sans)", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f2ede4", display: "inline-block", padding: "8px 14px", background: "rgba(26,22,18,0.6)", backdropFilter: "blur(8px)", borderRadius: 999, border: "1px solid rgba(242,237,228,0.15)" }}>← Back to marketplace</a>
+            <a href="Coaches.html" style={{ fontFamily: "var(--p-sans)", fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#f2ede4", display: "inline-block", padding: "8px 14px", background: "rgba(26,22,18,0.6)", backdropFilter: "blur(8px)", borderRadius: 999, border: "1px solid rgba(242,237,228,0.15)" }}>← Back to marketplace</a>
           </div>
         </div>
         <BrandOverlay theme={theme} />

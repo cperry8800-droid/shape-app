@@ -33,7 +33,7 @@ const NAV_TABLES = navTables(SHELL);
 
 // A link's identity for comparison: the file it lands on plus any hash. The two
 // bars legitimately spell the same destination differently — the homepage writes
-// `/newdesign/Marketplace.html`, the shared header writes `Marketplace.html`,
+// `/newdesign/Coaches.html`, the shared header writes `Coaches.html`,
 // because one is a static page and the other is mapped into a dashboard shell.
 const target = (href) => String(href || '').replace(/^.*\//, '');
 
@@ -89,24 +89,22 @@ test('the Coaches link names a page that exists', () => {
   }
 });
 
-// Owner, 2026-09-14: "just have 1 link and have it say marketplace, since both
-// coaches and nutritionists are on same page. both of those tabs now take you to
-// same place". The menu used to carry Trainers and Nutritionists, each
-// deep-linking one of the marketplace's own two tabs — one page with the switch
-// at the top of it — so it offered one destination as two.
+// Owner, 2026-09-14: "just have 1 link" — the menu used to carry Trainers and
+// Nutritionists, each deep-linking one of the marketplace's own two tabs, so it
+// offered one destination as two.
 //
-// ⚠ A BARE `Marketplace.html` IS NOW THE RIGHT TARGET, which is the opposite of
-// what the previous version of this test guarded: with two items, a bare link
-// landed on whichever tab was the default and read as broken; with one, picking
-// a side is the defect, because the item is the page and the page has the
-// switch. The hash reader in `marketplace.jsx` stays for anything else that
-// deep-links a tab.
-test('the Coaches menu is one Marketplace item, the same on both bars', () => {
+// Owner, 2026-11-05: "turn coaches page into what you built" — the Coaches page
+// IS the marketplace now (Coaches.html; Marketplace.html forwards to it), so the
+// tab itself is the marketplace and the one menu item is the page the tab used to
+// be: For coaches, the coaches' own pitch (ForCoaches.html). A Marketplace item
+// beside a tab that opens the marketplace would offer one page twice.
+test('the Coaches menu is one For coaches item, the same on both bars', () => {
   const items = NAV_TABLES.COACHES_ITEMS;
-  assert.deepEqual(items.map(([n]) => n), ['Marketplace']);
+  assert.deepEqual(items.map(([n]) => n), ['For coaches']);
+  assert.equal(target(NAV_TABLES.COACHES_HREF), 'Coaches.html', 'the Coaches tab no longer opens the marketplace page');
   for (const [name, href] of items) {
-    assert.equal(target(href), 'Marketplace.html', name + ' does not point at the marketplace: ' + href);
-    assert.ok(!String(href).includes('#'), name + ' picks a marketplace tab; the one item must land on the page and its switch: ' + href);
+    assert.equal(target(href), 'ForCoaches.html', name + ' does not point at the coaches\' page: ' + href);
+    assert.ok(!String(href).includes('#'), name + ' carries a hash; the one item lands on the page: ' + href);
     assert.ok(existsSync(path.join(ND, target(href))), name + ' points at ' + href + ', which is not in public/newdesign');
   }
   // The homepage's static menu: the same items, by label AND by target, in the
@@ -458,7 +456,7 @@ test('signed in, the homepage bar and drawer carry the shared header\'s signed-i
   }
   assert.deepEqual(me.bar, want, 'the homepage\'s signed-in bar is not the shared header\'s signed-in row');
   assert.deepEqual(me.inDrawer.filter((l) => tabs.has(l)), want, 'the homepage\'s signed-in drawer is not the shared header\'s signed-in row');
-  for (const extra of ['Marketplace', 'Radio', 'Dashboard', 'Sign out']) {
+  for (const extra of ['For coaches', 'Radio', 'Dashboard', 'Sign out']) {
     assert.ok(me.inDrawer.includes(extra), 'the signed-in homepage drawer lost ' + extra + ': ' + me.inDrawer.join(' · '));
   }
   const out = await homepageAfterMe(null);
@@ -898,7 +896,7 @@ test('the homepage drawer carries every link the homepage bar carries', () => {
   //
   // The two lists are DERIVED from the markup, and the drawer's extras are named
   // rather than counted: it legitimately carries the dropdown's own item inline
-  // (Marketplace), plus Radio and the auth pair the collapse rule hides.
+  // (For coaches), plus Radio and the auth pair the collapse rule hides.
   const bar = homepageLinks().map(([l]) => l);
   const m = /<div class="ndrawer" id="ndrawer">([\s\S]*?)<\/div>/.exec(INDEX);
   assert.ok(m, 'the homepage drawer is gone — this guard is reading nothing');
@@ -909,7 +907,7 @@ test('the homepage drawer carries every link the homepage bar carries', () => {
   assert.deepEqual(missing, [], 'the homepage drawer is missing ' + missing.join(', ') + ' — below 1020px that is a destination no phone can reach');
   // Guard the guard: a parser that returned the whole bar would satisfy the line
   // above for free. The drawer must carry the extras that are ONLY in it.
-  for (const extra of ['Marketplace', 'Radio']) {
+  for (const extra of ['For coaches', 'Radio']) {
     assert.ok(drawer.includes(extra), 'the drawer lost ' + extra + ', which the bar does not carry as a tab');
   }
 });

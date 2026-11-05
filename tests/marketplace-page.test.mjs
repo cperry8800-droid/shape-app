@@ -1,0 +1,231 @@
+// The Coaches page is the coach marketplace (owner, 2026-11-05: "The marketplace is awesome. Right
+// now I have the website set up as coaches page marketing towards them, but what you designed makes
+// much more sense. So lets change that whole concept and turn coaches page into what you built.").
+//
+// What this file holds, each one a defect the old marketplace shipped (the 2026-11-04 audit):
+//   · the pages: Coaches.html runs marketplace.jsx, the coaches' pitch moved to ForCoaches.html, and
+//     Marketplace.html forwards with its query and hash;
+//   · one source each for the tier (the profile's ladder), the price unit and the rating;
+//   · no made-up rating: every listing is rated by its reviews or reads "New";
+//   · a listing with no Shape account says "Not bookable yet" and is out of the match count;
+//   · live listings go through the same goals and filters as the sample coaches;
+//   · signed out, Message asks for a sign-in instead of opening a chat;
+//   · the quick view shows a rating, never a review's words;
+//   · the copy the audit found false is gone.
+//
+// The page is mounted from its shipping file in jsdom with real React, against a fake listing read.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { loadRealModule } from './helpers/load-real-module.mjs';
+import { stripComments } from './helpers/strip-comments.mjs';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const ND = join(ROOT, 'public/newdesign');
+const read = (f) => readFileSync(join(ND, f), 'utf8');
+const require = createRequire(import.meta.url);
+const React = require('react');
+const { JSDOM } = require('jsdom');
+
+const dom = new JSDOM('<div id="root"></div>', { url: 'https://shape.test/newdesign/Coaches.html' });
+globalThis.window = dom.window; globalThis.document = dom.window.document; globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+globalThis.React = React;
+window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+window.HTMLElement.prototype.scrollIntoView = function () {};
+// The page mounts itself into #root as it loads; the mount is a no-op here and the test mounts it.
+globalThis.ReactDOM = { createRoot: () => ({ render() {} }) };
+const SRC = read('marketplace.jsx');
+const mk = await loadRealModule(join(ND, 'marketplace.jsx'), {
+  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash });',
+});
+const { createRoot } = require('react-dom/client');
+globalThis.ReactDOM = require('react-dom');
+
+// Two of production's seeded rows as the anon read returns them (2026-11-05), and one account.
+const SEEDED = { id: 4, name: 'Damon Clarke', specialty: 'Cardio & Endurance', category: 'cardio', price: 44.99, rating: 4.8, subscribers: 890, experience: '10 yrs', credential: 'CSCS', tags: ['Cardio', 'HIIT', 'Endurance'], owner_id: null, session_price: null, at_capacity: false, verified: false };
+const SEEDED_2 = { id: 8, name: 'Leah Kim', specialty: 'HIIT & Weight Loss', category: 'hiit', price: 34.99, rating: 4.8, subscribers: 3200, experience: '5 yrs', credential: 'ACE-CPT', tags: ['HIIT', 'Weight Loss'], owner_id: null, session_price: null, at_capacity: false, verified: false };
+const NUTRI = { id: 102, name: 'James Okafor', specialty: 'Weight Management', category: 'weightloss', price: 44.99, meal_plan_price: 19, rating: null, experience: '9 yrs', credential: 'RD', tags: ['Weight Loss'], services: ['Habit coaching'], owner_id: null };
+const OWNED = { id: 31, name: 'Tess Owner', specialty: 'Strength & Hypertrophy', category: 'strength', price: 160, session_price: 95, rating: 4.8, experience: '6 yrs', credential: 'NSCA-CSCS', tags: ['Strength'], owner_id: 'u-tess', at_capacity: false, verified: true };
+
+test('the pages: Coaches.html is the marketplace, ForCoaches.html the pitch, Marketplace.html forwards', () => {
+  const coaches = read('Coaches.html');
+  assert.match(coaches, /src="marketplace\.jsx/);
+  assert.match(coaches, /src="pageShell\.jsx/);
+  assert.match(coaches, /src="bookingSlots\.js"/, 'the open intro times need BookingSlots');
+  assert.doesNotMatch(coaches, /coaches\.jsx/);
+  // The homepage's three faces, each with the axes the page sets.
+  assert.match(coaches, /family=Anybody:wdth,wght@50\.\.150,100\.\.900/);
+  assert.match(coaches, /family=Doto:ROND,wght@/);
+  assert.match(coaches, /family=Schibsted\+Grotesk/);
+  const pitch = read('ForCoaches.html');
+  assert.match(pitch, /src="coaches\.jsx/);
+  assert.match(pitch, /<title>Shape — For coaches<\/title>/);
+  const old = read('Marketplace.html');
+  assert.match(old, /location\.replace\('Coaches\.html' \+ location\.search \+ location\.hash\)/, 'the old address drops its query or hash');
+  assert.match(stripComments(SRC), /<Header active="Coaches" \/>/, 'the Coaches tab does not light on its own page');
+});
+
+test('one ladder: the card\'s tier is the profile\'s (livingShared.jsx LV_LADDER.coach)', () => {
+  const m = /coach: (\[\[0, "Certified"[^\n]*\]\]),/.exec(read('livingShared.jsx'));
+  assert.ok(m, 'LV_LADDER.coach moved');
+  const ladder = JSON.parse(m[1]).map(([p, name, color]) => [p, name, color]);
+  assert.deepEqual(mk.MK_COACH_LADDER, ladder);
+  assert.equal(mk.mkCoachTier({ points: 3060 }).name, 'Elite');
+  assert.equal(mk.mkCoachTier({ points: null }), null, 'a listing with no points behind it shows a tier');
+  assert.equal(mk.mkCoachTier(mk.mapLiveCoach(SEEDED, 'Trainer')), null);
+});
+
+test('a listing is rated by its reviews or not at all: no 4.8 fallback', () => {
+  for (const row of [SEEDED, OWNED]) {
+    const c = mk.mapLiveCoach(row, 'Trainer');
+    assert.equal(c.rating, null);
+    assert.equal(c.ratingLive, true);
+    assert.equal(mk.mkRatingLabel(c), 'New', row.name + ' carries a rating nobody gave');
+    assert.equal(mk.mkIsRated(c), false);
+  }
+  const reviewed = { ...mk.mapLiveCoach(OWNED, 'Trainer'), rating10: 8.4, reviewCount: 12 };
+  assert.equal(mk.mkRatingLabel(reviewed), '★ 8.4/10');
+  // A sample keeps its example number, doubled to the ten-point scale.
+  assert.equal(mk.mkRating10(mk.COACHES_FULL.find((c) => c.name === 'Maya Okafor')), 9.94);
+});
+
+test('one price unit: per session from a session price, per month otherwise, a nutritionist per month', () => {
+  assert.deepEqual(mk.mkPriceOf(mk.mapLiveCoach(OWNED, 'Trainer')), { amount: 95, per: 'session' });
+  assert.deepEqual(mk.mkPriceOf(mk.mapLiveCoach(SEEDED, 'Trainer')), { amount: 45, per: 'month' }, 'a monthly price read per session');
+  assert.deepEqual(mk.mkPriceOf(mk.mapLiveCoach(NUTRI, 'Nutritionist')), { amount: 45, per: 'month' }, 'a nutritionist priced by the meal plan');
+  for (const c of mk.COACHES_FULL) assert.equal(mk.mkPriceOf(c).per, c.tag === 'Nutritionist' ? 'month' : 'session', c.name);
+});
+
+test('who can book: an account, not at capacity; a listing with no account and a sample cannot', () => {
+  const seeded = mk.mapLiveCoach(SEEDED, 'Trainer');
+  const owned = mk.mapLiveCoach(OWNED, 'Trainer');
+  const sample = mk.COACHES_FULL[0];
+  assert.deepEqual([mk.mkKind(seeded), mk.mkKind(owned), mk.mkKind(sample)], ['listing', 'live', 'example']);
+  assert.deepEqual([mk.mkCanBook(seeded), mk.mkCanBook(owned), mk.mkCanBook(sample)], [false, true, false]);
+  assert.equal(mk.mkCanBook(mk.mapLiveCoach({ ...OWNED, at_capacity: true }, 'Trainer')), false, 'a full coach counted as bookable');
+  // The intro books where the profile books it; a sample has no such flow and opens its profile.
+  assert.equal(mk.mkIntroHref(owned), '/newdesign/consultation.html?type=trainer&id=31&name=Tess%20Owner');
+  assert.equal(mk.mkIntroHref(sample), mk.mkProfileHref(sample));
+  assert.equal(mk.mkProfileHref(owned), 'MemberProfile.html?u=u-tess&role=trainer');
+  // The listing tables give a visitor no location or format: unknown, never "Remote".
+  assert.equal(seeded.city, null);
+  assert.equal(seeded.format, null);
+});
+
+test('live listings go through the same goals and filters as the samples', () => {
+  const withGoals = (c) => ({ ...c, goals: mk.mkGoalsOf(c) });
+  const cardio = withGoals(mk.mapLiveCoach(SEEDED, 'Trainer'));
+  const f = (patch) => ({ ...mk.MK_DEFAULTS, ...patch });
+  assert.equal(mk.mkPass(cardio, f({ goals: ['strength'] })), false, 'a cardio listing passed the Strength goal (the old page skipped every filter for live rows)');
+  assert.equal(mk.mkPass(cardio, f({ goals: ['endurance'] })), true);
+  assert.equal(mk.mkPass(cardio, f({ meet: 'inperson' })), false, 'a listing that says nothing about format passed In person');
+  assert.equal(mk.mkPass(cardio, f({ city: 'Brooklyn, NY' })), false, 'a listing with no city passed a city');
+  assert.equal(mk.mkPass(cardio, f({ maxMonth: 40 })), false, 'a $45 a month listing passed a $40 monthly budget');
+  assert.equal(mk.mkPass(cardio, f({ role: 'Nutritionist' })), false);
+  assert.equal(mk.mkPass(cardio, f({ intro: true })), false, 'a listing with no account offers a free intro');
+});
+
+async function mountPage({ rows = [], me = null } = {}) {
+  const calls = { chat: 0 };
+  window.__openChat = () => { calls.chat += 1; };
+  const client = {
+    from: (table) => ({ select: () => ({ eq: () => Promise.resolve({ data: rows.filter((r) => (table === 'nutritionists') === ('services' in r || 'meal_plan_price' in r)), error: null }) }) }),
+    rpc: () => Promise.resolve({ data: [] }),
+  };
+  window.shapeEnsureDb = () => Promise.resolve({ client });
+  globalThis.fetch = window.fetch = async (url) => {
+    if (String(url).startsWith('/api/me')) return { ok: !!me, json: async () => (me ? { user: me } : {}) };
+    return { ok: false, json: async () => ({}) };
+  };
+  window.Header = () => null; window.Footer = () => null;
+  globalThis.Header = window.Header; globalThis.Footer = window.Footer;
+  document.body.innerHTML = '<div id="root"></div>';
+  const root = createRoot(document.getElementById('root'));
+  await React.act(async () => root.render(React.createElement(mk.Marketplace)));
+  await React.act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+  return { calls, unmount: () => React.act(async () => root.unmount()) };
+}
+const text = () => document.body.textContent.replace(/\s+/g, ' ');
+const click = (el) => React.act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+
+test('the page: listings without an account are not bookable and out of the count, nothing rated 9.6', async () => {
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  assert.equal(document.querySelector('.mk-count').textContent, '0', 'a listing that cannot take a booking was counted');
+  assert.match(text(), /Also showing \d+ example coaches and 3 listings not bookable yet\./);
+  const listings = [...document.querySelectorAll('[data-kind="listing"]')];
+  // The first page shows the bookable and example coaches first; the listings follow, so page on.
+  let more = [...document.querySelectorAll('button')].find((b) => /^Show \d+ more$/.test(b.textContent));
+  while (more) { await click(more); more = [...document.querySelectorAll('button')].find((b) => /^Show \d+ more$/.test(b.textContent)); }
+  const all = [...document.querySelectorAll('[data-kind="listing"]')];
+  assert.ok(all.length === 3 && all.length >= listings.length, 'the three listings did not render');
+  for (const card of all) {
+    assert.match(card.textContent, /Not bookable yet/);
+    assert.match(card.textContent, /No reviews yet/);
+    assert.doesNotMatch(card.textContent, /9\.6/);
+    assert.ok(!card.querySelector('[data-book-intro]'), 'a listing with no account offers Book a free intro');
+  }
+  assert.match(text(), /Example coaches/, 'the sample coaches are not labelled');
+  await m.unmount();
+});
+
+test('the page: picking a goal applies to live listings too', async () => {
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  const goal = [...document.querySelectorAll('.mk-goal')].find((b) => /Endurance/.test(b.textContent));
+  await click(goal);
+  assert.match(text(), /and 1 listing not bookable yet\./, 'Endurance kept listings that are not endurance coaches');
+  await m.unmount();
+});
+
+test('signed out, Message asks for a sign-in; the quick view shows a rating, never review words', async () => {
+  const m = await mountPage({ rows: [] });
+  await click(document.querySelector('.mk-quickhit'));
+  const qv = document.querySelector('.mk-qv');
+  assert.ok(qv, 'the quick view did not open');
+  const message = [...qv.querySelectorAll('button')].find((b) => /Message/.test(b.textContent));
+  await click(message);
+  assert.equal(m.calls.chat, 0, 'signed out, Message opened a chat');
+  assert.match(qv.textContent, /Sign in to message/);
+  assert.ok([...qv.querySelectorAll('a')].some((a) => /^\/newdesign\/Login\.html\?next=/.test(a.getAttribute('href'))), 'no way to sign in');
+  assert.match(qv.textContent, /Here you see the rating only\./);
+  await m.unmount();
+});
+
+test('signed in, Message on a coach with an account opens the chat with that coach', async () => {
+  const me = { id: 'u-me', email: 'me@shape.test' };
+  const m = await mountPage({ rows: [OWNED], me });
+  const card = document.querySelector('[data-kind="live"]');
+  assert.ok(card, 'the account\'s card did not render');
+  await click(card.querySelector('.mk-quickhit'));
+  const message = [...document.querySelector('.mk-qv').querySelectorAll('button')].find((b) => /Message/.test(b.textContent));
+  await click(message);
+  assert.equal(m.calls.chat, 1);
+  assert.equal(document.querySelector('.mk-count').textContent, '1');
+  await m.unmount();
+});
+
+test('what the audit found false is gone, and stays gone', () => {
+  const code = stripComments(SRC);
+  for (const [re, why] of [
+    [/Updated hourly/i, 'nothing on the page updates hourly'],
+    [/FeaturedCity|Featured in/, 'Featured City advertised coaches that did not exist'],
+    [/isLeadBoosted|useActiveLeadBoost/, 'a boost was applied to demo coaches by name'],
+    [/row\.rating \|\| 4\.8/, 'the made-up rating'],
+    [/images\.unsplash\.com/, 'hot-linked covers'],
+    [/30% faster|sub-3 last season|Olympic endurance athletes/, 'unverified performance claims'],
+    [/not by who paid for placement/, 'the placement promise the boosts contradicted'],
+  ]) assert.doesNotMatch(code, re, why);
+  // Sticky works on this page: `clip` in place of pageShell's `hidden`, scoped to it.
+  assert.match(SRC, /@supports \(overflow-x:clip\)\{html\.mk-root,html\.mk-root body\{overflow-x:clip\}\}/);
+  assert.match(code, /document\.documentElement\.classList\.add\("mk-root"\)/);
+});
+
+test('the side a link names: #hash or ?role=, and Both by default', () => {
+  assert.equal(mk.mkTabFromHash('#nutritionists'), 'Nutritionist');
+  assert.equal(mk.mkTabFromHash('trainer'), 'Trainer');
+  assert.equal(mk.mkTabFromHash('#results'), null, 'an unknown hash picked a side');
+  assert.match(SRC, /\|\| "Both" \}\)\);/, 'the page does not open on Both');
+});

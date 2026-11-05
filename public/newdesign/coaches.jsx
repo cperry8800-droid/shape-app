@@ -195,7 +195,7 @@ function CoHero({ role, setRole }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 34, alignItems: "center" }}>
             <a className="co-btn co-btn-p" href="SignupTrainer.html">Apply as a trainer</a>
             <a className="co-btn co-btn-g" href="SignupNutritionist.html">Apply as a nutritionist</a>
-            <a href="Marketplace.html" style={{ color: CO_TEAL, fontWeight: 600, fontSize: 14, marginLeft: 6 }}>See coaches on Shape →</a>
+            <a href="Coaches.html" style={{ color: CO_TEAL, fontWeight: 600, fontSize: 14, marginLeft: 6 }}>See coaches on Shape →</a>
           </div>
         </div>
         <CoFrame role={role} tab={today} />

@@ -395,7 +395,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
       const dDir = demoRole === "client" ? "terrain" : "signal";
       const demoFollow = { followers: 214, following: 167, posts: 24, canFollow: false };
       const demoMessage = () => { try { if (window.__openChat) { window.__openChat(); return; } } catch (e) {} const b = document.getElementById("shape-global-chat-button"); if (b) b.click(); };
-      const demoDesktop = <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={demoMessage} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />;
+      const demoDesktop = <DesktopProfile direction={dDir} persona={demoRole} variant="public" follow={demoFollow} onMessage={demoMessage} onFollow={() => { window.location.href = "/login"; }} coachingHref="/newdesign/Coaches.html" belowContent={extras} chrome={!shell} />;
       // A coach dashboard signed out shows the coach profile in the app's design with the sample
       // coach on it (coachProfileWeb.jsx), as the coach apps do signed out.
       const coachDemo = (demoRole === "trainer" || demoRole === "nutritionist") && typeof WebCoachProfile !== "undefined";
@@ -517,7 +517,7 @@ function LiveProfilePage({ extras = null, demoRole = null, shell = null }) {
     return (<button key={key} onClick={() => setGroup(key)} style={{ flex: 1, borderRadius: 999, border: 0, cursor: "pointer", padding: "7px 6px", background: on ? "rgba(46,224,196,0.16)" : "transparent", color: on ? "#2ee0c4" : "rgba(242,237,228,0.55)", fontFamily: "'JetBrains Mono',monospace", fontSize: 10, fontWeight: on ? 700 : 500, letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</button>);
   };
 
-  const desktop = <DesktopProfile key={(st.uid || "preview") + ":" + variant} direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Marketplace.html" belowContent={extras} chrome={!shell} />;
+  const desktop = <DesktopProfile key={(st.uid || "preview") + ":" + variant} direction={direction} persona={role} person={person} variant={variant} onMessage={onMessage} onFollow={onFollow} follow={followProps} coachingHref="/newdesign/Coaches.html" belowContent={extras} chrome={!shell} />;
   // ⚠ A COACH'S PAGE IS THE APP PROFILE'S DESIGN (coachProfileWeb.jsx) wherever that module is loaded:
   // a real coach's from their account and listing, a coach with no account (a listing opened by name)
   // as the app's sample. A member's profile keeps the living layout above. The living layout is still

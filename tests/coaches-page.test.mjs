@@ -2,8 +2,10 @@
 //
 // Owner, 2026-09-14: "on the current coaches page when signed out, i want a
 // preview of that new page giving previews of the coaches dashboard they will
-// have access to and use once an account is created" — so Coaches.html is a
-// public page whose subject is the dashboard, built from real captures.
+// have access to and use once an account is created" — so the coaches' page is a
+// public page whose subject is the dashboard, built from real captures. It is
+// ForCoaches.html since 2026-11-05, when Coaches.html became the coach marketplace
+// (owner: "turn coaches page into what you built"); coaches.jsx moved unchanged.
 //
 // And, in the same breath: "remove the from application to first client in under
 // 2 weeks. dont want to gurantee anything like that yet." That second ruling is
@@ -21,7 +23,7 @@ const ND = path.dirname(fileURLToPath(new URL('../public/newdesign/x', import.me
 const read = (f) => readFileSync(path.join(ND, f), 'utf8');
 
 const PAGE = read('coaches.jsx');
-const HTML = read('Coaches.html');
+const HTML = read('ForCoaches.html');
 
 // The tour table, lifted from the page rather than restated here — a restated
 // copy is a second thing to keep in step, and it would go on passing after the
@@ -75,8 +77,8 @@ test('the tour is every sidebar tab but Settings, in the sidebar\'s order', () =
 });
 
 test('the page is wired up and carries the shared nav', () => {
-  assert.ok(/pageShell\.jsx/.test(HTML), 'Coaches.html does not load the shared header');
-  assert.ok(/coaches\.jsx/.test(HTML), 'Coaches.html does not load its own module');
+  assert.ok(/pageShell\.jsx/.test(HTML), 'ForCoaches.html does not load the shared header');
+  assert.ok(/coaches\.jsx/.test(HTML), 'ForCoaches.html does not load its own module');
   // ⚠ THIS PINNED `<div id="site-footer">` AND THAT DIV WAS THE BUG. pageShell
   // auto-mounted a second <Footer /> into it without asking whether the page
   // already rendered one — and Coaches.html does, from coaches.jsx — so the page
@@ -84,7 +86,7 @@ test('the page is wired up and carries the shared nav', () => {
   // present. The invariant it was ever about is that the page HAS a footer, so
   // that is what it asks now, of the module that actually renders it.
   assert.ok(/<Footer\s*\/>/.test(PAGE), 'coaches.jsx no longer renders the shared footer');
-  assert.ok(!/id="site-footer"/.test(HTML), 'Coaches.html opted back into the retired footer auto-mount');
+  assert.ok(!/id="site-footer"/.test(HTML), 'ForCoaches.html opted back into the retired footer auto-mount');
 });
 
 test('every frame the tour names is a capture that exists', () => {

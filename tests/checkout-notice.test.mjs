@@ -58,9 +58,10 @@ function sentCodes() {
   const sources = ['src/app/purchase/actions.ts', 'src/app/subscribe/actions.ts', 'src/lib/membership-detour.ts', 'src/app/api/stripe/platform-checkout/route.ts'];
   for (const f of sources) {
     const src = read(f);
-    // Back to a page the shell renders: the coach's profile (backHref), Marketplace or Pricing.
+    // Back to a page the shell renders: the coach's profile (backHref), the Coaches page (the
+    // marketplace, which was Marketplace.html until 2026-11-05) or Pricing.
     // `/?error=` and `/dashboard?error=` go to pages without it (and `/` carries no error on).
-    for (const m of src.matchAll(/(?:&|(?:Marketplace|Pricing)\.html\?)error=([a-z_]+)/g)) codes.add(m[1]);
+    for (const m of src.matchAll(/(?:&|(?:Coaches|Pricing)\.html\?)error=([a-z_]+)/g)) codes.add(m[1]);
     // A code chosen inline: `&error=${x === 'a' ? 'a' : 'b'}`.
     for (const m of src.matchAll(/&error=\$\{[^}]* \? '([a-z_]+)' : '([a-z_]+)'\}/g)) { codes.add(m[1]); codes.add(m[2]); }
   }
@@ -92,13 +93,13 @@ test('no checkout comes back where nothing reads its code', () => {
   for (const f of ['src/app/purchase/actions.ts', 'src/app/subscribe/actions.ts', 'src/lib/membership-detour.ts']) {
     assert.doesNotMatch(read(f), /redirect\(['`]\/\?error=/, f);
   }
-  assert.match(read('src/app/purchase/actions.ts'), /redirect\('\/newdesign\/Marketplace\.html\?error=invalid_purchase'\)/);
-  assert.match(read('src/app/subscribe/actions.ts'), /redirect\('\/newdesign\/Marketplace\.html\?error=invalid_subscribe'\)/);
+  assert.match(read('src/app/purchase/actions.ts'), /redirect\('\/newdesign\/Coaches\.html\?error=invalid_purchase'\)/);
+  assert.match(read('src/app/subscribe/actions.ts'), /redirect\('\/newdesign\/Coaches\.html\?error=invalid_subscribe'\)/);
   assert.match(read('src/lib/membership-detour.ts'), /cancelPath: `\$\{backHref\}&error=membership_cancelled`/);
-  const p = page('?error=invalid_purchase', { path: '/newdesign/Marketplace.html' });
+  const p = page('?error=invalid_purchase', { path: '/newdesign/Coaches.html' });
   assert.equal(p.box && p.box.attrs.role, 'alert');
   assert.match(p.text, /didn't start\. Nothing was charged\. Choose the coach again\./);
-  assert.deepEqual(p.replaced, ['/newdesign/Marketplace.html']);
+  assert.deepEqual(p.replaced, ['/newdesign/Coaches.html']);
   const back = page('?u=abc&role=trainer&error=membership_cancelled');
   assert.equal(back.box && back.box.attrs.role, 'status');
   assert.match(back.text, /Membership checkout cancelled, so coaching didn't start\. Nothing was charged\./);
@@ -154,8 +155,8 @@ test('a refusal is an alert, and the other parameters keep their encoding', () =
   assert.equal(p.box.attrs.role, 'alert');
   assert.match(p.text, /can't be used with this coach/);
   assert.deepEqual(p.replaced, ['/newdesign/MemberProfile.html?name=Jane%20Doe&role=nutritionist#reviews']);
-  const first = page('?error=provider_at_capacity&role=trainer', { path: '/newdesign/Marketplace.html' });
-  assert.deepEqual(first.replaced, ['/newdesign/Marketplace.html?role=trainer']);
+  const first = page('?error=provider_at_capacity&role=trainer', { path: '/newdesign/Coaches.html' });
+  assert.deepEqual(first.replaced, ['/newdesign/Coaches.html?role=trainer']);
   const only = page('?error=subscribe_cancelled', { path: '/newdesign/Pricing.html' });
   assert.deepEqual(only.replaced, ['/newdesign/Pricing.html']);
 });

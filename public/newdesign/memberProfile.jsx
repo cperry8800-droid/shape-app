@@ -222,7 +222,7 @@ function MemberProfilePage() {
         ) : (
           <button onClick={message} style={{ flex: 1, minWidth: 160, fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", background: TEAL, color: "#04201d", border: 0, borderRadius: 999, padding: "14px", cursor: "pointer" }}>Message →</button>
         )}
-        {isCoach && <a href="/Marketplace.html" style={{ flex: "none", fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "14px 22px", textDecoration: "none" }}>Coaching →</a>}
+        {isCoach && <a href="/newdesign/Coaches.html" style={{ flex: "none", fontFamily: mono, fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: INK, border: "1px solid rgba(242,237,228,0.18)", borderRadius: 999, padding: "14px 22px", textDecoration: "none" }}>Coaching →</a>}
       </div>
 
       {/* About */}

@@ -515,7 +515,7 @@ const SINK_CENSUS = {
   // both fed only by the literal per-client palette (DSC_PALETTE).
   'dashSchedule.jsx': { concat: 2, template: 0 },
   'landing.jsx': { concat: 0, template: 2 },
-  'marketplace.jsx': { concat: 0, template: 10 },
+  // marketplace.jsx left the census 2026-11-05: the Coaches page rebuild draws no hex-alpha append.
   'memberProfile.jsx': { concat: 0, template: 4 },
   'pricing.jsx': { concat: 0, template: 2 },
   'publicProfile.jsx': { concat: 1, template: 0 },

@@ -101,7 +101,7 @@ export async function startCheckout(formData: FormData): Promise<void> {
 
   if (!['trainer', 'nutritionist'].includes(providerRole) || !providerId) {
     // Not `/`: the root redirect carries no error on, so the visitor heard nothing.
-    redirect('/newdesign/Marketplace.html?error=invalid_subscribe');
+    redirect('/newdesign/Coaches.html?error=invalid_subscribe');
   }
 
   const supabase = await createClient();

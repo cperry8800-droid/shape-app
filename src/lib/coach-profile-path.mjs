@@ -14,5 +14,5 @@ export function coachProfilePath(role, listing) {
   if (owner) return `/newdesign/MemberProfile.html?u=${encodeURIComponent(owner)}&role=${r}`;
   const name = listing && typeof listing.name === 'string' ? listing.name.trim() : '';
   if (name) return `/newdesign/MemberProfile.html?name=${encodeURIComponent(name)}&role=${r}`;
-  return `/newdesign/Marketplace.html?role=${r}`;
+  return `/newdesign/Coaches.html?role=${r}`;
 }

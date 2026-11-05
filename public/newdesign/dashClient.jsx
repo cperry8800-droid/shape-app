@@ -645,7 +645,7 @@ function DclSetupBoardView({ board, onSaved }) {
           {coaching && !trainer && !nutritionist && (
             <p className="dw-note" style={{ margin: "10px 0 0" }}>
               <b>Want a coach?</b> Answer the health screening once, and everything here goes with you, so a coach starts from your plan instead of asking again.{" "}
-              {p && !p.screening ? <a className="dw-action" href={"/newdesign/ClientApp.html?screening=required&next=" + encodeURIComponent("/newdesign/Marketplace.html") + "#settings"}>Answer it →</a> : <a className="dw-action" href="Marketplace.html">Find a coach →</a>}
+              {p && !p.screening ? <a className="dw-action" href={"/newdesign/ClientApp.html?screening=required&next=" + encodeURIComponent("/newdesign/Coaches.html") + "#settings"}>Answer it →</a> : <a className="dw-action" href="Coaches.html">Find a coach →</a>}
             </p>
           )}
         </DclSetupStage>
@@ -956,7 +956,7 @@ function ClientDashboardPage() {
                 <div className="dash-ledger" style={{ marginTop: 9 }} />
                 {team.length === 0 && (
                   <div style={{ fontSize: 12.5, color: DCL_INK50, padding: "10px 0" }}>
-                    No coaches yet — <a href="Marketplace.html" style={{ color: DCL_TEAL, textDecoration: "none" }}>find a trainer or nutritionist →</a>
+                    No coaches yet — <a href="Coaches.html" style={{ color: DCL_TEAL, textDecoration: "none" }}>find a trainer or nutritionist →</a>
                   </div>
                 )}
                 {team.map((m, i) => {

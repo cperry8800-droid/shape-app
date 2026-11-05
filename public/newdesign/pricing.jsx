@@ -157,7 +157,7 @@ function PricingCoaches() {
           {EXAMPLE_COACHES.map((c, i) => <CoachCard key={i} c={c} />)}
         </div>
         <div style={{ textAlign: "center", marginTop: 42 }}>
-          <a href="Marketplace.html" style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Browse all coaches →</a>
+          <a href="Coaches.html" style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Browse all coaches →</a>
         </div>
       </div>
     </section>
@@ -196,7 +196,7 @@ function PricingCTA() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <a href="#" onClick={startPlatformCheckout} style={{ padding: "16px 26px", borderRadius: 2, background: INK, color: PAPER, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer", textDecoration: "none", textAlign: "center" }}>Get started →</a>
-          <a href="Marketplace.html" style={{ padding: "16px 26px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14, fontWeight: 600, textAlign: "center", textDecoration: "none" }}>Browse the marketplace</a>
+          <a href="Coaches.html" style={{ padding: "16px 26px", borderRadius: 2, background: "transparent", color: INK, border: "1px solid rgba(242,237,228,0.25)", fontFamily: sans, fontSize: 14, fontWeight: 600, textAlign: "center", textDecoration: "none" }}>Browse the marketplace</a>
         </div>
       </div>
     </section>
