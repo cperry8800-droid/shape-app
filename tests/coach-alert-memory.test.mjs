@@ -306,6 +306,21 @@ test('the run still reads the one snapshot from before the split, until that rol
   const own = notifyDb({ user_goals: [{ user_id: 'coach-1', kind: 'notify_state', data: legacyState }, { user_id: 'coach-1', kind: 'notify_state:trainer', data: { coachClients: {} } }] });
   assert.deepEqual(await core.readNotifyState(own, 'coach-1', 'trainer'), { coachClients: {} }, 'once it has its own, only its own');
   assert.equal((await core.readNotifyState(shared, 'coach-1', 'client')).pendingDigest.length, 2, "a member's is the plain one");
+  // The day's push count stays the person's (Codex on #2622): each role writes its memory to its own key
+  // and the count to the shared one, and reads the count back from there, so two roles share one budget
+  // when the day's pushes can't be read.
+  const budget = { user_goals: [] };
+  const bdb = notifyDb(budget);
+  await core.writeNotifyState(bdb, 'coach-1', 'trainer', { date: '2026-11-05', sentToday: 3, coachClients: { t1: 'amber' } });
+  assert.deepEqual(docOf(budget, 'notify_state'), { date: '2026-11-05', sentToday: 3 });
+  const asNutri = await core.readNotifyState(bdb, 'coach-1', 'nutritionist');
+  assert.equal(asNutri.sentToday, 3, "the trainer's pushes count against the nutritionist's run");
+  assert.equal(asNutri.date, '2026-11-05');
+  await core.writeNotifyState(bdb, 'coach-1', 'nutritionist', { ...asNutri, sentToday: 4, coachClients: { n1: 'amber' } });
+  assert.equal((await core.readNotifyState(bdb, 'coach-1', 'trainer')).sentToday, 4);
+  assert.deepEqual((await core.readNotifyState(bdb, 'coach-1', 'trainer')).coachClients, { t1: 'amber' }, 'the memory stays the role\'s');
+  const capped = decideNotifications({ candidates: [{ type: 'client_red', key: 'x', sig: 'red:x', severity: 'red', title: 't', body: 'b', data: {} }], last: { ...asNutri, sentToday: 99 }, prefs: { dailyCap: 3 }, now: new Date('2026-11-05T15:00:00Z'), audience: 'coach', pushedToday: null });
+  assert.equal(capped.send.filter((n) => n.channels ? n.channels.push : true).length === 0 || capped.send.length === 0, true, 'a shared count at the cap holds the push');
   // Once that role posts its own, the old one is not read for it; a member's record there still is.
   const rows = [
     { kind: 'notify_snapshot', data: { role: 'trainer', at: 1 } },
@@ -322,5 +337,6 @@ test('the run still reads the one snapshot from before the split, until that rol
   const cron = read('src/app/api/ai/notify/cron/route.ts');
   assert.match(cron, /\.in\('kind', NOTIFY_SNAPSHOT_KINDS\)/);
   assert.match(cron, /readNotifyState\(admin, userId, snapshot\.role\)/);
-  assert.match(cron, /writeUserGoal\(admin, userId, notifyKind\('notify_state', snapshot\.role\), nextState\)/);
+  assert.match(cron, /writeNotifyState\(admin, userId, snapshot\.role, nextState/);
+  assert.match(read('src/app/api/ai/notify/route.ts'), /writeNotifyState\(actor\.supabase, actor\.user\.id, role, nextState/);
 });

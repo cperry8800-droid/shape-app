@@ -26,13 +26,15 @@ export default {
 
     // ── a roster and a memory per role ──
     { name: 'one snapshot key for every role', file: LIVE, find: "await writeUserGoal(actor.supabase, actor.user.id, notifyKind('notify_snapshot', role), snapshot);", replace: "await writeUserGoal(actor.supabase, actor.user.id, 'notify_snapshot', snapshot);" },
-    { name: 'one memory for every role (the live route)', file: LIVE, find: "await writeUserGoal(actor.supabase, actor.user.id, notifyKind('notify_state', role), nextState);", replace: "await writeUserGoal(actor.supabase, actor.user.id, 'notify_state', nextState);" },
-    { name: 'one memory for every role (the cron)', file: CRON, find: "await writeUserGoal(admin, userId, notifyKind('notify_state', snapshot.role), nextState);", replace: "await writeUserGoal(admin, userId, 'notify_state', nextState);" },
+    { name: 'one memory for every role (the live route)', file: LIVE, find: "await writeNotifyState(actor.supabase, actor.user.id, role, nextState as Record<string, unknown>);", replace: "await writeUserGoal(actor.supabase, actor.user.id, 'notify_state', nextState);" },
+    { name: 'one memory for every role (the cron)', file: CRON, find: "await writeNotifyState(admin, userId, snapshot.role, nextState as Record<string, unknown>);", replace: "await writeUserGoal(admin, userId, 'notify_state', nextState);" },
     { name: 'the cron reads one role only', file: CRON, find: "  for (const snapshot of snapshotsToEvaluate(rows as Array<{ kind?: unknown; data?: unknown }> | null, cutoff)) {", replace: "  for (const snapshot of snapshotsToEvaluate(rows as Array<{ kind?: unknown; data?: unknown }> | null, cutoff).slice(-1)) {" },
     { name: 'the old snapshot is never read', file: CORE, find: "    if (kind === 'notify_snapshot' && isCoachRole(s.role) && byKind.has(notifyKind('notify_snapshot', s.role))) continue;", replace: "    if (kind === 'notify_snapshot' && isCoachRole(s.role)) continue;" },
     { name: 'the old snapshot runs beside its replacement', file: CORE, find: "    if (kind === 'notify_snapshot' && isCoachRole(s.role) && byKind.has(notifyKind('notify_snapshot', s.role))) continue;", replace: '' },
     { name: 'a stale snapshot is run', file: CORE, find: "    if (!s || !active(s)) continue;", replace: '    if (!s) continue;' },
-    { name: "the first run since the split forgets who was alerted", file: CORE, find: "  if (kind === 'notify_state' || Object.keys(own).length) return own;", replace: '  return own;' },
+    { name: "the first run since the split forgets who was alerted", file: CORE, find: "  if (!Object.keys(own).length) {", replace: '  if (false) {' },
+    { name: "each role counts its own pushes (a second daily budget)", file: CORE, find: "  return shared.date !== undefined ? { ...rest, date: shared.date, sentToday: shared.sentToday } : rest;", replace: '  return memory;' },
+    { name: "the day's count never reaches the shared key", file: CORE, find: "  await writeUserGoal(client, userId, 'notify_state', { ...shared, date: nextState.date, sentToday: nextState.sentToday });", replace: '  void shared;' },
     { name: "the other role's held alerts are carried over", file: CORE, find: "    return typeof pr !== 'string' || pr === provider;", replace: '    return true;' },
 
     // ── each role's program ──

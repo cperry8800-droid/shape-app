@@ -21,7 +21,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, rosterRole, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, rosterRole, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { requireMembership } from '@/lib/require-membership';
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
   // then failing the state write would let a retry RESEND the same nudges (spam).
   // For proactive, never-shaming notifications, fail toward under-delivery.
   try {
-    await writeUserGoal(actor.supabase, actor.user.id, notifyKind('notify_state', role), nextState);
+    await writeNotifyState(actor.supabase, actor.user.id, role, nextState as Record<string, unknown>);
     await deliver(admin, actor.user.id, digest ? [...send, digest] : send);
   } finally {
     // The notices have landed and count themselves now.

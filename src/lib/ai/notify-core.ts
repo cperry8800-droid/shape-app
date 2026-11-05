@@ -380,17 +380,31 @@ export function snapshotsToEvaluate(rows: Array<{ kind?: unknown; data?: unknown
 // The alert memory a coach role's evaluation starts from: its own, else (that role's first run since the
 // split) the one state every role shared, its held coach alerts narrowed to this role's (each carries
 // its role), so a client alerted before is not alerted again and a held alert is not sent twice.
+// ⚠ THE DAY'S PUSH COUNT STAYS THE PERSON'S (Codex on #2622). Only the alert memory is per role: the
+// engine's own count (`date` + `sentToday`), which decideNotifications falls back on when the day's
+// pushes can't be read and the claim is unavailable, is read from and written to the shared
+// `notify_state`, so a coach with both listings has one daily budget, not one per role.
 export async function readNotifyState(client: SupabaseClient, userId: string, role: unknown): Promise<Record<string, unknown>> {
   const kind = notifyKind('notify_state', role);
-  const own = await readUserGoal(client, userId, kind);
-  if (kind === 'notify_state' || Object.keys(own).length) return own;
+  if (kind === 'notify_state') return readUserGoal(client, userId, kind);
+  const [own, shared] = await Promise.all([readUserGoal(client, userId, kind), readUserGoal(client, userId, 'notify_state')]);
+  let memory: Record<string, unknown> = own;
+  if (!Object.keys(own).length) {
+    const provider = providerRoleForRole(role);
+    const held = Array.isArray(shared.pendingDigest) ? shared.pendingDigest : null;
+    memory = !held ? shared : { ...shared, pendingDigest: held.filter((i) => {
+      const pr = i && typeof i === 'object' ? ((i as { data?: { providerRole?: unknown } }).data || {}).providerRole : undefined;
+      return typeof pr !== 'string' || pr === provider;
+    }) };
+  }
+  const { date: _d, sentToday: _s, ...rest } = memory;
+  return shared.date !== undefined ? { ...rest, date: shared.date, sentToday: shared.sentToday } : rest;
+}
+// The other half: the role's memory under its own key, the day's count on the shared one.
+export async function writeNotifyState(client: SupabaseClient, userId: string, role: unknown, nextState: Record<string, unknown>): Promise<void> {
+  const kind = notifyKind('notify_state', role);
+  await writeUserGoal(client, userId, kind, nextState);
+  if (kind === 'notify_state') return;
   const shared = await readUserGoal(client, userId, 'notify_state');
-  const provider = providerRoleForRole(role);
-  const held = Array.isArray(shared.pendingDigest) ? shared.pendingDigest : null;
-  if (!held) return shared;
-  const mine = held.filter((i) => {
-    const pr = i && typeof i === 'object' ? ((i as { data?: { providerRole?: unknown } }).data || {}).providerRole : undefined;
-    return typeof pr !== 'string' || pr === provider;
-  });
-  return { ...shared, pendingDigest: mine };
+  await writeUserGoal(client, userId, 'notify_state', { ...shared, date: nextState.date, sentToday: nextState.sentToday });
 }

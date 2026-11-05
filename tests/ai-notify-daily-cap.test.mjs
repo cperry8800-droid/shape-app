@@ -431,8 +431,8 @@ test('both routes claim what they decided and release it once delivery is done, 
   }
   // The live route still writes its state before delivering (a failure skips a nudge, never resends).
   const live = read('src/app/api/ai/notify/route.ts');
-  assert.ok(live.indexOf("notifyKind('notify_state', role), nextState") > 0);
-  assert.ok(live.indexOf("notifyKind('notify_state', role), nextState") < live.indexOf('deliver(admin'));
+  assert.ok(live.indexOf('writeNotifyState(actor.supabase, actor.user.id, role, nextState') > 0);
+  assert.ok(live.indexOf('writeNotifyState(actor.supabase, actor.user.id, role, nextState') < live.indexOf('deliver(admin'));
 });
 
 test('the migration: a lock per person around the count, live claims counted, closed to all but the service role', () => {

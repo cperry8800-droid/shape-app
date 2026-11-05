@@ -17,7 +17,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, decideAndClaim, deliver, readUserGoal, readNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { rotated } from '../../../../../lib/run-rotation.mjs';
@@ -142,7 +142,7 @@ async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, use
     // The notices have landed and count themselves now.
     await releasePushClaim(admin, claim);
   }
-  await writeUserGoal(admin, userId, notifyKind('notify_state', snapshot.role), nextState);
+  await writeNotifyState(admin, userId, snapshot.role, nextState as Record<string, unknown>);
   return delivered;
 }
 
