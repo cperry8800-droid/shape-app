@@ -636,7 +636,15 @@ function useDashboard(role, opts) {
           _dashJson(dashRoleDashboardUrl(role)).catch(() => null),
         ]);
         const today = todayRes && todayRes[roleKey] ? todayRes : had ? had.today : null;
-        if (!roster || !roster[roleKey]) return had ? undefined : demo(today);
+        if (!roster || !roster[roleKey]) {
+          // A re-read whose roster failed still lands a fresh Today: the two reads are independent, so a
+          // new or cancelled session shows even when the roster could not be read (Codex on #2620).
+          if (had) {
+            if (on && todayRes && todayRes[roleKey]) setState((s) => (s.source === "live" ? { ...s, today: todayRes } : s));
+            return undefined;
+          }
+          return demo(today);
+        }
         // Roster first (fast paint for callers), then enrich rows with ids.
         // ⚠ The third argument is deliberately absent, not null: undefined is
         // "the notes have not been read yet", null would claim the read failed.

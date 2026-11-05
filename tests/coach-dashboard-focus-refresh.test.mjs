@@ -50,6 +50,7 @@ globalThis.fetch = async (url, init) => {
   if (!up) throw new TypeError('Failed to fetch');
   if (holdOverviews && String(url) === '/api/clients/shared-overview') await holdOverviews.promise;
   const json = (body) => ({ ok: true, status: 200, json: async () => body });
+  if (mode === 'roster-down' && String(url).startsWith('/api/trainer/clients')) return { ok: false, status: 503, json: async () => ({}) };
   if (String(url).startsWith('/api/trainer/clients')) return json({ isTrainer: true, clients: mode === 'garbled' ? 'oops' : [{ id: A, name: 'Ada' }], totals: { onPlan: 1 } });
   if (mode === 'partial') return { ok: false, status: 503, json: async () => ({}) };
   if (String(url).startsWith('/api/trainer/dashboard')) return json({ isTrainer: true, user: { firstName: 'Maya' }, kpis: { activeClients: 1 }, today: [{ scheduledAt: '2026-11-05T23:00:00Z', clientName: version }] });
@@ -134,6 +135,17 @@ test('a live page re-reads on the coach\'s return, quietly, and a failed re-read
   assert.equal(last().source, 'live');
   assert.equal(last().today.today[0].clientName, 'v2', 'the last good Today, not the preview\'s');
   assert.equal(last().clients[0].progressRead.state, 'ready', 'the record it had, not "unavailable"');
+
+  // The roster fails but the dashboard answers (Codex on #2620): the fresh Today lands, and the
+  // roster keeps the clients it had.
+  clock += 61_000;
+  mode = 'roster-down';
+  version = 'v4';
+  await back('focus');
+  assert.equal(last().source, 'live');
+  assert.equal(last().today.today[0].clientName, 'v4', 'a fresh Today was dropped because the roster failed');
+  assert.equal(last().clients.length, 1);
+  assert.equal(last().clients[0].progressRead.state, 'ready');
 
   // An answer the page cannot read: still the live page.
   clock += 61_000;
