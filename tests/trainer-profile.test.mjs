@@ -498,7 +498,7 @@ test('the day runs local midnight to local midnight, so a clock-change day keeps
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
   // P9: midnight on the viewer's own clock (the account's zone), each asked of the zone.
   assert.match(src, /const dayEnd = midnight\(new Date\(picked\.getFullYear\(\), picked\.getMonth\(\), picked\.getDate\(\) \+ 1\)\);/);
-  assert.match(src, /const at = bsInstantInZone\(d\.getFullYear\(\), d\.getMonth\(\) \+ 1, d\.getDate\(\), 0, 0, vz\);/);
+  assert.match(src, /const at = bsDayStartInZone\(d\.getFullYear\(\), d\.getMonth\(\) \+ 1, d\.getDate\(\), vz\);/);
   assert.doesNotMatch(src, /dayStart \+ 86400000/);
 });
 
