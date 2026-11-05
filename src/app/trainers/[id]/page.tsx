@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import CinematicPageShell from '@/components/CinematicPageShell';
 import ProviderMessageButton from '@/components/ProviderMessageButton';
+import ProfileViewBeacon from '@/components/ProfileViewBeacon';
 import { getTrainerById, isSubscribedTo } from '@/lib/queries';
 import type { TrainerWorkout } from '@/lib/types';
 
@@ -19,6 +20,7 @@ export default async function TrainerDetailPage({
   return (
     <CinematicPageShell title={trainer.name} subtitle={trainer.specialty ?? undefined}>
       <div className="mx-auto max-w-2xl">
+        <ProfileViewBeacon role="trainer" providerId={trainer.id} />
         {/* Avatar */}
         <div className="flex items-center gap-4 mb-8">
           <div

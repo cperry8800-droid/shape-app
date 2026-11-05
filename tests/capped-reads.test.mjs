@@ -115,11 +115,15 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // ceiling, where a newest-first cap would drop the habits past it.
   // cron/push-held/route.ts joined on 2026-10-26: it walks every held notice by created_at, a page at a
   // time to the end, oldest first so the night's notices go in order and the per-person limit keeps
-  // the first ones.)
+  // the first ones.
+  // coach/goal-readings/route.ts joined on 2026-11-05: it reads the coach's published programs for
+  // the Goal page's "Publish 2 new programs" by the same readAllById walk, every row to a reported
+  // ceiling, where one read would stop at 1,000 with no error.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
     'coach/capacity/route.ts',
+    'coach/goal-readings/route.ts',
     'coach/score/route.ts',
     'conversations/[id]/messages/route.ts',
     'cron/habit-watch/route.ts',

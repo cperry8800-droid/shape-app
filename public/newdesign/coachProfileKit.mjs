@@ -29,6 +29,8 @@ export {
 } from './profileCustom.mjs';
 // The coach's spotlight (owner, 2026-11-04): the intro film, the pinned highlight, the profile song.
 export { bsProfileFilm, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel } from './profileCustom.mjs';
+// One view of a listed coach's page, for their Growth funnel (profileView.mjs): a day's count, nothing about who.
+export { countProfileView } from './profileView.mjs';
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 

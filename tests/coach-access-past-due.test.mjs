@@ -309,6 +309,7 @@ test('the roster\'s client count is the dashboard\'s activeClients on the same r
     registry: new Map([
       ['@/lib/coach-trajectory.mjs', trajectory],
       ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
+      ['@/lib/profile-views.mjs', await import(pathToFileURL(join(ROOT, 'src/lib/profile-views.mjs')).href)],
     ]),
   });
   const messages = await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) });

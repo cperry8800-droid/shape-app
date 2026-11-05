@@ -422,6 +422,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const listing = useCpwListing(live ? uid : null, role, listingEpoch);
   const listed = listing.state === "ready" && !!listing.row;
   const providerId = listed ? listing.row.id : null;
+  // One view of a listed coach's page, never their own: a day's count with nothing about who (profileView.mjs).
+  React.useEffect(() => { if (listed && !isSelf && K.countProfileView) K.countProfileView(role, providerId); }, [listed, isSelf, role, providerId]);
   const L = listed ? listing.row : (demo && sample ? sample.provider : null);
   const media = isPrivate ? { cover: null, gallery: [] } : (listed ? listing.row.listing_media : sample ? sample.provider.listing_media : { cover: null, gallery: [] }) || { cover: null, gallery: [] };
   const gallery = Array.isArray(media.gallery) ? media.gallery : [];

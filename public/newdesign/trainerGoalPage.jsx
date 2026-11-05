@@ -52,7 +52,9 @@ function Field({ label, value, onChange, type }) {
 
 function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
   const METRICS = goalMetricsFor(role);
-  const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false });
+  // A new goal starts today and is due at the quarter's end (coachGoals.js); both can be changed.
+  const [g, setG] = React.useState(goal || { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false, ...(window.CoachGoals ? { startDate: CoachGoals.localDay(new Date()), due: CoachGoals.quarterEnd(new Date()) } : {}) });
+  const badDates = !!(g.startDate && g.due && g.due < g.startDate);
   return (
     <ModalShell
       eyebrow={goal ? "EDIT · GOAL" : "NEW · GOAL"}
@@ -61,7 +63,7 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
       footer={<>
         {onDelete && <button onClick={onDelete} style={{ background: "transparent", color: "var(--sh-danger, #e07856)", border: "1px solid rgba(255,138,109,0.35)", padding: "10px 18px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer", marginRight: "auto" }}>Delete</button>}
         <button onClick={onClose} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Cancel</button>
-        <button onClick={() => onSave(g)} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>Save</button>
+        <button onClick={() => { if (!badDates) onSave(g); }} disabled={badDates} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: badDates ? "default" : "pointer", opacity: badDates ? 0.5 : 1 }}>Save</button>
       </>}
     >
       <Field label="TITLE" value={g.t} onChange={v => setG({ ...g, t: v })} />
@@ -95,6 +97,14 @@ function GoalEditModal({ goal, role, onClose, onSave, onDelete }) {
         <label style={{ display: "flex", gap: 8, cursor: g.metric ? "default" : "pointer" }}><input type="checkbox" disabled={!!g.metric} checked={!!g.pct} onChange={e => setG({ ...g, pct: e.target.checked, money: e.target.checked ? false : g.money })} /> Percent (%)</label>
       </div>
       {g.metric && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>Unit set by the metric</div>}
+      {/* Where it started and when it is due: the pace line on the card reads both. Left empty, the
+          start is where the figure stood on the start date. Programs published start from none. */}
+      <div style={{ display: "grid", gridTemplateColumns: g.metric === "programsPublished" ? "1fr 1fr" : "1fr 1fr 1fr", gap: 12, marginTop: 14 }}>
+        {g.metric !== "programsPublished" && <Field label="START VALUE" type="number" value={g.start} onChange={v => setG({ ...g, start: v })} />}
+        <Field label="START DATE" type="date" value={g.startDate} onChange={v => setG({ ...g, startDate: v })} />
+        <Field label="DUE DATE" type="date" value={g.due} onChange={v => setG({ ...g, due: v })} />
+      </div>
+      {badDates && <div style={{ fontSize: 12, color: "var(--sh-danger, #e07856)" }}>The due date is before the start date.</div>}
     </ModalShell>
   );
 }
@@ -122,21 +132,76 @@ function MomentumEditModal({ momentum, onClose, onSave }) {
   );
 }
 
-let _goalSeq = 0;
-function ensureGoalIds(goals) {
-  return (goals || []).map(g => (g && g.id) ? g : { ...g, id: "g" + (Date.now().toString(36)) + "-" + (_goalSeq++) });
+// The pace line's colour: reached and on track in the accent, off track and missed in rust.
+const GOAL_OUTLOOK_INK = { done: TEAL_BRIGHT, on: TEAL_BRIGHT, off: "var(--sh-danger, #e07856)", missed: "var(--sh-danger, #e07856)" };
+// "Since Oct 1 · from 10 · due Dec 31": what the goal is measured from and to, as far as it says.
+function goalDatesLine(g) {
+  const label = (d) => (window.DashSignals ? DashSignals.goalDateLabel(d) : d);
+  const parts = [];
+  if (CoachGoals.isDay(g.startDate)) parts.push("Since " + label(g.startDate));
+  if (g.start != null && g.start !== "" && g.metric !== "programsPublished") parts.push("from " + CoachGoals.fmtValue(g, Number(g.start)));
+  if (CoachGoals.isDay(g.due)) parts.push("due " + label(g.due));
+  return parts.join(" · ");
+}
+// The goals the coach archived, newest first, each with where it ended; Restore puts one back.
+function GoalArchiveCard({ archived, open, onToggle, onRestore }) {
+  return (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <SectionTitle right={archived.length + " KEPT"}>Archived goals</SectionTitle>
+        <Chip onClick={onToggle}>{open ? "HIDE" : "SHOW"}</Chip>
+      </div>
+      {open && archived.map((a, i) => {
+        const tgtF = window.CoachGoals ? CoachGoals.fmtValue(a, Number(a.tgt)) : String(a.tgt);
+        const endF = a.final == null ? "—" : (window.CoachGoals ? CoachGoals.fmtValue(a, Number(a.final)) : String(a.final));
+        const on = a.archivedAt ? new Date(a.archivedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+        return (
+          <div key={(a.id || i) + "|" + (a.archivedAt || "")} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14 }}>{a.t}</div>
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{endF} of {tgtF}{on ? " · archived " + on : ""}</div>
+            </div>
+            <Chip onClick={() => onRestore(a.id)}>RESTORE</Chip>
+          </div>
+        );
+      })}
+    </Card>
+  );
 }
 
+// A goal's id is its identity, not its place in the list: a goal saved before ids existed gets
+// "goal" + its index, the same id every read, so a change re-applied to a fresh read of the
+// document (coachGoals.js writeGoalsDoc) lands on the goal that was opened.
+function goalsDocState(doc) {
+  const d = doc && typeof doc === "object" ? doc : {};
+  return {
+    ...d,
+    goals: (Array.isArray(d.goals) ? d.goals : []).map((g, i) => (g && g.id) ? g : { ...g, id: "goal" + i }),
+    momentum: Array.isArray(d.momentum) ? d.momentum : [],
+    archived: Array.isArray(d.archived) ? d.archived : [],
+  };
+}
+const GOAL_SAVE_FAILED = {
+  contended: "Your goals changed in another tab. Reload to see them, then try again.",
+  unreadable: "Couldn't read your saved goals just now. Nothing was changed.",
+  "account-changed": "A different account is signed in now. Nothing was saved.",
+  "signed-out": "Sign in to save your goals.",
+};
+
 function TrainerGoalPage() {
-  const [state, setState] = React.useState(() => ({ ...DEFAULT_GOALS_STATE, goals: ensureGoalIds(DEFAULT_GOALS_STATE.goals) }));
+  const [state, setState] = React.useState(() => goalsDocState(DEFAULT_GOALS_STATE));
   const [signedIn, setSignedIn] = React.useState(false);
   const [toast, setToast] = React.useState(null);
-  const [editGoalIdx, setEditGoalIdx] = React.useState(null); // number | 'new' | null
+  const [editGoalId, setEditGoalId] = React.useState(null); // goal id | 'new' | null
+  const [showArchived, setShowArchived] = React.useState(false);
   // Holds the ROWS to edit (or false) — the modal is seeded with whatever the
   // card is showing, so opening it on a computed card adopts those figures as
   // the coach's own starting point rather than a blank grid.
   const [editMomentum, setEditMomentum] = React.useState(false);
   const live = useCoachLiveFigures("trainer");
+  const readings = useCoachGoalReadings("trainer");
+  // A goal's CURRENT: undefined when typed, null when bound and unreadable, "loading", or the figure.
+  const boundOf = (g) => goalLiveValue(g.metric, live, g, readings);
 
   React.useEffect(() => {
     (async () => {
@@ -144,55 +209,69 @@ function TrainerGoalPage() {
       const user = await window.shapeDb.getUser();
       if (!user) return;
       setSignedIn(true);
+      // Signed in with no saved goals → a clean empty state, not the demo goals.
       const remote = await window.shapeDb.getUserGoals("trainer");
-      if (remote && Object.keys(remote).length > 0) {
-        setState(s => ({ ...s, ...remote, goals: ensureGoalIds(remote.goals || s.goals) }));
-      } else {
-        // Signed in with no saved goals → a clean empty state, not the demo goals.
-        setState(s => ({ ...s, goals: [], momentum: [] }));
-      }
+      setState(goalsDocState(remote || {}));
     })();
   }, []);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2500); }
 
-  async function persist(next) {
-    setState(next);
-    if (window.shapeDb && window.shapeDb.saveUserGoals) {
-      const res = await window.shapeDb.saveUserGoals("trainer", next);
-      showToast(res && res.error ? (res.error.message || "Save failed") : (signedIn ? "Saved." : "Sample view — sign in to save."));
-    } else {
-      showToast("Sample view — sign in to save.");
-    }
+  // Every change is a function of the document: shown at once, then applied to a fresh read of the
+  // saved document and written only if nobody wrote it in between (coachGoals.js writeGoalsDoc).
+  // A write that fails puts the page back as it was and says why.
+  async function persistOp(change, done) {
+    if (!window.CoachGoals) { showToast("Save failed. Nothing was changed."); return; }
+    const before = state;
+    setState(s => goalsDocState(change(s)));
+    if (!signedIn || !window.shapeDb) { showToast("Sample view — sign in to save."); return; }
+    const res = await CoachGoals.writeGoalsDoc(window.shapeDb, "trainer", (doc) => change(goalsDocState(doc)));
+    if (res.ok) { setState(goalsDocState(res.doc)); showToast(done || "Saved."); return; }
+    setState(before);
+    showToast(GOAL_SAVE_FAILED[res.reason] || "Save failed. Nothing was changed.");
   }
 
   function saveGoal(g) {
-    const goals = [...state.goals];
-    if (editGoalIdx === "new") goals.push(ensureGoalIds([g])[0]);
-    else goals[editGoalIdx] = { ...goals[editGoalIdx], ...g };
-    setEditGoalIdx(null);
-    persist({ ...state, goals });
+    const id = editGoalId === "new" ? undefined : editGoalId;
+    const current = boundOf(g);
+    setEditGoalId(null);
+    persistOp((doc) => CoachGoals.upsertGoal(doc, { ...g, id }, { now: new Date(), current: typeof current === "number" ? current : null }));
   }
   async function deleteGoal() {
-    const cur = (state.goals || [])[editGoalIdx] || {};
+    const id = editGoalId;
+    const cur = (state.goals || []).find(x => x.id === id) || {};
     if (!(await window.ShapeConfirm.open({ title: "Delete this goal?", name: cur.t || cur.title, message: "This removes the goal from your saved goals.", confirmLabel: "Delete goal" }))) return;
-    const goals = state.goals.filter((_, i) => i !== editGoalIdx);
-    setEditGoalIdx(null);
-    persist({ ...state, goals });
+    setEditGoalId(null);
+    persistOp((doc) => CoachGoals.removeGoal(doc, id));
+  }
+  // ⚠ ARCHIVE KEEPS THEM. It was `goals: []` with no question asked, so one tap deleted every goal
+  // the coach had. Now it asks, and each goal moves to Archived goals with where its figure ended.
+  async function archiveGoals() {
+    if (!(state.goals || []).length) return;
+    if (!(await window.ShapeConfirm.open({ title: "Archive these goals?", message: "Each one moves to Archived goals below this page, with where its figure ended. You can restore any of them there.", confirmLabel: "Archive goals", danger: false }))) return;
+    const finals = {};
+    for (const g of state.goals) {
+      const b = boundOf(g);
+      finals[g.id] = b === undefined ? Number(g.cur) : (typeof b === "number" ? b : null);
+    }
+    persistOp((doc) => CoachGoals.archiveGoals(doc, { now: new Date(), finals }), "Archived.");
+  }
+  function restoreGoal(id) {
+    persistOp((doc) => CoachGoals.restoreGoal(doc, id, { now: new Date() }), "Restored.");
   }
 
-  const { goals, momentum } = state;
+  const { goals, momentum, archived } = state;
 
   // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
   // to navigate", the builder removed "like Programs"). Three parts in one order: the
   // quarter's goals, how the quarter is going (Momentum), and what clients earn you, with
   // the planner one tap away on Business → Plan (dashBusiness.jsx DbzGoalEarn, 2026-10-17).
   // Each card keeps its own EDIT; there is nothing to drag, hide or resize.
-  const goalCard = (g, i) => {
+  const goalCard = (g) => {
     // A bound goal reads its CURRENT from the practice; undefined means the
     // goal is not bound (use the typed number), null means it IS bound and the
     // figure could not be read — which shows "—", never the stale typed one.
-    const bound = goalLiveValue(g.metric, live);
+    const bound = boundOf(g);
     const pending = bound === "loading";
     const liveCur = bound === undefined ? Number(g.cur) || 0 : bound;
     const unreadable = bound === null;
@@ -200,11 +279,16 @@ function TrainerGoalPage() {
     const curF = (unreadable || pending) ? "—" : g.money ? `$${Number(liveCur).toLocaleString()}` : g.pct ? `${liveCur}%` : liveCur;
     const tgtF = g.money ? `$${Number(g.tgt).toLocaleString()}` : g.pct ? `${g.tgt}%` : g.tgt;
     const metricLabel = (goalMetricsFor("trainer").find(([v]) => v === g.metric) || [])[1];
+    // Its pace against its due date (coachGoals.js, the engine's projectGoal): none while the figure
+    // is unread or loading.
+    const outlook = (unreadable || pending || !window.CoachGoals) ? null
+      : CoachGoals.goalOutlook(g, CoachGoals.seriesFor(g, { live, readings }, new Date()), { now: new Date(), current: liveCur });
+    const dates = window.CoachGoals ? goalDatesLine(g) : "";
     return (
       <Card style={{ padding: 26, position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>GOAL · {(unreadable || pending) ? "—" : Math.round(pct*100) + "%"}</div>
-          <Chip onClick={() => setEditGoalIdx(i)}>EDIT</Chip>
+          <Chip onClick={() => setEditGoalId(g.id)}>EDIT</Chip>
         </div>
         <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", marginBottom: 16 }}>{g.t}</div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 6 }}>
@@ -214,6 +298,8 @@ function TrainerGoalPage() {
           <div style={{ height: "100%", width: `${pct*100}%`, background: TEAL }} />
         </div>
         <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>{g.sub}</div>
+        {outlook && outlook.line && <div style={{ fontSize: 12.5, lineHeight: 1.5, marginTop: 8, color: GOAL_OUTLOOK_INK[outlook.state] || "var(--sh-ink2, #a09b94)" }}>{outlook.line}</div>}
+        {dates && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", marginTop: 10 }}>{dates}</div>}
         {g.metric && (
           <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", marginTop: 10 }}>
             {pending ? "Reading…" : unreadable ? "Couldn't read " + (metricLabel || "this figure").toLowerCase() : "Live · " + (metricLabel || g.metric)}
@@ -273,14 +359,14 @@ function TrainerGoalPage() {
       title="Goal"
       subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
       actions={<>
-        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
-        <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+        <button onClick={archiveGoals} disabled={!goals.length} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: goals.length ? "pointer" : "default", opacity: goals.length ? 1 : 0.5 }}>Archive</button>
+        <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >
       <div style={{ display: "grid", gap: 16 }}>
         {goals.length ? (
           <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            {goals.map((g, i) => <React.Fragment key={g.id || i}>{goalCard(g, i)}</React.Fragment>)}
+            {goals.map((g) => <React.Fragment key={g.id}>{goalCard(g)}</React.Fragment>)}
           </div>
         ) : (
           // No goals is a state with one next step, not an empty page.
@@ -289,20 +375,23 @@ function TrainerGoalPage() {
               <div style={{ fontSize: 15, fontWeight: 500 }}>No goals for this quarter yet</div>
               <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4, lineHeight: 1.5 }}>Set one and track it here: clients, revenue, programs, or adherence.</div>
             </div>
-            <button onClick={() => setEditGoalIdx("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
+            <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
           </div>
         )}
         {momentumCard()}
         {calcCard}
+        {archived.length > 0 && (
+          <GoalArchiveCard archived={archived} open={showArchived} onToggle={() => setShowArchived(v => !v)} onRestore={restoreGoal} />
+        )}
       </div>
 
-      {editGoalIdx != null && (
+      {editGoalId != null && (
         <GoalEditModal
-          goal={editGoalIdx === "new" ? null : goals[editGoalIdx]}
+          goal={editGoalId === "new" ? null : goals.find(x => x.id === editGoalId)}
           role="trainer"
-          onClose={() => setEditGoalIdx(null)}
+          onClose={() => setEditGoalId(null)}
           onSave={saveGoal}
-          onDelete={editGoalIdx === "new" ? null : deleteGoal}
+          onDelete={editGoalId === "new" ? null : deleteGoal}
         />
       )}
       {editMomentum && (
@@ -311,7 +400,7 @@ function TrainerGoalPage() {
           // the coach starts from the measured figures rather than a blank grid.
           momentum={Array.isArray(editMomentum) ? editMomentum : momentum}
           onClose={() => setEditMomentum(false)}
-          onSave={m => { setEditMomentum(false); persist({ ...state, momentum: m }); }}
+          onSave={m => { setEditMomentum(false); persistOp((doc) => ({ ...doc, momentum: m })); }}
         />
       )}
       {toast && (

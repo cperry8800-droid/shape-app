@@ -980,8 +980,8 @@ const DASH_DEMO_GROWTH = {
   trainer: dashDemoGrowth([1, 0, 2, 1, 3, 1, 2, 2, 1, 3, 2, 4, 3], 20000, 9),
   nutritionist: dashDemoGrowth([0, 1, 1, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2], 16000, 12),
 };
-// Marketplace funnel: profile views → consults → signed. Views aren't tracked
-// yet → honest "connects soon"; consults + signings are real on live.
+// Marketplace funnel: profile views → consults → signed. Views are a count of the coach's public
+// page per day (src/lib/profile-views.mjs); null until that migration runs → honest "connects soon".
 // The preview's signings are some of its new clients (18 for a nutritionist, 25 for a trainer), never more.
 const DASH_DEMO_FUNNEL = { views: 1240, consults90: 40, signed90: 14 };
 const DASH_FUNNEL_BENCHMARK = 30; // % consult→signed close rate, marketplace norm
@@ -1007,7 +1007,7 @@ function DashFunnelPanel({ live }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
   if (!f) return <div style={{ fontSize: 13, color: ink50 }}>Funnel data connects soon.</div>;
   const stages = [
-    { l: "Profile views", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
+    { l: "Profile views · 90d", v: f.views, note: f.views == null ? "view tracking connects soon" : null },
     { l: "Consults · 90d", v: f.consults90 },
     { l: "Signed from Shape · 90d", v: f.signed90, note: f.signed90 == null ? "couldn't be read just now" : null },
   ];

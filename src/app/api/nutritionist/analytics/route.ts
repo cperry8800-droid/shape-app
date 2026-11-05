@@ -17,6 +17,7 @@ import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { profileNames } from '@/lib/client-names';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 import { rosterZones, memberWindow, rosterReadBounds } from '@/lib/roster-days';
+import { recordGoalReading } from '@/lib/coach-goal-readings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -271,6 +272,10 @@ export async function GET(request: Request) {
   // ⚠ NULL, NOT 0, WHEN THERE IS NOTHING TO MEASURE — see the trainer route. Nor when the logs
   // could not be read.
   const proteinAdherencePct = totalProteinDays ? Math.round((proteinHits / totalProteinDays) * 100) : null;
+  // ⚠ THE GOAL PACE NEEDS THIS FIGURE'S HISTORY, AND NOTHING ELSE KEEPS ONE (2026-11-05): this week's
+  // reading is recorded as it is computed, beside the reads below (the trainer route's rule;
+  // src/lib/coach-goal-readings.ts). Before the migration it is only logged.
+  const goalReading = recordGoalReading(supabase, 'nutritionist', providerId, proteinAdherencePct);
   const avgLogsPerClient = snapsUnknown ? null : clientIds.length ? Math.round(totalDaysLogged / clientIds.length) : 0;
 
   // The practice trajectory (review 2026-09-09, R8) — the same series the trainer
@@ -374,6 +379,7 @@ export async function GET(request: Request) {
       cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
     });
 
+  await goalReading;
   return NextResponse.json({
     isNutritionist: true,
     providerId,

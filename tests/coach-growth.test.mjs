@@ -16,6 +16,7 @@ const G = await loadRealModule(ROOT + 'src/lib/coach-growth.ts', {
   registry: new Map([
     ['@/lib/coach-trajectory.mjs', await import(pathToFileURL(ROOT + 'src/lib/coach-trajectory.mjs').href)],
     ['@/lib/read-all-by-id', await loadRealModule(ROOT + 'src/lib/read-all-by-id.ts', { typescript: true })],
+    ['@/lib/profile-views.mjs', await import(pathToFileURL(ROOT + 'src/lib/profile-views.mjs').href)],
   ]),
 });
 const DAY = 86400000;
@@ -458,12 +459,14 @@ test('every subscription in the window is read, a page at a time: the newest are
   const recent = g.growth.weeklyAdds.filter((w) => w.weekOf > new Date(T - 35 * DAY).toISOString().slice(0, 10)).reduce((s, w) => s + w.count, 0);
   assert.equal(recent, 260, 'the recent weeks have the newest clients in them');
   // Every page is this coach's window in id order, and the earlier read asks for those clients only.
-  const pages = db.reads.filter((r) => op(r, 'gte'));
+  // The subscriptions' reads (the page's views are read beside them, from their own table).
+  const subReads = db.reads.filter((r) => r.table === 'subscriptions');
+  const pages = subReads.filter((r) => op(r, 'gte'));
   const since = op(pages[0], 'gte', 'created_at')[2];
   assert.ok(pages.every((p) => op(p, 'gte', 'created_at')[2] === since), 'every page is the same 90 days');
   const inWindow = table.filter((r) => r.provider_role === 'trainer' && r.provider_id === 7 && r.created_at >= since);
   assertWalk(pages, inWindow, 'window');
-  const earlier = db.reads.filter((r) => op(r, 'lt'));
+  const earlier = subReads.filter((r) => op(r, 'lt'));
   assert.equal(earlier.length, 1);
   assert.deepEqual(op(earlier[0], 'lt'), ['lt', 'created_at', since], 'the earlier read ends where the window starts');
   assert.deepEqual([...op(earlier[0], 'in', 'client_id')[2]].sort(), [...new Set(inWindow.map((r) => r.client_id))].sort());
@@ -489,8 +492,9 @@ test('a membership from before the window is found past the first 1,000 earlier 
   const g = await G.coachGrowthAndFunnel(db, 'trainer', 7, 0);
   assert.equal(total(g), 500, 'the 100 who never left are not new (the first 1,000 earlier rows alone read 600)');
   assert.equal(g.funnel.signed90, 500);
-  const pages = db.reads.filter((r) => op(r, 'lt'));
-  const since = op(db.reads.find((r) => op(r, 'gte')), 'gte', 'created_at')[2];
+  const subReads = db.reads.filter((r) => r.table === 'subscriptions');
+  const pages = subReads.filter((r) => op(r, 'lt'));
+  const since = op(subReads.find((r) => op(r, 'gte')), 'gte', 'created_at')[2];
   assert.ok(pages.every((p) => op(p, 'lt', 'created_at')[2] === since), 'every page ends where the window starts');
   const ids = Array.from({ length: 600 }, (_, k) => 'c' + pad(k));
   assert.ok(pages.every((p) => JSON.stringify([...op(p, 'in', 'client_id')[2]].sort()) === JSON.stringify(ids)), 'every page is the window\'s clients, not every client the coach had');

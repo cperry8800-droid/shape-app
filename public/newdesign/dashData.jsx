@@ -710,6 +710,28 @@ function useCoachLiveFigures(role) {
   return state;
 }
 
+// ── The Goal page's readings for each goal's pace (P4, 2026-11-05) ─────────
+// GET /api/coach/goal-readings: the weekly adherence readings the analytics routes record, and the
+// days the coach's programs were published (coachGoals.js reads both). The same four kinds as
+// useCoachLiveFigures: "live", "demo" (the route's 401: signed out), "unknown" (a failed read, which
+// is never drawn as no readings) and "loading". Shares `_dashJson`'s 60s cache.
+function useCoachGoalReadings(role) {
+  const [state, setState] = React.useState({ kind: "loading" });
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      let r = null;
+      try { r = await _dashJson("/api/coach/goal-readings?role=" + encodeURIComponent(role)); }
+      catch (e) { if (on) setState({ kind: e && e.status === 401 ? "demo" : "unknown" }); return; }
+      if (!on) return;
+      if (!r || typeof r !== "object") return setState({ kind: "unknown" });
+      setState({ kind: "live", adherence: Array.isArray(r.adherence) ? r.adherence : null, programs: r.programs || null });
+    })();
+    return () => { on = false; };
+  }, [role]);
+  return state;
+}
+
 // ── What a goal's CURRENT can be bound to (review 2026-09-09, R9) ──────────
 // ⚠ PER ROLE, because the two analytics routes measure different things: the
 // trainer has session adherence, the nutritionist has protein adherence. One
@@ -941,6 +963,7 @@ function goalMetricUnit(metric) {
   if (metric === "mrrNetMonthly") return { money: true, pct: false };
   if (metric === "adherencePct") return { money: false, pct: true };
   if (metric === "activeClients") return { money: false, pct: false };
+  if (metric === "programsPublished") return { money: false, pct: false };
   return {};
 }
 function goalMetricsFor(role) {
@@ -949,6 +972,8 @@ function goalMetricsFor(role) {
     ["activeClients", "Active clients"],
     ["mrrNetMonthly", "MRR · net per month"],
     ["adherencePct", role === "trainer" ? "Avg session adherence %" : "Avg protein adherence %"],
+    // Counted from the goal's start date (coachGoals.js programsBound): "Publish 2 new programs".
+    ["programsPublished", role === "trainer" ? "Programs published since the start date" : "Meal plans published since the start date"],
   ];
 }
 // undefined = not bound (use the typed number) · null = bound but unreadable
@@ -957,8 +982,12 @@ function goalMetricsFor(role) {
 // ⚠ "loading" IS NOT "unreadable". Returning null while the fetch is still in
 // flight painted "Couldn't read active clients" on every page load until
 // /analytics came back — a false failure message on a healthy account.
-function goalLiveValue(metric, live) {
+//
+// Programs published are counted from the goal's own start date, so that binding reads the goal and
+// the Goal page's readings (useCoachGoalReadings), not the analytics payload.
+function goalLiveValue(metric, live, goal, readings) {
   if (!metric || !live) return undefined;
+  if (metric === "programsPublished") return window.CoachGoals ? window.CoachGoals.programsBound(goal, readings) : null;
   if (live.kind === "loading") return "loading";
   if (live.kind !== "live") return null;
   if (metric === "activeClients") return live.activeClients;
@@ -1752,4 +1781,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });
+Object.assign(window, { useDashboard, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, useCoachGoalReadings, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });

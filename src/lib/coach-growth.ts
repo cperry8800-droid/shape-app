@@ -3,9 +3,11 @@
 //   - growth: NEW CLIENTS per ISO week (subscriptions.created_at) + the
 //     monthly price those clients brought, and the last 30 days against the 30
 //     before. This is NOT payout history — the UI labels it as new clients.
-//   - funnel: consults (sessions) and the clients who found the coach on Shape
-//     over 90d. Profile views aren't tracked anywhere yet → always null (the UI
-//     shows an honest "connects soon" state, never an invented number).
+//   - funnel: views of the coach's public page, consults (sessions) and the
+//     clients who found the coach on Shape over 90d. Views are counted per listing
+//     per day (src/lib/profile-views.mjs, 2026-11-05); until that migration runs,
+//     or when the counts can't be read, views are null and the UI says view
+//     tracking connects soon, never an invented number.
 //
 // ⚠ A NEW CLIENT IS A PERSON WHO STARTED PAYING, ONCE (Business review, 2026-10-17).
 // This counted every subscription row created in 90 days: an abandoned checkout
@@ -35,6 +37,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { subEndedAt, subNeverStarted } from '@/lib/coach-trajectory.mjs';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { coachProfileViews } from '@/lib/profile-views.mjs';
 
 export type CoachGrowth = {
   weeklyAdds: Array<{ weekOf: string; count: number; addedCents: number }>;
@@ -44,7 +47,8 @@ export type CoachGrowth = {
   // null when there were none in the 30 before (no base to compare with).
   momPct: number | null;
 };
-export type CoachFunnel = { views: null; consults90: number; signed90: number };
+// views: the public page's views over the same 90 days, null when they can't be read.
+export type CoachFunnel = { views: number | null; consults90: number; signed90: number };
 
 type AddRow = { client_id?: string | null; price_cents?: number | null; created_at?: string | null; status?: string | null; fee_bps?: number | null };
 
@@ -60,7 +64,7 @@ function mondayISO(d: Date): string {
 // The rollup itself, from the rows created in the window and, for each client who had a
 // subscription before it, when that membership ended (Infinity while it runs). Pure, so
 // the counting is tested without a database.
-export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(), consults90, now = Date.now() }: { existing?: Map<string, number>; consults90: number; now?: number }): { growth: CoachGrowth; funnel: CoachFunnel } {
+export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(), consults90, views = null, now = Date.now() }: { existing?: Map<string, number>; consults90: number; views?: number | null; now?: number }): { growth: CoachGrowth; funnel: CoachFunnel } {
   // Each client's first row in the window that became a subscription, oldest first.
   const firsts = new Map<string, AddRow>();
   const until = new Map(existing);
@@ -109,7 +113,7 @@ export function growthFrom(rows: AddRow[], { existing = new Map<string, number>(
   const momPct = prior30 > 0 ? Math.round(((last30 - prior30) / prior30) * 100) : null;
   return {
     growth: { weeklyAdds, added90, momPct },
-    funnel: { views: null, consults90, signed90: signed },
+    funnel: { views, consults90, signed90: signed },
   };
 }
 
@@ -120,6 +124,8 @@ export async function coachGrowthAndFunnel(
   consults90: number
 ): Promise<{ growth: CoachGrowth; funnel: CoachFunnel }> {
   const since = new Date(Date.now() - 90 * DAY_MS).toISOString();
+  // The page's views, read beside the subscriptions; null (never thrown) when they can't be read.
+  const viewsRead = coachProfileViews(supabase, role, providerId);
   // ⚠ A FAILED READ THROWS. Supabase answers { error } instead of throwing, and read as no
   // rows it would say no one joined, or (below) that every returning client is new. The
   // dashboards catch it and show growth and the funnel as unread (Codex, #2394).
@@ -162,5 +168,5 @@ export async function coachGrowthAndFunnel(
       existing.set(String(r.client_id), Math.max(ended, existing.get(String(r.client_id)) ?? -Infinity));
     }
   }
-  return growthFrom(rows, { existing, consults90 });
+  return growthFrom(rows, { existing, consults90, views: await viewsRead });
 }

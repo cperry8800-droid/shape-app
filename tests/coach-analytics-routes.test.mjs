@@ -110,6 +110,7 @@ async function loadRoute(role, tables, opts) {
       ['@/lib/client-names', await ts('src/lib/client-names.ts')],
       ['@/lib/roster-days', await rosterDays()],
       ['@/lib/auth-lookup', await ts('src/lib/auth-lookup.ts')],
+      ['@/lib/coach-goal-readings', await ts('src/lib/coach-goal-readings.ts')],
       // The real request-auth: the cookie client when there is no Bearer token, else a client made
       // for the token, which answers only the app's token (APP_TOKEN) as the coach.
       ['@/lib/request-auth', await loadRealModule(join(ROOT, 'src/lib/request-auth.ts'), {
@@ -337,6 +338,7 @@ test('no failed read in the trainer route is published as an empty history', asy
       ['@/lib/client-names', await loadRealModule(join(ROOT, 'src/lib/client-names.ts'), { typescript: true })],
       ['@/lib/auth-lookup', await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true })],
       ['@/lib/roster-days', await rosterDays()],
+      ['@/lib/coach-goal-readings', await loadRealModule(join(ROOT, 'src/lib/coach-goal-readings.ts'), { typescript: true })],
     ]),
   })
   const body = await (await route.GET(new Request('https://shape.test/api/trainer/analytics'))).json()
@@ -1124,4 +1126,30 @@ test('nutritionist: the ticker sends no newClients7d, and no count of new subscr
   assert.ok(body.ticker && !('newClients7d' in body.ticker), JSON.stringify(body.ticker))
   assert.ok(!calls.some((c) => c.table === 'subscriptions' && (has(c, 'gte', 'created_at') || c.ops.some((o) => o[0] === 'select' && o[2]?.head === true))),
     'no count of the subscriptions created this week is read')
+})
+
+// ── The goal pace's weekly reading (P4, 2026-11-05) ────────────────────────────────────────────
+// A goal bound to adherence projects its pace from a reading a week, and nothing else keeps one, so
+// each analytics read records this week's with the coach's own session (record_coach_goal_reading).
+test('each analytics read records this week\'s adherence reading for the coach\'s own listing; an unread figure records none', async () => {
+  const t = await loadRoute('trainer', roster({ subscriptions: [sub(A)] }), { rpcs: lifts({}) })
+  const tr = t.calls.filter((c) => c.rpc === 'record_coach_goal_reading')
+  assert.equal(t.body.clientProgress.avgAdherencePct, 13, 'two of the 16 sessions a client is asked for')
+  assert.deepEqual(tr.map((c) => c.args), [{ p_role: 'trainer', p_provider_id: 7, p_metric: 'adherencePct', p_value: 13 }], 'the figure the page shows')
+  const day = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10)
+  const snaps = [0, 1, 2, 3].map((d) => ({ id: 'h' + d, user_id: 'c000000', snapshot_date: day(d), protein_g: d % 2 ? 100 : 130, dietary_kcal: 2000, weight_lb: null }))
+  const n = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(1), daily_health_snapshot: snaps })
+  assert.equal(n.body.clientProgress.proteinAdherencePct, 50)
+  assert.deepEqual(n.calls.filter((c) => c.rpc === 'record_coach_goal_reading').map((c) => c.args), [{ p_role: 'nutritionist', p_provider_id: 9, p_metric: 'adherencePct', p_value: 50 }])
+  const none = await loadRoute('nutritionist', { ...NUTRI, subscriptions: nutriSubs(1) })
+  assert.equal(none.body.clientProgress.proteinAdherencePct, null)
+  assert.equal(none.calls.filter((c) => c.rpc === 'record_coach_goal_reading').length, 0, 'nothing to measure is not a reading of 0')
+  // The store failing (the migration not run yet) never fails the read.
+  const warn = console.warn
+  console.warn = () => {}
+  try {
+    const failing = await loadRoute('trainer', roster({ subscriptions: [sub(A)] }), { rpcs: { ...lifts({}), record_coach_goal_reading: async () => ({ data: null, error: { message: 'function record_coach_goal_reading does not exist' } }) } })
+    assert.equal(failing.status, 200)
+    assert.equal(failing.body.isTrainer, true)
+  } finally { console.warn = warn }
 })

@@ -18,6 +18,7 @@ import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { profileNames } from '@/lib/client-names';
 import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 import { rosterZones, memberWindow, rosterReadBounds } from '@/lib/roster-days';
+import { recordGoalReading } from '@/lib/coach-goal-readings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -358,6 +359,12 @@ export async function GET(request: Request) {
   // figure renders 0 as a measurement — "0% of 95%" under a "Live" label — for
   // a coach who simply has no planned sessions yet.
   const avgAdherencePct = adherenceDen ? Math.round((adherenceNum / adherenceDen) * 100) : null;
+  // ⚠ THE GOAL PACE NEEDS THIS FIGURE'S HISTORY, AND NOTHING ELSE KEEPS ONE (2026-11-05). A goal bound
+  // to adherence projects its pace from a weekly reading (public/newdesign/coachGoals.js), so this
+  // week's is recorded as it is computed, with the coach's own session (record_coach_goal_reading,
+  // supabase-migrations/2026-11-05-coach-goal-readings.sql; a later read this week replaces it). It
+  // runs beside the reads below and never fails this route: before the migration it is only logged.
+  const goalReading = recordGoalReading(supabase, 'trainer', providerId, avgAdherencePct);
 
   // The practice trajectory (review 2026-09-09, R8): every subscription this
   // trainer has ever had, any status, plus paid one-time purchases — bucketed by
@@ -469,6 +476,7 @@ export async function GET(request: Request) {
       cutCents: (priceCents: number, feeBps: number | null) => coachCutCents(priceCents, bpsToRate(feeBps ?? 1500)),
     });
 
+  await goalReading;
   return NextResponse.json({
     isTrainer: true,
     providerId,

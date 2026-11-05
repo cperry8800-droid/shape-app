@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import CinematicPageShell from '@/components/CinematicPageShell';
 import ProviderMessageButton from '@/components/ProviderMessageButton';
+import ProfileViewBeacon from '@/components/ProfileViewBeacon';
 import { getNutritionistById, isSubscribedTo } from '@/lib/queries';
 import type { NutritionistPlan } from '@/lib/types';
 
@@ -19,6 +20,7 @@ export default async function NutritionistDetailPage({
   return (
     <CinematicPageShell title={nutritionist.name} subtitle={nutritionist.specialty ?? undefined}>
       <div className="mx-auto max-w-2xl">
+        <ProfileViewBeacon role="nutritionist" providerId={nutritionist.id} />
         {/* Avatar */}
         <div className="flex items-center gap-4 mb-8">
           <div
