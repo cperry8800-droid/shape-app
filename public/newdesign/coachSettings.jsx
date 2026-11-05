@@ -266,6 +266,8 @@ function CoachSettingsPage({ role }) {
   // the roster and the server ran the house default — for exactly the untrusted-document
   // case the validation exists to handle.
   const tunedCount = tunables.filter((t) => effThresholds[t.key] != null && !refused.has(t.key)).length;
+  // The account's time zone control (zoneSettingWeb.jsx, its own script), read at render.
+  const ZoneSetting = typeof window.ShapeZoneSetting === "function" ? window.ShapeZoneSetting : null;
 
   return (
     <React.Fragment>
@@ -275,7 +277,7 @@ function CoachSettingsPage({ role }) {
         payoutCard={card}
         eyebrow="OFFICE · SETTINGS"
         title="How your practice reads"
-        subtitle="The thresholds that decide when a client is flagged to you, where your dashboard opens, which of your own notifications reach you, and the private link that puts your sessions on your own calendar. Nothing here changes what a client sees."
+        subtitle="The thresholds that decide when a client is flagged to you, where your dashboard opens, your time zone, which of your own notifications reach you, and the private link that puts your sessions on your own calendar. Apart from your time zone, which your open hours follow, nothing here changes what a client sees."
       >
         {/* ── the signal engine ───────────────────────────────────────────── */}
         {cstCard(
@@ -351,6 +353,14 @@ function CoachSettingsPage({ role }) {
             </React.Fragment>
           )}
         </div>
+
+        {/* ── the account's time zone (P9) ────────────────────────────────── */}
+        {/* It drives where the hours editor keeps your open hours and every reader of your
+            listing's zone (the server copies it onto trainers / nutritionists). The control
+            frames itself, so before the migration or signed out there is no empty card. */}
+        {ZoneSetting && (
+          <ZoneSetting coach labelClassName="dash-eyebrow" wrap={(body) => <div style={{ marginTop: 16 }}>{cstCard(body)}</div>} />
+        )}
 
         {/* ── appearance ──────────────────────────────────────────────────── */}
         <div style={{ marginTop: 16 }}>
