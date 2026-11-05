@@ -682,6 +682,77 @@ function CoachListingMediaCard() {
   );
 }
 
+// ── Close account: a confirmation step on the page (2026-11-05) ─────────────
+// It asked through window.confirm and then window.prompt ("Type DELETE"), two browser dialogs in
+// the middle of the dashboard, and said the result in alert(). The step is on the page now: the
+// button opens a short panel in the danger zone's own style that says what is erased, takes
+// DELETE typed into a field, and only then sends; Cancel or Escape closes it, and the outcome is
+// said in the panel. The request is the one it was: two POSTs, the first earning a ten-minute
+// confirmation token bound to this account (L1, 2026-10-08 review), the second spending it.
+// `deps` lets a test hand in fetch, the sign-out and the page's navigation.
+const PX_CLOSE_WORD = "DELETE";
+async function pxDeleteAccount({ fetchImpl, signOut, go }) {
+  let res = await fetchImpl("/api/account/delete", { method: "POST", credentials: "same-origin" });
+  if (res.status === 401) { go("/newdesign/Login.html"); return "signedout"; }
+  if (res.status === 428) {
+    const step = await res.json().catch(() => ({}));
+    if (!step.confirmToken) throw new Error("delete failed");
+    res = await fetchImpl("/api/account/delete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
+    if (res.status === 401) { go("/newdesign/Login.html"); return "signedout"; }
+  }
+  if (!res.ok) throw new Error("delete failed");
+  try { await signOut(); } catch (e) { /* the account is gone either way */ }
+  return "deleted";
+}
+function PxCloseAccount({ btn, note, deps }) {
+  const [open, setOpen] = React.useState(false);
+  const [typed, setTyped] = React.useState("");
+  const [state, setState] = React.useState("idle");   // idle | working | deleted | error
+  const d = deps || {
+    fetchImpl: (u, o) => fetch(u, o),
+    signOut: async () => {
+      if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
+      else if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut();
+    },
+    go: (href) => { window.location.href = href; },
+    later: (fn, ms) => setTimeout(fn, ms),
+  };
+  const ready = typed.trim().toUpperCase() === PX_CLOSE_WORD && state !== "working" && state !== "deleted";
+  const cancel = () => { if (state === "working" || state === "deleted") return; setOpen(false); setTyped(""); setState("idle"); };
+  const confirm = async () => {
+    if (!ready) return;
+    setState("working");
+    try {
+      const out = await pxDeleteAccount(d);
+      if (out === "deleted") { setState("deleted"); d.later(() => d.go("/"), 1500); }
+    } catch (e) { setState("error"); }
+  };
+  if (!open) return <button type="button" style={btn(true)} onClick={() => setOpen(true)}>Close account</button>;
+  const danger = "var(--sh-danger, #e07856)";
+  return (
+    <div role="group" aria-label="Close your account" onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); cancel(); } }}
+      style={{ flexBasis: "100%", border: "1px solid rgba(224,120,86,0.45)", borderRadius: 8, padding: "14px 16px", marginTop: 4 }}>
+      {state === "deleted" ? (
+        <p role="status" style={{ ...note, margin: 0, color: "var(--sh-ink, #f2ede4)" }}>Your account and data have been deleted. Signing you out…</p>
+      ) : (
+        <React.Fragment>
+          <p style={{ ...note, color: "var(--sh-ink, #f2ede4)" }}>This erases your account, your profile and everything Shape holds about you, for good. It cannot be undone.</p>
+          <label style={{ display: "block", fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginBottom: 6 }} htmlFor="px-close-word">Type {PX_CLOSE_WORD} to confirm</label>
+          <input id="px-close-word" autoFocus autoComplete="off" spellCheck={false} value={typed} disabled={state === "working"}
+            onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirm(); } }}
+            style={{ boxSizing: "border-box", width: "100%", maxWidth: 260, background: "transparent", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", borderRadius: 8, padding: "9px 12px", fontSize: 13, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em" }} />
+          {state === "error" && <p role="alert" style={{ ...note, margin: "10px 0 0", color: danger }}>Could not delete your account right now. Try again, or email privacy@theshapecommunity.com.</p>}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+            <button type="button" disabled={!ready} onClick={confirm}
+              style={{ ...btn(true), ...(ready ? { background: "rgba(224,120,86,0.12)" } : { opacity: 0.5, cursor: "default" }) }}>{state === "working" ? "Closing your account…" : "Close my account for good"}</button>
+            <button type="button" disabled={state === "working"} onClick={cancel} style={btn(false)}>Cancel</button>
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
 function CoachAccountSettings({ accountId }) {
   const [details,setDetails]=React.useState(null);
   const [error,setError]=React.useState("");
@@ -746,32 +817,7 @@ function CoachAccountSettings({ accountId }) {
             } catch (e) { alert("Could not export your data right now. Email privacy@theshapecommunity.com."); }
             finally { if (b) b.disabled = false; }
           }}>Export my data</button>
-          <button style={btn(true)} onClick={async (ev) => {
-            const b = ev && ev.currentTarget;
-            if (!window.confirm("Permanently delete your Shape account and ALL your data? This cannot be undone.")) return;
-            const typed = window.prompt("This erases your account, profile, and data for good. Type DELETE to confirm.");
-            if ((typed || "").trim().toUpperCase() !== "DELETE") return;
-            if (b) b.disabled = true; // destructive + non-idempotent — block re-clicks while in flight
-            try {
-              // Two requests (L1, 2026-10-08 review): the first earns a ten-minute confirmation token
-              // bound to this account; the second, carrying it, deletes.
-              let res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin" });
-              if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
-              if (res.status === 428) {
-                const step = await res.json().catch(() => ({}));
-                if (!step.confirmToken) throw new Error("delete failed");
-                res = await fetch("/api/account/delete", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmToken: step.confirmToken }) });
-                if (res.status === 401) { window.location.href = "/newdesign/Login.html"; return; }
-              }
-              if (!res.ok) throw new Error("delete failed");
-              alert("Your account and data have been deleted.");
-              try {
-                if (window.shapeDb && window.shapeDb.signOut) await window.shapeDb.signOut();
-                else if (window.shapeDb && window.shapeDb.client && window.shapeDb.client.auth) await window.shapeDb.client.auth.signOut();
-              } catch (e) {}
-              window.location.href = "/";
-            } catch (e) { alert("Could not delete your account right now. Email privacy@theshapecommunity.com."); if (b) b.disabled = false; }
-          }}>Close account</button>
+          <PxCloseAccount btn={btn} note={note} />
         </div>
       </div>
     </React.Fragment>
