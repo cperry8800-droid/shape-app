@@ -17,7 +17,7 @@
 import type { createClient } from '@/lib/supabase/server';
 import { readinessFromSeries } from '@/lib/recovery-readiness';
 import { bsVitals, bsVitalsLeg, vitalsCeilingISO, vitalsCutoffISO } from '@/lib/vitals-leg.mjs';
-import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, bsReplyWaitLeg, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
+import { bsCoachDay, bsProgramLeg, bsWorkoutProgramLeg, bsLogsLeg, bsLogDaysLeg, bsNutritionTargets, bsLastContactLeg, bsOnboardingLeg, bsReplyWaitLeg, bsBookedSessionsLeg, BOOKED_SESSION_DAYS, ONBOARDING_DAYS, CHECKIN_READ_LIMIT } from '@/lib/coach-client-legs.mjs';
 import { coachIntakeView, screeningState } from '../../mobile-app/src/services/coachIntake.mjs';
 import { OPEN_SUB_STATUSES } from './coach-trajectory.mjs';
 
@@ -585,6 +585,21 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   // thread(s) and the member DM, per role. Omitted when the threads or the messages could not be read
   // (bsReplyWaitLeg's note: an empty read is the claim "nothing waiting").
   let replyWait: ReturnType<typeof bsReplyWaitLeg> | undefined;
+  // The caller's own booked sessions with the client (P2, Codex on #2621), for missed sessions:
+  // omitted when the read failed. The read takes the client's sessions in the window; the leg keeps
+  // only the caller's own.
+  let bookedSessions: ReturnType<typeof bsBookedSessionsLeg> | undefined;
+  if (coached) {
+    const nowMs = Date.now();
+    const { data: bookedRows, error: bookedErr } = await supabase
+      .from('sessions').select('provider_role, provider_id, status, scheduled_at')
+      .eq('client_id', clientId)
+      .in('status', ['confirmed', 'requested', 'completed'])
+      .gte('scheduled_at', new Date(nowMs - BOOKED_SESSION_DAYS * 86_400_000).toISOString())
+      .lte('scheduled_at', new Date(nowMs).toISOString());
+    if (bookedErr) console.error('[shared-overview] booked sessions read failed:', bookedErr.message);
+    bookedSessions = bookedErr ? undefined : bsBookedSessionsLeg(bookedRows ?? [], mine, nowMs);
+  }
   if (coached && !convoErr && dm !== undefined) {
     const own = (role: 'trainer' | 'nutritionist') => {
       const id = mine[role];
@@ -744,6 +759,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     deviceRecovery,
     // P2: per role, when the client's oldest unanswered message was sent; omitted when unreadable.
     ...(replyWait === undefined ? {} : { replyWait }),
+    // P2: per role, the caller's own booked sessions in the last 42 days; omitted when unreadable.
+    ...(bookedSessions === undefined ? {} : { bookedSessions }),
     // R4 legs — each null when its source is absent (never a zero). `logs` is
     // OMITTED entirely when the snapshot read failed, so the client can tell an
     // empty window from an unreadable one.

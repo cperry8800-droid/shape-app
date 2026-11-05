@@ -50,6 +50,7 @@ function overview({ careTeam } = {}) {
     screening: 'flagged',
     checkins: [{ week_of: MONDAY, ratings: { sleep: 1, stress: 5, trainingAdherence: 4 }, question: 'Can we swap Friday?', created_at: NOW.toISOString() }],
     replyWait: { trainer: new Date(NOW.getTime() - 30 * 3600e3).toISOString(), nutritionist: null },
+    bookedSessions: { trainer: { done: 6, planned: 10 }, nutritionist: null },
     program: { name: 'Strength Block 2', week: 4, weeks: 4, status: 'active', estimatedEndAt: new Date(NOW.getTime() + 3 * DAY).toISOString(), overdue: false, nextAssigned: null },
     careTeam: careTeam || [{ role: 'trainer', providerId: 7, name: 'Coach', userId: 'coach-1', isMe: true }],
     careTeamPartial: false,
@@ -165,7 +166,7 @@ test("Nora reads the same record: contact, screening and the rest reach her answ
   assert.equal(item.why, web.directive.verdict + ': ' + web.directive.reason);
   assert.equal(item.move, web.lead.action.label);
   // The three legs Nora never had before P2 are in her record now.
-  const noRead = await readCoachToday(noraDb(), 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer', readOverviews: async (ids) => ({ [ids[0]]: { ...overview(), screening: 'clear', replyWait: null, lastContact: null, stats: null, logs: null, scoreHistory: null, sleep: null, vitals: null, deviceRecovery: null, program: null, checkins: null } }) });
+  const noRead = await readCoachToday(noraDb(), 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer', readOverviews: async (ids) => ({ [ids[0]]: { ...overview(), screening: 'clear', replyWait: null, bookedSessions: null, lastContact: null, stats: null, logs: null, scoreHistory: null, sleep: null, vitals: null, deviceRecovery: null, program: null, checkins: null } }) });
   assert.equal(noRead.needsYou.items.length, 0, 'with those legs clear nothing else raises her');
 });
 

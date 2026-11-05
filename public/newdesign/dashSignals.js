@@ -82,7 +82,7 @@
     // ── The coach signals added with the coach-action table (P2, 2026-11-05) ──
     MISSED_SESSIONS: 3,       // booked sessions in the 42-day window not completed that flag (trainer)
     MISSED_MIN_PLANNED: 4,    // booked sessions the window needs before missed_sessions may speak (evidence floor)
-    CHECKIN_RATING_LOW: 2,    // a 1-5 weekly rating at or under this is low (stress/hunger: at or over 6 minus this)
+    CHECKIN_RATING_LOW: 4,    // a 1-10 weekly rating at or under this is low (every question: 10 is good)
     REPLY_WAIT_HOURS: 24,     // a client's message unanswered this long flags
     PROGRAM_END_DAYS: 7,      // a program ending within this many days, with nothing lined up next, flags
     PROGRAM_ENDED_DAYS: 14,   // …and one that ended up to this many days ago (after that the leg is stale)
@@ -852,12 +852,16 @@
   // is absent (absence is never a signal), and is a COACH view only: evaluateClient runs them for a
   // trainer or nutritionist, never for the member's own record.
 
-  // Missed sessions (trainer). `trainingAdherence` is get_client_stats over the sessions calendar,
-  // the last 42 days up to now: done = completed, planned = completed + confirmed + requested. A
-  // booked session in the past that was never marked completed is the "missed" one — said as "weren't
-  // completed", because a request the coach never confirmed counts there too.
-  function ruleMissedSessions(c) {
-    var ta = c.trainingAdherence;
+  // Missed sessions (trainer). `bookedSessions` is the overview's per-role leg: the CALLER's own
+  // sessions with the client in the last 42 days up to now, done = completed, planned = completed +
+  // confirmed + requested. A booked session in the past that was never marked completed is the
+  // "missed" one — said as "weren't completed", because a request the coach never confirmed counts
+  // there too. ⚠ ONLY THE CALLER'S OWN (Codex on #2621): it read get_client_stats, every coach's
+  // sessions with the client, so a trainer was told to rebook a nutritionist's missed session.
+  function ruleMissedSessions(c, role) {
+    var bs = c.bookedSessions;
+    var own = disciplineForRole(role) === "training" ? "trainer" : disciplineForRole(role) === "nutrition" ? "nutritionist" : null;
+    var ta = bs && typeof bs === "object" && own ? bs[own] : null;
     if (!ta) return null;
     var planned = kpiNum(ta.planned), done = kpiNum(ta.done);
     if (planned == null || done == null || planned < THRESHOLDS.MISSED_MIN_PLANNED) return null;
@@ -866,19 +870,21 @@
     return { key: "missed_sessions", label: "Missed " + missed, reason: missed + " of " + planned + " booked sessions in the last 6 weeks weren't completed", figures: { missed: missed, planned: planned }, sig: "missed:" + missed };
   }
 
-  // A 1-5 weekly rating that reads badly: low on the four where high is good, high on stress and
-  // hunger (the Week view's own rule, dashWeek.jsx DWK_RATINGS).
+  // A weekly rating that reads badly. ⚠ THE FORM ASKS 1-10 AND 10 IS GOOD ON EVERY QUESTION (Codex on
+  // #2621): the website's and the app's check-in offer ten choices, and the two that sound inverted
+  // are asked the good way round ("Stress · 10 = calm", "Hunger control"). So a rating is low when it
+  // is at or under CHECKIN_RATING_LOW, on all six (the Week view reads them the same way, dashWeek.jsx).
   var CHECKIN_RATINGS = [
     ["trainingAdherence", "training", "hi"], ["nutritionAdherence", "nutrition", "hi"], ["sleep", "sleep", "hi"],
-    ["energy", "energy", "hi"], ["stress", "stress", "lo"], ["hunger", "hunger", "lo"],
+    ["energy", "energy", "hi"], ["stress", "calm", "hi"], ["hunger", "hunger control", "hi"],
   ];
   function checkinLowRatings(ratings) {
     var out = [];
     var r = ratings && typeof ratings === "object" ? ratings : {};
     for (var i = 0; i < CHECKIN_RATINGS.length; i++) {
       var v = kpiNum(r[CHECKIN_RATINGS[i][0]]);
-      if (v == null || v < 1 || v > 5) continue;
-      var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v >= 6 - THRESHOLDS.CHECKIN_RATING_LOW;
+      if (v == null || v < 1 || v > 10) continue;
+      var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v >= 11 - THRESHOLDS.CHECKIN_RATING_LOW;
       if (low) out.push({ key: CHECKIN_RATINGS[i][0], name: CHECKIN_RATINGS[i][1], value: v });
     }
     return out;
@@ -898,7 +904,7 @@
     var asked = latest.asked === true;
     if (!lows.length && !asked) return null;
     var bits = [];
-    if (lows.length) bits.push("rated " + lows.slice(0, 2).map(function (l) { return l.name + " " + l.value + "/5"; }).join(" and ") + (lows.length > 2 ? " (+" + (lows.length - 2) + ")" : ""));
+    if (lows.length) bits.push("rated " + lows.slice(0, 2).map(function (l) { return l.name + " " + l.value + "/10"; }).join(" and ") + (lows.length > 2 ? " (+" + (lows.length - 2) + ")" : ""));
     if (asked) bits.push("asked a question");
     return { key: "checkin_waiting", label: asked ? "Question waiting" : "Check-in to review", reason: "Check-in waiting — " + bits.join(", and "), figures: { weekOf: iso(mondayOf(wk)), lows: lows.length, asked: asked }, sig: "wk:" + iso(mondayOf(wk)) };
   }
@@ -1030,7 +1036,7 @@
       if ((f = rulePlanDue(c, now, role))) flags.push(f);
       // The P2 coach signals (missed sessions is the trainer's: the calendar is theirs to rebook).
       // A nutritionist who is the client's only coach takes it too (their consults are on that calendar).
-      if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c))) flags.push(f);
+      if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c, role))) flags.push(f);
       if ((f = ruleCheckinWaiting(c, now))) flags.push(f);
       if ((f = ruleReplyWaiting(c, now, role))) flags.push(f);
       if ((f = ruleProgramEnding(c, now, role))) flags.push(f);
@@ -1377,7 +1383,7 @@
         program: { name: "Foundations", week: 4, weeks: 8 },
         foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 },
         lastContact: { trainer: ago(7), nutritionist: ago(7) },
-        trainingAdherence: { pct: 64, done: 9, planned: 14 },
+        trainingAdherence: { pct: 64, done: 9, planned: 14 }, bookedSessions: { trainer: { done: 9, planned: 14 }, nutritionist: null },
       }),
       // green for the trainer; amber on the nutritionist feed — protein is
       // running 36% under her cut target
@@ -1417,7 +1423,7 @@
       person(8, "Jonah W.", {
         payments: pay(18000, 13, 18, "marketplace"),
         checkIn: { lastWeekOf: mondaysAgo(3) },
-        trainingAdherence: { pct: 71, done: 10, planned: 14 },
+        trainingAdherence: { pct: 71, done: 10, planned: 14 }, bookedSessions: { trainer: { done: 10, planned: 14 }, nutritionist: null },
       }),
       // green + NEW — joined this week; no first check-in yet (new-client
       // pass). No goals set yet either — the pro sees the "set the first
@@ -2135,6 +2141,7 @@
       recovery: recoveryFromOverview(o),
       vitals: vitalsFromOverview(o && o.vitals),
       replyWait: o && o.replyWait && typeof o.replyWait === "object" ? o.replyWait : null,
+      bookedSessions: o && o.bookedSessions && typeof o.bookedSessions === "object" ? o.bookedSessions : null,
       payments: {
         status: row.paymentRetrying === true ? "past_due" : "active",
         paymentRetrying: row.paymentRetrying === true,
@@ -2265,7 +2272,7 @@
   // `userId` is the id the route scope-checks (is_coach_on_client) and the alert opens.
   var SNAPSHOT_KEYS = ["profile", "progressRead", "onboarding", "screening", "trainingAdherence", "foodLogs",
     "shapeScoreHistory", "weighIns", "streaks", "lastContact", "checkIn", "nutrition", "goal", "goals", "goalPhase",
-    "program", "recovery", "vitals", "replyWait", "pros", "dismissals"];
+    "program", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};

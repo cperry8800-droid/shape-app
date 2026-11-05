@@ -305,10 +305,13 @@ export function bsLastContactLeg(conversations, mine, dm = null) {
 // ── A client's message waiting on the coach's reply (P2, 2026-11-05) ─────────
 // Per role, the moment the client's OLDEST unanswered message was sent, in the caller's own threads
 // with them: that role's coach thread and the member DM (the two places a coach writes). `messages`
-// are { conversation_id, sender_id, created_at } rows from those threads, any order. Walking newest
-// to oldest, a message from the client moves the wait back to it; a message from anyone else who is a
-// person (the coach — the threads hold only the two of them) ends the walk; Shape's own system
-// messages (no sender) are skipped, since they answer nobody. null = nothing waiting.
+// are { conversation_id, sender_id, created_at } rows from those threads, any order. Each thread is
+// walked on its own, newest to oldest: a message from the client moves that thread's wait back to it;
+// a message from anyone else who is a person (the coach — the threads hold only the two of them) ends
+// that thread's walk; Shape's own system messages (no sender) are skipped, since they answer nobody.
+// The role's wait is the oldest across its threads. null = nothing waiting.
+// ⚠ PER THREAD, NOT ONE MERGED TIMELINE (Codex on #2621): a reply in the coach thread does not answer
+// a message left in the DM, so a recent coach message in one must not clear an older wait in the other.
 // `threads` is { trainer: [ids], nutritionist: [ids] }; a role with no thread ids reads null.
 // ⚠ The caller OMITS the leg when the messages could not be read: an empty read is "nothing waiting",
 // which must never be claimed about an unreadable thread.
@@ -319,17 +322,52 @@ export function bsReplyWaitLeg(messages, clientId, threads) {
   const waitFor = (ids) => {
     const set = new Set((Array.isArray(ids) ? ids : []).filter((v) => typeof v === 'string' && v));
     if (!set.size) return null;
-    let since = null;
+    const open = new Map(); // conversation -> its oldest unanswered client message (ms)
+    const answered = new Set();
     for (const m of rows) {
-      if (!set.has(m.conversation_id)) continue;
+      const c = m.conversation_id;
+      if (!set.has(c) || answered.has(c)) continue;
       if (m.sender_id == null) continue;
-      if (String(m.sender_id) !== String(clientId)) break;
-      since = new Date(ms(m.created_at)).toISOString();
+      if (String(m.sender_id) !== String(clientId)) { answered.add(c); continue; }
+      open.set(c, ms(m.created_at));
     }
-    return since;
+    let oldest = null;
+    for (const at of open.values()) if (oldest == null || at < oldest) oldest = at;
+    return oldest == null ? null : new Date(oldest).toISOString();
   };
   const t = threads && typeof threads === 'object' ? threads : {};
   return { trainer: waitFor(t.trainer), nutritionist: waitFor(t.nutritionist) };
+}
+
+// ── The caller's own booked sessions with the client, per role (Codex on #2621) ──
+// The missed-sessions signal counted get_client_stats, which is every session the client has with
+// ANY coach, so a trainer could be told to rebook a nutritionist's (or another trainer's) missed
+// session. This counts only the caller's own: per role, the sessions between that role's provider
+// (the caller's listing) and the client in the last BOOKED_SESSION_DAYS up to now. done = completed;
+// planned = completed + confirmed + requested, the same statuses get_client_stats counted. A role the
+// caller doesn't hold reads null. ⚠ The caller OMITS the leg when the read failed.
+export const BOOKED_SESSION_DAYS = 42;
+/** @param {unknown[]} rows @param {unknown} mine @param {number} [now] */
+export function bsBookedSessionsLeg(rows, mine, now = Date.now()) {
+  const list = Array.isArray(rows) ? rows : [];
+  const from = now - BOOKED_SESSION_DAYS * 86_400_000;
+  /** @param {'trainer' | 'nutritionist'} role */
+  const count = (role) => {
+    const id = myId(mine, role);
+    if (id == null) return null;
+    let planned = 0, done = 0;
+    for (const r of list) {
+      if (!r || typeof r !== 'object') continue;
+      const row = /** @type {{ provider_role?: unknown, provider_id?: unknown, status?: unknown, scheduled_at?: unknown }} */ (r);
+      if (row.provider_role !== role || String(row.provider_id) !== id) continue;
+      const at = ms(row.scheduled_at);
+      if (at == null || at < from || at >= now) continue;
+      if (row.status === 'completed') { done++; planned++; }
+      else if (row.status === 'confirmed' || row.status === 'requested') planned++;
+    }
+    return { done, planned };
+  };
+  return { trainer: count('trainer'), nutritionist: count('nutritionist') };
 }
 
 // ── The onboarding board, per role (client-onboarding review, fix 4) ─────────

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { bsReplyWaitLeg } from '../src/lib/coach-client-legs.mjs';
+import { bsReplyWaitLeg, bsBookedSessionsLeg, BOOKED_SESSION_DAYS } from '../src/lib/coach-client-legs.mjs';
 
 const require_ = createRequire(import.meta.url);
 const E = require_('../public/newdesign/dashSignals.js');
@@ -25,34 +25,46 @@ const nutri = (rec, t) => getTriageFeed('nutritionist', [rec], NOW, t)[0];
 
 // ── the new signals ─────────────────────────────────────────────────────────
 test('missed sessions: the trainer\'s, at the threshold, over an evidence floor, tunable', () => {
-  const at = (done, planned) => trainer(base({ trainingAdherence: { done, planned, pct: 0 } }));
+  const at = (done, planned) => trainer(base({ bookedSessions: { trainer: { done, planned }, nutritionist: null } }));
   assert.deepEqual(keys(at(7, 10)), ['missed_sessions']);
   assert.equal(at(7, 10).flags[0].reason, "3 of 10 booked sessions in the last 6 weeks weren't completed");
   assert.equal(at(7, 10).flags[0].label, 'Missed 3');
   assert.deepEqual(keys(at(8, 10)), [], 'two missed is under the house 3');
   assert.deepEqual(keys(at(0, 3)), [], 'three booked is under the evidence floor of 4');
   assert.deepEqual(keys(at(0, 4)), ['missed_sessions'], 'four booked, none kept');
-  assert.deepEqual(keys(trainer(base({ trainingAdherence: { done: 7, planned: 10 } }), E.resolveThresholds({ MISSED_SESSIONS: 4 }).thresholds)), []);
+  assert.deepEqual(keys(trainer(base({ bookedSessions: { trainer: { done: 7, planned: 10 } } }), E.resolveThresholds({ MISSED_SESSIONS: 4 }).thresholds)), []);
   assert.equal(at(7, 10).lead.action.kind, 'schedule');
   // A nutritionist with a trainer on the client: not theirs. Alone on the client: theirs.
-  assert.deepEqual(keys(nutri(base({ trainingAdherence: { done: 7, planned: 10 } }))), []);
-  assert.deepEqual(keys(nutri(base({ trainingAdherence: { done: 7, planned: 10 }, pros: { trainer: false, nutritionist: true } }))), ['missed_sessions']);
+  assert.deepEqual(keys(nutri(base({ bookedSessions: { nutritionist: { done: 7, planned: 10 } } }))), []);
+  assert.deepEqual(keys(nutri(base({ bookedSessions: { nutritionist: { done: 7, planned: 10 } }, pros: { trainer: false, nutritionist: true } }))), ['missed_sessions']);
+  // Only the caller's own sessions (Codex on #2621): the client's sessions with every coach
+  // (get_client_stats' trainingAdherence) and another role's bookings never tell this coach to rebook.
+  assert.deepEqual(keys(trainer(base({ trainingAdherence: { done: 0, planned: 10, pct: 0 } }))), [], 'every coach\'s sessions are not this trainer\'s');
+  assert.deepEqual(keys(trainer(base({ bookedSessions: { trainer: { done: 10, planned: 10 }, nutritionist: { done: 0, planned: 10 } } }))), [], 'the nutritionist\'s missed consults');
+  assert.deepEqual(keys(nutri(base({ bookedSessions: { trainer: { done: 0, planned: 10 }, nutritionist: { done: 10, planned: 10 } }, pros: { trainer: false, nutritionist: true } }))), []);
   // Absence is never a signal.
-  assert.deepEqual(keys(trainer(base({ trainingAdherence: { done: null, planned: 10 } }))), []);
+  assert.deepEqual(keys(trainer(base({ bookedSessions: { trainer: { done: null, planned: 10 } } }))), []);
+  assert.deepEqual(keys(trainer(base({ bookedSessions: { trainer: null, nutritionist: null } }))), []);
 });
 
 test('a check-in waiting: only unreviewed, this week or last, with a low rating or a question', () => {
   const ck = (latest) => base({ checkIn: { lastWeekOf: MONDAY, latest: { weekOf: MONDAY, ratings: {}, asked: false, reviewed: false, ...latest } } });
+  // The form asks 1-10, and 10 is good on every question, stress ("10 = calm") and hunger
+  // ("Hunger control") included (Codex on #2621).
   assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 2 } }))), ['checkin_waiting']);
-  assert.equal(trainer(ck({ ratings: { sleep: 2 } })).flags[0].reason, 'Check-in waiting — rated sleep 2/5');
-  assert.equal(trainer(ck({ ratings: { stress: 4, energy: 1 }, asked: true })).flags[0].reason, 'Check-in waiting — rated energy 1/5 and stress 4/5, and asked a question');
+  assert.equal(trainer(ck({ ratings: { sleep: 2 } })).flags[0].reason, 'Check-in waiting — rated sleep 2/10');
+  assert.equal(trainer(ck({ ratings: { stress: 4, energy: 1 }, asked: true })).flags[0].reason, 'Check-in waiting — rated energy 1/10 and calm 4/10, and asked a question');
+  assert.equal(trainer(ck({ ratings: { hunger: 3 } })).flags[0].reason, 'Check-in waiting — rated hunger control 3/10');
   assert.equal(trainer(ck({ asked: true })).flags[0].label, 'Question waiting');
-  assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 3, stress: 3 } }))), [], 'nothing low, nothing asked');
+  assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 5, stress: 5 } }))), [], 'nothing low, nothing asked');
+  assert.deepEqual(keys(trainer(ck({ ratings: { stress: 9, hunger: 10 } }))), [], 'calm and in control is not a flag');
+  assert.deepEqual(keys(trainer(ck({ ratings: { energy: 3, sleep: 8 } }))), ['checkin_waiting'], 'a rating over 5 is read, not dropped');
+  assert.equal(trainer(ck({ ratings: { energy: 3, sleep: 8 } })).flags[0].reason, 'Check-in waiting — rated energy 3/10');
   assert.deepEqual(keys(trainer(ck({ ratings: { stress: 3 }, asked: true, reviewed: true }))), [], 'reviewed');
   assert.deepEqual(keys(trainer(ck({ asked: true, reviewed: null }))), [], 'an unread review state never says one is waiting');
   assert.deepEqual(keys(trainer(ck({ asked: true, weekOf: '2026-10-26' }))), ['checkin_waiting'], 'last week\'s still waits');
   assert.deepEqual(keys(trainer(base({ checkIn: { lastWeekOf: '2026-10-19', latest: { weekOf: '2026-10-19', asked: true, reviewed: false } } }))).includes('checkin_waiting'), false, 'two weeks back is history');
-  assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 0, stress: 9 } }))), [], 'a rating off the 1-5 scale is not read');
+  assert.deepEqual(keys(trainer(ck({ ratings: { sleep: 0, stress: 11 } }))), [], 'a rating off the 1-10 scale is not read');
   assert.equal(trainer(ck({ asked: true })).lead.action.kind, 'review_checkin');
 });
 
@@ -81,6 +93,33 @@ test('reply wait leg: the oldest unanswered client message, per role, the coach\
   assert.equal(leg.nutritionist, null, 'the coach wrote last');
   assert.deepEqual(bsReplyWaitLeg([], 'client', { trainer: ['t'] }), { trainer: null, nutritionist: null });
   assert.deepEqual(bsReplyWaitLeg(rows, 'client', {}), { trainer: null, nutritionist: null }, 'no thread, nothing waiting');
+  // Each thread on its own (Codex on #2621): the coach's recent reply in the coach thread does not
+  // answer an older message left in the DM.
+  const split = [
+    m('t', 'coach', '2026-11-03T12:00:00Z'), m('t', 'client', '2026-11-03T11:00:00Z'),
+    m('dm', 'client', '2026-11-02T08:00:00Z'), m('dm', 'client', '2026-11-01T08:00:00Z'), m('dm', 'coach', '2026-10-31T08:00:00Z'),
+  ];
+  assert.equal(bsReplyWaitLeg(split, 'client', { trainer: ['t', 'dm'] }).trainer, '2026-11-01T08:00:00.000Z', 'the DM still waits');
+  assert.equal(bsReplyWaitLeg(split.slice(0, 2), 'client', { trainer: ['t', 'dm'] }).trainer, null, 'answered in its own thread');
+  // Two open threads: the role waits since the oldest.
+  assert.equal(bsReplyWaitLeg([m('t', 'client', '2026-11-03T09:00:00Z'), m('dm', 'client', '2026-11-02T09:00:00Z')], 'client', { trainer: ['t', 'dm'] }).trainer, '2026-11-02T09:00:00.000Z');
+});
+
+test('booked sessions leg: only the caller\'s own, per role, the last 42 days up to now (Codex on #2621)', () => {
+  const now = Date.parse('2026-11-05T12:00:00Z');
+  const s = (role, id, status, daysAgo) => ({ provider_role: role, provider_id: id, status, scheduled_at: new Date(now - daysAgo * DAY).toISOString() });
+  const rows = [
+    s('trainer', 7, 'completed', 3), s('trainer', 7, 'confirmed', 5), s('trainer', 7, 'requested', 10),
+    s('trainer', 8, 'confirmed', 4), // another trainer's
+    s('nutritionist', 3, 'confirmed', 2), s('nutritionist', 3, 'completed', 9),
+    s('trainer', 7, 'confirmed', 43), // past the window
+    s('trainer', 7, 'confirmed', -1), // still ahead
+    s('trainer', 7, 'cancelled', 6), // never booked
+  ];
+  assert.deepEqual(bsBookedSessionsLeg(rows, { trainer: 7, nutritionist: 3 }, now), { trainer: { done: 1, planned: 3 }, nutritionist: { done: 1, planned: 2 } });
+  assert.deepEqual(bsBookedSessionsLeg(rows, { trainer: '8', nutritionist: null }, now), { trainer: { done: 0, planned: 1 }, nutritionist: null }, 'ids compare as strings');
+  assert.deepEqual(bsBookedSessionsLeg([], { trainer: 7 }, now), { trainer: { done: 0, planned: 0 }, nutritionist: null });
+  assert.equal(BOOKED_SESSION_DAYS, 42);
 });
 
 test('a program ending with nothing next: by its end date, or its last week; not paused, not lined up', () => {
