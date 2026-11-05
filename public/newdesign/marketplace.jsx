@@ -672,8 +672,8 @@ function MkHero({ f, set, counts, bookable, budgetMax, cities, onFind }) {
           <div className="mk-hero-top">
             <span className="mk-eb">The marketplace</span>
             <div className="mk-role" role="group" aria-label="Coach type">
-              {[["Trainer", "Trainers", "r"], ["Nutritionist", "Nutritionists", "g"], ["Both", "Both", ""]].map(([v, l, k]) => (
-                <button key={v} type="button" aria-pressed={f.role === v} className={f.role === v ? "on" : ""} onClick={() => set({ role: v })}><i className={k} />{l}<em>{counts.role[v]}</em></button>
+              {[["Trainer", "Trainers"], ["Nutritionist", "Nutritionists"], ["Both", "Both"]].map(([v, l]) => (
+                <button key={v} type="button" aria-pressed={f.role === v} className={f.role === v ? "on" : ""} onClick={() => set({ role: v })}>{l}<em>{counts.role[v]}</em></button>
               ))}
             </div>
           </div>
@@ -771,11 +771,11 @@ function MkGroup({ title, k, open, onToggle, children }) {
     </div>
   );
 }
-function MkOpt({ on, label, n, onClick, dot, radio }) {
+function MkOpt({ on, label, n, onClick, radio }) {
   return (
     <button type="button" role={radio ? "radio" : "checkbox"} aria-checked={on} className={"mk-opt" + (on ? " on" : "") + (!n && !on ? " zero" : "")} onClick={onClick}>
       <span className={"mk-cb" + (on ? " on" : "") + (radio ? " rd" : "")}>{on && !radio ? "✓" : ""}</span>
-      <span>{dot ? <i className="dot" style={{ background: dot }} /> : null}{label}</span><span className="n">{n}</span>
+      <span>{label}</span><span className="n">{n}</span>
     </button>
   );
 }
@@ -805,7 +805,7 @@ function MkFilters({ f, set, counts, budgetMax, cities, specs, onReset }) {
     <div className="mk-filters">
       <label className="mk-field"><MkIcon name="search" size={15} /><input type="search" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Name or specialty" aria-label="Search coaches by name or specialty" /></label>
       <MkGroup title="Coach" open={open.coach} onToggle={() => tog("coach")} k={f.role !== "Both" ? 1 : 0}>
-        {[["Both", "Trainers and nutritionists", null], ["Trainer", "Trainers", "#c0533b"], ["Nutritionist", "Nutritionists", "#d8b25a"]].map(([v, l, dot]) => <MkOpt key={v} radio on={f.role === v} label={l} n={counts.role[v]} dot={dot} onClick={() => set({ role: v })} />)}
+        {[["Both", "Trainers and nutritionists"], ["Trainer", "Trainers"], ["Nutritionist", "Nutritionists"]].map(([v, l]) => <MkOpt key={v} radio on={f.role === v} label={l} n={counts.role[v]} onClick={() => set({ role: v })} />)}
       </MkGroup>
       <MkGroup title="Goal" open={open.goal} onToggle={() => tog("goal")} k={nGoals}>
         {MK_GOALS.map((g) => <MkOpt key={g.id} on={f.goals.includes(g.id)} label={g.label} n={counts.goal[g.id] || 0} onClick={() => flip("goals", g.id)} />)}
@@ -1275,8 +1275,6 @@ function Marketplace() {
         .mk-role{display:inline-flex;gap:4px;padding:4px;border-radius:11px;background:rgba(6,9,15,.62);border:1px solid var(--line);box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
         .mk-role button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border-radius:8px;font-size:13px;font-weight:600;color:var(--fg-2);white-space:nowrap}
         .mk-role button.on{background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.05));color:var(--fg);box-shadow:var(--key)}
-        .mk-role i{width:8px;height:8px;border-radius:2px;transform:rotate(45deg);background:var(--teal);flex:none}
-        .mk-role i.r{background:#c0533b}.mk-role i.g{background:#d8b25a}
         .mk-role em{font-style:normal;font-family:var(--num);font-weight:700;font-size:11px;color:var(--fg-3);font-variation-settings:'ROND' 30}
         .mk-hero h1{font-family:var(--disp);font-weight:500;font-variation-settings:'wdth' 90;font-size:clamp(40px,5vw,72px);line-height:.98;letter-spacing:-.01em;margin:20px 0 0;color:var(--fg)}
         .mk-hero h1 em{font-style:normal;color:var(--teal)}
@@ -1383,7 +1381,6 @@ function Marketplace() {
         .mk-cb.rd{border-radius:50%}
         .mk-cb.rd.on{background:transparent;border:5px solid var(--teal)}
         .mk-opt .n,.mk-tg .n{font-family:var(--num);font-weight:700;font-size:11.5px;color:var(--fg-3);font-variation-settings:'ROND' 30}
-        .mk-opt .dot{width:7px;height:7px;border-radius:2px;transform:rotate(45deg);display:inline-block;margin-right:7px;vertical-align:1px}
         .mk-note{margin:6px 0 0;font-size:11.5px;color:var(--fg-3);line-height:1.4}
         .mk-tg{display:flex!important;width:100%;align-items:center;justify-content:space-between;gap:10px;min-height:34px;text-align:left;font-size:13px;color:var(--fg-2)}
         .mk-tg.on{color:var(--fg)}
