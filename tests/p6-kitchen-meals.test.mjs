@@ -66,10 +66,14 @@ test('quantities: mixed numbers, fractions, counts and sizes; per serving; and n
 test('the website\'s text copy of the recipes reads as far as its amounts go (and the parse is reported)', async () => {
   // recipes.jsx is a browser script; its catalog is evaluated here to read its ingredient lines.
   const src = read('public/newdesign/recipes.jsx');
-  const lines = [...src.matchAll(/^\s+"([^"\n]+)",$/gm)].map((m) => m[1]).filter((l) => /^(\d|½|¼|¾)/.test(l) || /\(\d+ kcal\)/.test(l));
+  const blocks = [...src.matchAll(/ingredients: \[\n([\s\S]*?)\n\s*\],/g)].map((m) => [...m[1].matchAll(/"([^"\n]+)"/g)].map((x) => x[1]));
+  const lines = blocks.flat();
   const parsed = lines.filter((l) => kitchenIngredient(l, 1).qty != null);
-  assert.ok(lines.length > 500, `${lines.length} lines found`);
-  assert.ok(parsed.length / lines.length > 0.9, `${parsed.length} of ${lines.length} text lines parse`);
+  assert.equal(blocks.length, 100, 'every recipe\'s list');
+  // Measured 2026-11-05: 868 of 903 (96.1%), the same lines the structured catalog parses; the rest are
+  // "to taste", "handful", "pinch", which carry no amount in either copy.
+  assert.ok(parsed.length / lines.length > 0.95, `${parsed.length} of ${lines.length} text lines parse`);
+  for (const l of lines.filter((x) => kitchenIngredient(x, 1).qty == null)) assert.match(l, /taste|handful|pinch|splash|juice|zest|dash/i, l);
 });
 
 test('what a dish holds is read the safe way: the catalog\'s lists, or any ingredient that names it', () => {
