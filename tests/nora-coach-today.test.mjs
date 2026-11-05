@@ -35,7 +35,8 @@ function fixture(extra = {}) {
     },
     rpcs: {
       get_display_names: ({ p_ids }) => p_ids.map((id) => ({ user_id: id, full_name: { c1: 'Priya Shah', c2: 'Sam Lee', c9: 'Jo Intro' }[id] || null })),
-      get_client_stats: ({ p_user_id }) => ({ c1: { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4 }, c2: { daysLogged7d: 0, sessionsCompleted: 0, sessionsPlanned: 4 } }[p_user_id] || null),
+      // c2 kept 3 of 4 booked sessions: under the missed-sessions line (P2), so these tests read the food gap.
+      get_client_stats: ({ p_user_id }) => ({ c1: { daysLogged7d: 6, sessionsCompleted: 4, sessionsPlanned: 4 }, c2: { daysLogged7d: 0, sessionsCompleted: 3, sessionsPlanned: 4 } }[p_user_id] || null),
       get_client_goals: () => null,
       // Each client checked in this week, so these tests read the rules they were written for; the
       // no-check-in cases are their own test below.
@@ -57,7 +58,8 @@ test('requests to confirm, today on the coach\'s own clock, and who the Today en
   assert.deepEqual(t.sessionsToday, [{ time: '2:00 PM', name: 'Priya Shah', status: 'confirmed', what: 'session', minutes: 60 }], 'London\'s Thursday: 13:00 UTC is 2:00 PM there, and 23:30 UTC is tomorrow');
   assert.equal(t.needsYou.checked, 2);
   assert.equal(t.needsYou.of, 2);
-  assert.deepEqual(t.needsYou.items, [{ name: 'Sam Lee', severity: 'amber', why: 'Tighten nutrition: No food logs in the last week' }]);
+  // …with the coach's own move for them (COACH_ACTIONS, P2).
+  assert.deepEqual(t.needsYou.items, [{ name: 'Sam Lee', severity: 'amber', why: 'Tighten nutrition: No food logs in the last week', move: 'Nudge to log' }]);
   assert.ok(!JSON.stringify(t.needsYou).includes('log a meal today'), 'the client\'s own action line is not the coach\'s');
   const stats = sb._calls.filter((c) => c.rpc === 'get_client_stats').map((c) => c.args.p_user_id).sort();
   assert.deepEqual(stats, ['c1', 'c2'], 'only the active roster is read');
@@ -163,7 +165,7 @@ test('a coach with both listings: each client is read under the role they subscr
   }));
   // A trainer-primary account: the nutrition client's low protein is a nutritionist's flag.
   const t = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'trainer' });
-  assert.deepEqual(t.needsYou.items, [{ name: 'Nina Diet', severity: 'amber', why: 'Tighten nutrition: Averaging 60g protein vs a 150g target', as: 'nutritionist' }]);
+  assert.deepEqual(t.needsYou.items, [{ name: 'Nina Diet', severity: 'amber', why: 'Tighten nutrition: Averaging 60g protein vs a 150g target', move: 'Adjust plan', as: 'nutritionist' }]);
   // And the reverse: a trainer-only client is not read as a nutritionist's.
   const n = await readCoachToday(sb, 'coach-1', { now: NOW, zone: 'UTC', role: 'nutritionist' });
   assert.ok(!n.needsYou.items.some((i) => i.name === 'Tom Train'), 'protein is read-only for a trainer\'s client');

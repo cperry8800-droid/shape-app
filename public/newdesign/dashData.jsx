@@ -150,38 +150,20 @@ async function _dashOverviews(ids) {
 // the whole roster (a per-client read would be one round trip per row for a
 // document that already holds every row).
 function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
-  const stats = ov && ov.stats ? ov.stats : null;
-  const checkins = ov && Array.isArray(ov.checkins) ? ov.checkins : null;
-  const goals = ov && ov.goals ? ov.goals : null;
-  const weighIns = goals && goals.overall && Array.isArray(goals.overall.weighIns)
-    ? goals.overall.weighIns
-        .map((w) => ({ on: w.on || w.date || w.d || null, weight: w.w != null ? w.w : w.weight != null ? w.weight : w.kg, unit: w.unit || (w.kg != null ? "kg" : "lb") }))
-        .filter((w) => w.on && w.weight != null)
-    : null;
-  const phases = ov && ov.programPhases ? ov.programPhases : null;
-  // ── The R4 legs (review 2026-09-09). Each was hardcoded null here until
-  // /api/clients/[id]/shared-overview started deriving it, which is why the
-  // roster's SCORE · PROGRAM · STREAK · LAST CONTACT columns read "Not shared"
-  // on every live row while the demo showed all four.
+  // ⚠ THE ENGINE'S INPUTS COME FROM THE ONE SHARED BUILDER (P2, 2026-11-05). This page used to map
+  // the overview itself while the app, Nora and the push each built their own record, so a client
+  // could be red here and on track on the phone — this page never mapped sleep, energy or hunger,
+  // and the others had no streak, Score, targets or last-logged day. DashSignals.recordFromOverview
+  // is what the app and Nora call too; this function adds only what the website SHOWS (the intake
+  // rows, the check-ins themselves, the drawer's logs and notes, the roster's money columns).
+  const base = DashSignals.recordFromOverview(row, ov);
   const logs = ov && ov.logs ? ov.logs : null;
+  const checkins = ov && Array.isArray(ov.checkins) ? ov.checkins : null;
   // ⚠ "no logs" and "logs aren't shared" are DIFFERENT empties, and the drawer
   // renders a different sentence for each. A null `logs` from a response that
   // CARRIES the key means the window is genuinely empty ([]); a response
   // without the key is an older deploy and stays null.
   const logsKnown = !!(ov && Object.prototype.hasOwnProperty.call(ov, "logs"));
-  const score = ov && ov.scoreHistory ? ov.scoreHistory : null;
-  // ⚠ `partial` RIDES ALONG AND MUST NOT BE DROPPED. The newest bucket is the
-  // week in progress, and DashSignals.scoreWeekReading uses the flag to keep a
-  // week-over-week delta comparing two COMPLETE weeks — without it every
-  // actively-logging client reads as a mid-week collapse on a Monday.
-  const scoreWeeks = score && Array.isArray(score.weeks)
-    ? score.weeks
-        .filter((w) => w && w.weekOf && w.points != null && isFinite(Number(w.points)))
-        .map((w) => ({ weekOf: w.weekOf, points: Number(w.points), partial: !!w.partial }))
-        .slice(-8)
-    : null;
-  const streak = score && score.streak && score.streak.current != null ? score.streak : null;
-  const targets = ov && ov.nutritionTargets ? ov.nutritionTargets : null;
   // One note per client today (the client page keeps a single running note),
   // carried as the engine's [{ on, text }] list so the drawer needs no special
   // case and a future multi-note store drops straight in.
@@ -197,71 +179,17 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
   const note = notesRead && row.id ? notesByClient[row.id] : null;
   const noteText = note && typeof note.text === "string" && note.text.trim() ? note.text.trim() : null;
   return {
+    ...base,
     progressRead: progressRead || { state: ov ? "ready" : notesPending ? "loading" : "unavailable", checkedAt: ov ? new Date().toISOString() : null },
     // joinedAt: the earliest live subscription, which the engine reads for a new client's first
     // week (client-onboarding review, M13: "No logs 7d+" on day one).
     profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null, joinedAt: row.joinedAt || null },
-    // The onboarding board per role, for a client in their first 30 days (fix 4); null otherwise.
-    onboarding: ov && ov.onboarding && typeof ov.onboarding === "object" ? ov.onboarding : null,
     // Who they are, for the board's first stage: the overview's coach-only intake rows (fix 2c).
     intake: ov && ov.intake ? ov.intake : null,
-    // The health screening for Needs you (client-onboarding review M17): the overview's
-    // 'flagged' | 'missing' | 'clear' | 'unknown'; null before the overview has answered.
-    screening: ov && ov.screening ? ov.screening : null,
-    trainingAdherence: stats && stats.sessionsPlanned
-      ? { pct: Math.round((stats.sessionsCompleted / stats.sessionsPlanned) * 100), done: stats.sessionsCompleted, planned: stats.sessionsPlanned }
-      : null,
-    // `daysLogged7d` stays the get_client_stats rollup where it exists — it is
-    // the number every other surface already quotes, and two counts that
-    // disagree is worse than one that is a day coarse. The snapshot leg only
-    // supplies it when the rollup has none.
-    foodLogs: stats && stats.daysLogged7d != null
-      ? { lastLoggedOn: logs ? logs.lastLoggedOn : null, daysLogged7d: stats.daysLogged7d }
-      : logs
-        ? { lastLoggedOn: logs.lastLoggedOn, daysLogged7d: logs.daysLogged7d }
-        : null,
-    // Null until `2026-09-09-client-score-history-coach-read.sql` is applied —
-    // the RPC 404s before that and the column keeps its honest "Not shared".
-    shapeScoreHistory: scoreWeeks && scoreWeeks.length ? scoreWeeks : null,
-    weighIns,
-    streaks: streak
-      ? { current: streak.current, best: streak.best != null ? streak.best : streak.current, lastActiveOn: streak.lastActiveOn || null }
-      : null,
-    lastContact: ov && ov.lastContact ? ov.lastContact : null,
-    checkIn: checkins ? { lastWeekOf: checkins.length ? checkins[0].week_of || checkins[0].weekOf || null : null } : null,
     // The last few check-ins themselves (week_of · ratings · wins · struggles ·
     // question · weight), so the Week view can read a client's week without a
-    // second round trip; the engine keeps reading the summary above.
+    // second round trip; the engine reads the summary the builder made.
     checkins: checkins || null,
-    // The targets are the coach's own (client_programs.detail.nutrition) — the
-    // ledger and protein rules need a value AND a target, so without these
-    // they skipped every live client.
-    nutrition: stats && (stats.avgCalories != null || stats.avgProtein != null)
-      ? {
-          avgCalories: stats.avgCalories,
-          targetCalories: targets ? targets.calories : null,
-          avgProtein: stats.avgProtein,
-          targetProtein: targets ? targets.protein : null,
-        }
-      : null,
-    goal: goals && goals.overall && goals.overall.target != null
-      ? { target: Number(goals.overall.target), unit: goals.overall.unit || "lb", now: goals.overall.now != null ? Number(goals.overall.now) : null }
-      : null,
-    // Pro-set goals (client_programs.detail.goals) + the share-gated self doc,
-    // normalized through the engine; the weight goal inherits live weigh-ins.
-    goals: ov && (ov.coachGoals || goals)
-      ? DashSignals.goalsFromDoc({
-          coach: ov.coachGoals || null,
-          overall: goals && goals.overall ? goals.overall : null,
-          weighIns: weighIns || [],
-          training: goals && goals.training, nutrition: goals && goals.nutrition,
-        })
-      : null,
-    goalPhase: phases ? phases.nutrition || phases.training || null : null,
-    // The block the CALLER put on the client's calendar, and the week it is in — counted
-    // from its first training day and capped at its length (bsWorkoutProgramLeg in
-    // src/lib/coach-client-legs.mjs; an assignment row when there is none).
-    program: ov && ov.program ? ov.program : null,
     coachNotes: noteText
       ? [{ on: note.updatedAt ? String(note.updatedAt).slice(0, 10) : null, text: noteText }]
       : notesRead ? [] : notesPending ? undefined : null,
@@ -285,6 +213,7 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
     // an open plan at all (null when the plans could not be read): the roster also lists people
     // from recent sessions with no plan, who are on the list but not counted as active clients.
     payments: {
+      ...base.payments,
       mrrCents: row.mrrCents ?? null, status: row.paymentRetrying === true ? "past_due" : "active", sessionCount: row.sessions ?? null,
       lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null,
       feeCents: row.feeCents ?? null, origin: row.origin ?? null,
@@ -568,6 +497,80 @@ function useDashFocusRefresh(onRefresh, enabled) {
   }, [enabled]);
 }
 
+// ── The coach's own context for the engine (P2, 2026-11-05) ────────────────
+// Dismiss and snooze: the coach's rows in coach_signal_dismissals, read and written under their own
+// session (RLS: coach_id = auth.uid()). ⚠ THE TABLE ARRIVES BY A MIGRATION THE OWNER RUNS BY HAND
+// (2026-11-05-coach-signal-dismissals.sql): until then every read errors, which answers null, so the
+// engine attaches nothing and every flag shows; a write answers false and the control says so.
+async function _dashDismissUid() {
+  const db = window.shapeDb;
+  if (!db || !db.client || !db.getUser) return null;
+  await dashDocBridge();
+  const u = await db.getUser();
+  return u && u.id ? u.id : null;
+}
+async function dashReadDismissals() {
+  try {
+    const uid = await _dashDismissUid();
+    if (!uid) return null;
+    const { data, error } = await window.shapeDb.client.from("coach_signal_dismissals").select("client_id, reason_key, reason_sig, until").eq("coach_id", uid);
+    if (error) return null;
+    return Array.isArray(data) ? data : [];
+  } catch (e) { return null; }
+}
+// `until` null = dismissed until the reason changes; an ISO time = snoozed until then.
+async function dashWriteDismissal(clientId, flag, until) {
+  try {
+    if (!clientId || !flag || !flag.key || typeof flag.sig !== "string") return false;
+    const uid = await _dashDismissUid();
+    if (!uid) return false;
+    const { error } = await window.shapeDb.client.from("coach_signal_dismissals").upsert(
+      { coach_id: uid, client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null },
+      { onConflict: "coach_id,client_id,reason_key" });
+    return !error;
+  } catch (e) { return false; }
+}
+async function dashClearDismissal(clientId, key) {
+  try {
+    const uid = await _dashDismissUid();
+    if (!uid || !clientId || !key) return false;
+    const { error } = await window.shapeDb.client.from("coach_signal_dismissals").delete().eq("coach_id", uid).eq("client_id", clientId).eq("reason_key", key);
+    return !error;
+  } catch (e) { return false; }
+}
+// The check-in reviews the engine's "check-in waiting" reads. null = unread, which keeps that rule
+// quiet rather than calling every check-in unreviewed.
+async function _dashReadReviews() {
+  try {
+    const db = window.shapeDb;
+    if (!db || !db.getUserGoals) return null;
+    await dashDocBridge();
+    const doc = await db.getUserGoals("coach_week_reviews");
+    return doc && typeof doc === "object" ? doc : null;
+  } catch (e) { return null; }
+}
+// ⚠ A COACH WHO ONLY USES THE WEBSITE GETS THE HOURLY ALERTS TOO (P2). The push cron re-evaluates the
+// roster snapshot a surface last posted to /api/ai/notify, and only the app ever posted one, so a
+// website-only coach was never alerted. This page posts the same engine inputs the app does
+// (DashSignals.engineSnapshot: no notes, intake or check-in text), at most every 30 minutes per role;
+// quiet hours, the daily cap and the alert switches are applied server-side as for the app's post.
+const DASH_NOTIFY_EVERY_MS = 30 * 60 * 1000;
+const DASH_REVIEWS_EVENT = "shape:coach-reviews-changed";
+function dashPostNotifySnapshot(role, records) {
+  try {
+    if (role !== "trainer" && role !== "nutritionist") return false;
+    const key = "shape.notify.web." + role;
+    let last = 0;
+    try { last = Number(localStorage.getItem(key) || 0); } catch (e) {}
+    if (Date.now() - last < DASH_NOTIFY_EVERY_MS) return false;
+    const clients = (records || []).map((r) => DashSignals.engineSnapshot(r)).filter((r) => r && r.userId).slice(0, 100);
+    if (!clients.length) return false;
+    try { localStorage.setItem(key, String(Date.now())); } catch (e) {}
+    fetch("/api/ai/notify", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ clients, role }) }).catch(() => {});
+    return true;
+  } catch (e) { return false; }
+}
+
 // opts.refreshOnFocus: re-read on the coach's return (above). ⚠ A RE-READ ON RETURN IS QUIET, AND
 // IT NEVER TAKES A LIVE PAGE BACK TO THE PREVIEW. The first load paints the roster, then the
 // overviews; a re-read keeps the page as it is until the new answers land, so the columns do not
@@ -576,6 +579,8 @@ function useDashFocusRefresh(onRefresh, enabled) {
 // preview, as before. A client whose overview failed keeps the record it had.
 function useDashboard(role, opts) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null, planCount: undefined });
+  // The coach's dismissals and check-in reviews, attached to the records before the engine runs.
+  const [coachCtx, setCoachCtx] = React.useState({ dismissals: null, reviews: null });
   const lastProgressRead = React.useRef(new Map());
   const [refreshKey, setRefreshKey] = React.useState(0);
   const stateRef = React.useRef(state);
@@ -661,23 +666,33 @@ function useDashboard(role, opts) {
         // The per-client overviews (one batched request per 50 clients) and the
         // ONE notes doc resolve together — the notes read is a single round trip
         // for the whole roster, so it must not sit behind the overviews.
-        const [overviews, notes] = await Promise.all([
+        const [overviews, notes, dismissals, reviews] = await Promise.all([
           _dashOverviews(rows.map((row) => row.id)),
           notesPromise,
+          dashReadDismissals(),
+          _dashReadReviews(),
         ]);
         if (!on) return;
+        const records = rows.map((row, i) => {
+          const cached = _dashCache.get(_dashOverviewKey(row.id));
+          if (overviews[i] && cached) lastProgressRead.current.set(row.id, new Date(cached.at).toISOString());
+          // A quiet re-read keeps the record a client had when their overview failed this time.
+          if (!overviews[i] && before && before.has(row.id)) return before.get(row.id);
+          return _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
+        });
+        const ctx = { dismissals, reviews };
+        // Likewise a dismissals or reviews read that fails on a quiet re-read keeps what the page had.
+        if (had) setCoachCtx((c) => ({ dismissals: dismissals == null ? c.dismissals : dismissals, reviews: reviews == null ? c.reviews : reviews }));
+        else setCoachCtx(ctx);
         setState({
           loading: false,
-          clients: rows.map((row, i) => {
-            const cached = _dashCache.get(_dashOverviewKey(row.id));
-            if (overviews[i] && cached) lastProgressRead.current.set(row.id, new Date(cached.at).toISOString());
-            if (!overviews[i] && before && before.has(row.id)) return before.get(row.id);
-            return _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
-          }),
+          clients: records,
           source: "live",
           today,
           planCount,
         });
+        // Only the records whose overview answered: a client the batch could not read is not evidence.
+        dashPostNotifySnapshot(role, DashSignals.attachCoachContext(records.filter((r, i) => !!overviews[i]), ctx));
       } catch (e) { if (!had) demo(null); }
     })();
     return () => { on = false; };
@@ -690,28 +705,62 @@ function useDashboard(role, opts) {
   const tuning = useCoachThresholds(role);
   const thresholds = tuning ? tuning.thresholds : null;
   const thresholdSig = tuning ? JSON.stringify(tuning.applied) : "";
+  // The records with the coach's dismissals and reviews on them (attachCoachContext): what every
+  // engine call below reads, so a dismissal or a review shows on the next render without a refetch.
+  const clients = React.useMemo(
+    () => (state.source === "live" ? DashSignals.attachCoachContext(state.clients, coachCtx) : state.clients),
+    [state.clients, state.source, coachCtx]
+  );
   const triage = React.useMemo(
-    () => DashSignals.getTriageFeed(role, state.clients, undefined, thresholds || undefined),
+    () => DashSignals.getTriageFeed(role, clients, undefined, thresholds || undefined),
     // eslint-disable-next-line
-    [role, state.clients, thresholdSig]
+    [role, clients, thresholdSig]
   );
   const queue = React.useMemo(
-    () => DashSignals.buildProgrammingQueue(state.clients),
-    [state.clients]
+    () => DashSignals.buildProgrammingQueue(clients),
+    [clients]
   );
   // ⚠ THIS ONE READS THE TUNING TOO, and less obviously: `findJointAttention` calls
   // `evaluateClient` internally. `buildProgrammingQueue` and `buildMilestones` do not
   // — checked rather than assumed, because adding a dependency that changes nothing is
   // cheap and MISSING one leaves a panel quietly showing the old thresholds' output.
+  // Only for a client with a co-coach of the other discipline (P2), so the role rides along.
   const joint = React.useMemo(
-    () => (role === "client" ? [] : DashSignals.findJointAttention(state.clients, undefined, thresholds || undefined)),
+    () => (role === "client" ? [] : DashSignals.findJointAttention(clients, undefined, thresholds || undefined, role)),
     // eslint-disable-next-line
-    [role, state.clients, thresholdSig]
+    [role, clients, thresholdSig]
   );
+  // A check-in marked reviewed on Today or the Week page: re-read the reviews so it stops waiting here.
+  React.useEffect(() => {
+    if (role === "client") return undefined;
+    const onReviews = () => { _dashReadReviews().then((reviews) => { if (reviews) setCoachCtx((c) => ({ ...c, reviews })); }).catch(() => {}); };
+    window.addEventListener(DASH_REVIEWS_EVENT, onReviews);
+    return () => window.removeEventListener(DASH_REVIEWS_EVENT, onReviews);
+  }, [role]);
+  // Dismiss (until the reason changes) or snooze (until `until`) one reason on one client, and undo it.
+  // Optimistic: the row updates at once, and a write that fails puts it back and answers false.
+  const setDismissal = React.useCallback(async (clientId, flag, until) => {
+    const prev = coachCtx.dismissals;
+    const row = { client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null };
+    setCoachCtx((c) => ({ ...c, dismissals: (Array.isArray(c.dismissals) ? c.dismissals : []).filter((d) => !(String(d.client_id) === String(clientId) && d.reason_key === flag.key)).concat([row]) }));
+    const ok = await dashWriteDismissal(clientId, flag, until);
+    if (!ok) setCoachCtx((c) => ({ ...c, dismissals: prev }));
+    return ok;
+  }, [coachCtx.dismissals]);
+  const clearDismissal = React.useCallback(async (clientId, key) => {
+    const prev = coachCtx.dismissals;
+    setCoachCtx((c) => ({ ...c, dismissals: (Array.isArray(c.dismissals) ? c.dismissals : []).filter((d) => !(String(d.client_id) === String(clientId) && d.reason_key === key)) }));
+    const ok = await dashClearDismissal(clientId, key);
+    if (!ok) setCoachCtx((c) => ({ ...c, dismissals: prev }));
+    return ok;
+  }, [coachCtx.dismissals]);
   // `tuning.refused` is carried out, not swallowed: a stored override the engine
   // rejected must not render in the panel as an active tuning while the roster runs
   // on the house default — which is exactly what refuse-don't-clamp exists to prevent.
-  return { loading: state.loading, clients: state.clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning, planCount: state.planCount };
+  // `dismissable` is false until the dismissals table answered (signed out, or the migration not run).
+  const dismissable = state.source === "live" && Array.isArray(coachCtx.dismissals);
+  return { loading: state.loading, clients, triage, queue, joint, today: state.today, client: state.client, source: state.source, tuning, planCount: state.planCount,
+    dismissable, setDismissal, clearDismissal };
 }
 
 // ── The coach's own live figures (review 2026-09-09, R9) ────────────────────
@@ -986,13 +1035,18 @@ function useCoachDoc(goalKind, live, accountId) {
 function useCoachWeekReviews(live) {
   const account = useSignedIn();
   const store = useCoachDoc("coach_week_reviews", live && !!account, account);
-  const apply = (patches) => store.apply((doc) => {
-    const next = { ...doc };
-    for (const { weekOf, clientId, patch } of patches) {
-      next[weekOf] = { ...next[weekOf], [clientId]: { ...(next[weekOf] || {})[clientId], ...patch } };
-    }
-    return next;
-  });
+  const apply = (patches) => {
+    const done = store.apply((doc) => {
+      const next = { ...doc };
+      for (const { weekOf, clientId, patch } of patches) {
+        next[weekOf] = { ...next[weekOf], [clientId]: { ...(next[weekOf] || {})[clientId], ...patch } };
+      }
+      return next;
+    });
+    // The engine's "check-in waiting" reads these reviews (P2): useDashboard re-reads them on this.
+    Promise.resolve(done).then(() => { try { window.dispatchEvent(new CustomEvent(DASH_REVIEWS_EVENT)); } catch (e) {} }, () => {});
+    return done;
+  };
   return { ...store, kind: live && account === undefined ? "loading" : live && account === null ? "signedout" : store.kind, apply, accountId: account };
 }
 
@@ -1826,4 +1880,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, dashRoleDashboardUrl, useDashFocusRefresh, dashFocusGate, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount });
+Object.assign(window, { useDashboard, dashRoleDashboardUrl, useDashFocusRefresh, dashFocusGate, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount, dashReadDismissals, dashWriteDismissal, dashClearDismissal, dashPostNotifySnapshot });

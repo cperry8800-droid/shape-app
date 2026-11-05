@@ -1064,7 +1064,14 @@ async function runRead(name: string, args: Record<string, unknown>, reads: ReadC
       case 'get_coach_today': {
         if (!reads.isCoach) return { error: 'not_a_coach', message: 'Only a coach has a coaching day to read.' };
         const role = reads.role === 'dietitian' ? 'nutritionist' : reads.role;
-        const today = await readCoachToday(sb, uid, { now: reads.now, zone: reads.zone, role });
+        // Her clients through the same overview the website and the app triage (P2): one record each.
+        const today = await readCoachToday(sb, uid, { now: reads.now, zone: reads.zone, role,
+          // Loaded when asked, so the route's other tools never pay for it; a load that fails reads as no
+          // overviews, and she falls back to the rollups (coachToday.mjs).
+          readOverviews: async (ids: string[]) => {
+            const { buildSharedOverviews } = await import('@/lib/shared-overview');
+            return buildSharedOverviews(sb as unknown as Parameters<typeof buildSharedOverviews>[0], uid, ids);
+          } });
         if (!today.ok) return { ok: false, error: 'unavailable', message: 'Their day could not be read right now.' };
         if (!today.isCoach) return { error: 'not_a_coach', message: 'No coach profile is linked to this account.' };
         return today;

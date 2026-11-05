@@ -177,8 +177,10 @@ test("the mock personas hit their designed severities", () => {
   assert.equal(by["Sam R."].severity, "red");
   assert.equal(by["Jonah W."].severity, "red");
   assert.deepEqual(keys(by["Marcus T."]), ["food_gap", "score_drop", "streak_broken"]);
-  assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "food_gap"]);
-  assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue"]);
+  // Sam (9/14) and Jonah (10/14) are also the missed-sessions cases (P2): booked sessions in the
+  // last six weeks that were never completed, at or over the house 3.
+  assert.deepEqual(keys(by["Sam R."]), ["contact_gap", "food_gap", "missed_sessions"]);
+  assert.deepEqual(keys(by["Jonah W."]), ["checkin_overdue", "missed_sessions"]);
   // Tess B. is the brand-new client: green, isNew, and her missing first
   // check-in is excused by the new-client pass.
   assert.equal(by["Tess B."].severity, "green");
@@ -190,8 +192,8 @@ test("flags carry short pill labels in the spec format", () => {
   const by = Object.fromEntries(feed.map((r) => [r.client.profile.name, r]));
   const labels = (r) => r.flags.map((f) => f.label).sort();
   assert.deepEqual(labels(by["Marcus T."]), ["No logs 3d", "Score ↓8", "Streak broken"]);
-  assert.deepEqual(labels(by["Sam R."]), ["No logs 4d", "Quiet 7d"]);
-  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late"]);
+  assert.deepEqual(labels(by["Sam R."]), ["Missed 5", "No logs 4d", "Quiet 7d"]);
+  assert.deepEqual(labels(by["Jonah W."]), ["Check-in 3w late", "Missed 4"]);
   assert.deepEqual(labels(by["Elena R."]), ["Score ↓7"]);
   assert.deepEqual(labels(by["Nadia P."]), ["Goal ETA +15d"]);
   for (const r of feed) for (const f of r.flags) assert.ok(f.label && f.label.length <= 18, f.key + " label fits a pill");
@@ -297,17 +299,22 @@ test("milestones skip cleanly on a sparse record", () => {
 
 // ── joint attention (step 9.2) ──────────────────────────────────────────────
 test("joint attention requires a training-domain AND a nutrition-domain flag", () => {
-  const joint = clean({ streaks: { current: 0, best: 10 }, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
-  const trainingOnly = clean({ streaks: { current: 0, best: 10 } });
-  const nutritionOnly = clean({ foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
-  const res = findJointAttention([joint, trainingOnly, nutritionOnly], NOW);
+  // Each with a nutritionist on the care team (P2: joint attention needs a real co-coach).
+  const team = { coCoaches: [{ role: "nutritionist", userId: "rae", name: "Rae" }] };
+  const joint = clean({ ...team, streaks: { current: 0, best: 10 }, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
+  const trainingOnly = clean({ ...team, streaks: { current: 0, best: 10 } });
+  const nutritionOnly = clean({ ...team, foodLogs: { lastLoggedOn: ago(4), daysLogged7d: 2 } });
+  const res = findJointAttention([joint, trainingOnly, nutritionOnly], NOW, null, "trainer");
   assert.equal(res.length, 1);
   assert.equal(res[0].client, joint);
   assert.ok(res[0].trainingFlags.length && res[0].nutritionFlags.length);
+  assert.deepEqual(res[0].coCoach, { role: "nutritionist", userId: "rae", name: "Rae" });
 });
 test("personas: Marcus is the joint-attention case; Sam (no training flag) is not", () => {
-  const res = findJointAttention(buildMockClients(NOW), NOW);
+  const res = findJointAttention(buildMockClients(NOW), NOW, null, "trainer");
   assert.deepEqual(res.map((r) => r.client.profile.name), ["Marcus T."]);
+  assert.equal(res[0].coCoach.role, "nutritionist", "the trainer's joint note goes to Marcus's nutritionist");
+  assert.equal(findJointAttention(buildMockClients(NOW), NOW, null, "nutritionist")[0].coCoach.role, "trainer");
 });
 
 // ── Projection + directive core (S3-14) ──────────────────────────────────────

@@ -248,7 +248,9 @@ function dwkWeighInsFor(weighIns, weekOf, isCurrent) {
 }
 
 // ── Row pieces ───────────────────────────────────────────────────────────────
-const DWK_RATINGS = [["trainingAdherence", "Training", "hi"], ["nutritionAdherence", "Nutrition", "hi"], ["sleep", "Sleep", "hi"], ["energy", "Energy", "hi"], ["stress", "Stress", "lo"], ["hunger", "Hunger", "lo"]];
+// The check-in asks 1-10 and 10 is good on every question ("Stress · 10 = calm", "Hunger control"),
+// so a rating at or under 4 is the amber one, the engine's rule (dashSignals.js CHECKIN_RATINGS).
+const DWK_RATINGS = [["trainingAdherence", "Training", "hi"], ["nutritionAdherence", "Nutrition", "hi"], ["sleep", "Sleep", "hi"], ["energy", "Energy", "hi"], ["stress", "Calm", "hi"], ["hunger", "Hunger control", "hi"]];
 function DwkRatings({ ratings }) {
   const R = ratings || {};
   const items = DWK_RATINGS.filter(([k]) => R[k] != null);
@@ -257,8 +259,8 @@ function DwkRatings({ ratings }) {
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
       {items.map(([k, label, good]) => {
         const v = Number(R[k]);
-        const flag = good === "hi" ? v <= 2 : v >= 4;
-        return <span key={k} style={{ fontFamily: DWK_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: flag ? DWK_AMBER : DWK_INK50 }}>{label} <b style={{ color: flag ? DWK_AMBER : DWK_INK, fontWeight: 700 }}>{v}</b><span style={{ opacity: 0.6 }}>/5</span></span>;
+        const flag = good === "hi" ? v <= 4 : v >= 7;
+        return <span key={k} style={{ fontFamily: DWK_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: flag ? DWK_AMBER : DWK_INK50 }}>{label} <b style={{ color: flag ? DWK_AMBER : DWK_INK, fontWeight: 700 }}>{v}</b><span style={{ opacity: 0.6 }}>/10</span></span>;
       })}
     </div>
   );

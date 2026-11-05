@@ -355,7 +355,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
   // they are on this coach's own roster.
   React.useEffect(() => (clientId && window.shapeNoraOpen ? window.shapeNoraOpen({ clientId }) : undefined), [clientId]);
   React.useEffect(() => {
-    if (!["plans", "checkins", "progress"].includes(targetSection)) return;
+    // "health": the engine's "Read health screening" move (P2) lands on the screening.
+    if (!["plans", "checkins", "progress", "health"].includes(targetSection)) return;
     const root = document.getElementById("root");
     const jump = () => { const el = document.getElementById("client-" + targetSection); if (el) { el.scrollIntoView({ block: "start" }); return true; } return false; };
     if (jump() || !root) return;
@@ -919,6 +920,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
           {/* The screening is shown whether or not it is on file (review M17): a coach must see that
               it is missing, not a card that quietly is not there. 'unknown' is a read that could
               not tell, never "missing". */}
+          <div id="client-health" />
           {!data.healthProfile && data.screening === "missing" && (
             <Card style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>

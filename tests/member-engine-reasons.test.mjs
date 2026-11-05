@@ -514,8 +514,9 @@ test('the notify routes say a member\'s notices in their language and units, and
     const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
     assert.match(src, /readUserGoal\([^)]*'app_locale'\)/, rel);
     assert.match(src, /const copy = memberCopy\(localeDoc, settings\);/, rel);
-    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy \}\)/, rel);
-    assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr \}/, rel);
+    // The coach's fresh dismissals and reviews (coachContext) and the run's alert memory (coachSeen) ride along (P2).
+    assert.match(src, /candidatesFor\(snapshot, \{.*\bthresholds, copy, coachContext \}\)/, rel);
+    assert.match(src, /decideAndClaim\([^;{]*\{[^}]*tr: copy\?\.tr, coachSeen \}/, rel);
   }
   // The server bundles a catalog for exactly the languages the app ships.
   const cats = fs.readFileSync(path.join(ROOT, 'src/lib/ai/memberCatalogs.ts'), 'utf8');

@@ -108,21 +108,28 @@ async function coachClients(role, { strict = false } = {}) {
   if (strict) throw new Error('Client roster unavailable');
   return [];
 }
+// ⚠ ONE RECORD PER CLIENT, BUILT THE WAY THE WEBSITE BUILDS IT (P2, 2026-11-05). The app built its
+// record from the get_client_* rollups, so it had no streak, Shape Score, calorie or protein targets
+// or last-logged day, and a client red on the website read on track here. The roster's overviews
+// (the website's own batch read) now go through the engine's one builder,
+// DashSignals.recordFromOverview, for every client whose overview came back. A client whose overview
+// did not come back is read the older way, so one failed build never hides a client.
+function fromOverview(c, ov) {
+  const e = engine();
+  if (!ov || typeof ov !== 'object' || !e || typeof e.recordFromOverview !== 'function') return null;
+  const rec = call(e.recordFromOverview, { id: c.id, name: c.name, isNew: c.isNew, joinedAt: c.joinedAt, paymentRetrying: c.paymentRetrying }, ov);
+  if (!rec) return null;
+  // What the app's rows show beside the engine's inputs: the retrying mark on the profile (as the
+  // rollup path sets it) and the six-week workout count (get_client_lifts, on the overview too).
+  if (c.paymentRetrying === true) rec.profile.paymentRetrying = true;
+  const lifts = ov.lifts && typeof ov.lifts === 'object' ? ov.lifts : null;
+  const wk = lifts && Number.isFinite(Number(lifts.workoutsLogged42d)) && lifts.workoutsLogged42d !== null ? Number(lifts.workoutsLogged42d) : null;
+  if (wk != null) rec.totals = { workouts: wk };
+  return rec;
+}
 async function coachRecords(role, options) {
   const clients = await coachClients(role, options);
   if (!clients.length) return [];
-  // Batch the roster's recent sleep + check-in vitals in ONE call (RLS-scoped to
-  // this coach's clients) so the engine's sleep-recovery + energy/hunger rules can
-  // flag in the "who needs you" feed. The widened /api/coach/roster-sleep response
-  // rides each entry as { sleepHours?, vitals? } — a pre-widening server returns
-  // sleepHours-only entries, which map through unchanged. Best-effort — {} on any
-  // failure, so triage never blocks on it.
-  let sleepByClient = {};
-  try {
-    if (window.ShapeRosterSleep && window.ShapeRosterSleep.get) {
-      sleepByClient = (await window.ShapeRosterSleep.get(clients.map((c) => c.id))) || {};
-    }
-  } catch (e) { /* ignore */ }
   // Last contact and the onboarding board, from the roster's overviews (fix 4, and L8: the app never
   // passed last contact, so a client nobody had written to was never flagged here, and the two views
   // disagreed). Best-effort: a missing overview leaves both unset, which the engine reads as not shared.
@@ -130,7 +137,23 @@ async function coachRecords(role, options) {
   try {
     if (window.ShapeCareTeam && window.ShapeCareTeam.overviews) overviews = (await window.ShapeCareTeam.overviews(clients.map((c) => c.id))) || {};
   } catch (e) { /* ignore */ }
+  // Batch the roster's recent sleep + check-in vitals in ONE call (RLS-scoped to
+  // this coach's clients) so the engine's sleep-recovery + energy/hunger rules can
+  // flag in the "who needs you" feed — only for the clients whose overview (which
+  // carries both) did not come back. The widened /api/coach/roster-sleep response
+  // rides each entry as { sleepHours?, vitals? } — a pre-widening server returns
+  // sleepHours-only entries, which map through unchanged. Best-effort — {} on any
+  // failure, so triage never blocks on it.
+  const rest = clients.filter((c) => !(overviews[c.id] && typeof overviews[c.id] === 'object'));
+  let sleepByClient = {};
+  try {
+    if (rest.length && window.ShapeRosterSleep && window.ShapeRosterSleep.get) {
+      sleepByClient = (await window.ShapeRosterSleep.get(rest.map((c) => c.id))) || {};
+    }
+  } catch (e) { /* ignore */ }
   return pooled(clients, 4, async (c) => {
+    const built = fromOverview(c, overviews[c.id]);
+    if (built) return built;
     const kit = window.ShapeClientKit || {};
     const [stats, lifts, goalsDoc, checkins, health, intake] = await Promise.all([
       window.ShapeClientStats && window.ShapeClientStats.get ? window.ShapeClientStats.get(c.id).catch(() => null) : null,
@@ -165,6 +188,31 @@ async function coachRecords(role, options) {
   });
 }
 
+// The coach's own tuning of the signals (Settings → "Flags · when a client reaches you", the same
+// `coach_settings` doc the website's Settings writes), re-validated by the engine. ⚠ The app ran on
+// the house thresholds while the website and the push ran on the coach's, so a coach who raised the
+// food-log gap still saw those clients flagged on the phone. null = house policy.
+async function coachThresholds() {
+  try {
+    const e = engine();
+    const db = window.shapeDb;
+    if (!e || typeof e.resolveThresholds !== 'function' || !db || !db.getUserGoals) return null;
+    const doc = await db.getUserGoals('coach_settings');
+    const t = doc && typeof doc === 'object' && doc.thresholds && typeof doc.thresholds === 'object' ? doc.thresholds : null;
+    return t ? e.resolveThresholds(t).thresholds : null;
+  } catch (e) { return null; }
+}
+// The coach's dismissals (coach_signal_dismissals, via ShapeSignalDismissals) and check-in reviews
+// (coach_week_reviews), which the engine reads off each record (attachCoachContext). Each null when
+// unread, which hides nothing and keeps "check-in waiting" quiet.
+async function coachContext() {
+  const [dismissals, reviews] = await Promise.all([
+    (async () => { try { return window.ShapeSignalDismissals && window.ShapeSignalDismissals.list ? await window.ShapeSignalDismissals.list() : null; } catch (e) { return null; } })(),
+    (async () => { try { const db = window.shapeDb; const d = db && db.getUserGoals ? await db.getUserGoals('coach_week_reviews') : null; return d && typeof d === 'object' ? d : null; } catch (e) { return null; } })(),
+  ]);
+  return { dismissals: Array.isArray(dismissals) ? dismissals : null, reviews };
+}
+
 // Live-roster triage, cached + de-duped per role (so the coach Today card and
 // the Clients page share ONE fetch). NO mock fallback — returns [] when there's
 // no live roster, so the UI can fall back to its own rich demo roster and keep
@@ -179,9 +227,10 @@ async function triageLive(role, { force = false } = {}) {
   if (!force && hit && now - hit.at < 30000) return hit.promise;
   const promise = (async () => {
     const e = engine(); if (!e) throw new Error('Client signals unavailable');
-    const records = await coachRecords(role, { strict: true });
+    const [records, thresholds, ctx] = await Promise.all([coachRecords(role, { strict: true }), coachThresholds(), coachContext()]);
     if (!records.length) return [];
-    return call(e.getTriageFeed, role, records) || [];
+    const withCtx = typeof e.attachCoachContext === 'function' ? (call(e.attachCoachContext, records, ctx) || records) : records;
+    return call(e.getTriageFeed, role, withCtx, undefined, thresholds || undefined) || [];
   })();
   _triageCache[key] = { at: now, promise };
   promise.catch(() => { if (_triageCache[key]?.promise === promise) delete _triageCache[key]; });
@@ -210,11 +259,27 @@ window.ShapeSignals = {
     if (!records.length) records = call(e.buildMockClients) || [];
     return call(e.getTriageFeed, role, records) || [];
   },
-  // Coach: clients flagged in BOTH training + nutrition → one joint note.
+  // Coach: clients flagged in BOTH training + nutrition, with a co-coach on the other side → one joint note.
   async jointAttention(role) {
     const e = engine(); if (!e) return [];
     const records = await coachRecords(role);
-    return call(e.findJointAttention, records.length ? records : (call(e.buildMockClients) || [])) || [];
+    return call(e.findJointAttention, records.length ? records : (call(e.buildMockClients) || []), undefined, null, role) || [];
+  },
+
+  // Dismiss (until the reason changes: `until` null) or snooze (until an ISO time) one reason on one
+  // client, or undo it (P2). The next triage reads it; the cached feed is dropped so Today and Clients
+  // re-read at once. Resolves true when saved.
+  async dismiss(clientId, flag, until) {
+    const D = window.ShapeSignalDismissals;
+    const ok = !!(D && D.set && await D.set(clientId, flag, until || null).catch(() => false));
+    if (ok) { for (const k of Object.keys(_triageCache)) delete _triageCache[k]; try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {} }
+    return ok;
+  },
+  async restore(clientId, key) {
+    const D = window.ShapeSignalDismissals;
+    const ok = !!(D && D.clear && await D.clear(clientId, key).catch(() => false));
+    if (ok) { for (const k of Object.keys(_triageCache)) delete _triageCache[k]; try { window.dispatchEvent(new CustomEvent('shape:signalsChanged')); } catch (e) {} }
+    return ok;
   },
 
   // The ONE directive (verdict + cross-domain reason + single action) + the

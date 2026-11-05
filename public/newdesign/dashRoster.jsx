@@ -590,7 +590,53 @@ function DashProgressReadout({ row }) {
   </div>;
 }
 
-function DashClientDrawer({ row, role, onClose, prefs }) {
+// The coach's move and the reasons behind it, at the top of the drawer (P2): the lead reason and the
+// 30-day read the engine computes (`directive.read.summary30d`, never shown before), then each reason
+// THIS coach owns with Snooze (3 days) and Dismiss (until the reason changes), and what was set aside
+// with Restore. `dismiss` is { ok, set, clear } from useDashboard; without it, or before the dismissals
+// table answers (the migration is run by hand), the list shows and the controls do not.
+const DASH_SNOOZE_DAYS = 3;
+function DashDrawerMove({ row, dismiss }) {
+  const [busy, setBusy] = React.useState(null);
+  const [failed, setFailed] = React.useState(false);
+  const rec = row.client;
+  const lead = row.lead || null;
+  const summary = row.directive && row.directive.read && row.directive.read.summary30d && row.directive.read.summary30d !== "—" ? row.directive.read.summary30d : null;
+  const owned = (row.flags || []).filter((f) => f.owned !== false);
+  const set = Array.isArray(row.dismissed) ? row.dismissed : [];
+  const can = !!(dismiss && dismiss.ok && typeof dismiss.set === "function" && rec.profile && rec.profile.id && !/^demo-/.test(String(rec.profile.id)));
+  const act = async (key, fn) => { setBusy(key); setFailed(false); const ok = await fn(); setBusy(null); if (!ok) setFailed(true); };
+  const small = { fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", background: "transparent", border: "1px solid " + DASH_ROSTER_HAIR, color: DASH_ROSTER_INK50, borderRadius: 4, padding: "5px 8px", minHeight: 28, cursor: "pointer" };
+  if (!lead && !summary && !set.length) return null;
+  return (
+    <div data-drawer-move="" style={{ marginBottom: 20 }}>
+      {lead && <div style={{ fontSize: 14, lineHeight: 1.45 }}>{lead.reason}</div>}
+      {summary && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.04em", color: DASH_ROSTER_INK50, marginTop: 6 }}>{summary}</div>}
+      {can && owned.length > 0 && (
+        <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+          {owned.map((f) => (
+            <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ flex: "1 1 180px", fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{f.reason}</span>
+              <button type="button" disabled={busy === f.key} style={small} title={"Hide this for " + DASH_SNOOZE_DAYS + " days, or until the reason changes"}
+                onClick={() => act(f.key, () => dismiss.set(rec.profile.id, f, new Date(Date.now() + DASH_SNOOZE_DAYS * 86400000).toISOString()))}>Snooze {DASH_SNOOZE_DAYS}d</button>
+              <button type="button" disabled={busy === f.key} style={small} title="Hide this until the reason changes"
+                onClick={() => act(f.key, () => dismiss.set(rec.profile.id, f, null))}>Dismiss</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {can && set.length > 0 && (
+        <div style={{ marginTop: 10, fontSize: 12, color: DASH_ROSTER_INK50, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <span>Set aside: {set.map((f) => f.label).join(", ")}</span>
+          {set.map((f) => <button key={f.key} type="button" disabled={busy === f.key} style={small} onClick={() => act(f.key, () => dismiss.clear(rec.profile.id, f.key))}>Restore {f.label}</button>)}
+        </div>
+      )}
+      {failed && <div role="alert" style={{ marginTop: 8, fontSize: 12, color: DASH_ROSTER_INK50 }}>Couldn't save that just now. Try again in a moment.</div>}
+    </div>
+  );
+}
+
+function DashClientDrawer({ row, role, onClose, prefs, dismiss }) {
   const dialogRef = React.useRef(null);
   const overlayRef = React.useRef(null);
   const closeRef = React.useRef(onClose);
@@ -689,6 +735,7 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
           {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
         </div>
         <DashProgressReadout row={row} />
+        <DashDrawerMove row={row} dismiss={dismiss} />
         {showSettings && (
           <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
             <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
@@ -726,7 +773,7 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
           </div>
         )}
         <div style={{ position: "sticky", bottom: -40, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null, rec.profile.id); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
+          <button onClick={() => { onClose(); const act = row.lead && row.lead.action; if (act && typeof dashCoachActionGo === "function") dashCoachActionGo(act, row, role); else dashMessageClient(rec.profile.name, role, null, rec.profile.id); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>{row.lead && row.lead.action ? row.lead.action.label : "Message"}</button>
           {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
         </div>
       </div>
@@ -776,7 +823,7 @@ function DashRosterTiles({ triage, filters, value, onChange, loading }) {
 // `sort`/`sortDir`/`onSort` are optional and default to the triage order, so a caller
 // that does not offer sorting gets exactly the table it had — and the headers render as
 // plain text rather than as buttons that lead nowhere.
-function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs }) {
+function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss }) {
   const [selectedId, setSelectedId] = React.useState(null);
   const open = triage.find((r) => r.client.profile.id === selectedId) || null;
   const ink50 = DASH_ROSTER_INK50;
@@ -886,7 +933,9 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
               {typeof ages[rec.profile.id] === "number" && (
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: ink50, flexShrink: 0 }}>{ages[rec.profile.id]}</span>
               )}
-              {r.flags.length > 0 && <DashPill c={sevColor}>{r.flags[0].label}</DashPill>}
+              {/* The first flag that colours the row; the engine's quiet payment flag (P2) is the mark
+                  below, said once. */}
+              {r.flags.some((f) => f.key !== "payment_retrying") && <DashPill c={sevColor}>{r.flags.find((f) => f.key !== "payment_retrying").label}</DashPill>}
               {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(rec)).label}</DashPill>}
               {rec.profile.isNew && r.severity === "green" && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
               {dashPaymentRetrying(rec) && <DashPill c={DASH_SEV_COLORS.unknown}>Payment retrying</DashPill>}
@@ -895,7 +944,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
           </div>
         );
       })}
-      {open && <DashClientDrawer row={open} role={role} onClose={() => setSelectedId(null)} prefs={prefs} />}
+      {open && <DashClientDrawer row={open} role={role} onClose={() => setSelectedId(null)} prefs={prefs} dismiss={dismiss} />}
     </div>
     </div>
   );

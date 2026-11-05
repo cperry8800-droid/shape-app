@@ -10,6 +10,7 @@ import * as NotifyLayer from '@/lib/ai/notifications.mjs';
 import { memberLocaleCode } from '@/lib/ai/memberTranslator.mjs';
 import { copyFor, type Translate as ReaderTranslate } from '@/lib/reader-copy';
 import { isCoachRole } from '@/lib/roles.mjs';
+import { loadCoachContext as loadCoachContextMjs } from './coachContext.mjs';
 import { createNotification } from '@/lib/notify';
 import { sendEmail } from '@/lib/email';
 import { normalizeZone, personZone } from '@/lib/time';
@@ -21,7 +22,10 @@ import { bsUnitsMetric } from '../../../mobile-app/src/services/leadReason.mjs';
 
 export type Candidate = { type: string; title: string; body: string; route: string; data: Record<string, unknown>; priority: string };
 export type DecideResult = { send: Candidate[]; digest: Candidate | null; nextState: Record<string, unknown>; suppressed: { type: string; reason: string }[] };
-export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate };
+export type DecideInput = { candidates: Candidate[]; last: Record<string, unknown>; prefs: Record<string, unknown>; now: Date; audience: string; checkinOptedOut?: boolean; pushedToday?: number | null; tr?: Translate; coachSeen?: Record<string, string> | null };
+// The coach's own context the engine reads (P2): their dismissals (coach_signal_dismissals rows) and
+// their check-in reviews (the coach_week_reviews doc). Each is null when it could not be read.
+export type CoachContext = { dismissals: unknown[] | null; reviews: Record<string, unknown> | null };
 export type Snapshot = { role?: string; tz?: string; record?: Record<string, unknown>; clients?: unknown[]; at?: number };
 
 export type Translate = ReaderTranslate;
@@ -33,6 +37,7 @@ export const Notify = NotifyLayer as unknown as {
   memberMoveLine: (directive: unknown, opts: { tr?: Translate; locale?: string; metric?: boolean; tone?: string }) => string;
   clientCandidates: (input: Record<string, unknown>) => Candidate[];
   coachCandidates: (input: Record<string, unknown>) => Candidate[];
+  coachSeen: (rows: unknown[]) => Record<string, string>;
   habitReminderCandidates: (input: Record<string, unknown>) => Candidate[];
   decideNotifications: (input: DecideInput) => DecideResult;
   dailyCap: (prefs: Record<string, unknown>) => number;
@@ -162,13 +167,30 @@ export function memberCopy(localeDoc: Record<string, unknown>, settings: Record<
 
 type Directive = { verdict: string; reason: string; action: { label: string; kind: string } | null; read: { summary30d: string; oneThingNow: string }; cited?: string[] };
 type Flag = { key: string; label: string; reason: string; owned?: boolean; discipline?: string };
-type TriageRow = { client: { userId?: string; id?: string; profile?: { name?: string } }; severity: string; flags: Flag[]; reasons: string[] };
+type Lead = { key: string; reason: string; label?: string; sig?: string | null; action?: { kind: string; label: string } | null };
+type TriageRow = { client: { userId?: string; id?: string; profile?: { id?: string; name?: string } }; severity: string; flags: Flag[]; reasons: string[]; lead?: Lead | null };
 const engine = DashSignals as unknown as {
+  attachCoachContext: (records: unknown[], ctx: CoachContext) => unknown[];
   buildDirective: (record: unknown, now?: Date, role?: string) => Directive;
   evaluateClient: (record: unknown, now?: Date, role?: string) => { flags: Flag[]; severity: string };
   getTriageFeed: (role: string, clients: unknown[], now?: Date, thresholds?: Record<string, number>) => TriageRow[];
   resolveThresholds: (o: unknown) => { thresholds: Record<string, number>; applied: Record<string, number>; refused: { key: string; why: string }[] };
 };
+
+// The client a coach record names: the snapshot's `userId` (DashSignals.engineSnapshot), else its id,
+// else its profile's. ⚠ The app posted records whose id was only at `profile.id`, and the route's
+// scope check read `userId || id`, so every client was dropped and no coach alert ever fired.
+export function coachRecordId(c: unknown): string | null {
+  const r = (c && typeof c === 'object' ? c : {}) as { userId?: unknown; id?: unknown; profile?: { id?: unknown } };
+  const v = r.userId ?? r.id ?? (r.profile && typeof r.profile === 'object' ? r.profile.id : null);
+  return typeof v === 'string' && v ? v : null;
+}
+
+// Read a coach's dismissals and check-in reviews fresh, so the hourly run honours a dismissal or a
+// review made since the snapshot was posted (src/lib/ai/coachContext.mjs, which Nora reads too).
+export async function loadCoachContext(client: SupabaseClient, userId: string): Promise<CoachContext> {
+  return (await loadCoachContextMjs(client, userId)) as CoachContext;
+}
 
 // Snapshot → candidates + audience. `lastSeverity` (coach) suppresses re-nags.
 export function candidatesFor(
@@ -194,20 +216,30 @@ export function candidatesFor(
     // The reader's language and units (memberCopy): a member's notices, or a coach's alert titles.
     // A caller that omits it gets the English notices.
     copy?: MemberCopy | null;
+    // The coach's dismissals and reviews, read fresh (loadCoachContext). Omitted: the snapshot's own.
+    coachContext?: CoachContext | null;
   },
-): { audience: 'client' | 'coach'; candidates: Candidate[] } {
+): { audience: 'client' | 'coach'; candidates: Candidate[]; coachSeen?: Record<string, string> } {
   const role = snapshot.role || '';
   if (isCoachRole(role)) {
-    const clients = Array.isArray(snapshot.clients) ? snapshot.clients : [];
+    const raw = Array.isArray(snapshot.clients) ? snapshot.clients : [];
+    const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext) : raw;
     const rows = engine.getTriageFeed(role, clients, opts.now, opts.thresholds || undefined).map((r) => ({
-      clientId: (r.client.userId || r.client.id) as string,
+      clientId: coachRecordId(r.client) as string,
       clientName: (r.client.profile && r.client.profile.name) || 'A client',
       severity: r.severity,
-      reason: (r.reasons && r.reasons[0]) || '',
+      // The reason Today leads with (the engine's lead), so the push and the page say one thing.
+      reason: (r.lead && r.lead.reason) || (r.reasons && r.reasons[0]) || '',
       flags: r.flags,
+      lead: r.lead || null,
     }));
     // The alert's title in the coach's language (their copy, from the same stored language).
-    return { audience: 'coach', candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role, tr: opts.copy?.tr }) };
+    return {
+      audience: 'coach',
+      candidates: Notify.coachCandidates({ triageRows: rows, lastSeverity: opts.lastSeverity, providerRole: role, tr: opts.copy?.tr }),
+      // Who this run saw clear, so the alert memory forgets them (settleCoachMemory).
+      coachSeen: Notify.coachSeen(rows),
+    };
   }
   const candidates: Candidate[] = [];
   const record = snapshot.record;

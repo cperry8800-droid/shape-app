@@ -84,8 +84,9 @@ test('Needs you: a flagged or missing screening flags a coach, never the member,
 });
 
 test('the records carry the screening on both sides', () => {
-  const dash = read('public/newdesign/dashData.jsx');
-  assert.match(dash, /screening: ov && ov\.screening \? ov\.screening : null,/);
+  // The website's record takes its engine inputs from the one shared builder (P2), which carries it.
+  assert.match(read('public/newdesign/dashData.jsx'), /const base = DashSignals\.recordFromOverview\(row, ov\);/);
+  assert.match(read('public/newdesign/dashSignals.js'), /screening: o && o\.screening \? o\.screening : null,/);
   assert.equal(recordFromCoachData({ id: 'c1', screening: 'missing' }).screening, 'missing');
   assert.equal(recordFromCoachData({ id: 'c1', screening: 'nonsense' }).screening, undefined);
   const sig = read('mobile-app/src/services/shapeSignals.js');
