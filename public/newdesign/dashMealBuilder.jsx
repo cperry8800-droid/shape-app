@@ -133,6 +133,15 @@ function DmbFoodPicker({ constraints, onPick, onClose, customFoods = [] }) {
 }
 
 // ── Meal row editor — macros, slot, and the swap group (≤3 alternates) ──────
+// The slot a new meal takes: dashMealCore.js's nextSlot (the first main meal the day lacks, then a
+// Snack). ⚠ dashMealCore.js IS A PLAIN <script> WITH A HAND-TYPED `?v=`, NOT CONTENT-HASHED AT
+// DEPLOY, so a browser can pair a cached copy without nextSlot with this file: it then keeps the
+// old rule rather than throwing.
+function dmbNextSlot(slots) {
+  if (typeof DashMeals.nextSlot === "function") return DashMeals.nextSlot(slots);
+  return slots.length === 0 ? "Breakfast" : "Lunch";
+}
+
 function DmbMealRow({ meal, onChange, onRemove, constraints, followers, badge, customFoods }) {
   const [swapPicker, setSwapPicker] = React.useState(false);
   const set = (k, v) => onChange({ ...meal, [k]: v });
@@ -277,7 +286,7 @@ function DmbDayEditor({ day, onChange, plan, variant, setVariant, customFoods })
             <button onClick={() => setPicker(!picker)} style={dmbBtn(false)}>+ Meal</button>
             {picker && (
               <DmbFoodPicker constraints={plan.constraints} customFoods={customFoods}
-                onPick={(f) => { onChange({ ...day, slots: [...day.slots, DashMeals.newMeal(f, day.slots.length === 0 ? "Breakfast" : "Lunch")] }); setPicker(false); }}
+                onPick={(f) => { onChange({ ...day, slots: [...day.slots, DashMeals.newMeal(f, dmbNextSlot(day.slots))] }); setPicker(false); }}
                 onClose={() => setPicker(false)} />
             )}
           </div>

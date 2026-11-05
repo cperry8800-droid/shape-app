@@ -43,6 +43,26 @@ test('the sessions-kept figure says what it is: 42 days, any of the client\'s co
   assert.match(source('public/newdesign/dashToday.jsx'), /trainingAdherence\.pct \+ "% of sessions kept"/);
 });
 
+// ── 9. The meal builder gives a new meal the next sensible slot ─────────────
+test('a day built in order is Breakfast, Lunch, Dinner, then Snacks, never Lunch after Lunch', async () => {
+  const { createRequire } = await import('node:module');
+  const DashMeals = createRequire(import.meta.url)('../public/newdesign/dashMealCore.js');
+  const day = [];
+  const food = DashMeals.FOODS[0];
+  for (let i = 0; i < 5; i++) day.push(DashMeals.newMeal(food, DashMeals.nextSlot(day)));
+  assert.deepEqual(day.map((m) => m.slot), ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Snack']);
+  // The gap the day has, in the day's order: a coach who wrote Breakfast and Dinner gets Lunch.
+  assert.equal(DashMeals.nextSlot([{ slot: 'Breakfast' }, { slot: 'Dinner' }]), 'Lunch');
+  assert.equal(DashMeals.nextSlot([{ slot: 'Snack' }]), 'Breakfast');
+  assert.equal(DashMeals.nextSlot(null), 'Breakfast');
+  // The builder asks the core, and keeps the old rule with a cached core that lacks it.
+  const pick = (core) => new Function('DashMeals', lift('public/newdesign/dashMealBuilder.jsx', 'dmbNextSlot') + '\nreturn dmbNextSlot;')(core);
+  assert.equal(pick(DashMeals)([{ slot: 'Breakfast' }, { slot: 'Lunch' }]), 'Dinner');
+  assert.equal(pick({})([{ slot: 'Breakfast' }]), 'Lunch');
+  assert.equal(pick({})([]), 'Breakfast');
+  assert.match(source('public/newdesign/dashMealBuilder.jsx'), /DashMeals\.newMeal\(f, dmbNextSlot\(day\.slots\)\)/);
+});
+
 // ── 4. The Week page counts a past week's own food logs ─────────────────────
 function weekHelpers() {
   const file = 'public/newdesign/dashWeek.jsx';
