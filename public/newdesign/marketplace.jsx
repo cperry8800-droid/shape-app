@@ -345,7 +345,8 @@ function mkEachLimited(items, limit, fn) {
   const worker = async () => { while (next < items.length) { const i = next++; await fn(items[i], i); } };
   return Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
-// An account's open intro times, from the read the booking page lays its times out from.
+// An account's open intro times, from the read the booking page lays its times out from, and its
+// "Free intros while at capacity" rule: { times, introsAtCap }, or null when the read fails.
 function mkReadOpenTimes(c) {
   const B = window.BookingSlots;
   const role = c.tag === "Nutritionist" ? "nutritionist" : "trainer";
@@ -353,14 +354,15 @@ function mkReadOpenTimes(c) {
     .then((r) => (r.ok ? r.json() : null))
     .then((d) => {
       if (!d || !Array.isArray(d.slots) || !B || !B.buildSlots) return null;
+      const introsAtCap = !!(d.rules && d.rules.introsAtCapacity === true);
       // Full, with intros at capacity off (the default): no intro times, as the coach's own booking
       // page shows none (coachProfileWeb's introsAtCap rule). Its hours stay, but none can be booked,
       // so the coach can't pass "Open this week" or rank as the soonest intro (Codex on #2619).
-      if (d.atCapacity === true && !(d.rules && d.rules.introsAtCapacity === true)) return [];
+      if (d.atCapacity === true && !introsAtCap) return { times: [], introsAtCap };
       const len = Number(d.rules && d.rules.consultMin);
       const introMin = Number.isInteger(len) && len >= 5 && len <= 240 ? len : 15;
-      if (d.slots.length && !(B.isZone && B.isZone(d.timezone))) return [];
-      return B.buildSlots({ slots: d.slots, booked: d.booked || [], zone: d.timezone, busy: d.busy || [], rules: d.rules || null, now: new Date(), days: 8, sessionMin: introMin });
+      if (d.slots.length && !(B.isZone && B.isZone(d.timezone))) return { times: [], introsAtCap };
+      return { times: B.buildSlots({ slots: d.slots, booked: d.booked || [], zone: d.timezone, busy: d.busy || [], rules: d.rules || null, now: new Date(), days: 8, sessionMin: introMin }), introsAtCap };
     })
     .catch(() => null);
 }
@@ -396,7 +398,8 @@ function useLiveCoaches() {
       }));
       // Every account's times, six reads at a time: a cap left the coaches past it with no times, so
       // they failed "Open this week" and sank in the sort (Codex on #2619).
-      await mkEachLimited(owned, 6, async (c) => { c.openTimes = await mkReadOpenTimes(c); });
+      // The intros rule rides along: a full coach who takes intros keeps Book a free intro (Codex on #2619).
+      await mkEachLimited(owned, 6, async (c) => { const r = await mkReadOpenTimes(c); c.openTimes = r ? r.times : null; c.introsAtCap = !!(r && r.introsAtCap); });
       if (on) setSt({ state: "ready", rows: [...rows] });
     }, () => { if (on) setSt({ state: "none", rows: [] }); });
     return () => { on = false; };
@@ -406,8 +409,12 @@ function useLiveCoaches() {
 
 // ── Who can be booked, and where each action goes ─────────────────────────────────────────────
 function mkKind(c) { return c.sample ? "example" : (c.ownerId ? "live" : "listing"); }
-function mkCanBook(c) { return mkKind(c) === "live" && !c.atCapacity; }
-function mkIntroOpen(c) { return (mkKind(c) === "live" || mkKind(c) === "example") && !c.atCapacity; }
+// Full for new clients. With the coach's "Free intros while at capacity" on, intros stay open (the
+// consultation flow takes them); off (the default), the coach is shut to intros: a waiting list only.
+function mkIntroShut(c) { return !!c.atCapacity && c.introsAtCap !== true; }
+function mkIntroAtCap(c) { return !!c.atCapacity && c.introsAtCap === true; }
+function mkCanBook(c) { return mkKind(c) === "live" && !mkIntroShut(c); }
+function mkIntroOpen(c) { return (mkKind(c) === "live" || mkKind(c) === "example") && !mkIntroShut(c); }
 function mkRoleParam(c) { return c.tag === "Nutritionist" ? "nutritionist" : "trainer"; }
 function mkProfileHref(c) {
   return c.ownerId
@@ -424,8 +431,9 @@ function mkIntroHref(c, iso) {
 // The next open intro: a real one for an account, an example one for a sample (labelled so).
 const MK_EX_TIMES = [[7, 0], [9, 0], [11, 30], [12, 0], [17, 30], [18, 0], [19, 0]];
 function mkOpenTimes(c) {
+  if (mkIntroShut(c)) return [];
   if (mkKind(c) === "live") return Array.isArray(c.openTimes) ? c.openTimes : null;
-  if (mkKind(c) !== "example" || c.atCapacity) return [];
+  if (mkKind(c) !== "example") return [];
   const h = mkHash(c.name); const out = []; const now = new Date();
   for (let i = 0; i < 4; i++) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((h >>> (i * 3)) % 3) + i * 2 + 1);
@@ -554,11 +562,13 @@ function CoachCard({ c, comparing = false, canCompare = true, peek = false, onCo
   const quick = (e) => { if (onQuick) { e.preventDefault(); onQuick(c); } };
   let badge = null;
   if (kind === "listing") badge = <span className="mk-badge muted">Not bookable yet</span>;
-  else if (c.atCapacity) badge = <span className="mk-badge full">Full · waiting list</span>;
+  else if (mkIntroShut(c)) badge = <span className="mk-badge full">Full · waiting list</span>;
+  else if (mkIntroAtCap(c)) badge = <span className="mk-badge full">Full · free intro open</span>;
   else badge = <span className="mk-badge">✓ Free intro</span>;
   let next;
   if (kind === "listing") next = <><span className="mk-live off" /><span className="t">No open times: this listing can't take a booking</span></>;
-  else if (c.atCapacity) next = <><span className="mk-live warm" /><span className="t"><b>Full</b> · waiting list open</span></>;
+  else if (mkIntroShut(c)) next = <><span className="mk-live warm" /><span className="t"><b>Full</b> · waiting list open</span></>;
+  else if (first && mkIntroAtCap(c)) next = <><span className="mk-live warm" /><span className="t">Full · next intro <b>{mkSlotText(first)}</b></span></>;
   else if (first) next = <><span className="mk-live" /><span className="t">{kind === "example" ? "Example · " : ""}Next open <b>{mkSlotText(first)}</b></span></>;
   else if (times && !times.length) next = <><span className="mk-live off" /><span className="t">No open times this week</span></>;
   else next = <><span className="mk-live off" /><span className="t">Open times on their page</span></>;
@@ -605,7 +615,7 @@ function CoachCard({ c, comparing = false, canCompare = true, peek = false, onCo
           <a className="mk-key" href={mkProfileHref(c)}>View</a>
           {kind === "listing"
             ? <span className="mk-key off" aria-disabled="true">Not bookable yet</span>
-            : c.atCapacity
+            : mkIntroShut(c)
               ? <a className="mk-key wait" href={mkProfileHref(c)}>Join waiting list</a>
               : <a className="mk-key role" href={mkIntroHref(c, kind === "live" && first ? first.iso : null)} data-book-intro="">Book a free intro</a>}
         </div>
@@ -850,7 +860,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
   const { sx, sy } = mkCoverPos(c);
   const role = c.tag === "Nutritionist" ? "nu" : "tr";
   const where = [c.city, c.format === "Hybrid" ? "in person + remote" : c.format === "In-person" ? "in person" : c.format ? "remote" : null].filter(Boolean).join(" · ");
-  const status = kind === "listing" ? "Not bookable yet" : c.atCapacity ? "Full · waiting list open" : kind === "example" ? "Example coach" : "Taking new clients";
+  const status = kind === "listing" ? "Not bookable yet" : mkIntroShut(c) ? "Full · waiting list open" : mkIntroAtCap(c) ? "Full · free intros open" : kind === "example" ? "Example coach" : "Taking new clients";
   const packages = [];
   if (mkIntroOpen(c)) packages.push(["Start here", "Free intro", "15 min · see if you fit", "$0", "", true]);
   if (c.packages) c.packages.forEach(([n, s, p, u]) => packages.push([u ? "Ongoing" : "One-off", n, s, "$" + p, u ? "/" + u : ""]));
@@ -919,7 +929,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
 
           <div className="mk-qv-sec"><div className="mk-qv-h"><span className="mk-eb">Next open · free intro</span><span className="note">{kind === "example" ? "Example times" : "Your time"}</span></div>
             {kind === "listing" ? <p className="mk-empty">No open times: this listing has no Shape account yet.</p>
-              : c.atCapacity ? <p className="mk-empty">{first} is full right now. Join the waiting list on their page.</p>
+              : mkIntroShut(c) ? <p className="mk-empty">{first} is full right now. Join the waiting list on their page.</p>
               : times.length ? <div className="mk-slots">{times.slice(0, 4).map((s, i) => (
                 <a key={s.iso} className={"slot" + (i === 0 ? " on" : "")} href={mkIntroHref(c, kind === "live" ? s.iso : null)}><span className="mk-dtl">{mkSlotText(s).split(" · ")[0]}</span><span className="dig">{mkSlotText(s, false).replace(/\s?(AM|PM|am|pm)$/, "")}</span><span className="mk-dtl">{(mkSlotText(s, false).match(/(AM|PM|am|pm)$/) || [""])[0]}</span></a>
               ))}<a className="slot more" href={mkIntroHref(c)}>All times →</a></div>
@@ -950,7 +960,7 @@ function MkQuickView({ c, index, total, onPrev, onNext, onClose, signedIn, compa
             <a className="mk-key" href={mkProfileHref(c)}>View full profile ↗</a>
             <button type="button" className="mk-key" onClick={message}><MkIcon name="chat" size={16} />Message</button>
             {kind === "listing" ? <span className="mk-key off big" aria-disabled="true">Not bookable yet</span>
-              : c.atCapacity ? <a className="mk-key wait big" href={mkProfileHref(c)}>Join the waiting list</a>
+              : mkIntroShut(c) ? <a className="mk-key wait big" href={mkProfileHref(c)}>Join the waiting list</a>
               : <a className="mk-key role big" href={mkIntroHref(c, kind === "live" && times[0] ? times[0].iso : null)} data-book-intro="">Book a free intro{times[0] ? " · " + mkSlotText(times[0]) : ""}</a>}
           </div>
           <div className="fine">
@@ -1004,7 +1014,7 @@ function MkCompare({ list, onClose, onRemove }) {
     ["Experience", (c) => (c.years ? c.years + " years" : "—")],
     ["How you meet", (c) => (c.format === "Hybrid" ? "In person + remote" : c.format === "In-person" ? "In person" : c.format || "On their page")],
     ["City", (c) => c.city || "On their page"],
-    ["Next open", (c) => { const t = mkOpenTimes(c); return mkKind(c) === "listing" ? "Not bookable yet" : c.atCapacity ? "Full · waiting list" : t && t.length ? (mkKind(c) === "example" ? "Example · " : "") + mkSlotText(t[0]) : "On their page"; }],
+    ["Next open", (c) => { const t = mkOpenTimes(c); return mkKind(c) === "listing" ? "Not bookable yet" : mkIntroShut(c) ? "Full · waiting list" : t && t.length ? (mkKind(c) === "example" ? "Example · " : "") + mkSlotText(t[0]) : "On their page"; }],
     ["Free intro", (c) => (mkIntroOpen(c) ? "Yes" : "No")],
     ["Verified by Shape", (c) => (c.verified ? "✓ Yes" : "Not yet")],
     ["Credentials", (c) => c.cert || c.certFull || "—"],
@@ -1022,7 +1032,7 @@ function MkCompare({ list, onClose, onRemove }) {
             ))}</tr></thead>
             <tbody>{rows.map(([label, fn]) => <tr key={label}><th scope="row">{label}</th>{list.map((c) => <td key={c.key}>{fn(c)}</td>)}</tr>)}
               <tr><th scope="row"><span className="mk-sr">Actions</span></th>{list.map((c) => <td key={c.key}><div className={"act " + (c.tag === "Nutritionist" ? "nu" : "tr")}>
-                {mkKind(c) === "listing" ? <span className="mk-key off" aria-disabled="true">Not bookable yet</span> : c.atCapacity ? <a className="mk-key wait" href={mkProfileHref(c)}>Join waiting list</a> : <a className="mk-key role" href={mkIntroHref(c)}>Book a free intro</a>}
+                {mkKind(c) === "listing" ? <span className="mk-key off" aria-disabled="true">Not bookable yet</span> : mkIntroShut(c) ? <a className="mk-key wait" href={mkProfileHref(c)}>Join waiting list</a> : <a className="mk-key role" href={mkIntroHref(c)}>Book a free intro</a>}
                 <a className="mk-key" href={mkProfileHref(c)}>View</a></div></td>)}</tr>
             </tbody>
           </table>

@@ -129,7 +129,7 @@ test('live listings go through the same goals and filters as the samples', () =>
   assert.equal(mk.mkPass(cardio, f({ intro: true })), false, 'a listing with no account offers a free intro');
 });
 
-async function mountPage({ rows = [], me = null } = {}) {
+async function mountPage({ rows = [], me = null, availability = null } = {}) {
   const calls = { chat: 0 };
   window.__openChat = () => { calls.chat += 1; };
   const client = {
@@ -139,6 +139,7 @@ async function mountPage({ rows = [], me = null } = {}) {
   window.shapeEnsureDb = () => Promise.resolve({ client });
   globalThis.fetch = window.fetch = async (url) => {
     if (String(url).startsWith('/api/me')) return { ok: !!me, json: async () => (me ? { user: me } : {}) };
+    if (availability && String(url).startsWith('/api/availability')) return { ok: true, json: async () => availability };
     return { ok: false, json: async () => ({}) };
   };
   window.Header = () => null; window.Footer = () => null;
@@ -231,7 +232,8 @@ test('the side a link names: #hash or ?role=, and Both by default', () => {
 });
 
 // Codex on #2619: a full coach whose intros at capacity are off offers no intro times, so it can't
-// pass "Open this week" or rank as the soonest intro; on, the times stand.
+// pass "Open this week" or rank as the soonest intro; on, the times stand. The rule comes back with
+// the times, so the card can tell intros apart from paid-client capacity.
 test('a full coach with intros at capacity off has no open intro times', async () => {
   const slot = { iso: '2026-11-06T14:00:00.000Z', ms: Date.parse('2026-11-06T14:00:00.000Z') };
   window.BookingSlots = { buildSlots: () => [slot], isZone: () => true };
@@ -239,13 +241,76 @@ test('a full coach with intros at capacity off has no open intro times', async (
   const owned = mk.mapLiveCoach(OWNED, 'Trainer');
   const base = { slots: [{ day: 4, start: '09:00', end: '12:00' }], booked: [], busy: [], timezone: 'America/New_York' };
   answer({ ...base, atCapacity: true, rules: { introsAtCapacity: false } });
-  assert.deepEqual(await mk.mkReadOpenTimes(owned), [], 'a full coach kept bookable intro times');
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), { times: [], introsAtCap: false }, 'a full coach kept bookable intro times');
   answer({ ...base, atCapacity: true, rules: {} });
-  assert.deepEqual(await mk.mkReadOpenTimes(owned), [], 'the default (no rule) is intros off at capacity');
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), { times: [], introsAtCap: false }, 'the default (no rule) is intros off at capacity');
   answer({ ...base, atCapacity: true, rules: { introsAtCapacity: true } });
-  assert.deepEqual(await mk.mkReadOpenTimes(owned), [slot], 'intros at capacity on: the times stand');
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), { times: [slot], introsAtCap: true }, 'intros at capacity on: the times and the rule stand');
   answer({ ...base, atCapacity: false, rules: {} });
-  assert.deepEqual(await mk.mkReadOpenTimes(owned), [slot]);
+  assert.deepEqual(await mk.mkReadOpenTimes(owned), { times: [slot], introsAtCap: false });
+  answer(null);
+  assert.equal(await mk.mkReadOpenTimes(owned), null, 'a failed read made up times');
+});
+
+// Codex on #2619 (second pass): with intros at capacity on, a full coach keeps its intro times AND
+// Book a free intro, passes Free intro, and still fails Taking new clients; off, a waiting list only.
+test('full: intros at capacity on keeps Book a free intro; off, the waiting list', async () => {
+  const soon = new Date(Date.now() + 86400000); soon.setHours(10, 0, 0, 0);
+  const slot = { iso: soon.toISOString(), ms: soon.getTime() };
+  const full = mk.mapLiveCoach({ ...OWNED, at_capacity: true }, 'Trainer');
+  const withGoals = (c) => ({ ...c, goals: mk.mkGoalsOf(c), openTimes: [slot] });
+  const f = (patch) => ({ ...mk.MK_DEFAULTS, ...patch });
+  const card = async (c) => {
+    document.body.innerHTML = '<div id="root"></div>';
+    const root = createRoot(document.getElementById('root'));
+    await React.act(async () => root.render(React.createElement(mk.CoachCard, { c, onCompare() {}, onQuick() {} })));
+    const el = document.querySelector('.mk-cc');
+    const out = { book: !!el.querySelector('[data-book-intro]'), text: el.textContent };
+    await React.act(async () => root.unmount());
+    return out;
+  };
+  const on = withGoals({ ...full, introsAtCap: true });
+  assert.equal(on.atCapacity, true);
+  const a = await card(on);
+  assert.equal(a.book, true, 'a full coach who takes intros lost Book a free intro');
+  assert.match(a.text, /Full · free intro open/);
+  assert.match(a.text, /next intro/);
+  assert.doesNotMatch(a.text, /waiting list/i, 'a full coach who takes intros was sent to the waiting list');
+  assert.equal(mk.mkPass(on, f({ intro: true })), true, 'Free intro dropped a coach whose intros are open');
+  assert.equal(mk.mkPass(on, f({ openWeek: true })), true);
+  assert.equal(mk.mkPass(on, f({ taking: true })), false, 'a full coach passed Taking new clients');
+  assert.equal(mk.mkCanBook(on), true);
+  const off = withGoals({ ...full, introsAtCap: false });
+  const b = await card(off);
+  assert.equal(b.book, false, 'a full coach with intros off offers Book a free intro');
+  assert.match(b.text, /Join waiting list/);
+  assert.equal(mk.mkPass(off, f({ intro: true })), false);
+  assert.equal(mk.mkPass(off, f({ openWeek: true })), false, 'times a full coach cannot take passed Open this week');
+  assert.equal(mk.mkCanBook(off), false);
+});
+
+// Codex on #2619 (second pass): the page itself carries the rule from the availability read onto the
+// coach, so a full coach who takes intros shows Book a free intro on its card, not the waiting list.
+test('the page: a full coach\'s intros rule reaches its card', async () => {
+  const soon = new Date(Date.now() + 86400000); soon.setHours(10, 0, 0, 0);
+  const slot = { iso: soon.toISOString(), ms: soon.getTime() };
+  window.BookingSlots = { buildSlots: () => [slot], isZone: () => true };
+  const base = { slots: [{ day: 4, start: '09:00', end: '12:00' }], booked: [], busy: [], timezone: 'America/New_York', atCapacity: true };
+  const full = { ...OWNED, at_capacity: true };
+  const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 30)); });
+  let m = await mountPage({ rows: [full], availability: { ...base, rules: { introsAtCapacity: true } } });
+  await settle();
+  let card = document.querySelector('[data-kind="live"]');
+  assert.ok(card, 'the account\'s card did not render');
+  assert.ok(card.querySelector('[data-book-intro]'), 'the intros rule never reached the card: a full coach who takes intros lost Book a free intro');
+  assert.match(card.textContent, /Full · free intro open/);
+  await m.unmount();
+  m = await mountPage({ rows: [full], availability: { ...base, rules: {} } });
+  await settle();
+  card = document.querySelector('[data-kind="live"]');
+  assert.ok(!card.querySelector('[data-book-intro]'), 'a full coach with intros off offers Book a free intro');
+  assert.match(card.textContent, /Join waiting list/);
+  await m.unmount();
 });
 
 // Codex on #2619: every account's times are read, not the first 24, and never more than six at once.
