@@ -267,3 +267,32 @@ test('the copy that said "device" or "this phone" now says the account, in all 1
   assert.equal(seen.noZone.size, 13);
   for (const v of seen.noZone) assert.doesNotMatch(v, /this phone|from this phone|diesem Telefon|ce téléphone|este teléfono|questo telefono|ponsel ini|bu telefondan|deste celular|wannan wayar|этого телефона|цього телефона|điện thoại này/i);
 });
+
+// ── Codex on #2624 ──
+test('a day whose midnight a clock change skips starts at its first real minute', async () => {
+  const A = await import(new URL('../mobile-app/src/services/coachAvailability.mjs', import.meta.url).href);
+  assert.ok(Number.isNaN(A.bsInstantInZone(2026, 9, 6, 0, 0, 'America/Santiago')), 'Santiago has no 00:00 on 6 Sep 2026');
+  assert.equal(A.bsDayStartInZone(2026, 9, 6, 'America/Santiago'), Date.UTC(2026, 8, 6, 4, 0), '01:00 at UTC-3');
+  assert.equal(A.bsDayStartInZone(2026, 9, 7, 'America/Santiago'), Date.UTC(2026, 8, 7, 3, 0));
+  assert.equal(A.bsDayStartInZone(2026, 11, 5, 'Asia/Tokyo'), Date.UTC(2026, 10, 4, 15, 0));
+  assert.ok(Number.isNaN(A.bsDayStartInZone(2026, 11, 5, 'Area/Nowhere')));
+  const src = read('mobile-app/src/broadsheet/BSTrainerProfile.jsx');
+  assert.match(src, /const at = bsDayStartInZone\(d\.getFullYear\(\), d\.getMonth\(\) \+ 1, d\.getDate\(\), vz\);/,
+    "the Day tab's day bounds fall back to this phone's midnight again");
+});
+
+test("a zone that lands or changes projects the coach's open times again, not just repaints them", () => {
+  const src = read('mobile-app/src/broadsheet/BSTrainerProfile.jsx');
+  assert.match(src, /React\.useEffect\(\(\) => onZoneChange\(\(\) => setZoneEpoch\(\(n\) => n \+ 1\)\), \[\]\);/);
+  assert.match(src, /\}, \[providerId, providerState, availEpoch, demo, role, zoneEpoch\]\);/,
+    'the availability projection no longer re-runs on a zone change');
+});
+
+test('a zone that moves "this week" moves the week on screen, unless the coach chose another', () => {
+  const src = read('public/newdesign/dashWeek.jsx');
+  const at = src.indexOf('const shownMonday = React.useRef(thisMonday);');
+  assert.ok(at > 0, 'the week no longer follows the zone');
+  const fx = src.slice(at, at + 400);
+  assert.match(fx, /setWeekOf\(\(w\) => \(w === was \? thisMonday : w\)\);/, 'a chosen week would be replaced');
+  assert.match(fx, /\}, \[thisMonday\]\);/);
+});

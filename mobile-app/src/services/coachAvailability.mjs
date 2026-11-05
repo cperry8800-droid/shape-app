@@ -93,6 +93,19 @@ function zoneOffsetMs(t, zone) {
 // Requiring the wall clock we asked for is what refuses it. (The old `setHours` version
 // took the opposite view in a comment: it deliberately let the gap normalize forward so
 // its wall-clock booked key would match. Keying on the instant removes that need.)
+/**
+ * The first instant of civil day y-mo-d on `zone`'s clock: its midnight, or, on a day whose
+ * midnight a clock change skips (Santiago on 6 Sep 2026: 00:00 becomes 01:00), the first minute
+ * that exists. NaN for an unusable zone.
+ */
+export function bsDayStartInZone(y, mo, d, zone) {
+  for (let m = 0; m <= 180; m += 15) {
+    const at = bsInstantInZone(y, mo, d, Math.floor(m / 60), m % 60, zone);
+    if (Number.isFinite(at)) return at;
+  }
+  return NaN;
+}
+
 export function bsInstantInZone(y, mo, d, h, mi, zone) {
   const naive = Date.UTC(y, mo - 1, d, h, mi, 0);
   const o1 = zoneOffsetMs(naive, zone);

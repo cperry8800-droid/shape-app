@@ -431,6 +431,16 @@ function CoachWeekPage({ role }) {
   }, []);
   const thisMonday = dwkIso(dwkMonday(dwkToday()));
   const [weekOf, setWeekOf] = React.useState(thisMonday);
+  // ⚠ A ZONE THAT MOVES "THIS WEEK" MOVES THE WEEK ON SCREEN, if it was this week (Codex on #2624).
+  // The account's zone can land after the first paint, across a Monday from this browser's, and
+  // the page kept showing, and writing reviews for, last week. A week the coach chose stays.
+  const shownMonday = React.useRef(thisMonday);
+  React.useEffect(() => {
+    const was = shownMonday.current;
+    if (was === thisMonday) return;
+    shownMonday.current = thisMonday;
+    setWeekOf((w) => (w === was ? thisMonday : w));
+  }, [thisMonday]);
   const [onlyOpen, setOnlyOpen] = React.useState(false);
   const reviews = useWeekReviews(live);
   const rows = (triage || []).filter((r) => r && r.client && r.client.profile);

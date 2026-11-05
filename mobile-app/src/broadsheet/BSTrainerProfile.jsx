@@ -7,7 +7,7 @@ import { STUDIO_WORDS } from '../services/studioKit.mjs';
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
 import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel, bsStudioFocusLabel } from './BSCoachStudio.jsx';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
-import { bsProjectAvailability, bsIsZone, bsInstantInZone } from '../services/coachAvailability.mjs';
+import { bsProjectAvailability, bsIsZone, bsDayStartInZone } from '../services/coachAvailability.mjs';
 import { viewerZone, partsInZone, onZoneChange } from '../services/shapeZone.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
@@ -431,6 +431,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // ── Their week: the public read the listing books from ──
   const [avail, setAvail] = React.useState({ kind: 'loading' });
   const [availEpoch, setAvailEpoch] = React.useState(0);
+  // ⚠ THE WEEK IS PROJECTED ON THE VIEWER'S ZONE, SO A ZONE THAT LANDS OR CHANGES PROJECTS IT AGAIN
+  // (Codex on #2624). Repainting the Day tab alone kept slots keyed on the old zone's days: a slot
+  // across midnight showed on the wrong day, or not at all, until the profile was reopened.
+  const [zoneEpoch, setZoneEpoch] = React.useState(0);
+  React.useEffect(() => onZoneChange(() => setZoneEpoch((n) => n + 1)), []);
   React.useEffect(() => {
     const real = !selfDemo && providerId && W.ShapeCoachAvailability?.get;
     // A sample waits for its listing's read, then shows the listing's own hours or the sample week:
@@ -463,7 +468,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       })
       .catch(() => { if (on) setAvail(sampleOnly ? sampleWeek(null) : { kind: 'error' }); });
     return () => { on = false; };
-  }, [providerId, providerState, availEpoch, demo, role]);
+  }, [providerId, providerState, availEpoch, demo, role, zoneEpoch]);
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
   const [tab, setTab] = React.useState('day');
@@ -1241,8 +1246,10 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
 
   // The day's rows: open times (to take) and busy time (said only as busy), by time.
   // Midnight to midnight on the viewer's clock: a day with a clock change is 23 or 25 hours long.
+  // ⚠ A day whose midnight a clock change skips (Santiago on 6 Sep 2026) starts at its first real
+  // instant, on the viewer's clock, never at this phone's midnight (Codex on #2624).
   const midnight = (d) => {
-    const at = bsInstantInZone(d.getFullYear(), d.getMonth() + 1, d.getDate(), 0, 0, vz);
+    const at = bsDayStartInZone(d.getFullYear(), d.getMonth() + 1, d.getDate(), vz);
     return Number.isFinite(at) ? at : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   };
   const dayStart = midnight(picked);
