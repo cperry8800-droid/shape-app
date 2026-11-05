@@ -58,5 +58,8 @@ export async function writeAccountZone(
 
   const after = await readAccountZone(supabase, uid);
   if (after.error || !after.ready || !after.zone) return { ok: false, reason: 'failed' };
-  return { ok: true, zone: after.zone, changed: after.zone !== before.zone };
+  // A first default that lost the race answers the zone that won, and `changed: false`: this
+  // call changed nothing.
+  if (after.zone !== zone && !opts.onlyIfUnset) return { ok: false, reason: 'failed' };
+  return { ok: true, zone: after.zone, changed: after.zone === zone };
 }
