@@ -14,10 +14,13 @@
 // coach↔coach conversation, then opens the global chat widget pinned to that
 // counterpart by name. A "Dismiss banner" button POSTs to .../ack so the
 // alert chip stops nagging until a different counterpart shows up.
+// "Team" opens the client's Team view under the row (sharedTeam.jsx SharedTeamPanel): both coaches'
+// week side by side, "Next, and whose" and the care-team thread (owner, 2026-11-05).
 
 function SharedClientsTab({ role, onCountChange }) {
   const [rows, setRows] = React.useState(null);  // null = loading
   const [busy, setBusy] = React.useState({});    // { [key]: 'msg' | 'ack' }
+  const [teamOpen, setTeamOpen] = React.useState(null); // the row whose Team view is open
 
   React.useEffect(() => {
     let cancelled = false;
@@ -112,7 +115,7 @@ function SharedClientsTab({ role, onCountChange }) {
     );
   }
 
-  const COLS = "1.6fr 1.5fr 0.6fr auto auto";
+  const COLS = "1.6fr 1.5fr 0.6fr auto auto auto";
 
   return (
     <div>
@@ -122,13 +125,15 @@ function SharedClientsTab({ role, onCountChange }) {
         <span>STATUS</span>
         <span></span>
         <span></span>
+        <span></span>
       </div>
       {rows.map((r, i) => {
         const k = rowKey(r);
         const isMsgBusy = busy[k] === 'msg';
         const isAckBusy = busy[k] === 'ack';
         return (
-          <div key={k} style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
+          <React.Fragment key={k}>
+          <div style={{ display: "grid", gridTemplateColumns: COLS, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
             <a href={typeof dashClientPageHref === 'function' ? dashClientPageHref(r.clientId, role) : `${role === 'nutritionist' ? 'NutritionistClient' : 'TrainerClient'}.html?id=${encodeURIComponent(r.clientId)}`}
                style={{ display: "flex", gap: 10, alignItems: "center", textDecoration: "none", color: "inherit", cursor: "pointer" }}>
               <div style={{ width: 28, height: 28, borderRadius: 999, background: "var(--sh-ink-soft, #efece6)" }} />
@@ -166,7 +171,21 @@ function SharedClientsTab({ role, onCountChange }) {
                 {isAckBusy ? "…" : "Dismiss"}
               </button>
             ) : <span />}
+            <button
+              type="button"
+              aria-expanded={teamOpen === k}
+              onClick={() => setTeamOpen(teamOpen === k ? null : k)}
+              style={{ background: "transparent", color: "var(--sh-ink, #f2ede4)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", padding: "7px 12px", borderRadius: 999, fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 11.5, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              {teamOpen === k ? "Close" : "Team →"}
+            </button>
           </div>
+          {teamOpen === k && typeof window.SharedTeamPanel === "function" && (
+            <div style={{ padding: "4px 4px 22px" }}>
+              <window.SharedTeamPanel clientId={r.clientId} role={role} withUserId={r.counterpart.userId} />
+            </div>
+          )}
+          </React.Fragment>
         );
       })}
     </div>

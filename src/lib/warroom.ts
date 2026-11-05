@@ -326,6 +326,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/me', 'GET'],
   ['/api/me/shared-clients/[clientId]/ack', 'POST,DELETE'],
   ['/api/me/shared-clients/[clientId]/thread', 'POST'],
+  ['/api/me/shared-clients/[clientId]/team', 'GET'],
   ['/api/me/shared-clients', 'GET'],
   ['/api/members/ages', 'POST'],
   ['/api/messages/direct', 'GET,POST'],

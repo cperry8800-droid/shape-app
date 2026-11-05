@@ -62,7 +62,7 @@ function TrainerClientsPage() {
       <div style={{ marginBottom: 16 }}>
         <DashSegmented label="Which clients" value={tab} onChange={setTab} items={[
           { key: "all", label: "Your clients", count: loading ? null : activeCount },
-          { key: "shared", label: "Shared with you", count: sharedBadge > 0 ? sharedBadge + " new" : null },
+          { key: "shared", label: "Shared", count: sharedBadge > 0 ? sharedBadge + " new" : null },
         ]} />
       </div>
       {tab === "shared" ? (

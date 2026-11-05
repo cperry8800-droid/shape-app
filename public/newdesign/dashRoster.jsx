@@ -639,9 +639,17 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
   // same page — one page, one answer about whether this session is real.
   const [hiddenSections, toggleSection] = useRememberedSet(prefs, "drawerHidden:" + role, 12);
   const [showSettings, setShowSettings] = React.useState(false);
+  // The Team tab (sharedTeam.jsx, owner 2026-11-05): only for a client another coach also coaches.
+  // useSharedClients exists on a page that loads sharedTeam.jsx, or on none, so it is called on
+  // every render of this page or on none.
+  const sharedRows = typeof window.useSharedClients === "function" ? window.useSharedClients() : undefined;
+  const [tab, setTab] = React.useState("client");
+  const rowId = row && row.client && row.client.profile ? row.client.profile.id : null;
+  React.useEffect(() => { setTab("client"); }, [rowId]);
   // Hooks run before the early return, or a drawer that closes renders fewer of them
   // than the one that opened — the rules-of-hooks class this repo already post-mortems.
   if (!row) return null;
+  const isShared = Array.isArray(sharedRows) && sharedRows.some((r) => r && r.clientId === rowId) && typeof window.SharedTeamPanel === "function";
   const rec = row.client;
   const view = DASH_DRAWER_VIEWS[role] || DASH_DRAWER_VIEWS.trainer;
   const secs = dashDrawerSections(view, hiddenSections);
@@ -678,6 +686,16 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
             : <DashPill c={sevColor}>{row.severity === "unknown" ? (row.progress || DashSignals.progressStatus(rec)).label : rec.profile.isNew ? "New" : "On track"}</DashPill>}
           {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
         </div>
+        {isShared && (
+          <div role="tablist" aria-label="Client or care team" style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+            {[["client", "Client"], ["team", "Team"]].map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", padding: "7px 12px", borderRadius: 4, cursor: "pointer",
+                  border: "1px solid " + (tab === k ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_HAIR), background: tab === k ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: tab === k ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50 }}>{label}</button>
+            ))}
+          </div>
+        )}
+        {isShared && tab === "team" ? <window.SharedTeamPanel clientId={rowId} role={role} compact /> : <>
         <DashProgressReadout row={row} />
         {showSettings && (
           <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
@@ -715,6 +733,7 @@ function DashClientDrawer({ row, role, onClose, prefs }) {
             Every section is hidden. Open ⚙ above to bring one back.
           </div>
         )}
+        </>}
         <div style={{ position: "sticky", bottom: -40, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
           <button onClick={() => { onClose(); dashMessageClient(rec.profile.name, role, row.flags.length ? dashMessageDraft(row) : null, rec.profile.id); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>Message</button>
           {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
