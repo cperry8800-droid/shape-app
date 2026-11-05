@@ -554,7 +554,7 @@
   "notifyPrefs.from": "Dari",
   "notifyPrefs.fromSub": "Ditahan sampai jam tenang berakhir",
   "notifyPrefs.to": "Sampai",
-  "notifyPrefs.toSub": "Memakai zona waktu perangkatmu",
+  "notifyPrefs.toSub": "Memakai zona waktu akunmu",
   "notifyPrefs.dailyLimit": "Batas harian",
   "notifyPrefs.dailyLimitSub": "Sisanya digabung jadi ringkasan",
   "notifyPrefs.perDay": "{n}/hari",

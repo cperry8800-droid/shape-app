@@ -283,7 +283,7 @@ const between = (src, from, to) => {
 };
 
 test('the app sends its zone on every calendar read, and hands the named zone back on a reschedule', async () => {
-  const lifted = between(BACKEND, 'function deviceTimeZone()', 'async function createCalendarEvent(');
+  const lifted = between(BACKEND, 'function calendarTimeZone()', 'async function createCalendarEvent(');
   const asked = [];
   const { listCalendar } = new Function('getJsonOrDefault', 'apiBaseUrl',
     lifted + '\nreturn { listCalendar };')(async (url) => { asked.push(url); return { events: [{ id: 'x' }], zone: NY }; }, '');

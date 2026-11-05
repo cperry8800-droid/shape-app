@@ -88,7 +88,7 @@ test('midnight stays hour zero and reminder database failures propagate',async()
   const section=source.slice(source.indexOf('function _localNotifs()'),source.indexOf('// ─── User-set reminders'));
   let scheduled, dbError=null;
   const context=vm.createContext({window:{Capacitor:{Plugins:{LocalNotifications:{cancel:async()=>{},schedule:async data=>{scheduled=data;}}}}},
-    state:{user:{id:'a'}},supabase:{from:()=>({upsert:async()=>({error:dbError})})},signOutGen:()=>0,_deviceTz:()=> 'America/New_York'});
+    state:{user:{id:'a'}},supabase:{from:()=>({upsert:async()=>({error:dbError})})},signOutGen:()=>0,_accountTz:()=> 'America/New_York'});
   vm.runInContext(section,context);
   await context.setHabitReminder({habitId:'h',time:'00:05',days:[1]});
   assert.equal(scheduled.notifications[0].schedule.on.hour,0);

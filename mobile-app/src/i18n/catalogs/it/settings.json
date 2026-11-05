@@ -554,7 +554,7 @@
   "notifyPrefs.from": "Dalle",
   "notifyPrefs.fromSub": "Trattenute fino alla loro fine",
   "notifyPrefs.to": "Alle",
-  "notifyPrefs.toSub": "Usa il fuso orario del tuo dispositivo",
+  "notifyPrefs.toSub": "Usa il fuso orario del tuo account",
   "notifyPrefs.dailyLimit": "Limite giornaliero",
   "notifyPrefs.dailyLimitSub": "Il resto viene raccolto in un riepilogo",
   "notifyPrefs.perDay": "{n}/giorno",

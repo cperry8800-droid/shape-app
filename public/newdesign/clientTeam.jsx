@@ -112,6 +112,15 @@ function CtBookSheet({ coach, onClose, onBooked }) {
     return () => { on = false; };
   }, [coach]);
 
+  // The times print on the member's own clock (bookingSlots.js reads the account's zone, P9); the
+  // zone landing or changing while the sheet is open re-renders them, and the line below names it.
+  const [, setZoneTick] = React.useState(0);
+  React.useEffect(() => {
+    const h = () => setZoneTick((n) => n + 1);
+    window.addEventListener("shape:timezone", h);
+    return () => window.removeEventListener("shape:timezone", h);
+  }, []);
+  const zoneName = (() => { try { const Z = window.ShapeZone; return Z && Z.zoneLabel ? Z.zoneLabel(Z.viewerZone()) : ""; } catch (e) { return ""; } })();
   const groups = state === "ready" ? window.BookingSlots.groupByDay(slots) : [];
 
   // ⚠ THE REQUEST GOES THROUGH /api/sessions/request NOW, NOT STRAIGHT INTO `sessions`
@@ -184,7 +193,7 @@ function CtBookSheet({ coach, onClose, onBooked }) {
         ) : (
           <>
             <div style={{ fontSize: 12.5, color: CT_INK40, lineHeight: 1.5 }}>
-              Times are shown in your timezone. Your coach confirms before it's final.
+              {zoneName ? "Times are shown in your time zone, " + zoneName + "." : "Times are shown in your time zone."} Your coach confirms before it's final.
             </div>
 
             {state === "loading" && <div style={{ fontFamily: CT_MONO, fontSize: 11.5, color: CT_INK40, marginTop: 18 }}>Loading open times…</div>}

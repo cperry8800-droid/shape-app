@@ -5,6 +5,7 @@ import {
   bsHoursMerge, bsHoursSpan, bsHoursScale, bsHoursRangeWords,
 } from '../services/coachHours.mjs';
 import { bsProjectAvailability, bsInstantInZone, bsIsZone } from '../services/coachAvailability.mjs';
+import { viewerZone, zoneLabel } from '../services/shapeZone.mjs';
 import { bsRaised } from './BSProInstrument.jsx';
 import { bsMpGlass } from './BSMemberBento.jsx';
 
@@ -390,14 +391,15 @@ function MemberPreview({ t, tr, role, providerId, nonce }) {
       .catch(() => { if (on) setState({ kind: 'error' }); });
     return () => { on = false; };
   }, [role, providerId, nonce]);
+  // On the coach's own clock (P9: the account's zone), as a member set to that zone sees them.
   const fmt = (at) => {
-    try { return new Date(at).toLocaleString(locale, { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return new Date(at).toISOString(); }
+    try { return new Date(at).toLocaleString(locale, { weekday: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return new Date(at).toISOString(); }
   };
   let body;
   if (state.kind === 'loading') body = <Note t={t}>{tr('coach:hours.previewLoading', { defaultValue: 'Reading what members see…' })}</Note>;
   else if (state.kind === 'none') body = <Note t={t}>{tr('coach:hours.previewNone', { defaultValue: 'Members see your open times once your listing is set up.' })}</Note>;
   else if (state.kind === 'error') body = <Note t={t}>{tr('coach:hours.previewError', { defaultValue: "Couldn't read your open times just now. Your hours are saved as shown above." })}</Note>;
-  else if (state.kind === 'nozone') body = <Note t={t} tone="err">{tr('coach:hours.previewNoZone', { defaultValue: 'Your hours have no time zone yet, so members see no times. Save your hours once from this phone to fix it.' })}</Note>;
+  else if (state.kind === 'nozone') body = <Note t={t} tone="err">{tr('coach:hours.previewNoZone', { defaultValue: 'Your hours have no time zone yet, so members see no times. Set your time zone in Settings to fix it.' })}</Note>;
   else {
     // Full with intro calls closed: members join the waiting list and the listing offers no
     // times (its introClosed), so neither does this read-back (Codex on #2483).
@@ -698,12 +700,15 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
   const dirty = !bsHoursSame(days, seed);
   const valid = bsHoursValid(days);
   const total = bsHoursTotal(days);
+  // The zone a save stamps: the account's (P9; ShapeCoachHours.zone reads services/shapeZone.mjs),
+  // this phone's only as an account's first default. Named the way Settings names it.
   const phoneZone = window.ShapeCoachHours?.zone?.() || null;
+  const zoneName = (z) => zoneLabel(z) || z;
   const zoneLine = zone
     ? (phoneZone && phoneZone !== zone
-      ? tr('coach:hours.zoneMoved', { defaultValue: 'Times in {zone}. Saving from this phone moves them to {phone}.', zone, phone: phoneZone })
-      : tr('coach:hours.zone', { defaultValue: 'Times in {zone}', zone }))
-    : (phoneZone ? tr('coach:hours.zoneFirst', { defaultValue: 'Times will be saved in {zone}', zone: phoneZone }) : '');
+      ? tr('coach:hours.zoneMoved', { defaultValue: 'Times in {zone}. Saving moves them to your time zone, {phone}.', zone: zoneName(zone), phone: zoneName(phoneZone) })
+      : tr('coach:hours.zone', { defaultValue: 'Times in {zone}', zone: zoneName(zone) }))
+    : (phoneZone ? tr('coach:hours.zoneFirst', { defaultValue: 'Times will be saved in {zone}', zone: zoneName(phoneZone) }) : '');
   const hoursLabel = (min) => {
     const h = Math.floor(min / 60), m = min % 60;
     return m ? tr('coach:hours.totalHm', { defaultValue: '{h} h {m} min', h, m }) : tr('coach:hours.totalH', { defaultValue: '{h, plural, one {# hour} other {# hours}}', h });
@@ -773,8 +778,8 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
           <HoursHead t={t} accent={accent}>{tr('coach:hours.weekHead', { defaultValue: 'Every week' })}</HoursHead>
           {zoneLine && load === 'ready' ? <div style={{ margin: '0 0 8px', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.04em', color: t.INK50 }}>{zoneLine}</div> : null}
           {zoneMoved && !dirty ? <div style={{ marginBottom: 8 }}><Chip t={t} disabled={saving} onClick={() => save({ force: true })}>{zone
-            ? tr('coach:hours.zoneMove', { defaultValue: 'Move my hours to {zone}', zone: phoneZone })
-            : tr('coach:hours.zoneSet', { defaultValue: 'Save my hours in {zone}', zone: phoneZone })}</Chip></div> : null}
+            ? tr('coach:hours.zoneMove', { defaultValue: 'Move my hours to {zone}', zone: zoneName(phoneZone) })
+            : tr('coach:hours.zoneSet', { defaultValue: 'Save my hours in {zone}', zone: zoneName(phoneZone) })}</Chip></div> : null}
           {week}
           {load === 'ready' && !dirty && msg ? <Note t={t} tone={msg.tone} style={{ marginTop: 10 }}>{msg.text}</Note> : null}
           {load === 'ready' ? <MemberPreview t={t} tr={tr} role={role} providerId={providerId} nonce={previewNonce} /> : null}
@@ -815,7 +820,7 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
           </div>
         </div>
       ) : null}
-      {BSFooter ? <BSFooter left={tr('coach:hours.footer', { defaultValue: 'Your hours' })} right={zone || ''} /> : null}
+      {BSFooter ? <BSFooter left={tr('coach:hours.footer', { defaultValue: 'Your hours' })} right={zone ? zoneName(zone) : ''} /> : null}
     </BSPage>
   );
 }

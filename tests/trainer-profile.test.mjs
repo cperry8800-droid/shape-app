@@ -496,7 +496,9 @@ test('Make it yours opens only for the account its doc was read for (Codex P1 on
 test('the day runs local midnight to local midnight, so a clock-change day keeps its own hours (Codex P2 on #2484)', () => {
   // Pinned on the source: whether the strip crosses a clock change depends on the real date.
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
-  assert.match(src, /const dayEnd = new Date\(picked\.getFullYear\(\), picked\.getMonth\(\), picked\.getDate\(\) \+ 1\)\.getTime\(\);/);
+  // P9: midnight on the viewer's own clock (the account's zone), each asked of the zone.
+  assert.match(src, /const dayEnd = midnight\(new Date\(picked\.getFullYear\(\), picked\.getMonth\(\), picked\.getDate\(\) \+ 1\)\);/);
+  assert.match(src, /const at = bsDayStartInZone\(d\.getFullYear\(\), d\.getMonth\(\) \+ 1, d\.getDate\(\), vz\);/);
   assert.doesNotMatch(src, /dayStart \+ 86400000/);
 });
 

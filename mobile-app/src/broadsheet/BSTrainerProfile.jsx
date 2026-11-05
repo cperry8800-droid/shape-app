@@ -7,7 +7,8 @@ import { STUDIO_WORDS } from '../services/studioKit.mjs';
 import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
 import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel, bsStudioFocusLabel } from './BSCoachStudio.jsx';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
-import { bsProjectAvailability, bsIsZone } from '../services/coachAvailability.mjs';
+import { bsProjectAvailability, bsIsZone, bsDayStartInZone } from '../services/coachAvailability.mjs';
+import { viewerZone, partsInZone, onZoneChange } from '../services/shapeZone.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf, BS_SAMPLE_CLIPS } from '../services/trainerDemo.mjs';
@@ -430,6 +431,11 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // ── Their week: the public read the listing books from ──
   const [avail, setAvail] = React.useState({ kind: 'loading' });
   const [availEpoch, setAvailEpoch] = React.useState(0);
+  // ⚠ THE WEEK IS PROJECTED ON THE VIEWER'S ZONE, SO A ZONE THAT LANDS OR CHANGES PROJECTS IT AGAIN
+  // (Codex on #2624). Repainting the Day tab alone kept slots keyed on the old zone's days: a slot
+  // across midnight showed on the wrong day, or not at all, until the profile was reopened.
+  const [zoneEpoch, setZoneEpoch] = React.useState(0);
+  React.useEffect(() => onZoneChange(() => setZoneEpoch((n) => n + 1)), []);
   React.useEffect(() => {
     const real = !selfDemo && providerId && W.ShapeCoachAvailability?.get;
     // A sample waits for its listing's read, then shows the listing's own hours or the sample week:
@@ -462,7 +468,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
       })
       .catch(() => { if (on) setAvail(sampleOnly ? sampleWeek(null) : { kind: 'error' }); });
     return () => { on = false; };
-  }, [providerId, providerState, availEpoch, demo, role]);
+  }, [providerId, providerState, availEpoch, demo, role, zoneEpoch]);
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
   const [tab, setTab] = React.useState('day');
@@ -1219,7 +1225,14 @@ function RecipeOverlay({ t, tr, recipe, onClose }) {
 
 // ── Her day ─────────────────────────────────────────────────────────────────────────────────
 function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, providerState, isSelf, first, words, nutri = false, introClosed, onRetry, onTake, asks = null, asksLive = false, onWork, onHours }) {
-  const today = new Date();
+  // ⚠ THE WEEK IS THE VIEWER'S OWN (P9): its days, their midnights and its times are on the
+  // account's zone (services/shapeZone.mjs), the clock the projected slots' `iso` is keyed on
+  // (bsProjectAvailability), wherever this phone is. Each day is a local Date at noon whose fields
+  // are that civil date. The zone landing or changing re-renders it.
+  const [, setZoneTick] = React.useState(0);
+  React.useEffect(() => onZoneChange(() => setZoneTick((n) => n + 1)), []);
+  const vz = viewerZone();
+  const today = (() => { const p = partsInZone(Date.now(), vz); return p ? new Date(p.y, p.mo - 1, p.d, 12) : new Date(); })();
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
   const [pick, setPick] = React.useState(isoDay(today));
   const open = avail.kind === 'ready' && !introClosed ? avail.open : [];
@@ -1229,12 +1242,18 @@ function DayTab({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, MONO, avail, provide
   const title = isoDay(picked) === isoDay(today)
     ? tr('profile:trainer.todayIs', { defaultValue: 'Today, {day}', day: (() => { try { return picked.toLocaleDateString(locale, { weekday: 'long' }); } catch (e) { return ''; } })() })
     : (() => { try { return picked.toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' }); } catch (e) { return pick; } })();
-  const fmtTime = (ms) => { try { return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
+  const fmtTime = (ms) => { try { return new Date(ms).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', timeZone: vz }); } catch (e) { return ''; } };
 
   // The day's rows: open times (to take) and busy time (said only as busy), by time.
-  // Local midnight to local midnight: a day with a clock change is 23 or 25 hours long.
-  const dayStart = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate()).getTime();
-  const dayEnd = new Date(picked.getFullYear(), picked.getMonth(), picked.getDate() + 1).getTime();
+  // Midnight to midnight on the viewer's clock: a day with a clock change is 23 or 25 hours long.
+  // ⚠ A day whose midnight a clock change skips (Santiago on 6 Sep 2026) starts at its first real
+  // instant, on the viewer's clock, never at this phone's midnight (Codex on #2624).
+  const midnight = (d) => {
+    const at = bsDayStartInZone(d.getFullYear(), d.getMonth() + 1, d.getDate(), vz);
+    return Number.isFinite(at) ? at : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const dayStart = midnight(picked);
+  const dayEnd = midnight(new Date(picked.getFullYear(), picked.getMonth(), picked.getDate() + 1));
   const rows = [];
   if (avail.kind === 'ready') {
     for (const s of open.filter((x) => x.iso === pick)) rows.push({ kind: 'open', at: s.at, slot: s });
@@ -1332,7 +1351,7 @@ function Hint({ ink, children }) {
 function AsksList({ t, tr, locale, ACC, ink, DISPLAY, MONO, asks, total, live, onHours }) {
   const now = Date.now();
   const count = Math.max(total || 0, asks.length);
-  const when = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
+  const when = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return ''; } };
   return (
     <div data-asks="" style={{ marginBottom: 18, padding: '12px 14px', border: `1px solid ${ink(0.18)}`, borderLeft: `3px solid ${ACC}` }}>
       <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.asksTitle', { defaultValue: 'Asked for before you joined' })}</span>
@@ -1369,7 +1388,7 @@ const ASK_ERRORS = {
 function AskSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, first, role, providerId, onClose }) {
   const [state, setState] = React.useState({ kind: 'ask' });
   const [note, setNote] = React.useState('');
-  const when = (() => { try { return new Date(slot.at).toLocaleString(locale, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
+  const when = (() => { try { return new Date(slot.at).toLocaleString(locale, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return ''; } })();
   const ask = async () => {
     if (state.kind === 'busy') return;
     if (window.bsRequireAccount && !window.bsRequireAccount('ask for a time')) return;
@@ -1413,7 +1432,7 @@ function AskSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, fi
 // ── Book an open time ───────────────────────────────────────────────────────────────────────
 function BookSheet({ t, tr, locale, ACC, ON_ACC, ink, DISPLAY, slot, introMin, first, name, role = 'trainer', coach, onClose, onRefresh }) {
   const [state, setState] = React.useState({ kind: 'ask' });
-  const when = (() => { try { return new Date(slot.at).toLocaleString(locale, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })();
+  const when = (() => { try { return new Date(slot.at).toLocaleString(locale, { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return ''; } })();
   const book = async () => {
     if (state.kind === 'busy') return;
     if (window.bsRequireAccount && !window.bsRequireAccount('book a session')) return;

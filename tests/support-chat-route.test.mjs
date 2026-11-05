@@ -404,7 +404,7 @@ test('shape_help is offered to everyone and answers from the knowledge base; wit
 
 test('get_account: strict with no arguments, the member\'s OWN rows come back, and a non-member never reads', async () => {
   const tables = {
-    profiles: [{ id: U, full_name: 'Quinn Harper', email: 'm@x', username: 'quinnh', role: 'client', roles: ['client'], created_at: '2026-01-05T00:00:00Z' }],
+    profiles: [{ id: U, full_name: 'Quinn Harper', email: 'm@x', username: 'quinnh', role: 'client', roles: ['client'], created_at: '2026-01-05T00:00:00Z', timezone: 'America/New_York' }],
     platform_subscriptions: [{ client_id: U, status: 'active', price_cents: 500, current_period_end: '2026-10-01T00:00:00Z' }],
     subscriptions: [{ client_id: U, provider_id: 7, provider_role: 'trainer', status: 'active', price_cents: 12000 }],
     trainers: [{ id: 7, name: 'Maya Okafor' }], nutritionists: [],

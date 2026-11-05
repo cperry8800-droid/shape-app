@@ -1134,18 +1134,38 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
 // call, booked on the booking page at that time) and busy time that says only that it is busy.
 function CpwDayTab({ T, K, avail, listingState, introClosed, hoursHref, onRetry, bookHref, onWork }) {
   const { pal, ACC, INK, ink, first, words, nutri, isSelf, wide } = T;
-  const today = new Date();
+  // ⚠ THE WEEK IS THE VIEWER'S OWN (P9): the days and times are on the account's zone
+  // (shapeZone.mjs, window.ShapeZone, read at render), whatever this browser's clock says, so a
+  // member reads a coach's open times on their own calendar. Each day is a local Date at noon whose
+  // fields are that civil date; its bounds are that zone's midnights (BookingSlots.isoForSlot).
+  // Without ShapeZone, this browser's days and clock, as before.
+  const [, setZoneTick] = React.useState(0);
+  React.useEffect(() => {
+    const h = () => setZoneTick((n) => n + 1);
+    window.addEventListener("shape:timezone", h);
+    return () => window.removeEventListener("shape:timezone", h);
+  }, []);
+  const Z = (() => { try { const z = window.ShapeZone; return z && typeof z.partsInZone === "function" ? z : null; } catch (e) { return null; } })();
+  const vz = Z ? Z.viewerZone() : null;
+  const today = (() => { const p = Z ? Z.partsInZone(Date.now(), vz) : null; return p ? new Date(p.y, p.mo - 1, p.d, 12) : new Date(); })();
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + i));
   const [pick, setPick] = React.useState(cpwIso(today));
   const open = avail.kind === "ready" && !introClosed ? avail.open : [];
   const picked = days.find((d) => cpwIso(d) === pick) || days[0];
-  const countOn = (d) => { const s = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), e = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime(); return open.filter((x) => x.ms >= s && x.ms < e && x.ms > Date.now()).length; };
+  const boundsOf = (d) => {
+    const local = { start: new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(), end: new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime() };
+    const B = window.BookingSlots;
+    if (!vz || !B || typeof B.isoForSlot !== "function") return local;
+    const s = Date.parse(B.isoForSlot(cpwIso(d), 0, vz) || ""), e = Date.parse(B.isoForSlot(cpwIso(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)), 0, vz) || "");
+    return Number.isFinite(s) && Number.isFinite(e) && e > s ? { start: s, end: e } : local;
+  };
+  const countOn = (d) => { const { start: s, end: e } = boundsOf(d); return open.filter((x) => x.ms >= s && x.ms < e && x.ms > Date.now()).length; };
   const dayName = (d, o) => { try { return d.toLocaleDateString(undefined, o); } catch (e) { return ""; } };
   const isToday = cpwIso(picked) === cpwIso(today);
   const title = isToday ? `Today, ${dayName(picked, { weekday: "long" })}` : dayName(picked, { weekday: "long", month: "short", day: "numeric" });
-  const fmt = (ms) => { try { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; } };
+  const fmt = (ms) => { try { return new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", ...(vz ? { timeZone: vz } : {}) }); } catch (e) { return ""; } };
   const now = Date.now();
-  const rows = avail.kind === "ready" ? K.bsCoachDayRows({ open, busy: avail.busy, day: picked, now }) : [];
+  const rows = avail.kind === "ready" ? K.bsCoachDayRows({ open, busy: avail.busy, day: picked, now, ...boundsOf(picked) }) : [];
 
   let body;
   if (listingState === "none") {
@@ -1166,7 +1186,7 @@ function CpwDayTab({ T, K, avail, listingState, introClosed, hoursHref, onRetry,
     body = (
       <React.Fragment>
         <h2 className="cpw-s21" style={{ margin: "24px 0 0", fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 21, color: INK }}>{title}<span style={{ color: ACC }}>.</span></h2>
-        <p data-day-sub="" style={{ margin: "2px 0 0", fontSize: 13.5, color: ink(0.64) }}>{avail.sample ? `Sample times: ${first} hasn't set open hours on Shape yet.` : `From ${first}'s Shape calendar. Busy time shows only as busy.`}</p>
+        <p data-day-sub="" style={{ margin: "2px 0 0", fontSize: 13.5, color: ink(0.64) }}>{avail.sample ? `Sample times: ${first} hasn't set open hours on Shape yet.` : `From ${first}'s Shape calendar${vz && Z.zoneLabel ? `, in your time zone (${Z.zoneLabel(vz)})` : ""}. Busy time shows only as busy.`}</p>
         {introClosed ? <div style={{ marginTop: 12 }}><CpwHint ink={ink}>{`${first} is full right now. Join the waiting list to be first in line.`}</CpwHint><button type="button" onClick={onWork} style={cpwLink(ACC)}>{words.work} →</button></div> : null}
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
           {rows.length ? rows.map((r, i) => r.kind === "open" ? (

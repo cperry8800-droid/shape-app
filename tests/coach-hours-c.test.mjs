@@ -478,7 +478,8 @@ test('every target is 44px or more, the rules and the time-off form open', async
 test('its own module: window globals read at call time, no import back into the client, no options left', () => {
   const src = readFileSync(SRC, 'utf8');
   const imports = [...src.matchAll(/^import[^'"]*['"]([^'"]+)['"]/gm)].map((x) => x[1]);
-  assert.deepEqual(imports, ['react', '../services/coachHours.mjs', '../services/coachAvailability.mjs', './BSProInstrument.jsx', './BSMemberBento.jsx']);
+  // shapeZone.mjs (P9): the hours and the preview are named and printed on the account's zone.
+  assert.deepEqual(imports, ['react', '../services/coachHours.mjs', '../services/coachAvailability.mjs', '../services/shapeZone.mjs', './BSProInstrument.jsx', './BSMemberBento.jsx']);
   assert.doesNotMatch(src, /iosAppBroadsheetClient/, 'a feature module never imports the client');
   assert.match(src, /export function BSCoachHoursPage\(\{ role = 'trainer', onBack, onOpenCalendar \}\) \{\n\s+const \{ useBS, BSPage, BSDetailHeader, BSFooter \} = window;/, 'the chrome is read when the page renders');
   // The options are gone: no switch, no other looks, no old week editor.

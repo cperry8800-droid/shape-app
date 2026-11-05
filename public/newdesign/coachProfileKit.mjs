@@ -206,12 +206,15 @@ export function bsCoachCardFromRow(row, now = Date.now()) {
  * that start on it, and the busy time (`busy`, /api/availability's { start, end, kind }) that
  * overlaps it, said only as busy, by time. Local midnight to local midnight, so a clock-change day
  * keeps its own hours; today starts now, so time already over is not part of it.
+ * `start` / `end` (instants) replace those midnights when the day is on another clock than this
+ * device's: the viewer's own zone (P9), which the page works out.
  *   → [{ kind: 'open', at, slot } | { kind: 'busy'|'away', at, end }]
  */
-export function bsCoachDayRows({ open = [], busy = [], day, now = Date.now() }) {
+export function bsCoachDayRows({ open = [], busy = [], day, now = Date.now(), start = null, end = null }) {
   const d = day instanceof Date ? day : new Date(day);
-  const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+  const zoned = Number.isFinite(start) && Number.isFinite(end) && end > start;
+  const dayStart = zoned ? start : new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayEnd = zoned ? end : new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
   const rows = [];
   for (const s of (Array.isArray(open) ? open : [])) {
     const t = Number.isFinite(s && s.ms) ? s.ms : Date.parse(s && s.iso);

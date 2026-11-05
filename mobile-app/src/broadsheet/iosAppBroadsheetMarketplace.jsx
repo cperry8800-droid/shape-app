@@ -19,6 +19,7 @@ const { BSPage, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BS
 const BS_MAST_TOP_CSS = (typeof window !== 'undefined' && window.BS_MAST_TOP_CSS) || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
 
 import { bsProjectAvailability, bsSlotsByDay, bsIsZone } from '../services/coachAvailability.mjs';
+import { viewerZone, partsInZone } from '../services/shapeZone.mjs';
 import { bsPlanPreview } from '../services/planPreview.mjs';
 import { bsNormalizeListingMedia } from '../services/listingMedia.mjs';
 // The directory ("Find your coach.") draws in its own module; this one keeps every rule it reads.
@@ -1616,7 +1617,8 @@ function BSCoachAvailabilityCalendar({ coach, roleColor, open, demo, note = null
   const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const byDay = bsSlotsByDay(open);
-  const today = new Date();
+  // Today on the viewer's own clock (P9), the calendar the slots' `iso` is keyed on (bsProjectAvailability).
+  const today = (() => { const p = partsInZone(Date.now(), viewerZone()); return p ? new Date(p.y, p.mo - 1, p.d, 12) : new Date(); })();
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const [ym, setYm] = React.useState([today.getFullYear(), today.getMonth()]);
   const [selIso, setSelIso] = React.useState(null);

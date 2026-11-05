@@ -554,7 +554,7 @@
   "notifyPrefs.from": "Desde",
   "notifyPrefs.fromSub": "Se guardan hasta que terminen",
   "notifyPrefs.to": "Hasta",
-  "notifyPrefs.toSub": "Usa la zona horaria de tu dispositivo",
+  "notifyPrefs.toSub": "Usa la zona horaria de tu cuenta",
   "notifyPrefs.dailyLimit": "Límite diario",
   "notifyPrefs.dailyLimitSub": "Lo demás se agrupa en un resumen",
   "notifyPrefs.perDay": "{n}/día",

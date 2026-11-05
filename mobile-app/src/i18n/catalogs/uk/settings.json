@@ -554,7 +554,7 @@
   "notifyPrefs.from": "З",
   "notifyPrefs.fromSub": "Затримуються до їх завершення",
   "notifyPrefs.to": "До",
-  "notifyPrefs.toSub": "За часовим поясом вашого пристрою",
+  "notifyPrefs.toSub": "За часовим поясом вашого акаунта",
   "notifyPrefs.dailyLimit": "Ліміт на день",
   "notifyPrefs.dailyLimitSub": "Решта збирається в зведення",
   "notifyPrefs.perDay": "{n} на день",

@@ -554,7 +554,7 @@
   "notifyPrefs.from": "Başlangıç",
   "notifyPrefs.fromSub": "Bitene kadar bekletilir",
   "notifyPrefs.to": "Bitiş",
-  "notifyPrefs.toSub": "Cihazının saat dilimini kullanır",
+  "notifyPrefs.toSub": "Hesabının saat dilimini kullanır",
   "notifyPrefs.dailyLimit": "Günlük sınır",
   "notifyPrefs.dailyLimitSub": "Fazlası bir özette toplanır",
   "notifyPrefs.perDay": "Günde {n}",

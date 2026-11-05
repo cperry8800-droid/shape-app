@@ -9,7 +9,7 @@ import { signOutGen, bumpSignOutGen, signOutEnded } from './signOutGen.mjs';
 import { makePlaybackGate } from './playbackGate.mjs';
 import { attachRadioListening, listeningAllowed, RADIO_LISTEN_PATH } from '../../../public/newdesign/radioListening.mjs';
 import { bsSetSentryUser } from '../sentry.mjs';
-import { clearAccountZone } from './shapeZone.mjs';
+import { clearAccountZone, viewerZone } from './shapeZone.mjs';
 import { bsReadAccountZone, bsWriteAccountZone } from './accountZone.mjs';
 // The reader's own vocabulary — never re-typed here, so the writer cannot drift
 // into emitting an answer the core does not recognise.
@@ -5807,9 +5807,12 @@ async function logActivity({ activityType, durationMin, distanceKm, calories, st
 // route places bookings in UTC (the contract older builds rely on), so a 9:00 AM New York
 // session read 1:00 PM and an evening one sat on the next day. With it the route answers on
 // the coach's stored zone (`role` picks the row for an account that owns both) or, for a
-// member, this device's — and names the zone, which a reschedule must send back so the wall
+// member, the zone sent — and names the zone, which a reschedule must send back so the wall
 // clock it carries is read on the same clock it was shown on.
-function deviceTimeZone() {
+// ⚠ THE ZONE SENT IS THE ACCOUNT'S (P9): services/shapeZone.mjs viewerZone, the account's own zone
+// once read, else this device's. A member's sessions land on their own clock wherever the phone is.
+function calendarTimeZone() {
+  try { if (typeof viewerZone === 'function') return viewerZone() || ''; } catch (e) { /* the device's */ }
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; }
 }
 async function listCalendar({ from, to, clientId, role, strict = false } = {}) {
@@ -5821,7 +5824,7 @@ async function listCalendar({ from, to, clientId, role, strict = false } = {}) {
   // The member calendar shows their synced and hand-logged activities (Strava, Garmin, Apple
   // Health…); a coach's own calendar and week don't ask for them.
   else qs.set('activities', '1');
-  qs.set('tz', deviceTimeZone());
+  qs.set('tz', calendarTimeZone());
   const d = await getJsonOrDefault(`${apiBaseUrl || ''}/api/calendar?${qs.toString()}`, null);
   if (strict && !Array.isArray(d?.events)) throw new Error('Calendar unavailable');
   return { events: Array.isArray(d?.events) ? d.events : [], zone: typeof d?.zone === 'string' && d.zone ? d.zone : null };
@@ -6281,9 +6284,12 @@ async function coachHoursCall(path, init) {
 }
 const coachHoursPost = (path, body, method = 'POST') => coachHoursCall(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const coachHoursRole = (role) => (normalizeRole(role) === 'nutritionist' ? 'nutritionist' : 'trainer');
-// This phone's IANA zone: the route stamps it on the coach's row with their hours (it refuses
-// hours it cannot place), exactly as the website's editor sends the browser's.
+// The zone the hours are saved in (it refuses hours it cannot place): the account's (P9,
+// services/shapeZone.mjs viewerZone), which the route stamps whatever is sent once the account has
+// one, else this phone's as the account's first default. So the hours page compares the stored
+// zone with the account's, not the phone's, and never offers to "move" hours a save would not move.
 function coachHoursZone() {
+  try { const z = viewerZone(); if (z) return z; } catch (e) { /* the phone's */ }
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
 }
 window.ShapeCoachHours = {
@@ -9746,7 +9752,12 @@ window.ShapeVoice = {
 // 'notify_prefs' — the SAME doc /api/ai/notify reads, so the screen and the
 // server agree. evaluate() runs the engine server-side over the REAL record and
 // writes any due notifications (deduped/capped/quiet-hours-aware over there).
-function _deviceTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; } }
+// The zone quiet hours and reminders are kept in: the account's (P9, services/shapeZone.mjs
+// viewerZone; Settings says so), else this device's, else UTC. A trip no longer moves them.
+function _accountTz() {
+  try { const z = viewerZone(); if (z) return z; } catch (e) { /* the device's */ }
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
+}
 // The device's LOCAL calendar day (YYYY-MM-DD) — never UTC. Day-bucketed writes
 // (weigh-in, meal log, measurements, workout minutes) must use this so an
 // evening log lands on the user's "today", not UTC's. (toISOString() is UTC.)
@@ -9767,7 +9778,7 @@ async function notifyCenter() {
 }
 async function saveNotifySettings(patch) {
   if (!supabase || !state.user?.id) return;
-  const row = { user_id: state.user.id, tz: _deviceTz(), updated_at: new Date().toISOString(), ...patch };
+  const row = { user_id: state.user.id, tz: _accountTz(), updated_at: new Date().toISOString(), ...patch };
   try { await supabase.from('notification_settings').upsert(row, { onConflict: 'user_id' }); } catch (e) {}
   try { window.dispatchEvent(new CustomEvent('shape:notifyprefs')); } catch (e) {}
 }
@@ -9847,7 +9858,7 @@ async function setHabitReminder({ habitId, label, time, days, enabled } = {}) {
   const row = {
     habit_id: habitId, user_id: state.user.id, label: label || '',
     at_time: time || '09:00', days: Array.isArray(days) ? days : [1, 2, 3, 4, 5],
-    tz: _deviceTz(), enabled: enabled !== false, snooze_until: null, updated_at: new Date().toISOString(),
+    tz: _accountTz(), enabled: enabled !== false, snooze_until: null, updated_at: new Date().toISOString(),
   };
   const { error } = await supabase.from('habit_reminders').upsert(row, { onConflict: 'habit_id' });
   if (error) throw error;
@@ -9888,7 +9899,7 @@ async function remindersSave(r) {
   if (!apiBaseUrl) return { ok: false };
   const headers = { 'Content-Type': 'application/json' };
   if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
-  const tz = _deviceTz();
+  const tz = _accountTz();
   try {
     const res = await fetch(`${apiBaseUrl}/api/client/reminders`, { method: 'POST', headers, credentials: 'same-origin', body: JSON.stringify({ tz, ...r }) });
     const out = await res.json().catch(() => ({ ok: false }));

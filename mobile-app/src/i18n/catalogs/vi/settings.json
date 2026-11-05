@@ -554,7 +554,7 @@
   "notifyPrefs.from": "Từ",
   "notifyPrefs.fromSub": "Được giữ lại đến khi giờ yên lặng kết thúc",
   "notifyPrefs.to": "Đến",
-  "notifyPrefs.toSub": "Dùng múi giờ của thiết bị",
+  "notifyPrefs.toSub": "Dùng múi giờ của tài khoản",
   "notifyPrefs.dailyLimit": "Giới hạn mỗi ngày",
   "notifyPrefs.dailyLimitSub": "Phần còn lại gộp vào một bản tóm tắt",
   "notifyPrefs.perDay": "{n}/ngày",

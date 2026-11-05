@@ -154,7 +154,12 @@ function cstTypeName(type) {
   const row = CST_COACH_TYPES.filter((r) => r[0] === type)[0];
   return row ? row[1] : type;
 }
-function cstTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; } }
+// The zone quiet hours are kept in: the account's (P9, shapeZone.mjs's window.ShapeZone, read at call
+// time), else this browser's, else UTC. A laptop in another zone no longer moves them.
+function cstTz() {
+  try { const Z = window.ShapeZone; const z = Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null; if (z) return z; } catch (e) { /* this browser's */ }
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; } catch (e) { return "UTC"; }
+}
 function cstLabel(text) {
   return <div style={{ fontFamily: CST_MONO, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: CST_INK50 }}>{text}</div>;
 }

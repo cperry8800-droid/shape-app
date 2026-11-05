@@ -623,6 +623,34 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Time zones: one per account, set in Settings, and every main screen on the viewer\'s own clock (#2623, #2624). Migration 2026-11-05-account-timezone.sql, run and checked live',
+      items: [
+        { label: 'Owner, 2026-11-05: "all time zones should be set by user", and other people\'s times "should automatically update to their own timezone"', status: 'done' },
+        { label: '#2623 profiles.timezone, checked against Postgres\'s zone list and copied onto the person\'s trainers, nutritionists and client_profiles rows (so every existing reader follows it); backfilled listing first. GET/PUT /api/me/timezone; /api/client/timezone (posted by installed apps on every open) only sets a first default; the hours editor keeps hours in the account\'s zone', status: 'done' },
+        { label: '#2623 Settings on the website and in the app (13 locales): a Time zone control; the device\'s zone on first sign-in; a device on another clock asks "Switch / Keep", never switches. A coach\'s open hours keep their wall-clock times on the new clock; booked sessions don\'t move. public/newdesign/shapeZone.mjs prints every instant in the viewer\'s zone', status: 'done' },
+        { label: '#2624 on the account\'s zone: coach Today\'s calendar and week ahead, capacity, Week, Schedule (the hours editor names the zone), booking slots and the member\'s booking sheet, the coach profile Day tab, the directory, the app\'s session lists, open times and coach hours, quiet hours and reminders, Nora\'s time-zone answer; the copy that said "device" or "this phone", in 13 locales', status: 'done' },
+        { label: '#2624 review: Codex P1 on 3613844 (the profile\'s open times weren\'t projected again when the zone landed) and two P2s (Week kept last week after a zone moved this week; a day whose midnight a clock change skips fell back to the phone\'s midnight), fixed with tests that fail without each fix', status: 'done' },
+        { label: 'Left by #2624: the app\'s coach Today week strip and NOW line, and the member calendar grid, still take "today" from the phone (a traveller can see the today highlight a day off)', status: 'pending' },
+        { label: 'Left by #2624: still on the device\'s clock: chatTime.mjs, dashClient.jsx, dashProgress.jsx, coachClientDetail.jsx, chatWidget.jsx, the rest of dashToday.jsx, shapeBackend.js _localDay (weigh-in and meal-log days), radio set times, habits, live workout, meal log, check-in card; about 40 more sites in iosAppBroadsheetClient.jsx and 19 in iosAppBroadsheetPros.jsx', status: 'pending' },
+        { label: 'Left by #2624: consultation.html keeps the device\'s days (its date picker): rework or retire it. Coaches.html and MemberProfile.html use the zone last read on another page; they don\'t read the account or show the travel card', status: 'pending' },
+        { label: 'Left by #2623: shapeZone.mjs is loaded with a hand-set ?v= (the build re-keys only babel tags): an edit to it needs a new key on every page that loads it', status: 'pending' },
+        { label: 'OWNER: on a phone and the website, set a zone other than the device\'s in Settings; coach Today, Week, a booking sheet and the session list show that zone; travel (or change the device\'s zone) and the Switch / Keep question appears once', status: 'manual' },
+        { label: 'OWNER: a native speaker reads the new Hausa and Pidgin time-zone strings', status: 'manual' },
+      ],
+    },
+    {
+      section: 'Coach dashboard wiring, part 1: the coach\'s own clock and real program weeks, one signal engine with a coach action per reason, dismiss and snooze, per role for a coach with both listings (#2620, #2621, #2622). Migrations run and checked live',
+      items: [
+        { label: '#2620 correctness: Today and this week on the coach\'s own clock, real program weeks, intro consults, the Score counting what happened (2026-11-05-coach-score-past-sessions.sql)', status: 'done' },
+        { label: '#2621 one shared signal builder for the website, the app, Nora and the push; a coach action per reason; new signals; dismiss and snooze (2026-11-05-coach-signal-dismissals.sql)', status: 'done' },
+        { label: '#2622 a coach with both listings: a roster snapshot, an alert memory, a program and a dismissal per role; a dietitian rides the nutritionist surface (2026-11-05-coach-signal-dismissals-by-role.sql)', status: 'done' },
+        { label: 'Left by #2622: the app posts one coach roster, from its primary role, with one throttle (shapeBackend.js evaluateNotifications); it should post each coach role it holds', status: 'pending' },
+        { label: 'Left by #2622: the roster\'s PROGRAM column (dashProgramLabel, dashRoster.jsx) reads the single program, not programs[role]', status: 'pending' },
+        { label: 'Left by #2621: the P2 mutation spec (coach-signals-p2-2026-11-05) has stale anchors (ruleMissedSessions(c), v > 5), so --fail-on-skipped reports skips', status: 'pending' },
+        { label: 'Next: the new coach dashboard front-end for all coaches, then P3–P7 from their backup branches as its widgets need them', status: 'pending' },
+      ],
+    },
+    {
       section: 'App: the Home climb with its numbers on the route, a band of four figures under the hill, and more light (#2618). No migration',
       items: [
         { label: 'Owner, 2026-11-04: "add more info on this graph. Make it pop more"; of three designs, "go with A and include these and clean up the flag section" (A\'s numbers on the route with B\'s band of four figures), then "dont need to see preview before. just build"', status: 'done' },

@@ -443,7 +443,19 @@ function mkOpenTimes(c) {
   }
   return out.sort((a, b) => a.ms - b.ms);
 }
+// ⚠ ON THE VIEWER'S OWN CLOCK (P9): the account's zone (shapeZone.mjs, window.ShapeZone, read at
+// call time), "today" included; this browser's without it, as before.
 function mkSlotText(s, withDay = true) {
+  let Z = null;
+  try { Z = window.ShapeZone && typeof window.ShapeZone.dayKey === "function" ? window.ShapeZone : null; } catch (e) { Z = null; }
+  if (Z) {
+    const key = Z.dayKey(s.ms), now = Z.partsInZone(Date.now());
+    const u = now ? new Date(Date.UTC(now.y, now.mo - 1, now.d + 1)) : null;
+    const tomKey = u ? u.toISOString().slice(0, 10) : "";
+    const day = key === Z.dayKey(Date.now()) ? "Today" : key === tomKey ? "Tomorrow" : Z.formatDate(s.ms, { weekday: "short" });
+    const time = Z.formatTime(s.ms);
+    if (key && time) return withDay ? day + " · " + time : time;
+  }
   const d = new Date(s.ms);
   const today = new Date(); const tom = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();

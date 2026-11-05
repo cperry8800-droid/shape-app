@@ -417,12 +417,12 @@ test('matchNamed is the one policy, and matchHabit still answers under its own k
 // ─── account ─────────────────────────────────────────────────────────────────
 
 const ACCOUNT_TABLES = () => ({
-  profiles: [{ id: U, full_name: 'Quinn Harper', email: 'quinn@example.com', username: 'quinnh', location: 'Brooklyn, NY', profile_visibility: 'community', shape_radio_enabled: true, age_public: false, role: 'client', roles: ['client'], created_at: '2026-01-05T10:00:00Z' }, { id: 'someone-else', full_name: 'Not Me', email: 'x@y' }],
+  profiles: [{ id: U, full_name: 'Quinn Harper', email: 'quinn@example.com', username: 'quinnh', location: 'Brooklyn, NY', profile_visibility: 'community', shape_radio_enabled: true, age_public: false, role: 'client', roles: ['client'], created_at: '2026-01-05T10:00:00Z', timezone: 'Asia/Tokyo' }, { id: 'someone-else', full_name: 'Not Me', email: 'x@y', timezone: 'Pacific/Auckland' }],
   platform_subscriptions: [{ client_id: U, status: 'active', price_cents: 500, current_period_end: '2026-10-01T00:00:00Z' }, { client_id: U, status: 'canceled', price_cents: 500, current_period_end: '2025-10-01T00:00:00Z' }],
   subscriptions: [{ client_id: U, provider_id: 7, provider_role: 'trainer', status: 'active', price_cents: 12000, current_period_end: '2026-10-03T00:00:00Z' }, { client_id: U, provider_id: 3, provider_role: 'nutritionist', status: 'canceled', price_cents: 9000 }, { client_id: 'someone-else', provider_id: 7, provider_role: 'trainer', status: 'active' }],
   trainers: [{ id: 7, name: 'Maya Okafor' }], nutritionists: [{ id: 3, name: 'Leah Kim' }],
   user_goals: [
-    { user_id: U, kind: 'client_settings', data: { units: 'Metric · kg / km', profileVisibility: 'Just friends', dailyCheckin: 'Off', workoutReminders: 'On · 1h before', secret: 'not-a-pref' } },
+    { user_id: U, kind: 'client_settings', data: { units: 'Metric · kg / km', profileVisibility: 'Just friends', dailyCheckin: 'Off', workoutReminders: 'On · 1h before', secret: 'not-a-pref', timeZone: 'Eastern (ET)' } },
     { user_id: U, kind: 'nora_voice', data: { tone: 'direct', voice: 'sage' } },
     { user_id: U, kind: 'app_locale', data: { locale: 'de' } },
   ],
@@ -438,9 +438,13 @@ test('readAccount: the member\'s own profile, the newest platform plan, active c
   assert.deepEqual(r.coachSubscriptions, [{ coach: 'Maya Okafor', role: 'trainer', status: 'active', pricePerMonthUsd: 120, periodEnd: '2026-10-03' }], 'a canceled coach subscription is not listed');
   assert.deepEqual(r.preferences, { units: 'Metric · kg / km', profileVisibility: 'Just friends', dailyCheckin: 'Off', workoutReminders: 'On · 1h before', unitsSystem: 'metric' });
   assert.ok(!('secret' in r.preferences), 'only the Settings keys are read off the document');
+  // P9: the zone is the account's own (profiles.timezone), never the document's old label nor the
+  // client_profiles copy, which can lag it.
+  assert.ok(!('timeZone' in r.preferences), 'the old client_settings label is answered as a preference');
+  assert.ok(!ACCOUNT_PREF_KEYS.includes('timeZone'));
   assert.deepEqual(r.noraVoice, { tone: 'direct', voice: 'sage' });
   assert.equal(r.appLanguage, 'de');
-  assert.equal(r.timezone, 'Europe/Berlin');
+  assert.equal(r.timezone, 'Asia/Tokyo', 'the zone is not the account\'s own');
   // Scoped: the other member's rows never appear.
   assert.ok(!JSON.stringify(r).includes('Not Me'));
   assert.ok(!JSON.stringify(r).includes('x@y'));
@@ -475,7 +479,7 @@ test('readAccount: the profile is the primary read; every other leg that fails s
   assert.ok(!('coachSubscriptions' in r));
   assert.equal(r.preferencesUnavailable, true);
   assert.ok(!('preferences' in r));
-  assert.equal(r.timezone, 'Europe/Berlin', 'the legs are independent');
+  assert.equal(r.timezone, 'Asia/Tokyo', 'the legs are independent');
   // ⚠ The voice, the app language and the timezone say so too (CodeRabbit, the review of
   // #2130): an unreadable row was reported exactly like an unset one, so the model could
   // tell a member no voice or language was configured when the read had simply failed.
@@ -484,10 +488,11 @@ test('readAccount: the profile is the primary read; every other leg that fails s
   assert.equal(r.appLanguageUnavailable, true, 'the app_locale row could not be read — the profile locale must not stand in for a choice it may differ from');
   assert.ok(!('appLanguage' in r));
   assert.ok(!('timezoneUnavailable' in r), 'the profile row was readable');
-  // The profile row fails: the timezone says so; the app language still comes from the app's own row.
+  // The client_profiles row fails: the zone is the account's own and still answers; the app
+  // language still comes from the app's own row.
   const noProfile = await readAccount(fakeSupabase({ tables: ACCOUNT_TABLES(), fail: ['client_profiles'] }), U);
-  assert.equal(noProfile.timezoneUnavailable, true);
-  assert.ok(!('timezone' in noProfile));
+  assert.equal(noProfile.timezone, 'Asia/Tokyo', 'the zone does not come from client_profiles');
+  assert.ok(!('timezoneUnavailable' in noProfile));
   assert.equal(noProfile.appLanguage, 'de');
   assert.ok(!('appLanguageUnavailable' in noProfile));
   assert.deepEqual(noProfile.noraVoice, { tone: 'direct', voice: 'sage' });
