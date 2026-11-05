@@ -662,7 +662,9 @@ export const PLATFORM_ACTIVE = Object.freeze(['active', 'trialing', 'past_due'])
 // client_settings document as the LABEL strings the app stores ('Metric · kg /
 // km', 'Just friends', 'On · 30m before'): member-visible copy, clipped, never
 // interpreted beyond the units system below.
-export const ACCOUNT_PREF_KEYS = Object.freeze(['units', 'weekStarts', 'timeZone', 'language', 'dailyCheckin', 'onlineVisible', 'onlineRail', 'shareWorkoutData', 'profileVisibility', 'workoutReminders', 'coachReplies', 'weeklyDigest', 'community']);
+// ⚠ NO `timeZone` HERE (P9). The document's old 'timeZone' label was nobody's setting and nothing
+// reads or writes it; the account's zone is profiles.timezone, answered as `timezone` below.
+export const ACCOUNT_PREF_KEYS = Object.freeze(['units', 'weekStarts', 'language', 'dailyCheckin', 'onlineVisible', 'onlineRail', 'shareWorkoutData', 'profileVisibility', 'workoutReminders', 'coachReplies', 'weeklyDigest', 'community']);
 
 /** 'metric' | 'imperial' off the stored units label, or null when it names neither. */
 export function unitsSystemOf(label) {
@@ -683,14 +685,16 @@ const docOf = (r) => (r.ok && r.data && typeof r.data === 'object' && r.data.dat
  * could not be read, so an unreadable plan is never reported as "no plan".
  */
 export async function readAccount(sb, uid) {
-  const [prof, plan, subs, settings, voice, appLocale, cp] = await Promise.all([
+  const [prof, plan, subs, settings, voice, appLocale, cp, zone] = await Promise.all([
     leg(sb.from('profiles').select('full_name, email, username, location, profile_visibility, shape_radio_enabled, age_public, role, roles, created_at').eq('id', uid).maybeSingle()),
     leg(sb.from('platform_subscriptions').select('status, price_cents, current_period_end').eq('client_id', uid).order('current_period_end', { ascending: false, nullsFirst: false }).limit(1).maybeSingle()),
     leg(sb.from('subscriptions').select('provider_id, provider_role, status, price_cents, current_period_end').eq('client_id', uid).in('status', [...PLATFORM_ACTIVE]).limit(READ_CAPS.coaching)),
     leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'client_settings').maybeSingle()),
     leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'nora_voice').maybeSingle()),
     leg(sb.from('user_goals').select('data').eq('user_id', uid).eq('kind', 'app_locale').maybeSingle()),
-    leg(sb.from('client_profiles').select('timezone, locale').eq('user_id', uid).maybeSingle()),
+    leg(sb.from('client_profiles').select('locale').eq('user_id', uid).maybeSingle()),
+    // Its own leg, so a read that fails says the zone is unavailable without failing the profile.
+    leg(sb.from('profiles').select('timezone').eq('id', uid).maybeSingle()),
   ]);
   if (!prof.ok) return { ok: false };
   const p = prof.data && typeof prof.data === 'object' ? prof.data : {};
@@ -759,8 +763,10 @@ export async function readAccount(sb, uid) {
   else if (chosen) out.appLanguage = chosen;
   else if (!cp.ok) out.appLanguageUnavailable = true;
   else if (fallbackLocale) out.appLanguage = fallbackLocale;
-  if (cp.ok) {
-    const tz = cprof ? str(cprof.timezone, 40) : null;
+  // The account's own time zone (P9): profiles.timezone, the one the person sets in Settings and
+  // every surface prints on. (client_profiles.timezone is the database's copy of it.)
+  if (zone.ok) {
+    const tz = zone.data && typeof zone.data === 'object' ? str(zone.data.timezone, 64) : null;
     if (tz) out.timezone = tz;
   } else out.timezoneUnavailable = true;
   return out;
