@@ -251,6 +251,78 @@ function scheduleLine(s, tr) {
 }
 
 // ── Money ───────────────────────────────────────────────────────────────────
+// A day the server sent as 'YYYY-MM-DD' (already in the coach's zone), read as that calendar day.
+function bizYmd(ymd, withDay) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return '—';
+  try { return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(intlLocale(), withDay ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric' }); } catch (e) { return String(ymd); }
+}
+
+// ── What you collected (2026-11-05) ─────────────────────────────────────────
+// From the record of what members actually paid (coach_payments; the analytics route's `earnings`),
+// in the coach's own time zone. ⚠ COLLECTED MONEY, NEVER A RUN RATE, and said apart from payouts. Not
+// sent (the preview, or an older server): nothing. Unread or not recorded yet: said, never $0.
+function Collected({ t, earnings }) {
+  const tr = useShapeTr();
+  const F = CF();
+  if (!earnings || !F) return null;
+  let body;
+  if (earnings.state === 'not_set_up') body = <Note t={t}>{tr('coach:business.collected.notSetUp', { defaultValue: "What you've collected shows here once Shape's payment record is switched on." })}</Note>;
+  else if (earnings.state !== 'ready') body = <Note t={t}>{tr('coach:business.collected.unread', { defaultValue: "Couldn't read what you've collected just now. Nothing is lost; try again in a moment." })}</Note>;
+  else {
+    const c = F.collectedFrom(earnings);
+    if (!c) return null;
+    const monthSub = tr('coach:business.collected.monthSub', { defaultValue: '{from}–{to} · {count, plural, one {# payment} other {# payments}}', from: bizYmd(c.month.from), to: bizYmd(c.month.to), count: c.month.payments })
+      + (c.month.refundedCents ? ' · ' + tr('coach:business.collected.refunded', { defaultValue: '{amount} refunded', amount: bsBizMoney(c.month.refundedCents) }) : '');
+    const lifeSub = c.lifetime.since
+      ? tr('coach:business.collected.since', { defaultValue: 'since {date} · {count, plural, one {# payment} other {# payments}}', date: bizDate(c.lifetime.since), count: c.lifetime.payments })
+      : tr('coach:business.collected.none', { defaultValue: 'no payments recorded yet' });
+    body = (
+      <div>
+        <Row t={t} label={tr('coach:business.collected.month', { defaultValue: 'Collected this month' })} sub={monthSub} value={bsBizMoney(c.month.netCents)} />
+        <Row t={t} label={tr('coach:business.collected.lifetime', { defaultValue: 'Lifetime on Shape' })} sub={lifeSub} value={bsBizMoney(c.lifetime.netCents)} last />
+        <Note t={t} style={{ marginTop: 8 }}>{tr('coach:business.collected.note', { defaultValue: "What members paid you on Shape, after Shape's fee and any refund, before Stripe's own card fees." })}</Note>
+      </div>
+    );
+  }
+  return (
+    <React.Fragment>
+      <Head t={t} label={tr('coach:business.collected.head', { defaultValue: 'What you collected' })} />
+      {body}
+    </React.Fragment>
+  );
+}
+
+// ── Paid to your bank, the last four months (2026-11-05) ────────────────────
+// ⚠ A PAYOUT IS NOT SHAPE'S NET, AND THE NOTE SAYS SO: it is what Stripe sent the bank from the coach's
+// whole Stripe balance, which can carry their other business and comes after Stripe's card fees.
+const BIZ_PAYOUT_STATUS = {
+  paid: ['coach:business.payouts.paid', 'arrived'],
+  in_transit: ['coach:business.payouts.inTransit', 'on its way'],
+  pending: ['coach:business.payouts.pending', 'pending'],
+  failed: ['coach:business.payouts.failed', 'failed · check Stripe'],
+};
+function PayoutHistory({ t, stripe }) {
+  const tr = useShapeTr();
+  const F = CF();
+  if (!F) return null;
+  const hist = F.payoutHistory(stripe, { months: 4 });
+  if (!hist.rows.length) return null;
+  const word = (s) => (BIZ_PAYOUT_STATUS[s] ? tr(BIZ_PAYOUT_STATUS[s][0], { defaultValue: BIZ_PAYOUT_STATUS[s][1] }) : s);
+  return (
+    <div style={{ marginTop: 12 }}>
+      <Note t={t}>{tr('coach:business.payouts.head', { defaultValue: 'Paid to your bank · last 4 months' })}</Note>
+      {hist.rows.map((r, i) => (
+        <Row key={r.id || i} t={t} label={bizDate(r.at)} sub={word(r.status)} subColor={r.status === 'failed' ? t.RUST : null} value={bsBizMoney(r.amountCents)} last={i === hist.rows.length - 1} />
+      ))}
+      <Note t={t} style={{ marginTop: 8 }}>
+        {tr('coach:business.payouts.note', { defaultValue: "A payout is what Stripe sends your bank from your whole Stripe balance. It can include other business on your Stripe account and comes after Stripe's card fees, so it won't match your net on Shape." })}
+        {hist.complete ? null : ' ' + tr('coach:business.payouts.older', { defaultValue: 'Older payouts are in your Stripe dashboard.' })}
+      </Note>
+    </div>
+  );
+}
+
 function MoneyTab({ t, biz, role }) {
   const tr = useShapeTr();
   const extra = biz.extra || {};
@@ -299,14 +371,21 @@ function MoneyTab({ t, biz, role }) {
       today && today.mrrNetCents != null ? { k: 'net', label: tr('coach:business.money.netMonth', { defaultValue: "Net a month, at today's clients" }), sub: tr('coach:business.billedFee', { defaultValue: '{billed} billed · {fee} Shape fee', billed: bsBizMoney(today.mrrGrossCents), fee: bsBizMoney((today.mrrGrossCents || 0) - today.mrrNetCents) }), v: today.mrrNetCents } : null,
     ].filter(Boolean);
     const sched = scheduleLine(stripe.schedule, tr);
+    // ⚠ THE NEXT PAYOUT IS THE COACH'S OWN SCHEDULE (coachForecast.js nextPayout), never "monthly".
+    const np = !m.next ? F.nextPayout(stripe) : null;
+    const npLine = !np ? null
+      : np.interval === 'manual' ? tr('coach:business.money.nextManual', { defaultValue: 'You start each payout yourself in Stripe.' })
+      : np.interval === 'daily' ? tr('coach:business.money.nextDaily', { defaultValue: 'Stripe pays out every day.' })
+      : np.date ? tr('coach:business.money.nextOn', { defaultValue: 'The next payout is {date}.', date: bizYmd(np.date, true) }) : null;
     money = (
       <div>
         <Sentence t={t}>
           {tr('coach:business.money.coming', { defaultValue: '{amount} is coming to you.', amount: bsBizMoney(m.comingCents) })}
-          {m.next && m.next.arrivalDate ? ' ' + tr('coach:business.money.next', { defaultValue: 'The next payout, {amount}, lands {date}.', amount: bsBizMoney(m.next.amountCents), date: bizDate(m.next.arrivalDate) }) : null}
+          {m.next && m.next.arrivalDate ? ' ' + tr('coach:business.money.next', { defaultValue: 'The next payout, {amount}, lands {date}.', amount: bsBizMoney(m.next.amountCents), date: bizDate(m.next.arrivalDate) }) : npLine ? ' ' + npLine : null}
         </Sentence>
         <div style={{ marginTop: 6 }}>{rows.map((r, i) => <Row key={r.k} t={t} label={r.label} sub={r.sub} value={bsBizMoney(r.v)} last={i === rows.length - 1} />)}</div>
         {sched ? <Note t={t} style={{ marginTop: 8 }}>{sched}</Note> : null}
+        <PayoutHistory t={t} stripe={stripe} />
         <Pill t={t} onClick={() => window.ShapeCoachBusiness?.openStripe?.()}>{tr('coach:business.money.openStripe', { defaultValue: 'Open your Stripe ↗' })}</Pill>
       </div>
     );
@@ -345,6 +424,7 @@ function MoneyTab({ t, biz, role }) {
     <div>
       <Head t={t} label={tr('coach:business.money.head', { defaultValue: 'Your money' })} />
       {money}
+      <Collected t={t} earnings={extra.earnings} />
       <Head t={t} label={tr('coach:business.renew.head', { defaultValue: 'Renewing this week' })}
         right={sum ? tr('coach:business.renew.sum', { defaultValue: '{count, plural, one {# client} other {# clients}} · {net} net', count: sum.count, net: bsBizMoney(sum.netCents) }) : null} />
       {renew}

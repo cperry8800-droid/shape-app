@@ -1135,3 +1135,52 @@ test('the preview is for a signed-out viewer only: a signed-in coach never sees 
     await m.unmount();
   }
 });
+
+// ── What the coach collected, the next payout from their own schedule, and the payouts (2026-11-05) ──
+test('Money: what was collected (this month, lifetime) apart from payouts; the next payout from the coach\'s own schedule; the payouts listed and never called Shape\'s net', async () => {
+  const earnings = {
+    state: 'ready', zone: 'America/New_York', currency: 'usd', otherCurrency: 0,
+    month: { from: '2026-11-01', to: '2026-11-04', grossCents: 36000, feeCents: 2700, netCents: 33300, refundedCents: 0, payments: 2 },
+    lifetime: { since: '2026-06-02T15:00:00.000Z', grossCents: 180000, feeCents: 13500, netCents: 166500, refundedCents: 0, payments: 10 },
+  };
+  world({ answer: payload({ earnings }) });
+  const m = await mount(page());
+  assert.match(m.text(), /What you collectedCollected this monthNov 1–Nov 4 · 2 payments\$333Lifetime on Shapesince Jun 2 · 10 payments\$1,665/);
+  assert.match(m.text(), /after Shape's fee and any refund, before Stripe's own card fees/);
+  // The payout that landed is listed, said as what Stripe sent the bank.
+  assert.match(m.text(), /Paid to your bank · last 4 months/);
+  assert.match(m.text(), /arrived\$1,000/);
+  assert.match(m.text(), /won't match your net on Shape/);
+  await m.unmount();
+
+  // Nothing on its way: the next payout comes from the schedule (a Friday), or says daily / manual.
+  const quiet = (schedule) => payload({ earnings, stripe: { connected: true, balanceCents: 100, pendingCents: 0, payouts: [], schedule } });
+  world({ answer: quiet({ interval: 'weekly', weeklyAnchor: 'friday', delayDays: 2 }) });
+  const weekly = await mount(page());
+  assert.match(weekly.text(), /is coming to you\. The next payout is Fri, /);
+  await weekly.unmount();
+  world({ answer: quiet({ interval: 'daily', delayDays: 2 }) });
+  const daily = await mount(page());
+  assert.match(daily.text(), /is coming to you\. Stripe pays out every day\./);
+  assert.doesNotMatch(daily.text(), /Paid to your bank/, 'no payouts, no list');
+  await daily.unmount();
+  world({ answer: quiet({ interval: 'manual' }) });
+  const manual = await mount(page());
+  assert.match(manual.text(), /You start each payout yourself in Stripe\./);
+  await manual.unmount();
+
+  // Not recorded yet, or unread: said, never $0. Not sent at all (an older server): nothing.
+  world({ answer: payload({ earnings: { state: 'not_set_up' } }) });
+  const early = await mount(page());
+  assert.match(early.text(), /What you've collected shows here once Shape's payment record is switched on\./);
+  assert.doesNotMatch(early.text(), /Collected this month/);
+  await early.unmount();
+  world({ answer: payload({ earnings: { state: 'unread' } }) });
+  const unread = await mount(page());
+  assert.match(unread.text(), /Couldn't read what you've collected just now/);
+  await unread.unmount();
+  world({ answer: payload() });
+  const old = await mount(page());
+  assert.doesNotMatch(old.text(), /What you collected/);
+  await old.unmount();
+});

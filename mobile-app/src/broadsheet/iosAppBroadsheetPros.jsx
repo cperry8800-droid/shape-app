@@ -1969,6 +1969,10 @@ function bsRowFromTriage(row, role, t) {
     // A renewal Stripe is still retrying (past_due): a normal client in every other way (owner,
     // 2026-10-18), whose row carries the quiet BSProPayRetryMark.
     paymentRetrying: p.paymentRetrying === true,
+    // Every open plan is set to end (true), one renews (false), or it can't be told (null), and when
+    // (coach-roster.ts; 2026-11-05). For the signals engine's "plan set to end".
+    planEnding: typeof p.planEnding === 'boolean' ? p.planEnding : null,
+    planEndsAt: p.planEndsAt || null,
     avatar: p.avatar || p.photo || undefined,
     prog: (rec.program && rec.program.name) || '', r: String(rec.goalPhase || '').toUpperCase(),
     streak, d: adh != null ? `${adh}%` : '', adh, adhSrc,

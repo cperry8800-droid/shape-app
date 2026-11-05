@@ -284,6 +284,9 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
       lastSessionAt: row.lastAt || null, joinedAt: row.joinedAt || null,
       feeCents: row.feeCents ?? null, origin: row.origin ?? null,
       paymentRetrying: row.paymentRetrying === true, onPlan: typeof row.onPlan === "boolean" ? row.onPlan : row.onPlan === null ? null : undefined,
+      // Every open plan is set to end (true), one renews (false), or it can't be told (null), and when
+      // (coach-roster.ts; 2026-11-05). For the signals engine's "plan set to end".
+      planEnding: typeof row.planEnding === "boolean" ? row.planEnding : null, planEndsAt: row.planEndsAt || null,
     },
   };
 }

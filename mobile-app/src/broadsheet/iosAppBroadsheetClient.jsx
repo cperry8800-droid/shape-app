@@ -110,6 +110,8 @@ import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
 import { BSClientGoals } from './BSGoals.jsx';
 import { bsDash, bsDashA, BSDashCard, BSDashRing, BSDashSpark, BSDashSegment } from './BSDash.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
+// Shape's own cancel step for a coach plan, with its one optional question (2026-11-05).
+import { BSCancelPlanSheet, useBSCoachPlansToCancel, bsCancelDate } from './BSCancelPlan.jsx';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSTrainerProfile } from './BSTrainerProfile.jsx';
 import { BSNotifications } from './BSNotifications.jsx';
@@ -32575,6 +32577,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       .catch(() => {});
     return () => { cancelled = true; };
   }, []);
+  // ⚠ A COACH PLAN IS CANCELLED HERE, IN SHAPE'S OWN STEP (owner, 2026-11-05: "user types response"): the
+  // portal on a coach's account no longer offers its own cancel. Every open coach plan gets a row; the
+  // sheet (BSCancelPlan.jsx) asks one optional question and cancels at the period's end.
+  const [cancelReload, setCancelReload] = useStateBSC(0);
+  const plansToCancel = useBSCoachPlansToCancel(cancelReload);
+  const [cancelPlan, setCancelPlan] = useStateBSC(null);
 
   // Persisted user preferences for the Notifications / Preferences / Privacy
   // rows. Tapping a row cycles to the next option and saves to user_goals so
@@ -33750,6 +33758,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     { l: tr('settings:billing.updatePayment', { defaultValue: 'Update payment method' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
     { l: tr('settings:billing.invoices', { defaultValue: 'View invoices & receipts' }), r: tr('settings:billing.stripePortal', { defaultValue: 'Stripe portal' }), action: openBillingPortal },
     ...coachPlans.map((p) => ({ l: p.name || (p.provider_role === 'nutritionist' ? tr('feed:thread.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('feed:thread.yourCoach', { defaultValue: 'Your coach' })), r: tr('settings:billing.coachPlan', { defaultValue: 'Coaching plan' }), action: () => openCoachBilling(p) })),
+    ...plansToCancel.map((p) => ({
+      l: p.name || (p.providerRole === 'nutritionist' ? tr('feed:thread.yourNutritionist', { defaultValue: 'Your nutritionist' }) : tr('feed:thread.yourCoach', { defaultValue: 'Your coach' })),
+      r: p.ending ? tr('settings:billing.ends', { defaultValue: 'Ends {date}', date: bsCancelDate(p.endsAt) || '—' }) : tr('settings:billing.cancelPlan', { defaultValue: 'Cancel plan' }),
+      action: p.ending ? undefined : () => setCancelPlan(p),
+    })),
   ];
   const sections = [
     {
@@ -34176,6 +34189,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   return (
     <BSPage tabBarHeight={0}>
       <div ref={paneTopRef} style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+      {cancelPlan && <BSCancelPlanSheet plan={cancelPlan} onClose={() => setCancelPlan(null)} onDone={() => setCancelReload((n) => n + 1)} />}
 
       {/* ── DRILL-IN CARD PANES ── */}
       {/* ── THE TILE PANES ── Six doors carry eleven sections, so a tile that

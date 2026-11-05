@@ -283,3 +283,30 @@ test('the roster reads every open plan in 1,000-row pages: 2,500 clients all lis
     assert.ok(p.filters.some(([op, col]) => op === 'in' && col === 'status'), 'each page keeps the open statuses');
   }
 });
+
+// ── Plan ending, for the signals engine (2026-11-05) ─────────────────────────
+test('the roster says whose every plan is set to end, and when; one renewing plan is not leaving; unsynced is unknown', async () => {
+  const joined = new Date(Date.now() - 60 * 86400000).toISOString();
+  const end = new Date(Date.now() + 6 * 86400000).toISOString();
+  const later = new Date(Date.now() + 20 * 86400000).toISOString();
+  const client = makeClient({
+    subs: { data: [
+      { id: 1, client_id: 'u1', price_cents: 18000, status: 'active', created_at: joined, cancel_at_period_end: true, current_period_end: end },
+      { id: 2, client_id: 'u7', price_cents: 12000, status: 'active', created_at: joined, cancel_at_period_end: true, current_period_end: end },
+      { id: 3, client_id: 'u7', price_cents: 9000, status: 'active', created_at: joined, cancel_at_period_end: false, current_period_end: later },
+      { id: 4, client_id: 'u8', price_cents: 9000, status: 'past_due', created_at: joined },
+      { id: 5, client_id: 'u9', price_cents: 9000, status: 'active', created_at: joined, cancel_at_period_end: false, cancel_at: later },
+    ], error: null },
+    sess: SESSIONS,
+  });
+  const body = await (await (await load(client)).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  const byId = Object.fromEntries(body.clients.map((c) => [c.id, c]));
+  assert.deepEqual([byId.u1.planEnding, byId.u1.planEndsAt], [true, end]);
+  assert.deepEqual([byId.u7.planEnding, byId.u7.planEndsAt], [false, null], 'one plan renews: not leaving');
+  assert.deepEqual([byId.u8.planEnding, byId.u8.paymentRetrying], [null, true], 'not synced (or before the migration): unknown');
+  assert.deepEqual([byId.u9.planEnding, byId.u9.planEndsAt], [true, later], 'a cancel date ends it too');
+  assert.deepEqual([byId.u2.planEnding, byId.u2.planEndsAt], [null, null], 'no plan: nothing to end');
+  // A failed read: unknown, never "renews".
+  const failed = await (await (await load(makeClient({ subs: { data: null, error: { message: 'timeout' } }, sess: SESSIONS }))).coachClientsResponse('trainer', new Request('https://x/api/trainer/clients'))).json();
+  assert.ok(failed.clients.every((c) => c.planEnding === null));
+});
