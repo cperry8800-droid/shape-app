@@ -413,7 +413,8 @@ function dashContextLine(rec, units) {
     parts.push(rec.checkIn.lastWeekOf === mondayIso ? "check-in received" : "no check-in this week");
   }
   if (parts.length < 2 && rec.streaks && rec.streaks.current != null) parts.push(rec.streaks.current + "d streak");
-  if (parts.length < 2 && rec.trainingAdherence && rec.trainingAdherence.pct != null) parts.push(rec.trainingAdherence.pct + "% adherence");
+  // Sessions kept over 42 days with any of their coaches, not an adherence figure (dashRoster.jsx DASH_KEPT_LABEL).
+  if (parts.length < 2 && rec.trainingAdherence && rec.trainingAdherence.pct != null) parts.push(rec.trainingAdherence.pct + "% of sessions kept");
   return parts.length ? parts.slice(0, 2).join(" · ") : null;
 }
 

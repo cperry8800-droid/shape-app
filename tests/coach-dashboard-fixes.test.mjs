@@ -29,6 +29,20 @@ test('the day\'s playlist picker counts a playlist\'s tracks from the column tha
   assert.doesNotMatch(source('public/newdesign/dashBuilder.jsx'), /\.track_count\b/);
 });
 
+// ── 5. "Adherence" is labelled as what it measures ──────────────────────────
+test('the sessions-kept figure says what it is: 42 days, any of the client\'s coaches, unmarked as missed', () => {
+  const roster = source('public/newdesign/dashRoster.jsx');
+  assert.match(roster, /adherence: \{ label: "KEPT · 42D",/, 'the sort names the window');
+  assert.match(roster, /\["KEPT · 42D", "adherence"\]/, 'the column head');
+  assert.match(roster, /\["adherence", "Sessions kept · 42 days", DashSecAdherence\]/, 'the drawer section');
+  const note = /const DASH_KEPT_NOTE = "([^"]+)";/.exec(roster)[1];
+  assert.match(note, /any of their coaches/);
+  assert.match(note, /counts as missed/);
+  assert.doesNotMatch(roster, /\["ADHERENCE",|label: "ADHERENCE"|% adherence/);
+  assert.doesNotMatch(source('public/newdesign/dashToday.jsx'), /trainingAdherence\.pct \+ "% adherence"/);
+  assert.match(source('public/newdesign/dashToday.jsx'), /trainingAdherence\.pct \+ "% of sessions kept"/);
+});
+
 // ── 4. The Week page counts a past week's own food logs ─────────────────────
 function weekHelpers() {
   const file = 'public/newdesign/dashWeek.jsx';
