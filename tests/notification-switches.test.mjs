@@ -566,7 +566,9 @@ test('a waiting-list join notifies its coach once a day per member', () => {
 test('the hourly Nora job and the daily Score job page through everyone', () => {
   const ai = read('src/app/api/ai/notify/cron/route.ts');
   assert.doesNotMatch(ai, /\.limit\(BATCH\)/);
-  assert.match(ai, /\.select\('user_id, at:data->at'\)\s+\.eq\('kind', 'notify_snapshot'\)\s+\.order\('user_id', \{ ascending: true \}\)\s+\.range\(from, from \+ PAGE - 1\);/);
+  // Every key a snapshot is kept under (a coach with both listings has one per role), ordered so a
+  // page boundary cannot skip a row.
+  assert.match(ai, /\.select\('user_id, at:data->at'\)\s+\.in\('kind', NOTIFY_SNAPSHOT_KINDS\)\s+\.order\('user_id', \{ ascending: true \}\)\s+\.order\('kind', \{ ascending: true \}\)\s+\.range\(from, from \+ PAGE - 1\);/);
   assert.match(ai, /if \(at !== null && at < cutoff\) continue; \/\/ inactive → skip/);
   assert.match(ai, /await Promise\.all\(Array\.from\(\{ length: Math\.min\(CONCURRENCY, queue\.length\) \}, worker\)\);/);
   assert.match(ai, /const queue = rotated\(owners, Math\.floor\(startedAt \/ 3_600_000\)\);/);

@@ -187,8 +187,8 @@ export async function readCoachToday(sb, uid, opts = {}) {
       const group = records.filter(Boolean).filter((x) => (Array.isArray(x.client.roles) && x.client.roles.length ? x.client.roles : [primary]).includes(role));
       if (!group.length) continue;
       let feed = [];
-      // The coach's dismissals and reviews ride on each record (attachCoachContext), as on Today.
-      try { feed = engine.getTriageFeed(role, engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx), now, thresholds || undefined) || []; } catch { feed = []; }
+      // The coach's dismissals (this role's) and reviews ride on each record (attachCoachContext), as on Today.
+      try { feed = engine.getTriageFeed(role, engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx, role), now, thresholds || undefined) || []; } catch { feed = []; }
       for (const r of feed) {
         if (!r || !rank[r.severity]) continue;
         const id = r.client && r.client.profile && r.client.profile.id;

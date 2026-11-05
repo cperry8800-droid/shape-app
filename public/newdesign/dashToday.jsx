@@ -2018,7 +2018,8 @@ function CoachDashboardPage({ role }) {
   const movers = sigOk ? DashSignals.dashTopMovers(clients) : null;
   const tenureMarks = sigOk ? DashSignals.dashTenureMilestones(clients) : null;
   const revenue = sigOk ? DashSignals.dashRevenueByClient(clients) : null;
-  const ending = sigOk ? DashSignals.dashProgramsEnding(clients) : null;
+  // This page's role's own programs (a coach with both listings has one per role).
+  const ending = sigOk ? DashSignals.dashProgramsEnding(clients, undefined, role) : null;
 
   // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
   // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).

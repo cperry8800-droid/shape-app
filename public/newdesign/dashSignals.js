@@ -926,11 +926,11 @@
   }
 
   // The coach's program (or plan) running out with nothing lined up next: the cue to write the next
-  // block before the last session. Reads the caller's own assignment (`program`, the overview's leg):
-  // its estimated end, else "in its last week". A paused block, or one with the next already
-  // assigned, is not ending.
+  // block before the last session. Reads the caller's own assignment for the role being read
+  // (programForRole): its estimated end, else "in its last week". A paused block, or one with the next
+  // already assigned, is not ending.
   function ruleProgramEnding(c, now, role) {
-    var p = c.program;
+    var p = programForRole(c, role);
     if (!p || typeof p !== "object" || p.paused || p.status === "paused" || p.nextAssigned) return null;
     var what = disciplineForRole(role) === "nutrition" ? "Plan" : "Program";
     var name = p.name ? "“" + String(p.name) + "”" : "Their " + what.toLowerCase();
@@ -944,6 +944,18 @@
     var wk = kpiNum(p.week), total = kpiNum(p.weeks);
     if (wk == null || total == null || total <= 0 || wk < total) return null;
     return { key: "program_ending", label: what + " ends", reason: name + " is in its last week and nothing is lined up next", figures: { lastWeek: true }, sig: "last:" + (p.name || "") + "|" + total };
+  }
+
+  // ⚠ THE PROGRAM OF THE ROLE BEING READ (a coach with both listings). `program` is one pick: the trainer's
+  // calendar first, else an assignment of either of the caller's roles, so the nutrition page called the
+  // trainer's block an ending plan. `programs` (shared-overview's, per role) is each role's own; a record
+  // without it (an older overview, the demo roster, a member) reads `program` as before.
+  function programForRole(c, role) {
+    if (!c) return null;
+    var disc = disciplineForRole(role);
+    var own = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
+    if (own && c.programs && typeof c.programs === "object") return c.programs[own] || null;
+    return c.program || null;
   }
 
   // A renewal Stripe is retrying (past_due). Still a client (owner, 2026-10-18); the coach hears of
@@ -2138,6 +2150,10 @@
         : null,
       goalPhase: phases ? phases.nutrition || phases.training || null : null,
       program: o && o.program ? o.program : null,
+      // Each of the caller's roles' own (programForRole); null from an overview that predates it.
+      programs: o && o.programs && typeof o.programs === "object"
+        ? { trainer: o.programs.trainer || null, nutritionist: o.programs.nutritionist || null }
+        : null,
       recovery: recoveryFromOverview(o),
       vitals: vitalsFromOverview(o && o.vitals),
       replyWait: o && o.replyWait && typeof o.replyWait === "object" ? o.replyWait : null,
@@ -2227,19 +2243,26 @@
 
   // ── The coach's own context, attached to the records (P2) ─────────────────
   // ctx.dismissals: the coach's coach_signal_dismissals rows ({ client_id, reason_key, reason_sig,
-  //   until }) — null when the table could not be read (or does not exist yet: the migration is run
-  //   by hand), which attaches nothing, so every flag shows.
+  //   until, provider_role }) — null when the table could not be read (or does not exist yet: the
+  //   migration is run by hand), which attaches nothing, so every flag shows.
+  // role: the role the records are read as. ⚠ A DISMISSAL IS ONE ROLE'S (2026-11-05-coach-signal-
+  //   dismissals-by-role.sql): a coach with both listings who sets "reply waiting" aside as the
+  //   nutritionist still has the trainer's. A row of the other role is skipped; a row with no role, or
+  //   a call with no role, reads as before.
   // ctx.reviews: the coach's coach_week_reviews doc ({ [weekOf]: { [clientId]: { reviewedAt, … } } }),
   //   null when unread, which leaves each check-in's review state unknown (checkin_waiting is quiet).
   // Returns NEW records; the inputs are not touched.
-  function attachCoachContext(records, ctx) {
+  function attachCoachContext(records, ctx, role) {
     ctx = ctx || {};
+    var disc = disciplineForRole(role);
+    var asRole = disc === "training" ? "trainer" : disc === "nutrition" ? "nutritionist" : null;
     var byClient = null;
     if (Array.isArray(ctx.dismissals)) {
       byClient = {};
       for (var i = 0; i < ctx.dismissals.length; i++) {
         var d = ctx.dismissals[i];
         if (!d || d.client_id == null || typeof d.reason_key !== "string") continue;
+        if (asRole && typeof d.provider_role === "string" && d.provider_role !== asRole) continue;
         var k = String(d.client_id);
         (byClient[k] = byClient[k] || []).push({ key: d.reason_key, sig: typeof d.reason_sig === "string" ? d.reason_sig : null, until: d.until || null });
       }
@@ -2272,7 +2295,7 @@
   // `userId` is the id the route scope-checks (is_coach_on_client) and the alert opens.
   var SNAPSHOT_KEYS = ["profile", "progressRead", "onboarding", "screening", "trainingAdherence", "foodLogs",
     "shapeScoreHistory", "weighIns", "streaks", "lastContact", "checkIn", "nutrition", "goal", "goals", "goalPhase",
-    "program", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals"];
+    "program", "programs", "recovery", "vitals", "replyWait", "bookedSessions", "pros", "dismissals"];
   function engineSnapshot(rec) {
     if (!rec || typeof rec !== "object") return null;
     var out = {};
@@ -2981,12 +3004,13 @@
   // the legs). `left` is the number of whole weeks after this one: week 12 of 12 is the
   // last week (0 left). A client with no block, or a block with no length, is COUNTED
   // as unknown rather than dropped, and a paused block is neither ending nor mid-way.
-  function dashProgramsEnding(clients, weeks) {
+  // `role` is the page's: its own role's program (programForRole).
+  function dashProgramsEnding(clients, weeks, role) {
     weeks = weeks >= 0 ? weeks : 3;
     var rows = Array.isArray(clients) ? clients : [];
     var soon = [], later = 0, paused = 0, unknown = 0;
     rows.forEach(function (c) {
-      var p = c && c.program ? c.program : null;
+      var p = programForRole(c, role);
       var wk = p ? kpiNum(p.week) : null, total = p ? kpiNum(p.weeks) : null;
       if (p && (p.paused || p.status === "paused")) { paused += 1; return; }
       if (!p || wk == null || total == null || total <= 0 || wk <= 0) { unknown += 1; return; }

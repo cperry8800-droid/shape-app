@@ -6559,26 +6559,32 @@ window.ShapeRosterSleep = { get: getRosterSleep };
 // same and, for a snooze, until its time. ⚠ The table arrives with a migration the owner runs by hand
 // (supabase-migrations/2026-11-05-coach-signal-dismissals.sql): until then `list` answers null (the
 // engine then hides nothing) and a write answers false (the case file says it could not save).
+// ⚠ A ROW IS ONE PROVIDER ROLE'S (2026-11-05-coach-signal-dismissals-by-role.sql): a coach with both
+// listings sets a reason aside per role. Until that migration runs, the column is missing and `list`
+// and the writes fail the same way.
+const signalDismissRole = (role) => (role === 'trainer' ? 'trainer' : role === 'nutritionist' || role === 'dietitian' ? 'nutritionist' : null);
 async function listSignalDismissals() {
   if (!supabase || !state.user?.id) return null;
   try {
-    const { data, error } = await supabase.from('coach_signal_dismissals').select('client_id, reason_key, reason_sig, until').eq('coach_id', state.user.id);
+    const { data, error } = await supabase.from('coach_signal_dismissals').select('client_id, reason_key, reason_sig, until, provider_role').eq('coach_id', state.user.id);
     return error || !Array.isArray(data) ? null : data;
   } catch (e) { return null; }
 }
-async function setSignalDismissal(clientId, flag, until) {
-  if (!supabase || !state.user?.id || !clientId || !flag || !flag.key || typeof flag.sig !== 'string') return false;
+async function setSignalDismissal(clientId, flag, until, role) {
+  const providerRole = signalDismissRole(role);
+  if (!supabase || !state.user?.id || !clientId || !flag || !flag.key || typeof flag.sig !== 'string' || !providerRole) return false;
   try {
     const { error } = await supabase.from('coach_signal_dismissals').upsert(
-      { coach_id: state.user.id, client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null },
-      { onConflict: 'coach_id,client_id,reason_key' });
+      { coach_id: state.user.id, provider_role: providerRole, client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null },
+      { onConflict: 'coach_id,provider_role,client_id,reason_key' });
     return !error;
   } catch (e) { return false; }
 }
-async function clearSignalDismissal(clientId, key) {
-  if (!supabase || !state.user?.id || !clientId || !key) return false;
+async function clearSignalDismissal(clientId, key, role) {
+  const providerRole = signalDismissRole(role);
+  if (!supabase || !state.user?.id || !clientId || !key || !providerRole) return false;
   try {
-    const { error } = await supabase.from('coach_signal_dismissals').delete().eq('coach_id', state.user.id).eq('client_id', clientId).eq('reason_key', key);
+    const { error } = await supabase.from('coach_signal_dismissals').delete().eq('coach_id', state.user.id).eq('provider_role', providerRole).eq('client_id', clientId).eq('reason_key', key);
     return !error;
   } catch (e) { return false; }
 }

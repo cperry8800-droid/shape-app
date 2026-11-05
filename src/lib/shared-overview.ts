@@ -632,6 +632,22 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
   const program = fromCalendar === undefined
     ? undefined
     : fromCalendar ?? (templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, mine, Date.now()));
+  // ⚠ AND EACH ROLE'S OWN, for a caller who coaches this client in both. `program` is one pick (the
+  // trainer's calendar, else an assignment of either role), so the engine's "program ending" on the
+  // nutrition page named the trainer's block. `programs.<role>` is that role's alone: the calendar and
+  // then the trainer's assignment for the trainer, the nutritionist's assignment for the nutritionist;
+  // null for a role the caller does not coach them in, and left out (unknown) when its read failed.
+  // `program` stays for the readers that show one.
+  const programFor = (role: 'trainer' | 'nutritionist') => {
+    if (mine[role] == null) return null;
+    if (role === 'trainer') {
+      if (fromCalendar === undefined) return undefined;
+      if (fromCalendar) return fromCalendar;
+    }
+    const only = { trainer: role === 'trainer' ? mine.trainer : null, nutritionist: role === 'nutritionist' ? mine.nutritionist : null };
+    return templatesErr ? undefined : bsProgramLeg(assignments ?? [], templateById, only, Date.now());
+  };
+  const programs = { trainer: programFor('trainer'), nutritionist: programFor('nutritionist') };
 
   // Food logging off the SAME 30-row snapshot window every other leg reads —
   // the last logged day (which `get_client_stats` has never carried), the
@@ -766,6 +782,8 @@ export async function buildSharedOverview(supabase: OverviewClient, { clientId, 
     // empty window from an unreadable one.
     ...(lastContact === undefined ? {} : { lastContact }),
     ...(program === undefined ? {} : { program }),
+    // Per role (above): a role's key is left out when its read failed.
+    programs: Object.fromEntries(Object.entries(programs).filter(([, v]) => v !== undefined)),
     ...(logs === undefined ? {} : { logs }),
     ...(logDays === undefined ? {} : { logDays }),
     nutritionTargets,

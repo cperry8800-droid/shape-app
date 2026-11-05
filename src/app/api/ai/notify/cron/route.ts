@@ -1,7 +1,8 @@
 // Proactive notification CRON — reaches CLOSED apps. Server-to-server (no user
 // session): a scheduler (Vercel Cron / Supabase cron) hits this on an interval.
 // For each active user it re-runs the SAME engine + decision layer over the
-// snapshot their app last sent (/api/ai/notify stores it). The engine's
+// snapshot their app last sent (/api/ai/notify stores it), and for a coach with
+// both listings over each role's roster (notifyKind). The engine's
 // TIME-BASED rules recompute against now, so a check-in that has since gone
 // overdue, or a goal whose ETA has slipped, fires as a genuinely-new real event
 // — with dedup preventing re-nags, and prefs/quiet-hours fully honored.
@@ -16,7 +17,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, decideAndClaim, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, Notify, type Snapshot } from '@/lib/ai/notify-core';
+import { candidatesFor, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, snapshotsToEvaluate, NOTIFY_SNAPSHOT_KINDS, Notify, type Snapshot } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { rotated } from '../../../../../lib/run-rotation.mjs';
@@ -49,17 +50,19 @@ function authorized(request: Request): boolean {
   return safeEqual(hdr, secret) || safeEqual(auth, `Bearer ${secret}`);
 }
 
-// The people to evaluate this hour: every snapshot whose app checked in within ACTIVE_WINDOW_MS (or
-// whose snapshot carries no time, as before), read without the snapshot body. Null when the first
-// page cannot be read.
+// The people to evaluate this hour: everyone with a snapshot whose app checked in within ACTIVE_WINDOW_MS
+// (or whose snapshot carries no time, as before), read without the snapshot body. A coach with both
+// listings has one per role (NOTIFY_SNAPSHOT_KINDS) and is one person here. Null when the first page
+// cannot be read.
 async function activeSnapshotOwners(admin: ReturnType<typeof createAdminClient>, cutoff: number): Promise<string[] | null> {
-  const owners: string[] = [];
+  const owners = new Set<string>();
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await admin
       .from('user_goals')
       .select('user_id, at:data->at')
-      .eq('kind', 'notify_snapshot')
+      .in('kind', NOTIFY_SNAPSHOT_KINDS)
       .order('user_id', { ascending: true })
+      .order('kind', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
       if (from === 0) return null;
@@ -71,20 +74,34 @@ async function activeSnapshotOwners(admin: ReturnType<typeof createAdminClient>,
       if (!r.user_id) continue;
       const at = typeof r.at === 'number' ? r.at : null;
       if (at !== null && at < cutoff) continue; // inactive → skip
-      owners.push(r.user_id);
+      owners.add(r.user_id);
     }
     if (rows.length < PAGE) break;
   }
-  return owners;
+  return [...owners];
 }
 
-// One person: their snapshot re-run through the engine and the decision layer. Answers how many
-// notices went out, or null when they were not evaluated.
-async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<number | null> {
-  const { data: row } = await admin.from('user_goals').select('data').eq('user_id', userId).eq('kind', 'notify_snapshot').maybeSingle();
-  const snapshot = (row as { data?: unknown } | null)?.data as Snapshot | undefined;
-  if (!snapshot || typeof snapshot !== 'object') return null;
+// One person: each of their snapshots (snapshotsToEvaluate: a coach's per role, a member's record) re-run
+// through the engine and the decision layer, one after the other, so the second sees the pushes of the
+// first. Answers how many notices went out, or null when none was evaluated.
+async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: string, cutoff: number): Promise<number | null> {
+  const { data: rows } = await admin.from('user_goals').select('kind, data').eq('user_id', userId).in('kind', NOTIFY_SNAPSHOT_KINDS);
+  let evaluated = false;
+  let delivered = 0;
+  for (const snapshot of snapshotsToEvaluate(rows as Array<{ kind?: unknown; data?: unknown }> | null, cutoff)) {
+    // One role's failure does not cost the other role its run.
+    try {
+      const sent = await evaluateSnapshot(admin, userId, snapshot);
+      if (sent !== null) { evaluated = true; delivered += sent; }
+    } catch (err) {
+      console.error('[ai notify cron] could not evaluate a snapshot:', err instanceof Error ? err.message : err);
+    }
+  }
+  return evaluated ? delivered : null;
+}
 
+// One snapshot, on its role's own alert memory (readNotifyState).
+async function evaluateSnapshot(admin: ReturnType<typeof createAdminClient>, userId: string, snapshot: Snapshot): Promise<number | null> {
   const prefs = await loadPrefs(admin, userId);      // the preference center
   if (prefs.muted) return null;                       // honor master mute
   // ⚠ Read alongside `notify_state` rather than in a second round trip: this runs for every active
@@ -92,7 +109,7 @@ async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: str
   // The day's pushes (the person's one daily limit) ride in the same batch (Codex on #2417).
   const now = new Date();
   const [last, settings, localeDoc, pushedToday] = await Promise.all([
-    readUserGoal(admin, userId, 'notify_state'),
+    readNotifyState(admin, userId, snapshot.role),
     readUserGoal(admin, userId, 'client_settings'),
     // The member's language: their notices are in it, in their units (memberCopy).
     readUserGoal(admin, userId, 'app_locale'),
@@ -125,7 +142,7 @@ async function evaluate(admin: ReturnType<typeof createAdminClient>, userId: str
     // The notices have landed and count themselves now.
     await releasePushClaim(admin, claim);
   }
-  await writeUserGoal(admin, userId, 'notify_state', nextState);
+  await writeNotifyState(admin, userId, snapshot.role, nextState as Record<string, unknown>);
   return delivered;
 }
 
@@ -148,7 +165,7 @@ async function run(request: Request) {
       if (Date.now() - startedAt > TIME_BUDGET_MS) { unreached = queue.length - next; next = queue.length; return; }
       const userId = queue[next++];
       try {
-        const sent = await evaluate(admin, userId);
+        const sent = await evaluate(admin, userId, startedAt - ACTIVE_WINDOW_MS);
         if (sent !== null) { evaluated += 1; delivered += sent; }
       } catch (err) {
         console.error('[ai notify cron] could not evaluate a person:', err instanceof Error ? err.message : err);

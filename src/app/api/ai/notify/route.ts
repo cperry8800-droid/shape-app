@@ -10,7 +10,8 @@
 //   client (role=client): { record }               — your own unified record
 //   coach  (role=trainer|nutritionist): { clients, role? } — your roster's records; `role` names
 //          which of your coach roles they are (the website's Today posts its page's), and is
-//          honoured only when it is one you hold
+//          honoured only when it is one you hold (a dietitian holds the nutritionist's). Each role's
+//          roster is kept on its own (notifyKind), for the cron to re-run both
 // → { ok, sent, digest, suppressed }
 //
 // ROLE-SCOPED: a client only evaluates themselves; a coach only their own
@@ -20,7 +21,7 @@ import { NextResponse } from 'next/server';
 import { readJson } from '@/lib/request-utils';
 import { resolveActor } from '@/lib/ai/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
+import { candidatesFor, coachRecordId, decideAndClaim, deliver, readUserGoal, readNotifyState, writeNotifyState, writeUserGoal, loadPrefs, loadHabitContext, loadCoachThresholds, loadCoachContext, loadPushedToday, memberCopy, notifyKind, rosterRole, Notify, type Snapshot, type HabitContext } from '@/lib/ai/notify-core';
 import { releasePushClaim } from '@/lib/push-cap';
 import { isCoachRole } from '@/lib/roles.mjs';
 import { requireMembership } from '@/lib/require-membership';
@@ -45,8 +46,13 @@ export async function POST(request: Request) {
   // The person's one daily limit counts every push of their day, not only this engine's; read
   // in the same batch rather than a round trip of its own.
   const now = new Date();
+  // The coach role the roster is evaluated as: the one the body names when the caller holds it (a
+  // coach with both listings posts each page's own), else the profile's (rosterRole).
+  const role = rosterRole(parsed.data.role, actor);
+  const isCoach = isCoachRole(role);
   const [last, settings, localeDoc, pushedToday] = await Promise.all([
-    readUserGoal(actor.supabase, actor.user.id, 'notify_state'),
+    // That role's own alert memory (a member's is the plain one).
+    readNotifyState(actor.supabase, actor.user.id, role),
     readUserGoal(actor.supabase, actor.user.id, 'client_settings'),
     // The member's language: their notices are in it, in their units (memberCopy).
     readUserGoal(actor.supabase, actor.user.id, 'app_locale'),
@@ -54,11 +60,6 @@ export async function POST(request: Request) {
   ]);
   const checkinOptedOut = !Notify.dailyCheckinOn(settings.dailyCheckin);
   const tone = prefs.tone;
-  // The coach role the roster is evaluated as: the one the body names when the caller holds it (a
-  // coach with both listings posts each page's own), else the profile's.
-  const asked = typeof parsed.data.role === 'string' ? parsed.data.role : null;
-  const role = asked && isCoachRole(asked) && actor.roles.includes(asked) ? asked : actor.role;
-  const isCoach = isCoachRole(role);
 
   // Build the snapshot of REAL data, role-scoped.
   const snapshot: Snapshot = { role, tz: prefs.tz, at: +now };
@@ -108,15 +109,16 @@ export async function POST(request: Request) {
   // then failing the state write would let a retry RESEND the same nudges (spam).
   // For proactive, never-shaming notifications, fail toward under-delivery.
   try {
-    await writeUserGoal(actor.supabase, actor.user.id, 'notify_state', nextState);
+    await writeNotifyState(actor.supabase, actor.user.id, role, nextState as Record<string, unknown>);
     await deliver(admin, actor.user.id, digest ? [...send, digest] : send);
   } finally {
     // The notices have landed and count themselves now.
     await releasePushClaim(admin, claim);
   }
 
-  // The snapshot is only read later by the cron to re-evaluate — order-independent.
-  await writeUserGoal(actor.supabase, actor.user.id, 'notify_snapshot', snapshot);
+  // The snapshot is only read later by the cron to re-evaluate — order-independent. Under this role's
+  // own key, so the other role's roster stays.
+  await writeUserGoal(actor.supabase, actor.user.id, notifyKind('notify_snapshot', role), snapshot);
 
   return NextResponse.json({ ok: true, sent: send.length, digest: digest ? 1 : 0, suppressed });
 }

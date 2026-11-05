@@ -140,6 +140,39 @@ test('a program ending with nothing next: by its end date, or its last week; not
   assert.equal(trainer({ ...p({ estimatedEndAt: inDays(3) }), streaks: { current: 0, best: 9 } }).severity, 'amber');
 });
 
+// A coach with both listings has a program per role (shared-overview's `programs`): the overview's one
+// `program` prefers the trainer's calendar, so the nutrition page read the trainer's block as an ending
+// plan.
+test('a coach with both listings: each role reads its own program, never the other role\'s', () => {
+  const inDays = (d) => new Date(NOW.getTime() + d * DAY).toISOString();
+  const block = { name: 'Block 3', week: 8, weeks: 8, status: 'active', estimatedEndAt: inDays(3) };
+  const plan = { name: 'Cut Phase', week: 4, weeks: 4, status: 'active', estimatedEndAt: inDays(2) };
+  const rec = (programs) => base({ program: block, programs });
+  // The trainer's block ending is the trainer's, and nothing on the nutrition page.
+  assert.deepEqual(keys(trainer(rec({ trainer: block, nutritionist: null }))), ['program_ending']);
+  assert.deepEqual(keys(nutri(rec({ trainer: block, nutritionist: null }))), [], 'the trainer\'s block is not an ending plan');
+  // The nutritionist's own plan ending is said as a plan, by its own name.
+  const n = nutri(rec({ trainer: block, nutritionist: plan }));
+  assert.equal(n.flags[0].reason, '“Cut Phase” ends in 2 days and nothing is lined up next');
+  assert.equal(n.flags[0].label, 'Plan ends 2d');
+  assert.equal(trainer(rec({ trainer: null, nutritionist: plan })).flags.length, 0, 'and the trainer is not told of it');
+  // A dietitian reads the nutritionist's.
+  assert.deepEqual(getTriageFeed('dietitian', [rec({ trainer: block, nutritionist: null })], NOW)[0].flags.map((f) => f.key), []);
+  // A record without `programs` (an older overview, the demo roster) reads `program`, as before.
+  assert.deepEqual(keys(nutri(base({ program: block }))), ['program_ending']);
+  // The builder carries each role's, and the push snapshot keeps them.
+  const built = recordFromOverview({ id: 'c1' }, { program: block, programs: { trainer: block } });
+  assert.deepEqual(built.programs, { trainer: block, nutritionist: null });
+  assert.equal(recordFromOverview({ id: 'c1' }, { program: block }).programs, null, 'an overview from before: no claim');
+  assert.deepEqual(engineSnapshot(built).programs, built.programs);
+  // Programs ending on Today: the page's role's own.
+  const ending = (role) => E.dashProgramsEnding([rec({ trainer: block, nutritionist: null })], 3, role);
+  assert.deepEqual(ending('trainer').soon.map((s) => s.program), ['Block 3']);
+  assert.deepEqual([ending('nutritionist').soon.length, ending('nutritionist').unknown], [0, 1]);
+  assert.equal(E.dashProgramsEnding([rec({ trainer: block, nutritionist: null })], 3).soon.length, 1, 'no role: `program`, as before');
+  assert.match(readFileSync(new URL('../public/newdesign/dashToday.jsx', import.meta.url), 'utf8'), /const ending = sigOk \? DashSignals\.dashProgramsEnding\(clients, undefined, role\) : null;/);
+});
+
 test('a payment retrying is quiet: on the row with its move, never a colour or an alert', () => {
   const r = trainer(base({ payments: { status: 'past_due', paymentRetrying: true }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: ago(1), daysLogged7d: 6 } }));
   assert.deepEqual(keys(r), ['payment_retrying']);
@@ -315,6 +348,27 @@ test('a dismissal holds while the reason is the same episode; a snooze until its
   assert.equal(trainer(attachCoachContext([routed], { dismissals: [{ client_id: 'c1', reason_key: 'protein_under', reason_sig: rsig }] })[0]).readOnly.length, 0);
   assert.equal(isDismissed(null, flag, NOW), false);
   assert.equal(isDismissed([{ key: 'contact_gap', sig: null }], flag, NOW), false, 'a dismissal with no episode matches none');
+});
+
+// A dismissal is one provider role's (2026-11-05-coach-signal-dismissals-by-role.sql): a coach with both
+// listings who sets "reply waiting" aside as the nutritionist keeps the trainer's.
+test('a dismissal is one role\'s: the other role\'s same reason stays', () => {
+  const since = new Date(NOW.getTime() - 30 * 3600e3).toISOString();
+  const rec = base({ replyWait: { trainer: since, nutritionist: since } });
+  const sig = trainer(rec).flags[0].sig;
+  assert.equal(nutri(rec).flags[0].sig, sig, 'the same reason, the same episode, on both pages');
+  const row = (role) => ({ client_id: 'c1', reason_key: 'reply_waiting', reason_sig: sig, until: null, provider_role: role });
+  const feed = (role, rows, as = role) => getTriageFeed(as, attachCoachContext([rec], { dismissals: rows }, role), NOW)[0];
+  assert.deepEqual(keys(feed('nutritionist', [row('nutritionist')])), [], 'set aside as the nutritionist');
+  assert.deepEqual(keys(feed('trainer', [row('nutritionist')])), ['reply_waiting'], 'the trainer\'s stays');
+  assert.deepEqual(keys(feed('trainer', [row('trainer')])), []);
+  assert.deepEqual(keys(feed('nutritionist', [row('trainer')])), ['reply_waiting']);
+  assert.deepEqual(keys(feed('nutritionist', [row('trainer'), row('nutritionist')])), []);
+  assert.deepEqual(keys(feed('dietitian', [row('nutritionist')])), [], 'a dietitian sets aside the nutritionist\'s');
+  assert.deepEqual(keys(feed('dietitian', [row('trainer')])), ['reply_waiting']);
+  // A row from before the role column, or a caller that names no role, reads as before.
+  assert.deepEqual(keys(feed('trainer', [{ ...row('trainer'), provider_role: undefined }])), []);
+  assert.deepEqual(keys(trainer(attachCoachContext([rec], { dismissals: [row('nutritionist')] })[0])), []);
 });
 
 test('weekly readings come back the next week; a dismissed check-in comes back when another week is missed', () => {

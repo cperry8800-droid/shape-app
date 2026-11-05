@@ -100,12 +100,12 @@ export default {
 
     // ── the push's reads ──
     { name: "the route cannot read the app's ids", file: CORE, find: "const v = r.userId ?? r.id ?? (r.profile && typeof r.profile === 'object' ? r.profile.id : null);", replace: 'const v = r.userId ?? r.id;' },
-    { name: "the push ignores the fresh dismissals", file: CORE, find: 'const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext) : raw;', replace: 'const clients = raw;' },
+    { name: "the push ignores the fresh dismissals", file: CORE, find: 'const clients = opts.coachContext ? engine.attachCoachContext(raw, opts.coachContext, role) : raw;', replace: 'const clients = raw;' },
     { name: 'the push does not report who it saw', file: CORE, find: '      coachSeen: Notify.coachSeen(rows),', replace: '      coachSeen: {},' },
 
     // ── Nora and the app on the builder ──
     { name: "Nora skips the overview", file: NORA, find: '      if (ov) { read += 1; return { client: c, ov }; }', replace: '' },
-    { name: "Nora ignores the coach's dismissals", file: NORA, find: 'engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx)', replace: 'group.map((x) => recordFor(x, role))' },
+    { name: "Nora ignores the coach's dismissals", file: NORA, find: 'engine.attachCoachContext(group.map((x) => recordFor(x, role)), ctx, role)', replace: 'group.map((x) => recordFor(x, role))' },
     { name: "the app ignores the coach's tuning", file: APP, find: 'call(e.getTriageFeed, role, withCtx, undefined, thresholds || undefined)', replace: 'call(e.getTriageFeed, role, withCtx)' },
     { name: 'the app skips the overview', file: APP, find: '    if (built) return built;\n', replace: '' },
   ],

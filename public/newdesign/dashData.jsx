@@ -502,6 +502,12 @@ function useDashFocusRefresh(onRefresh, enabled) {
 // session (RLS: coach_id = auth.uid()). ⚠ THE TABLE ARRIVES BY A MIGRATION THE OWNER RUNS BY HAND
 // (2026-11-05-coach-signal-dismissals.sql): until then every read errors, which answers null, so the
 // engine attaches nothing and every flag shows; a write answers false and the control says so.
+// ⚠ A ROW IS ONE ROLE'S (2026-11-05-coach-signal-dismissals-by-role.sql adds `provider_role` to the
+// key): a coach with both listings who sets a reason aside on the nutrition page keeps the trainer's.
+// Until that migration runs, the column is missing and every read and write fails the same way.
+function _dashDismissRole(role) {
+  return role === "trainer" ? "trainer" : role === "nutritionist" || role === "dietitian" ? "nutritionist" : null;
+}
 async function _dashDismissUid() {
   const db = window.shapeDb;
   if (!db || !db.client || !db.getUser) return null;
@@ -513,28 +519,30 @@ async function dashReadDismissals() {
   try {
     const uid = await _dashDismissUid();
     if (!uid) return null;
-    const { data, error } = await window.shapeDb.client.from("coach_signal_dismissals").select("client_id, reason_key, reason_sig, until").eq("coach_id", uid);
+    const { data, error } = await window.shapeDb.client.from("coach_signal_dismissals").select("client_id, reason_key, reason_sig, until, provider_role").eq("coach_id", uid);
     if (error) return null;
     return Array.isArray(data) ? data : [];
   } catch (e) { return null; }
 }
-// `until` null = dismissed until the reason changes; an ISO time = snoozed until then.
-async function dashWriteDismissal(clientId, flag, until) {
+// `until` null = dismissed until the reason changes; an ISO time = snoozed until then. `role` is the page's.
+async function dashWriteDismissal(clientId, flag, until, role) {
   try {
-    if (!clientId || !flag || !flag.key || typeof flag.sig !== "string") return false;
+    const providerRole = _dashDismissRole(role);
+    if (!clientId || !flag || !flag.key || typeof flag.sig !== "string" || !providerRole) return false;
     const uid = await _dashDismissUid();
     if (!uid) return false;
     const { error } = await window.shapeDb.client.from("coach_signal_dismissals").upsert(
-      { coach_id: uid, client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null },
-      { onConflict: "coach_id,client_id,reason_key" });
+      { coach_id: uid, provider_role: providerRole, client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null },
+      { onConflict: "coach_id,provider_role,client_id,reason_key" });
     return !error;
   } catch (e) { return false; }
 }
-async function dashClearDismissal(clientId, key) {
+async function dashClearDismissal(clientId, key, role) {
   try {
+    const providerRole = _dashDismissRole(role);
     const uid = await _dashDismissUid();
-    if (!uid || !clientId || !key) return false;
-    const { error } = await window.shapeDb.client.from("coach_signal_dismissals").delete().eq("coach_id", uid).eq("client_id", clientId).eq("reason_key", key);
+    if (!uid || !clientId || !key || !providerRole) return false;
+    const { error } = await window.shapeDb.client.from("coach_signal_dismissals").delete().eq("coach_id", uid).eq("provider_role", providerRole).eq("client_id", clientId).eq("reason_key", key);
     return !error;
   } catch (e) { return false; }
 }
@@ -692,7 +700,7 @@ function useDashboard(role, opts) {
           planCount,
         });
         // Only the records whose overview answered: a client the batch could not read is not evidence.
-        dashPostNotifySnapshot(role, DashSignals.attachCoachContext(records.filter((r, i) => !!overviews[i]), ctx));
+        dashPostNotifySnapshot(role, DashSignals.attachCoachContext(records.filter((r, i) => !!overviews[i]), ctx, role));
       } catch (e) { if (!had) demo(null); }
     })();
     return () => { on = false; };
@@ -705,11 +713,12 @@ function useDashboard(role, opts) {
   const tuning = useCoachThresholds(role);
   const thresholds = tuning ? tuning.thresholds : null;
   const thresholdSig = tuning ? JSON.stringify(tuning.applied) : "";
-  // The records with the coach's dismissals and reviews on them (attachCoachContext): what every
-  // engine call below reads, so a dismissal or a review shows on the next render without a refetch.
+  // The records with the coach's dismissals (this page's role's) and reviews on them
+  // (attachCoachContext): what every engine call below reads, so a dismissal or a review shows on the
+  // next render without a refetch.
   const clients = React.useMemo(
-    () => (state.source === "live" ? DashSignals.attachCoachContext(state.clients, coachCtx) : state.clients),
-    [state.clients, state.source, coachCtx]
+    () => (state.source === "live" ? DashSignals.attachCoachContext(state.clients, coachCtx, role) : state.clients),
+    [state.clients, state.source, coachCtx, role]
   );
   const triage = React.useMemo(
     () => DashSignals.getTriageFeed(role, clients, undefined, thresholds || undefined),
@@ -738,22 +747,25 @@ function useDashboard(role, opts) {
     return () => window.removeEventListener(DASH_REVIEWS_EVENT, onReviews);
   }, [role]);
   // Dismiss (until the reason changes) or snooze (until `until`) one reason on one client, and undo it.
-  // Optimistic: the row updates at once, and a write that fails puts it back and answers false.
+  // Optimistic: the row updates at once, and a write that fails puts it back and answers false. Each is
+  // this page's role's row only (a coach with both listings has one per role).
+  const dismissRole = _dashDismissRole(role);
+  const sameRow = (d, clientId, key) => String(d.client_id) === String(clientId) && d.reason_key === key && (d.provider_role == null || d.provider_role === dismissRole);
   const setDismissal = React.useCallback(async (clientId, flag, until) => {
     const prev = coachCtx.dismissals;
-    const row = { client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null };
-    setCoachCtx((c) => ({ ...c, dismissals: (Array.isArray(c.dismissals) ? c.dismissals : []).filter((d) => !(String(d.client_id) === String(clientId) && d.reason_key === flag.key)).concat([row]) }));
-    const ok = await dashWriteDismissal(clientId, flag, until);
+    const row = { client_id: clientId, reason_key: flag.key, reason_sig: flag.sig, until: until || null, provider_role: dismissRole };
+    setCoachCtx((c) => ({ ...c, dismissals: (Array.isArray(c.dismissals) ? c.dismissals : []).filter((d) => !sameRow(d, clientId, flag.key)).concat([row]) }));
+    const ok = await dashWriteDismissal(clientId, flag, until, role);
     if (!ok) setCoachCtx((c) => ({ ...c, dismissals: prev }));
     return ok;
-  }, [coachCtx.dismissals]);
+  }, [coachCtx.dismissals, role]);
   const clearDismissal = React.useCallback(async (clientId, key) => {
     const prev = coachCtx.dismissals;
-    setCoachCtx((c) => ({ ...c, dismissals: (Array.isArray(c.dismissals) ? c.dismissals : []).filter((d) => !(String(d.client_id) === String(clientId) && d.reason_key === key)) }));
-    const ok = await dashClearDismissal(clientId, key);
+    setCoachCtx((c) => ({ ...c, dismissals: (Array.isArray(c.dismissals) ? c.dismissals : []).filter((d) => !sameRow(d, clientId, key)) }));
+    const ok = await dashClearDismissal(clientId, key, role);
     if (!ok) setCoachCtx((c) => ({ ...c, dismissals: prev }));
     return ok;
-  }, [coachCtx.dismissals]);
+  }, [coachCtx.dismissals, role]);
   // `tuning.refused` is carried out, not swallowed: a stored override the engine
   // rejected must not render in the panel as an active tuning while the roster runs
   // on the house default — which is exactly what refuse-don't-clamp exists to prevent.

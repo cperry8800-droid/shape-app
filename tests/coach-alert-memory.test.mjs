@@ -10,6 +10,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { loadRealModule } from './helpers/load-real-module.mjs';
+import { fakeSupabase } from './helpers/fake-supabase.mjs';
+import { READER_COPY_EN } from './helpers/reader-copy-en.mjs';
 import { coachCandidates, coachSeen, settleCoachMemory, decideNotifications } from '../src/lib/ai/notifications.mjs';
 
 const require_ = createRequire(import.meta.url);
@@ -132,13 +137,13 @@ test('a website-only coach posts the roster to the push, every 30 minutes at mos
   assert.equal(post('nutritionist', recs), true, 'each role on its own clock');
   assert.equal(post('client', recs), false, 'a member page never posts a roster');
   assert.equal(post('trainer', []), false);
-  assert.match(DATA, /dashPostNotifySnapshot\(role, DashSignals\.attachCoachContext\(records\.filter\(\(r, i\) => !!overviews\[i\]\), ctx\)\);/, 'posted after the enriched read, unread clients left out');
+  assert.match(DATA, /dashPostNotifySnapshot\(role, DashSignals\.attachCoachContext\(records\.filter\(\(r, i\) => !!overviews\[i\]\), ctx, role\)\);/, 'posted after the enriched read, unread clients left out, with the role\'s dismissals');
 });
 
 test('the route reads the id where a record carries it, and the role only when the coach holds it', () => {
   const route = read('src/app/api/ai/notify/route.ts');
   assert.match(route, /const id = coachRecordId\(c\);/);
-  assert.match(route, /const role = asked && isCoachRole\(asked\) && actor\.roles\.includes\(asked\) \? asked : actor\.role;/);
+  assert.match(route, /const role = rosterRole\(parsed\.data\.role, actor\);/);
   assert.match(route, /const snapshot: Snapshot = \{ role, tz: prefs\.tz, at: \+now \};/);
   for (const rel of ['src/app/api/ai/notify/route.ts', 'src/app/api/ai/notify/cron/route.ts']) {
     const src = read(rel);
@@ -147,4 +152,193 @@ test('the route reads the id where a record carries it, and the role only when t
   }
   // The app posts the engine's snapshot, with the id the route reads.
   assert.match(read('mobile-app/src/services/shapeBackend.js'), /records\.map\(\(r\) => E\.engineSnapshot\(r\)\)\.filter\(Boolean\)/);
+});
+
+// ── A coach with both listings (2026-11-05) ─────────────────────────────────
+// One auth user owns a trainer row and a nutritionist row, and each dashboard posts its own role's
+// roster. They went to the one `notify_snapshot`, so opening the second replaced the first and the
+// hourly run alerted for one role only; and a dietitian's nutrition page (which posts 'nutritionist')
+// was refused its role. The routes run here as shipped, over a fake database.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const nextServer = createRequire(join(ROOT, 'package.json'))('next/server');
+const delivered = [];
+const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
+  typescript: true,
+  registry: new Map([
+    ['@/lib/ai/notifications.mjs', await import('../src/lib/ai/notifications.mjs')],
+    ['@/lib/ai/memberTranslator.mjs', { memberLocaleCode: () => 'en' }],
+    ['@/lib/reader-copy', READER_COPY_EN],
+    ['../../../mobile-app/src/services/leadReason.mjs', await import('../mobile-app/src/services/leadReason.mjs')],
+    ['@/lib/roles.mjs', await import('../src/lib/roles.mjs')],
+    ['@/lib/notify', { createNotification: async (_admin, n) => { delivered.push(n); return true; } }],
+    ['@/lib/email', { sendEmail: async () => ({ ok: true }) }],
+    ['@/lib/time', await loadRealModule(join(ROOT, 'src/lib/time.ts'), { typescript: true })],
+    ['@/lib/push-cap', { claimPushSlots: async () => null }],
+    ['../../../public/newdesign/dashSignals.js', { __esModule: true, default: E }],
+  ]),
+});
+let db = null;
+let actor = null;
+const roles = await import('../src/lib/roles.mjs');
+const liveRoute = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/route.ts'), {
+  typescript: true,
+  registry: new Map([
+    ['next/server', nextServer],
+    ['@/lib/request-utils', await loadRealModule(join(ROOT, 'src/lib/request-utils.ts'), { typescript: true, registry: new Map([['next/server', nextServer]]) })],
+    ['@/lib/ai/server', { resolveActor: async () => actor }],
+    ['@/lib/supabase/admin', { createAdminClient: () => db }],
+    ['@/lib/ai/notify-core', core],
+    ['@/lib/push-cap', { releasePushClaim: async () => {} }],
+    ['@/lib/roles.mjs', roles],
+    ['@/lib/require-membership', { requireMembership: async () => null }],
+  ]),
+});
+const cronRoute = await loadRealModule(join(ROOT, 'src/app/api/ai/notify/cron/route.ts'), {
+  typescript: true,
+  registry: new Map([
+    ['next/server', nextServer],
+    ['@/lib/supabase/admin', { createAdminClient: () => db }],
+    ['@/lib/ai/notify-core', core],
+    ['@/lib/push-cap', { releasePushClaim: async () => {} }],
+    ['@/lib/roles.mjs', roles],
+    ['../../../../../lib/run-rotation.mjs', await import('../src/lib/run-rotation.mjs')],
+  ]),
+});
+// The fake database, with the upsert writeUserGoal makes.
+function notifyDb(tables) {
+  const fake = fakeSupabase({ tables, rpcs: { is_coach_on_client: () => true } });
+  const from = fake.from;
+  fake.from = (table) => {
+    const chain = from(table);
+    chain.upsert = async (row, opts) => {
+      const keys = String((opts && opts.onConflict) || '').split(',').map((k) => k.trim()).filter(Boolean);
+      const rows = (tables[table] = tables[table] || []);
+      const at = rows.findIndex((r) => keys.length && keys.every((k) => r[k] === row[k]));
+      if (at >= 0) rows[at] = { ...rows[at], ...row }; else rows.push({ ...row });
+      return { data: null, error: null };
+    };
+    return chain;
+  };
+  return fake;
+}
+// A client the engine reads on the real clock: this week's check-in filed, logging daily, and the given
+// last contact per role (six days is amber; one day is clear).
+const localDay = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const thisMonday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return localDay(d); };
+const daysAgo = (n) => new Date(Date.now() - n * DAY).toISOString();
+const rosterClient = (id, lastContact) => ({ userId: id, profile: { id, name: 'Client ' + id }, checkIn: { lastWeekOf: thisMonday() }, progressRead: { state: 'ready' }, foodLogs: { lastLoggedOn: localDay(new Date(Date.now() - DAY)), daysLogged7d: 6 }, lastContact });
+const docOf = (tables, kind) => ((tables.user_goals || []).find((r) => r.kind === kind) || {}).data;
+const sentAs = () => delivered.map((n) => n.data.providerRole + ':' + n.data.clientId).sort();
+const postRoster = (body) => liveRoute.POST(new Request('https://shape.test/api/ai/notify', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
+process.env.NOTIFY_CRON_SECRET = 'cron-test';
+const runCron = async () => (await cronRoute.GET(new Request('https://shape.test/api/ai/notify/cron', { headers: { 'x-notify-secret': 'cron-test' } }))).json();
+
+test('the role a roster is posted as: one the coach holds, compared as provider roles (a dietitian holds the nutritionist\'s)', () => {
+  const dual = { role: 'trainer', roles: ['trainer', 'dietitian'] };
+  assert.equal(core.rosterRole('nutritionist', dual), 'nutritionist', 'the nutrition page of a trainer who is also a dietitian');
+  assert.equal(core.rosterRole('nutritionist', { role: 'dietitian', roles: ['dietitian'] }), 'nutritionist');
+  assert.equal(core.rosterRole('dietitian', { role: 'nutritionist', roles: ['nutritionist'] }), 'dietitian');
+  assert.equal(core.rosterRole('trainer', dual), 'trainer');
+  assert.equal(core.rosterRole('nutritionist', { role: 'trainer', roles: ['trainer'] }), 'trainer', 'a role not held is the profile\'s');
+  assert.equal(core.rosterRole('client', dual), 'trainer');
+  assert.equal(core.rosterRole(undefined, { role: 'client', roles: ['client'] }), 'client');
+  assert.equal(core.notifyKind('notify_snapshot', 'trainer'), 'notify_snapshot:trainer');
+  assert.equal(core.notifyKind('notify_snapshot', 'dietitian'), 'notify_snapshot:nutritionist');
+  assert.equal(core.notifyKind('notify_state', 'client'), 'notify_state', "a member's keeps the plain key");
+});
+
+test("the live route keeps each role's roster and alert memory, and takes a dietitian's nutrition page as theirs", async () => {
+  const tables = { user_goals: [] };
+  db = notifyDb(tables);
+  actor = { user: { id: 'coach-1' }, role: 'trainer', roles: ['trainer', 'dietitian'], supabase: db };
+  delivered.length = 0;
+  assert.equal((await postRoster({ role: 'nutritionist', clients: [rosterClient('n1', { nutritionist: daysAgo(6) })] })).status, 200);
+  assert.equal((await postRoster({ role: 'trainer', clients: [rosterClient('t1', { trainer: daysAgo(6) })] })).status, 200);
+  assert.equal(docOf(tables, 'notify_snapshot:nutritionist').role, 'nutritionist', 'evaluated as the nutritionist, not the profile\'s trainer');
+  assert.deepEqual(docOf(tables, 'notify_snapshot:nutritionist').clients.map((c) => c.userId), ['n1']);
+  assert.deepEqual(docOf(tables, 'notify_snapshot:trainer').clients.map((c) => c.userId), ['t1'], 'the second page did not replace the first');
+  assert.equal(docOf(tables, 'notify_snapshot'), undefined);
+  assert.ok(docOf(tables, 'notify_state:trainer') && docOf(tables, 'notify_state:nutritionist'), 'each role its own alert memory');
+  assert.deepEqual(sentAs(), ['nutritionist:n1', 'trainer:t1']);
+  // A role the caller does not hold is evaluated as the profile's.
+  actor = { ...actor, roles: ['trainer'] };
+  await postRoster({ role: 'nutritionist', clients: [rosterClient('n2', { trainer: daysAgo(6) })] });
+  assert.deepEqual(docOf(tables, 'notify_snapshot:trainer').clients.map((c) => c.userId), ['n2']);
+  assert.deepEqual(docOf(tables, 'notify_snapshot:nutritionist').clients.map((c) => c.userId), ['n1']);
+});
+
+test('the hourly run evaluates both rosters, each on its own memory: a client on both is not alerted every hour', async () => {
+  const tables = { user_goals: [
+    // s1 is on both rosters: clear for the trainer, amber for the nutritionist.
+    { user_id: 'coach-1', kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(6) }), rosterClient('s1', { trainer: daysAgo(1) })] } },
+    { user_id: 'coach-1', kind: 'notify_snapshot:nutritionist', data: { role: 'nutritionist', at: Date.now(), clients: [rosterClient('s1', { nutritionist: daysAgo(6) })] } },
+  ] };
+  db = notifyDb(tables);
+  delivered.length = 0;
+  const first = await runCron();
+  assert.deepEqual([first.active, first.evaluated], [1, 1], 'one person, both rosters');
+  assert.deepEqual(sentAs(), ['nutritionist:s1', 'trainer:t1']);
+  delivered.length = 0;
+  await runCron();
+  assert.deepEqual(delivered, [], "the trainer reading s1 clear does not make the nutritionist alert again");
+  assert.deepEqual(Object.keys(docOf(tables, 'notify_state:nutritionist').coachClients), ['s1']);
+  assert.deepEqual(Object.keys(docOf(tables, 'notify_state:trainer').coachClients), ['t1']);
+});
+
+test('the run still reads the one snapshot from before the split, until that role posts its own', async () => {
+  const legacyState = { coachClients: { t1: 'amber' }, pendingDigest: [{ type: 'client_amber', key: 'n7', sig: 'amber:x', data: { providerRole: 'nutritionist' } }, { type: 'client_amber', key: 't7', sig: 'amber:y', data: { providerRole: 'trainer' } },
+    // A held member notice (the account is also a member): no provider role, so no coach role's (Codex on #2622).
+    { type: 'checkin_due', key: 'm1', sig: 'due:w', data: {} }] };
+  const tables = { user_goals: [
+    { user_id: 'coach-1', kind: 'notify_snapshot', data: { role: 'trainer', at: Date.now(), clients: [rosterClient('t1', { trainer: daysAgo(6) }), rosterClient('t2', { trainer: daysAgo(6) })] } },
+    { user_id: 'coach-1', kind: 'notify_state', data: legacyState },
+  ] };
+  db = notifyDb(tables);
+  delivered.length = 0;
+  await runCron();
+  const alerts = delivered.filter((n) => n.data && n.data.clientId).map((n) => n.data.providerRole + ':' + n.data.clientId);
+  assert.deepEqual(alerts, ['trainer:t2'], 'the old roster runs, on the old memory: t1 was alerted before');
+  assert.ok(docOf(tables, 'notify_state:trainer'), 'and its memory is the role\'s own from now on');
+  // A role's first read since the split: the shared memory, its held alerts narrowed to the role's.
+  const shared = notifyDb({ user_goals: [{ user_id: 'coach-1', kind: 'notify_state', data: legacyState }] });
+  const asTrainer = await core.readNotifyState(shared, 'coach-1', 'trainer');
+  assert.deepEqual(asTrainer.coachClients, { t1: 'amber' });
+  assert.deepEqual(asTrainer.pendingDigest.map((i) => i.key), ['t7'], "the nutritionist's held alert is not sent as the trainer's");
+  assert.deepEqual((await core.readNotifyState(shared, 'coach-1', 'dietitian')).pendingDigest.map((i) => i.key), ['n7']);
+  const own = notifyDb({ user_goals: [{ user_id: 'coach-1', kind: 'notify_state', data: legacyState }, { user_id: 'coach-1', kind: 'notify_state:trainer', data: { coachClients: {} } }] });
+  assert.deepEqual(await core.readNotifyState(own, 'coach-1', 'trainer'), { coachClients: {} }, 'once it has its own, only its own');
+  assert.equal((await core.readNotifyState(shared, 'coach-1', 'client')).pendingDigest.length, 3, "a member's is the plain one, its own held notice included");
+  // The day's push count stays the person's (Codex on #2622): each role writes its memory to its own key
+  // and the count to the shared one, and reads the count back from there, so two roles share one budget
+  // when the day's pushes can't be read.
+  const budget = { user_goals: [] };
+  const bdb = notifyDb(budget);
+  await core.writeNotifyState(bdb, 'coach-1', 'trainer', { date: '2026-11-05', sentToday: 3, coachClients: { t1: 'amber' } });
+  assert.deepEqual(docOf(budget, 'notify_state'), { date: '2026-11-05', sentToday: 3 });
+  const asNutri = await core.readNotifyState(bdb, 'coach-1', 'nutritionist');
+  assert.equal(asNutri.sentToday, 3, "the trainer's pushes count against the nutritionist's run");
+  assert.equal(asNutri.date, '2026-11-05');
+  await core.writeNotifyState(bdb, 'coach-1', 'nutritionist', { ...asNutri, sentToday: 4, coachClients: { n1: 'amber' } });
+  assert.equal((await core.readNotifyState(bdb, 'coach-1', 'trainer')).sentToday, 4);
+  assert.deepEqual((await core.readNotifyState(bdb, 'coach-1', 'trainer')).coachClients, { t1: 'amber' }, 'the memory stays the role\'s');
+  const capped = decideNotifications({ candidates: [{ type: 'client_red', key: 'x', sig: 'red:x', severity: 'red', title: 't', body: 'b', data: {} }], last: { ...asNutri, sentToday: 99 }, prefs: { dailyCap: 3 }, now: new Date('2026-11-05T15:00:00Z'), audience: 'coach', pushedToday: null });
+  assert.equal(capped.send.filter((n) => n.channels ? n.channels.push : true).length === 0 || capped.send.length === 0, true, 'a shared count at the cap holds the push');
+  // Once that role posts its own, the old one is not read for it; a member's record there still is.
+  const rows = [
+    { kind: 'notify_snapshot', data: { role: 'trainer', at: 1 } },
+    { kind: 'notify_snapshot:trainer', data: { role: 'trainer', at: 2 } },
+    { kind: 'notify_snapshot:nutritionist', data: { role: 'nutritionist', at: 3 } },
+  ];
+  assert.deepEqual(core.snapshotsToEvaluate(rows).map((s) => s.at), [2, 3]);
+  assert.deepEqual(core.snapshotsToEvaluate([{ kind: 'notify_snapshot', data: { role: 'nutritionist', at: 1 } }, rows[1]]).map((s) => s.at), [1, 2], 'the old roster of the other role still runs');
+  assert.deepEqual(core.snapshotsToEvaluate([{ kind: 'notify_snapshot', data: { role: 'dietitian', at: 1 } }, rows[2]]).map((s) => s.at), [3], "a dietitian's is the nutritionist's");
+  assert.deepEqual(core.snapshotsToEvaluate([{ kind: 'notify_snapshot', data: { role: 'client', at: 1 } }, rows[1]]).map((s) => s.at), [1, 2]);
+  assert.deepEqual(core.snapshotsToEvaluate(rows.slice(1), 3).map((s) => s.at), [3], 'one past the active window is skipped');
+  assert.deepEqual(core.snapshotsToEvaluate(null), []);
+  // The cron reads every key, and evaluates each role on its own state.
+  const cron = read('src/app/api/ai/notify/cron/route.ts');
+  assert.match(cron, /\.in\('kind', NOTIFY_SNAPSHOT_KINDS\)/);
+  assert.match(cron, /readNotifyState\(admin, userId, snapshot\.role\)/);
+  assert.match(cron, /writeNotifyState\(admin, userId, snapshot\.role, nextState/);
+  assert.match(read('src/app/api/ai/notify/route.ts'), /writeNotifyState\(actor\.supabase, actor\.user\.id, role, nextState/);
 });
