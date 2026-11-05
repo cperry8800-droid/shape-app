@@ -300,7 +300,7 @@ export function BSIntegrationsPage({ onBack }) {
 
       <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>
-          {tr('settings:integrations.intro', { defaultValue: 'Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.' })}
+          {tr('settings:integrations.intro', { defaultValue: 'Connect health, activity, and music platforms. WHOOP imports start private on the community feed, and you choose what gets posted there. The coaches you pay see your activity either way.' })}
         </div>
       </div>
 

@@ -385,7 +385,7 @@
   "integrations.importedActivities": "{imported, plural, other {# aktivitas privat}} diimpor · {errors, plural, other {# kesalahan}}",
   "integrations.importedWorkouts": "{imported, plural, other {# latihan privat}} diimpor · {errors, plural, other {# kesalahan}}",
   "integrations.importing": "Mengimpor",
-  "integrations.intro": "Hubungkan platform kesehatan, aktivitas, dan musik. Data dari WHOOP bersifat privat secara bawaan, lalu Anda memilih apa yang dibagikan ke coach atau ke feed komunitas.",
+  "integrations.intro": "Hubungkan platform kesehatan, aktivitas, dan musik. Impor dari WHOOP dimulai privat di feed komunitas, dan kamu yang memilih apa yang diposting di sana. Pelatih yang kamu bayar tetap melihat aktivitasmu.",
   "integrations.kicker": "Pengaturan · Integrasi",
   "integrations.live": "Aktif",
   "integrations.loadError": "Integrasi tidak bisa dimuat.",

@@ -385,7 +385,7 @@
   "integrations.importedActivities": "{imported, plural, one {# actividad privada importada} other {# actividades privadas importadas}} · {errors, plural, one {# error} other {# errores}}",
   "integrations.importedWorkouts": "{imported, plural, one {# entrenamiento privado importado} other {# entrenamientos privados importados}} · {errors, plural, one {# error} other {# errores}}",
   "integrations.importing": "Importando",
-  "integrations.intro": "Conecta plataformas de salud, actividad y música. Lo que llega de WHOOP es privado por defecto; tú eliges qué compartes con tus coaches o con el feed de la comunidad.",
+  "integrations.intro": "Conecta plataformas de salud, actividad y música. Lo que llega de WHOOP empieza privado en el feed de la comunidad y tú eliges qué se publica ahí. Los coaches a los que pagas ven tu actividad de todos modos.",
   "integrations.kicker": "Ajustes · Integraciones",
   "integrations.live": "Activas",
   "integrations.loadError": "No se pudieron cargar las integraciones.",

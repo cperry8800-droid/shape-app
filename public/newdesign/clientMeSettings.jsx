@@ -43,7 +43,6 @@ const SAMPLE_PROFILE = {
   youtube: "",
   twitter: "@priyas",
   profileVisibility: "Community only",
-  shareDataWithCoaches: "All metrics",
   communityPosts: true,
   coachMessages: "Push + email",
   weeklyDigest: "Sunday 8am",

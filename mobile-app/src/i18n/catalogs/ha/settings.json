@@ -385,7 +385,7 @@
   "integrations.importedActivities": "An shigo da {imported, plural, one {# aiki na sirri} other {# ayyuka na sirri}} · {errors, plural, one {# kuskure} other {# kurakurai}}",
   "integrations.importedWorkouts": "An shigo da {imported, plural, one {# motsa jiki na sirri} other {# motsa jiki na sirri}} · {errors, plural, one {# kuskure} other {# kurakurai}}",
   "integrations.importing": "Ana shigowa",
-  "integrations.intro": "Haɗa dandamalin lafiya, ayyuka, da waƙa. Motsa jikin da aka shigo daga WHOOP na sirri ne da farko, sannan kai ka zaɓi abin da za a raba da koci-koci ko jerin al'umma.",
+  "integrations.intro": "Haɗa dandamalin lafiya, motsa jiki da kiɗa. Abin da ya zo daga WHOOP yana farawa a ɓoye a shafin al'umma, kuma kai ne ke zaɓar abin da za a wallafa a can. Kocin da kake biya suna ganin ayyukanka ko ta yaya.",
   "integrations.kicker": "Saituna · Haɗin gwiwa",
   "integrations.live": "Kai tsaye",
   "integrations.loadError": "An kasa loda haɗin gwiwa.",

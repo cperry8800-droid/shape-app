@@ -385,7 +385,7 @@
   "integrations.importedActivities": "Đã nhập {imported, plural, other {# hoạt động riêng tư}} · {errors, plural, other {# lỗi}}",
   "integrations.importedWorkouts": "Đã nhập {imported, plural, other {# buổi tập riêng tư}} · {errors, plural, other {# lỗi}}",
   "integrations.importing": "Đang nhập",
-  "integrations.intro": "Kết nối các nền tảng sức khỏe, hoạt động và âm nhạc. Dữ liệu từ WHOOP mặc định ở chế độ riêng tư, rồi bạn chọn thứ muốn chia sẻ với coach hoặc lên feed cộng đồng.",
+  "integrations.intro": "Kết nối các nền tảng sức khỏe, vận động và âm nhạc. Dữ liệu từ WHOOP bắt đầu ở chế độ riêng tư trên bảng tin cộng đồng, và bạn chọn những gì được đăng ở đó. Các huấn luyện viên bạn trả phí vẫn thấy hoạt động của bạn.",
   "integrations.kicker": "Cài đặt · Tích hợp",
   "integrations.live": "Đang bật",
   "integrations.loadError": "Không tải được các tích hợp.",
