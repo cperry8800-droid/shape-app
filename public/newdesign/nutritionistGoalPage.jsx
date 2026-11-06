@@ -131,9 +131,20 @@ function withGoalIds(goals) {
   return (goals || []).map((g, i) => (g && g.id) ? g : { ...g, id: "goal" + i });
 }
 
+// The most recent archived quarter that still holds goals, or null.
+function lastArchive(state) {
+  const a = Array.isArray(state && state.archived) ? state.archived : [];
+  const last = a[a.length - 1];
+  return last && Array.isArray(last.goals) && last.goals.length ? last : null;
+}
+
 function NutritionistGoalPage() {
   const [state, setState] = React.useState(() => ({ ...DEFAULT_GOALS_STATE, goals: withGoalIds(DEFAULT_GOALS_STATE.goals) }));
   const [signedIn, setSignedIn] = React.useState(false);
+  // ⚠ EVERY SAVE IS BOUND TO THE ACCOUNT THIS PAGE LOADED (Codex on #2626). saveUserGoals writes to
+  // whoever is signed in at save time, so a sign-in to another account in another tab, while a
+  // question was open here, wrote this page's goals over that account's. It now refuses instead.
+  const ownerId = React.useRef(null);
   const [toast, setToast] = React.useState(null);
   const [editGoalId, setEditGoalId] = React.useState(null); // goal id | 'new' | null
   // Holds the ROWS to edit (or false) — the modal is seeded with whatever the
@@ -147,6 +158,7 @@ function NutritionistGoalPage() {
       if (!window.shapeDb) return;
       const user = await window.shapeDb.getUser();
       if (!user) return;
+      ownerId.current = user.id;
       setSignedIn(true);
       const remote = await window.shapeDb.getUserGoals("nutritionist");
       if (remote && Object.keys(remote).length > 0) {
@@ -163,8 +175,8 @@ function NutritionistGoalPage() {
   async function persist(next) {
     setState(next);
     if (window.shapeDb && window.shapeDb.saveUserGoals) {
-      const res = await window.shapeDb.saveUserGoals("nutritionist", next);
-      showToast(res && res.error ? (res.error.message || "Save failed") : (signedIn ? "Saved." : "Sample view — sign in to save."));
+      const res = await window.shapeDb.saveUserGoals("nutritionist", next, ownerId.current ? { expectedUserId: ownerId.current } : undefined);
+      showToast(res && res.error ? (res.error.message === "Account changed" ? "Not saved: another account is signed in now. Reload this page." : (res.error.message || "Save failed")) : (signedIn ? "Saved." : "Sample view — sign in to save."));
     } else {
       showToast("Sample view — sign in to save.");
     }
@@ -180,6 +192,23 @@ function NutritionistGoalPage() {
     setEditGoalId(null);
     persist({ ...state, goals });
   }
+  // ⚠ ARCHIVE ASKS FIRST AND KEEPS A COPY (coach review, 2026-11-04: "Archive" deleted every goal).
+  // It saved an empty goal list at once, with no question and nothing kept, while deleting ONE goal
+  // asked first. Now it asks, moves this quarter's goals into `archived` in the same saved document,
+  // and an empty page offers them back.
+  async function archiveGoals() {
+    const current = state.goals || [];
+    if (!current.length) return;
+    if (!(await window.ShapeConfirm.open({ title: "Archive these goals?", message: "They leave this page and are kept, so you can restore them.", confirmLabel: "Archive goals" }))) return;
+    const archived = [...(Array.isArray(state.archived) ? state.archived : []), { at: new Date().toISOString(), quarter: goalQuarterLabel(), goals: current }];
+    persist({ ...state, goals: [], archived });
+  }
+  function restoreGoals() {
+    const last = lastArchive(state);
+    if (!last) return;
+    persist({ ...state, goals: last.goals, archived: state.archived.slice(0, -1) });
+  }
+
   function deleteGoal() {
     const goals = state.goals.filter(x => x.id !== editGoalId);
     setEditGoalId(null);
@@ -278,7 +307,8 @@ function NutritionistGoalPage() {
       title="Goal"
       subtitle={signedIn ? "What you're building toward this quarter." : "Sample view — sign in to save your own goals."}
       actions={<>
-        <button onClick={() => persist({ ...state, goals: [] })} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>
+        {(state.goals || []).length > 0 && <button data-goal-archive onClick={archiveGoals} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Archive</button>}
+        {!(state.goals || []).length && lastArchive(state) && <button data-goal-restore onClick={restoreGoals} style={{ background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Restore archived goals</button>}
         <button onClick={() => setEditGoalId("new")} style={{ background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" }}>+ New goal</button>
       </>}
     >
