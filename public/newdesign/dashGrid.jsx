@@ -6,7 +6,8 @@
 // mirror of public/newdesign/dashboardLayout.mjs — keep identical. Website only.
 const DG_MUTE = "var(--sh-ink2, #a09b94)";
 
-function dgWidgetW(size) { return size === "full" ? 12 : 6; }
+// A full row, half, or the Today board's pairs: two thirds (`wide`) beside one third (`narrow`).
+function dgWidgetW(size) { return size === "full" ? 12 : size === "wide" ? 8 : size === "narrow" ? 4 : 6; }
 
 // ⚠ A WIDGET DECLARES EMPTINESS; IT DOES NOT DISAPPEAR FROM THE LIST. Call sites
 // used to write `flag ? { key, … } : null`, and that shape is unusable here for a
@@ -198,6 +199,12 @@ function dgInjectStyle() {
    would become the containing block of every position:fixed overlay its card draws. */
 .dash-gridstack .grid-stack-item-content:not(:empty){border-radius:12px;box-shadow:var(--lift-1-cast, 0 1px 2px rgba(0,0,0,0.04))}
 .dash-gridstack .grid-stack-item-content:not(:empty)::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:var(--lift-1-edge, 0 0 0 transparent);pointer-events:none}
+/* Height means priority: a card may ask for Lift 2 at rest (the one thing to act on) or Lift 0 (a
+   list at rest) with data-dash-lift; the pointer and the drag still lift it as above. */
+.dash-gridstack .grid-stack-item-content:not(:empty):has([data-dash-lift="2"]){box-shadow:var(--lift-2-cast, 0 1px 2px rgba(0,0,0,0.04))}
+.dash-gridstack .grid-stack-item-content:not(:empty):has([data-dash-lift="2"])::after{box-shadow:var(--lift-2-edge, 0 0 0 transparent)}
+.dash-gridstack .grid-stack-item-content:not(:empty):has([data-dash-lift="0"]){box-shadow:var(--lift-0, 0 1px 2px rgba(0,0,0,0.04))}
+.dash-gridstack .grid-stack-item-content:not(:empty):has([data-dash-lift="0"])::after{box-shadow:0 0 0 transparent}
 @media (hover:hover) and (pointer:fine){
 .dash-gridstack .grid-stack-item:hover>.grid-stack-item-content:not(:empty){box-shadow:var(--lift-2-cast, 0 1px 2px rgba(0,0,0,0.04))}
 .dash-gridstack .grid-stack-item:hover>.grid-stack-item-content:not(:empty)::after{box-shadow:var(--lift-2-edge, 0 0 0 transparent)}
@@ -242,6 +249,10 @@ function dgInjectStyle() {
 .dash-rs{position:absolute;right:5px;top:calc(40% + 10px);bottom:auto;width:24px;height:24px;clip-path:none;background:var(--sh-card, #25211d);color:var(--sh-ink2, #a09b94);text-align:center;line-height:24px;border:1px solid var(--sh-line2, #413d38);border-radius:5px;opacity:0;transition:opacity .12s;pointer-events:none}
 .dash-gridstack .grid-stack-item:hover .dash-rs,.dash-gridstack .grid-stack-item:focus-within .dash-rs{opacity:1}
 @media (hover:none){.dash-rs{opacity:.6}}
+.dg-board-body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.dg-board-main{min-width:0}
+.dg-catalog-dock:empty{display:none}
+.dg-docked .dg-board-body{grid-template-columns:minmax(0,1fr) 320px}
 .dg-boards{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto;flex:1 1 380px}
 .dg-board-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex-basis:100%;padding:12px;border:1px solid var(--sh-line2, #413d38);border-radius:8px}
 .dg-board-form label{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -369,7 +380,7 @@ function dgPanelBox(gear, vw, vh, pw) {
 // clip box: a coach could change the first slot and nothing else. The elements were
 // all in the DOM the whole time, which is exactly why counting them passed and only
 // reading their geometry against the card failed. (Codex, #2046.)
-function useDgPanel(open, setOpen, boxRef, panelRef, width) {
+function useDgPanel(open, setOpen, boxRef, panelRef, width, docked = false) {
   const [box, setBox] = React.useState(null);
   const place = React.useCallback(() => {
     const el = boxRef.current;
@@ -394,6 +405,7 @@ function useDgPanel(open, setOpen, boxRef, panelRef, width) {
     // button's wrapper tested, the first click inside the panel reads as a click outside
     // it and closes the thing you are using.
     const away = (e) => {
+      if (docked) return;
       const inBox = boxRef.current && boxRef.current.contains(e.target);
       const inPanel = panelRef.current && panelRef.current.contains(e.target);
       if (!inBox && !inPanel) setOpen(false);
@@ -403,7 +415,7 @@ function useDgPanel(open, setOpen, boxRef, panelRef, width) {
     document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
     // eslint-disable-next-line
-  }, [open]);
+  }, [open, docked]);
   return box;
 }
 
@@ -536,12 +548,19 @@ function DgCardSettings({ groups }) {
 // with no per-page wiring, and a page that declares no optional widgets still gets
 // the list of what it has.
 const DG_CATALOG_W = 320;
-function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
+// ⚠ A DOCKED CATALOGUE PUSHES THE BOARD ASIDE INSTEAD OF COVERING IT (the owner's Today design,
+// 2026-11: "Customize keeps the board in view … so you can see where a widget will land").
+// `dock` is the column DashGrid keeps beside the grid; the panel portals into it rather than
+// floating over the cards, and `onOpenChange` tells DashGrid to open that column, which narrows
+// the grid (GridStack's columns are percentages, so the cards reflow beside it). Without a
+// dock, the panel floats from its button as before.
+function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false, dock = null, onOpenChange }) {
   const [open, setOpen] = React.useState(false);
   React.useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
+  React.useEffect(() => { if (typeof onOpenChange === "function") onOpenChange(open); }, [open]);
   const boxRef = React.useRef(null);
   const panelRef = React.useRef(null);
-  const box = useDgPanel(open, setOpen, boxRef, panelRef, DG_CATALOG_W);
+  const box = useDgPanel(open, setOpen, boxRef, panelRef, DG_CATALOG_W, !!dock);
   // ⚠ FOCUS FOLLOWS THE DIALOG, OR A KEYBOARD USER NEVER REACHES IT. The panel is
   // portaled to the end of <body>, so Tab from the button lands on the first card's
   // chrome, not on the panel — measured. On open the first control in the panel takes
@@ -617,8 +636,11 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
         {addable.length > 0 && <span style={{ color: "var(--sh-accent, #2ee0c4)", fontVariantNumeric: "tabular-nums" }}>{addable.length}</span>}
       </button>
       {open && box && ReactDOM.createPortal(
-        <div ref={panelRef} className="dash-widget-catalog" role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dgPanelStyle(box)}>
-          <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
+        <div ref={panelRef} className={"dash-widget-catalog" + (dock ? " dg-catalog-docked" : "")} role="dialog" aria-label="Widgets" onMouseDown={(e) => e.stopPropagation()} style={dock ? dgDockedStyle() : dgPanelStyle(box)}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
+            {dock && <button type="button" onClick={() => setOpen(false)} style={{ ...mono, fontSize: 9.5, background: "transparent", border: 0, minHeight: 32, padding: "0 6px", cursor: "pointer", color: DG_MUTE }}>Done</button>}
+          </div>
           {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
           {addable.length > 0 && head("Available")}
           {addable.map((r) => item(r, <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
@@ -629,10 +651,16 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false }) {
             <button type="button" onClick={() => { setOpen(false); onReset(); }} style={{ ...mono, background: "transparent", border: 0, minHeight: 36, cursor: "pointer", fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</button>
           </div>
         </div>,
-        document.body
+        dock || document.body
       )}
     </span>
   );
+}
+// The docked panel: a column of the board, sticky under the masthead, scrolling on its own.
+function dgDockedStyle() {
+  return { position: "sticky", top: 76, maxHeight: "calc(100vh - 92px)", overflowY: "auto", boxSizing: "border-box",
+    background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: 10, boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))",
+    padding: "8px 6px", textAlign: "left", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" };
 }
 
 // Named dashboards retain a complete set of tabs per role. The active tabs stay at
@@ -663,7 +691,7 @@ function dgBoardEdit(doc, role, action) {
       // The coaching focus: Needs you (whose tabs hold attention, check-ins, replies and the
       // programming queue; the day itself is the column beside the grid), what runs out
       // soon, the week ahead, and the wins.
-      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["needs", "ending", "week", "wins"], hidden: ["practice", "kpis", "business", "roster"], added: ["ending", "week"] } } : source.tabs;
+      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["brief", "upnext", "needs", "timeline", "glance", "ending", "week"], hidden: ["money"], added: ["ending", "week"] } } : source.tabs;
       boards.push({ id: action.id, name, tabs: JSON.parse(JSON.stringify(tabs)) });
       active = action.id;
     }
@@ -833,9 +861,9 @@ function DgSavedDashboards({ store, role, beforeChange }) {
 }
 
 function dgWidths(widget) {
-  return widget && widget.widths ? widget.widths : widget && ["practice", "kpis", "roster", "trajectory", "outcomes", "queue"].includes(widget.key) ? [12] : widget && widget.key === "notes" ? [4, 6, 12] : [6, 12];
+  return widget && widget.widths ? widget.widths : widget && ["practice", "kpis", "roster", "trajectory", "outcomes", "queue"].includes(widget.key) ? [12] : widget && widget.key === "notes" ? [4, 6, 12] : widget && widget.size === "wide" ? [6, 8, 12] : widget && widget.size === "narrow" ? [4, 6, 12] : [6, 12];
 }
-function dgWidthName(w) { return w === 4 ? "Compact" : w === 6 ? "Standard" : "Wide"; }
+function dgWidthName(w) { return w === 4 ? "Compact" : w === 6 ? "Standard" : w === 8 ? "Two thirds" : "Wide"; }
 // A mouse with nothing touch-capable beside it. Width alone cannot tell a mouse from a
 // tablet, and a hybrid device keeps its touch scrolling: there the card is not a handle.
 function dgFinePointer() {
@@ -871,7 +899,10 @@ function dgChromeSlot(host) {
 }
 
 
-function DashGrid({ role, tab = "today", widgets }) {
+function DashGrid({ role, tab = "today", widgets, dockCatalog = false }) {
+  // The docked catalogue's column (DgCatalog) and whether it is open.
+  const [dockEl, setDockEl] = React.useState(null);
+  const [catalogOpen, setCatalogOpen] = React.useState(false);
   const byKey = {}; widgets.forEach((w) => { if (w && w.key != null) byKey[w.key] = w; });
   const elRef = React.useRef(null);
   const gridRef = React.useRef(null);
@@ -1252,7 +1283,8 @@ function DashGrid({ role, tab = "today", widgets }) {
         if (wW >= cols) {                                        // full-width (or single-column) → stack
           if (xCursor !== 0) { y += rowH; xCursor = 0; rowH = 0; }
           layout.push({ id, x: 0, y, w: wW, h }); y += h;
-        } else if (xCursor === 0) {
+        } else if (xCursor === 0 || xCursor + wW > cols) {          // a row's first card, or one that does not fit beside it
+          if (xCursor !== 0) { y += rowH; }
           layout.push({ id, x: 0, y, w: wW, h }); xCursor = wW; rowH = h;
         } else {
           layout.push({ id, x: xCursor, y, w: wW, h }); y += Math.max(rowH, h); xCursor = 0; rowH = 0;
@@ -1402,7 +1434,7 @@ function DashGrid({ role, tab = "today", widgets }) {
     const at = order.indexOf(key);
     const next = order[at + 1] != null ? order[at + 1] : order[at - 1];
     const target = next != null && itemRef.current[next] ? itemRef.current[next].querySelector(".dg-grip")
-      : elRef.current && elRef.current.parentElement ? elRef.current.parentElement.querySelector("[data-tour='dash-widgets']") : null;
+      : elRef.current && elRef.current.closest(".dg-board") ? elRef.current.closest(".dg-board").querySelector("[data-tour='dash-widgets']") : null;
     if (target) target.focus();
     hide(key);
     setAnnouncement(((byKey[key] && byKey[key].title) || key) + " hidden. Undo, or add it back from Widgets.");
@@ -1443,12 +1475,14 @@ function DashGrid({ role, tab = "today", widgets }) {
   };
 
   return (
-    <div className={"dg-board" + (directDrag && !mobile ? " dg-direct-drag" : "")}>
+    <div className={"dg-board" + (directDrag && !mobile ? " dg-direct-drag" : "") + (dockCatalog && catalogOpen && !mobile ? " dg-docked" : "")}>
       {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
       <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <DgSavedDashboards store={store} role={role} beforeChange={() => { if (ready) persistVisibility(hiddenRef.current); }} />
         <button type="button" style={DG_CONTROL} disabled={!storeState.loaded || !undo.length} onClick={undoLast}>Undo</button>
-        <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />
+        {dockCatalog
+          ? <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} dock={mobile ? null : dockEl} onOpenChange={setCatalogOpen} />
+          : <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />}
       </div>
       <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>
         {storeState.status === "loading" ? "Loading dashboards…" : storeState.status === "saving" ? "Saving…" : storeState.status === "error" ? storeState.error : storeState.status === "preview" ? "Preview · sign in to save dashboards" : "Saved · all tabs"}
@@ -1460,7 +1494,13 @@ function DashGrid({ role, tab = "today", widgets }) {
           when GridStack measures + positions the cards in JS after mount (CLS guard) */}
       {/* `directDrag` is in the key because the drag handle is chosen when the grid is
           initialised: a pointer change re-boots it on a fresh container. */}
+      <div className="dg-board-body">
+      <div className="dg-board-main">
       <div key={role + ":" + tab + ":" + activeBoard + ":" + revision + ":" + (store ? store.uid : "loading") + ":" + storeState.loaded + ":" + layoutUnavailable + ":" + directDrag} ref={elRef} className="grid-stack dash-gridstack" style={{ minHeight: "60vh" }}></div>
+      </div>
+      {/* The docked catalogue's column: empty and zero-wide until the catalogue opens into it. */}
+      {dockCatalog && <aside ref={setDockEl} className="dg-catalog-dock" aria-label="Widget catalogue" />}
+      </div>
       {Object.keys(hosts).map((key) => (hosts[key] ? ReactDOM.createPortal(chrome(key), hosts[key], key) : null))}
       {Object.keys(hosts).map((key) => { const slot = dgChromeSlot(hosts[key]); return slot ? ReactDOM.createPortal(controls(key), slot, key + ":controls") : null; })}
       {/* ⚠ THE BAR IS KEYED ON `hiddenDefaults`, THE CHIPS ON `hiddenChips`, AND THE

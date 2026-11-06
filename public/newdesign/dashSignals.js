@@ -2047,11 +2047,26 @@
     return { key: top.key, label: top.label, reason: top.reason, sig: top.sig || null, action: coachActionFor(top.key, role, row.client, top) };
   }
 
+  // Who the feed says needs this coach, in its own order (red, then amber), split the way the roster's
+  // status reads them: `now` is "Needs you" (red), `week` is "Watch" (amber, this week). A row needs the
+  // coach only with a lead of theirs; a row of routed flags asks nothing of them. Today's board (its
+  // brief and Needs you) and coachBrief below read this one rule.
+  function coachNeeds(feed) {
+    var rows = Array.isArray(feed) ? feed : [];
+    var needs = rows.filter(function (r) {
+      return r && (r.severity === "red" || r.severity === "amber") && r.lead;
+    });
+    return {
+      now: needs.filter(function (r) { return r.severity === "red"; }),
+      week: needs.filter(function (r) { return r.severity !== "red"; }),
+    };
+  }
+
   // Today's brief: "{name} first — {reason}" for the first client the feed says needs this coach, and
   // how many more do; the clear-day line when nobody does (the app's bsProLeadVerdict wording).
   function coachBrief(feed) {
-    var rows = Array.isArray(feed) ? feed : [];
-    var needs = rows.filter(function (r) { return r && (r.severity === "red" || r.severity === "amber") && r.lead; });
+    var split = coachNeeds(feed);
+    var needs = split.now.concat(split.week);
     if (!needs.length) return { text: "Nothing needs you right now.", row: null, more: 0 };
     var r = needs[0];
     return { text: recName(r.client) + " first — " + r.lead.reason, row: r, more: needs.length - 1 };
@@ -2653,6 +2668,31 @@
       trainer: "Monthly recurring", nutritionist: "Monthly recurring",
       resolve: function (ctx) { return kpiMrr(ctx); },
     },
+    reviewed: {
+      trainer: "Check-ins reviewed", nutritionist: "Check-ins reviewed",
+      resolve: function (ctx) {
+        // The window a check-in is still a to-do in (ruleCheckinWaiting): this week's or last week's,
+        // each client's latest. Only a review state that was READ counts: `reviewed` is null when the
+        // coach's reviews could not be read, and that check-in is neither reviewed nor waiting.
+        var now = (ctx && ctx.now instanceof Date) ? ctx.now : new Date();
+        var total = 0, done = 0, unread = 0;
+        kpiRows(ctx).forEach(function (c) {
+          var ci = c && c.checkIn;
+          var latest = ci && ci.latest;
+          var weekOf = latest && typeof latest.weekOf === "string" ? latest.weekOf : ci && typeof ci.lastWeekOf === "string" ? ci.lastWeekOf : null;
+          var wk = weekOf ? toDate(weekOf) : null;
+          if (!wk) return;
+          var age = daysBetween(mondayOf(wk), mondayOf(now));
+          if (age < 0 || age > 7) return;
+          if (latest && latest.reviewed === true) { total += 1; done += 1; }
+          else if (latest && latest.reviewed === false) total += 1;
+          else unread += 1;
+        });
+        // The preview reads no reviews at all, so its check-ins are "live only", not a failed read.
+        if (!total) return { value: null, unit: "count", why: unread ? (kpiLive(ctx) ? UNREAD : LIVE_ONLY) : "no check-ins in the last two weeks" };
+        return { value: done, unit: "count", sub: "of " + total + " · this week and last" };
+      },
+    },
     needsEyes: {
       trainer: "Needs eyes", nutritionist: "Needs eyes",
       resolve: function (ctx) {
@@ -3202,6 +3242,7 @@
     coachActionFor: coachActionFor,
     coachLead: coachLead,
     coachBrief: coachBrief,
+    coachNeeds: coachNeeds,
     memberDraft: memberDraft,
     topFlag: topFlag,
     isDismissed: isDismissed,
