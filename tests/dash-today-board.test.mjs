@@ -316,6 +316,7 @@ test('the payout read: every answer of the route is one honest state', () => {
     [200, { isProvider: true, connected: true, error: true }],
     [200, { isProvider: true, connected: true }],                         // no `next` at all is not "none"
     [200, { isProvider: false }],
+    [200, { isProvider: false, connected: false }],                       // no listing is not "set payouts up"
     [200, { isProvider: true, connected: true, next: { amountCents: null, currency: 'usd' } }],
     [200, { isProvider: true, connected: true, next: { amountCents: 100, currency: '' } }],
     [200, null], [401, { error: 'x' }], [500, { isProvider: true, connected: false }], [503, null],
@@ -361,9 +362,10 @@ test('the next payout prints its amount, currency and arrival day, on the coach\
   const view = T.dashPayoutView({ state: 'next', next: { amountCents: 48312, currency: 'usd', arrivalDate: day(7), status: 'in_transit' } }, zone, NOW);
   assert.deepEqual(view, { state: 'next', k: T.dashPayoutAmount(48312, 'usd'), sub: 'arrives tomorrow · USD' });
   assert.equal(T.dashPayoutView({ state: 'next', next: { amountCents: 100, currency: 'eur', arrivalDate: null } }, zone, NOW).sub, 'on its way, not landed yet · EUR');
-  // The model reads the route's zone (kpiCtx.zone) for the coach's day.
-  const model = T.dashMoneyModel({ kpis: { monthlyNetCents: 1 } }, { live: { kpis: { monthlyNetCents: 1 } }, clients: [], zone }, { state: 'next', next: { amountCents: 100, currency: 'usd', arrivalDate: day(6) } }, NOW);
-  assert.equal(model.payout.sub, 'arrives today · USD');
+  // The model reads the route's zone (kpiCtx.zone) for the coach's day: at 07:00 UTC it is still
+  // the 5th in Los Angeles, so the 6th is tomorrow there.
+  const model = T.dashMoneyModel({ kpis: { monthlyNetCents: 1 } }, { live: { kpis: { monthlyNetCents: 1 } }, clients: [], zone }, { state: 'next', next: { amountCents: 100, currency: 'usd', arrivalDate: day(6) } }, Date.parse('2026-11-06T07:00:00Z'));
+  assert.equal(model.payout.sub, 'arrives tomorrow · USD');
 });
 
 test('the Money card says each payout state, and links to setting payouts up where Business does', async () => {
@@ -660,6 +662,12 @@ test('it runs through the layout store\'s own lane, never in the preview, signed
   assert.equal(G.dgEarlierTodayGate(store, 'trainer', true, 'today'), true);
   assert.equal(G.dgEarlierTodayGate(store, 'trainer', false, 'today'), false, 'a page that did not ask');
   assert.equal(G.dgEarlierTodayGate(store, 'trainer', true, 'clients'), false, 'another tab');
+  // The gate itself, over a store state holding an earlier layout: no account, or a read that has
+  // not come back, is never a reason to copy (the real store holds no document in either case).
+  const holding = (uid, loaded) => ({ uid, read: () => ({ loaded, status: loaded ? 'saved' : 'error', doc: OLD_DOC() }) });
+  assert.equal(G.dgEarlierTodayGate(holding('u1', true), 'trainer', true, 'today'), true);
+  assert.equal(G.dgEarlierTodayGate(holding(null, true), 'trainer', true, 'today'), false, 'the preview or a signed-out page copied');
+  assert.equal(G.dgEarlierTodayGate(holding('u1', false), 'trainer', true, 'today'), false, 'a read not back copied');
   // The op, then the store's flush: one write, the copy and the mark in it.
   store.change((d) => G.dgKeepEarlierToday(d, 'trainer', 'board-1'));
   await store.flush();
