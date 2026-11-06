@@ -20,11 +20,12 @@ or past 12 KB.
   (`src/lib/warroom.ts`), and below if it waits on the owner. The War Room update is the
   last commit of the last PR in flight, once its CI and review are done (owner, 2026-10-16).
 - **Review.**
-  - Read your own diff adversarially before every push.
-  - Codex reviews when a PR opens, a draft is marked ready, or on `@codex review` (never on
-    a later push). Fix or answer every finding; at its usage limit, retry once. Its
-    `commit_id` names the head it read: judge a finding against that, not the comment's head.
-  - Copilot runs on push (or `mcp__github__request_copilot_review`) and often declines.
+  - Read your own diff, and a helper's whole diff, adversarially before pushing (owner,
+    2026-11-06): unread vs empty, partial loads, sample data, old keys, zones, nested buttons.
+  - Codex reviews a PR when it opens and on `@codex review`: post one after every fix (owner,
+    2026-11-06). Fix or answer each finding; at its limit, retry once. Its `commit_id` is the
+    head it read.
+  - Copilot runs on push and often declines.
   - CodeRabbit only when the owner asks on that PR: brief in the PR description, wait for
     its notice, post just `@coderabbitai full review`, one round, never re-trigger ($0.25 a
     file past the included review each hour).

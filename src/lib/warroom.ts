@@ -624,6 +624,25 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach dashboard, part 2: depth and client colours, Today as a six-widget board, the real next payout, and CI in four shards (#2625, #2626, #2627, #2628, #2629)',
+      items: [
+        { label: '#2625 the unit and mount tests run in four shards behind one gate job, "Tests (unit + mount)"; CI takes about 5 to 7 minutes', status: 'done' },
+        { label: '#2626 the goal pages archive with a confirm and restore, and a save is bound to the account that loaded the page', status: 'done' },
+        { label: '#2627 depth: lift tokens per paper in dash.css (the grid cell casts the shadow); client colours: ten hues from an FNV-1a hash of the client id (clientColors.mjs)', status: 'done' },
+        { label: '#2628 Today as six widgets (Brief, Up next, At a glance, Money, Needs you, Today). The brief in the owner\'s words: "3 clients need your attention: …", then "Next up today: … at 2:00 PM", or "No more sessions today."', status: 'done' },
+        { label: '#2628 review: nine Codex findings over eight rounds, each fixed with a test and a mutant (the dock on narrow windows, the account\'s week, row keys, the sample payout and calendar on a failed day feed, the reused needs key, unread overviews, a dead Calendar button). A failed day feed on a signed-in page never shows the sample', status: 'done' },
+        { label: '#2629 a Today layout saved before #2628 is kept as "My earlier dashboard", once (doc.earlierToday); the old needs card is queues there', status: 'done' },
+        { label: '#2629 Money reads the next payout from Stripe (GET /api/coach/next-payout, the Business page\'s loadStripe and next rule); connected means an active account, as checkout rules it', status: 'done' },
+        { label: '#2629 a client a trainer and a nutritionist share, slipping on both sides, is marked Shared in Needs you, with the joint note as its action', status: 'done' },
+        { label: 'Left by #2628: while a signed-in Today\'s first read is in flight, the page shows the sample\'s greeting, figures and calendar for a moment (only Money waits)', status: 'pending' },
+        { label: 'Left by #2628: coaches.jsx\'s Today copy and screenshots describe the old layout; no roster logging trend (records hold 7 days); no ⚙ on At a glance', status: 'pending' },
+        { label: 'Left by #2629: the sidebar money card still says "payouts connect soon"; Business prints Stripe arrival dates on the device\'s clock (a day early west of UTC)', status: 'pending' },
+        { label: 'Left by #2629: a coach who moved, resized or hid a card on #2628\'s board before #2629 shipped saved the new keys, so their earlier layout is not copied', status: 'pending' },
+        { label: 'OWNER: decide #2627\'s client colours: ten hues, not twelve; no mint for clients; whether two clients may share one; Night\'s blue and purple; the lift values derived for Bone, Carbon, Night and Glass', status: 'manual' },
+        { label: 'OWNER: on the deployed site, open coach Today with a saved layout (it moves to My earlier dashboard), a real payout on its way, and a client shared with a nutritionist', status: 'manual' },
+      ],
+    },
+    {
       section: 'Time zones: one per account, set in Settings, and every main screen on the viewer\'s own clock (#2623, #2624). Migration 2026-11-05-account-timezone.sql, run and checked live',
       items: [
         { label: 'Owner, 2026-11-05: "all time zones should be set by user", and other people\'s times "should automatically update to their own timezone"', status: 'done' },
@@ -645,9 +664,9 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2620 correctness: Today and this week on the coach\'s own clock, real program weeks, intro consults, the Score counting what happened (2026-11-05-coach-score-past-sessions.sql)', status: 'done' },
         { label: '#2621 one shared signal builder for the website, the app, Nora and the push; a coach action per reason; new signals; dismiss and snooze (2026-11-05-coach-signal-dismissals.sql)', status: 'done' },
         { label: '#2622 a coach with both listings: a roster snapshot, an alert memory, a program and a dismissal per role; a dietitian rides the nutritionist surface (2026-11-05-coach-signal-dismissals-by-role.sql)', status: 'done' },
-        { label: 'Left by #2622: the app posts one coach roster, from its primary role, with one throttle (shapeBackend.js evaluateNotifications); it should post each coach role it holds', status: 'pending' },
-        { label: 'Left by #2622: the roster\'s PROGRAM column (dashProgramLabel, dashRoster.jsx) reads the single program, not programs[role]', status: 'pending' },
-        { label: 'Left by #2621: the P2 mutation spec (coach-signals-p2-2026-11-05) has stale anchors (ruleMissedSessions(c), v > 5), so --fail-on-skipped reports skips', status: 'pending' },
+        { label: 'Done in #2628: the app posts one coach roster per coach role it holds, each on its own throttle (shapeBackend.js evaluateNotifications)', status: 'done' },
+        { label: 'Done in #2628: the roster\'s PROGRAM column reads programs[role] (dashProgramLabel, dashRoster.jsx)', status: 'done' },
+        { label: 'Done in #2628: the P2 mutation spec\'s anchors moved to the current lines (65 killed, 0 skipped)', status: 'done' },
         { label: 'Next: the new coach dashboard front-end for all coaches, then P3–P7 from their backup branches as its widgets need them', status: 'pending' },
       ],
     },
