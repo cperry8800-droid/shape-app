@@ -36,6 +36,9 @@ export default {
     { name: 'needs you: reuses the old tabbed card\'s key', file: TODAY, find: '{ key: "needsyou", title: "Needs you"', replace: '{ key: "needs", title: "Needs you"' },
     { name: 'reviewed: an unread overview is skipped', file: SIG, find: 'if (meta && meta.state !== "ready") { unread += 1; return; }', replace: '' },
     { name: 'reviewed: a partial count hides the unread', file: SIG, find: ' + (unread ? " · " + unread + " not read yet" : "")', replace: '' },
+    { name: 'page: a failed day feed reads as the preview', file: TODAY, find: 'const sample = source !== "live";', replace: 'const sample = !live;' },
+    { name: 'up next: an unread day is "your schedule is clear"', file: TODAY, find: 'zone={dayZone} unread={!scheduleRead} /> },', replace: 'zone={dayZone} /> },' },
+    { name: 'kpi: an unread day is "0 sessions"', file: SIG, find: 'if (ctx && ctx.scheduleRead === false) return { value: null, unit: "count", why: UNREAD };', replace: '' },
     { name: 'dock: a narrow board still docks', file: GRID, find: 'return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD;', replace: 'return true;' },
 
     // ── Needs you folds at three ──

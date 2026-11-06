@@ -33,7 +33,8 @@ const todayCode = compile(TODAY);
 const gridCode = compile(GRID);
 
 const NAMES = ['dashBriefModel', 'dashBriefPieces', 'dashBriefText', 'dashNextToday', 'dashNeedsItems', 'dashNeedsFold', 'dashNeedsFoldText',
-  'DashNeedsBoard', 'DashBriefCard', 'dashRowKeyOpen', 'dashMoneyModel', 'DashMoneyCard', 'dashGlanceCells', 'DASH_TODAY_BOARD'];
+  'DashNeedsBoard', 'DashBriefCard', 'dashRowKeyOpen', 'dashMoneyModel', 'DashMoneyCard', 'dashGlanceCells', 'DASH_TODAY_BOARD',
+  'DashUpNextCard', 'DashTimelineCard'];
 function today(win) {
   return new Function('React', 'window', 'DashSignals', 'useDashUnits', 'useRememberedChoice', 'dashMilestonesIn', 'serif', 'sans', 'mono', 'INK', 'TEAL_BRIGHT',
     todayCode + ';return {' + NAMES.join(',') + '};')(React, win, DashSignals, () => null, (s, k, a, f) => React.useState(f), (ms) => ms, 'serif', 'sans', 'monospace', '#f2ede4', '#2ee0c4');
@@ -332,4 +333,41 @@ test('the catalogue opens beside the board, not over it, and stays open while th
   const fits = new Function(GRID.slice(GRID.indexOf('const DG_DOCK_COL'), GRID.indexOf('// The docked panel:')) + ';return dgDockFits;')();
   assert.deepEqual([1312, 1152, 972, 864, 0].map(fits), [true, true, false, false, true]);
   assert.equal(/<DashGrid role=\{role\} tab="today" widgets=\{gridWidgets\} dockCatalog=\{!!dockCatalog\} \/>/.test(read('trainerDashboard.jsx')), true);
+});
+
+// ── A signed-in coach whose day feed failed ──────────────────────────────────
+// `live` is null on that page too, so nothing may read `!live` as the preview: no sample name,
+// figures, calendar, pulse or sessions, and no "your schedule is clear" over a day nobody read.
+test('a failed day feed is unread on a live page, never the sample and never a clear day', async () => {
+  const page = TODAY.slice(TODAY.indexOf('function CoachDashboardPage('));
+  assert.equal(/const sample = source !== "live";/.test(page), true);
+  assert.equal(/const firstName = live \? live\.user\.firstName : sample \? cfg\.mockName : "";/.test(page), true);
+  assert.equal(/: sample \? cfg\.mockKpis\(\)/.test(page), true);
+  assert.equal(/: sample \? dashDemoCalendar\(cfg\.mockCalendar\) : null;/.test(page), true);
+  assert.equal(/\(sample \? cfg\.mockPulse : \[/.test(page), true);
+  assert.equal(/const scheduleRead = !!todayRows \|\| sample;/.test(page), true);
+  assert.equal(/\? \(!sample \? \[\{ time: "—", who: "Today's " \+ cfg\.unit \+ "s couldn't be read"/.test(page), true);
+  assert.equal((page.match(/unread=\{!scheduleRead\}/g) || []).length, 2, 'Up next and the timeline both take the read flag');
+  assert.equal(/greeting=\{firstName \? cfg\.greeting\(firstName\) : "Good morning\."\}/.test(page), true);
+  // No mock fallback is left keyed on `live` alone.
+  assert.equal(/live \? [^\n]*: cfg\.mock/.test(page), false);
+  // The KPI pool's sessions count is unread too, not "0 · all done".
+  const ses = DashSignals.dashKpiValue('todaySessions', { schedule: [], scheduleRead: false });
+  assert.equal(ses.value, null);
+  assert.equal(ses.why, "couldn't be read");
+  assert.equal(DashSignals.dashKpiValue('todaySessions', { schedule: [] }).value, 0, 'a read, empty day is 0');
+
+  const m = mount();
+  try {
+    const t = today(m.dom.window);
+    const empty = { now: Date.now(), items: [], nextIdx: -1, next: null };
+    await m.render(React.createElement(t.DashUpNextCard, { rows: null, state: empty, clients: [], role: 'trainer', unit: 'session', zone: null, single: true, unread: true }));
+    assert.equal(document.querySelector('[data-dash-upnext]').getAttribute('data-dash-upnext'), 'unread');
+    assert.equal(/couldn't be read/.test(m.text()) && !/schedule is clear/.test(m.text()), true);
+    await m.render(React.createElement(t.DashUpNextCard, { rows: [], state: empty, clients: [], role: 'trainer', unit: 'session', zone: null, single: true }));
+    assert.equal(document.querySelector('[data-dash-upnext]').getAttribute('data-dash-upnext'), 'clear', 'a read, empty day is clear');
+    await m.render(React.createElement(t.DashTimelineCard, { rows: null, state: empty, unit: 'session', zone: null, clients: [], role: 'trainer', card: true, unread: true }));
+    assert.equal(document.querySelector('[data-dash-timeline]').getAttribute('data-dash-timeline'), 'unread');
+    assert.equal(/couldn't be read/.test(m.text()) && !/0 sessions/.test(m.text()), true);
+  } finally { await m.done(); }
 });

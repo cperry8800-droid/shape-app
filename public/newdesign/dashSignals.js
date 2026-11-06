@@ -2637,6 +2637,8 @@
     todaySessions: {
       trainer: "Sessions today", nutritionist: "Consults today",
       resolve: function (ctx) {
+        // A day feed that failed is not "0 · all done" (the page's own read flag, never inferred).
+        if (ctx && ctx.scheduleRead === false) return { value: null, unit: "count", why: UNREAD };
         var rows = (ctx && Array.isArray(ctx.schedule)) ? ctx.schedule : [];
         // The empty-schedule row carries "—" as its time; it is a placeholder, not a session.
         var real = rows.filter(function (s) { return s && s.time && s.time !== "—"; });

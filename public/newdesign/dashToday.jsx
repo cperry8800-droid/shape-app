@@ -1899,7 +1899,7 @@ const DASH_NOW_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 
 
 // Up next: the session the coach is in or goes to next, what they know about the client, and a
 // way to reach them. `single` is the board's widget: one action (Message), the name opens the file.
-function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false }) {
+function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false }) {
   const units = useDashUnits();
   const { now, items, next } = state;
   const rec = next ? dashFindRecord(clients, next.who) : null;
@@ -1935,8 +1935,8 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
         </React.Fragment>
       ) : (
         <React.Fragment>
-          <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{items.length ? "Done for today" : "Nothing booked today"}</span>
-          <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
+          <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{unread ? "Today" : items.length ? "Done for today" : "Nothing booked today"}</span>
+          <div data-dash-upnext={unread ? "unread" : items.length ? "done" : "clear"} style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{unread ? "Today's " + unit + "s couldn't be read just now." : items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
           <a href={dashTabHref("schedule", role)} style={{ display: "inline-block", fontSize: 13, marginTop: 10, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a>
         </React.Fragment>
       )}
@@ -1946,7 +1946,7 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
 
 // Today's timeline, marked where the day is. `clients` (the board's widget) draws each name in
 // its client's colour when the row's client is on the roster.
-function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, role, card = false }) {
+function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, role, card = false, unread = false }) {
   const { now, items, nextIdx } = state;
   const eyebrow = DASH_NOW_EYEBROW;
   const plural = unit + (items.length === 1 ? "" : "s");
@@ -1967,9 +1967,9 @@ function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, ro
         <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Today</h2>
         {onOpenCalendar
           ? <button type="button" onClick={onOpenCalendar} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", ...eyebrow, color: "var(--sh-accent-ink, #2ee0c4)" }}>Calendar →</button>
-          : <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{items.length} {plural}</span>}
+          : <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{unread ? "—" : items.length + " " + plural}</span>}
       </div>
-      {items.length === 0 && <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "9px 0" }}>{"No " + unit + "s on today's timeline. "}<a href={dashTabHref("schedule", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a></div>}
+      {items.length === 0 && <div data-dash-timeline={unread ? "unread" : "empty"} style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "9px 0" }}>{unread ? "Today's timeline couldn't be read just now. " : "No " + unit + "s on today's timeline. "}<a href={dashTabHref("schedule", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a></div>}
       {items.map((r, i) => {
         const ink = r.done ? null : inkOf(r.who);
         return (
@@ -2262,13 +2262,15 @@ function DashNeedsWidget({ split, clients, feed, role, prefs, dismiss }) {
   }
   return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units))} feed={feed} role={role} prefs={prefs} dismiss={dismiss} />;
 }
-function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone }) {
+// `unread`: a signed-in coach's day feed failed (rows null on a live page). Neither card may then
+// say the day is clear or done; that is a claim about a day nobody read.
+function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone, unread = false }) {
   const state = useDashNowState(rows, demoRows);
-  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single />;
+  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single unread={unread} />;
 }
-function DashTimelineWidget({ rows, demoRows, clients, role, unit, zone, onOpenCalendar }) {
+function DashTimelineWidget({ rows, demoRows, clients, role, unit, zone, onOpenCalendar, unread = false }) {
   const state = useDashNowState(rows, demoRows);
-  return <div data-dash-lift="0"><DashTimelineCard rows={rows} state={state} unit={unit} zone={zone} clients={clients} role={role} onOpenCalendar={onOpenCalendar} card /></div>;
+  return <div data-dash-lift="0"><DashTimelineCard rows={rows} state={state} unit={unit} zone={zone} clients={clients} role={role} onOpenCalendar={onOpenCalendar} card unread={unread} /></div>;
 }
 
 // At a glance: three figures, each from the KPI pool's own derivation (dashSignals.js), so a figure
@@ -2393,13 +2395,20 @@ function CoachDashboardPage({ role }) {
   const [overviewKpis, setOverviewKpis] = useDashKpiStrip(prefs, "overview", role, DASH_OVERVIEW_DEFAULT);
   const [practiceChosen, setPracticeKpis] = useDashKpiStrip(prefs, "practice", role, DASH_PRACTICE_DEFAULT);
 
-  const firstName = live ? live.user.firstName : cfg.mockName;
+  // ⚠ THE SAMPLE IS FOR THE PREVIEW ONLY. `sample` is the page's own source, never `!live`: a
+  // signed-in coach whose day feed failed while the roster loaded has `live` null too, and every
+  // `live ? … : mock` below used to put the sample's name, figures, calendar and pulse on their page.
+  const sample = source !== "live";
+  const firstName = live ? live.user.firstName : sample ? cfg.mockName : "";
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
   // The zone the route cut Today in, so its clocks print in it (dashFmtTime's note).
   const dayZone = live && typeof live.dayZone === "string" && live.dayZone ? live.dayZone : null;
+  // ⚠ THE SAMPLE'S SESSIONS ARE FOR THE PREVIEW ONLY: a signed-in coach whose day feed failed gets
+  // one row saying so, never the sample's day as theirs (the optional Schedule card, the KPI pool).
+  const scheduleRead = !!todayRows || sample;
   const schedule = !todayRows
-    ? cfg.mockSchedule
+    ? (!sample ? [{ time: "—", who: "Today's " + cfg.unit + "s couldn't be read", sub: "Reload to try again" }] : cfg.mockSchedule)
     : todayRows.length
       ? todayRows.map((s, i) => ({
           time: dashFmtTime(s.scheduledAt, dayZone),
@@ -2421,14 +2430,16 @@ function CoachDashboardPage({ role }) {
   // Everything the KPI pool derives from, gathered once. Nothing here is fetched for the
   // strips — it is the state Today already holds — which is the constraint that decides
   // what may be in the pool at all.
-  const kpiCtx = { live, clients, triage, queue, schedule, role, kpiKeys: cfg.kpiKeys, zone: dayZone };
+  const kpiCtx = { live, clients, triage, queue, schedule, scheduleRead, role, kpiKeys: cfg.kpiKeys, zone: dayZone };
 
   // ⚠ THE OVERVIEW STRIP IS THE PAYOUT PREVIEW WHEN THERE IS NO LIVE PAYLOAD, AND IT IS
   // NOT CONFIGURABLE THERE. Those four demo figures are a preview of the money card, not
   // a reading of this account, so offering a picker over them would let a visitor
   // rearrange numbers that describe nobody. R18's rule from the other side: the ⚙ is
   // withheld where there is nothing card-level to configure.
-  const kpis = live ? overviewKpis.map((k) => dashKpiCell(k, role, kpiCtx)) : cfg.mockKpis();
+  const kpis = live ? overviewKpis.map((k) => dashKpiCell(k, role, kpiCtx))
+    : sample ? cfg.mockKpis()
+    : overviewKpis.map((k) => { const c = dashKpiCell(k, role, kpiCtx); return c.k === "\u2014" ? { ...c, sub: "couldn't be read" } : c; });
   // The practice strip derives from the roster, the queue and today's schedule, all of
   // which the preview has — so its picker works in both states (unsaved when signed out,
   // exactly as every other remembered control on this page behaves).
@@ -2436,11 +2447,11 @@ function CoachDashboardPage({ role }) {
 
   const calendarEvents = live && Array.isArray(live.calendar)
     ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub, durationMin: e.durationMin, sharedCoach: e.sharedCoach }))
-    : dashDemoCalendar(cfg.mockCalendar);
+    : sample ? dashDemoCalendar(cfg.mockCalendar) : null;
 
   const pulseRows = live && Array.isArray(live.pulse) ? live.pulse : null;
   const pulse = !pulseRows
-    ? cfg.mockPulse
+    ? (sample ? cfg.mockPulse : [{ who: "Couldn't be read", sub: "Reload to try again", trend: DASH_FLAT_TREND }])
     : pulseRows.length
       ? pulseRows.map(c => ({ who: c.name, sub: c.sessions + (c.sessions === 1 ? " " + cfg.unit : " " + cfg.unit + "s"), trend: DASH_FLAT_TREND }))
       : [cfg.emptyPulse];
@@ -2512,7 +2523,7 @@ function CoachDashboardPage({ role }) {
     { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", size: "wide",
       render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} /> },
     { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", size: "narrow",
-      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} /> },
+      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} /> },
     { key: "glance", title: "At a glance", blurb: (role === "nutritionist" ? "Plans" : "Programs") + " due, check-ins reviewed and roster logging.", size: "wide",
       render: () => <DashGlanceCard cells={glance} /> },
     { key: "money", title: "Money", blurb: "Recurring revenue, and the next payout where this page can read it.", size: "narrow",
@@ -2520,7 +2531,7 @@ function CoachDashboardPage({ role }) {
     { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
       render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} role={role} prefs={prefs} dismiss={dismiss} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", size: "narrow",
-      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={openCalendar} /> },
+      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={openCalendar} unread={!scheduleRead} /> },
     // ── Optional (off until added) ──
     // The tabbed queues that led the old board: client attention, new clients, check-ins, replies
     // and programs, one tab each.
@@ -2591,7 +2602,7 @@ function CoachDashboardPage({ role }) {
       calendarOpener={openCalRef}
       userName={firstName}
       date={cfg.date()}
-      greeting={cfg.greeting(firstName)}
+      greeting={firstName ? cfg.greeting(firstName) : "Good morning."}
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}

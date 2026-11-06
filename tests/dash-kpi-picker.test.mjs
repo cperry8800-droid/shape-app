@@ -175,7 +175,7 @@ test('the OVERVIEW picker is offered only with a live payload; PRACTICE always',
   assert.match(TODAY, /settings: live \? dashKpiSettings\(overviewKpis, role, setOverviewKpis\) : undefined/);
   assert.match(TODAY, /settings: dashKpiSettings\(practiceChosen, role, setPracticeKpis\)/);
   assert.match(TODAY, /const kpis = live \? overviewKpis\.map/);
-  assert.match(TODAY, /: cfg\.mockKpis\(\)/, 'the preview stopped showing the payout preview');
+  assert.match(TODAY, /: sample \? cfg\.mockKpis\(\)/, 'the preview stopped showing the payout preview');
 });
 
 test('the strip formats from the RAW value — the pure module never formats money', () => {
