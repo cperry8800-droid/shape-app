@@ -33,7 +33,7 @@ const todayCode = compile(TODAY);
 const gridCode = compile(GRID);
 
 const NAMES = ['dashBriefModel', 'dashBriefPieces', 'dashBriefText', 'dashNextToday', 'dashNeedsItems', 'dashNeedsFold', 'dashNeedsFoldText',
-  'DashNeedsBoard', 'DashBriefCard', 'dashMoneyModel', 'DashMoneyCard', 'dashGlanceCells', 'DASH_TODAY_BOARD'];
+  'DashNeedsBoard', 'DashBriefCard', 'dashRowKeyOpen', 'dashMoneyModel', 'DashMoneyCard', 'dashGlanceCells', 'DASH_TODAY_BOARD'];
 function today(win) {
   return new Function('React', 'window', 'DashSignals', 'useDashUnits', 'useRememberedChoice', 'dashMilestonesIn', 'serif', 'sans', 'mono', 'INK', 'TEAL_BRIGHT',
     todayCode + ';return {' + NAMES.join(',') + '};')(React, win, DashSignals, () => null, (s, k, a, f) => React.useState(f), (ms) => ms, 'serif', 'sans', 'monospace', '#f2ede4', '#2ee0c4');
@@ -153,6 +153,15 @@ test('Needs you shows three rows, then folds the rest into gems with what they a
   assert.equal(T.dashNeedsFold(items.slice(0, 3)).rest.length, 0);
   // Extra reds fold too, and say so.
   assert.equal(T.dashNeedsFoldText(T.dashNeedsFold(now.concat(now).map((r, i) => ({ ...T.dashNeedsItems({ now: [r], week: [] }, [])[0], id: 'x' + i })))), '3 more need you');
+
+  // A row's keys open its drawer; the same keys on its action button are the button's (#2628 review).
+  const rowEl = {}, btnEl = {};
+  const key = (k, target) => { const e = { key: k, target, currentTarget: rowEl, prevented: false, preventDefault() { this.prevented = true; } }; let opened = 0; T.dashRowKeyOpen(e, true, () => { opened += 1; }); return { opened, prevented: e.prevented }; };
+  assert.deepEqual(key('Enter', rowEl), { opened: 1, prevented: true });
+  assert.deepEqual(key(' ', rowEl), { opened: 1, prevented: true });
+  assert.deepEqual(key('Enter', btnEl), { opened: 0, prevented: false }, 'Enter on Message is Message, not the drawer');
+  assert.deepEqual(key(' ', btnEl), { opened: 0, prevented: false });
+  assert.deepEqual(key('a', rowEl), { opened: 0, prevented: false });
 
   const m = mount();
   try {

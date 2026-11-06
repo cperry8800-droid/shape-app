@@ -2111,6 +2111,15 @@ function dashBriefPieces(model) {
 }
 function dashBriefText(model) { return dashBriefPieces(model).map((p) => p.t).join(""); }
 
+// ⚠ ONLY THE ROW'S OWN KEYS OPEN THE DRAWER (#2628 review). Enter or Space on the row's action
+// button (Message, Congratulate) bubbles up to the row; taking it there would cancel the button's
+// own activation and open the drawer instead.
+function dashRowKeyOpen(e, canOpen, open) {
+  if (!canOpen || e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  open();
+}
+
 // The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
 // day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
 function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit }) {
@@ -2200,7 +2209,7 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
     return (
       <div key={(it.id != null ? it.id : "x") + ":" + i} data-dash-need={it.kind}
         onClick={() => { if (canOpen) setSelectedId(it.id); }}
-        onKeyDown={(e) => { if (canOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setSelectedId(it.id); } }}
+        onKeyDown={(e) => dashRowKeyOpen(e, canOpen, () => setSelectedId(it.id))}
         role={canOpen ? "button" : undefined} tabIndex={canOpen ? 0 : undefined} aria-label={canOpen ? "Open " + it.name : undefined}
         style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "11px 2px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", cursor: canOpen ? "pointer" : "default" }}>
         <DashClientGem id={it.id} fallback={DASH_NEEDS_KINDS[it.kind].color} />

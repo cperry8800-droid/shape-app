@@ -31,6 +31,7 @@ export default {
     { name: 'brief: an unread pulse reads "nobody"', file: TODAY, find: 'return { count: read ? rows.length : null, names,', replace: 'return { count: rows.length, names,' },
     { name: 'brief: an unread day says "No more sessions today."', file: TODAY, find: 'dayRead: !!(day && day.read)', replace: 'dayRead: true' },
     { name: 'reviewed: the device\'s week, not the account\'s', file: SIG, find: ': new Date(), ctx && ctx.zone);', replace: ': new Date(), null);' },
+    { name: 'needs you: Enter on a row\'s action opens the drawer', file: TODAY, find: 'if (!canOpen || e.target !== e.currentTarget || (e.key', replace: 'if (!canOpen || (e.key' },
     { name: 'dock: a narrow board still docks', file: GRID, find: 'return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD;', replace: 'return true;' },
 
     // ── Needs you folds at three ──
