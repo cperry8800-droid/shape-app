@@ -225,7 +225,7 @@ test('At a glance is three figures from the KPI pool, and Check-ins reviewed cou
   const ctx = { clients: [ck('a', '2026-11-02', true), ck('b', '2026-10-26', false), ck('c', '2026-11-02', null), ck('d', '2026-10-12', false)], queue: [{ state: 'ready' }, { state: 'draft' }], role: 'trainer', now: NOW };
   const out = DashSignals.dashKpiValue('reviewed', ctx);
   assert.equal(out.value, 1);
-  assert.equal(out.sub, 'of 2 · this week and last', 'an unread review and a month-old check-in are not counted');
+  assert.equal(out.sub, 'of 2 · this week and last · 1 not read yet', 'an unread review is not counted but is said; a month-old check-in is not counted');
   const unread = DashSignals.dashKpiValue('reviewed', { live: { kpis: {} }, clients: [ck('c', '2026-11-02', null)], now: NOW });
   assert.equal(unread.value, null);
   assert.equal(unread.why, "couldn't be read");
@@ -235,6 +235,15 @@ test('At a glance is three figures from the KPI pool, and Check-ins reviewed cou
   assert.equal(DashSignals.dashKpiValue('reviewed', { live: { kpis: {} }, clients: [dated], now: NOW }).why, "couldn't be read");
   assert.equal(DashSignals.dashKpiValue('reviewed', { live: null, clients: [dated], now: NOW }).why, 'live only');
   assert.equal(DashSignals.dashKpiValue('reviewed', { clients: [], now: NOW }).why, 'no check-ins in the last two weeks');
+  // An overview still loading, or failed, is not "no check-in" (#2628 review): it is unread.
+  const pending = (id, state) => ({ profile: { id, name: id }, progressRead: { state, checkedAt: null }, checkIn: null });
+  const part = DashSignals.dashKpiValue('reviewed', { live: { kpis: {} }, clients: [ck('a', '2026-11-02', true), pending('l', 'loading'), pending('u', 'unavailable')], now: NOW });
+  assert.equal(part.value, 1);
+  assert.equal(part.sub, 'of 1 · this week and last · 2 not read yet');
+  const none = DashSignals.dashKpiValue('reviewed', { live: { kpis: {} }, clients: [pending('l', 'loading')], now: NOW });
+  assert.equal(none.value, null);
+  assert.equal(none.why, "couldn't be read", 'never "no check-ins" while an overview is unread');
+  assert.equal(DashSignals.dashKpiValue('reviewed', { live: { kpis: {} }, clients: [{ ...ck('r', '2026-11-02', true), progressRead: { state: 'ready' } }], now: NOW }).value, 1, 'a read overview counts');
   // The account's week, not the device's (#2628 review): 03:00 UTC on Monday 9 November is still
   // Sunday in New York, whose "last week" is 26 October, and already Monday noon in Tokyo.
   const prevZ = globalThis.ShapeZone;

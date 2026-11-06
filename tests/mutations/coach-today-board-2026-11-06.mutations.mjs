@@ -34,6 +34,8 @@ export default {
     { name: 'needs you: Enter on a row\'s action opens the drawer', file: TODAY, find: 'if (!canOpen || e.target !== e.currentTarget || (e.key', replace: 'if (!canOpen || (e.key' },
     { name: 'reviewed: no zone passed reads the device\'s week', file: SIG, find: ': (Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null);', replace: ': null;' },
     { name: 'needs you: reuses the old tabbed card\'s key', file: TODAY, find: '{ key: "needsyou", title: "Needs you"', replace: '{ key: "needs", title: "Needs you"' },
+    { name: 'reviewed: an unread overview is skipped', file: SIG, find: 'if (meta && meta.state !== "ready") { unread += 1; return; }', replace: '' },
+    { name: 'reviewed: a partial count hides the unread', file: SIG, find: ' + (unread ? " · " + unread + " not read yet" : "")', replace: '' },
     { name: 'dock: a narrow board still docks', file: GRID, find: 'return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD;', replace: 'return true;' },
 
     // ── Needs you folds at three ──

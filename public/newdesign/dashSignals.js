@@ -2689,6 +2689,11 @@
         var now = dayInZone((ctx && ctx.now instanceof Date) ? ctx.now : new Date(), ctx && ctx.zone);
         var total = 0, done = 0, unread = 0;
         kpiRows(ctx).forEach(function (c) {
+          // ⚠ AN UNREAD OVERVIEW IS NOT "NO CHECK-IN" (#2628 review): while a client's overview loads,
+          // or after it failed, the row holds no checkIn at all; skipping it said "no check-ins" or
+          // shrank the count. Like progressStatus, only a read overview is evidence.
+          var meta = c && c.progressRead;
+          if (meta && meta.state !== "ready") { unread += 1; return; }
           var ci = c && c.checkIn;
           var latest = ci && ci.latest;
           var weekOf = latest && typeof latest.weekOf === "string" ? latest.weekOf : ci && typeof ci.lastWeekOf === "string" ? ci.lastWeekOf : null;
@@ -2702,7 +2707,7 @@
         });
         // The preview reads no reviews at all, so its check-ins are "live only", not a failed read.
         if (!total) return { value: null, unit: "count", why: unread ? (kpiLive(ctx) ? UNREAD : LIVE_ONLY) : "no check-ins in the last two weeks" };
-        return { value: done, unit: "count", sub: "of " + total + " · this week and last" };
+        return { value: done, unit: "count", sub: "of " + total + " · this week and last" + (unread ? " · " + unread + " not read yet" : "") };
       },
     },
     needsEyes: {
