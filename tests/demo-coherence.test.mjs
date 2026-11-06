@@ -177,7 +177,7 @@ test('the demo calendar lands on this week, and its payout row follows the strip
   // SURVIVED, because every assertion above drives the function directly — a shift nobody
   // applies leaves April on the screen.
   const src = stripComments(TODAY);
-  assert.match(src, /: dashDemoCalendar\(cfg\.mockCalendar\);/, 'the page renders the unshifted April calendar');
+  assert.match(src, /: sample \? dashDemoCalendar\(cfg\.mockCalendar\) : null;/, 'the page renders the unshifted April calendar');
   assert.ok(!/: cfg\.mockCalendar;/.test(src), 'the raw demo calendar is still rendered somewhere');
 });
 

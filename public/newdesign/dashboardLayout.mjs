@@ -3,8 +3,9 @@
 // (auto-positioned), drop stale ones, filter hidden to declared keys. Mirrored inline
 // in dashGrid.jsx (as dg*) — keep the two identical.
 
-// size → GridStack column span on the 12-col grid (full row vs half).
-export function widgetW(size) { return size === 'full' ? 12 : 6; }
+// size → GridStack column span on the 12-col grid: a full row, half, or the Today board's
+// pairs of two thirds (`wide`, 8) beside one third (`narrow`, 4).
+export function widgetW(size) { return size === 'full' ? 12 : size === 'wide' ? 8 : size === 'narrow' ? 4 : 6; }
 
 // ⚠ A WIDGET DECLARES EMPTINESS; IT DOES NOT DISAPPEAR FROM THE LIST.
 // Call sites used to write `flag ? { key, … } : null`, and that shape cannot work:

@@ -209,6 +209,16 @@
     return isNaN(d.getTime()) ? null : d;
   }
   function daysBetween(a, b) { return Math.floor((b.getTime() - a.getTime()) / DAY); }
+  // The calendar day `now` falls on in the account's `zone`, as a local Date that mondayOf and
+  // daysBetween read the way they read a "YYYY-MM-DD" weekOf. With no zone passed (the day feed
+  // failed while the roster loaded), shapeZone.mjs's viewer zone, which is the account's once
+  // /api/me/timezone has answered (#2628 review); the device's day only without shapeZone.mjs.
+  function dayInZone(now, zone) {
+    var Z = typeof globalThis !== "undefined" && globalThis.ShapeZone && typeof globalThis.ShapeZone.partsInZone === "function" ? globalThis.ShapeZone : null;
+    var z = typeof zone === "string" && zone ? zone : (Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null);
+    var p = Z && typeof z === "string" && z ? Z.partsInZone(now.getTime(), z) : null;
+    return p ? new Date(p.y, p.mo - 1, p.d, 12) : now;
+  }
   function mondayOf(d) {
     var x = new Date(d.getTime());
     x.setHours(0, 0, 0, 0);
@@ -2047,11 +2057,26 @@
     return { key: top.key, label: top.label, reason: top.reason, sig: top.sig || null, action: coachActionFor(top.key, role, row.client, top) };
   }
 
+  // Who the feed says needs this coach, in its own order (red, then amber), split the way the roster's
+  // status reads them: `now` is "Needs you" (red), `week` is "Watch" (amber, this week). A row needs the
+  // coach only with a lead of theirs; a row of routed flags asks nothing of them. Today's board (its
+  // brief and Needs you) and coachBrief below read this one rule.
+  function coachNeeds(feed) {
+    var rows = Array.isArray(feed) ? feed : [];
+    var needs = rows.filter(function (r) {
+      return r && (r.severity === "red" || r.severity === "amber") && r.lead;
+    });
+    return {
+      now: needs.filter(function (r) { return r.severity === "red"; }),
+      week: needs.filter(function (r) { return r.severity !== "red"; }),
+    };
+  }
+
   // Today's brief: "{name} first — {reason}" for the first client the feed says needs this coach, and
   // how many more do; the clear-day line when nobody does (the app's bsProLeadVerdict wording).
   function coachBrief(feed) {
-    var rows = Array.isArray(feed) ? feed : [];
-    var needs = rows.filter(function (r) { return r && (r.severity === "red" || r.severity === "amber") && r.lead; });
+    var split = coachNeeds(feed);
+    var needs = split.now.concat(split.week);
     if (!needs.length) return { text: "Nothing needs you right now.", row: null, more: 0 };
     var r = needs[0];
     return { text: recName(r.client) + " first — " + r.lead.reason, row: r, more: needs.length - 1 };
@@ -2612,6 +2637,8 @@
     todaySessions: {
       trainer: "Sessions today", nutritionist: "Consults today",
       resolve: function (ctx) {
+        // A day feed that failed is not "0 · all done" (the page's own read flag, never inferred).
+        if (ctx && ctx.scheduleRead === false) return { value: null, unit: "count", why: UNREAD };
         var rows = (ctx && Array.isArray(ctx.schedule)) ? ctx.schedule : [];
         // The empty-schedule row carries "—" as its time; it is a placeholder, not a session.
         var real = rows.filter(function (s) { return s && s.time && s.time !== "—"; });
@@ -2652,6 +2679,38 @@
     mrr: {
       trainer: "Monthly recurring", nutritionist: "Monthly recurring",
       resolve: function (ctx) { return kpiMrr(ctx); },
+    },
+    reviewed: {
+      trainer: "Check-ins reviewed", nutritionist: "Check-ins reviewed",
+      resolve: function (ctx) {
+        // The window a check-in is still a to-do in (ruleCheckinWaiting): this week's or last week's,
+        // each client's latest. Only a review state that was READ counts: `reviewed` is null when the
+        // coach's reviews could not be read, and that check-in is neither reviewed nor waiting.
+        // ⚠ THE ACCOUNT'S WEEK, NOT THE DEVICE'S: Sunday night in New York is already Monday on a
+        // laptop in London, which would drop last week's check-ins a day early.
+        var now = dayInZone((ctx && ctx.now instanceof Date) ? ctx.now : new Date(), ctx && ctx.zone);
+        var total = 0, done = 0, unread = 0;
+        kpiRows(ctx).forEach(function (c) {
+          // ⚠ AN UNREAD OVERVIEW IS NOT "NO CHECK-IN" (#2628 review): while a client's overview loads,
+          // or after it failed, the row holds no checkIn at all; skipping it said "no check-ins" or
+          // shrank the count. Like progressStatus, only a read overview is evidence.
+          var meta = c && c.progressRead;
+          if (meta && meta.state !== "ready") { unread += 1; return; }
+          var ci = c && c.checkIn;
+          var latest = ci && ci.latest;
+          var weekOf = latest && typeof latest.weekOf === "string" ? latest.weekOf : ci && typeof ci.lastWeekOf === "string" ? ci.lastWeekOf : null;
+          var wk = weekOf ? toDate(weekOf) : null;
+          if (!wk) return;
+          var age = daysBetween(mondayOf(wk), mondayOf(now));
+          if (age < 0 || age > 7) return;
+          if (latest && latest.reviewed === true) { total += 1; done += 1; }
+          else if (latest && latest.reviewed === false) total += 1;
+          else unread += 1;
+        });
+        // The preview reads no reviews at all, so its check-ins are "live only", not a failed read.
+        if (!total) return { value: null, unit: "count", why: unread ? (kpiLive(ctx) ? UNREAD : LIVE_ONLY) : "no check-ins in the last two weeks" };
+        return { value: done, unit: "count", sub: "of " + total + " · this week and last" + (unread ? " · " + unread + " not read yet" : "") };
+      },
     },
     needsEyes: {
       trainer: "Needs eyes", nutritionist: "Needs eyes",
@@ -3202,6 +3261,7 @@
     coachActionFor: coachActionFor,
     coachLead: coachLead,
     coachBrief: coachBrief,
+    coachNeeds: coachNeeds,
     memberDraft: memberDraft,
     topFlag: topFlag,
     isDismissed: isDismissed,

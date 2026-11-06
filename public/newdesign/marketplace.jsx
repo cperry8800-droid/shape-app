@@ -457,7 +457,7 @@ function mkSlotText(s, withDay = true) {
     if (key && time) return withDay ? day + " · " + time : time;
   }
   const d = new Date(s.ms);
-  const today = new Date(); const tom = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const today = new Date(Date.now()); const tom = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
   const same = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   const day = same(d, today) ? "Today" : same(d, tom) ? "Tomorrow" : d.toLocaleDateString(undefined, { weekday: "short" });
   const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });

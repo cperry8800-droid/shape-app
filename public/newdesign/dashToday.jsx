@@ -876,13 +876,7 @@ function ProgrammingQueuePanel({ queue, role, live }) {
 function DashWinsPanel({ clients, role }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
   const units = useDashUnits();
-  const rows = [];
-  for (const c of clients) {
-    const ms = dashMilestonesIn(DashSignals.buildMilestones(c), units);
-    const hit = ms.recent.find((m) => m.hitAt); // dated hits only (not active-streak fills)
-    if (hit) rows.push({ client: c, hit });
-  }
-  rows.sort((a, b) => String(b.hit.hitAt).localeCompare(String(a.hit.hitAt)));
+  const rows = dashWinRows(clients, units);
   if (!rows.length) return <div style={{ fontSize: 13, color: ink50 }}>Milestones appear here as clients log and share progress.</div>;
   return (
     <div>
@@ -1883,14 +1877,15 @@ function dashCountdown(ms) {
 // a cancelled 3pm read "UP NEXT" with a Message button. The set is the calendar's own
 // (`.in('status', ['confirmed', 'requested', 'completed'])` in both routes).
 const DASH_NOW_STATUSES = ["requested", "confirmed", "completed"];
-function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar, zone }) {
+// The day's rows with each one's state, and which is up next. Shared by the day column and by
+// the board's Up next and Today widgets, so all three agree on the same rule.
+function useDashNowState(rows, demoRows) {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
     if (!rows) return undefined;
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
   }, [!!rows]);
-  const units = useDashUnits();
   const items = rows
     ? rows.filter((r) => !r.status || DASH_NOW_STATUSES.indexOf(r.status) !== -1)
         .map((r) => ({ ...r, done: r.status === "completed" || +r.end <= now, live: r.status !== "completed" && +r.at <= now && now < +r.end }))
@@ -1898,6 +1893,15 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar, zo
   let nextIdx = rows ? items.findIndex((r) => !r.done) : items.findIndex((r) => r.status === "NEXT");
   if (!rows && nextIdx < 0) nextIdx = items.findIndex((r) => !r.done);
   const next = nextIdx >= 0 ? items[nextIdx] : null;
+  return { now, items, nextIdx, next };
+}
+const DASH_NOW_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" };
+
+// Up next: the session the coach is in or goes to next, what they know about the client, and a
+// way to reach them. `single` is the board's widget: one action (Message), the name opens the file.
+function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false }) {
+  const units = useDashUnits();
+  const { now, items, next } = state;
   const rec = next ? dashFindRecord(clients, next.who) : null;
   const context = rec ? dashContextLine(rec, units) : "";
   const fileHref = rec ? dashClientHref(rec, role) : null;
@@ -1905,72 +1909,433 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar, zo
     : !rows ? "UP NEXT"
     : next.live ? "ON NOW · UNTIL " + dashFmtTime(next.end, zone)
     : "UP NEXT · IN " + dashCountdown(+next.at - now);
-  const eyebrow = { fontFamily: mono, fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" };
+  const eyebrow = DASH_NOW_EYEBROW;
   const btn = { flex: 1, minHeight: 38, borderRadius: 9, font: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", boxSizing: "border-box" };
+  const ink = single && rec && rec.profile ? dashTodayInk(rec.profile.id) : null;
+  const name = next ? <span className={ink ? ink.className : undefined} style={ink ? ink.style : undefined}>{next.who}</span> : null;
+  return (
+    <section aria-label="Up next" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: single ? 12 : 14, padding: single ? "16px 18px" : 18 }}>
+      {next ? (
+        <React.Fragment>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: single ? "flex-start" : "space-between", gap: 10, paddingRight: single ? 52 : 0 }}>
+            <span style={{ ...eyebrow, color: "var(--sh-accent, #2ee0c4)" }}>{lead}</span>
+            <span style={{ fontFamily: mono, fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>{next.time}</span>
+          </div>
+          <div style={{ fontFamily: serif, fontSize: single ? 22 : 24, fontWeight: 650, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112", marginTop: single ? 8 : 10, lineHeight: 1.1 }}>
+            {single && fileHref ? <a href={fileHref} style={{ color: "inherit", textDecoration: "none" }}>{name}</a> : name}
+          </div>
+          {next.sub && <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{next.sub}</div>}
+          <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: single ? 10 : 12, paddingTop: single ? 10 : 12, borderTop: "1px solid var(--sh-line, #302c27)" }}>{context || "No shared history yet"}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: single ? 12 : 14 }}>
+            {fileHref && !single
+              ? <a href={fileHref} style={{ ...btn, border: 0, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)" }}>Client file</a>
+              : null}
+            <button type="button" className={single ? "sh-key" : undefined} onClick={() => dashMessageClient(next.who, role, undefined, rec && rec.profile && rec.profile.id)} style={{ ...btn, border: "1px solid var(--sh-line2, #413d38)", background: fileHref && !single ? "transparent" : TEAL_BRIGHT, color: fileHref && !single ? INK : "var(--sh-deep, #06231f)" }}>Message</button>
+          </div>
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{unread ? "Today" : items.length ? "Done for today" : "Nothing booked today"}</span>
+          <div data-dash-upnext={unread ? "unread" : items.length ? "done" : "clear"} style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{unread ? "Today's " + unit + "s couldn't be read just now." : items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
+          <a href={dashTabHref("schedule", role)} style={{ display: "inline-block", fontSize: 13, marginTop: 10, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a>
+        </React.Fragment>
+      )}
+    </section>
+  );
+}
+
+// Today's timeline, marked where the day is. `clients` (the board's widget) draws each name in
+// its client's colour when the row's client is on the roster.
+function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, role, card = false, unread = false }) {
+  const { now, items, nextIdx } = state;
+  const eyebrow = DASH_NOW_EYEBROW;
   const plural = unit + (items.length === 1 ? "" : "s");
+  const inkOf = (who) => {
+    if (!clients) return null;
+    const rec = dashFindRecord(clients, who);
+    return rec && rec.profile ? dashTodayInk(rec.profile.id) : null;
+  };
+  const marker = (label) => (
+    <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
+      <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{label}</span>
+      <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
+    </div>
+  );
+  return (
+    <section aria-label="Today" style={card ? { background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: 18 } : undefined}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: card ? "flex-start" : "space-between", gap: 12, marginBottom: 4, paddingRight: card ? 52 : 0 }}>
+        <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Today</h2>
+        {onOpenCalendar
+          ? <button type="button" onClick={onOpenCalendar} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", ...eyebrow, color: "var(--sh-accent-ink, #2ee0c4)" }}>Calendar →</button>
+          : <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{unread ? "—" : items.length + " " + plural}</span>}
+      </div>
+      {items.length === 0 && <div data-dash-timeline={unread ? "unread" : "empty"} style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "9px 0" }}>{unread ? "Today's timeline couldn't be read just now. " : "No " + unit + "s on today's timeline. "}<a href={dashTabHref("schedule", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a></div>}
+      {items.map((r, i) => {
+        const ink = r.done ? null : inkOf(r.who);
+        return (
+          <React.Fragment key={i}>
+            {i === nextIdx && (rows || r.status === "NEXT") && marker(rows ? "NOW " + dashFmtTime(new Date(now).toISOString(), zone) : "NOW")}
+            <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 10, padding: "9px 0", color: r.done ? "var(--sh-ink3, #75706a)" : INK }}>
+              <span style={{ fontFamily: mono, fontSize: 11, color: i === nextIdx ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}>{r.time}</span>
+              <span style={{ fontSize: 13, fontWeight: i === nextIdx ? 600 : 400, minWidth: 0 }}>
+                <span className={ink ? ink.className : undefined} style={ink ? ink.style : undefined}>{r.who}</span>{r.sub ? <span style={{ color: "var(--sh-ink3, #75706a)", fontWeight: 400 }}>{" · " + r.sub}</span> : null}
+              </span>
+            </div>
+          </React.Fragment>
+        );
+      })}
+      {rows && items.length > 0 && nextIdx < 0 && marker("NOW " + dashFmtTime(new Date(now).toISOString(), zone))}
+    </section>
+  );
+}
+
+function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar, zone }) {
+  const state = useDashNowState(rows, demoRows);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <section aria-label="Up next" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: 14, padding: 18 }}>
-        {next ? (
-          <React.Fragment>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-              <span style={{ ...eyebrow, color: "var(--sh-accent, #2ee0c4)" }}>{lead}</span>
-              <span style={{ fontFamily: mono, fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>{next.time}</span>
-            </div>
-            <div style={{ fontFamily: serif, fontSize: 24, fontWeight: 650, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112", marginTop: 10, lineHeight: 1.1 }}>{next.who}</div>
-            {next.sub && <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{next.sub}</div>}
-            <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--sh-line, #302c27)" }}>{context || "No shared history yet"}</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-              {fileHref
-                ? <a href={fileHref} style={{ ...btn, border: 0, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)" }}>Client file</a>
-                : null}
-              <button type="button" onClick={() => dashMessageClient(next.who, role, undefined, rec && rec.profile && rec.profile.id)} style={{ ...btn, border: "1px solid var(--sh-line2, #413d38)", background: fileHref ? "transparent" : TEAL_BRIGHT, color: fileHref ? INK : "var(--sh-deep, #06231f)" }}>Message</button>
-            </div>
-          </React.Fragment>
-        ) : (
-          <React.Fragment>
-            <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{items.length ? "Done for today" : "Nothing booked today"}</span>
-            <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
-            <a href={dashTabHref("schedule", role)} style={{ display: "inline-block", fontSize: 13, marginTop: 10, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a>
-          </React.Fragment>
-        )}
-      </section>
-
-      {items.length > 0 && (
-        <section aria-label="Today">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Today</h2>
-            {onOpenCalendar
-              ? <button type="button" onClick={onOpenCalendar} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", ...eyebrow, color: "var(--sh-accent-ink, #2ee0c4)" }}>Calendar →</button>
-              : <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{items.length} {plural}</span>}
-          </div>
-          {items.map((r, i) => (
-            <React.Fragment key={i}>
-              {i === nextIdx && (rows || r.status === "NEXT") && (
-                <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-                  <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{rows ? "NOW " + dashFmtTime(new Date(now).toISOString(), zone) : "NOW"}</span>
-                  <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
-                </div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 10, padding: "9px 0", color: r.done ? "var(--sh-ink3, #75706a)" : INK }}>
-                <span style={{ fontFamily: mono, fontSize: 11, color: i === nextIdx ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}>{r.time}</span>
-                <span style={{ fontSize: 13, fontWeight: i === nextIdx ? 600 : 400, minWidth: 0 }}>
-                  {r.who}{r.sub ? <span style={{ color: "var(--sh-ink3, #75706a)", fontWeight: 400 }}>{" · " + r.sub}</span> : null}
-                </span>
-              </div>
-            </React.Fragment>
-          ))}
-          {rows && nextIdx < 0 && (
-            <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-              <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{"NOW " + dashFmtTime(new Date(now).toISOString(), zone)}</span>
-              <span style={{ flex: 1, height: 1, background: "var(--sh-accent, #2ee0c4)" }} />
-            </div>
-          )}
-        </section>
-      )}
+      <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} />
+      {state.items.length > 0 && <DashTimelineCard rows={rows} state={state} unit={unit} onOpenCalendar={onOpenCalendar} zone={zone} role={role} />}
     </div>
   );
 }
+
+// ── Today as a board (coach dashboard step 3; the owner's design, 2026-11-06) ──────────────
+// Six widgets, one question each, and the first screen is the whole page: the Brief and Up next,
+// At a glance and Money, Needs you and the Today timeline (the default board below). Every figure
+// is one this page already reads; a figure it cannot read says so, never a stand-in (the owner's
+// rollout rule). Height means priority: Needs you, the one thing to act on, stands at Lift 2, the
+// timeline (a list) rests at Lift 0, and the rest sit at the cell's resting Lift 1 (dashGrid.jsx).
+
+// A client's fixed colour for their name (clientColors.mjs, read at CALL time, as dashRoster.jsx's
+// dashClientInk): the two text-safe values as inline custom properties that dash.css's
+// `.sh-client-ink` picks between by paper. Null without the module or an id: the plain ink.
+function dashTodayInk(id) {
+  try {
+    const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
+    const vars = id != null && CC && typeof CC.clientColorVars === "function" ? CC.clientColorVars(id) : null;
+    return vars ? { className: "sh-client-ink", style: vars } : null;
+  } catch (e) { return null; }
+}
+function DashClientInkName({ id, children }) {
+  const ink = dashTodayInk(id);
+  return <span className={ink ? ink.className : undefined} style={ink ? { ...ink.style, fontWeight: 600 } : { fontWeight: 600 }}>{children}</span>;
+}
+// A gem: a small square in the client's colour (the same text-safe value, so it reads on every
+// paper), the severity's when the module is not on this page.
+function DashClientGem({ id, fallback, title }) {
+  const ink = dashTodayInk(id);
+  return <span aria-hidden title={title} className={ink ? ink.className : undefined}
+    style={{ ...(ink ? ink.style : {}), display: "inline-block", width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: ink ? "currentColor" : (fallback || DASH_SEV_COLORS.unknown) }} />;
+}
+
+// The brief's clock, in prose: the next session's start on the coach's own day (the route's
+// `dayZone`), through ShapeZone in the viewer's clock style ("2:00 PM", or "14:00" where the
+// locale writes 24 hours). Without ShapeZone, this browser's clock in that zone.
+function dashBriefTime(iso, zone) {
+  const Z = dashZoneLib();
+  if (Z && typeof Z.formatTime === "function") {
+    const s = Z.formatTime(iso, { zone: zone || undefined });
+    if (s) return s;
+  }
+  const opts = { hour: "numeric", minute: "2-digit" };
+  try { return new Date(iso).toLocaleTimeString([], zone ? { ...opts, timeZone: zone } : opts); }
+  catch (e) { try { return new Date(iso).toLocaleTimeString([], opts); } catch (e2) { return ""; } }
+}
+
+// ⚠ THE NEXT APPOINTMENT IS THE NEXT ONE STILL TO COME TODAY, ON THE COACH'S DAY (owner,
+// 2026-11-06). A booking on the day (not cancelled or declined, not marked done) that starts after
+// `now` and falls on today's date in `zone`; one that has started is no longer "next up", and one
+// earlier today is never named. The preview has no clock: its row marked NEXT, at its own time.
+function dashNextToday(rows, demoRows, now, zone) {
+  if (!rows) {
+    const r = (demoRows || []).find((x) => x && x.status === "NEXT" && x.time && x.time !== "—");
+    return r ? { who: r.who, time: r.time } : null;
+  }
+  const Z = dashZoneLib();
+  const tz = Z && zone && Z.normalizeZone(zone) ? zone : (Z ? Z.viewerZone() : null);
+  const dayOf = (t) => (Z ? Z.dayKey(t, tz) : dashLocalDate(new Date(t)));
+  const today = dayOf(now);
+  let best = null;
+  for (const r of rows) {
+    const at = r && r.at != null ? +new Date(r.at) : NaN;
+    if (!Number.isFinite(at)) continue;
+    if (r.status && (DASH_NOW_STATUSES.indexOf(r.status) === -1 || r.status === "completed")) continue;
+    if (at <= now || dayOf(at) !== today) continue;
+    if (!best || at < best.at) best = { at, who: r.who };
+  }
+  return best ? { who: best.who, time: dashBriefTime(new Date(best.at).toISOString(), zone) } : null;
+}
+
+// ⚠ THE BRIEF NAMES WHO NEEDS THE COACH, NEVER A TIME (owner, 2026-11-06): "3 clients need your
+// attention", their names in their client colours; then, as its own sentence, the next appointment
+// still to come today. The count is the engine's "Needs you" (coachNeeds' `now`: red, with a lead
+// of the coach's own), the same set the roster's status calls "Needs you". One reading, as pieces:
+// the card colours the named ones, and dashBriefText is the same words as plain text.
+// `needNow` null is a pulse that could not be read: the brief says so, never "nobody". With nothing
+// left today it says "No more sessions today." (owner, 2026-11-06), but only over a day that was
+// read (`day.read`): the preview has no clock, and an unread day is not an empty one.
+function dashBriefModel(needNow, next, day) {
+  const read = Array.isArray(needNow);
+  const rows = read ? needNow : [];
+  const names = rows.slice(0, 3).map((r) => {
+    const p = r && r.client && r.client.profile ? r.client.profile : {};
+    return { id: p.id != null ? p.id : null, name: p.name || "A client" };
+  });
+  const unit = day && typeof day.unit === "string" && day.unit ? day.unit : "session";
+  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit };
+}
+function dashBriefPieces(model) {
+  const out = [];
+  const n = model ? model.count : 0;
+  if (n == null) out.push({ t: "Who needs your attention couldn't be read just now." });
+  else if (!n) out.push({ t: "Nobody needs your attention right now." });
+  else {
+    out.push({ t: (n === 1 ? "1 client needs" : n + " clients need") + " your attention: " });
+    const names = model.names.map((x) => ({ t: x.name, id: x.id, name: true }));
+    if (model.more > 0) names.push({ t: model.more + " more" });
+    names.forEach((p, i) => {
+      if (i > 0) out.push({ t: i === names.length - 1 ? " and " : ", " });
+      out.push(p);
+    });
+    // A name that ends in an initial ("Elena R.") already closes the sentence.
+    if (!/\.$/.test(names[names.length - 1].t)) out.push({ t: "." });
+  }
+  if (model && model.next) {
+    out.push({ t: " Next up today: " });
+    out.push({ t: model.next.who, id: model.next.id != null ? model.next.id : null, name: true });
+    out.push({ t: " at " + model.next.time + "." });
+  } else if (model && model.dayRead) {
+    out.push({ t: (out.length ? " " : "") + "No more " + model.unit + "s today." });
+  }
+  return out;
+}
+function dashBriefText(model) { return dashBriefPieces(model).map((p) => p.t).join(""); }
+
+// ⚠ ONLY THE ROW'S OWN KEYS OPEN THE DRAWER (#2628 review). Enter or Space on the row's action
+// button (Message, Congratulate) bubbles up to the row; taking it there would cancel the button's
+// own activation and open the drawer instead.
+function dashRowKeyOpen(e, canOpen, open) {
+  if (!canOpen || e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault();
+  open();
+}
+
+// The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
+// day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
+function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit }) {
+  const { now } = useDashNowState(rows, demoRows);
+  const next = dashNextToday(rows, demoRows, now, zone);
+  const rec = next ? dashFindRecord(clients, next.who) : null;
+  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null } : null, { read: Array.isArray(rows), unit });
+  return <DashBriefCard model={model} />;
+}
+function DashBriefCard({ model }) {
+  return (
+    <section aria-label="Brief" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 22px" }}>
+      <div style={{ ...DASH_MONO_EYEBROW, marginBottom: 10 }}>Brief</div>
+      <p data-dash-brief="" style={{ margin: 0, fontFamily: serif, fontSize: 22, lineHeight: 1.35, fontWeight: 500, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 108" }}>
+        {dashBriefPieces(model).map((p, i) => p.name ? <DashClientInkName key={i} id={p.id}>{p.t}</DashClientInkName> : <React.Fragment key={i}>{p.t}</React.Fragment>)}
+      </p>
+    </section>
+  );
+}
+
+// ⚠ NEEDS YOU SHOWS THREE, THEN FOLDS THE REST (owner, 2026-11-06). The rows are the engine's
+// (coachNeeds): who needs the coach now (red), who to look at this week (amber), then good news (a
+// client's dated milestone, the Client wins rule), each client once, in that order. Each row is the
+// client's colour, their name, one reason and one action, with its status as a labelled chip; the
+// rest fold into one row of colour gems with what they are ("4 this week", "2 good news").
+const DASH_NEEDS_SHOWN = 3;
+const DASH_NEEDS_KINDS = {
+  now: { chip: "Needs you", fold: (n) => n + " more need" + (n === 1 ? "s" : "") + " you", color: DASH_SEV_COLORS.red },
+  week: { chip: "This week", fold: (n) => n + " this week", color: DASH_SEV_COLORS.amber },
+  good: { chip: "Good news", fold: (n) => n + " good news", color: DASH_SEV_COLORS.green },
+};
+// The win rows Client wins lists: each client's newest dated milestone, newest first.
+function dashWinRows(clients, units) {
+  const rows = [];
+  for (const c of clients || []) {
+    const ms = dashMilestonesIn(DashSignals.buildMilestones(c), units);
+    const hit = ms && Array.isArray(ms.recent) ? ms.recent.find((m) => m.hitAt) : null; // dated hits only (not active-streak fills)
+    if (hit) rows.push({ client: c, hit });
+  }
+  return rows.sort((a, b) => String(b.hit.hitAt).localeCompare(String(a.hit.hitAt)));
+}
+function dashNeedsItems(split, wins) {
+  const seen = new Set();
+  const out = [];
+  const add = (kind, client, extra) => {
+    const p = client && client.profile ? client.profile : {};
+    const id = p.id != null ? p.id : null;
+    if (id != null && seen.has(id)) return;
+    if (id != null) seen.add(id);
+    out.push({ kind, client, id, name: p.name || "A client", ...extra });
+  };
+  for (const r of (split && split.now) || []) add("now", r.client, { row: r, reason: r.lead.reason, action: r.lead.action || null });
+  for (const r of (split && split.week) || []) add("week", r.client, { row: r, reason: r.lead.reason, action: r.lead.action || null });
+  for (const w of wins || []) add("good", w.client, { hit: w.hit, reason: w.hit.label, action: null });
+  return out;
+}
+function dashNeedsFold(items, shown = DASH_NEEDS_SHOWN) {
+  const list = Array.isArray(items) ? items : [];
+  const rest = list.slice(shown);
+  const groups = {};
+  for (const k of Object.keys(DASH_NEEDS_KINDS)) groups[k] = rest.filter((x) => x.kind === k).length;
+  return { shown: list.slice(0, shown), rest, groups };
+}
+function dashNeedsFoldText(fold) {
+  return Object.keys(DASH_NEEDS_KINDS).filter((k) => fold.groups[k] > 0).map((k) => DASH_NEEDS_KINDS[k].fold(fold.groups[k])).join(" · ");
+}
+
+function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
+  const [all, setAll] = React.useState(false);
+  const [selectedId, setSelectedId] = React.useState(null);
+  const fold = dashNeedsFold(items);
+  const rows = all ? items : fold.shown;
+  const Drawer = typeof window !== "undefined" && typeof window.DashClientDrawer === "function" ? window.DashClientDrawer : null;
+  const rowOf = (id) => (Array.isArray(feed) ? feed.find((r) => r && r.client && r.client.profile && r.client.profile.id === id) : null) || null;
+  const openRow = selectedId != null ? rowOf(selectedId) : null;
+  const go = (it) => {
+    if (it.kind === "good") dashMessageClient(it.name, role, dashCongratsDraft(it.client, it.hit), it.id);
+    else if (it.action) dashCoachActionGo(it.action, it.row, role);
+    else dashMessageClient(it.name, role, null, it.id);
+  };
+  const chip = (kind) => {
+    const k = DASH_NEEDS_KINDS[kind];
+    return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: k.color, border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>{k.chip}</span>;
+  };
+  const renderRow = (it, i) => {
+    const canOpen = !!(Drawer && it.id != null && rowOf(it.id));
+    return (
+      <div key={(it.id != null ? it.id : "x") + ":" + i} data-dash-need={it.kind}
+        onClick={() => { if (canOpen) setSelectedId(it.id); }}
+        onKeyDown={(e) => dashRowKeyOpen(e, canOpen, () => setSelectedId(it.id))}
+        role={canOpen ? "button" : undefined} tabIndex={canOpen ? 0 : undefined} aria-label={canOpen ? "Open " + it.name : undefined}
+        style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "11px 2px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", cursor: canOpen ? "pointer" : "default" }}>
+        <DashClientGem id={it.id} fallback={DASH_NEEDS_KINDS[it.kind].color} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14 }}><DashClientInkName id={it.id}>{it.name}</DashClientInkName></span>
+            {chip(it.kind)}
+          </div>
+          <div style={{ marginTop: 3, fontSize: 12.5, lineHeight: 1.4, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{it.reason}</div>
+        </div>
+        <button type="button" className="sh-key" onClick={(e) => { e.stopPropagation(); go(it); }}
+          style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "var(--sh-card, #25211d)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 6, padding: "8px 11px", minHeight: 32, cursor: "pointer" }}>
+          {it.kind === "good" ? "Congratulate" : it.action ? it.action.label : "Message"}
+        </button>
+      </div>
+    );
+  };
+  return (
+    <section aria-label="Needs you" data-dash-lift="2" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6, paddingRight: 52 }}>
+        <h2 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Needs you</h2>
+        {items.length > 0 && <span style={DASH_MONO_EYEBROW}>{items.length} {items.length === 1 ? "client" : "clients"}</span>}
+      </div>
+      {items.length === 0
+        ? <p style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>Nobody needs you right now. Clients appear here when their logs, check-ins or Shape Score slip, and when they hit a milestone.</p>
+        : rows.map(renderRow)}
+      {!all && fold.rest.length > 0 && (
+        <button type="button" data-dash-fold="" aria-expanded={false} onClick={() => setAll(true)}
+          style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: "100%", marginTop: 6, padding: "10px 2px 2px", background: "transparent", border: 0, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", font: "inherit", textAlign: "left", cursor: "pointer", color: "var(--sh-ink2, #a09b94)" }}>
+          <span style={{ display: "inline-flex", gap: 4 }}>{fold.rest.map((it, i) => <DashClientGem key={i} id={it.id} fallback={DASH_NEEDS_KINDS[it.kind].color} title={it.name} />)}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--sh-accent-ink, #2ee0c4)" }}>{fold.rest.length} more</span>
+          <span style={{ fontSize: 12 }}>{dashNeedsFoldText(fold)}</span>
+        </button>
+      )}
+      {all && items.length > DASH_NEEDS_SHOWN && <button type="button" aria-expanded={true} onClick={() => setAll(false)} style={{ ...DASH_WIDGET_BUTTON, marginTop: 8 }}>Show fewer</button>}
+      {openRow && Drawer && <Drawer row={openRow} role={role} onClose={() => setSelectedId(null)} prefs={prefs} dismiss={dismiss} />}
+    </section>
+  );
+}
+
+// The widget: the engine's split (null when the pulse could not be read) and the roster's wins,
+// in the reader's units.
+function DashNeedsWidget({ split, clients, feed, role, prefs, dismiss }) {
+  const units = useDashUnits();
+  if (!split) {
+    return <section aria-label="Needs you" data-dash-lift="2" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
+      <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>Needs you</h2>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Who needs you couldn't be read just now. Reload to try again.</p>
+    </section>;
+  }
+  return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units))} feed={feed} role={role} prefs={prefs} dismiss={dismiss} />;
+}
+// `unread`: a signed-in coach's day feed failed (rows null on a live page). Neither card may then
+// say the day is clear or done; that is a claim about a day nobody read.
+function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone, unread = false }) {
+  const state = useDashNowState(rows, demoRows);
+  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single unread={unread} />;
+}
+function DashTimelineWidget({ rows, demoRows, clients, role, unit, zone, onOpenCalendar, unread = false }) {
+  const state = useDashNowState(rows, demoRows);
+  return <div data-dash-lift="0"><DashTimelineCard rows={rows} state={state} unit={unit} zone={zone} clients={clients} role={role} onOpenCalendar={onOpenCalendar} card unread={unread} /></div>;
+}
+
+// At a glance: three figures, each from the KPI pool's own derivation (dashSignals.js), so a figure
+// it cannot read is a dash with the reason under it, as on the strips.
+function DashGlanceCard({ cells }) {
+  return (
+    <section aria-label="At a glance" style={{ display: "grid", gridTemplateColumns: "repeat(" + cells.length + ", minmax(0,1fr))", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, overflow: "hidden" }}>
+      {cells.map((k, i) => (
+        <div key={i} style={{ padding: "18px 20px", borderLeft: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "none", minWidth: 0 }}>
+          <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10 }}>{k.l}</div>
+          <div style={{ fontFamily: serif, fontSize: 28, fontWeight: 500, letterSpacing: "-0.015em", lineHeight: 1, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", color: k.k === "—" ? "var(--sh-ink2, #a09b94)" : INK }}>{k.k}</div>
+          {k.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{k.sub}</div>}
+        </div>
+      ))}
+    </section>
+  );
+}
+function dashGlanceCells(role, ctx) {
+  const logging = dashKpiCell("compliance", role, ctx);
+  return [dashKpiCell("due", role, ctx), dashKpiCell("reviewed", role, ctx), { ...logging, l: "Roster logging" }];
+}
+
+// ⚠ MONEY SHOWS ONLY WHAT THIS PAGE READS (the owner's rollout rule: never a made-up figure).
+// Recurring revenue is the KPI pool's monthly net (the route's own, or the preview roster's). The
+// next payout is Stripe's, which the live Today routes do not read (the Business page's analytics
+// read does), so a live card says payouts are not connected here and links to where they are; the
+// signed-out preview shows its own sample's, which the demo band already labels.
+// ⚠ THE SAMPLE'S PAYOUT IS FOR THE PREVIEW ONLY (#2628 review). A signed-in coach whose day feed
+// failed while the roster loaded has `live` null too: reading that as the preview put the sample's
+// payout on their page as theirs. `preview` is the page's own source, never inferred from `live`.
+function dashMoneyModel(live, ctx, preview) {
+  const out = DashSignals.dashKpiValue("monthlyNet", ctx);
+  const recurring = out && out.value != null
+    ? { k: dashMoney(out.value), sub: out.sub || null }
+    : { k: "—", sub: (out && out.why) || "couldn't be read" };
+  let payout = null;
+  if (preview === true) {
+    const d = dashDemoKpis().find((x) => x && x.l === "Next payout");
+    if (d) payout = { k: d.k, sub: d.sub };
+  }
+  return { recurring, payout, live: !!live };
+}
+function DashMoneyCard({ model, role }) {
+  return (
+    <section aria-label="Money" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, overflow: "hidden" }}>
+      <div style={{ padding: "18px 18px", minWidth: 0 }}>
+      <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10 }}>Recurring revenue</div>
+      <div style={{ fontFamily: serif, fontSize: 28, fontWeight: 500, letterSpacing: "-0.015em", lineHeight: 1, fontVariantNumeric: "tabular-nums", color: model.recurring.k === "—" ? "var(--sh-ink2, #a09b94)" : INK }}>{model.recurring.k}<span style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit" }}>{model.recurring.k === "—" ? "" : " /mo"}</span></div>
+      {model.recurring.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{model.recurring.sub}</div>}
+      </div>
+      <div style={{ padding: "18px 18px", minWidth: 0, borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+        <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10, paddingRight: 44 }}>Next payout</div>
+        {model.payout
+          ? <React.Fragment><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 500, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>{model.payout.k}</div>{model.payout.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{model.payout.sub}</div>}</React.Fragment>
+          : <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" }} data-dash-payout="unread">Payouts aren't connected to Today yet. <a href={dashTabHref("business", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none", whiteSpace: "nowrap" }}>See them in Business →</a></div>}
+      </div>
+    </section>
+  );
+}
+
+// The default board's six, in the design's order: three pairs of two thirds beside one third.
+// ⚠ "needsyou", NOT "needs" (#2628 review): "needs" was the old tabbed card's key, and a saved
+// layout matches geometry and visibility by key, so the new card would have taken the old one's
+// width and place, or stayed hidden where the coach hid the old one. A saved "needs" is now stale.
+const DASH_TODAY_BOARD = ["brief", "upnext", "glance", "money", "needsyou", "timeline"];
 
 // One card, one tab per queue. The tab a coach left open is remembered per account and
 // per role (a trainer and a nutritionist Today are different practices). A tab may declare
@@ -2030,13 +2395,20 @@ function CoachDashboardPage({ role }) {
   const [overviewKpis, setOverviewKpis] = useDashKpiStrip(prefs, "overview", role, DASH_OVERVIEW_DEFAULT);
   const [practiceChosen, setPracticeKpis] = useDashKpiStrip(prefs, "practice", role, DASH_PRACTICE_DEFAULT);
 
-  const firstName = live ? live.user.firstName : cfg.mockName;
+  // ⚠ THE SAMPLE IS FOR THE PREVIEW ONLY. `sample` is the page's own source, never `!live`: a
+  // signed-in coach whose day feed failed while the roster loaded has `live` null too, and every
+  // `live ? … : mock` below used to put the sample's name, figures, calendar and pulse on their page.
+  const sample = source !== "live";
+  const firstName = live ? live.user.firstName : sample ? cfg.mockName : "";
 
   const todayRows = live && Array.isArray(live.today) ? live.today : null;
   // The zone the route cut Today in, so its clocks print in it (dashFmtTime's note).
   const dayZone = live && typeof live.dayZone === "string" && live.dayZone ? live.dayZone : null;
+  // ⚠ THE SAMPLE'S SESSIONS ARE FOR THE PREVIEW ONLY: a signed-in coach whose day feed failed gets
+  // one row saying so, never the sample's day as theirs (the optional Schedule card, the KPI pool).
+  const scheduleRead = !!todayRows || sample;
   const schedule = !todayRows
-    ? cfg.mockSchedule
+    ? (!sample ? [{ time: "—", who: "Today's " + cfg.unit + "s couldn't be read", sub: "Reload to try again" }] : cfg.mockSchedule)
     : todayRows.length
       ? todayRows.map((s, i) => ({
           time: dashFmtTime(s.scheduledAt, dayZone),
@@ -2058,14 +2430,16 @@ function CoachDashboardPage({ role }) {
   // Everything the KPI pool derives from, gathered once. Nothing here is fetched for the
   // strips — it is the state Today already holds — which is the constraint that decides
   // what may be in the pool at all.
-  const kpiCtx = { live, clients, triage, queue, schedule, role, kpiKeys: cfg.kpiKeys };
+  const kpiCtx = { live, clients, triage, queue, schedule, scheduleRead, role, kpiKeys: cfg.kpiKeys, zone: dayZone };
 
   // ⚠ THE OVERVIEW STRIP IS THE PAYOUT PREVIEW WHEN THERE IS NO LIVE PAYLOAD, AND IT IS
   // NOT CONFIGURABLE THERE. Those four demo figures are a preview of the money card, not
   // a reading of this account, so offering a picker over them would let a visitor
   // rearrange numbers that describe nobody. R18's rule from the other side: the ⚙ is
   // withheld where there is nothing card-level to configure.
-  const kpis = live ? overviewKpis.map((k) => dashKpiCell(k, role, kpiCtx)) : cfg.mockKpis();
+  const kpis = live ? overviewKpis.map((k) => dashKpiCell(k, role, kpiCtx))
+    : sample ? cfg.mockKpis()
+    : overviewKpis.map((k) => { const c = dashKpiCell(k, role, kpiCtx); return c.k === "\u2014" ? { ...c, sub: "couldn't be read" } : c; });
   // The practice strip derives from the roster, the queue and today's schedule, all of
   // which the preview has — so its picker works in both states (unsaved when signed out,
   // exactly as every other remembered control on this page behaves).
@@ -2073,11 +2447,11 @@ function CoachDashboardPage({ role }) {
 
   const calendarEvents = live && Array.isArray(live.calendar)
     ? live.calendar.map(e => ({ date: dashCalDate(e.at), time: dashCalTime(e.at), kind: e.kind, title: e.title, sub: e.sub, durationMin: e.durationMin, sharedCoach: e.sharedCoach }))
-    : dashDemoCalendar(cfg.mockCalendar);
+    : sample ? dashDemoCalendar(cfg.mockCalendar) : null;
 
   const pulseRows = live && Array.isArray(live.pulse) ? live.pulse : null;
   const pulse = !pulseRows
-    ? cfg.mockPulse
+    ? (sample ? cfg.mockPulse : [{ who: "Couldn't be read", sub: "Reload to try again", trend: DASH_FLAT_TREND }])
     : pulseRows.length
       ? pulseRows.map(c => ({ who: c.name, sub: c.sessions + (c.sessions === 1 ? " " + cfg.unit : " " + cfg.unit + "s"), trend: DASH_FLAT_TREND }))
       : [cfg.emptyPulse];
@@ -2102,6 +2476,20 @@ function CoachDashboardPage({ role }) {
   const revenue = sigOk ? DashSignals.dashRevenueByClient(clients) : null;
   // This page's role's own programs (a coach with both listings has one per role).
   const ending = sigOk ? DashSignals.dashProgramsEnding(clients, undefined, role) : null;
+
+  // ── The default board's derivations (step 3, the owner's design 2026-11-06). Who needs the coach
+  // is the engine's one rule (coachNeeds), null when the pulse could not be read or the cached
+  // signals module predates it; the day's rows are the day column's; the three figures and the
+  // money are the KPI pool's, so each says why when it cannot be read.
+  const needSplit = Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
+  const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;
+  const glance = dashGlanceCells(role, kpiCtx);
+  const money = dashMoneyModel(live, kpiCtx, source !== "live");
+  // The calendar overlay is DashShell's; it hands its opener back through this ref as it renders.
+  const openCalRef = React.useRef(null);
+  const openCalendar = () => { if (typeof openCalRef.current === "function") openCalRef.current(); };
+  // ⚠ NO CALENDAR, NO "Calendar →" (#2628 review): the wrapper always exists, and the timeline draws
+  // the button for any opener, so a page with no calendar read offered a button that did nothing.
 
   // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
   // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).
@@ -2128,11 +2516,28 @@ function CoachDashboardPage({ role }) {
   // are the honest-absence contract — the entry stays in the array, and the catalogue
   // says why the card cannot be added yet.
   const gridWidgets = [
-    // ⚠ "NEEDS YOU" HOLDS THE QUEUES, SO THE CARDS IT REPLACED ARE OPTIONAL NOW. Client
-    // attention, the programming queue (and Check-ins / Replies above) are its tabs, and the
-    // schedule is the day column beside the grid, so none of them is on a board by default;
-    // each can still be added back as its own card from the catalogue.
-    { key: "needs", title: "Needs you", blurb: "Attention, check-ins, replies" + (cfg.programmingQueue ? " and programs" : "") + ", one tab each.", size: "full",
+    // ⚠ THE DEFAULT BOARD IS SIX WIDGETS, ONE QUESTION EACH (the owner's design, 2026-11-06), in
+    // three pairs of two thirds beside one third: the Brief and Up next, At a glance and Money,
+    // Needs you and the Today timeline. Up next and the timeline were the day column beside the
+    // grid; they are widgets now, so the coach can move, resize or hide them like the rest. Every
+    // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
+    // the Business overview and summary) stays in the catalogue as an optional card.
+    { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", size: "wide",
+      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} /> },
+    { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", size: "narrow",
+      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} /> },
+    { key: "glance", title: "At a glance", blurb: (role === "nutritionist" ? "Plans" : "Programs") + " due, check-ins reviewed and roster logging.", size: "wide",
+      render: () => <DashGlanceCard cells={glance} /> },
+    { key: "money", title: "Money", blurb: "Recurring revenue, and the next payout where this page can read it.", size: "narrow",
+      render: () => <DashMoneyCard model={money} role={role} /> },
+    { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
+      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} role={role} prefs={prefs} dismiss={dismiss} /> },
+    { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", size: "narrow",
+      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={!scheduleRead} /> },
+    // ── Optional (off until added) ──
+    // The tabbed queues that led the old board: client attention, new clients, check-ins, replies
+    // and programs, one tab each.
+    { key: "queues", title: "Work queues", blurb: "Attention, new clients, check-ins, replies" + (cfg.programmingQueue ? " and programs" : "") + ", one tab each.", optional: true, size: "full",
       render: () => <DashNeedsYou prefs={prefs} role={role} tabs={[
         { key: "attention", label: "Attention", empty: !triage || triage.length === 0,
           emptyText: "No one needs your attention right now. Clients appear here when their logs, check-ins or Shape Score slip.",
@@ -2158,13 +2563,13 @@ function CoachDashboardPage({ role }) {
     { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} />) },
     { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
     ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
-    { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", size: "full", render: () => renderKpiStrip(practiceKpis),
+    { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", optional: true, size: "full", render: () => renderKpiStrip(practiceKpis),
       settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
-    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
-    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
-    { key: "kpis", title: "Business overview", blurb: "Four figures about the business — pick them with ⚙ once you're live.", size: "full", render: () => renderKpiStrip(kpis),
+    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", optional: true, size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
+    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", optional: true, size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
+    { key: "kpis", title: "Business overview", blurb: "Four figures about the business — pick them with ⚙ once you're live.", optional: true, size: "full", render: () => renderKpiStrip(kpis),
       settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
-    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
+    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", optional: true, size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
     // ── Optional (off until added) ──
     { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, with links to each day.", optional: true, size: "half",
       empty: !weekAhead, emptyWhy: staleWhy,
@@ -2195,10 +2600,11 @@ function CoachDashboardPage({ role }) {
       tourHero="hero-today"
       role={role}
       gridWidgets={gridWidgets}
-      nowColumn={(openCalendar) => <DashNowColumn rows={nowRows} demoRows={nowRows ? null : source === "live" ? [] : cfg.mockSchedule} clients={clients} role={role} unit={cfg.unit} onOpenCalendar={openCalendar} zone={dayZone} />}
+      dockCatalog
+      calendarOpener={openCalRef}
       userName={firstName}
       date={cfg.date()}
-      greeting={cfg.greeting(firstName)}
+      greeting={firstName ? cfg.greeting(firstName) : "Good morning."}
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}

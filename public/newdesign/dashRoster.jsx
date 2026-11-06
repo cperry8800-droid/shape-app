@@ -94,8 +94,18 @@ function dashAdherenceLabel(rec) {
   if (!a || a.pct == null) return { text: "Not shared", dim: true };
   return { text: a.pct + "%", warn: a.pct < 70 };
 }
-function dashProgramLabel(rec) {
-  const pr = rec.program;
+// ⚠ THE PROGRAM OF THIS PAGE'S ROLE (#2622's follow-up). `program` is one pick across both of a
+// coach's listings, so the nutrition roster could name the trainer's block. `programs[role]`
+// (shared-overview's, per role) is each role's own, as the signal engine's programForRole reads it;
+// a record without it (an older overview, the demo roster) reads `program` as before.
+function dashProgramOf(rec, role) {
+  if (!rec) return null;
+  const own = role === "trainer" ? "trainer" : role === "nutritionist" || role === "dietitian" ? "nutritionist" : null;
+  if (own && rec.programs && typeof rec.programs === "object") return rec.programs[own] || null;
+  return rec.program || null;
+}
+function dashProgramLabel(rec, role) {
+  const pr = dashProgramOf(rec, role);
   if (!pr || !pr.name) return { text: "Not set", dim: true };
   // A paused block carries no week (the count is wall-clock and knows nothing
   // about the pause), so say WHY the number is missing rather than showing a
@@ -292,7 +302,7 @@ const DASH_ROSTER_VIEWS = {
     cells: (rec, role) => [
       dashScoreCell(rec),
       dashCellText(dashAdherenceLabel(rec)),
-      dashCellText(dashProgramLabel(rec)),
+      dashCellText(dashProgramLabel(rec, role)),
       dashCellText(dashStreakLabel(rec)),
       dashCellText(dashContactLabel(rec, role)),
       dashCellText(dashRevenueLabel(rec)),
@@ -702,8 +712,9 @@ function DashClientDrawer({ row, role, onClose, prefs, dismiss }) {
   const view = DASH_DRAWER_VIEWS[role] || DASH_DRAWER_VIEWS.trainer;
   const secs = dashDrawerSections(view, hiddenSections);
   const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity];
-  const programLine = rec.program && rec.program.name
-    ? dashProgramLabel(rec).text
+  const ownProgram = dashProgramOf(rec, role);
+  const programLine = ownProgram && ownProgram.name
+    ? dashProgramLabel(rec, role).text
     : rec.goalPhase ? rec.goalPhase + " phase" : null;
 
   return ReactDOM.createPortal(

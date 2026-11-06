@@ -87,7 +87,9 @@ test('the catalogue offers Add only where restore() would accept it, and never f
   assert.match(cat, /role="dialog" aria-label="Widgets"/);
   assert.match(cat, /Reset layout/);
   // and the panel is portaled through the SAME placement hook as the ⚙, at its own width
-  assert.match(cat, /useDgPanel\(open, setOpen, boxRef, panelRef, DG_CATALOG_W\)/);
+  // (docked beside the board, an away click does not close it: the coach arranges the board
+  // with the catalogue open — tests/dash-today-board.test.mjs)
+  assert.match(cat, /useDgPanel\(open, setOpen, boxRef, panelRef, DG_CATALOG_W, !!dock\)/);
   assert.match(cat, /ReactDOM\.createPortal\(/);
 });
 

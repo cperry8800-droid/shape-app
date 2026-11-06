@@ -178,7 +178,11 @@ test('Today\'s clocks print in the zone its day was cut in, not the browser\'s (
   const page = body(TODAY, 'function CoachDashboardPage(', '\nObject.assign(window');
   assert.equal((page.match(/dashFmtTime\(s\.scheduledAt, dayZone\)/g) || []).length, 2, 'a Today row prints in the browser\'s zone');
   assert.match(page, /const dayZone = live && typeof live\.dayZone === "string"/);
-  assert.match(page, /<DashNowColumn [^\n]*zone=\{dayZone\}/);
+  // The day column's halves are the board's Up next and Today widgets now, and the brief names
+  // the next session: each takes the route's zone.
+  for (const w of ['DashBriefWidget', 'DashUpNextWidget', 'DashTimelineWidget']) {
+    assert.match(page, new RegExp('<' + w + ' [^\\n]*zone=\\{dayZone\\}'), w + ' prints in the browser\'s zone');
+  }
 });
 
 test('Needs you opens on its first tab, switches tabs, and says so when a tab has nothing to show', async () => {
@@ -200,16 +204,19 @@ test('Needs you opens on its first tab, switches tabs, and says so when a tab ha
   } finally { await m.done(); }
 });
 
-test('the coach Today leads its grid with Needs you, and the cards it replaced are optional', () => {
+test('the coach Today leads its grid with the six board widgets, and the cards they replaced are optional', () => {
   const page = body(TODAY, 'function CoachDashboardPage(', '\nObject.assign(window');
   const arr = body(page, 'const gridWidgets = [', '\n  ];');
-  assert.ok(arr.indexOf('{ key: "needs"') > 0 && arr.indexOf('{ key: "needs"') < arr.indexOf('{ key: "checkins"'), 'Needs you is not the first widget');
-  for (const key of ['pulse', 'schedule', 'queue']) {
+  // tests/dash-today-board.test.mjs holds the six and their order; here, that they lead.
+  assert.ok(arr.indexOf('{ key: "needsyou"') > 0 && arr.indexOf('{ key: "needsyou"') < arr.indexOf('{ key: "checkins"'), 'Needs you is not ahead of the optional cards');
+  for (const key of ['pulse', 'schedule', 'queue', 'queues', 'practice', 'wins', 'kpis', 'business']) {
     const at = arr.indexOf('{ key: "' + key + '"');
     assert.ok(at > 0, key + ' is gone from the catalogue — it must stay addable');
-    assert.match(arr.slice(at, arr.indexOf('render:', at)), /optional: true/, key + ' is still on every board beside the tab that replaced it');
+    assert.match(arr.slice(at, arr.indexOf('render:', at)), /optional: true/, key + ' is still on every board beside the widget that replaced it');
   }
-  assert.match(page, /nowColumn=\{\(openCalendar\) => <DashNowColumn /);
+  // The day column's halves are widgets now, so nothing sits beside the grid.
+  assert.doesNotMatch(page, /nowColumn=/);
+  assert.match(page, /dockCatalog\n/);
 });
 
 test('the member day column counts only logged meals as logged, and offers the next thing to do', async () => {
