@@ -2296,13 +2296,16 @@ function dashGlanceCells(role, ctx) {
 // next payout is Stripe's, which the live Today routes do not read (the Business page's analytics
 // read does), so a live card says payouts are not connected here and links to where they are; the
 // signed-out preview shows its own sample's, which the demo band already labels.
-function dashMoneyModel(live, ctx) {
+// ⚠ THE SAMPLE'S PAYOUT IS FOR THE PREVIEW ONLY (#2628 review). A signed-in coach whose day feed
+// failed while the roster loaded has `live` null too: reading that as the preview put the sample's
+// payout on their page as theirs. `preview` is the page's own source, never inferred from `live`.
+function dashMoneyModel(live, ctx, preview) {
   const out = DashSignals.dashKpiValue("monthlyNet", ctx);
   const recurring = out && out.value != null
     ? { k: dashMoney(out.value), sub: out.sub || null }
     : { k: "—", sub: (out && out.why) || "couldn't be read" };
   let payout = null;
-  if (!live) {
+  if (preview === true) {
     const d = dashDemoKpis().find((x) => x && x.l === "Next payout");
     if (d) payout = { k: d.k, sub: d.sub };
   }
@@ -2467,7 +2470,7 @@ function CoachDashboardPage({ role }) {
   const needSplit = Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
   const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;
   const glance = dashGlanceCells(role, kpiCtx);
-  const money = dashMoneyModel(live, kpiCtx);
+  const money = dashMoneyModel(live, kpiCtx, source !== "live");
   // The calendar overlay is DashShell's; it hands its opener back through this ref as it renders.
   const openCalRef = React.useRef(null);
   const openCalendar = () => { if (typeof openCalRef.current === "function") openCalRef.current(); };

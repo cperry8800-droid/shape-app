@@ -32,6 +32,7 @@ export default {
     { name: 'brief: an unread day says "No more sessions today."', file: TODAY, find: 'dayRead: !!(day && day.read)', replace: 'dayRead: true' },
     { name: 'reviewed: the device\'s week, not the account\'s', file: SIG, find: ': new Date(), ctx && ctx.zone);', replace: ': new Date(), null);' },
     { name: 'needs you: Enter on a row\'s action opens the drawer', file: TODAY, find: 'if (!canOpen || e.target !== e.currentTarget || (e.key', replace: 'if (!canOpen || (e.key' },
+    { name: 'reviewed: no zone passed reads the device\'s week', file: SIG, find: ': (Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null);', replace: ': null;' },
     { name: 'dock: a narrow board still docks', file: GRID, find: 'return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD;', replace: 'return true;' },
 
     // ── Needs you folds at three ──
@@ -39,6 +40,6 @@ export default {
     { name: 'needs you: a client listed twice', file: TODAY, find: '    if (id != null && seen.has(id)) return;\n', replace: '' },
 
     // ── Money ──
-    { name: 'money: the live page prints the sample payout', file: TODAY, find: '  if (!live) {\n    const d = dashDemoKpis().find', replace: '  if (true) {\n    const d = dashDemoKpis().find' },
+    { name: 'money: the live page prints the sample payout', file: TODAY, find: '  if (preview === true) {\n    const d = dashDemoKpis().find', replace: '  if (!live) {\n    const d = dashDemoKpis().find' },
   ],
 };

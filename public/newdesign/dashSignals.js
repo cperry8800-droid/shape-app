@@ -210,11 +210,13 @@
   }
   function daysBetween(a, b) { return Math.floor((b.getTime() - a.getTime()) / DAY); }
   // The calendar day `now` falls on in the account's `zone`, as a local Date that mondayOf and
-  // daysBetween read the way they read a "YYYY-MM-DD" weekOf; the device's day without a zone or
-  // shapeZone.mjs.
+  // daysBetween read the way they read a "YYYY-MM-DD" weekOf. With no zone passed (the day feed
+  // failed while the roster loaded), shapeZone.mjs's viewer zone, which is the account's once
+  // /api/me/timezone has answered (#2628 review); the device's day only without shapeZone.mjs.
   function dayInZone(now, zone) {
     var Z = typeof globalThis !== "undefined" && globalThis.ShapeZone && typeof globalThis.ShapeZone.partsInZone === "function" ? globalThis.ShapeZone : null;
-    var p = Z && typeof zone === "string" && zone ? Z.partsInZone(now.getTime(), zone) : null;
+    var z = typeof zone === "string" && zone ? zone : (Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null);
+    var p = Z && typeof z === "string" && z ? Z.partsInZone(now.getTime(), z) : null;
     return p ? new Date(p.y, p.mo - 1, p.d, 12) : now;
   }
   function mondayOf(d) {

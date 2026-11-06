@@ -242,6 +242,11 @@ test('At a glance is three figures from the KPI pool, and Check-ins reviewed cou
     const late = { clients: [ck('a', '2026-10-26', true)], now: MON };
     assert.equal(DashSignals.dashKpiValue('reviewed', { ...late, zone: 'America/New_York' }).value, 1);
     assert.equal(DashSignals.dashKpiValue('reviewed', { ...late, zone: 'Asia/Tokyo' }).value, null);
+    // No zone passed (the day feed failed): the account's zone through ShapeZone, not the device's.
+    ShapeZone.setAccountZone('America/New_York');
+    try { assert.equal(DashSignals.dashKpiValue('reviewed', late).value, 1); } finally { ShapeZone.clearAccountZone(); }
+    ShapeZone.setAccountZone('Asia/Tokyo');
+    try { assert.equal(DashSignals.dashKpiValue('reviewed', late).value, null); } finally { ShapeZone.clearAccountZone(); }
   } finally { if (prevZ === undefined) delete globalThis.ShapeZone; else globalThis.ShapeZone = prevZ; }
   const cells = T.dashGlanceCells('trainer', ctx);
   assert.deepEqual(cells.map((c) => c.l), ['Programs due', 'Check-ins reviewed', 'Roster logging']);
@@ -261,9 +266,13 @@ test('Money never prints a figure it cannot read', async () => {
   assert.equal(unread.payout, null);
   // The signed-out preview shows its own sample's payout (the demo band labels the page).
   const sample = DashSignals.buildMockClients(new Date());
-  const demo = T.dashMoneyModel(null, { live: null, clients: sample });
+  const demo = T.dashMoneyModel(null, { live: null, clients: sample }, true);
   assert.equal(/^\$/.test(demo.recurring.k), true);
   assert.equal(!!demo.payout && demo.payout.k === DashSignals.demoPayouts(sample, new Date()).payoutShort, true, 'the preview\'s payout is its own sample\'s date');
+  // A signed-in coach whose day feed failed (live null, source live) never gets the sample's payout.
+  assert.equal(T.dashMoneyModel(null, { live: null, clients: sample }, false).payout, null);
+  assert.equal(T.dashMoneyModel(null, { live: null, clients: sample }).payout, null, 'no flag is not the preview');
+  assert.equal(/dashMoneyModel\(live, kpiCtx, source !== "live"\)/.test(TODAY), true);
 
   const m = mount();
   try {
