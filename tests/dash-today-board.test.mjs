@@ -291,7 +291,10 @@ test('Money never prints a figure it cannot read', async () => {
   assert.equal(T.dashMoneyModel(null, { live: null, clients: sample }, false, { state: 'none' }).payout.state, 'none');
   // The preview is the page's own flag, and it alone says sample (the page reads no payout there).
   assert.equal(T.dashMoneyModel(null, { live: null, clients: sample }, true, { state: 'none' }).payout.state, 'sample');
-  assert.equal(/dashMoneyModel\(live, kpiCtx, source !== "live", payoutRead\)/.test(TODAY), true);
+  // The page: the sample only on the preview (source "demo"), and "reading" while the page's first
+  // read is in flight (source null), never the sample's payout flashed at a coach.
+  assert.equal(/const money = dashMoneyModel\(live, kpiCtx, source === "demo", source == null \? \{ state: "loading" \} : payoutRead\);/.test(TODAY), true);
+  assert.equal(T.dashMoneyModel(null, { live: null, clients: sample }, false, { state: 'loading' }).payout.state, 'loading');
 
   const m = mount();
   try {
@@ -364,7 +367,7 @@ test('the next payout prints its amount, currency and arrival day, on the coach\
   assert.equal(T.dashPayoutView({ state: 'next', next: { amountCents: 100, currency: 'eur', arrivalDate: null } }, zone, NOW).sub, 'on its way, not landed yet · EUR');
   // The model reads the route's zone (kpiCtx.zone) for the coach's day: at 07:00 UTC it is still
   // the 5th in Los Angeles, so the 6th is tomorrow there.
-  const model = T.dashMoneyModel({ kpis: { monthlyNetCents: 1 } }, { live: { kpis: { monthlyNetCents: 1 } }, clients: [], zone }, { state: 'next', next: { amountCents: 100, currency: 'usd', arrivalDate: day(6) } }, Date.parse('2026-11-06T07:00:00Z'));
+  const model = T.dashMoneyModel({ kpis: { monthlyNetCents: 1 } }, { live: { kpis: { monthlyNetCents: 1 } }, clients: [], zone }, false, { state: 'next', next: { amountCents: 100, currency: 'usd', arrivalDate: day(6) } }, Date.parse('2026-11-06T07:00:00Z'));
   assert.equal(model.payout.sub, 'arrives tomorrow · USD');
 });
 
@@ -373,7 +376,7 @@ test('the Money card says each payout state, and links to setting payouts up whe
   try {
     const t = today(m.dom.window);
     const card = async (read) => {
-      await m.render(React.createElement(t.DashMoneyCard, { model: t.dashMoneyModel({ kpis: { monthlyNetCents: 412000 } }, { live: { kpis: { monthlyNetCents: 412000 } }, clients: [], zone: 'UTC' }, read, Date.parse('2026-11-06T12:00:00Z')), role: 'trainer' }));
+      await m.render(React.createElement(t.DashMoneyCard, { model: t.dashMoneyModel({ kpis: { monthlyNetCents: 412000 } }, { live: { kpis: { monthlyNetCents: 412000 } }, clients: [], zone: 'UTC' }, false, read, Date.parse('2026-11-06T12:00:00Z')), role: 'trainer' }));
       const cell = document.querySelector('[data-dash-payout]');
       return { state: cell.getAttribute('data-dash-payout'), text: cell.textContent, href: cell.querySelector('a') ? cell.querySelector('a').getAttribute('href') : null };
     };
@@ -393,14 +396,18 @@ test('the Money card says each payout state, and links to setting payouts up whe
       const cell = document.querySelector('[data-dash-payout]');
       assert.equal(/\d/.test(cell.textContent), false, r.state + ' printed a figure');
     }
+    // The halves stack where the card can't hold two cells a five-figure payout fits (measured in
+    // Chromium: "$12,483.12" overran a 153px half at a 1100px window; a 170px cell holds it).
+    const money = document.querySelector('section[aria-label="Money"]');
+    assert.equal(money.style.gridTemplateColumns, 'repeat(auto-fit, minmax(170px, 1fr))');
     // The nutritionist's link is their own page's.
-    await m.render(React.createElement(t.DashMoneyCard, { model: t.dashMoneyModel({ kpis: {} }, { live: { kpis: {} }, clients: [] }, { state: 'setup' }), role: 'nutritionist' }));
+    await m.render(React.createElement(t.DashMoneyCard, { model: t.dashMoneyModel({ kpis: {} }, { live: { kpis: {} }, clients: [] }, false, { state: 'setup' }), role: 'nutritionist' }));
     assert.equal(document.querySelector('[data-dash-payout="setup"] a').getAttribute('href'), 'NutritionistApp.html#business?section=money');
   } finally { await m.done(); }
-  // The page reads it for a signed-in coach only, and hands the model what it read.
+  // The page reads it on a live page only, and the preview is its own source, never `live` null.
   const page = TODAY.slice(TODAY.indexOf('function CoachDashboardPage('));
-  assert.equal(/const payoutRead = useDashNextPayout\(role, source === "live" \|\| !!live\);/.test(page), true);
-  assert.equal(/const money = dashMoneyModel\(live, kpiCtx, payoutRead\);/.test(page), true);
+  assert.equal(/const payoutRead = useDashNextPayout\(role, source === "live"\);/.test(page), true);
+  assert.equal(/const money = dashMoneyModel\(live, kpiCtx, source === "demo", /.test(page), true);
   assert.equal(/return live \? \(read \|\| \{ state: "loading" \}\) : null;/.test(TODAY), true, 'the preview is handed a read');
 });
 
@@ -510,6 +517,21 @@ test('the shared row draws its chip and opens the private note to the other coac
     assert.deepEqual(posted.map((x) => [x.url, x.method, x.body && x.body.counterpartUserId]), [['/api/me/shared-clients/' + P + '/thread', 'POST', '22222222-2222-4222-8222-222222222222']]);
     assert.equal(opened.length === 1 && opened[0].conversationId === 'conv-1', true, 'the care-team thread did not open');
     assert.equal(m.dom.window.location.href, before, 'the joint note went to the client\'s thread');
+    const status = () => document.querySelector('section[aria-label="Needs you"] [role="status"]').textContent;
+    assert.equal(status(), '', 'an opened note said it failed');
+    // ⚠ Never a button that does nothing: a refused thread says so, in the card's one live region…
+    globalThis.fetch = async () => ({ ok: false, json: async () => ({ error: 'Not on this care team.' }) });
+    await act(async () => { btn.dispatchEvent(new m.dom.window.MouseEvent('click', { bubbles: true })); await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(status(), "Your private thread with Priya S.'s nutritionist couldn't be opened just now.");
+    assert.equal(rows[1].querySelector('[role="status"]') === null, true, 'a live region inside a button row is never heard');
+    // …and the preview's client (not a real account) is told where the note opens, without a request.
+    const demoItems = T.dashNeedsItems({ now: [row('demo-2', 'Marcus T.', 'red', 'r')], week: [] }, [], [jointOf('demo-2', 'Marcus T.', 'nutritionist', 'demo-coach-nutritionist')]);
+    await m.render(React.createElement(t.DashNeedsBoard, { items: demoItems, feed: [], role: 'trainer', prefs: null, dismiss: null }));
+    posted.length = 0;
+    globalThis.fetch = async (url) => { posted.push({ url }); return { ok: true, json: async () => ({}) }; };
+    await act(async () => { document.querySelector('[data-dash-need] button').dispatchEvent(new m.dom.window.MouseEvent('click', { bubbles: true })); await new Promise((r) => setTimeout(r, 0)); });
+    assert.equal(status(), "Your private thread with Marcus T.'s nutritionist opens on a live account.");
+    assert.equal(posted.length, 0);
   } finally { globalThis.fetch = prevFetch; await m.done(); }
 });
 
@@ -580,15 +602,25 @@ test('an earlier Today is copied whole into "My earlier dashboard", and the acti
   assert.equal(oldView.visible.length, 5, 'the old build\'s own view of the fixture moved');
   assert.deepEqual(copyView.visible.slice(0, oldView.visible.length).map(place), oldView.visible.map((v) => ({ ...v, key: v.key === 'needs' ? 'queues' : v.key })).map(place));
   assert.deepEqual(copyView.visible.slice(oldView.visible.length).map((v) => v.key), ['upnext', 'timeline']);
-  for (const k of ['brief', 'glance', 'money', 'needs', 'wins']) assert.equal(copyView.hidden.includes(k), true, k + ' is on the earlier board');
+  for (const k of ['brief', 'glance', 'money', 'needsyou', 'wins']) assert.equal(copyView.hidden.includes(k), true, k + ' is on the earlier board');
   assert.deepEqual(copy.tabs.today.mobileOrder, ['queues', 'week', 'practice']);
+  // The old key is gone from every list: a saved `needs` names no card in this build (#2628 review).
+  const lists = (t) => [t.items.map((i) => i.id), t.order || [], t.mobileOrder || [], t.hidden || [], t.added || []];
+  assert.equal(lists(copy.tabs.today).some((l) => l.includes('needs')), false, 'a saved `needs` survived on the earlier board');
   // …and the active board's Today resolves to exactly the six.
-  assert.deepEqual(resolveGridLayout(next.trainer.today, nowWidgets).visible.map((v) => v.key), ['brief', 'upnext', 'glance', 'money', 'needs', 'timeline']);
+  assert.deepEqual(resolveGridLayout(next.trainer.today, nowWidgets).visible.map((v) => v.key), ['brief', 'upnext', 'glance', 'money', 'needsyou', 'timeline']);
   // A nutritionist's Roster health was a default of theirs; a trainer's Today never had one.
   assert.equal(G.dgEarlierTodayTab({ items: [] }, 'nutritionist').added.includes('roster'), true);
   assert.equal(G.dgEarlierTodayTab({ items: [] }, 'trainer').added.includes('roster'), false);
-  // A card the coach had hidden stays off: the tabbed queues hidden are not added back.
-  assert.equal(G.dgEarlierTodayTab({ hidden: ['needs'] }, 'trainer').added.includes('queues'), false);
+  // A card the coach had hidden stays off, under its new key: the tabbed queues hidden are hidden
+  // queues, not added back, and the order a preset saved (`order`) is renamed too.
+  const hid = G.dgEarlierTodayTab({ hidden: ['needs', 'wins'], order: ['needs', 'ending'], added: ['ending'] }, 'trainer');
+  assert.equal(hid.added.includes('queues'), false);
+  assert.equal(hid.hidden.includes('queues') && !hid.hidden.includes('needs') && hid.hidden.includes('wins'), true, JSON.stringify(hid.hidden));
+  assert.deepEqual(hid.order, ['queues', 'ending']);
+  assert.equal(resolveGridLayout(hid, nowWidgets).visible.some((v) => v.key === 'queues'), false, 'the hidden Work queues came back');
+  // An added old card stays added under its new key.
+  assert.equal(G.dgEarlierTodayTab({ added: ['needs'] }, 'trainer').added.filter((k) => k === 'queues').length, 1);
 });
 
 test('the earlier dashboard\'s name is unique, a rename never brings it back, and only an earlier layout is copied', () => {
@@ -610,7 +642,8 @@ test('the earlier dashboard\'s name is unique, a rename never brings it back, an
   // Nothing saved, an empty layout, or one the six-widget build wrote: nothing to copy.
   for (const doc of [{}, { trainer: {} }, { trainer: { today: {} } }, { trainer: { today: { items: [], hidden: [], added: [] } } },
     { trainer: { today: { items: [{ id: 'brief', x: 0, y: 0, w: 8, h: 9 }, { id: 'needs', x: 0, y: 9, w: 8, h: 20 }] } } },
-    { trainer: { today: { hidden: ['money'], items: [], order: ['brief'] } } }, { trainer: { today: { added: ['queues'] } } }]) {
+    { trainer: { today: { hidden: ['money'], items: [], order: ['brief'] } } }, { trainer: { today: { added: ['queues'] } } },
+    { trainer: { today: { hidden: ['needsyou'] } } }, { trainer: { today: { items: [{ id: 'needsyou', x: 0, y: 0, w: 8, h: 20 }, { id: 'practice', x: 0, y: 20, w: 12, h: 9 }] } } }]) {
     assert.equal(G.dgEarlierTodayDue(doc, 'trainer'), false, JSON.stringify(doc));
     assert.equal(G.dgKeepEarlierToday(doc, 'trainer', 'board-1'), doc);
   }

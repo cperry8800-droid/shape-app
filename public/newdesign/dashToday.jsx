@@ -2230,9 +2230,19 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
   const Drawer = typeof window !== "undefined" && typeof window.DashClientDrawer === "function" ? window.DashClientDrawer : null;
   const rowOf = (id) => (Array.isArray(feed) ? feed.find((r) => r && r.client && r.client.profile && r.client.profile.id === id) : null) || null;
   const openRow = selectedId != null ? rowOf(selectedId) : null;
+  // ⚠ THE JOINT NOTE NEVER FAILS IN SILENCE. dashOpenCareTeam answers false when the thread can't be
+  // opened (the route refused, the network) and for a client who is not a real account (the
+  // preview's): the row then says so, instead of a button that did nothing.
+  const [noteFail, setNoteFail] = React.useState(null);
   const go = (it) => {
     // A shared client's note goes to the other coach, never to the client (dashOpenCareTeam).
-    if (it.joint) dashOpenCareTeam(it.joint, role);
+    if (it.joint) {
+      setNoteFail(null);
+      const real = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(it.id || "")) && !!(it.joint.coCoach && it.joint.coCoach.userId);
+      const whose = "Your private thread with " + it.name + "'s " + it.shared;
+      const say = real ? whose + " couldn't be opened just now." : whose + " opens on a live account.";
+      Promise.resolve(dashOpenCareTeam(it.joint, role)).then((ok) => { if (!ok) setNoteFail(say); }, () => setNoteFail(say));
+    }
     else if (it.kind === "good") dashMessageClient(it.name, role, dashCongratsDraft(it.client, it.hit), it.id);
     else if (it.action) dashCoachActionGo(it.action, it.row, role);
     else dashMessageClient(it.name, role, null, it.id);
@@ -2281,6 +2291,9 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
       {items.length === 0
         ? <p style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>Nobody needs you right now. Clients appear here when their logs, check-ins or Shape Score slip, and when they hit a milestone.</p>
         : rows.map(renderRow)}
+      {/* Outside the rows: a live region inside a role="button" row is flattened, and never heard. */}
+      {/* Always in the tree (empty and zero-high until it speaks), so its first message is announced. */}
+      <div role="status" data-dash-note-fail={noteFail ? "" : undefined} style={{ marginTop: noteFail ? 6 : 0, fontSize: 12, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>{noteFail || ""}</div>
       {!all && fold.rest.length > 0 && (
         <button type="button" data-dash-fold="" aria-expanded={false} onClick={() => setAll(true)}
           style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: "100%", marginTop: 6, padding: "10px 2px 2px", background: "transparent", border: 0, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", font: "inherit", textAlign: "left", cursor: "pointer", color: "var(--sh-ink2, #a09b94)" }}>
@@ -2405,7 +2418,8 @@ function dashPayoutWhen(arrivalMs, zone, now) {
   if (!Number.isFinite(arrivalMs)) return null;
   const day = new Date(arrivalMs).toISOString().slice(0, 10);
   const Z = dashZoneLib();
-  const tz = Z && zone && Z.normalizeZone(zone) ? zone : (Z ? Z.viewerZone() : null);
+  // The route's zone, else the account's (ShapeZone's viewer zone), as dashSignals' dayInZone reads it.
+  const tz = Z ? (zone && Z.normalizeZone(zone) ? zone : Z.viewerZone()) : null;
   const today = Z ? Z.dayKey(now, tz) : dashLocalDate(new Date(now));
   const diff = Math.round((Date.parse(day + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000);
   if (diff === 0) return "arrives today";
@@ -2445,6 +2459,7 @@ function dashMoneyModel(live, ctx, preview, read, now = Date.now()) {
   else payout = { state: "unread" };
   return { recurring, payout, live: !!live };
 }
+const DASH_MONEY_CELL = 170;
 function DashMoneyCard({ model, role }) {
   const p = model.payout || { state: "unread" };
   const note = { fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" };
@@ -2452,13 +2467,17 @@ function DashMoneyCard({ model, role }) {
   // Business's Money section, where its "Set up payouts" starts Stripe's onboarding.
   const setupHref = dashLinkedTab("business", role, { section: "money" });
   return (
-    <section aria-label="Money" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, overflow: "hidden" }}>
+    // ⚠ THE TWO HALVES STACK WHEN THE CARD CAN'T HOLD TWO 170px CELLS (measured: a "$12,483.12" payout
+    // overran its half at a 1100px window and below). The divider is a shadow on the second cell's
+    // left and top edges, so it falls between them side by side or stacked; the card's own edge
+    // clips the other one.
+    <section aria-label="Money" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(" + DASH_MONEY_CELL + "px, 1fr))", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, overflow: "hidden" }}>
       <div style={{ padding: "18px 18px", minWidth: 0 }}>
-      <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10 }}>Recurring revenue</div>
+      <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10, paddingRight: 44 }}>Recurring revenue</div>
       <div style={{ fontFamily: serif, fontSize: 28, fontWeight: 500, letterSpacing: "-0.015em", lineHeight: 1, fontVariantNumeric: "tabular-nums", color: model.recurring.k === "—" ? "var(--sh-ink2, #a09b94)" : INK }}>{model.recurring.k}<span style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", fontFamily: "inherit" }}>{model.recurring.k === "—" ? "" : " /mo"}</span></div>
       {model.recurring.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{model.recurring.sub}</div>}
       </div>
-      <div style={{ padding: "18px 18px", minWidth: 0, borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+      <div style={{ padding: "18px 18px", minWidth: 0, boxShadow: "-1px 0 0 0 rgba(var(--sh-ink-rgb, 242,237,228),0.08), 0 -1px 0 0 rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
         <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10, paddingRight: 44 }}>Next payout</div>
         {p.state === "next" || p.state === "sample"
           ? <div data-dash-payout={p.state}><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 500, lineHeight: 1.1, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{p.k}</div>{p.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{p.sub}</div>}</div>
@@ -2624,10 +2643,12 @@ function CoachDashboardPage({ role }) {
   const needSplit = Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
   const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;
   const glance = dashGlanceCells(role, kpiCtx);
-  // The next payout is read on a live page only, and the preview is the page's own source, as
-  // everywhere here: a coach whose day feed failed still gets their own payout, never the sample's.
+  // The next payout is read on a live page only, and the preview is the page's own source: a coach
+  // whose day feed failed still gets their own payout, never the sample's. ⚠ AND MONEY WAITS FOR THE
+  // SOURCE: before the page's first read lands (`source` null) nobody knows whether this is the
+  // preview, so the card says it is reading rather than flash the sample's payout at a coach.
   const payoutRead = useDashNextPayout(role, source === "live");
-  const money = dashMoneyModel(live, kpiCtx, source !== "live", payoutRead);
+  const money = dashMoneyModel(live, kpiCtx, source === "demo", source == null ? { state: "loading" } : payoutRead);
   // The calendar overlay is DashShell's; it hands its opener back through this ref as it renders.
   const openCalRef = React.useRef(null);
   const openCalendar = () => { if (typeof openCalRef.current === "function") openCalRef.current(); };

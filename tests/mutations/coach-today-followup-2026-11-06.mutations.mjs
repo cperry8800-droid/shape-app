@@ -48,6 +48,10 @@ export default {
     { name: 'card: the model drops the coach\'s zone', file: TODAY, find: 'if (read) payout = dashPayoutView(read, ctx && ctx.zone, now);', replace: 'if (read) payout = dashPayoutView(read, null, now);' },
     { name: 'card: the setup link opens Business\'s overview', file: TODAY, find: 'dashLinkedTab("business", role, { section: "money" })', replace: 'dashTabHref("business", role)' },
     { name: 'card: the preview is handed a read', file: TODAY, find: 'return live ? (read || { state: "loading" }) : null;', replace: 'return read || { state: "loading" };' },
+    { name: 'card: the payout is read on a page that is not live', file: TODAY, find: 'useDashNextPayout(role, source === "live")', replace: 'useDashNextPayout(role, true)' },
+    { name: 'card: the sample\'s payout flashes while the page loads', file: TODAY, find: 'dashMoneyModel(live, kpiCtx, source === "demo", source == null ? { state: "loading" } : payoutRead)', replace: 'dashMoneyModel(live, kpiCtx, source !== "live", payoutRead)' },
+    { name: 'card: no read claims payouts aren\'t set up', file: TODAY, find: '  else payout = { state: "unread" };\n  return { recurring, payout, live: !!live };', replace: '  else payout = { state: "setup" };\n  return { recurring, payout, live: !!live };' },
+    { name: 'card: the halves never stack', file: TODAY, find: '"repeat(auto-fit, minmax(" + DASH_MONEY_CELL + "px, 1fr))"', replace: '"minmax(0,1fr) minmax(0,1fr)"' },
     { name: 'card: the read asks another route', file: TODAY, find: '"/api/coach/next-payout?role=" + encodeURIComponent(role)', replace: '"/api/" + encodeURIComponent(role) + "/analytics"' },
 
     // ── shared clients in Needs you ──
@@ -55,8 +59,10 @@ export default {
     { name: 'shared: a listed joint client is pulled forward', file: TODAY, find: 'for (const [id, j] of jointById) if (!listed.has(id)) add("week", j.client, { row: null });', replace: 'for (const [id, j] of jointById) add("week", j.client, { row: null });' },
     { name: 'shared: an unlisted joint client is dropped', file: TODAY, find: 'for (const [id, j] of jointById) if (!listed.has(id)) add("week", j.client, { row: null });', replace: '' },
     { name: 'shared: an entry without a co-coach is shared', file: TODAY, find: 'if (id != null && j.coCoach && j.coCoach.role && !jointById.has(id)) jointById.set(id, j);', replace: 'if (id != null && !jointById.has(id)) jointById.set(id, j);' },
-    { name: 'shared: the joint note goes to the client', file: TODAY, find: 'if (it.joint) dashOpenCareTeam(it.joint, role);', replace: 'if (false) dashOpenCareTeam(it.joint, role);' },
+    { name: 'shared: the joint note goes to the client', file: TODAY, find: '    if (it.joint) {\n      setNoteFail(null);', replace: '    if (false) {\n      setNoteFail(null);' },
     { name: 'shared: the chip is not drawn', file: TODAY, find: '{it.shared && sharedChip(it)}', replace: '' },
+    { name: 'shared: a refused joint note says nothing', file: TODAY, find: '.then((ok) => { if (!ok) setNoteFail(say); }', replace: '.then((ok) => {}' },
+    { name: 'shared: the preview\'s note asks the route', file: TODAY, find: 'const say = real ? whose + " couldn\'t be opened just now." : whose + " opens on a live account.";', replace: 'const say = whose + " couldn\'t be opened just now.";' },
     { name: 'shared: a folded shared client goes unsaid', file: TODAY, find: 'if (fold.shared > 0) parts.push(fold.shared + " shared");', replace: '' },
     { name: 'shared: the page hands Needs you no joint attention', file: TODAY, find: 'feed={triage} joint={joint} role={role}', replace: 'feed={triage} role={role}' },
 
@@ -69,6 +75,9 @@ export default {
     { name: 'earlier: a taken name is reused', file: GRID, find: 'if (!taken.has(base.toLowerCase())) return base;', replace: 'return base;' },
     { name: 'earlier: the copy is verbatim, its old cards hidden', file: GRID, find: '  next = dgBoardEdit(next, role, { type: "tab", board: id, tab: "today", layout: dgEarlierTodayTab(copy && copy.tabs ? copy.tabs.today : null, role) });\n', replace: '' },
     { name: 'earlier: the queues keep their old key', file: GRID, find: 'const DG_EARLIER_RENAMED = { needs: "queues" };', replace: 'const DG_EARLIER_RENAMED = {};' },
+    { name: 'earlier: a hidden `needs` keeps its old key', file: GRID, find: 'for (const k of oldHidden) { const r = rename(k);', replace: 'for (const k of oldHidden) { const r = k;' },
+    { name: 'earlier: a layout naming `needsyou` is copied', file: GRID, find: 'const DG_SIX_ONLY = ["brief", "upnext", "glance", "money", "needsyou", "timeline", "queues"];', replace: 'const DG_SIX_ONLY = ["brief", "upnext", "glance", "money", "timeline", "queues"];' },
+    { name: 'earlier: the new Needs you is left on the copy', file: GRID, find: 'const DG_EARLIER_OFF = ["brief", "glance", "money", "needsyou"];', replace: 'const DG_EARLIER_OFF = ["brief", "glance", "money", "needs"];' },
     { name: 'earlier: a card the coach hid comes back', file: GRID, find: 'if (!oldHidden.has(k) && (k !== "roster" || role === "nutritionist")) add(rename(k));', replace: 'if (k !== "roster" || role === "nutritionist") add(rename(k));' },
     { name: 'earlier: the copy becomes the active board', file: GRID, find: '  next = dgBoardEdit(next, role, { type: "switch", id: prev });\n', replace: '' },
     { name: 'earlier: the active board keeps the old layout', file: GRID, find: '  next = dgBoardEdit(next, role, { type: "tab", board: prev, tab: "today", layout: {} });\n', replace: '' },

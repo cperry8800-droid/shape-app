@@ -724,14 +724,16 @@ const DG_EARLIER_MARK = "earlierToday";
 const DG_EARLIER_NAME = "My earlier dashboard";
 // Keys only the six-widget board's build writes on Today. A layout that names one was saved by that
 // build (the coach has already used the new board), not before it, and is not copied.
-const DG_SIX_ONLY = ["brief", "upnext", "glance", "money", "timeline", "queues"];
-// What #2628 changed under an old layout's keys: the tabbed queues were `needs` and are `queues`
-// (`needs` is the new Needs you), and every old default card is optional now.
+const DG_SIX_ONLY = ["brief", "upnext", "glance", "money", "needsyou", "timeline", "queues"];
+// ⚠ WHAT #2628 CHANGED UNDER AN OLD LAYOUT'S KEYS. The tabbed queues were `needs` and are `queues`
+// (Work queues); the new card is `needsyou`, and a saved `needs` is a key the new build no longer
+// declares, so without the rename the coach's old card would vanish from their earlier board. Every
+// old default card is optional now.
 const DG_EARLIER_RENAMED = { needs: "queues" };
 const DG_EARLIER_DEFAULTS = ["needs", "practice", "wins", "roster", "kpis", "business"];
 // The new board's own cards, off on the copy. Up next and the Today timeline stay on it: the old
 // page showed them beside its grid, as the day column.
-const DG_EARLIER_OFF = ["brief", "glance", "money", "needs"];
+const DG_EARLIER_OFF = ["brief", "glance", "money", "needsyou"];
 
 function dgActiveTabs(doc, role) {
   const library = dgBoards(doc, role);
@@ -763,8 +765,9 @@ function dgFreeBoardName(boards, base) {
   return base + " " + n;
 }
 // The earlier Today, as the six-widget build must read it to draw what the old build drew: the old
-// keys renamed, every old default the coach had not hidden marked as added (optional now), the
-// optional cards they had added kept, and the new board's own cards off. Places are kept as saved.
+// keys renamed in every list (items, order, the phone's order, hidden and added), every old default
+// the coach had not hidden marked as added (optional now), the optional cards they had added kept,
+// and the new board's own cards off. Places are kept as saved.
 function dgEarlierTodayTab(t, role) {
   const old = t && typeof t === "object" ? t : {};
   const rename = (k) => (Object.prototype.hasOwnProperty.call(DG_EARLIER_RENAMED, k) ? DG_EARLIER_RENAMED[k] : k);
@@ -774,7 +777,10 @@ function dgEarlierTodayTab(t, role) {
   // Roster health was a default on the nutritionist's Today only; the trainer's never had it.
   for (const k of DG_EARLIER_DEFAULTS) if (!oldHidden.has(k) && (k !== "roster" || role === "nutritionist")) add(rename(k));
   for (const k of (Array.isArray(old.added) ? old.added : [])) add(rename(k));
-  const out = { ...old, hidden: DG_EARLIER_OFF.slice(), added };
+  // What the coach hid stays hidden under its new key (a hidden `needs` is a hidden `queues`).
+  const hidden = DG_EARLIER_OFF.slice();
+  for (const k of oldHidden) { const r = rename(k); if (typeof r === "string" && r && !hidden.includes(r) && !added.includes(r)) hidden.push(r); }
+  const out = { ...old, hidden, added };
   if (Array.isArray(old.items)) out.items = old.items.map((i) => (i && i.id != null ? { ...i, id: rename(i.id) } : i));
   if (Array.isArray(old.order)) out.order = old.order.map(rename);
   if (Array.isArray(old.mobileOrder)) out.mobileOrder = old.mobileOrder.map(rename);
