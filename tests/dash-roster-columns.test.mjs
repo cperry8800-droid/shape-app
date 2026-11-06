@@ -37,6 +37,20 @@ test('revenue: a client on no paid plan is $0, not "not shared"', () => {
   assert.equal(dashRevenueLabel({}).text, "Not shared");
 });
 
+// ── PROGRAM is this page's role's own block (#2622's follow-up) ──────────────
+// `program` is one pick across both of a coach's listings; `programs[role]` is each role's own, as the
+// signal engine reads it. A record without `programs` (an older overview, the demo roster) keeps `program`.
+test("program: the roster names the page's role's own block, else the single pick", () => {
+  const { dashProgramLabel } = load(ROSTER, ['dashProgramOf', 'dashProgramLabel']);
+  const rec = { program: { name: 'Strength Block 3', week: 6, weeks: 12 }, programs: { trainer: { name: 'Strength Block 3', week: 6, weeks: 12 }, nutritionist: { name: 'Lean Fuel', week: 2, weeks: 8 } } };
+  assert.equal(dashProgramLabel(rec, 'trainer').text, 'Strength Block 3 · Wk 6/12');
+  assert.equal(dashProgramLabel(rec, 'nutritionist').text, 'Lean Fuel · Wk 2/8');
+  assert.equal(dashProgramLabel(rec, 'dietitian').text, 'Lean Fuel · Wk 2/8', 'a dietitian reads the nutrition block');
+  assert.equal(dashProgramLabel({ ...rec, programs: { trainer: rec.programs.trainer, nutritionist: null } }, 'nutritionist').text, 'Not set', "the other role's block is not this one's");
+  assert.equal(dashProgramLabel({ program: rec.program }, 'nutritionist').text, 'Strength Block 3 · Wk 6/12', 'no programs: the single pick');
+  assert.match(ROSTER, /dashCellText\(dashProgramLabel\(rec, role\)\)/);
+});
+
 test('tenure: days, then months, then years — and an unparseable date is not "NaNd"', () => {
   assert.equal(dashTenureLabel({ payments: { joinedAt: ago(12) } }).text, "12d");
   assert.equal(dashTenureLabel({ payments: { joinedAt: ago(30) } }).text, "30d");

@@ -342,3 +342,44 @@ test('the run still reads the one snapshot from before the split, until that rol
   assert.match(cron, /writeNotifyState\(admin, userId, snapshot\.role, nextState/);
   assert.match(read('src/app/api/ai/notify/route.ts'), /writeNotifyState\(actor\.supabase, actor\.user\.id, role, nextState/);
 });
+
+// ── The app posts every coach role it holds (#2622's follow-up) ───────────────
+// evaluateNotifications built one roster from `profile.role` behind one shared stamp, so a coach with
+// both listings never posted the second from the app, and evaluating one role silenced the other.
+test('the app posts one roster per held coach role, each on its own throttle, and a member their record', async () => {
+  const src = read('mobile-app/src/services/shapeBackend.js');
+  const block = src.slice(src.indexOf('const NOTIFY_THROTTLE_MS'), src.indexOf('window.ShapeNotify = { evaluate: evaluateNotifications };'));
+  assert.ok(block.length > 200, 'the notify block moved');
+  const run = async (profile, store = {}) => {
+    const posts = [];
+    const win = {
+      localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } },
+      ShapeSignals: { coachRecords: async (role) => [{ profile: { id: role + '-client' } }], selfRecord: async () => ({ me: true }) },
+      DashSignals: { engineSnapshot: (r) => ({ userId: r.profile.id }) },
+    };
+    const fetchFake = async (url, init) => { posts.push(JSON.parse(init.body)); return { json: async () => ({ ok: true }) }; };
+    const state = { session: { access_token: 't' }, profile };
+    const providerDiscipline = (role) => (role === 'dietitian' ? 'nutritionist' : role);
+    const evaluate = new Function('window', 'fetch', 'state', 'apiBaseUrl', 'providerDiscipline', block + '\nreturn evaluateNotifications;')(win, fetchFake, state, 'https://x', providerDiscipline);
+    await evaluate(false);
+    return { posts, store };
+  };
+  // Both listings (a dietitian on the nutrition rails): a roster each, under its own role and key.
+  const both = await run({ role: 'trainer', roles: ['trainer', 'dietitian'] });
+  assert.deepEqual(both.posts.map((b) => b.role), ['trainer', 'nutritionist']);
+  assert.equal(both.posts[1].clients[0].userId, 'nutritionist-client');
+  assert.equal(both.posts.some((b) => 'record' in b), false, 'a coach posts no member record');
+  assert.deepEqual(Object.keys(both.store).sort(), ['shape.notify.last:nutritionist', 'shape.notify.last:trainer']);
+  // One role's fresh stamp does not silence the other.
+  const one = await run({ role: 'trainer', roles: ['trainer', 'nutritionist'] }, { 'shape.notify.last:trainer': String(Date.now()) });
+  assert.deepEqual(one.posts.map((b) => b.role), ['nutritionist']);
+  // A member who also coaches: their roster, and their own record on the old key.
+  const member = await run({ role: 'client', roles: ['client', 'trainer'] });
+  assert.deepEqual(member.posts.map((b) => (b.record ? 'record' : b.role)), ['trainer', 'record']);
+  assert.equal('shape.notify.last' in member.store, true);
+  // A plain member: the record alone.
+  const plain = await run({ role: 'client', roles: ['client'] });
+  assert.deepEqual(plain.posts.map((b) => (b.record ? 'record' : b.role)), ['record']);
+  // The sign-out forgets every stamp.
+  assert.match(src, /\['shape\.notify\.last', 'shape\.notify\.last:trainer', 'shape\.notify\.last:nutritionist'\]\.forEach/);
+});

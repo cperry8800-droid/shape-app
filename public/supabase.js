@@ -361,7 +361,7 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
           'shape.library', 'shape.recipeGroceryLists', 'shape.deletedGroceryIds',
           'shape.recipeGroceryListsBase', 'shape.grocery.listsBase.v1', 'shape.grocery.lists.v1', 'shape.coachGroceryReceived',
           'shape.cookResume', 'shape.cookBatchResume', 'shape.radio.musicLibraries',
-          'shape.stepGoal', 'shape.notify.last', 'shape.tz.account', 'shape.tz.declined',
+          'shape.stepGoal', 'shape.notify.last', 'shape.notify.last:trainer', 'shape.notify.last:nutritionist', 'shape.tz.account', 'shape.tz.declined',
           'bs_coach_soundtracks', 'bs_coach_soundtrack_assign',
           'shape.clientIntakes', 'shape.clientProfiles', 'shape.clientWorkoutUpdates',
           'shape.coachWorkoutReviewNotes', 'shape.communityComments', 'shape.communityPosts',

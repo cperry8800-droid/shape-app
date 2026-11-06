@@ -716,7 +716,8 @@ async function signOut() {
   // unevaluated until A's throttle expires. The content scrub doesn't cover it
   // (it's not user CONTENT), so it clears here with the other cross-account
   // state.
-  try { window.localStorage.removeItem('shape.notify.last'); } catch (e) {}
+  // Each coach role's stamp too (evaluateNotifications posts one roster per held coach role).
+  try { ['shape.notify.last', 'shape.notify.last:trainer', 'shape.notify.last:nutritionist'].forEach((k) => window.localStorage.removeItem(k)); } catch (e) {}
   // The account's time zone (P9) is held in memory as well as in localStorage, where the scrub
   // drops it: forgotten here too, so the next account on this device prints on its own clock
   // from the first frame rather than the last one's until its read lands.
@@ -10084,25 +10085,53 @@ async function memberAges(userIds) {
 
 window.ShapeMemberAges = { get: memberAges };
 
+// ⚠ ONE ROSTER PER COACH ROLE THE ACCOUNT HOLDS, EACH ON ITS OWN THROTTLE (#2622's follow-up). One
+// auth user can own a trainer and a nutritionist listing; the app used to post only the primary
+// role's roster, so the other listing's clients never reached /api/ai/notify from the app, and one
+// shared stamp meant evaluating one role silenced the other for 30 minutes. The roles come from
+// `profile.roles` plus `profile.role`, a dietitian on the nutrition rails (providerDiscipline); a
+// member whose primary role is not a coach still posts their own record, on the old key.
+const NOTIFY_THROTTLE_MS = 30 * 60_000;
+function notifyThrottleKey(coachRole) { return coachRole ? `shape.notify.last:${coachRole}` : 'shape.notify.last'; }
+function notifyCoachRoles(profile) {
+  const held = [profile?.role, ...(Array.isArray(profile?.roles) ? profile.roles : [])];
+  const out = [];
+  for (const r of held) {
+    const d = providerDiscipline(r);
+    if ((d === 'trainer' || d === 'nutritionist') && out.indexOf(d) < 0) out.push(d);
+  }
+  return out;
+}
+function notifyDue(key, force) {
+  if (force) return true;
+  try { return Date.now() - Number(window.localStorage.getItem(key) || 0) >= NOTIFY_THROTTLE_MS; } catch (e) { return true; }
+}
+async function notifyPost(body, key) {
+  // Stamp the throttle only now that a real payload exists — a not-ready ShapeSignals or an
+  // empty roster must NOT suppress the next 30 minutes.
+  try { window.localStorage.setItem(key, String(Date.now())); } catch (e) {}
+  const res = await fetch(`${apiBaseUrl}/api/ai/notify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
+    body: JSON.stringify(body),
+  });
+  return await res.json().catch(() => null);
+}
 async function evaluateNotifications(force) {
   if (!apiBaseUrl || !state.session?.access_token) return null;
-  // Throttle (the server layer dedups too, but don't hammer the endpoint).
-  try {
-    if (!force) {
-      const last = Number(window.localStorage.getItem('shape.notify.last') || 0);
-      if (Date.now() - last < 30 * 60_000) return null;
-    }
-  } catch (e) {}
-  try {
-    const role = state.profile?.role || 'client';
-    let body;
-    // Coach roles send their client roster; dietitian rides the nutrition rails
-    // (matches the server's isCoachRole, so /api/ai/notify takes the coach branch).
-    if (role === 'trainer' || role === 'nutritionist' || role === 'dietitian') {
-      // Pass the discipline so a nutritionist/dietitian evaluates the NUTRITION
-      // roster — not the trainer default coachRecords() would otherwise use.
-      const records = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords(providerDiscipline(role)) : null;
-      if (!Array.isArray(records) || !records.length) return null; // honest: nothing to evaluate
+  const profile = state.profile || {};
+  const primary = providerDiscipline(profile.role || 'client');
+  const results = [];
+  // Coach roles send their client roster (the server's isCoachRole takes the coach branch).
+  for (const role of notifyCoachRoles(profile)) {
+    const key = notifyThrottleKey(role);
+    // Throttle (the server layer dedups too, but don't hammer the endpoint).
+    if (!notifyDue(key, force)) continue;
+    try {
+      // Pass the discipline so a nutritionist/dietitian evaluates the NUTRITION roster — not the
+      // trainer default coachRecords() would otherwise use.
+      const records = window.ShapeSignals?.coachRecords ? await window.ShapeSignals.coachRecords(role) : null;
+      if (!Array.isArray(records) || !records.length) continue; // honest: nothing to evaluate
       // ⚠ THE ENGINE'S INPUTS, WITH THE CLIENT'S ID WHERE THE ROUTE READS IT (P2). The records carry
       // their id at `profile.id` only, and the route's scope check read `userId || id`, so every client
       // was dropped and no coach alert ever went out. DashSignals.engineSnapshot sets `userId` and keeps
@@ -10110,22 +10139,20 @@ async function evaluateNotifications(force) {
       // when the caller holds it).
       const E = window.DashSignals;
       const clients = E && typeof E.engineSnapshot === 'function' ? records.map((r) => E.engineSnapshot(r)).filter(Boolean) : records;
-      body = { clients, role: providerDiscipline(role) };
-    } else {
-      const record = window.ShapeSignals?.selfRecord ? await window.ShapeSignals.selfRecord() : null;
-      if (!record) return null;
-      body = { record };
+      results.push(await notifyPost({ clients, role }, key));
+    } catch (e) {}
+  }
+  // A member's own record, when the account's primary role is not a coach.
+  if (primary !== 'trainer' && primary !== 'nutritionist') {
+    const key = notifyThrottleKey(null);
+    if (notifyDue(key, force)) {
+      try {
+        const record = window.ShapeSignals?.selfRecord ? await window.ShapeSignals.selfRecord() : null;
+        if (record) results.push(await notifyPost({ record }, key));
+      } catch (e) {}
     }
-    // Stamp the throttle only now that a real payload exists — a not-ready
-    // ShapeSignals or an empty roster must NOT suppress the next 30 minutes.
-    try { window.localStorage.setItem('shape.notify.last', String(Date.now())); } catch (e) {}
-    const res = await fetch(`${apiBaseUrl}/api/ai/notify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.session.access_token}` },
-      body: JSON.stringify(body),
-    });
-    return await res.json().catch(() => null);
-  } catch (e) { return null; }
+  }
+  return results.length ? results : null;
 }
 window.ShapeNotify = { evaluate: evaluateNotifications };
 

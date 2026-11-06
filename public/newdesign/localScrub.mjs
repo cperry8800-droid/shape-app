@@ -82,6 +82,8 @@ export const SHAPE_SCRUB_KEYS = [
                           // inherited indefinitely by a next user with no cloud goal
   'shape.notify.last',    // 30-min notification throttle stamp — suppresses the next
                           // account's evaluation until the previous account's expires
+  'shape.notify.last:trainer', 'shape.notify.last:nutritionist', // the same stamp per coach role
+                          // (the app posts one roster per coach role the account holds)
   'shape.tz.account',     // the account's own time zone (shapeZone.mjs): left behind, the next
                           // account's first paint prints every time on the previous one's clock
   'shape.tz.declined',    // "keep my zone" for this device's zone: would silence the next

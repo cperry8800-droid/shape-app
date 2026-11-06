@@ -19,22 +19,25 @@ export default {
     // ── missed sessions ──
     { name: 'missed: the threshold itself does not flag', file: SIG, find: 'if (!(missed >= THRESHOLDS.MISSED_SESSIONS)) return null;', replace: 'if (!(missed > THRESHOLDS.MISSED_SESSIONS)) return null;' },
     { name: 'missed: no evidence floor', file: SIG, find: 'planned < THRESHOLDS.MISSED_MIN_PLANNED) return null;', replace: 'planned < 0) return null;' },
-    { name: 'missed: a sole nutritionist is not told', file: SIG, find: 'if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c))) flags.push(f);', replace: 'if (disciplineForRole(role) === "training" && (f = ruleMissedSessions(c))) flags.push(f);' },
-    { name: 'missed: every nutritionist is told', file: SIG, find: 'if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c))) flags.push(f);', replace: 'if ((f = ruleMissedSessions(c))) flags.push(f);' },
+    { name: 'missed: a sole nutritionist is not told', file: SIG, find: 'if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c, role))) flags.push(f);', replace: 'if (disciplineForRole(role) === "training" && (f = ruleMissedSessions(c, role))) flags.push(f);' },
+    { name: 'missed: every nutritionist is told', file: SIG, find: 'if ((disciplineForRole(role) === "training" || !hasPro(c, "trainer")) && (f = ruleMissedSessions(c, role))) flags.push(f);', replace: 'if ((f = ruleMissedSessions(c, role))) flags.push(f);' },
 
     // ── a check-in waiting ──
     { name: 'checkin: an unread review state counts as unreviewed', file: SIG, find: 'if (!latest || latest.reviewed !== false || typeof latest.weekOf !== "string") return null;', replace: 'if (!latest || latest.reviewed === true || typeof latest.weekOf !== "string") return null;' },
     { name: 'checkin: an old one still waits', file: SIG, find: 'if (age < 0 || age > 7) return null;', replace: 'if (age < 0 || age > 14) return null;' },
-    { name: 'checkin: a 2 is not low', file: SIG, find: 'var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v >= 6 - THRESHOLDS.CHECKIN_RATING_LOW;', replace: 'var low = CHECKIN_RATINGS[i][2] === "hi" ? v < THRESHOLDS.CHECKIN_RATING_LOW : v >= 6 - THRESHOLDS.CHECKIN_RATING_LOW;' },
-    { name: 'checkin: a 4 on stress is not low', file: SIG, find: 'var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v >= 6 - THRESHOLDS.CHECKIN_RATING_LOW;', replace: 'var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v > 6 - THRESHOLDS.CHECKIN_RATING_LOW;' },
-    { name: 'checkin: an off-scale rating is read', file: SIG, find: 'if (v == null || v < 1 || v > 5) continue;', replace: 'if (v == null) continue;' },
+    // The form asks 1-10 and 10 is good on every question (#2621), so the line is CHECKIN_RATING_LOW (4).
+    { name: 'checkin: a rating on the line is not low', file: SIG, find: 'var low = CHECKIN_RATINGS[i][2] === "hi" ? v <= THRESHOLDS.CHECKIN_RATING_LOW : v >= 11 - THRESHOLDS.CHECKIN_RATING_LOW;', replace: 'var low = CHECKIN_RATINGS[i][2] === "hi" ? v < THRESHOLDS.CHECKIN_RATING_LOW : v >= 11 - THRESHOLDS.CHECKIN_RATING_LOW;' },
+    // Stress is asked the good way round now ("10 = calm"), so the inverted branch is unreachable; what
+    // this mutation guarded is the stress question's direction itself.
+    { name: 'checkin: stress is read the wrong way round', file: SIG, find: '["stress", "calm", "hi"]', replace: '["stress", "calm", "lo"]' },
+    { name: 'checkin: an off-scale rating is read', file: SIG, find: 'if (v == null || v < 1 || v > 10) continue;', replace: 'if (v == null) continue;' },
     { name: 'checkin: a question alone does not flag', file: SIG, find: 'if (!lows.length && !asked) return null;', replace: 'if (!lows.length) return null;' },
 
     // ── a reply waiting ──
     { name: 'reply: the threshold itself does not flag', file: SIG, find: 'if (!(hours >= THRESHOLDS.REPLY_WAIT_HOURS)) return null;', replace: 'if (!(hours > THRESHOLDS.REPLY_WAIT_HOURS)) return null;' },
     { name: "reply: the trainer's thread for every role", file: SIG, find: 'var since = own ? toDate(rw[own]) : null;', replace: 'var since = toDate(rw.trainer);' },
     { name: 'reply leg: a system message ends the walk', file: LEGS, find: '      if (m.sender_id == null) continue;', replace: '      if (m.sender_id == null) break;' },
-    { name: "reply leg: the coach's reply does not end it", file: LEGS, find: "      if (String(m.sender_id) !== String(clientId)) break;", replace: "      if (String(m.sender_id) !== String(clientId)) continue;" },
+    { name: "reply leg: the coach's reply does not end it", file: LEGS, find: "      if (String(m.sender_id) !== String(clientId)) { answered.add(c); continue; }", replace: "      if (String(m.sender_id) !== String(clientId)) { continue; }" },
 
     // ── a program ending ──
     { name: 'program: the next block lined up still flags', file: SIG, find: 'p.status === "paused" || p.nextAssigned) return null;', replace: 'p.status === "paused") return null;' },
