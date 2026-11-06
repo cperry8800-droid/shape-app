@@ -518,6 +518,7 @@ function DashShell({
   nowColumn,   // optional (openCalendar) => node — the day column B's layout puts beside the grid
   dockCatalog, // optional: the widget catalogue opens beside the board, pushing it aside (DgCatalog)
   calendarOpener, // optional ref: set to the calendar overlay's opener, for a widget's "Calendar →"
+  keepEarlierToday, // optional: keep a Today layout saved before the six-widget board as its own dashboard
 }) {
   // The paper switch follows the account on every shell page. dashData.jsx loads
   // AFTER this file on every dashboard page and not at all on the print page, so
@@ -557,7 +558,7 @@ function DashShell({
 
         {gridWidgets ? (() => {
           // ONE <DashGrid> call site: two with the same role+tab would share a stored layout.
-          const grid = <DashGrid role={role} tab="today" widgets={gridWidgets} dockCatalog={!!dockCatalog} />;
+          const grid = <DashGrid role={role} tab="today" widgets={gridWidgets} dockCatalog={!!dockCatalog} keepEarlierToday={!!keepEarlierToday} />;
           return nowColumn ? (
             <div className="dash-today-split">
               <div className="dash-today-now">{nowColumn(calendarEvents && cal ? cal.open : null)}</div>

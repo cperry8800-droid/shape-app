@@ -707,6 +707,110 @@ function dgBoardEdit(doc, role, action) {
   return { ...doc, [role]: selected.tabs, savedDashboards: { ...doc.savedDashboards, [role]: { active: selected.id, boards } } };
 }
 
+// ── A coach's earlier Today, kept as a dashboard of its own (the owner's answer to #2628, 2026-11-06) ──
+// #2628 made Today a six-widget board. A coach who had saved a Today layout before it got the six
+// placed among their old cards' places, and those cards (optional now) went to the catalogue. Instead,
+// the first open after this ships copies their whole active board into a new saved dashboard, "My
+// earlier dashboard" (" 2", " 3" when taken), and the active board's Today starts as the six-widget
+// board. One op (dgKeepEarlierToday) through the layout store's own lane; DashGrid's effect runs it.
+//
+// ⚠ ONCE, BY A MARK IN THE DOCUMENT, NOT BY LOOKING FOR THE BOARD. `doc.earlierToday[role]` holds the
+// id of the board it made, so a coach who renames or (once that exists) deletes it never gets a
+// second one. It sits at the top of the document because dgBoardEdit rebuilds savedDashboards[role]
+// from `active` and `boards` alone: a mark inside it would be dropped by the next switch.
+// ⚠ AT THE 20-DASHBOARD CAP NOTHING MOVES AND THERE IS NO MARK: the copy cannot be made, so the old
+// layout stays where it is (#2628's behaviour for that coach), and a later open tries again.
+const DG_EARLIER_MARK = "earlierToday";
+const DG_EARLIER_NAME = "My earlier dashboard";
+// Keys only the six-widget board's build writes on Today. A layout that names one was saved by that
+// build (the coach has already used the new board), not before it, and is not copied.
+const DG_SIX_ONLY = ["brief", "upnext", "glance", "money", "needsyou", "timeline", "queues"];
+// ⚠ WHAT #2628 CHANGED UNDER AN OLD LAYOUT'S KEYS. The tabbed queues were `needs` and are `queues`
+// (Work queues); the new card is `needsyou`, and a saved `needs` is a key the new build no longer
+// declares, so without the rename the coach's old card would vanish from their earlier board. Every
+// old default card is optional now.
+const DG_EARLIER_RENAMED = { needs: "queues" };
+const DG_EARLIER_DEFAULTS = ["needs", "practice", "wins", "roster", "kpis", "business"];
+// The new board's own cards, off on the copy. Up next and the Today timeline stay on it: the old
+// page showed them beside its grid, as the day column.
+const DG_EARLIER_OFF = ["brief", "glance", "money", "needsyou"];
+
+function dgActiveTabs(doc, role) {
+  const library = dgBoards(doc, role);
+  const current = library.boards.find((b) => b.id === library.active) || library.boards[0];
+  return (doc && doc[role]) || (current && current.tabs) || {};
+}
+// A Today layout the coach saved before the six-widget board: something in it, and none of its keys.
+function dgIsEarlierToday(t) {
+  if (!t || typeof t !== "object" || Array.isArray(t)) return false;
+  const lists = [t.hidden, t.added, t.order, t.mobileOrder].filter(Array.isArray);
+  const items = Array.isArray(t.items) ? t.items : [];
+  if (!items.length && !lists.some((l) => l.length)) return false;
+  const keys = items.map((i) => i && i.id).concat(...lists);
+  return !keys.some((k) => DG_SIX_ONLY.includes(k));
+}
+// Whether this document still owes the copy for `role`: not marked, and an earlier Today on the active board.
+function dgEarlierTodayDue(doc, role) {
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return false;
+  const mark = doc[DG_EARLIER_MARK];
+  if (mark && typeof mark === "object" && mark[role]) return false;
+  return dgIsEarlierToday(dgActiveTabs(doc, role).today);
+}
+// "My earlier dashboard", or the first of " 2", " 3"… no board has (names compare as dgBoardEdit's do).
+function dgFreeBoardName(boards, base) {
+  const taken = new Set((boards || []).map((b) => String((b && b.name) || "").toLowerCase()));
+  if (!taken.has(base.toLowerCase())) return base;
+  let n = 2;
+  while (taken.has((base + " " + n).toLowerCase())) n += 1;
+  return base + " " + n;
+}
+// The earlier Today, as the six-widget build must read it to draw what the old build drew: the old
+// keys renamed in every list (items, order, the phone's order, hidden and added), every old default
+// the coach had not hidden marked as added (optional now), the optional cards they had added kept,
+// and the new board's own cards off. Places are kept as saved.
+function dgEarlierTodayTab(t, role) {
+  const old = t && typeof t === "object" ? t : {};
+  const rename = (k) => (Object.prototype.hasOwnProperty.call(DG_EARLIER_RENAMED, k) ? DG_EARLIER_RENAMED[k] : k);
+  const oldHidden = new Set(Array.isArray(old.hidden) ? old.hidden : []);
+  const added = [];
+  const add = (k) => { if (typeof k === "string" && k && !added.includes(k)) added.push(k); };
+  // Roster health was a default on the nutritionist's Today only; the trainer's never had it.
+  for (const k of DG_EARLIER_DEFAULTS) if (!oldHidden.has(k) && (k !== "roster" || role === "nutritionist")) add(rename(k));
+  for (const k of (Array.isArray(old.added) ? old.added : [])) add(rename(k));
+  // What the coach hid stays hidden under its new key (a hidden `needs` is a hidden `queues`).
+  const hidden = DG_EARLIER_OFF.slice();
+  for (const k of oldHidden) { const r = rename(k); if (typeof r === "string" && r && !hidden.includes(r) && !added.includes(r)) hidden.push(r); }
+  const out = { ...old, hidden, added };
+  if (Array.isArray(old.items)) out.items = old.items.map((i) => (i && i.id != null ? { ...i, id: rename(i.id) } : i));
+  if (Array.isArray(old.order)) out.order = old.order.map(rename);
+  if (Array.isArray(old.mobileOrder)) out.mobileOrder = old.mobileOrder.map(rename);
+  return out;
+}
+// The op: a pure function of the document, so the store can replay it on a fresh read (a second
+// device that already made the copy has marked it, and this answers that document unchanged).
+function dgKeepEarlierToday(doc, role, id) {
+  if (!id || !dgEarlierTodayDue(doc, role)) return doc;
+  const library = dgBoards(doc, role);
+  if (library.boards.length >= 20) return doc;
+  const prev = library.active;
+  const name = dgFreeBoardName(library.boards, DG_EARLIER_NAME);
+  let next = dgBoardEdit(doc, role, { type: "create", id, name, board: prev });
+  const copy = dgBoards(next, role).boards.find((b) => b.id === id);
+  next = dgBoardEdit(next, role, { type: "tab", board: id, tab: "today", layout: dgEarlierTodayTab(copy && copy.tabs ? copy.tabs.today : null, role) });
+  next = dgBoardEdit(next, role, { type: "switch", id: prev });
+  next = dgBoardEdit(next, role, { type: "tab", board: prev, tab: "today", layout: {} });
+  const mark = doc[DG_EARLIER_MARK] && typeof doc[DG_EARLIER_MARK] === "object" ? doc[DG_EARLIER_MARK] : {};
+  return { ...next, [DG_EARLIER_MARK]: { ...mark, [role]: id } };
+}
+// When DashGrid may run it: the coach Today asked, on Today, with a signed-in account's store whose
+// read has come back. Never in the preview or signed out (no account: `uid` is null), and never on a
+// read still loading or failed (`loaded` stays false for both).
+function dgEarlierTodayGate(store, role, keep, tab) {
+  if (!keep || tab !== "today" || !store || !store.uid || typeof store.read !== "function") return false;
+  const state = store.read();
+  return !!(state && state.loaded && dgEarlierTodayDue(state.doc, role));
+}
+
 // One lane per account survives React tab unmounts. Every flush merges operations
 // into a fresh server document so tab A cannot overwrite tab B from a stale read.
 // Failed operations stay queued and visible; a failed read never becomes {}.
@@ -906,7 +1010,9 @@ function dgChromeSlot(host) {
 }
 
 
-function DashGrid({ role, tab = "today", widgets, dockCatalog = false }) {
+// `keepEarlierToday`: the coach Today's own (trainerDashboard.jsx DashShell): keep a layout saved
+// before the six-widget board as a dashboard of its own (dgKeepEarlierToday).
+function DashGrid({ role, tab = "today", widgets, dockCatalog = false, keepEarlierToday = false }) {
   // The docked catalogue's column (DgCatalog) and whether it is open.
   const [dockEl, setDockEl] = React.useState(null);
   const [catalogOpen, setCatalogOpen] = React.useState(false);
@@ -1078,6 +1184,27 @@ function DashGrid({ role, tab = "today", widgets, dockCatalog = false }) {
     // (wired up by addWidget, guarded by dgPatchGridStack) fits the item to it.
     return el.querySelector(".grid-stack-item-content");
   };
+
+  // ── An earlier Today, kept as its own dashboard (dgKeepEarlierToday), BEFORE the board boots.
+  // ⚠ DECLARED ABOVE THE BOOT EFFECT, SO IT RUNS FIRST IN THE COMMIT THAT BRINGS THE READ IN: the
+  // boot reads `docRef`, which this points at the copied document, so the grid never draws the old
+  // layout on the active board and then swaps it. The op goes through the store's one lane (change,
+  // then flush), which replays it on a fresh read: never a second writer.
+  const [keptEarlier, setKeptEarlier] = React.useState(null);
+  React.useEffect(() => {
+    if (!dgEarlierTodayGate(store, role, keepEarlierToday, tab)) return;
+    const id = "board-" + (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2));
+    store.change((doc) => dgKeepEarlierToday(doc, role, id));
+    const after = store.read().doc;
+    docRef.current = after;
+    const mark = after && after[DG_EARLIER_MARK];
+    if (mark && mark[role] === id) {
+      const board = dgBoards(after, role).boards.find((b) => b.id === id);
+      setKeptEarlier(board ? board.name : DG_EARLIER_NAME);
+      store.flush();
+    }
+    // eslint-disable-next-line
+  }, [keepEarlierToday, tab, role, store, storeState.loaded]);
 
   // ── init GridStack once per role/tab; load saved → add widgets → set portal hosts.
   React.useEffect(() => {
@@ -1509,6 +1636,8 @@ function DashGrid({ role, tab = "today", widgets, dockCatalog = false }) {
         {storeState.status === "error" && <button type="button" style={{ ...DG_CONTROL, marginLeft: 8 }} onClick={() => store ? store.retry() : retryAccount()}>Retry</button>}
         {storeState.loaded && <span> · {mobile ? "Drag ⠿ to reorder cards. Phone order is saved separately." : directDrag ? "Drag a card to move it, its right edge to resize it, × to hide it." : "Drag ⠿ to move a card, its right edge to resize it, × to hide it."}</span>}
       </div>
+      {/* Said once, in the session that kept it: where the coach's earlier Today went. */}
+      {keptEarlier && <p data-dg-kept-earlier="" style={{ margin: "-4px 0 12px", fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink, #f2ede4)" }}>{"Today is the new six-card board. Your earlier layout is kept as “" + keptEarlier + "”: pick it under Dashboard to go back to it."}</p>}
       <span className="dg-sr-only" aria-live="polite">{announcement}</span>
       {/* min-height reserves space so the page doesn't collapse to 0 then jump down
           when GridStack measures + positions the cards in JS after mount (CLS guard) */}
