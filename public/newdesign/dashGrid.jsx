@@ -188,6 +188,22 @@ function dgInjectStyle() {
   const s = document.createElement("style");
   s.textContent = `
 .dash-gridstack .grid-stack-item-content{overflow:hidden!important}
+/* ⚠ THE CELL CASTS THE CARD'S SHADOW, because it clips (the line above, which the height
+   fit needs): a shadow on the card inside is cut off at the cell's edge. So the cell takes
+   the lift's outer half (dash.css's --lift-1-cast) and the card's 12px radius, and an
+   overlay above the card takes its inset half (the lit top edge and the shaded lip), which
+   an inset on the cell itself would draw UNDER the card. An empty cell (the frame before
+   its card mounts) casts nothing. Under a mouse the cell takes Lift 2, and a card being
+   dragged takes Lift 3. Only the shadow changes: no transform, because a transformed cell
+   would become the containing block of every position:fixed overlay its card draws. */
+.dash-gridstack .grid-stack-item-content:not(:empty){border-radius:12px;box-shadow:var(--lift-1-cast, 0 1px 2px rgba(0,0,0,0.04))}
+.dash-gridstack .grid-stack-item-content:not(:empty)::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:var(--lift-1-edge, 0 0 0 transparent);pointer-events:none}
+@media (hover:hover) and (pointer:fine){
+.dash-gridstack .grid-stack-item:hover>.grid-stack-item-content:not(:empty){box-shadow:var(--lift-2-cast, 0 1px 2px rgba(0,0,0,0.04))}
+.dash-gridstack .grid-stack-item:hover>.grid-stack-item-content:not(:empty)::after{box-shadow:var(--lift-2-edge, 0 0 0 transparent)}
+}
+@media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){.dash-gridstack .grid-stack-item-content{transition:box-shadow .18s ease}}
+@media (prefers-reduced-motion:reduce),(hover:none),(pointer:coarse){.dash-gridstack .grid-stack-item-content{transition:none!important}}
 .dash-gridstack .dash-plate--bracket::after{display:none!important}
 .dash-gridstack .grid-stack-placeholder>.placeholder-content{border:1.5px dashed rgba(var(--sh-accent-rgb, 46,224,196),0.75);background:rgba(var(--sh-accent-rgb, 46,224,196),0.07);border-radius:8px}
 .dash-gridstack .grid-stack-item:hover .dash-rs{background:rgba(var(--sh-accent-rgb, 46,224,196),0.95)}
@@ -216,7 +232,9 @@ function dgInjectStyle() {
 /* On a touch screen the grip is the ONLY handle (the card itself scrolls the page), so it
    gets a finger-sized target rather than the 24px floor a mouse is fine with. */
 @media (pointer:coarse){.dg-grip{width:36px;height:32px;font-size:15px}}
-.dash-gridstack .ui-draggable-dragging,.dash-gridstack .ui-resizable-resizing{filter:drop-shadow(0 12px 14px rgba(0,0,0,.18))}
+/* Lift 3 while dragged; the item is hovered then too, so this matches the hover rule's weight
+   and comes after it. */
+.dash-gridstack .grid-stack-item:is(.ui-draggable-dragging,.ui-resizable-resizing)>.grid-stack-item-content:not(:empty){box-shadow:var(--lift-3, 0 12px 14px rgba(0,0,0,.18))}
 .dash-gridstack .ui-draggable-dragging,.dash-gridstack .ui-draggable-dragging .dg-grip{cursor:grabbing}
 .dash-gridstack .ui-resizable-e{width:44px!important;right:0!important;top:40%!important;height:44px!important;cursor:ew-resize!important;z-index:20}
 /* The ↔ marks the right-edge resize zone. It shows on hover or focus where there is a
@@ -396,7 +414,7 @@ function useDgPanel(open, setOpen, boxRef, panelRef, width) {
 function dgPanelStyle(box) {
   return Object.assign({ position: "fixed", left: box.left, width: box.width, zIndex: 3000,
     maxHeight: box.maxHeight, overflowY: "auto", background: "var(--sh-card, #25211d)",
-    border: "1px solid var(--sh-line2, #413d38)", borderRadius: 10, boxShadow: "0 12px 32px rgba(0,0,0,0.18)", padding: "8px 6px", textAlign: "left", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" },
+    border: "1px solid var(--sh-line2, #413d38)", borderRadius: 10, boxShadow: "var(--lift-3, 0 12px 32px rgba(0,0,0,0.18))", padding: "8px 6px", textAlign: "left", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" },
     box.up ? { bottom: box.offset } : { top: box.offset });
 }
 

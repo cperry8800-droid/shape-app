@@ -1991,7 +1991,8 @@ function DashNeedsYou({ tabs, prefs, role }) {
               <button key={t.key} type="button" role="tab" aria-selected={on} onClick={() => choose(t.key)}
                 style={{ minHeight: 32, padding: "0 12px", borderRadius: 7, border: 0, cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: on ? 600 : 500,
                   background: on ? "var(--sh-card, #25211d)" : "transparent", color: on ? INK : "var(--sh-ink2, #a09b94)",
-                  boxShadow: on ? "0 1px 2px rgba(0,0,0,0.18)" : "none" }}>{t.label}</button>
+                  // The selected tab stands out of its track as a raised key (dash.css's lift).
+                  boxShadow: on ? "var(--lift-key, 0 1px 2px rgba(0,0,0,0.18))" : "none" }}>{t.label}</button>
             );
           })}
         </div>
