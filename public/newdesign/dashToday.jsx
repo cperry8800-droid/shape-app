@@ -2488,6 +2488,8 @@ function CoachDashboardPage({ role }) {
   // The calendar overlay is DashShell's; it hands its opener back through this ref as it renders.
   const openCalRef = React.useRef(null);
   const openCalendar = () => { if (typeof openCalRef.current === "function") openCalRef.current(); };
+  // ⚠ NO CALENDAR, NO "Calendar →" (#2628 review): the wrapper always exists, and the timeline draws
+  // the button for any opener, so a page with no calendar read offered a button that did nothing.
 
   // ── Coach Today as a draggable DashGrid (role-scoped, tab="today"). Each section below
   // becomes a widget; the date/greeting/CTAs stay as the page header (DashShell topbar).
@@ -2531,7 +2533,7 @@ function CoachDashboardPage({ role }) {
     { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
       render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} role={role} prefs={prefs} dismiss={dismiss} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", size: "narrow",
-      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={openCalendar} unread={!scheduleRead} /> },
+      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={!scheduleRead} /> },
     // ── Optional (off until added) ──
     // The tabbed queues that led the old board: client attention, new clients, check-ins, replies
     // and programs, one tab each.

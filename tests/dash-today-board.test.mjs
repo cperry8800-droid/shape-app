@@ -348,6 +348,7 @@ test('a failed day feed is unread on a live page, never the sample and never a c
   assert.equal(/const scheduleRead = !!todayRows \|\| sample;/.test(page), true);
   assert.equal(/\? \(!sample \? \[\{ time: "—", who: "Today's " \+ cfg\.unit \+ "s couldn't be read"/.test(page), true);
   assert.equal((page.match(/unread=\{!scheduleRead\}/g) || []).length, 2, 'Up next and the timeline both take the read flag');
+  assert.equal(/onOpenCalendar=\{calendarEvents \? openCalendar : null\}/.test(page), true, 'no calendar read, no Calendar button');
   assert.equal(/greeting=\{firstName \? cfg\.greeting\(firstName\) : "Good morning\."\}/.test(page), true);
   // No mock fallback is left keyed on `live` alone.
   assert.equal(/live \? [^\n]*: cfg\.mock/.test(page), false);
@@ -369,5 +370,8 @@ test('a failed day feed is unread on a live page, never the sample and never a c
     await m.render(React.createElement(t.DashTimelineCard, { rows: null, state: empty, unit: 'session', zone: null, clients: [], role: 'trainer', card: true, unread: true }));
     assert.equal(document.querySelector('[data-dash-timeline]').getAttribute('data-dash-timeline'), 'unread');
     assert.equal(/couldn't be read/.test(m.text()) && !/0 sessions/.test(m.text()), true);
+    assert.equal(/Calendar/.test(m.text()), false, 'no opener, no Calendar button');
+    await m.render(React.createElement(t.DashTimelineCard, { rows: [], state: empty, unit: 'session', zone: null, clients: [], role: 'trainer', card: true, onOpenCalendar: () => {} }));
+    assert.equal(/Calendar →/.test(m.text()), true, 'with a calendar, the button');
   } finally { await m.done(); }
 });
