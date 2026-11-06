@@ -132,6 +132,14 @@ test('no connected account says so, and Stripe unreachable is an error, never "n
   const unlinked = await call({ db: connected('trainers', null) })
   assert.deepEqual(unlinked.body, { isProvider: true, connected: false })
   assert.equal(unlinked.stripe.length, 0, 'Stripe was asked with no account')
+  // An id that is not payable (deauthorized, or onboarding unfinished) is not set up, as checkout
+  // rules it, and Stripe is not asked (#2629 review).
+  for (const status of ['disconnected', 'pending', 'restricted', null]) {
+    const db = fakeSupabase({ rows: { trainers: { id: 7, stripe_account_id: 'acct_coach', stripe_account_status: status } } })
+    const res = await call({ db })
+    assert.deepEqual(res.body, { isProvider: true, connected: false }, 'status ' + status)
+    assert.equal(res.stripe.length, 0, 'Stripe was asked for a ' + status + ' account')
+  }
   const down = await call({ db: connected('trainers'), stripe: fakeStripe({ fail: true }) })
   assert.equal(down.status, 200)
   assert.deepEqual(down.body, { isProvider: true, connected: true, error: true })

@@ -2,7 +2,7 @@
 //
 // GET /api/coach/next-payout?role=trainer|nutritionist
 //   200 { isProvider: false }                                     no listing of that role on this account
-//   200 { isProvider: true, connected: false }                    no Stripe account linked yet
+//   200 { isProvider: true, connected: false }                    no payable Stripe account (none linked, or not 'active')
 //   200 { isProvider: true, connected: true, error: true }        linked, but Stripe couldn't be read
 //   200 { isProvider: true, connected: true, next: Payout|null }  the earliest payout pending or in transit
 //   400 not a coach's role · 401 signed out · 503 the sign-in check failed · 500 the listing read failed
@@ -68,8 +68,14 @@ export async function GET(request: Request) {
   }
   if (!listing) return privateJson({ isProvider: false });
 
-  const summary = await loadStripe(listing.stripe_account_id ?? null, listing.stripe_account_status ?? null);
-  if (!summary.connected) return privateJson({ isProvider: true, connected: false });
+  // ⚠ CONNECTED MEANS PAYABLE, AS CHECKOUT RULES IT (#2629 review; src/lib/coach-checkout.ts): an
+  // account id AND status 'active'. A deauthorized account keeps its id and can't be read, and one
+  // mid-onboarding can be read with nothing on its way: either would have hidden the setup link
+  // behind "couldn't be read" or "No payout scheduled". Stripe is not asked for either.
+  if (!listing.stripe_account_id || listing.stripe_account_status !== 'active') {
+    return privateJson({ isProvider: true, connected: false });
+  }
+  const summary = await loadStripe(listing.stripe_account_id, listing.stripe_account_status);
   if (summary.error) return privateJson({ isProvider: true, connected: true, error: true });
 
   const next = forecast.moneyFrom(summary).next;
