@@ -539,15 +539,15 @@ function DashShell({
           <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
             {primaryCta && (() => {
               const style = { background: "var(--sh-card, #25211d)", color: INK, border: "1px solid var(--sh-line2, #413d38)", height: 40, padding: "0 16px", borderRadius: 9, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", boxSizing: "border-box" };
-              if (typeof primaryCta[1] === "string") return <a href={primaryCta[1]} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{primaryCta[0]}</a>;
-              if (typeof primaryCta[1] === "function") return <button onClick={primaryCta[1]} style={style}>{primaryCta[0]}</button>;
-              return <button style={style}>{primaryCta[0]}</button>;
+              if (typeof primaryCta[1] === "string") return <a href={primaryCta[1]} className="sh-key" style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{primaryCta[0]}</a>;
+              if (typeof primaryCta[1] === "function") return <button onClick={primaryCta[1]} className="sh-key" style={style}>{primaryCta[0]}</button>;
+              return <button className="sh-key" style={style}>{primaryCta[0]}</button>;
             })()}
             {secondaryCta && (() => {
               const style = { background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)", border: "1px solid " + TEAL_BRIGHT, height: 40, padding: "0 16px", borderRadius: 9, fontFamily: sans, fontSize: 14, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", boxSizing: "border-box" };
-              if (typeof secondaryCta[1] === "string") return <a href={secondaryCta[1]} style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{secondaryCta[0]}</a>;
-              if (typeof secondaryCta[1] === "function") return <button onClick={secondaryCta[1]} style={style}>{secondaryCta[0]}</button>;
-              return <button style={style}>{secondaryCta[0]}</button>;
+              if (typeof secondaryCta[1] === "string") return <a href={secondaryCta[1]} className="sh-key sh-key--fill" style={{ ...style, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>{secondaryCta[0]}</a>;
+              if (typeof secondaryCta[1] === "function") return <button onClick={secondaryCta[1]} className="sh-key sh-key--fill" style={style}>{secondaryCta[0]}</button>;
+              return <button className="sh-key sh-key--fill" style={style}>{secondaryCta[0]}</button>;
             })()}
           </div>
         </div>

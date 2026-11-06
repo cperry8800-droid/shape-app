@@ -819,6 +819,16 @@ function DashRosterTiles({ triage, filters, value, onChange, loading }) {
   );
 }
 
+// A client's fixed colour for their name (clientColors.mjs): the two text-safe values as
+// inline custom properties, which dash.css's `.sh-client-ink` picks between by paper. Read at
+// CALL time, because the module tag that sets window.ShapeClientColors is only on the two
+// coach app pages; anywhere else, and before it loads, the name keeps the plain ink.
+function dashClientInk(id) {
+  const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
+  const vars = CC && typeof CC.clientColorVars === "function" ? CC.clientColorVars(id) : null;
+  return vars ? { className: "sh-client-ink", style: vars } : null;
+}
+
 // ── Roster table — triage-ordered rows + role-configured columns ─────────────
 // `sort`/`sortDir`/`onSort` are optional and default to the triage order, so a caller
 // that does not offer sorting gets exactly the table it had — and the headers render as
@@ -911,6 +921,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
       {rows.map((r, i) => {
         const rec = r.client;
         const sevColor = r.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[r.severity];
+        const ink = dashClientInk(rec.profile.id);
         return (
           <div
             key={rec.profile.id || i}
@@ -927,7 +938,9 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
                 it cut "Marcus T." to "M…" (measured at 390px, 2026-10-15). */}
             <div style={{ display: "flex", gap: 10, rowGap: 4, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
               <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 2, background: sevColor }} />
-              <span style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.profile.name}</span>
+              {/* The name in the client's own colour, the same on every page. The square
+                  before it is the status, a separate thing: no client colour is a status hue. */}
+              <span className={ink ? ink.className : undefined} style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(ink ? ink.style : null) }}>{rec.profile.name}</span>
               {/* ⚠ typeof, not truthiness — 0 is a real age. Absence renders as
                   nothing, never as a placeholder or "private". */}
               {typeof ages[rec.profile.id] === "number" && (
