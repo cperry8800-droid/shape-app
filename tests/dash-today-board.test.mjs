@@ -109,9 +109,13 @@ test('the brief names the next session still to come today, at its time, and nev
   // The coach's day, not UTC's: 22:00 in New York is still today there.
   assert.equal(T.dashNextToday(rows.slice(4), null, NOW, zone).who, 'Late');
   assert.equal(T.dashNextToday(rows.slice(4), null, NOW, 'UTC'), null, 'in UTC that booking is tomorrow');
-  // Nothing left today: the second sentence is left out.
+  // Nothing left today, over a day that was read: "No more sessions today." (owner, 2026-11-06).
   const done = T.dashNextToday(rows.slice(0, 3), null, NOW, zone);
   assert.equal(done, null, 'a session earlier today, one under way, or a cancelled one is not named');
+  assert.equal(T.dashBriefText(T.dashBriefModel([], done, { read: true, unit: 'session' })), 'Nobody needs your attention right now. No more sessions today.');
+  assert.equal(T.dashBriefText(T.dashBriefModel([row('a', 'Marcus T.', 'red', 'r')], done, { read: true, unit: 'consult' })), '1 client needs your attention: Marcus T. No more consults today.');
+  // An unread day, or the preview, is not an empty one: the sentence is left out.
+  assert.equal(T.dashBriefText(T.dashBriefModel([], done, { read: false, unit: 'session' })), 'Nobody needs your attention right now.');
   assert.equal(T.dashBriefText(T.dashBriefModel([], done)), 'Nobody needs your attention right now.');
   // Tomorrow is not today.
   assert.equal(T.dashNextToday([r('Tomorrow', '2026-11-07T15:00:00Z', 'confirmed')], null, NOW, zone), null);

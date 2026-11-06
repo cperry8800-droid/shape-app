@@ -28,6 +28,7 @@ export default {
     // ── the brief's words ──
     { name: 'brief: one client reads plural', file: TODAY, find: 'out.push({ t: (n === 1 ? "1 client needs" : n + " clients need") + " your attention: " });', replace: 'out.push({ t: n + " clients need your attention: " });' },
     { name: 'brief: an unread pulse reads "nobody"', file: TODAY, find: 'return { count: read ? rows.length : null, names,', replace: 'return { count: rows.length, names,' },
+    { name: 'brief: an unread day says "No more sessions today."', file: TODAY, find: 'dayRead: !!(day && day.read)', replace: 'dayRead: true' },
 
     // ── Needs you folds at three ──
     { name: 'needs you: four rows on the first screen', file: TODAY, find: 'const DASH_NEEDS_SHOWN = 3;', replace: 'const DASH_NEEDS_SHOWN = 4;' },

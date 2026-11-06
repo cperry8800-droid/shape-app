@@ -2071,15 +2071,18 @@ function dashNextToday(rows, demoRows, now, zone) {
 // still to come today. The count is the engine's "Needs you" (coachNeeds' `now`: red, with a lead
 // of the coach's own), the same set the roster's status calls "Needs you". One reading, as pieces:
 // the card colours the named ones, and dashBriefText is the same words as plain text.
-// `needNow` null is a pulse that could not be read: the brief says so, never "nobody".
-function dashBriefModel(needNow, next) {
+// `needNow` null is a pulse that could not be read: the brief says so, never "nobody". With nothing
+// left today it says "No more sessions today." (owner, 2026-11-06), but only over a day that was
+// read (`day.read`): the preview has no clock, and an unread day is not an empty one.
+function dashBriefModel(needNow, next, day) {
   const read = Array.isArray(needNow);
   const rows = read ? needNow : [];
   const names = rows.slice(0, 3).map((r) => {
     const p = r && r.client && r.client.profile ? r.client.profile : {};
     return { id: p.id != null ? p.id : null, name: p.name || "A client" };
   });
-  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null };
+  const unit = day && typeof day.unit === "string" && day.unit ? day.unit : "session";
+  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit };
 }
 function dashBriefPieces(model) {
   const out = [];
@@ -2101,6 +2104,8 @@ function dashBriefPieces(model) {
     out.push({ t: " Next up today: " });
     out.push({ t: model.next.who, id: model.next.id != null ? model.next.id : null, name: true });
     out.push({ t: " at " + model.next.time + "." });
+  } else if (model && model.dayRead) {
+    out.push({ t: (out.length ? " " : "") + "No more " + model.unit + "s today." });
   }
   return out;
 }
@@ -2108,11 +2113,11 @@ function dashBriefText(model) { return dashBriefPieces(model).map((p) => p.t).jo
 
 // The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
 // day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
-function DashBriefWidget({ needNow, rows, demoRows, zone, clients }) {
+function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
   const rec = next ? dashFindRecord(clients, next.who) : null;
-  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null } : null);
+  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null } : null, { read: Array.isArray(rows), unit });
   return <DashBriefCard model={model} />;
 }
 function DashBriefCard({ model }) {
@@ -2490,7 +2495,7 @@ function CoachDashboardPage({ role }) {
     // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
     // the Business overview and summary) stays in the catalogue as an optional card.
     { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", size: "wide",
-      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} /> },
+      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} /> },
     { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", size: "narrow",
       render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} /> },
     { key: "glance", title: "At a glance", blurb: (role === "nutritionist" ? "Plans" : "Programs") + " due, check-ins reviewed and roster logging.", size: "wide",
