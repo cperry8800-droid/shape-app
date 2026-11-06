@@ -656,6 +656,13 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false, dock = nu
     </span>
   );
 }
+// ⚠ THE DOCK TAKES ITS COLUMN ONLY WHERE THE BOARD STILL HOLDS ITS PAIRS (#2628 review). GridStack
+// stays in 12 columns down to 768px, so on a 768-900px window a 320px dock left the board ~330px
+// for its 8/4 pairs and clipped the narrow cards. Below the room, the catalogue floats over the
+// board as on every other tab. An unmeasured board (0 wide) docks.
+const DG_DOCK_COL = 336;        // the 320px column and its 16px gap
+const DG_DOCK_MIN_BOARD = 760;  // the narrowest board whose one-third cards keep their content
+function dgDockFits(width) { return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD; }
 // The docked panel: a column of the board, sticky under the masthead, scrolling on its own.
 function dgDockedStyle() {
   return { position: "sticky", top: 76, maxHeight: "calc(100vh - 92px)", overflowY: "auto", boxSizing: "border-box",
@@ -944,6 +951,19 @@ function DashGrid({ role, tab = "today", widgets, dockCatalog = false }) {
   docRef.current = storeState.doc;
   const activeBoard = dgBoards(storeState.doc, role).active;
   const [mobile, setMobile] = React.useState(false);
+  const boardRef = React.useRef(null);
+  const [dockRoom, setDockRoom] = React.useState(true);
+  React.useEffect(() => {
+    const el = boardRef.current;
+    if (!dockCatalog || !el) return undefined;
+    const measure = () => setDockRoom(dgDockFits(el.clientWidth));
+    measure();
+    if (typeof ResizeObserver !== "function") return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [dockCatalog]);
+  const docking = dockCatalog && !mobile && dockRoom;
   // Read on the first render, not after it: the grid is initialised with a handle chosen
   // from this (the whole card for a mouse, the ⠿ grip alone for touch), so a first frame
   // that guessed "touch" would boot a mouse user's grid with the wrong handle.
@@ -1475,13 +1495,13 @@ function DashGrid({ role, tab = "today", widgets, dockCatalog = false }) {
   };
 
   return (
-    <div className={"dg-board" + (directDrag && !mobile ? " dg-direct-drag" : "") + (dockCatalog && catalogOpen && !mobile ? " dg-docked" : "")}>
+    <div ref={boardRef} className={"dg-board" + (directDrag && !mobile ? " dg-direct-drag" : "") + (docking && catalogOpen ? " dg-docked" : "")}>
       {/* The catalogue: always visible, above the grid, on every tab — see DgCatalog. */}
       <div className="dash-gridbar" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
         <DgSavedDashboards store={store} role={role} beforeChange={() => { if (ready) persistVisibility(hiddenRef.current); }} />
         <button type="button" style={DG_CONTROL} disabled={!storeState.loaded || !undo.length} onClick={undoLast}>Undo</button>
         {dockCatalog
-          ? <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} dock={mobile ? null : dockEl} onOpenChange={setCatalogOpen} />
+          ? <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} dock={docking ? dockEl : null} onOpenChange={setCatalogOpen} />
           : <DgCatalog disabled={!storeState.loaded} rows={dgCatalogRows(widgets, hidden)} onAdd={restore} onRemove={hide} onReset={reset} />}
       </div>
       <div role="status" style={{ color: DG_MUTE, fontSize: 12, marginBottom: 12 }}>

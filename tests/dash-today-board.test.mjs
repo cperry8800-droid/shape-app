@@ -224,6 +224,16 @@ test('At a glance is three figures from the KPI pool, and Check-ins reviewed cou
   assert.equal(DashSignals.dashKpiValue('reviewed', { live: { kpis: {} }, clients: [dated], now: NOW }).why, "couldn't be read");
   assert.equal(DashSignals.dashKpiValue('reviewed', { live: null, clients: [dated], now: NOW }).why, 'live only');
   assert.equal(DashSignals.dashKpiValue('reviewed', { clients: [], now: NOW }).why, 'no check-ins in the last two weeks');
+  // The account's week, not the device's (#2628 review): 03:00 UTC on Monday 9 November is still
+  // Sunday in New York, whose "last week" is 26 October, and already Monday noon in Tokyo.
+  const prevZ = globalThis.ShapeZone;
+  globalThis.ShapeZone = ShapeZone;
+  try {
+    const MON = new Date('2026-11-09T03:00:00Z');
+    const late = { clients: [ck('a', '2026-10-26', true)], now: MON };
+    assert.equal(DashSignals.dashKpiValue('reviewed', { ...late, zone: 'America/New_York' }).value, 1);
+    assert.equal(DashSignals.dashKpiValue('reviewed', { ...late, zone: 'Asia/Tokyo' }).value, null);
+  } finally { if (prevZ === undefined) delete globalThis.ShapeZone; else globalThis.ShapeZone = prevZ; }
   const cells = T.dashGlanceCells('trainer', ctx);
   assert.deepEqual(cells.map((c) => c.l), ['Programs due', 'Check-ins reviewed', 'Roster logging']);
   assert.deepEqual(cells.map((c) => c.k), ['2', '1', '—'], 'no shared logs reads as a dash, never 0%');
@@ -286,6 +296,11 @@ test('the catalogue opens beside the board, not over it, and stays open while th
   } finally { await m.done(); }
   // DashGrid opens a second column for it, and the Today shell asks for the dock.
   assert.equal(/\.dg-docked \.dg-board-body\{grid-template-columns:minmax\(0,1fr\) 320px\}/.test(GRID), true);
-  assert.equal(/dock=\{mobile \? null : dockEl\} onOpenChange=\{setCatalogOpen\}/.test(GRID), true);
+  assert.equal(/dock=\{docking \? dockEl : null\} onOpenChange=\{setCatalogOpen\}/.test(GRID), true);
+  assert.equal(/const docking = dockCatalog && !mobile && dockRoom;/.test(GRID), true);
+  // The dock takes its column only where the board keeps its pairs (#2628 review): measured in
+  // Chromium, the board is 1312px at a 1440 window, 1152 at 1280, 972 at 1100 and 864 at 900.
+  const fits = new Function(GRID.slice(GRID.indexOf('const DG_DOCK_COL'), GRID.indexOf('// The docked panel:')) + ';return dgDockFits;')();
+  assert.deepEqual([1312, 1152, 972, 864, 0].map(fits), [true, true, false, false, true]);
   assert.equal(/<DashGrid role=\{role\} tab="today" widgets=\{gridWidgets\} dockCatalog=\{!!dockCatalog\} \/>/.test(read('trainerDashboard.jsx')), true);
 });

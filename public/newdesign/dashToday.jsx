@@ -2406,7 +2406,7 @@ function CoachDashboardPage({ role }) {
   // Everything the KPI pool derives from, gathered once. Nothing here is fetched for the
   // strips — it is the state Today already holds — which is the constraint that decides
   // what may be in the pool at all.
-  const kpiCtx = { live, clients, triage, queue, schedule, role, kpiKeys: cfg.kpiKeys };
+  const kpiCtx = { live, clients, triage, queue, schedule, role, kpiKeys: cfg.kpiKeys, zone: dayZone };
 
   // ⚠ THE OVERVIEW STRIP IS THE PAYOUT PREVIEW WHEN THERE IS NO LIVE PAYLOAD, AND IT IS
   // NOT CONFIGURABLE THERE. Those four demo figures are a preview of the money card, not

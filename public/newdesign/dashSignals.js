@@ -209,6 +209,14 @@
     return isNaN(d.getTime()) ? null : d;
   }
   function daysBetween(a, b) { return Math.floor((b.getTime() - a.getTime()) / DAY); }
+  // The calendar day `now` falls on in the account's `zone`, as a local Date that mondayOf and
+  // daysBetween read the way they read a "YYYY-MM-DD" weekOf; the device's day without a zone or
+  // shapeZone.mjs.
+  function dayInZone(now, zone) {
+    var Z = typeof globalThis !== "undefined" && globalThis.ShapeZone && typeof globalThis.ShapeZone.partsInZone === "function" ? globalThis.ShapeZone : null;
+    var p = Z && typeof zone === "string" && zone ? Z.partsInZone(now.getTime(), zone) : null;
+    return p ? new Date(p.y, p.mo - 1, p.d, 12) : now;
+  }
   function mondayOf(d) {
     var x = new Date(d.getTime());
     x.setHours(0, 0, 0, 0);
@@ -2674,7 +2682,9 @@
         // The window a check-in is still a to-do in (ruleCheckinWaiting): this week's or last week's,
         // each client's latest. Only a review state that was READ counts: `reviewed` is null when the
         // coach's reviews could not be read, and that check-in is neither reviewed nor waiting.
-        var now = (ctx && ctx.now instanceof Date) ? ctx.now : new Date();
+        // ⚠ THE ACCOUNT'S WEEK, NOT THE DEVICE'S: Sunday night in New York is already Monday on a
+        // laptop in London, which would drop last week's check-ins a day early.
+        var now = dayInZone((ctx && ctx.now instanceof Date) ? ctx.now : new Date(), ctx && ctx.zone);
         var total = 0, done = 0, unread = 0;
         kpiRows(ctx).forEach(function (c) {
           var ci = c && c.checkIn;

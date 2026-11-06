@@ -5,6 +5,7 @@
 //   node scripts/mutate.mjs --spec tests/mutations/coach-today-board-2026-11-06.mutations.mjs --fail-on-skipped
 const SIG = 'public/newdesign/dashSignals.js';
 const TODAY = 'public/newdesign/dashToday.jsx';
+const GRID = 'public/newdesign/dashGrid.jsx';
 
 export default {
   test: 'node --test tests/dash-today-board.test.mjs tests/coach-actions.test.mjs',
@@ -29,6 +30,8 @@ export default {
     { name: 'brief: one client reads plural', file: TODAY, find: 'out.push({ t: (n === 1 ? "1 client needs" : n + " clients need") + " your attention: " });', replace: 'out.push({ t: n + " clients need your attention: " });' },
     { name: 'brief: an unread pulse reads "nobody"', file: TODAY, find: 'return { count: read ? rows.length : null, names,', replace: 'return { count: rows.length, names,' },
     { name: 'brief: an unread day says "No more sessions today."', file: TODAY, find: 'dayRead: !!(day && day.read)', replace: 'dayRead: true' },
+    { name: 'reviewed: the device\'s week, not the account\'s', file: SIG, find: ': new Date(), ctx && ctx.zone);', replace: ': new Date(), null);' },
+    { name: 'dock: a narrow board still docks', file: GRID, find: 'return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD;', replace: 'return true;' },
 
     // ── Needs you folds at three ──
     { name: 'needs you: four rows on the first screen', file: TODAY, find: 'const DASH_NEEDS_SHOWN = 3;', replace: 'const DASH_NEEDS_SHOWN = 4;' },
