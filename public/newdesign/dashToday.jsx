@@ -2161,7 +2161,28 @@ function dashWinRows(clients, units) {
   }
   return rows.sort((a, b) => String(b.hit.hitAt).localeCompare(String(a.hit.hitAt)));
 }
-function dashNeedsItems(split, wins) {
+// ⚠ A CLIENT A TRAINER AND A NUTRITIONIST SHARE, SLIPPING ON BOTH SIDES, IS FLAGGED HERE (the owner's
+// answer to #2628, 2026-11-06). Joint attention (DashSignals.findJointAttention: a co-coach of the
+// other discipline on the client's care team, and the client slipping in training and in nutrition)
+// was only in the optional Work queues and Client attention cards. Here its client's row carries a
+// "Shared" chip naming the other coach's role and, as its one reason and action, the joint ones: the
+// private care-team note to that coach (dashOpenCareTeam), one plan before either of them messages
+// the client. The row keeps the place the engine gave it; a joint client the engine did not list (the
+// coach's own flag set aside) comes in after those who need the coach now, as one for this week.
+// ⚠ THE NOTE TAKES THE ROW ONLY WHEN THE COACH'S OWN LEAD IS PART OF THE SLIP (one of the joint's
+// flags), or there is no lead. A lead the engine ranks above it (a flagged health screening, a
+// reply the client is waiting on) keeps its reason and its action, and the chip still says shared:
+// a joint note must never stand where a screening read was.
+function dashJointReason(j) {
+  const words = (fs) => (Array.isArray(fs) ? fs : []).map((f) => String(f.label || "").toLowerCase()).filter(Boolean).join(", ");
+  return "Slipping on both sides: " + words(j.trainingFlags) + " and " + words(j.nutritionFlags) + ".";
+}
+function dashNeedsItems(split, wins, joint) {
+  const jointById = new Map();
+  for (const j of Array.isArray(joint) ? joint : []) {
+    const id = j && j.client && j.client.profile ? j.client.profile.id : null;
+    if (id != null && j.coCoach && j.coCoach.role && !jointById.has(id)) jointById.set(id, j);
+  }
   const seen = new Set();
   const out = [];
   const add = (kind, client, extra) => {
@@ -2169,9 +2190,20 @@ function dashNeedsItems(split, wins) {
     const id = p.id != null ? p.id : null;
     if (id != null && seen.has(id)) return;
     if (id != null) seen.add(id);
-    out.push({ kind, client, id, name: p.name || "A client", ...extra });
+    const j = id != null ? jointById.get(id) : null;
+    let shared = null;
+    if (j) {
+      const lead = extra && extra.row && extra.row.lead ? extra.row.lead.key : null;
+      const slip = (j.trainingFlags || []).concat(j.nutritionFlags || []).map((f) => f && f.key);
+      shared = !lead || slip.includes(lead)
+        ? { joint: j, shared: j.coCoach.role, sharedWith: j.coCoach, reason: dashJointReason(j), action: j.action || { kind: "care_team", label: "Start joint note" } }
+        : { shared: j.coCoach.role, sharedWith: j.coCoach };
+    }
+    out.push({ kind, client, id, name: p.name || "A client", ...extra, ...(shared || {}) });
   };
+  const listed = new Set([...((split && split.now) || []), ...((split && split.week) || [])].map((r) => r && r.client && r.client.profile ? r.client.profile.id : null));
   for (const r of (split && split.now) || []) add("now", r.client, { row: r, reason: r.lead.reason, action: r.lead.action || null });
+  for (const [id, j] of jointById) if (!listed.has(id)) add("week", j.client, { row: null });
   for (const r of (split && split.week) || []) add("week", r.client, { row: r, reason: r.lead.reason, action: r.lead.action || null });
   for (const w of wins || []) add("good", w.client, { hit: w.hit, reason: w.hit.label, action: null });
   return out;
@@ -2181,10 +2213,13 @@ function dashNeedsFold(items, shown = DASH_NEEDS_SHOWN) {
   const rest = list.slice(shown);
   const groups = {};
   for (const k of Object.keys(DASH_NEEDS_KINDS)) groups[k] = rest.filter((x) => x.kind === k).length;
-  return { shown: list.slice(0, shown), rest, groups };
+  // A shared client folded away is still named in the fold line, so the flag never leaves the board.
+  return { shown: list.slice(0, shown), rest, groups, shared: rest.filter((x) => x.shared).length };
 }
 function dashNeedsFoldText(fold) {
-  return Object.keys(DASH_NEEDS_KINDS).filter((k) => fold.groups[k] > 0).map((k) => DASH_NEEDS_KINDS[k].fold(fold.groups[k])).join(" · ");
+  const parts = Object.keys(DASH_NEEDS_KINDS).filter((k) => fold.groups[k] > 0).map((k) => DASH_NEEDS_KINDS[k].fold(fold.groups[k]));
+  if (fold.shared > 0) parts.push(fold.shared + " shared");
+  return parts.join(" · ");
 }
 
 function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
@@ -2196,14 +2231,22 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
   const rowOf = (id) => (Array.isArray(feed) ? feed.find((r) => r && r.client && r.client.profile && r.client.profile.id === id) : null) || null;
   const openRow = selectedId != null ? rowOf(selectedId) : null;
   const go = (it) => {
-    if (it.kind === "good") dashMessageClient(it.name, role, dashCongratsDraft(it.client, it.hit), it.id);
+    // A shared client's note goes to the other coach, never to the client (dashOpenCareTeam).
+    if (it.joint) dashOpenCareTeam(it.joint, role);
+    else if (it.kind === "good") dashMessageClient(it.name, role, dashCongratsDraft(it.client, it.hit), it.id);
     else if (it.action) dashCoachActionGo(it.action, it.row, role);
     else dashMessageClient(it.name, role, null, it.id);
   };
+  const chipStyle = { fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" };
   const chip = (kind) => {
     const k = DASH_NEEDS_KINDS[kind];
-    return <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: k.color, border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>{k.chip}</span>;
+    return <span style={{ ...chipStyle, color: k.color }}>{k.chip}</span>;
   };
+  // The other coach's role, in the joint card's own rust (TriagePulsePanel's joint attention).
+  const sharedChip = (it) => (
+    <span data-dash-shared={it.shared} title={it.sharedWith && it.sharedWith.name ? "Shared with their " + it.shared + ", " + it.sharedWith.name : undefined}
+      style={{ ...chipStyle, color: "var(--sh-rust, #e0644b)" }}>{"Shared · " + it.shared}</span>
+  );
   const renderRow = (it, i) => {
     const canOpen = !!(Drawer && it.id != null && rowOf(it.id));
     return (
@@ -2217,12 +2260,14 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 14 }}><DashClientInkName id={it.id}>{it.name}</DashClientInkName></span>
             {chip(it.kind)}
+            {it.shared && sharedChip(it)}
           </div>
           <div style={{ marginTop: 3, fontSize: 12.5, lineHeight: 1.4, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)" }}>{it.reason}</div>
         </div>
         <button type="button" className="sh-key" onClick={(e) => { e.stopPropagation(); go(it); }}
+          title={it.joint ? "Opens your private thread with their " + it.shared + " — the client doesn't see it" : undefined}
           style={{ flexShrink: 0, fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "var(--sh-card, #25211d)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 6, padding: "8px 11px", minHeight: 32, cursor: "pointer" }}>
-          {it.kind === "good" ? "Congratulate" : it.action ? it.action.label : "Message"}
+          {it.joint ? it.action.label : it.kind === "good" ? "Congratulate" : it.action ? it.action.label : "Message"}
         </button>
       </div>
     );
@@ -2250,9 +2295,9 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
   );
 }
 
-// The widget: the engine's split (null when the pulse could not be read) and the roster's wins,
-// in the reader's units.
-function DashNeedsWidget({ split, clients, feed, role, prefs, dismiss }) {
+// The widget: the engine's split (null when the pulse could not be read), the roster's wins, in the
+// reader's units, and the shared clients' joint attention (useDashboard's `joint`).
+function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss }) {
   const units = useDashUnits();
   if (!split) {
     return <section aria-label="Needs you" data-dash-lift="2" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
@@ -2260,7 +2305,7 @@ function DashNeedsWidget({ split, clients, feed, role, prefs, dismiss }) {
       <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Who needs you couldn't be read just now. Reload to try again.</p>
     </section>;
   }
-  return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units))} feed={feed} role={role} prefs={prefs} dismiss={dismiss} />;
+  return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units), joint)} feed={feed} role={role} prefs={prefs} dismiss={dismiss} />;
 }
 // `unread`: a signed-in coach's day feed failed (rows null on a live page). Neither card may then
 // say the day is clear or done; that is a claim about a day nobody read.
@@ -2293,27 +2338,119 @@ function dashGlanceCells(role, ctx) {
   return [dashKpiCell("due", role, ctx), dashKpiCell("reviewed", role, ctx), { ...logging, l: "Roster logging" }];
 }
 
+// ── The next payout, from Stripe (the owner's answer to #2628, 2026-11-06) ────────────────────
+// /api/coach/next-payout reads the Business page's source (src/lib/stripe.ts loadStripe on the
+// listing's connected account) and answers the earliest payout pending or in transit. Its answer,
+// as one of the card's states:
+//   next     { amountCents, currency, arrivalDate, status }
+//   none     connected, and nothing on its way: "No payout scheduled"
+//   setup    no Stripe account linked: a link to set it up, where Business does (its Money section)
+//   unread   any read that failed (Stripe, the listing, the sign-in check, the network, an answer it
+//            cannot use): "couldn't be read just now", never "no payout"
+//   loading  asked, not answered yet
+// ⚠ NOTHING HERE IS A NUMBER THE ROUTE DID NOT SEND. An answer without an amount or a currency is
+// unread, not a zero, and a coach page whose account holds no listing of this role is unread too.
+function dashPayoutRead(status, body) {
+  if (status !== 200 || !body || typeof body !== "object") return { state: "unread" };
+  if (body.isProvider !== true) return { state: "unread" };
+  if (body.connected === false) return { state: "setup" };
+  if (body.connected !== true || body.error) return { state: "unread" };
+  const n = body.next;
+  if (n === null) return { state: "none" };
+  if (!n || typeof n !== "object" || !Number.isFinite(n.amountCents) || typeof n.currency !== "string" || !n.currency) return { state: "unread" };
+  return { state: "next", next: { amountCents: n.amountCents, currency: n.currency, arrivalDate: Number.isFinite(n.arrivalDate) ? n.arrivalDate : null, status: typeof n.status === "string" ? n.status : null } };
+}
+async function dashFetchNextPayout(role) {
+  try {
+    const res = await fetch("/api/coach/next-payout?role=" + encodeURIComponent(role), { credentials: "same-origin", cache: "no-store" });
+    const body = res.ok ? await res.json().catch(() => null) : null;
+    return dashPayoutRead(res.status, body);
+  } catch (e) { return { state: "unread" }; }
+}
+// The read, for a signed-in coach only (`live`): null in the preview, which keeps its sample. Asked
+// again when the coach comes back to the tab (useDashboard's own rule), keeping what the card shows
+// until the new answer lands.
+function useDashNextPayout(role, live) {
+  const [read, setRead] = React.useState(null);
+  const [tick, bump] = React.useReducer((n) => n + 1, 0);
+  // dashData.jsx loads on every page this one does, so the call is the same on every render.
+  if (typeof useDashFocusRefresh === "function") useDashFocusRefresh(bump, !!live);
+  React.useEffect(() => {
+    if (!live) { setRead(null); return undefined; }
+    let on = true;
+    setRead((r) => (r && r.state !== "loading" ? r : { state: "loading" }));
+    dashFetchNextPayout(role).then((r) => { if (on) setRead(r); });
+    return () => { on = false; };
+  }, [role, !!live, tick]);
+  return live ? (read || { state: "loading" }) : null;
+}
+
+// The amount in its own currency. Stripe counts a currency's smallest unit: cents for most, the
+// whole yen or won for its zero-decimal ones, thousandths for its three-decimal ones.
+const DASH_ZERO_DECIMAL = ["bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg", "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"];
+const DASH_THREE_DECIMAL = ["bhd", "jod", "kwd", "omr", "tnd"];
+function dashPayoutAmount(minor, currency) {
+  const cur = String(currency || "").toLowerCase();
+  const digits = DASH_ZERO_DECIMAL.includes(cur) ? 0 : DASH_THREE_DECIMAL.includes(cur) ? 3 : 2;
+  const major = minor / Math.pow(10, digits);
+  try { return new Intl.NumberFormat(undefined, { style: "currency", currency: cur.toUpperCase(), minimumFractionDigits: digits, maximumFractionDigits: digits }).format(major); }
+  catch (e) { return major.toFixed(digits) + " " + cur.toUpperCase(); }
+}
+// When it lands, on the coach's day. ⚠ STRIPE'S ARRIVAL DATE IS A BANK DAY, NOT AN INSTANT: the
+// timestamp is that day's midnight in UTC (Stripe's own examples), so it is read as that calendar
+// day and printed as one (ShapeZone, in UTC, so a coach west of Greenwich is not told the day
+// before). "Today" and "tomorrow" are the coach's: their day in `zone` (the route's dayZone), or
+// the account's zone on this page.
+function dashPayoutWhen(arrivalMs, zone, now) {
+  if (!Number.isFinite(arrivalMs)) return null;
+  const day = new Date(arrivalMs).toISOString().slice(0, 10);
+  const Z = dashZoneLib();
+  const tz = Z && zone && Z.normalizeZone(zone) ? zone : (Z ? Z.viewerZone() : null);
+  const today = Z ? Z.dayKey(now, tz) : dashLocalDate(new Date(now));
+  const diff = Math.round((Date.parse(day + "T00:00:00Z") - Date.parse(today + "T00:00:00Z")) / 86400000);
+  if (diff === 0) return "arrives today";
+  if (diff === 1) return "arrives tomorrow";
+  const noon = Date.parse(day + "T12:00:00Z");
+  const fields = { weekday: "short", month: "short", day: "numeric" };
+  let label = Z && typeof Z.formatDate === "function" ? Z.formatDate(noon, { zone: "UTC", ...fields }) : "";
+  if (!label) { try { label = new Date(noon).toLocaleDateString([], { timeZone: "UTC", ...fields }); } catch (e) { label = day; } }
+  return (diff < 0 ? "was due " : "arrives ") + label;
+}
+// The card's next-payout cell for a read: the figure only for a payout the route named.
+function dashPayoutView(read, zone, now) {
+  if (!read || read.state !== "next") return { state: read ? read.state : "unread" };
+  const n = read.next;
+  const when = dashPayoutWhen(n.arrivalDate, zone, now) || "on its way, not landed yet";
+  return { state: "next", k: dashPayoutAmount(n.amountCents, n.currency), sub: when + " · " + String(n.currency).toUpperCase() };
+}
+
 // ⚠ MONEY SHOWS ONLY WHAT THIS PAGE READS (the owner's rollout rule: never a made-up figure).
 // Recurring revenue is the KPI pool's monthly net (the route's own, or the preview roster's). The
-// next payout is Stripe's, which the live Today routes do not read (the Business page's analytics
-// read does), so a live card says payouts are not connected here and links to where they are; the
-// signed-out preview shows its own sample's, which the demo band already labels.
+// next payout is Stripe's, through the read above (`read`); the signed-out preview shows its own
+// sample's, which the demo band already labels.
 // ⚠ THE SAMPLE'S PAYOUT IS FOR THE PREVIEW ONLY (#2628 review). A signed-in coach whose day feed
 // failed while the roster loaded has `live` null too: reading that as the preview put the sample's
-// payout on their page as theirs. `preview` is the page's own source, never inferred from `live`.
-function dashMoneyModel(live, ctx, preview) {
+// payout on their page as theirs. `preview` is the page's own source, never inferred from `live`;
+// anywhere else the card shows what the payout read answered, and "couldn't be read" without one.
+function dashMoneyModel(live, ctx, preview, read, now = Date.now()) {
   const out = DashSignals.dashKpiValue("monthlyNet", ctx);
   const recurring = out && out.value != null
     ? { k: dashMoney(out.value), sub: out.sub || null }
     : { k: "—", sub: (out && out.why) || "couldn't be read" };
-  let payout = null;
+  let payout;
   if (preview === true) {
     const d = dashDemoKpis().find((x) => x && x.l === "Next payout");
-    if (d) payout = { k: d.k, sub: d.sub };
-  }
+    payout = d ? { state: "sample", k: d.k, sub: d.sub } : { state: "unread" };
+  } else if (read) payout = dashPayoutView(read, ctx && ctx.zone, now);
+  else payout = { state: "unread" };
   return { recurring, payout, live: !!live };
 }
 function DashMoneyCard({ model, role }) {
+  const p = model.payout || { state: "unread" };
+  const note = { fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" };
+  const link = { color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none", whiteSpace: "nowrap" };
+  // Business's Money section, where its "Set up payouts" starts Stripe's onboarding.
+  const setupHref = dashLinkedTab("business", role, { section: "money" });
   return (
     <section aria-label="Money" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, overflow: "hidden" }}>
       <div style={{ padding: "18px 18px", minWidth: 0 }}>
@@ -2323,9 +2460,12 @@ function DashMoneyCard({ model, role }) {
       </div>
       <div style={{ padding: "18px 18px", minWidth: 0, borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
         <div style={{ ...DASH_MONO_EYEBROW, fontSize: 10, marginBottom: 10, paddingRight: 44 }}>Next payout</div>
-        {model.payout
-          ? <React.Fragment><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 500, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>{model.payout.k}</div>{model.payout.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{model.payout.sub}</div>}</React.Fragment>
-          : <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" }} data-dash-payout="unread">Payouts aren't connected to Today yet. <a href={dashTabHref("business", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none", whiteSpace: "nowrap" }}>See them in Business →</a></div>}
+        {p.state === "next" || p.state === "sample"
+          ? <div data-dash-payout={p.state}><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 500, lineHeight: 1.1, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{p.k}</div>{p.sub && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 7 }}>{p.sub}</div>}</div>
+          : p.state === "none" ? <div style={note} data-dash-payout="none">No payout scheduled right now.</div>
+          : p.state === "setup" ? <div style={note} data-dash-payout="setup">Payouts aren't set up yet. <a href={setupHref} style={link}>Set them up in Business →</a></div>
+          : p.state === "loading" ? <div style={note} data-dash-payout="loading">Reading your payouts…</div>
+          : <div style={note} data-dash-payout="unread">Your next payout couldn't be read just now.</div>}
       </div>
     </section>
   );
@@ -2484,7 +2624,10 @@ function CoachDashboardPage({ role }) {
   const needSplit = Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
   const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;
   const glance = dashGlanceCells(role, kpiCtx);
-  const money = dashMoneyModel(live, kpiCtx, source !== "live");
+  // The next payout is read on a live page only, and the preview is the page's own source, as
+  // everywhere here: a coach whose day feed failed still gets their own payout, never the sample's.
+  const payoutRead = useDashNextPayout(role, source === "live");
+  const money = dashMoneyModel(live, kpiCtx, source !== "live", payoutRead);
   // The calendar overlay is DashShell's; it hands its opener back through this ref as it renders.
   const openCalRef = React.useRef(null);
   const openCalendar = () => { if (typeof openCalRef.current === "function") openCalRef.current(); };
@@ -2528,10 +2671,10 @@ function CoachDashboardPage({ role }) {
       render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} /> },
     { key: "glance", title: "At a glance", blurb: (role === "nutritionist" ? "Plans" : "Programs") + " due, check-ins reviewed and roster logging.", size: "wide",
       render: () => <DashGlanceCard cells={glance} /> },
-    { key: "money", title: "Money", blurb: "Recurring revenue, and the next payout where this page can read it.", size: "narrow",
+    { key: "money", title: "Money", blurb: "Recurring revenue, and your next payout from Stripe.", size: "narrow",
       render: () => <DashMoneyCard model={money} role={role} /> },
     { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
-      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} role={role} prefs={prefs} dismiss={dismiss} /> },
+      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", size: "narrow",
       render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={!scheduleRead} /> },
     // ── Optional (off until added) ──
@@ -2601,6 +2744,7 @@ function CoachDashboardPage({ role }) {
       role={role}
       gridWidgets={gridWidgets}
       dockCatalog
+      keepEarlierToday
       calendarOpener={openCalRef}
       userName={firstName}
       date={cfg.date()}
