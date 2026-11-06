@@ -698,7 +698,7 @@ function dgBoardEdit(doc, role, action) {
       // The coaching focus: Needs you (whose tabs hold attention, check-ins, replies and the
       // programming queue; the day itself is the column beside the grid), what runs out
       // soon, the week ahead, and the wins.
-      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["brief", "upnext", "needs", "timeline", "glance", "ending", "week"], hidden: ["money"], added: ["ending", "week"] } } : source.tabs;
+      const tabs = action.preset === "coaching" ? { ...source.tabs, today: { items: [], order: ["brief", "upnext", "needsyou", "timeline", "glance", "ending", "week"], hidden: ["money"], added: ["ending", "week"] } } : source.tabs;
       boards.push({ id: action.id, name, tabs: JSON.parse(JSON.stringify(tabs)) });
       active = action.id;
     }

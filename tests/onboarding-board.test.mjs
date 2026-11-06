@@ -415,9 +415,10 @@ test('the website board: newest first, one open, Say hello, and a week-one targe
   }
 });
 
-test('the board is the "New clients" tab of Needs you, and the setup card shows the same board', () => {
+test('the board is the "New clients" tab of Work queues, and the setup card shows the same board', () => {
   const src = readFileSync(join(ROOT, 'public/newdesign/dashToday.jsx'), 'utf8');
-  const needs = src.slice(src.indexOf('{ key: "needs", title: "Needs you"'), src.indexOf('{ key: "checkins", title: "Check-ins to review"'));
+  const needs = src.slice(src.indexOf('{ key: "queues", title: "Work queues"'), src.indexOf('{ key: "checkins", title: "Check-ins to review"'));
+  assert.equal(src.indexOf('{ key: "queues", title: "Work queues"') > 0, true);
   assert.match(needs, /\{ key: "new", label: "New clients", empty: dashOnboardingRows\(clients, role\)\.length === 0,[\s\S]*render: \(\) => <DashOnboardingPanel clients=\{clients\} role=\{role\} live=\{source === "live"\} \/> \}/);
   assert.match(src, /\{ key: "setup", title: "New clients"[\s\S]{0,200}<DashOnboardingPanel clients=\{clients\} role=\{role\} live=\{source === "live"\} \/>/);
   assert.ok(!/DashSetupPanel|dashSetupSteps|setupIntake/.test(src), 'the manual intake confirmation is gone');

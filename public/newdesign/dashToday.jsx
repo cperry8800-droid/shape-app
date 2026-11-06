@@ -2330,7 +2330,10 @@ function DashMoneyCard({ model, role }) {
 }
 
 // The default board's six, in the design's order: three pairs of two thirds beside one third.
-const DASH_TODAY_BOARD = ["brief", "upnext", "glance", "money", "needs", "timeline"];
+// ⚠ "needsyou", NOT "needs" (#2628 review): "needs" was the old tabbed card's key, and a saved
+// layout matches geometry and visibility by key, so the new card would have taken the old one's
+// width and place, or stayed hidden where the coach hid the old one. A saved "needs" is now stale.
+const DASH_TODAY_BOARD = ["brief", "upnext", "glance", "money", "needsyou", "timeline"];
 
 // One card, one tab per queue. The tab a coach left open is remembered per account and
 // per role (a trainer and a nutritionist Today are different practices). A tab may declare
@@ -2514,7 +2517,7 @@ function CoachDashboardPage({ role }) {
       render: () => <DashGlanceCard cells={glance} /> },
     { key: "money", title: "Money", blurb: "Recurring revenue, and the next payout where this page can read it.", size: "narrow",
       render: () => <DashMoneyCard model={money} role={role} /> },
-    { key: "needs", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
+    { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
       render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} role={role} prefs={prefs} dismiss={dismiss} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", size: "narrow",
       render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={openCalendar} /> },

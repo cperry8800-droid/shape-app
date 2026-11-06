@@ -208,7 +208,7 @@ test('the coach Today leads its grid with the six board widgets, and the cards t
   const page = body(TODAY, 'function CoachDashboardPage(', '\nObject.assign(window');
   const arr = body(page, 'const gridWidgets = [', '\n  ];');
   // tests/dash-today-board.test.mjs holds the six and their order; here, that they lead.
-  assert.ok(arr.indexOf('{ key: "needs"') > 0 && arr.indexOf('{ key: "needs"') < arr.indexOf('{ key: "checkins"'), 'Needs you is not ahead of the optional cards');
+  assert.ok(arr.indexOf('{ key: "needsyou"') > 0 && arr.indexOf('{ key: "needsyou"') < arr.indexOf('{ key: "checkins"'), 'Needs you is not ahead of the optional cards');
   for (const key of ['pulse', 'schedule', 'queue', 'queues', 'practice', 'wins', 'kpis', 'business']) {
     const at = arr.indexOf('{ key: "' + key + '"');
     assert.ok(at > 0, key + ' is gone from the catalogue — it must stay addable');

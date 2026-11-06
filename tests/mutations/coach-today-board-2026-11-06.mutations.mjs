@@ -33,6 +33,7 @@ export default {
     { name: 'reviewed: the device\'s week, not the account\'s', file: SIG, find: ': new Date(), ctx && ctx.zone);', replace: ': new Date(), null);' },
     { name: 'needs you: Enter on a row\'s action opens the drawer', file: TODAY, find: 'if (!canOpen || e.target !== e.currentTarget || (e.key', replace: 'if (!canOpen || (e.key' },
     { name: 'reviewed: no zone passed reads the device\'s week', file: SIG, find: ': (Z && typeof Z.viewerZone === "function" ? Z.viewerZone() : null);', replace: ': null;' },
+    { name: 'needs you: reuses the old tabbed card\'s key', file: TODAY, find: '{ key: "needsyou", title: "Needs you"', replace: '{ key: "needs", title: "Needs you"' },
     { name: 'dock: a narrow board still docks', file: GRID, find: 'return !(width > 0) || width - DG_DOCK_COL >= DG_DOCK_MIN_BOARD;', replace: 'return true;' },
 
     // ── Needs you folds at three ──

@@ -203,11 +203,13 @@ function declaredWidgets() {
 test('the default board is the six widgets, in three pairs of two thirds beside one third', () => {
   const ws = declaredWidgets();
   assert.ok(ws.length >= 20, 'the widget list moved — this guard is reading nothing');
-  assert.deepEqual(ws.filter((w) => !w.optional).map((w) => w.key), ['brief', 'upnext', 'glance', 'money', 'needs', 'timeline']);
-  assert.deepEqual(T.DASH_TODAY_BOARD, ['brief', 'upnext', 'glance', 'money', 'needs', 'timeline']);
+  assert.deepEqual(ws.filter((w) => !w.optional).map((w) => w.key), ['brief', 'upnext', 'glance', 'money', 'needsyou', 'timeline']);
+  assert.deepEqual(T.DASH_TODAY_BOARD, ['brief', 'upnext', 'glance', 'money', 'needsyou', 'timeline']);
+  // A fresh key (#2628 review): "needs" was the old tabbed card's, and a saved layout matches by key.
+  assert.equal(ws.some((w) => w.key === 'needs'), false, 'no widget reuses the old card\'s key');
   // A coach who never touched the board gets exactly these, at these widths.
   const fresh = resolveGridLayout(null, ws);
-  assert.deepEqual(fresh.visible.map((v) => v.key + ':' + v.w), ['brief:8', 'upnext:4', 'glance:8', 'money:4', 'needs:8', 'timeline:4']);
+  assert.deepEqual(fresh.visible.map((v) => v.key + ':' + v.w), ['brief:8', 'upnext:4', 'glance:8', 'money:4', 'needsyou:8', 'timeline:4']);
   // Every card the old default board carried stays in the catalogue, off until added.
   for (const k of ['queues', 'practice', 'wins', 'roster', 'kpis', 'business']) {
     assert.equal(ws.some((w) => w.key === k && w.optional), true, k + ' is not an optional card');
