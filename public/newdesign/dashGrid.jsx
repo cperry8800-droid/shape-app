@@ -127,6 +127,8 @@ function dgCatalogRows(widgets, hidden) {
       key: w.key,
       title: w.title || String(w.key),
       blurb: typeof w.blurb === "string" && w.blurb ? w.blurb : null,
+      // The catalogue's group on a coach board (Clients, Schedule, Money, Programs), or null.
+      group: typeof w.group === "string" && w.group ? w.group : null,
       optional: !!w.optional,
       empty,
       off,
@@ -135,6 +137,27 @@ function dgCatalogRows(widgets, hidden) {
       why: empty ? (typeof w.emptyWhy === "string" && w.emptyWhy ? w.emptyWhy : "nothing to show yet") : null,
     };
   });
+}
+
+// ── THE CATALOGUE'S GROUPS (coach dashboard step 4a) ─────────────────────────
+// Each widget on a coach board names a group, and the catalogue lists the widgets under their
+// group's heading, in this order: a coach looks for "the money cards" or "the schedule cards", not
+// for a card by its name. Inside a group the cards on the board come first, then those that can be
+// added, then those with nothing to show yet, each in declaration order. A widget naming a group
+// this list does not know goes under "More", last. A board whose widgets name no group at all (the
+// member's tabs) has none (null), and its catalogue lists as it always has.
+const DG_CATALOG_GROUPS = [["clients", "Clients"], ["schedule", "Schedule"], ["money", "Money"], ["programs", "Programs"]];
+function dgCatalogGroups(rows) {
+  const list = (rows || []).filter(Boolean);
+  if (!list.some((r) => r.group)) return null;
+  const known = new Set(DG_CATALOG_GROUPS.map((g) => g[0]));
+  const rank = (r) => (r.on ? 0 : r.canAdd ? 1 : 2);
+  const out = [];
+  for (const [key, label] of DG_CATALOG_GROUPS.concat([["other", "More"]])) {
+    const rs = list.map((r, i) => [r, i]).filter(([r]) => (key === "other" ? !known.has(r.group) : r.group === key));
+    if (rs.length) out.push({ key, label, rows: rs.sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map((x) => x[0]) });
+  }
+  return out;
 }
 
 // What the grid must ADD and REMOVE to be in step with the current widget array.
@@ -616,6 +639,10 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false, dock = nu
     border: "1px solid " + (teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.18)"),
     background: teal ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent", color: teal ? "var(--sh-accent-ink, #2ee0c4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" });
   const head = (text) => <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "10px 6px 2px" }}>{text}</div>;
+  // A coach board's rows under their groups (dgCatalogGroups), or null for a board with none.
+  const groups = dgCatalogGroups(rows);
+  const removeBtn = (r) => <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>;
+  const addBtn = (r) => <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>;
   const item = (r, control) => (
     <div key={r.key} data-dg-row={r.key} style={rowStyle}>
       <div style={{ minWidth: 0, flex: 1 }}>
@@ -641,11 +668,20 @@ function DgCatalog({ rows, onAdd, onRemove, onReset, disabled = false, dock = nu
             <div style={{ ...mono, fontSize: 9, color: "var(--sh-ink3, #75706a)", padding: "4px 6px 2px" }}>Widgets · {onBoard.length} on the board</div>
             {dock && <button type="button" onClick={() => setOpen(false)} style={{ ...mono, fontSize: 9.5, background: "transparent", border: 0, minHeight: 32, padding: "0 6px", cursor: "pointer", color: DG_MUTE }}>Done</button>}
           </div>
-          {onBoard.map((r) => item(r, <button type="button" onClick={() => act(onRemove, r.key)} aria-label={"Remove " + r.title} style={pill(false)}>Remove</button>))}
+          {groups ? groups.map((g) => (
+            <div key={g.key} data-dg-group={g.key} role="group" aria-label={g.label}>
+              {head(g.label)}
+              {g.rows.map((r) => item(r, r.on ? removeBtn(r) : r.canAdd ? addBtn(r) : null))}
+            </div>
+          )) : (
+            <React.Fragment>
+          {onBoard.map((r) => item(r, removeBtn(r)))}
           {addable.length > 0 && head("Available")}
-          {addable.map((r) => item(r, <button type="button" onClick={() => act(onAdd, r.key)} aria-label={"Add " + r.title} style={pill(true)}>{"＋ Add"}</button>))}
+          {addable.map((r) => item(r, addBtn(r)))}
           {waiting.length > 0 && head("Nothing to show yet")}
           {waiting.map((r) => item(r, null))}
+            </React.Fragment>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 6px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", marginTop: 4 }}>
             <span style={{ fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>Drag a card to move it, or its right edge to resize it</span>
             <button type="button" onClick={() => { setOpen(false); onReset(); }} style={{ ...mono, background: "transparent", border: 0, minHeight: 36, cursor: "pointer", fontSize: 9.5, color: DG_MUTE, textDecoration: "none", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", whiteSpace: "nowrap" }}>Reset layout</button>

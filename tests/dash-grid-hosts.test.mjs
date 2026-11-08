@@ -143,8 +143,12 @@ test('no two DashGrid call sites in one module share a role+tab key', () => {
 // (owner: "least overwhelming as possible, easy to navigate", the builder removed "like
 // Programs"). They are pinned as fixed pages by the test below, so neither direction can
 // happen silently. Today stays a board.
+// ⚠ 2026-11-08 (coach dashboard step 4a, the owner's approved build order): Business · Overview and
+// Business · Money are boards again, each on its own tab key, inside the page's section switch. Plan,
+// Growth and Retention stay fixed until 4b.
 const BOARDS = {
   'clientHabits.jsx': ['client|habits'],
+  'dashBusiness.jsx': ['role|business-overview', 'role|business-money'],
   'clientScore.jsx': ['client|score'],
   'dashClient.jsx': ['client|'],
   'dashGoals.jsx': ['client|goal'],
@@ -156,7 +160,7 @@ const BOARDS = {
 
 // The coach pages that are FIXED: no grid, so no builder bar (My dashboard · Save as ·
 // Rename · Coaching preset · Undo · Widgets), no grip, no ×. Each declares its own layout.
-const FIXED = ['dashBusiness.jsx', 'nutritionistClientsPage.jsx', 'nutritionistGoalPage.jsx', 'nutritionistScorePage.jsx', 'trainerClientsPage.jsx', 'trainerGoalPage.jsx', 'trainerScorePage.jsx'];
+const FIXED = ['nutritionistClientsPage.jsx', 'nutritionistGoalPage.jsx', 'nutritionistScorePage.jsx', 'trainerClientsPage.jsx', 'trainerGoalPage.jsx', 'trainerScorePage.jsx'];
 
 function gridKeys(src) {
   return [...src.matchAll(/<DashGrid\s+([^>]*?)\/?>/g)].map((m) => {
@@ -189,7 +193,7 @@ test('no two modules claim the same role+tab board', () => {
   }
 });
 
-test('the coach Clients, Business, Goal and Score pages are fixed pages, not boards', () => {
+test('the coach Clients, Goal and Score pages are fixed pages, and Business boards only Overview and Money', () => {
   for (const f of FIXED) {
     const src = fs.readFileSync(path.join(ND, f), 'utf8').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
     assert.ok(!/<DashGrid[\s/>]/.test(src), f + ' renders a DashGrid again — the builder bar, grips and × come back with it');
@@ -200,6 +204,8 @@ test('the coach Clients, Business, Goal and Score pages are fixed pages, not boa
   assert.match(biz, /const DBZ_SECTION_KEYS = DBZ_SECTIONS\.map\(\(x\) => x\[0\]\);/);
   assert.match(biz, /useRememberedChoice\(prefs, "businessSection:" \+ role, DBZ_SECTION_KEYS, "overview"\)/);
   for (const k of ['overview', 'money', 'growth', 'retention']) assert.match(biz, new RegExp('\\n    ' + k + ': '), 'the ' + k + ' section has no content');
+  // Only Overview and Money are boards (step 4a); Plan, Growth and Retention are fixed until 4b.
+  for (const k of ['plan', 'growth', 'retention']) assert.doesNotMatch(biz.match(new RegExp('\\n    ' + k + ': [^\\n]*'))[0], /DashGrid/, k + ' became a board before 4b');
 });
 
 test('the Business outcomes card needs a rollup, and says why it is not there without one', () => {

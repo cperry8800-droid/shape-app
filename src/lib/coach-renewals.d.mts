@@ -21,6 +21,8 @@ export type Renewal = {
   dueAt: string;
   priceCents: number;
   netCents: number;
+  /** the fee the row stores, in basis points: 0 for a client the coach brought, null when none is stored */
+  feeBps: number | null;
   /** true = cancelled, ends that day · false = renews · null = could not ask Stripe */
   ending: boolean | null;
 };

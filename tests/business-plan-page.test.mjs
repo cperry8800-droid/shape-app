@@ -405,15 +405,17 @@ test('renewals: the total counts confirmed renewals only; a cancellation and an 
   assert.equal(B.dbzRenewalsHead(true, RENEWALS), '2 clients · $333 net');
   const m = await mount(React.createElement(B.DbzRenewalsZone, { live: true, renewals: RENEWALS }));
   const t = m.text();
-  assert.match(t, /Dee Morgan\s*Cancelled · ends /);
+  // The status is a labelled chip (coach dashboard step 4a); the line under it says when.
+  assert.match(t, /Dee MorganCancelled\s*ends /);
   // The footnote can't say which client wasn't checked, so Eli's own row does: no monthly price
   // like a renewal's, and the amount dimmed like money not counted, but not struck through.
-  assert.match(t, /Eli Park[^$]* · not checked with Stripe\$136/);
-  const amount = (name) => [...m.div.firstChild.children].find((row) => row.firstChild.firstChild?.textContent === name).lastChild.style;
+  assert.match(t, /Eli ParkNot checked[^$]* · not checked with Stripe[^$]*\$136/);
+  const rowOf = (name) => [...m.div.querySelectorAll('[data-dbz-renewal]')].find((row) => row.querySelector('[data-dbz-name]')?.textContent === name);
+  const amount = (name) => rowOf(name).querySelector('[data-dbz-amount]').style;
   assert.deepEqual([amount('Eli Park').color === amount('Ana Reyes').color, amount('Eli Park').textDecoration], [false, 'none']);
   assert.equal(amount('Eli Park').color, amount('Dee Morgan').color);
   // The subline is amber, apart from both the cancelled red and a renewal's grey.
-  const sub = (name) => [...m.div.firstChild.children].find((row) => row.firstChild.firstChild?.textContent === name).firstChild.lastChild.style.color;
+  const sub = (name) => rowOf(name).querySelector('[data-dbz-renewal-sub]').style.color;
   assert.deepEqual([sub('Eli Park'), sub('Dee Morgan') === sub('Ana Reyes')], ['var(--sh-gold, #d8a23a)', false]);
   assert.match(t, /Some couldn't be checked with Stripe, so they aren't counted above\./);
   assert.doesNotMatch(t, /just now/, 'a row past the 25-check cap is unchecked on every load: not a passing problem');
@@ -765,7 +767,11 @@ test('the Goal tab\'s calculator links to the planner on Business, opened on Pla
 });
 
 // ── The whole page ───────────────────────────────────────────────────────────
-test('the sidebar money card says when Stripe couldn\'t be reached, as the Money tab does', async () => {
+// ⚠ THE SIDEBAR'S MONEY CARD IS THE SIDEBAR'S OWN (coach dashboard step 4a): Stripe's next payout,
+// read as Today's Money card reads it (trainerDashboard.jsx DashSidebar; tests/business-boards.test.mjs
+// drives its states). This page printed a balance card of its own beside Today's "payouts connect
+// soon"; it hands the sidebar the demo card now, which the sidebar shows to a signed-out viewer only.
+test('the page hands the sidebar its demo card, whatever Stripe answered, and the sidebar reads the payout itself', async () => {
   let card = null;
   Object.assign(globalThis, {
     useDashboard: () => ({ today: null, source: 'live' }),
@@ -773,18 +779,20 @@ test('the sidebar money card says when Stripe couldn\'t be reached, as the Money
     useRememberedChoice: () => React.useState('money'),
     DashPage: ({ children, payoutCard }) => { card = payoutCard; return React.createElement(React.Fragment, null, children); },
     DashSegmented: () => null, DashExportButton: () => null, DashFunnelPanel: () => null, DashDemoBand: () => null,
-    trainerNavItems: () => [], trainerPayoutCard: {}, nutriPayoutCard: {},
+    trainerNavItems: () => [], trainerPayoutCard: { demo: 'trainer' }, nutriPayoutCard: { demo: 'nutritionist' },
   });
   const answer = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
-  for (const [stripe, sub] of [[{ connected: true, error: true, balanceCents: null, pendingCents: null, payouts: [] }, "couldn't reach Stripe just now"], [{ connected: false }, 'connects when payouts go live']]) {
+  for (const stripe of [{ connected: true, error: true, balanceCents: null, pendingCents: null, payouts: [] }, { connected: false }, { connected: true, status: 'active', balanceCents: 4100, pendingCents: 0, payouts: [] }]) {
     globalThis.fetch = window.fetch = (url) => url.startsWith('/api/trainer/analytics')
       ? answer({ isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], trajectory: null, renewals: [], churn: [], stripe })
       : answer({ listings: [] });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
-    assert.deepEqual([card.amount, card.sub], ['—', sub]);
+    assert.deepEqual(card, { demo: 'trainer' }, JSON.stringify(stripe));
     await m.unmount();
   }
+  assert.match(readFileSync(ND('trainerDashboard.jsx'), 'utf8'), /dashPayoutSidebarCard\(askPayout \? payoutRead : null, role\)/, 'the sidebar no longer reads the payout');
+  assert.doesNotMatch(readFileSync(ND('dashBusiness.jsx'), 'utf8'), /BALANCE · AVAILABLE|connects when payouts go live/);
 });
 
 test('a failed analytics read says so in every zone it feeds, instead of loading forever', async () => {
@@ -803,7 +811,8 @@ test('a failed analytics read says so in every zone it feeds, instead of loading
       const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
       await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
       assert.doesNotMatch(m.text(), /load with the analytics rollup|load with your|Loads with/, section + ': ' + m.text().slice(0, 300));
-      assert.match(m.text(), section === 'money' ? /Couldn't read your payouts just now.*Couldn't read your subscriptions just now.*Couldn't read your subscriptions just now/ : /Couldn't read your subscriptions just now, and the plan starts from them/);
+      // Money's board (coach dashboard step 4a): the payout, Stripe, the renewals and the history each say so.
+      assert.match(m.text(), section === 'money' ? /Your next payout couldn't be read just now.*Couldn't read whether Stripe is linked just now.*Couldn't read your subscriptions just now.*Your past payouts couldn't be read just now/ : /Couldn't read your subscriptions just now, and the plan starts from them/);
       await m.unmount();
     }
   }
@@ -849,16 +858,16 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
   const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
   assert.doesNotMatch(m.text(), /Casey Morgan|Alex Rivera|Riley Kim|is coming to you/, m.text().slice(0, 300));
   assert.doesNotMatch(m.text(), ROSTER_NAMES, 'the preview roster is shown to a coach whose page is still reading');
-  assert.match(m.text(), /Your payouts load with the analytics rollup/);
+  assert.match(m.text(), /Reading your next payout….*Reading your Stripe account…/);
   await m.unmount();
   // A viewer the dashboard resolved as a demo, and the analytics answered as signed out, still sees
   // the preview, under its band.
-  globalThis.useDashboard = () => ({ today: null, source: 'demo' });
+  globalThis.useDashboard = () => ({ today: null, source: 'demo', clients: DashSignals.buildMockClients(new Date()) });
   globalThis.fetch = window.fetch = () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'Authentication required.' }) });
   const demo = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
   await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   assert.match(demo.text(), /PREVIEW/);
-  assert.match(demo.text(), /is coming to you/);
+  assert.match(demo.text(), /When do I get paid\?[^$]*\$[\d,]+ · (in \d+ days?|today)Available now\$/);
   await demo.unmount();
 });
 
@@ -867,10 +876,15 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
 // alike, so `source: "demo"` alone cannot say who is looking. The page's own analytics answer can.
 // The neighbours are stubbed so the page shows which it drew: the band, the sidebar card, and the
 // funnel the panel would draw (the preview's when it is handed no feed).
-function stubPage({ source, today = null, section }) {
+// useDashboard hands back the preview's roster whenever it resolved its demo, signed out or an
+// outage alike (dashData.jsx), so the stub does too: a page that shows it to a coach is caught.
+// `all` draws every card a board declares, its catalogue's included (DashGrid draws the coach's
+// arrangement; without it the page stacks the default cards).
+function stubPage({ source, today = null, section, all = false }) {
   const seen = { card: null };
   Object.assign(globalThis, {
-    useDashboard: () => ({ today, source }),
+    useDashboard: () => ({ today, source, clients: source === 'demo' ? DashSignals.buildMockClients(new Date()) : [] }),
+    DashGrid: all ? ({ widgets }) => React.createElement(React.Fragment, null, widgets.filter((w) => !w.empty).map((w) => React.createElement(React.Fragment, { key: w.key }, w.render()))) : undefined,
     useRememberedChoices: () => null,
     useRememberedChoice: () => React.useState(section),
     DashPage: ({ children, payoutCard }) => { seen.card = payoutCard; return React.createElement(React.Fragment, null, children); },
@@ -896,8 +910,9 @@ const answer = (status, body) => () => Promise.resolve({ ok: status >= 200 && st
 
 test('a signed-in coach whose reads all failed sees unread states, never the preview\'s figures', async () => {
   const UNREAD = {
-    overview: [/Your trajectory could not be read just now/],
-    money: [/Couldn't read your payouts just now.*Couldn't read your subscriptions just now.*Couldn't read your subscriptions just now/],
+    // The boards (coach dashboard step 4a): each default card says so on its own.
+    overview: [/Your net a month couldn't be read just now/, /What's at risk couldn't be read just now/, /Couldn't read your subscriptions just now, and the pace starts from them/, /Your next payout couldn't be read just now/, /Your clients couldn't be read just now/],
+    money: [/Your next payout couldn't be read just now/, /Your balance couldn't be read just now/, /Your renewals couldn't be read just now, so none are on the track/, /Couldn't read whether Stripe is linked just now/, /Couldn't read your subscriptions just now/, /Your past payouts couldn't be read just now/],
     plan: [/Couldn't read your subscriptions just now, and the plan starts from them/],
     growth: [/Couldn't read your funnel just now/, /Couldn't read where your clients came from just now/, /Couldn't read your waiting list just now/],
     retention: [/Couldn't read your subscriptions just now/, /Couldn't read your roster outcomes just now/, /Couldn't read your cancellations just now/],
@@ -923,7 +938,9 @@ test('a signed-in coach whose reads all failed sees unread states, never the pre
       assert.equal(dollars(t), false, at);
       assert.doesNotMatch(t, /loads? with|is loading/i, at);
       for (const re of UNREAD[section]) assert.match(t, re, at);
-      assert.deepEqual([seen.card.amount, seen.card.sub], ['—', "couldn't read your payouts just now"], at);
+      // The page hands the sidebar its demo card; the sidebar, which knows a signed-in viewer from a
+      // signed-out one, shows its own payout read instead (tests/business-boards.test.mjs).
+      assert.deepEqual(seen.card, { demo: 'trainer' }, at);
       await m.unmount();
     }
   }
@@ -942,7 +959,8 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
     const m = await mount(React.createElement(window.CoachBusinessPage, { role }));
     await settle();
     assert.match(m.text(), /^PREVIEW/, label);
-    assert.match(m.text(), /is coming to you/, label);
+    assert.match(m.text(), /When do I get paid\?[^$]*\$[\d,]+ · (in \d+ days?|today)Available now\$/, label);
+    assert.match(m.text(), ROSTER_NAMES, label + ': the preview\'s renewals are its roster');
     assert.deepEqual(seen.card, { demo: role }, label + ': the preview\'s sidebar card');
     await m.unmount();
   }
@@ -1054,8 +1072,10 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
   }
 
   // What the viewer reads: Money's row and the 13 weeks' header, the Plan's sentence, the origin list.
+  // Every card each board declares, its catalogue's included: the 13 weeks and "Your money" are
+  // Money's catalogue cards now (coach dashboard step 4a).
   const read = async (section) => {
-    stubPage({ source: 'demo', section });
+    stubPage({ source: 'demo', section, all: true });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await settle();
@@ -1063,6 +1083,8 @@ test('the preview states one net on every tab: Today, the sidebar, the KPI strip
     await m.unmount();
     return t;
   };
+  const overviewTab = await read('overview');
+  assert.match(overviewTab, new RegExp('Net a month' + esc(money(book.net)) + ' /mo' + book.clients + ' clients · ' + esc(money(book.gross)) + ' billed · ' + esc(money(book.gross - book.net)) + ' Shape fee'), "the Overview's Net a month: " + overviewTab.slice(0, 600));
   const moneyTab = await read('money');
   assert.match(moneyTab, new RegExp("Net a month, at today's clients" + esc(money(book.gross)) + ' billed · ' + esc(money(book.gross - book.net)) + ' Shape fee' + esc(money(book.net))), moneyTab.slice(0, 600));
   assert.match(moneyTab, new RegExp('from your subscriptions · ' + esc(money(book.net)) + ' now'), 'the 13 weeks header');
@@ -1223,8 +1245,9 @@ test("the preview's practice falls back to what the roster would have returned, 
 
 test('while the analytics are out, a dashboard that fell back to its demo is loading, never the preview', async () => {
   const LOADING = {
-    overview: [/Your trajectory loads with the analytics rollup/],
-    money: [/Your payouts load with the analytics rollup/, /Your renewals load with the analytics rollup/, /Loads with the analytics rollup/],
+    // The boards (coach dashboard step 4a): each default card reads, none says it failed.
+    overview: [/Reading your subscriptions…/, /Reading what's at risk…/, /Reading your history…/, /Reading your payouts…/, /Reading your clients…/],
+    money: [/Reading your next payout…/, /Reading your balance…/, /Your renewals are still loading/, /Reading your Stripe account…/, /Your renewals load with the analytics rollup/, /Reading your payouts…/],
     plan: [/Your numbers load with the analytics rollup/],
     growth: [/Your funnel is loading/, /Where your clients came from loads with the analytics rollup/, /Loads with your listing/],
     retention: [/Loads with the analytics rollup/, /Roster outcomes load with the analytics rollup/, /Your cancellations load with the analytics rollup/],
@@ -1238,7 +1261,7 @@ test('while the analytics are out, a dashboard that fell back to its demo is loa
     assert.doesNotMatch(t, DEMO, section + ': ' + t.slice(0, 400));
     assert.doesNotMatch(t, /Couldn't read|could not be read|No cancellations on record|Origin labels land here/, section + ': still loading is not a failed or empty read');
     for (const re of LOADING[section]) assert.match(t, re, section + ': ' + t.slice(0, 400));
-    assert.deepEqual([seen.card.amount, seen.card.sub], ['—', 'loads with the analytics rollup']);
+    assert.deepEqual(seen.card, { demo: 'trainer' }, 'the sidebar decides its own card (tests/business-boards.test.mjs)');
     await m.unmount();
   }
 });
@@ -1252,7 +1275,7 @@ test('a "signed out" analytics answer is a preview only when the dashboard resol
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await settle();
     assert.doesNotMatch(m.text(), /PREVIEW|is coming to you|DEMO FUNNEL|Couldn't read/, section + ': ' + m.text().slice(0, 300));
-    assert.match(m.text(), section === 'money' ? /Your payouts load with the analytics rollup/ : /Your funnel is loading/);
+    assert.match(m.text(), section === 'money' ? /Reading your next payout…/ : /Your funnel is loading/);
     await m.unmount();
   }
   // The dashboard resolved a coach (its roster read, or its own feed): an unread state, not loading forever.
@@ -1262,7 +1285,8 @@ test('a "signed out" analytics answer is a preview only when the dashboard resol
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await settle();
     assert.doesNotMatch(m.text(), /PREVIEW|is coming to you|loads? with/, source + ': ' + m.text().slice(0, 300));
-    assert.match(m.text(), /Couldn't read your payouts just now/, source);
+    assert.match(m.text(), /Your next payout couldn't be read just now.*Couldn't read whether Stripe is linked just now/, source);
+    assert.doesNotMatch(m.text(), /Reading /, source + ': a read the page knows failed is not still reading');
     await m.unmount();
   }
 });

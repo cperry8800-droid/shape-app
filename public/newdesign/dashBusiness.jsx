@@ -26,9 +26,62 @@ const DBZ_LBL = { fontFamily: DBZ_MONO, fontSize: 9, letterSpacing: "0.12em", te
 const DBZ_NOTE = { fontSize: 12, color: DBZ_INK50, lineHeight: 1.5 };
 const DBZ_RULE = "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
 
-function dbzDate(v) {
-  if (!v) return "—";
-  try { return new Date(typeof v === "number" ? v : String(v)).toLocaleDateString([], { month: "short", day: "numeric" }); } catch (e) { return "—"; }
+// ⚠ DATES PRINT ON THE ACCOUNT'S CLOCK, NOT THE DEVICE'S (coach dashboard step 4a, as #2624 did for
+// Today). shapeZone.mjs (window.ShapeZone, a module script read at call time) holds the account's
+// zone; without it, this browser's clock, as before. Two kinds of date reach this page:
+//   an instant (a plan's period end, a cancellation): printed on the account's clock (dbzOnClock);
+//   a Stripe arrival date: a BANK DAY, not an instant. Stripe sends that day's midnight in UTC, so
+//     read on a clock west of Greenwich it printed the day before ("lands Nov 13" for a payout due
+//     on the 14th). It is read as the calendar day it names and printed as one (dbzBankDay), as
+//     Today's Money card does (dashToday.jsx dashPayoutWhen).
+function dbzZoneLib() {
+  try {
+    const Z = typeof window !== "undefined" ? window.ShapeZone : null;
+    return Z && typeof Z.formatDate === "function" && typeof Z.viewerZone === "function" && typeof Z.partsInZone === "function" ? Z : null;
+  } catch (e) { return null; }
+}
+function dbzMs(v) {
+  if (v == null || v === "") return null;
+  const t = typeof v === "number" ? v : Date.parse(String(v));
+  return Number.isFinite(t) ? t : null;
+}
+function dbzOnClock(v, fields) {
+  const t = dbzMs(v);
+  if (t == null) return "—";
+  const Z = dbzZoneLib();
+  if (Z) { const s = Z.formatDate(t, { ...fields }); if (s) return s; }
+  try { return new Date(t).toLocaleDateString([], fields); } catch (e) { return "—"; }
+}
+function dbzDate(v) { return dbzOnClock(v, { month: "short", day: "numeric" }); }
+// A bank day's "YYYY-MM-DD", from Stripe's arrival timestamp (that day's midnight, UTC), or null.
+function dbzBankKey(ms) {
+  const t = dbzMs(ms);
+  return t == null ? null : new Date(t).toISOString().slice(0, 10);
+}
+function dbzBankDay(ms, fields = { month: "short", day: "numeric" }) {
+  const key = dbzBankKey(ms);
+  if (!key) return "—";
+  const noon = Date.parse(key + "T12:00:00Z");
+  const Z = dbzZoneLib();
+  let s = Z ? Z.formatDate(noon, { zone: "UTC", ...fields }) : "";
+  if (!s) { try { s = new Date(noon).toLocaleDateString([], { timeZone: "UTC", ...fields }); } catch (e) { s = key; } }
+  return s;
+}
+// Today's calendar fields on the account's clock: { y, mo, d, key }.
+function dbzTodayParts(now = Date.now()) {
+  const Z = dbzZoneLib();
+  const p = Z ? Z.partsInZone(now, Z.viewerZone()) : null;
+  const d = p ? { y: p.y, mo: p.mo, d: p.d } : (() => { const x = new Date(now); return { y: x.getFullYear(), mo: x.getMonth() + 1, d: x.getDate() }; })();
+  return { ...d, key: d.y + "-" + String(d.mo).padStart(2, "0") + "-" + String(d.d).padStart(2, "0") };
+}
+// An instant's calendar fields on the account's clock, or null.
+function dbzPartsOf(v) {
+  const t = dbzMs(v);
+  if (t == null) return null;
+  const Z = dbzZoneLib();
+  if (Z) { const p = Z.partsInZone(t, Z.viewerZone()); if (p) return { y: p.y, mo: p.mo, d: p.d }; }
+  const x = new Date(t);
+  return { y: x.getFullYear(), mo: x.getMonth() + 1, d: x.getDate() };
 }
 function dbzMonthsBetween(a, b) {
   try {
@@ -184,12 +237,15 @@ function dbzScheduleLine(s) {
 // pay out, what is still clearing, and the net a month the subscriptions bring in. A coach with a
 // Standard account manages payouts in their own Stripe dashboard, which the link opens.
 const DBZ_STRIPE_DASHBOARD = "https://dashboard.stripe.com/";
-function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
+// Stripe Connect onboarding (/api/stripe/connect/onboard), for "Your money" and the Stripe card.
+// `failed` is an attempt that came back without a link: the card says so, never a button that did
+// nothing.
+function useDbzOnboarding(role, providerId) {
   const [linking, setLinking] = React.useState(false);
-  const data = live ? stripe : dbzDemoPayouts();
-  const startOnboarding = async () => {
+  const [failed, setFailed] = React.useState(false);
+  const start = async () => {
     if (!providerId || linking) return;
-    setLinking(true);
+    setLinking(true); setFailed(false);
     try {
       const res = await fetch("/api/stripe/connect/onboard", {
         method: "POST", credentials: "same-origin",
@@ -199,8 +255,13 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
       const d = await res.json().catch(() => null);
       if (d && d.url) { window.location.href = d.url; return; }
     } catch (e) {}
-    setLinking(false);
+    setLinking(false); setFailed(true);
   };
+  return { linking, failed, start };
+}
+function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
+  const { linking, start: startOnboarding } = useDbzOnboarding(role, providerId);
+  const data = live ? stripe : dbzDemoPayouts();
 
   if (live && !data) return <div style={DBZ_NOTE}>{data === null ? "Couldn't read your payouts just now. Nothing is lost; reload to try again." : "Your payouts load with the analytics rollup…"}</div>;
   if (live && !data.connected) {
@@ -226,7 +287,7 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
   const m = window.CoachForecast.moneyFrom(data);
   const next = m.next;
   const rows = [
-    m.onWay ? { k: "On its way to your bank", s: next && next.arrivalDate ? "arrives " + dbzDate(next.arrivalDate) : "paid out, not landed yet", v: m.onWayCents } : null,
+    m.onWay ? { k: "On its way to your bank", s: next && next.arrivalDate ? "arrives " + dbzBankDay(next.arrivalDate) : "paid out, not landed yet", v: m.onWayCents } : null,
     m.balanceCents != null ? { k: "Ready to pay out", s: "in your Stripe balance now", v: m.balanceCents } : null,
     m.pendingCents ? { k: "Still clearing", s: "new charges Stripe hasn't released yet", v: m.pendingCents } : null,
   ].filter(Boolean);
@@ -238,7 +299,7 @@ function DbzPayoutsZone({ live, stripe, providerId, role, metrics }) {
   return (
     <div>
       <p style={{ margin: "0 0 4px", fontSize: 15, lineHeight: 1.6, color: DBZ_INK50 }}>
-        {b(dashMoney(coming))} is coming to you.{next && next.arrivalDate ? <React.Fragment> The next payout, {b(dashMoney(next.amountCents))}, lands {b(dbzDate(next.arrivalDate))}.</React.Fragment> : null}
+        {b(dashMoney(coming))} is coming to you.{next && next.arrivalDate ? <React.Fragment> The next payout, {b(dashMoney(next.amountCents))}, lands {b(dbzBankDay(next.arrivalDate))}.</React.Fragment> : null}
       </p>
       {rows.map((r, i) => (
         <div key={r.k} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
@@ -1334,35 +1395,79 @@ function DbzPlanZone({ base }) {
 // the footnote alone can't tell the coach which client it is.
 function dbzDemoRenewals() {
   const day = 86400000, now = Date.now();
+  // In the routes' shape (coach-renewals.mjs renewalRows), the fee each row stores included.
   return dbzDemoOrigin().filter((r) => r.kind === "subscription").slice(0, 4).map((r, i) => ({
-    name: r.name, dueAt: new Date(now + (1 + i * 2) * day).toISOString(), priceCents: r.priceCents,
-    netCents: Math.round(r.priceCents * (1 - (r.feeBps || 0) / 10000)), ending: i === 3,
+    name: r.name, clientId: r.clientId || null, dueAt: new Date(now + (1 + i * 2) * day).toISOString(), priceCents: r.priceCents,
+    netCents: Math.round(r.priceCents * (1 - (r.feeBps || 0) / 10000)), feeBps: r.feeBps == null ? null : r.feeBps, ending: i === 3,
   }));
 }
+// A plan's period end, on the account's clock (dbzOnClock).
 function dbzDay(v) {
-  try { return new Date(v).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }); } catch (e) { return "—"; }
+  return dbzOnClock(v, { weekday: "short", month: "short", day: "numeric" });
 }
-function DbzRenewalsZone({ live, renewals }) {
+// ⚠ EVERY RENEWAL SAYS WHY SHAPE TAKES ITS FEE, OR NONE (coach dashboard step 4a: "the 15% fee is
+// never explained"). The fee is the row's STORED one (coach-renewals.mjs `feeBps`), the billing truth
+// the origin list reads too: 0 is a client the coach brought (their link, no fee), anything else one
+// who found them on Shape. A row from a route before the field, or one storing none, is read from what
+// it nets (price less net), which is the rate the route cut it at. Neither readable: said so.
+function dbzFeeBps(r) {
+  if (r && Number.isFinite(r.feeBps)) return r.feeBps;
+  if (r && Number.isFinite(r.priceCents) && r.priceCents > 0 && Number.isFinite(r.netCents)) return Math.round(((r.priceCents - r.netCents) / r.priceCents) * 10000);
+  return null;
+}
+function dbzFeeLabel(r) {
+  const bps = dbzFeeBps(r);
+  if (bps == null) return "fee couldn't be read";
+  if (bps <= 0) return "brought by you · no fee";
+  return "found you on Shape · " + (Math.round(bps / 10) / 10) + "% fee";
+}
+// The renewal's status, as a labelled chip: renews (Stripe said so), cancelled (ends that day), or
+// not checked (Stripe couldn't be asked, past the check cap, or no Stripe id).
+const DBZ_RENEWAL_STATUS = {
+  renews: { chip: "Renews", color: "var(--sh-green, #7bbf5a)" },
+  cancelled: { chip: "Cancelled", color: DBZ_RED },
+  unchecked: { chip: "Not checked", color: DBZ_AMBER },
+};
+const dbzRenewalKind = (r) => (r.ending === true ? "cancelled" : r.ending === false ? "renews" : "unchecked");
+// `clients`: the page's roster, for each row's tier mark (an unknown tier draws a hollow mark).
+function DbzRenewalsZone({ live, renewals, clients = [], role = "trainer" }) {
   if (live && renewals === undefined) return <div style={DBZ_NOTE}>Your renewals load with the analytics rollup…</div>;
   if (live && renewals === null) return <div style={DBZ_NOTE}>Couldn't read your subscriptions just now. Nothing is lost; reload to try again.</div>;
   const rows = live ? renewals : dbzDemoRenewals();
   if (!rows.length) return <div style={DBZ_NOTE}>No one renews in the next 7 days.</div>;
   const unchecked = rows.some((r) => r.ending == null);
+  const CF = window.CoachForecast;
+  const pct = Math.round(((CF && CF.FEE_RATE) || 0.15) * 100);
   return (
     <div>
-      {rows.map((r, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14 }}>{r.name}</div>
-            <div style={{ fontSize: 12, color: r.ending ? DBZ_RED : r.ending == null ? DBZ_AMBER : DBZ_INK50, marginTop: 2 }}>
-              {r.ending ? "Cancelled · ends " + dbzDay(r.dueAt) : r.ending == null ? dbzDay(r.dueAt) + " · not checked with Stripe" : dbzDay(r.dueAt) + " · " + dashMoney(r.priceCents) + " a month"}
+      {rows.map((r, i) => {
+        const kind = dbzRenewalKind(r);
+        const st = DBZ_RENEWAL_STATUS[kind];
+        return (
+          <div key={i} data-dbz-renewal={kind} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "12px 0", borderBottom: i < rows.length - 1 ? DBZ_RULE : 0 }}>
+            <DbzGem rec={dbzClientById(clients, r.clientId)} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span data-dbz-name="" style={{ fontSize: 14, fontWeight: 500 }}>{r.name}</span>
+                <DbzChip color={st.color}>{st.chip}</DbzChip>
+              </div>
+              <div data-dbz-renewal-sub="" style={{ fontSize: 12, color: kind === "cancelled" ? DBZ_RED : kind === "unchecked" ? DBZ_AMBER : DBZ_INK50, marginTop: 3 }}>
+                {kind === "cancelled" ? "ends " + dbzDay(r.dueAt) : kind === "unchecked" ? dbzDay(r.dueAt) + " · not checked with Stripe" : dbzDay(r.dueAt) + " · " + dashMoney(r.priceCents) + " a month"}
+              </div>
+              <div data-dbz-fee="" style={{ fontSize: 12, color: DBZ_INK50, marginTop: 2 }}>{dbzFeeLabel(r)}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, justifySelf: "end" }}>
+              <div data-dbz-amount="" style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums", color: kind === "renews" ? DBZ_INK : DBZ_INK50, textDecoration: kind === "cancelled" ? "line-through" : "none" }}>{dashMoney(r.netCents)}</div>
+              {/* An ending plan's one action: a word with the client before it ends. */}
+              {kind === "cancelled" && typeof dashMessageClient === "function" && (
+                <button type="button" onClick={() => dashMessageClient(r.name, role, null, r.clientId)} style={DBZ_OUTLINE}>Message</button>
+              )}
             </div>
           </div>
-          <div style={{ fontFamily: serif, fontSize: 21, fontVariantNumeric: "tabular-nums", color: r.ending === false ? DBZ_INK : DBZ_INK50, textDecoration: r.ending ? "line-through" : "none" }}>{dashMoney(r.netCents)}</div>
-        </div>
-      ))}
+        );
+      })}
       <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
-        Net to you, after Shape's fee.{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
+        Net to you, after Shape's fee: {pct}% on a client who found you on Shape, none on a client you brought.{unchecked ? " Some couldn't be checked with Stripe, so they aren't counted above." : ""}
       </div>
     </div>
   );
@@ -1439,6 +1544,630 @@ function DbzWaitlistZone({ live, waiting, rateCents, priceNote = null }) {
   );
 }
 
+// ══ THE BOARDS (coach dashboard step 4a, the owner's build order, 2026-11-08) ══════════════════
+// Business · Overview and Business · Money are widget boards (dashGrid.jsx DashGrid), as Today is: a
+// coach drags, resizes, configures and hides each card, and adds more from the catalogue. Each ships a
+// lean default board (Overview five, Money four); every other card those tabs carried is in the
+// catalogue, off until added. One question a card, one figure or one list, at most one action, and the
+// one thing to act on (money at risk) stands at Lift 2 while the lists rest at Lift 0.
+// ⚠ LIVE OR SAMPLE IS THE PAGE'S OWN `preview` (the analytics answered "signed out or not a coach" AND
+// the dashboard resolved its demo), handed to every card. A signed-in coach whose reads failed is told
+// "couldn't be read", never shown the sample's people or money.
+// ⚠ UNREAD IS NOT EMPTY: undefined is a read still out, null one that failed, and a measured empty is
+// said in words; a partial read says what it is missing.
+const DBZ_CARD = { background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px", minWidth: 0 };
+const DBZ_EYEBROW = { fontFamily: DBZ_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_INK50 };
+const DBZ_CHIP = { fontFamily: DBZ_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" };
+// The board's filled control: Message on money at risk (the Overview's only one), and Stripe's own on Money.
+const DBZ_FILLED = { fontFamily: DBZ_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DBZ_TEAL_INK, background: DBZ_TEAL, border: 0, borderRadius: 7, padding: "11px 16px", minHeight: 40, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, boxSizing: "border-box" };
+const DBZ_OUTLINE = { fontFamily: DBZ_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "transparent", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 6, padding: "7px 11px", minHeight: 32, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center" };
+const DBZ_MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function DbzChip({ color, children }) { return <span style={{ ...DBZ_CHIP, color }}>{children}</span>; }
+// A board card: its eyebrow (and what stands beside it), then its one answer. The header keeps clear
+// of the card's ⠿ ⚙ × pill (dashGrid.jsx .dg-chrome). `lift` 2 stands highest, 0 rests (dashGrid.jsx).
+function DbzCard({ label, right, lift, children }) {
+  return (
+    <section aria-label={label} data-dash-lift={lift != null ? String(lift) : undefined} style={DBZ_CARD}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12, paddingRight: 64 }}>
+        <span style={DBZ_EYEBROW}>{label}</span>
+        {right || null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// A client's colour is their Shape Score tier's, on a mark beside the name (dashToday.jsx
+// DashClientGem, clientColors.mjs): read at call time, and an unknown tier is a hollow mark.
+function dbzClientById(clients, id) {
+  if (id == null) return null;
+  return (clients || []).find((c) => c && c.profile && String(c.profile.id) === String(id)) || null;
+}
+function DbzGem({ rec, title }) {
+  if (typeof DashClientGem !== "function") return <span aria-hidden="true" />;
+  const points = typeof dashRecordTier === "function" ? dashRecordTier(rec) : null;
+  return <DashClientGem points={points} title={title} />;
+}
+// A client's net a month: their price less the fee their row stores, else the published rate (as
+// dashSignals.js rosterNetCents nets a row). null when the price couldn't be read.
+function dbzClientNet(c) {
+  const pay = c && c.payments;
+  if (!pay || !Number.isFinite(pay.mrrCents)) return null;
+  if (Number.isFinite(pay.feeCents)) return pay.mrrCents - pay.feeCents;
+  const CF = window.CoachForecast;
+  return Math.round(pay.mrrCents * (1 - ((CF && CF.FEE_RATE) || 0.15)));
+}
+const dbzRetrying = (c) => !!(c && c.payments && (c.payments.paymentRetrying === true || c.payments.status === "past_due"));
+// The client's page, for a real account only (dashToday.jsx dashClientHref: never a demo persona's).
+const dbzClientHref = (id, role) => (id != null && typeof dashClientHref === "function" ? dashClientHref({ profile: { id } }, role) : null);
+
+// ── Overview · Net a month ────────────────────────────────────────────────────
+// Today's clients and net, by the rule every tab reads (coachForecast.js todayFrom, the trajectory's
+// latest week); the preview's from its own book. null figures never print as $0.
+function dbzNetModel({ preview, extra, extraFailed }) {
+  if (preview) {
+    const last = dbzDemoTrajectory().weeks.slice(-1)[0];
+    return { state: "sample", clients: last.active, netCents: last.mrrNetCents, grossCents: last.mrrGrossCents };
+  }
+  if (extra) {
+    const t = dbzToday(extra);
+    return t && t.mrrNetCents != null ? { state: "ready", clients: t.clients, netCents: t.mrrNetCents, grossCents: t.mrrGrossCents != null ? t.mrrGrossCents : null } : { state: "unread" };
+  }
+  return { state: extraFailed ? "unread" : "loading" };
+}
+function DbzNetCard({ model }) {
+  const m = model || { state: "loading" };
+  const shown = m.state === "ready" || m.state === "sample";
+  return (
+    <DbzCard label="Net a month">
+      {shown ? (
+        <div data-dbz-net={m.state}>
+          <div style={{ fontFamily: serif, fontSize: 40, lineHeight: 1, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            {dashMoney(m.netCents)}<span style={{ fontSize: 14, color: DBZ_INK50, fontFamily: "inherit" }}> /mo</span>
+          </div>
+          <div style={{ ...DBZ_NOTE, marginTop: 10 }}>
+            {(m.clients === 1 ? "1 client" : m.clients + " clients") + (m.grossCents != null ? " · " + dashMoney(m.grossCents) + " billed · " + dashMoney(m.grossCents - m.netCents) + " Shape fee" : "")}
+          </div>
+          <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 4 }}>After Shape's fee, before card processing.</div>
+        </div>
+      ) : <div data-dbz-net={m.state} style={DBZ_NOTE}>{m.state === "loading" ? "Reading your subscriptions…" : "Your net a month couldn't be read just now. Nothing is lost; reload to try again."}</div>}
+    </DbzCard>
+  );
+}
+
+// ── Overview · today's pace and the goal ─────────────────────────────────────
+// One chart: the net a month at today's pace (coachForecast.js forecast from the Plan's own start,
+// planStart) against the goal line, which is the Plan's starting goal (half again today's net), and
+// says so. A history that couldn't be read, or none yet, starts from the Plan's stated defaults and
+// says that too. The one action opens the Plan, where both can be moved.
+function dbzPaceModel(base) {
+  const CF = window.CoachForecast;
+  if (!CF || !base || base.state !== "ready") return { state: base && base.state ? base.state : "loading" };
+  const start = CF.planStart(base);
+  const f = CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: Math.round(start.rate * 100), adds: start.adds, churn: start.churnPct / 100 });
+  const goalCents = start.goal * 100;
+  return { state: "ready", known: base.pace.adds != null, unreadHistory: !!base.pace.unread, f, goalCents, reach: CF.monthsTo(goalCents, f), yearCents: f.rows[12].netCents, nowCents: base.mrrNetCents };
+}
+function DbzPaceCard({ model, onPlan }) {
+  const label = "Today's pace and the goal";
+  if (!model || model.state !== "ready") {
+    return <DbzCard label={label}><div data-dbz-pace={model ? model.state : "loading"} style={DBZ_NOTE}>{model && model.state === "unread" ? "Couldn't read your subscriptions just now, and the pace starts from them. Nothing is lost; reload to try again." : "Reading your history…"}</div></DbzCard>;
+  }
+  const path = { key: "today", label: model.known ? "Today's pace" : "A starting pace", color: DBZ_T_TEAL, width: 3, f: model.f };
+  const months = model.reach != null && model.reach > 24 ? 36 : 24;
+  const b = (t, c) => <b style={{ color: c || DBZ_INK, fontWeight: 600 }}>{t}</b>;
+  const goal = dashMoney(model.goalCents) + " goal line";
+  const lead = model.known ? "At today's pace" : model.unreadHistory ? "Your history couldn't be read, so at a starting pace" : "With no history yet, at a starting pace";
+  const reach = model.nowCents >= model.goalCents ? <React.Fragment> You're already past the {b(goal, DBZ_GREEN)}.</React.Fragment>
+    : model.reach == null ? <React.Fragment> That doesn't reach the {goal} within three years.</React.Fragment>
+    : <React.Fragment> You reach the {b(goal, DBZ_GREEN)} in {dbzMonthsWord(model.reach)}.</React.Fragment>;
+  return (
+    <DbzCard label={label} right={<span style={DBZ_LBL}>net a month · next {months} months</span>}>
+      <p data-dbz-pace="ready" style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: DBZ_INK50 }}>{lead}, you net {b(dashMoney(model.yearCents) + " a month", DBZ_T_TEAL)} in a year.{reach}</p>
+      <div style={{ marginTop: 10 }}><DbzPathsChart paths={[path]} goalCents={model.goalCents} months={months} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        <span style={{ ...DBZ_NOTE, fontSize: 11.5 }}>The goal line is the Plan's starting goal, half again today's net. A projection, not a promise.</span>
+        {onPlan && <button type="button" onClick={onPlan} style={DBZ_OUTLINE}>Plan it →</button>}
+      </div>
+    </DbzCard>
+  );
+}
+
+// ── Overview · money at risk (Lift 2: the one thing on the page to act on) ───────────────────
+// Plans ending in the next 7 days (the renewals Stripe says are cancelled) and clients whose payment
+// Stripe is retrying (the roster's past_due), one row a client, each at what they net a month. A
+// client both cancelling and retrying is a cancellation. The card's one action, its only filled
+// button, is a message to the first of them (soonest ending, then the most money).
+// `renewals`: undefined loading, null unread, rows read; `clientsState`: "ready" | "loading" | "unread".
+function dbzAtRisk({ renewals, clients, clientsState }) {
+  const byKey = new Map();
+  const add = (key, row) => {
+    const had = byKey.get(key);
+    if (!had) { byKey.set(key, row); return; }
+    if (had.kind !== row.kind) return;   // retrying beside a cancellation: the cancellation stands
+    had.cents = had.cents == null || row.cents == null ? null : had.cents + row.cents;
+    if (row.at && (!had.at || row.at < had.at)) had.at = row.at;
+  };
+  const renewRead = Array.isArray(renewals);
+  if (renewRead) renewals.forEach((r, i) => {
+    if (!r || r.ending !== true) return;
+    const id = r.clientId != null ? String(r.clientId) : null;
+    add(id != null ? "c:" + id : "r:" + i, { kind: "cancelling", id, name: r.name || "A client", cents: Number.isFinite(r.netCents) ? r.netCents : null, at: r.dueAt || null });
+  });
+  const clientsRead = clientsState === "ready";
+  if (clientsRead) (clients || []).forEach((c, i) => {
+    if (!dbzRetrying(c) || (c.payments && c.payments.onPlan === false)) return;
+    const id = c.profile && c.profile.id != null ? String(c.profile.id) : null;
+    add(id != null ? "c:" + id : "x:" + i, { kind: "retrying", id, name: (c.profile && c.profile.name) || "A client", cents: dbzClientNet(c), at: null });
+  });
+  const rows = [...byKey.values()].sort((a, b) => (a.kind !== b.kind ? (a.kind === "cancelling" ? -1 : 1)
+    : a.kind === "cancelling" ? String(a.at || "").localeCompare(String(b.at || "")) : (b.cents || 0) - (a.cents || 0)));
+  const renewState = renewRead ? "ready" : renewals === undefined ? "loading" : "unread";
+  const state = renewState === "ready" || clientsRead ? "ready" : renewState === "loading" || clientsState === "loading" ? "loading" : "unread";
+  const known = rows.filter((r) => r.cents != null);
+  return {
+    state, rows, totalCents: known.reduce((s, r) => s + r.cents, 0), unknown: rows.length - known.length,
+    unchecked: renewRead ? renewals.filter((r) => r && r.ending == null).length : 0, renewState, clientsState: clientsState || "unread",
+  };
+}
+const DBZ_RISK_SHOWN = 4;
+const DBZ_RISK_KIND = {
+  cancelling: { color: DBZ_RED, chip: (r) => "Cancelling · ends " + dbzDay(r.at) },
+  retrying: { color: DBZ_AMBER, chip: () => "Payment retrying" },
+};
+function DbzAtRiskCard({ model, clients, role }) {
+  const m = model || { state: "loading", rows: [] };
+  const rows = m.state === "ready" ? m.rows : [];
+  const notes = [];
+  if (m.state === "ready") {
+    if (m.renewState === "unread") notes.push("This week's cancellations couldn't be read.");
+    if (m.renewState === "loading") notes.push("This week's cancellations are still loading.");
+    if (m.clientsState === "unread") notes.push("Payments Stripe is retrying couldn't be read.");
+    if (m.clientsState === "loading") notes.push("Payments Stripe is retrying are still loading.");
+    if (m.unchecked > 0) notes.push((m.unchecked === 1 ? "1 renewal" : m.unchecked + " renewals") + " this week couldn't be checked with Stripe, so a cancellation there wouldn't show here.");
+  }
+  const whole = m.renewState === "ready" && m.clientsState === "ready" && !m.unchecked;
+  const total = rows.length
+    ? <span data-dbz-risk-total="" style={{ fontFamily: serif, fontSize: 20, color: DBZ_RED, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{m.unknown ? "at least " : ""}−{dashMoney(m.totalCents)} a month</span>
+    : null;
+  const first = rows[0] || null;
+  return (
+    <DbzCard label="Money at risk" lift={2} right={total}>
+      {m.state === "loading" ? <div data-dbz-risk="loading" style={DBZ_NOTE}>Reading what's at risk…</div>
+        : m.state !== "ready" ? <div data-dbz-risk="unread" style={DBZ_NOTE}>What's at risk couldn't be read just now. Nothing is lost; reload to try again.</div>
+        : !rows.length ? <div data-dbz-risk="none" style={{ fontSize: 13.5, lineHeight: 1.5, color: DBZ_INK50 }}>{whole ? "Nothing at risk this week: no plan ends in the next 7 days and no payment is retrying." : "Nothing at risk in what could be read."}</div>
+        : rows.slice(0, DBZ_RISK_SHOWN).map((r, i) => {
+          const k = DBZ_RISK_KIND[r.kind];
+          const href = dbzClientHref(r.id, role);
+          return (
+            <div key={(r.id || "x") + ":" + i} data-dbz-risk-row={r.kind} style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "10px 0", borderTop: i ? DBZ_RULE : "none" }}>
+              <DbzGem rec={dbzClientById(clients, r.id)} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  {/* Detail opens on the name: the client's page (a real account only). */}
+                  {href ? <a href={href} style={{ fontSize: 14, fontWeight: 600, color: DBZ_INK, textDecoration: "none" }}>{r.name}</a> : <span style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</span>}
+                  <DbzChip color={k.color}>{k.chip(r)}</DbzChip>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, justifySelf: "end" }}>
+                <span style={{ fontFamily: serif, fontSize: 17, color: DBZ_RED, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.cents != null ? "−" + dashMoney(r.cents) + "/mo" : "—"}</span>
+                {i === 0 && typeof dashMessageClient === "function" && (
+                  <button type="button" data-dbz-message="" onClick={() => dashMessageClient(first.name, role, null, first.id)} style={DBZ_FILLED}>Message {String(first.name).split(" ")[0]}</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      {rows.length > DBZ_RISK_SHOWN && <div style={{ ...DBZ_NOTE, marginTop: 6 }}>And {rows.length - DBZ_RISK_SHOWN} more.</div>}
+      {notes.length > 0 && <div data-dbz-risk-partial="" style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 10 }}>{notes.join(" ")}</div>}
+    </DbzCard>
+  );
+}
+
+// ── Overview · next payout ────────────────────────────────────────────────────
+// Stripe's next payout through Today's read (dashToday.jsx useDashNextPayout, /api/coach/next-payout:
+// #2629), in the Money card's states: next, none, setup, unread, loading, and the preview's sample
+// (its month-end payout, dashSignals.js demoPayouts, as Today's sample says it).
+function dbzDemoNextPayout(now = Date.now()) {
+  try {
+    const at = new Date(now);
+    const p = DashSignals.demoPayouts(DashSignals.buildMockClients(at), at);
+    const end = new Date(at.getFullYear(), at.getMonth() + 1, 0);
+    return { p, end, when: p.daysToPayout === 0 ? "today" : "in " + p.daysToPayout + " day" + (p.daysToPayout === 1 ? "" : "s") };
+  } catch (e) { return null; }   // dashSignals not up on this page: no sample rather than an invented one
+}
+function dbzPayoutModel({ preview, read, now = Date.now() }) {
+  if (preview) {
+    const d = dbzDemoNextPayout(now);
+    return d ? { state: "sample", k: d.p.payoutShort, sub: d.when } : { state: "unread" };
+  }
+  if (!read) return { state: "loading" };
+  if (read.state !== "next") return { state: read.state || "unread" };
+  if (typeof dashPayoutView !== "function") return { state: "unread" };
+  return { ...dashPayoutView(read, null, now), status: read.next ? read.next.status : null };
+}
+const DBZ_PAYOUT_STATUS = { in_transit: "In transit", pending: "Pending" };
+function DbzNextPayoutCard({ model, onSetup }) {
+  const m = model || { state: "loading" };
+  return (
+    <DbzCard label="Next payout">
+      {m.state === "next" || m.state === "sample"
+        ? <div data-dbz-payout={m.state}>
+            <div style={{ fontFamily: serif, fontSize: 28, lineHeight: 1.05, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{m.k}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <span style={{ fontSize: 12, color: DBZ_INK50 }}>{m.sub}</span>
+              {DBZ_PAYOUT_STATUS[m.status] && <DbzChip color="var(--sh-green, #7bbf5a)">{DBZ_PAYOUT_STATUS[m.status]}</DbzChip>}
+            </div>
+          </div>
+        : m.state === "none" ? <div data-dbz-payout="none" style={DBZ_NOTE}>No payout scheduled right now.</div>
+        : m.state === "setup" ? <div data-dbz-payout="setup" style={DBZ_NOTE}>Payouts aren't set up yet.{onSetup && <React.Fragment> <button type="button" onClick={onSetup} style={{ ...DBZ_OUTLINE, marginTop: 10, display: "flex" }}>Set them up on Money →</button></React.Fragment>}</div>
+        : m.state === "loading" ? <div data-dbz-payout="loading" style={DBZ_NOTE}>Reading your payouts…</div>
+        : <div data-dbz-payout="unread" style={DBZ_NOTE}>Your next payout couldn't be read just now.</div>}
+    </DbzCard>
+  );
+}
+
+// ── Overview · clients as tiles ───────────────────────────────────────────────
+// Everyone on a plan (the roster lists people from recent sessions with none: onPlan false), most
+// money first, each with their tier's mark, their price, and a labelled chip only for what needs
+// saying (cancelling, payment retrying, new). A tile opens the client's page.
+function dbzClientTiles(clients, risk) {
+  const cancelling = new Set(((risk && risk.rows) || []).filter((r) => r.kind === "cancelling" && r.id != null).map((r) => r.id));
+  return (clients || []).filter((c) => c && c.profile && !(c.payments && c.payments.onPlan === false)).map((c) => {
+    const id = c.profile.id != null ? String(c.profile.id) : null;
+    const pay = c.payments || {};
+    const status = id != null && cancelling.has(id) ? "cancelling" : dbzRetrying(c) ? "retrying" : c.profile.isNew ? "new" : null;
+    return { id, name: c.profile.name || "A client", rec: c, priceCents: Number.isFinite(pay.mrrCents) ? pay.mrrCents : null, status };
+  }).sort((a, b) => (b.priceCents == null ? -1 : 0) - (a.priceCents == null ? -1 : 0) || (b.priceCents || 0) - (a.priceCents || 0) || String(a.name).localeCompare(String(b.name)));
+}
+const DBZ_TILE_STATUS = { cancelling: ["Cancelling", DBZ_RED], retrying: ["Payment retrying", DBZ_AMBER], new: ["New", "var(--sh-accent-ink, #2ee0c4)"] };
+const DBZ_TILES_SHOWN = 24;
+function DbzClientTilesCard({ state, tiles, role }) {
+  const list = state === "ready" ? tiles || [] : [];
+  const tile = { display: "grid", gap: 6, alignContent: "start", padding: "12px 12px", borderRadius: 10, background: "var(--sh-rest, #221e19)", border: "1px solid var(--sh-line, #302c27)", color: DBZ_INK, textDecoration: "none", minWidth: 0 };
+  return (
+    <DbzCard label="Clients" lift={0} right={state === "ready" && list.length ? <span style={DBZ_LBL}>{list.length === 1 ? "1 on a plan" : list.length + " on a plan"}</span> : null}>
+      {state === "loading" ? <div data-dbz-tiles="loading" style={DBZ_NOTE}>Reading your clients…</div>
+        : state !== "ready" ? <div data-dbz-tiles="unread" style={DBZ_NOTE}>Your clients couldn't be read just now. Nothing is lost; reload to try again.</div>
+        : !list.length ? <div data-dbz-tiles="none" style={DBZ_NOTE}>No clients on a plan yet. Each appears here with their Shape Score tier the day they subscribe.</div>
+        : <div data-dbz-tiles="ready" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+            {list.slice(0, DBZ_TILES_SHOWN).map((t, i) => {
+              const href = dbzClientHref(t.id, role);
+              const st = t.status ? DBZ_TILE_STATUS[t.status] : null;
+              const inner = (
+                <React.Fragment>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <DbzGem rec={t.rec} />
+                    <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</span>
+                  </span>
+                  <span style={{ fontFamily: DBZ_MONO, fontSize: 11, color: DBZ_INK50, fontVariantNumeric: "tabular-nums" }}>{t.priceCents != null ? dashMoney(t.priceCents) + "/mo" : "price couldn't be read"}</span>
+                  {st && <span><DbzChip color={st[1]}>{st[0]}</DbzChip></span>}
+                </React.Fragment>
+              );
+              return href
+                ? <a key={(t.id || "x") + i} href={href} data-dbz-tile="" style={tile}>{inner}</a>
+                : <div key={(t.id || "x") + i} data-dbz-tile="" style={tile}>{inner}</div>;
+            })}
+          </div>}
+      {state === "ready" && list.length > DBZ_TILES_SHOWN && <div style={{ ...DBZ_NOTE, marginTop: 8 }}>And {list.length - DBZ_TILES_SHOWN} more.</div>}
+      {state === "ready" && typeof dashTabHref === "function" && <a href={dashTabHref("clients", role)} style={{ ...DBZ_OUTLINE, marginTop: 12 }}>All clients →</a>}
+    </DbzCard>
+  );
+}
+
+// ── Overview catalogue · revenue by client ──────────────────────────────────
+// Who pays what a month, from the analytics route's per-client rows (origin-attribution.ts: one row a
+// client, every plan's price added, null when one is unknown), most first. The preview's roster.
+function DbzRevenueByClientZone({ live, byOrigin }) {
+  if (live && byOrigin === undefined) return <div style={DBZ_NOTE}>Revenue by client loads with the analytics rollup…</div>;
+  if (live && byOrigin === null) return <div style={DBZ_NOTE}>Couldn't read your subscriptions just now. Nothing is lost; reload to try again.</div>;
+  const subs = (live ? (Array.isArray(byOrigin) ? byOrigin : []) : dbzDemoOrigin()).filter((r) => r && r.kind === "subscription");
+  if (!subs.length) return <div style={DBZ_NOTE}>Revenue by client fills in as clients subscribe.</div>;
+  const known = subs.filter((r) => Number.isFinite(r.priceCents)).sort((a, b) => b.priceCents - a.priceCents);
+  const total = known.reduce((s, r) => s + r.priceCents, 0);
+  return (
+    <div>
+      <div style={{ ...DBZ_LBL, marginBottom: 6 }}>{dashMoney(total)} a month billed{known.length < subs.length ? " · " + (subs.length - known.length) + " couldn't be read" : ""}</div>
+      {known.slice(0, 8).map((r, i) => (
+        <div key={(r.clientId || r.name) + ":" + i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center", padding: "7px 0", borderTop: i ? DBZ_RULE : "none" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dbzName(r, "Client")}</div>
+            <div style={{ height: 4, borderRadius: 2, marginTop: 5, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+              <div style={{ height: 4, borderRadius: 2, width: (total ? Math.round((r.priceCents / total) * 100) : 0) + "%", background: DBZ_T_TEAL }} />
+            </div>
+          </div>
+          <span style={{ fontFamily: serif, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>{dashMoney(r.priceCents)}/mo</span>
+        </div>
+      ))}
+      {known.length > 8 && <div style={{ ...DBZ_NOTE, marginTop: 6 }}>And {known.length - 8} more.</div>}
+    </div>
+  );
+}
+
+// ── Money · when do I get paid? ───────────────────────────────────────────────
+// The next payout's date in large type (Stripe's, through the read the Overview and the sidebar make),
+// then what is available now and what sits in the hold (the analytics route's Stripe summary), why
+// available is $0 when it is, and the month as one track with each renewal on its day.
+// ⚠ CONNECTED MEANS PAYABLE (#2629): an account AND status "active", as checkout and the payout route
+// rule it. A linked account mid-onboarding is set-up still to finish, not a balance of $0.
+function dbzStripeState({ preview, stripe }) {
+  if (preview) return "sample";
+  if (stripe === undefined) return "loading";
+  if (!stripe || typeof stripe !== "object") return "unread";
+  if (stripe.connected && stripe.error) return "error";
+  if (!stripe.connected || stripe.status !== "active") return "setup";
+  return "ready";
+}
+// The renewals (dueAt, an instant: printed and placed on the account's clock) on this month's track,
+// the next payout's day (a bank day), today, and the 7 days the renewals are read over.
+const DBZ_RENEWAL_DAYS = 7;   // src/lib/coach-renewals.mjs RENEWAL_DAYS
+function dbzMonthTrack({ now = Date.now(), renewals, payoutDay = null }) {
+  const t = dbzTodayParts(now);
+  const daysIn = new Date(Date.UTC(t.y, t.mo, 0)).getUTCDate();
+  const read = Array.isArray(renewals);
+  const marks = [];
+  let later = 0;
+  if (read) for (const r of renewals) {
+    const p = dbzPartsOf(r && r.dueAt);
+    if (!p) continue;
+    if (p.y === t.y && p.mo === t.mo) marks.push({ day: p.d, kind: dbzRenewalKind(r), name: r.name || "A client" });
+    else later += 1;
+  }
+  const end = dbzPartsOf(now + DBZ_RENEWAL_DAYS * 86400000 - 1);
+  const readTo = end && end.y === t.y && end.mo === t.mo ? end.d : daysIn;
+  const sameMonth = payoutDay && payoutDay.y === t.y && payoutDay.mo === t.mo;
+  return { y: t.y, mo: t.mo, daysIn, today: t.d, marks, later, readTo, renewals: read ? "ready" : renewals === undefined ? "loading" : "unread", payoutDay: sameMonth ? payoutDay.d : null };
+}
+function dbzGetPaidModel({ preview, read, stripe, renewals, now = Date.now() }) {
+  const stripeState = dbzStripeState({ preview, stripe });
+  let head, available = null, hold = null, delayDays = null, payoutDay = null;
+  if (preview) {
+    const d = dbzDemoNextPayout(now);
+    if (d) {
+      head = { state: "sample", date: d.end.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }), amount: dashMoney(d.p.netCents), when: d.when };
+      payoutDay = { y: d.end.getFullYear(), mo: d.end.getMonth() + 1, d: d.end.getDate() };
+      available = d.p.balanceCents; hold = Math.max(0, d.p.thisMonthCents - d.p.balanceCents); delayDays = 7;
+    } else head = { state: "unread" };
+  } else {
+    if (!read) head = { state: "loading" };
+    else if (read.state !== "next" || !read.next) head = { state: read.state || "unread" };
+    else {
+      const n = read.next;
+      const key = dbzBankKey(n.arrivalDate);
+      head = {
+        state: "next",
+        date: key ? dbzBankDay(n.arrivalDate, { weekday: "long", month: "long", day: "numeric" }) : "On its way",
+        amount: typeof dashPayoutAmount === "function" ? dashPayoutAmount(n.amountCents, n.currency) : dashMoney(n.amountCents),
+        when: key && typeof dashPayoutWhen === "function" ? dashPayoutWhen(n.arrivalDate, null, now) : "paid out, not landed yet",
+        status: n.status || null,
+      };
+      if (key) payoutDay = { y: Number(key.slice(0, 4)), mo: Number(key.slice(5, 7)), d: Number(key.slice(8, 10)) };
+    }
+    if (stripeState === "ready") {
+      available = Number.isFinite(stripe.balanceCents) ? stripe.balanceCents : null;
+      hold = Number.isFinite(stripe.pendingCents) ? stripe.pendingCents : null;
+      delayDays = stripe.schedule && Number.isFinite(stripe.schedule.delayDays) ? stripe.schedule.delayDays : null;
+    }
+  }
+  const holdWords = delayDays ? delayDays + "-day hold" : "hold";
+  let why = null;
+  if ((stripeState === "ready" || stripeState === "sample") && available === 0) {
+    why = hold > 0 ? "Available is $0 because new charges wait out Stripe's " + holdWords + " before they can be paid out."
+      : head.state === "next" ? "Available is $0 because it's already on its way to your bank: the payout above."
+      : hold === 0 ? "Available is $0: no charges have cleared yet."
+      : "Available is $0, and what's in the hold couldn't be read.";
+  }
+  return { head, stripeState, available, hold, holdWords, delayDays, why, schedule: stripeState === "ready" ? stripe.schedule || null : null, track: dbzMonthTrack({ now, renewals, payoutDay }) };
+}
+const DBZ_TRACK_COLORS = { renews: DBZ_T_TEAL, cancelled: DBZ_RED, unchecked: DBZ_AMBER, payout: "var(--sh-green, #7bbf5a)" };
+function DbzMonthTrack({ track }) {
+  const ref = React.useRef(null);
+  const W = useDbzChartWidth(ref, 640, 1600), H = 78, padL = 14, padR = 14, y = 40;
+  const x = (d) => padL + ((d - 1) / Math.max(1, track.daysIn - 1)) * (W - padL - padR);
+  const mon = DBZ_MONTHS[track.mo - 1];
+  const ticks = [1, 8, 15, 22, track.daysIn];
+  const stack = {};
+  const words = [mon + " " + track.today + " is today"]
+    .concat(track.payoutDay ? ["the next payout lands " + mon + " " + track.payoutDay] : [])
+    .concat(track.marks.map((m) => m.name + " " + (m.kind === "cancelled" ? "ends" : m.kind === "renews" ? "renews" : "is due, not checked,") + " " + mon + " " + m.day));
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", height: "auto", overflow: "visible" }} role="img" aria-label={"This month: " + words.join("; ") + "."}>
+      {track.renewals === "ready" && track.readTo >= track.today && (
+        <rect x={x(track.today)} y={y - 11} width={Math.max(2, x(track.readTo) - x(track.today))} height={22} rx={4} fill="rgba(var(--sh-accent-rgb, 46,224,196),0.10)" />
+      )}
+      <line x1={x(1)} x2={x(track.daysIn)} y1={y} y2={y} stroke={DBZ_T_GRID} strokeWidth="2" strokeLinecap="round" />
+      {Array.from({ length: track.daysIn }, (_, i) => i + 1).map((d) => <line key={d} x1={x(d)} x2={x(d)} y1={y - 3} y2={y + 3} stroke={DBZ_T_GRID} strokeWidth="1" />)}
+      {ticks.map((d) => <text key={"t" + d} x={x(d)} y={H - 4} textAnchor="middle" fill="var(--sh-ink2, #a09b94)" fontFamily={DBZ_MONO} fontSize="10">{d === 1 ? mon + " 1" : d}</text>)}
+      <line x1={x(track.today)} x2={x(track.today)} y1={y - 18} y2={y + 14} stroke={DBZ_T_INK} strokeWidth="1.5" />
+      <text x={x(track.today)} y={y - 22} textAnchor="middle" fill={DBZ_T_INK} fontFamily={DBZ_MONO} fontSize="10">today</text>
+      {track.payoutDay && (
+        <g>
+          <path d={`M${x(track.payoutDay)},${y - 7} L${x(track.payoutDay) + 7},${y} L${x(track.payoutDay)},${y + 7} L${x(track.payoutDay) - 7},${y} Z`} fill={DBZ_TRACK_COLORS.payout} stroke={DBZ_T_SURFACE} strokeWidth="1.5" />
+        </g>
+      )}
+      {track.marks.map((m, i) => {
+        const k = stack[m.day] = (stack[m.day] || 0) + 1;
+        const cy = y - (k - 1) * 11;
+        const c = DBZ_TRACK_COLORS[m.kind];
+        return m.kind === "renews"
+          ? <circle key={i} cx={x(m.day)} cy={cy} r="5" fill={c} stroke={DBZ_T_SURFACE} strokeWidth="1.5" />
+          : <circle key={i} cx={x(m.day)} cy={cy} r="4.5" fill={DBZ_T_SURFACE} stroke={c} strokeWidth="2" />;
+      })}
+    </svg>
+  );
+}
+function DbzGetPaidCard({ model }) {
+  const m = model;
+  const h = m.head || { state: "loading" };
+  const fig = (label, cents, sub) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ ...DBZ_LBL, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: serif, fontSize: 24, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{cents == null ? "—" : dashMoney(cents)}</div>
+      {sub && <div style={{ fontSize: 11.5, color: DBZ_INK50, marginTop: 5 }}>{sub}</div>}
+    </div>
+  );
+  const t = m.track;
+  const mon = DBZ_MONTHS[t.mo - 1];
+  return (
+    <DbzCard label="When do I get paid?">
+      {h.state === "next" || h.state === "sample"
+        ? <div data-dbz-getpaid={h.state}>
+            <div style={{ fontFamily: serif, fontSize: 34, lineHeight: 1.05, letterSpacing: "-0.02em" }}>{h.date}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <span style={{ fontSize: 14 }}><b style={{ fontWeight: 600 }}>{h.amount}</b> <span style={{ color: DBZ_INK50 }}>· {h.when}</span></span>
+              {DBZ_PAYOUT_STATUS[h.status] && <DbzChip color="var(--sh-green, #7bbf5a)">{DBZ_PAYOUT_STATUS[h.status]}</DbzChip>}
+            </div>
+          </div>
+        : <div data-dbz-getpaid={h.state} style={{ fontSize: 15, lineHeight: 1.5, color: DBZ_INK50 }}>
+            {h.state === "none" ? "No payout is scheduled right now."
+              : h.state === "setup" ? "Payouts aren't set up yet. Link Stripe in its card, and your payout dates show here."
+              : h.state === "loading" ? "Reading your next payout…"
+              : "Your next payout couldn't be read just now."}
+          </div>}
+      {(m.stripeState === "ready" || m.stripeState === "sample") && (
+        <div data-dbz-balance="" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16, marginTop: 18, paddingTop: 14, borderTop: DBZ_RULE }}>
+          {fig("Available now", m.available, m.available == null ? "couldn't be read just now" : "ready to pay out")}
+          {fig("In the " + m.holdWords, m.hold, m.hold == null ? "couldn't be read just now" : "new charges Stripe hasn't released yet")}
+        </div>
+      )}
+      {m.stripeState === "error" && <div style={{ ...DBZ_NOTE, marginTop: 14 }}>Couldn't reach Stripe just now, so your balance isn't shown. It's safe there.</div>}
+      {m.stripeState === "unread" && <div style={{ ...DBZ_NOTE, marginTop: 14 }}>Your balance couldn't be read just now.</div>}
+      {m.stripeState === "loading" && <div style={{ ...DBZ_NOTE, marginTop: 14 }}>Reading your balance…</div>}
+      {m.why && <div data-dbz-why="" style={{ ...DBZ_NOTE, marginTop: 10 }}>{m.why}</div>}
+      <div style={{ marginTop: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 2 }}>
+          <span style={DBZ_LBL}>{DBZ_MONTHS_LONG[t.mo - 1]} · renewals on their day</span>
+          <DbzLegend items={[{ label: "Renews", color: DBZ_TRACK_COLORS.renews }, { label: "Cancelled", color: DBZ_TRACK_COLORS.cancelled }, { label: "Not checked", color: DBZ_TRACK_COLORS.unchecked }, { label: "Payout", color: DBZ_TRACK_COLORS.payout }]} />
+        </div>
+        <DbzMonthTrack track={t} />
+        <div data-dbz-track-note="" style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 4 }}>
+          {t.renewals === "ready"
+            ? "Renewals are read " + DBZ_RENEWAL_DAYS + " days ahead, so the track shows those through " + mon + " " + t.readTo + "." + (t.later ? " " + (t.later === 1 ? "1 more renews" : t.later + " more renew") + " next month." : "")
+            : t.renewals === "loading" ? "Your renewals are still loading." : "Your renewals couldn't be read just now, so none are on the track."}
+        </div>
+      </div>
+    </DbzCard>
+  );
+}
+
+// ── Money · Stripe, as a real widget ──────────────────────────────────────────
+// A full-size button to the coach's own Stripe dashboard (a Standard account manages payouts there),
+// and what lives there. Not set up (or onboarding unfinished): the button starts Stripe's onboarding.
+const DBZ_STRIPE_HOLDS = [
+  ["Receipts", "every charge and refund, per client"],
+  ["Statements", "monthly reports and your tax forms"],
+  ["Bank", "the account your payouts land in"],
+  ["Schedule", "when your payouts run"],
+];
+function DbzStripeCard({ state, stripe, providerId, role }) {
+  const { linking, failed, start } = useDbzOnboarding(role, providerId);
+  const sched = state === "ready" || state === "error" ? dbzScheduleLine(stripe && stripe.schedule) : null;
+  const holds = (
+    <ul style={{ listStyle: "none", margin: "14px 0 0", padding: 0 }}>
+      {DBZ_STRIPE_HOLDS.map(([k, v], i) => (
+        <li key={k} style={{ display: "grid", gridTemplateColumns: "88px minmax(0,1fr)", gap: 10, padding: "7px 0", borderTop: i ? DBZ_RULE : "none", fontSize: 12.5 }}>
+          <span style={{ fontWeight: 600 }}>{k}</span>
+          <span style={{ color: DBZ_INK50 }}>{k === "Schedule" && sched ? sched : v}</span>
+        </li>
+      ))}
+    </ul>
+  );
+  const big = { ...DBZ_FILLED, width: "100%", fontSize: 11, minHeight: 46 };
+  return (
+    <DbzCard label="Stripe">
+      {state === "loading" ? <div data-dbz-stripe="loading" style={DBZ_NOTE}>Reading your Stripe account…</div>
+        : state === "unread" ? <div data-dbz-stripe="unread" style={DBZ_NOTE}>Couldn't read whether Stripe is linked just now. Nothing is lost; reload to try again.</div>
+        : state === "setup" ? (
+          <div data-dbz-stripe="setup">
+            <div style={{ fontSize: 13.5, lineHeight: 1.5, color: DBZ_INK50, marginBottom: 12 }}>
+              {stripe && stripe.connected ? "Your Stripe account isn't ready to pay out yet. Finish its set-up to get paid." : "Payouts aren't set up yet. Link a Stripe account to get paid."}
+            </div>
+            {providerId != null
+              ? <button type="button" onClick={start} disabled={linking} style={{ ...big, opacity: linking ? 0.6 : 1 }}>{linking ? "Opening Stripe…" : stripe && stripe.connected ? "Finish setting up payouts →" : "Set up payouts →"}</button>
+              : <div style={DBZ_NOTE}>Your listing couldn't be read, so payouts can't be set up from here just now.</div>}
+            {failed && <div role="status" style={{ ...DBZ_NOTE, color: DBZ_AMBER, marginTop: 8 }}>Couldn't open Stripe just now. Try again in a moment.</div>}
+            {holds}
+          </div>
+        ) : (
+          <div data-dbz-stripe={state}>
+            {state === "sample"
+              ? <span aria-disabled="true" title="Opens your own Stripe once you're signed in" style={{ ...big, opacity: 0.6, cursor: "default" }}>Open your Stripe ↗</span>
+              : <a href={DBZ_STRIPE_DASHBOARD} target="_blank" rel="noopener noreferrer" style={big}>Open your Stripe ↗</a>}
+            {state === "error" && <div style={{ ...DBZ_NOTE, marginTop: 10 }}>Couldn't reach Stripe from here just now; your dashboard there is unaffected.</div>}
+            {holds}
+          </div>
+        )}
+    </DbzCard>
+  );
+}
+
+// ── Money · payout history ────────────────────────────────────────────────────
+// The next payout, then the current month and the three before it, from the payouts the analytics
+// route read (src/lib/stripe.ts loadStripe: Stripe's latest 12), each month's paid payouts summed per
+// currency, on the bank day each arrived. ⚠ THE LIST IS STRIPE'S LATEST 12, NOT ALL OF THEM: when it is
+// full, a month before its oldest payout was not read (said, never "no payouts"), and a month it starts
+// inside of is a floor. A month the read covers with nothing paid is a measured "No payouts".
+const DBZ_PAYOUTS_READ = 12;
+function dbzPayoutHistory(payouts, now = Date.now()) {
+  const list = (Array.isArray(payouts) ? payouts : []).filter((p) => p && typeof p === "object");
+  const capped = list.length >= DBZ_PAYOUTS_READ;
+  const days = list.map((p) => dbzBankKey(p.arrivalDate)).filter(Boolean).sort();
+  const oldest = days.length ? days[0] : null;
+  const t = dbzTodayParts(now);
+  const months = [];
+  for (let i = 0; i < 4; i++) {
+    const first = new Date(Date.UTC(t.y, t.mo - 1 - i, 1));
+    const key = first.toISOString().slice(0, 7);
+    const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+    const inMonth = list.filter((p) => { const k = dbzBankKey(p.arrivalDate); return !!k && k.slice(0, 7) === key; });
+    const paid = inMonth.filter((p) => p.status === "paid");
+    const totals = new Map();
+    // Per currency; a payout naming none (the preview's) is summed as the page's dollars.
+    for (const p of paid) { const c = p.currency ? String(p.currency).toLowerCase() : ""; totals.set(c, (totals.get(c) || 0) + (Number(p.amountCents) || 0)); }
+    const cover = !capped ? "full" : !oldest || last < oldest ? "unread" : key + "-01" < oldest ? "partial" : "full";
+    months.push({ key, label: DBZ_MONTHS_LONG[first.getUTCMonth()] + (i === 0 ? " so far" : ""), count: paid.length, failed: inMonth.filter((p) => p.status === "failed" || p.status === "canceled").length, totals: [...totals].map(([currency, cents]) => ({ currency, cents })), cover });
+  }
+  return { months, capped };
+}
+function dbzPayoutAmountOf(cents, currency) {
+  return typeof dashPayoutAmount === "function" && currency ? dashPayoutAmount(cents, currency) : dashMoney(cents);
+}
+function DbzPayoutHistoryCard({ stripeState, head, history, exportControl }) {
+  const ok = stripeState === "ready" || stripeState === "sample";
+  const h = head || { state: "loading" };
+  const row = (k, label, value, extra) => (
+    <div key={k} data-dbz-history={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "baseline", padding: "9px 0", borderTop: k === "next" ? "none" : DBZ_RULE }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13.5 }}>{label}</div>
+        {extra && <div style={{ fontSize: 11.5, color: DBZ_INK50, marginTop: 2 }}>{extra}</div>}
+      </div>
+      <div style={{ fontFamily: serif, fontSize: 16, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{value}</div>
+    </div>
+  );
+  const nextValue = h.state === "next" || h.state === "sample" ? h.amount : "—";
+  const nextExtra = h.state === "next" || h.state === "sample" ? h.date + (DBZ_PAYOUT_STATUS[h.status] ? " · " + DBZ_PAYOUT_STATUS[h.status].toLowerCase() : "")
+    : h.state === "none" ? "none scheduled right now" : h.state === "setup" ? "payouts aren't set up yet" : h.state === "loading" ? "reading…" : "couldn't be read just now";
+  return (
+    <DbzCard label="Payout history" lift={0} right={exportControl}>
+      {row("next", "Next payout", nextValue, nextExtra)}
+      {ok ? history.months.map((mo) => {
+        const sum = mo.totals.map((x) => dbzPayoutAmountOf(x.cents, x.currency)).join(" + ");
+        const value = mo.cover === "unread" ? "—" : mo.count ? (mo.cover === "partial" ? "at least " : "") + sum : mo.cover === "partial" ? "—" : "No payouts";
+        const extra = mo.cover === "unread" ? "older than the 12 payouts Stripe sent"
+          : (mo.count ? (mo.count === 1 ? "1 payout" : mo.count + " payouts") : mo.cover === "partial" ? "not all read" : "")
+            + (mo.failed ? (mo.count || mo.cover === "partial" ? " · " : "") + mo.failed + " failed" : "");
+        return row(mo.key, mo.label, value, extra || null);
+      }) : (
+        <div style={{ ...DBZ_NOTE, marginTop: 8 }}>
+          {stripeState === "loading" ? "Reading your payouts…" : stripeState === "setup" ? "Your payouts list here once Stripe is set up." : stripeState === "error" ? "Couldn't reach Stripe just now, so past payouts aren't shown. They're safe there." : "Your past payouts couldn't be read just now."}
+        </div>
+      )}
+      {ok && history.capped && <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 8 }}>Stripe sends your latest {DBZ_PAYOUTS_READ} payouts; older ones are in your Stripe dashboard.</div>}
+    </DbzCard>
+  );
+}
+
 // ── Not in the marketplace yet ───────────────────────────────────────────────
 // A coach's listing is hidden from the marketplace until it has a monthly price, active payouts
 // and a photo (listing_ready, 2026-10-12). Only the approval email said so; this says it where
@@ -1482,7 +2211,7 @@ const DBZ_SECTION_KEYS = DBZ_SECTIONS.map((x) => x[0]);
 // ── The page ─────────────────────────────────────────────────────────────────
 function CoachBusinessPage({ role }) {
   const cfg = DBZ_ROLES[role];
-  const { today: live, source } = useDashboard(role);
+  const { today: live, source, clients: rosterClients } = useDashboard(role);
   const [extra, setExtra] = React.useState(null); // /api/{role}/analytics payload
   // How the analytics read ended: "pending"; "ok" (the payload is in `extra`); "preview" (signed
   // out, a 401 or 403, or signed in without this role, which the route answers with okKey false);
@@ -1564,18 +2293,25 @@ function CoachBusinessPage({ role }) {
   // analytics fetch gets an honest loading state, never demo numbers.
   const cp = extra ? (extra.clientProgress || {}) : (!isLive ? DBZ_DEMO_OUTCOMES[role] : null);
 
-  // Sidebar money card: REAL balance when connected, "—" until then, demo
-  // numbers only under the band. With no analytics yet, or none to be had, it says which: an
-  // unread Stripe summary is not "payouts aren't connected".
-  const payoutCard = !isLive
-    ? (role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard)
-    : !extra
-      ? { label: "PAYOUTS", amount: "—", sub: extraFailed ? "couldn't read your payouts just now" : "loads with the analytics rollup" }
-    : stripe && stripe.connected && stripe.balanceCents != null
-      ? { label: "BALANCE · AVAILABLE", amount: dashMoney(stripe.balanceCents), sub: dbzScheduleLine(stripe.schedule) || "Stripe connected" }
-      : stripe && stripe.connected && stripe.error
-        ? { label: "PAYOUTS", amount: "—", sub: "couldn't reach Stripe just now" }
-        : { label: "PAYOUTS", amount: "—", sub: "connects when payouts go live" };
+  // ⚠ THE SIDEBAR'S MONEY CARD IS THE SIDEBAR'S OWN (coach dashboard step 4a): Stripe's next payout,
+  // read as Today's Money card reads it, on every coach page alike (trainerDashboard.jsx DashSidebar).
+  // This page hands it the demo card, which the sidebar shows only to a signed-out viewer. It printed
+  // its own balance card here, and Today's said "payouts connect soon": two tabs, two cards.
+  const payoutCard = role === "nutritionist" ? nutriPayoutCard : trainerPayoutCard;
+
+  // ── The boards' reads (coach dashboard step 4a) ────────────────────────────
+  // The next payout, through Today's read (dashToday.jsx useDashNextPayout, shared with the sidebar's):
+  // asked once the page knows the viewer is a coach (the roster read live, or the analytics answered),
+  // never for the preview, which shows its sample. The hook is on every page that loads this one.
+  // (extraFailed: the analytics failed, or answered "signed out" to a viewer the dashboard resolved.)
+  const askPayout = !preview && (source === "live" || !!live || analytics === "ok" || extraFailed);
+  const payoutRead = typeof useDashNextPayout === "function" ? useDashNextPayout(role, askPayout) : askPayout ? { state: "unread" } : null;
+  // The roster (useDashboard's clients): the preview's people under the band, a coach's own once it
+  // read live, and otherwise loading (the page doesn't know yet) or unread (it fell back to the demo).
+  const clientsState = preview || source === "live" ? "ready" : source == null || analytics === "pending" ? "loading" : "unread";
+  const boardClients = clientsState === "ready" && Array.isArray(rosterClients) ? rosterClients : [];
+  const renewalsIn = preview ? dbzDemoRenewals() : fromExtra("renewals");
+  const stripeIn = preview ? null : extra ? (extra.stripe || null) : extraFailed ? null : undefined;
 
   // ── A FIXED PAGE IN FOUR SECTIONS (owner, 2026-10-15: "least overwhelming as possible,
   // easy to navigate", the builder removed "like Programs"). Nine cards on one board was a
@@ -1642,18 +2378,20 @@ function CoachBusinessPage({ role }) {
   // ── Money (design E): your money and this week's renewals side by side, the last 13 weeks under.
   const demoLast = !isLive ? dbzDemoTrajectory().weeks.slice(-1)[0] : null;
   const moneyMetrics = isLive ? (extra ? dbzToday(extra) : null) : { mrrNetCents: demoLast.mrrNetCents, mrrGrossCents: demoLast.mrrGrossCents };
-  const stripeLink = (!isLive || (stripe && stripe.connected))
-    ? <a href={isLive ? DBZ_STRIPE_DASHBOARD : undefined} target="_blank" rel="noopener noreferrer" style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_TEAL, textDecoration: "none", opacity: isLive ? 1 : 0.6 }}>Open your Stripe ↗</a>
-    : null;
+  // "Your money" (the old Money tab's summary) is in Money's catalogue; Stripe's own link moved to the
+  // Stripe card, full size, from 9.5px faint text beside this heading.
   const payouts = plate(DBZ_GREEN, <React.Fragment>
-        {head("Your money", DBZ_GREEN, stripeLink)}
+        {head("Your money", DBZ_GREEN)}
         <DbzPayoutsZone live={isLive} stripe={extra ? stripe : fromExtra("stripe")} providerId={extra && extra.providerId} role={role} metrics={moneyMetrics} />
       </React.Fragment>);
   const renewalsHead = dbzRenewalsHead(isLive, fromExtra("renewals"));
-  const renewals = plate(DBZ_RED, <React.Fragment>
-        {head("Renewing this week", DBZ_RED, renewalsHead ? <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>{renewalsHead}</span> : null)}
-        <DbzRenewalsZone live={isLive} renewals={fromExtra("renewals")} />
-      </React.Fragment>);
+  // This week's renewals, each saying why Shape takes its fee or none: Money's card, and one in the
+  // Overview's catalogue.
+  const renewalsCard = (
+    <DbzCard label="Renewing this week" right={renewalsHead ? <span style={DBZ_LBL}>{renewalsHead}</span> : null}>
+      <DbzRenewalsZone live={isLive} renewals={fromExtra("renewals")} clients={boardClients} role={role} />
+    </DbzCard>
+  );
   const netWeeks = plate(DBZ_TEAL, <React.Fragment>
         {head("Net a month · last 13 weeks", null, moneyMetrics && moneyMetrics.mrrNetCents != null ? <span style={{ fontFamily: DBZ_MONO, fontSize: 9.5, color: DBZ_INK50 }}>from your subscriptions · {dashMoney(moneyMetrics.mrrNetCents)} now</span> : null)}
         <DbzNetWeeksZone live={isLive} trajectory={fromExtra("trajectory")} />
@@ -1735,9 +2473,74 @@ function CoachBusinessPage({ role }) {
       </React.Fragment>)
     : quiet(extraFailed ? "Couldn't read your roster outcomes just now. Nothing is lost; reload to try again." : "Roster outcomes load with the analytics rollup.");
 
+  // ── The two boards (coach dashboard step 4a) ───────────────────────────────
+  const now = Date.now();
+  const risk = dbzAtRisk({ renewals: renewalsIn, clients: boardClients, clientsState });
+  const getPaid = dbzGetPaidModel({ preview, read: payoutRead, stripe: stripeIn, renewals: renewalsIn, now });
+  const stripeState = getPaid.stripeState;
+  const payoutHistory = dbzPayoutHistory(preview ? dbzDemoPayouts().payouts : stripeState === "ready" ? stripe.payouts : [], now);
+  const exportPayouts = typeof DashExportButton === "function"
+    ? <DashExportButton kind="payouts" label="your payouts" live={stripeState === "ready" && Array.isArray(stripe.payouts) && stripe.payouts.length > 0}
+        build={() => window.DashExport.payoutsCsv(stripe.payouts)} />
+    : null;
+  const revenueByClient = plate(DBZ_TEAL, <React.Fragment>
+        {head("Revenue by client")}
+        <DbzRevenueByClientZone live={isLive} byOrigin={fromExtra("byOrigin")} />
+      </React.Fragment>);
+  // Every card names its catalogue group (dashGrid.jsx dgCatalogGroups) and a size: two thirds
+  // (`wide`) beside one third (`narrow`) pair up, as on Today. `optional` keeps a card in the
+  // catalogue, off the board until the coach adds it.
+  const overviewWidgets = [
+    { key: "net", title: "Net a month", blurb: "What today's clients bring you each month, after Shape's fee.", group: "money", size: "narrow",
+      render: () => <DbzNetCard model={dbzNetModel({ preview, extra, extraFailed })} /> },
+    { key: "atrisk", title: "Money at risk", blurb: "Plans ending this week and payments Stripe is retrying, and one message to send.", group: "money", size: "wide",
+      render: () => <DbzAtRiskCard model={risk} clients={boardClients} role={role} /> },
+    { key: "pace", title: "Today's pace and the goal", blurb: "Your net a month over the next two years at today's pace, against the goal line.", group: "money", size: "wide",
+      render: () => <DbzPaceCard model={dbzPaceModel(planBase)} onPlan={() => setSection("plan")} /> },
+    { key: "payout", title: "Next payout", blurb: "When Stripe pays you next, and how much.", group: "money", size: "narrow",
+      render: () => <DbzNextPayoutCard model={dbzPayoutModel({ preview, read: payoutRead, now })} onSetup={() => setSection("money")} /> },
+    { key: "clients", title: "Clients", blurb: "Everyone on a plan with you, each with their Shape Score tier and price.", group: "clients", size: "full",
+      render: () => <DbzClientTilesCard state={clientsState} tiles={dbzClientTiles(boardClients, risk)} role={role} /> },
+    // ── Optional (in the catalogue, off until added): what the Overview carried before, and the cards
+    // the review moved off it (lifetime, renewals, funnel, revenue by client, retention).
+    { key: "trajectory", title: "Practice trajectory", blurb: "Active clients over time, who joined and who left, and revenue, with a monthly export.", optional: true, group: "clients", size: "full",
+      render: () => trajectory },
+    { key: "lifetime", title: "What a client is worth", blurb: "How long a client stays on average, and what that's worth to you.", optional: true, group: "money", size: "half",
+      render: () => lifetime },
+    { key: "renewals", title: "Renewing this week", blurb: "Who renews in the next 7 days, and why Shape takes its fee or none.", optional: true, group: "money", size: "half",
+      render: () => renewalsCard },
+    { key: "funnel", title: "Marketplace funnel", blurb: "Profile views, consults and signings from the marketplace.", optional: true, group: "clients", size: "half",
+      render: () => funnel },
+    { key: "revenue", title: "Revenue by client", blurb: "Who pays what a month, most first.", optional: true, group: "money", size: "half",
+      render: () => revenueByClient },
+    { key: "retention", title: "Who left and why", blurb: "Cancellations, the money they took, and the reasons given.", optional: true, group: "clients", size: "half",
+      render: () => churn },
+  ];
+  const moneyWidgets = [
+    { key: "getpaid", title: "When do I get paid?", blurb: "Your next payout's date, what's available and on hold, and this month's renewals on a track.", group: "money", size: "wide",
+      render: () => <DbzGetPaidCard model={getPaid} /> },
+    { key: "stripe", title: "Stripe", blurb: "Your Stripe dashboard: receipts, statements, your bank and your payout schedule.", group: "money", size: "narrow",
+      render: () => <DbzStripeCard state={stripeState} stripe={stripeIn} providerId={extra && extra.providerId} role={role} /> },
+    { key: "renewals", title: "Renewing this week", blurb: "Who renews in the next 7 days, and why Shape takes its fee or none.", group: "money", size: "wide",
+      render: () => renewalsCard },
+    { key: "history", title: "Payout history", blurb: "The next payout and the last four months, with a CSV export.", group: "money", size: "narrow",
+      render: () => <DbzPayoutHistoryCard stripeState={stripeState} head={getPaid.head} history={payoutHistory} exportControl={exportPayouts} /> },
+    // ── Optional ──
+    { key: "netweeks", title: "Net a month · 13 weeks", blurb: "Your net a month, week by week, over the last quarter.", optional: true, group: "money", size: "full",
+      render: () => netWeeks },
+    { key: "summary", title: "Your money", blurb: "What's on its way, ready to pay out and still clearing, in one sentence.", optional: true, group: "money", size: "half",
+      render: () => payouts },
+  ];
+  // ⚠ ONE BOARD A SECTION, EACH ON ITS OWN TAB KEY ("business-overview", "business-money"), so their
+  // layouts are saved apart, and apart from Today's (dashGrid.jsx dgBoards: doc[role][tab]). No
+  // earlier build saved under these keys. Plan, Growth and Retention stay fixed pages until step 4b.
+  // Without dashGrid.jsx on the page (a stale cache), the default cards stack, never a blank page.
+  const grid = typeof DashGrid === "function";
+  const stack = (widgets) => <div style={{ display: "grid", gap: 16 }}>{widgets.filter((w) => !w.optional && !w.empty).map((w) => <React.Fragment key={w.key}>{w.render()}</React.Fragment>)}</div>;
+
   const sections = {
-    overview: trajectory,
-    money: <React.Fragment>{pair(payouts, renewals)}{netWeeks}</React.Fragment>,
+    overview: grid ? <DashGrid key="business-overview" role={role} tab="business-overview" widgets={overviewWidgets} /> : stack(overviewWidgets),
+    money: grid ? <DashGrid key="business-money" role={role} tab="business-money" widgets={moneyWidgets} /> : stack(moneyWidgets),
     plan: <React.Fragment>{earnPlate}{planPlate}</React.Fragment>,
     growth: <React.Fragment>{pair(funnel, origin)}{pair(byo, waitlist)}</React.Fragment>,
     retention: <React.Fragment>{lifetime}{outcomes}{churn}</React.Fragment>,

@@ -154,22 +154,11 @@ function dashMoney(cents) {
   catch (e) { return "$0"; }
 }
 
-// Today's sidebar card from the dashboard's kpis: net a month, and today's clients.
-// ⚠ CLIENTS, NOT "ACTIVE SUBS" (the sweep after #2394 round 10). The dashboards count today's
-// practice by the Business page's rule (coach-trajectory.mjs practiceToday): people, a client whose
-// payment is retrying among them, so the card says what the Business page it sits beside says.
-// ⚠ NULL IS A READ THAT FAILED, AND THE CARD SAYS SO (the dashboards after #2395). The routes send
-// today's clients and net as null when the subscriptions couldn't be read: the net is a dash, and
-// the line under it says why rather than a bare "— · payouts connect soon". The other pages'
-// sidebar (trainerDashboard.jsx useDashSidebarLive) says the same words.
-function dashLivePayoutCard(k) {
-  const n = k ? k.activeClients : null;
-  return {
-    label: "MONTHLY · NET",
-    amount: k && k.monthlyNetCents != null ? dashMoney(k.monthlyNetCents) : "—",
-    sub: n == null ? "clients couldn't be read just now" : (n === 1 ? "1 client" : n + " clients") + " · payouts connect soon",
-  };
-}
+// ⚠ THE SIDEBAR'S MONEY CARD IS THE NEXT PAYOUT (coach dashboard step 4a). It was "MONTHLY · NET ·
+// 10 clients · payouts connect soon" (dashLivePayoutCard) long after payouts connected; every coach
+// page now hands the sidebar its demo card, and the sidebar (trainerDashboard.jsx DashSidebar) shows
+// Stripe's next payout through the read Today's Money card makes (useDashNextPayout), in the same
+// states: next, none, setup, unread, loading, and the preview's sample (dashPayoutSidebarCard below).
 
 // ── The KPI picker (review 2026-09-09, R15) ─────────────────────────────────
 // Which four figures each Today stat strip shows, chosen per account and per role.
@@ -2376,9 +2365,116 @@ function DashGlanceCard({ cells }) {
     </section>
   );
 }
-function dashGlanceCells(role, ctx) {
-  const logging = dashKpiCell("compliance", role, ctx);
-  return [dashKpiCell("due", role, ctx), dashKpiCell("reviewed", role, ctx), { ...logging, l: "Roster logging" }];
+// ⚠ ITS THREE FIGURES ARE THE COACH'S TO CHOOSE (coach dashboard step 4a): the ⚙ picks each slot
+// from the KPI pool, as the Practice and Business overview strips' gear does (dashKpiSettings), and
+// a pick already shown swaps the two. Remembered per account and per role, three slots of their own
+// (useRememberedSlots, one hook over fixed keys, for the strips' reason); the preview's picker works
+// unsaved, as every other remembered control does there. The pool's "Roster compliance" reads
+// "Roster logging" here, the card's own word for it, on the card and in its picker alike.
+const DASH_GLANCE_DEFAULT = ["due", "reviewed", "compliance"];
+const DASH_GLANCE_RENAME = { compliance: "Roster logging" };
+function useDashGlanceKpis(prefs, role) {
+  const base = "kpi:" + role + ":glance:";
+  return useRememberedSlots(prefs, [base + "0", base + "1", base + "2"], DashSignals.DASH_KPI_KEYS, DASH_GLANCE_DEFAULT);
+}
+function dashGlanceCells(role, ctx, chosen) {
+  const keys = Array.isArray(chosen) && chosen.length ? chosen : DASH_GLANCE_DEFAULT;
+  return keys.map((key) => {
+    const c = dashKpiCell(key, role, ctx);
+    return DASH_GLANCE_RENAME[key] && DashSignals.dashKpiLabel(key, role) ? { ...c, l: DASH_GLANCE_RENAME[key] } : c;
+  });
+}
+function dashGlanceSettings(chosen, role, onPick) {
+  return dashKpiSettings(chosen, role, onPick).map((g) => ({ ...g, options: g.options.map((o) => (DASH_GLANCE_RENAME[o.v] ? { ...o, label: DASH_GLANCE_RENAME[o.v] } : o)) }));
+}
+
+// ── Roster logging trend (coach dashboard step 4a: a catalogue widget on Today) ──────────────
+// Each of the last seven days, how many clients logged, of those whose record holds that day.
+// ⚠ ONLY WHAT IS READ IS DRAWN, AND THE CARD SAYS SO. A client's record holds the days they logged in
+// its window (dashData.jsx `foodLogDays`: `days`, and `from`, the first day a full window holds); a
+// day before `from` is not in it, and a client with no record (an overview not read, a failed read)
+// is no evidence either way: counted apart and said, never as "didn't log". Seven days, because that
+// is what every record holds; the days are the coach's (`today`, on the account's clock).
+// The preview's people carry their week as a count (foodLogs.daysLogged7d, ending on lastLoggedOn),
+// so `sample` lays that count on the days it ends on: its own figures, under the demo band. A live
+// page never reads that field here.
+const DASH_LOG_TREND_DAYS = 7;
+const DASH_DOW_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function dashDayShift(key, n) {
+  const d = new Date(key + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function dashLogTrend(clients, opts) {
+  const o = opts || {};
+  const today = typeof o.today === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.today) ? o.today : null;
+  if (!today) return null;
+  const keys = [];
+  for (let i = DASH_LOG_TREND_DAYS - 1; i >= 0; i--) keys.push(dashDayShift(today, -i));
+  const rows = Array.isArray(clients) ? clients.filter(Boolean) : [];
+  const held = [];
+  let unread = 0, pending = 0;
+  for (const c of rows) {
+    const rec = c.foodLogDays;
+    if (rec && Array.isArray(rec.days)) {
+      held.push({ days: new Set(rec.days.filter((d) => typeof d === "string")), from: typeof rec.from === "string" ? rec.from : null });
+      continue;
+    }
+    if (o.sample && c.foodLogs) {
+      const n = Number(c.foodLogs.daysLogged7d);
+      const last = typeof c.foodLogs.lastLoggedOn === "string" ? c.foodLogs.lastLoggedOn.slice(0, 10) : null;
+      if (Number.isInteger(n) && n >= 0 && n <= 7 && (last || n === 0)) {
+        const days = new Set();
+        for (let i = 0; i < n; i++) days.add(dashDayShift(last, -i));
+        held.push({ days, from: null });
+        continue;
+      }
+    }
+    // An overview still on its way is not a failed read (useDashboard's progressRead).
+    if (c.progressRead && c.progressRead.state === "loading") pending += 1;
+    else unread += 1;
+  }
+  const days = keys.map((key) => {
+    let logged = 0, read = 0;
+    for (const h of held) {
+      if (h.from && key < h.from) continue;
+      read += 1;
+      if (h.days.has(key)) logged += 1;
+    }
+    return { key, dow: DASH_DOW_SHORT[new Date(key + "T12:00:00Z").getUTCDay()], logged, read };
+  });
+  return { days, clients: rows.length, held: held.length, unread, pending, sample: !!o.sample };
+}
+function DashLogTrendPanel({ trend }) {
+  if (!trend) return null;
+  const max = Math.max(1, ...trend.days.map((d) => d.read));
+  return (
+    <div>
+      <div role="img" aria-label={"Clients who logged, the last 7 days: " + trend.days.map((d) => d.dow + " " + d.logged + " of " + d.read).join(", ")}
+        style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 6, alignItems: "end", height: 96 }}>
+        {trend.days.map((d) => (
+          <div key={d.key} data-dash-logday={d.key} style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", minWidth: 0 }}>
+            <div style={{ height: Math.round((d.read / max) * 100) + "%", minHeight: 4, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
+              <div style={{ width: "100%", height: (d.read ? Math.round((d.logged / d.read) * 100) : 0) + "%", background: "var(--sh-chart-teal, #12a899)", borderRadius: 4 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div aria-hidden="true" style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0,1fr))", gap: 6, marginTop: 6 }}>
+        {trend.days.map((d) => (
+          <div key={d.key} style={{ textAlign: "center", minWidth: 0 }}>
+            <div style={{ ...DASH_MONO_EYEBROW, fontSize: 9 }}>{d.dow}</div>
+            <div style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{d.read ? d.logged + "/" + d.read : "—"}</div>
+          </div>
+        ))}
+      </div>
+      <p data-dash-logtrend-note="" style={{ margin: "12px 0 0", fontSize: 12, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>
+        Each day: the clients who logged, of those whose record holds it. Records hold the last 7 days, so the trend starts there.
+        {trend.unread > 0 ? " " + (trend.unread === 1 ? "1 client's logs couldn't be read" : trend.unread + " clients' logs couldn't be read") + ", so they aren't counted." : ""}
+        {trend.pending > 0 ? " " + (trend.pending === 1 ? "1 client's logs are" : trend.pending + " clients' logs are") + " still loading." : ""}
+      </p>
+    </div>
+  );
 }
 
 // ── The next payout, from Stripe (the owner's answer to #2628, 2026-11-06) ────────────────────
@@ -2410,6 +2506,18 @@ async function dashFetchNextPayout(role) {
     return dashPayoutRead(res.status, body);
   } catch (e) { return { state: "unread" }; }
 }
+// ⚠ ONE READ FOR THE PAGE, NOT ONE A CARD. The sidebar's money card, Today's Money card and the
+// Business boards all ask for the same role's next payout in the same commit; reads begun within a
+// few seconds of each other share one request. A later ask (a coach back on the tab) reads afresh.
+const DASH_PAYOUT_SHARE_MS = 5000;
+const _dashPayoutShared = new Map();   // role -> { at, promise }
+function dashSharedNextPayout(role) {
+  const hit = _dashPayoutShared.get(role);
+  if (hit && Date.now() - hit.at < DASH_PAYOUT_SHARE_MS) return hit.promise;
+  const promise = dashFetchNextPayout(role);
+  _dashPayoutShared.set(role, { at: Date.now(), promise });
+  return promise;
+}
 // The read, for a signed-in coach only (`live`): null in the preview, which keeps its sample. Asked
 // again when the coach comes back to the tab (useDashboard's own rule), keeping what the card shows
 // until the new answer lands.
@@ -2422,7 +2530,7 @@ function useDashNextPayout(role, live) {
     if (!live) { setRead(null); return undefined; }
     let on = true;
     setRead((r) => (r && r.state !== "loading" ? r : { state: "loading" }));
-    dashFetchNextPayout(role).then((r) => { if (on) setRead(r); });
+    dashSharedNextPayout(role).then((r) => { if (on) setRead(r); });
     return () => { on = false; };
   }, [role, !!live, tick]);
   return live ? (read || { state: "loading" }) : null;
@@ -2466,6 +2574,23 @@ function dashPayoutView(read, zone, now) {
   const n = read.next;
   const when = dashPayoutWhen(n.arrivalDate, zone, now) || "on its way, not landed yet";
   return { state: "next", k: dashPayoutAmount(n.amountCents, n.currency), sub: when + " · " + String(n.currency).toUpperCase() };
+}
+
+// The sidebar's money card for a coach (trainerDashboard.jsx DashSidebar), from the same read as
+// the Money card, in its states. `read` null is a read not asked yet: loading. The preview keeps the
+// demo card its page passes (coachNav.jsx), which the band labels; this is never asked for it.
+// ⚠ A MEASURED NONE IS A WORD, AN UNREAD ONE A DASH: "None" is Stripe saying nothing is on its way,
+// "—" is a read that failed or has not answered, and neither is ever "$0".
+function dashPayoutSidebarCard(read, role, now = Date.now()) {
+  const state = read && read.state ? read.state : "loading";
+  if (state === "next") {
+    const v = dashPayoutView(read, null, now);
+    return { state: "next", label: "NEXT PAYOUT", amount: v.k, sub: v.sub };
+  }
+  if (state === "none") return { state, label: "NEXT PAYOUT", amount: "None", sub: "no payout scheduled right now" };
+  if (state === "setup") return { state, label: "PAYOUTS", amount: "Not set up", sub: "set them up in Business →", href: dashLinkedTab("business", role, { section: "money" }) };
+  if (state === "loading") return { state, label: "NEXT PAYOUT", amount: "—", sub: "reading your payouts…" };
+  return { state: "unread", label: "NEXT PAYOUT", amount: "—", sub: "couldn't be read just now" };
 }
 
 // ⚠ MONEY SHOWS ONLY WHAT THIS PAGE READS (the owner's rollout rule: never a made-up figure).
@@ -2583,6 +2708,8 @@ function CoachDashboardPage({ role }) {
   // equals the default, so a coach who never opens the ⚙ stores nothing at all.
   const [overviewKpis, setOverviewKpis] = useDashKpiStrip(prefs, "overview", role, DASH_OVERVIEW_DEFAULT);
   const [practiceChosen, setPracticeKpis] = useDashKpiStrip(prefs, "practice", role, DASH_PRACTICE_DEFAULT);
+  // At a glance's three, chosen with its ⚙ (dashGlanceCells).
+  const [glanceChosen, setGlanceKpis] = useDashGlanceKpis(prefs, role);
 
   // ⚠ THE SAMPLE IS FOR THE PREVIEW ONLY. `sample` is the page's own source, never `!live`: a
   // signed-in coach whose day feed failed while the roster loaded has `live` null too, and every
@@ -2672,7 +2799,11 @@ function CoachDashboardPage({ role }) {
   // money are the KPI pool's, so each says why when it cannot be read.
   const needSplit = Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
   const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;
-  const glance = dashGlanceCells(role, kpiCtx);
+  const glance = dashGlanceCells(role, kpiCtx, glanceChosen);
+  // The roster's logging, day by day, over the days its records hold (dashLogTrend): today on the
+  // account's clock, as the KPI pool's week is; the preview's from its own sample.
+  const zoneLib = dashZoneLib();
+  const logTrend = dashLogTrend(clients, { today: zoneLib ? zoneLib.dayKey(Date.now(), zoneLib.normalizeZone(dayZone) || zoneLib.viewerZone()) : dashLocalDate(new Date()), sample });
   // The next payout is read on a live page only, and the preview is the page's own source: a coach
   // whose day feed failed still gets their own payout, never the sample's. ⚠ AND MONEY WAITS FOR THE
   // SOURCE: before the page's first read lands (`source` null) nobody knows whether this is the
@@ -2716,22 +2847,23 @@ function CoachDashboardPage({ role }) {
     // grid; they are widgets now, so the coach can move, resize or hide them like the rest. Every
     // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
     // the Business overview and summary) stays in the catalogue as an optional card.
-    { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", size: "wide",
+    { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", group: "clients", size: "wide",
       render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} /> },
-    { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", size: "narrow",
+    { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", group: "schedule", size: "narrow",
       render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} /> },
-    { key: "glance", title: "At a glance", blurb: (role === "nutritionist" ? "Plans" : "Programs") + " due, check-ins reviewed and roster logging.", size: "wide",
-      render: () => <DashGlanceCard cells={glance} /> },
-    { key: "money", title: "Money", blurb: "Recurring revenue, and your next payout from Stripe.", size: "narrow",
+    { key: "glance", title: "At a glance", blurb: "Three figures: " + (role === "nutritionist" ? "plans" : "programs") + " due, check-ins reviewed and roster logging, or pick your own with ⚙.", group: "clients", size: "wide",
+      render: () => <DashGlanceCard cells={glance} />,
+      settings: dashGlanceSettings(glanceChosen, role, setGlanceKpis) },
+    { key: "money", title: "Money", blurb: "Recurring revenue, and your next payout from Stripe.", group: "money", size: "narrow",
       render: () => <DashMoneyCard model={money} role={role} /> },
-    { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", size: "wide",
+    { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", group: "clients", size: "wide",
       render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} /> },
-    { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", size: "narrow",
+    { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", group: "schedule", size: "narrow",
       render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={!scheduleRead} /> },
     // ── Optional (off until added) ──
     // The tabbed queues that led the old board: client attention, new clients, check-ins, replies
     // and programs, one tab each.
-    { key: "queues", title: "Work queues", blurb: "Attention, new clients, check-ins, replies" + (cfg.programmingQueue ? " and programs" : "") + ", one tab each.", optional: true, size: "full",
+    { key: "queues", title: "Work queues", blurb: "Attention, new clients, check-ins, replies" + (cfg.programmingQueue ? " and programs" : "") + ", one tab each.", optional: true, group: "clients", size: "full",
       render: () => <DashNeedsYou prefs={prefs} role={role} tabs={[
         { key: "attention", label: "Attention", empty: !triage || triage.length === 0,
           emptyText: "No one needs your attention right now. Clients appear here when their logs, check-ins or Shape Score slip.",
@@ -2744,46 +2876,53 @@ function CoachDashboardPage({ role }) {
         { key: "replies", label: "Replies", render: () => <DashRepliesPanel role={role} live={source === "live"} /> },
         ...(cfg.programmingQueue ? [{ key: "programs", label: "Programs", render: () => <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} /> }] : []),
       ]} /> },
-    { key: "checkins", title: "Check-ins to review", blurb: "Recent shared check-ins, oldest first, with your saved review status.", optional: true, size: "half",
+    { key: "checkins", title: "Check-ins to review", blurb: "Recent shared check-ins, oldest first, with your saved review status.", optional: true, group: "clients", size: "half",
       render: () => renderPanel("Check-ins to review", <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
     // The onboarding board (fix 4) is the "New clients" tab of Needs you, which the Coaching preset
     // carries; this card is the same board for a coach who wants it on its own.
-    { key: "setup", title: "New clients", blurb: "Each new client's first 30 days, ticked by real records.", optional: true, size: "full",
+    { key: "setup", title: "New clients", blurb: "Each new client's first 30 days, ticked by real records.", optional: true, group: "clients", size: "full",
       render: () => renderPanel("New clients", <DashOnboardingPanel clients={clients} role={role} live={source === "live"} />) },
-    { key: "replies", title: "Replies needed", blurb: "Conversations where the latest message came from your client.", optional: true, size: "half",
+    { key: "replies", title: "Replies needed", blurb: "Conversations where the latest message came from your client.", optional: true, group: "clients", size: "half",
       render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={source === "live"} />) },
-    { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, size: "half",
+    { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, group: "schedule", size: "half",
       render: () => renderPanel("Capacity this week", <DashCapacityPanel role={role} live={source === "live"} />) },
-    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} />) },
-    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
-    { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", optional: true, size: "full", render: () => renderKpiStrip(practiceKpis),
+    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, group: "clients", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} />) },
+    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, group: "schedule", size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, group: "programs", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
+    { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", optional: true, group: "clients", size: "full", render: () => renderKpiStrip(practiceKpis),
       settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
-    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", optional: true, size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
-    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", optional: true, size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
-    { key: "kpis", title: "Business overview", blurb: "Four figures about the business — pick them with ⚙ once you're live.", optional: true, size: "full", render: () => renderKpiStrip(kpis),
+    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", optional: true, group: "clients", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
+    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", optional: true, group: "clients", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
+    { key: "kpis", title: "Business overview", blurb: "Four figures about the business — pick them with ⚙ once you're live.", optional: true, group: "money", size: "full", render: () => renderKpiStrip(kpis),
       settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
-    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", optional: true, size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
+    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", optional: true, group: "money", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
     // ── Optional (off until added) ──
-    { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, with links to each day.", optional: true, size: "half",
+    { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, with links to each day.", optional: true, group: "schedule", size: "half",
       empty: !weekAhead, emptyWhy: staleWhy,
       render: () => renderPanel("Week ahead", <DashWeekAheadPanel week={weekAhead} role={role} />) },
-    { key: "status", title: "Roster by status", blurb: "How many clients need you, need watching, and are on track.", optional: true, size: "half",
+    { key: "status", title: "Roster by status", blurb: "How many clients need you, need watching, and are on track.", optional: true, group: "clients", size: "half",
       empty: !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : staleWhy,
       render: () => renderPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role={role} />) },
-    { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, size: "half",
+    // Nothing to draw until a client's record holds a day (dashLogTrend): a card of empty bars
+    // would read as nobody logging.
+    { key: "logtrend", title: "Roster logging trend", blurb: "How many clients logged each of the last 7 days, the days their records hold.", optional: true, group: "clients", size: "half",
+      empty: !logTrend || logTrend.held === 0,
+      emptyWhy: !(logTrend && logTrend.clients > 0) ? "appears once you have clients who log"
+        : (clients || []).some((c) => c && c.progressRead && c.progressRead.state === "loading") ? "your clients' logs are still loading" : "your clients' logs couldn't be read just now",
+      render: () => renderPanel("Roster logging trend", <DashLogTrendPanel trend={logTrend} />) },
+    { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, group: "clients", size: "half",
       empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
       render: () => renderPanel("Top movers", <DashTopMoversPanel movers={movers} role={role} />) },
-    { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a milestone with your practice in the next 30 days.", optional: true, size: "half",
+    { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a milestone with your practice in the next 30 days.", optional: true, group: "clients", size: "half",
       empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
       render: () => renderPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} role={role} />) },
-    { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, size: "half",
+    { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, group: "money", size: "half",
       empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
       render: () => renderPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} role={role} />) },
-    { key: "ending", title: role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, size: "half",
+    { key: "ending", title: role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, group: "programs", size: "half",
       empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? (role === "nutritionist" ? "appears once a client is on one of your plans" : "appears once a client is on one of your programs") : staleWhy,
       render: () => renderPanel(role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", <DashProgramsEndingPanel ending={ending} role={role} />) },
-    { key: "notes", title: "Notes to self", blurb: "A private scratchpad, kept with your account.", optional: true, size: "half",
+    { key: "notes", title: "Notes to self", blurb: "A private scratchpad, kept with your account.", optional: true, group: "schedule", size: "half",
       render: () => renderPanel("Notes to self", <DashNotesPanel prefs={prefs} role={role} />) },
   ];
 
@@ -2803,7 +2942,7 @@ function CoachDashboardPage({ role }) {
       primaryCta={cfg.primaryCta}
       secondaryCta={cfg.secondaryCta}
       navItems={cfg.navItems()}
-      payoutCard={live ? dashLivePayoutCard(live.kpis) : cfg.payoutCard()}
+      payoutCard={cfg.payoutCard()}
       kpis={kpis}
       kpis2={practiceKpis}
       scheduleTitle={cfg.scheduleTitle}
@@ -2838,4 +2977,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashLivePayoutCard, dashFmtTime, dashCalDate, dashCalTime });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime, useDashNextPayout, dashPayoutSidebarCard, dashPayoutView, dashPayoutAmount, dashPayoutWhen, dashGlanceCells, dashLogTrend, DashLogTrendPanel, dashRecordTier, dashTierMark, DashTierDot, DashClientGem, DashClientName, dashRowKeyOpen, dashLinkedTab });
