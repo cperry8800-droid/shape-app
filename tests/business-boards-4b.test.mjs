@@ -369,6 +369,8 @@ test('the funnel is drawn to scale, prints each step\'s rate, and names the leak
   assert.match(m.text(), /Profile views1,240↓ 3\.2%of profile views book a consultThe leakConsults · 90 days40↓ 35%of consults sign · benchmark ~30%GoodSigned from Shape · 90 days14/);
   // To scale against the views: 40 and 14 are two bars, not one floor.
   assert.deepEqual([...m.div.querySelectorAll('[data-dbz-bar]')].map((b) => b.getAttribute('data-dbz-bar')), ['100', '3.2', '1.1']);
+  // And drawn at that width: no floor that makes 40 and 14 one bar.
+  assert.deepEqual([...m.div.querySelectorAll('[data-dbz-bar]')].map((b) => parseFloat(b.style.width).toFixed(1)), [100, 40 / 12.4, 14 / 12.4].map((w) => w.toFixed(1)));
   await m.unmount();
   // The preview's funnel is Today's own.
   assert.deepEqual(B.dbzFunnelModel({ preview: true }).stages.map((s) => s.v), [T.DASH_DEMO_FUNNEL.views, T.DASH_DEMO_FUNNEL.consults90, T.DASH_DEMO_FUNNEL.signed90]);

@@ -48,7 +48,8 @@ export default {
     { name: 'the card does not stand at Lift 2', file: BIZ,
       find: '<DbzCard label="Money at risk" lift={2} right={total}>', replace: '<DbzCard label="Money at risk" right={total}>' },
     { name: 'every row gets the filled button', file: BIZ,
-      find: '                {i === 0 && typeof dashMessageClient === "function" && (', replace: '                {typeof dashMessageClient === "function" && (' },
+      // (Anchored on the line before it since step 4b: Retention's "Who might leave" has the same line, deeper.)
+      find: '"/mo" : "—"}</span>\n                {i === 0 && typeof dashMessageClient === "function" && (', replace: '"/mo" : "—"}</span>\n                {typeof dashMessageClient === "function" && (' },
     // ── The next payout and the boards' reads
     { name: 'the preview is handed a read', file: BIZ,
       find: '  const askPayout = !preview && (source === "live" || !!live || analytics === "ok" || extraFailed);', replace: '  const askPayout = source === "live" || !!live || analytics === "ok" || extraFailed || preview;' },
