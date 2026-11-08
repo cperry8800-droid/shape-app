@@ -319,7 +319,9 @@ html[data-paper="dark"] {
      carbon — the app's Carbon: true black under a cool steel ink.
      night  — the eye-sensitive one. Every colour is warm, with the blue channel well
               under the red and green, so teal becomes amber, sky a sand, violet a rose;
-              photos and video take a sepia wash below.
+              photos and video take a sepia wash below. The amber is the vivid one
+              (#ffa01e, owner 2026-11-06: "make them pop"): more chroma than the first
+              cut's #f2a03d at the same hue, and half its blue.
      glass  — see-through cards over a lit ground (the glow is drawn below). Its card,
               lines, resting fill and tints are rgba() values, and each -rgb twin is that
               value composited (a tint over the card, the rest over the ground), so an
@@ -523,12 +525,12 @@ html[data-paper="night"] {
   --sh-rust-tint-rgb: 54,24,15;
   --sh-gold-tint: #302810;
   --sh-gold-tint-rgb: 48,40,16;
-  --sh-accent: #f2a03d;
-  --sh-accent-rgb: 242,160,61;
-  --sh-accent2: #e8922e;
-  --sh-accent2-rgb: 232,146,46;
-  --sh-accent3: #f5ae55;
-  --sh-accent3-rgb: 245,174,85;
+  --sh-accent: #ffa01e;
+  --sh-accent-rgb: 255,160,30;
+  --sh-accent2: #f0901c;
+  --sh-accent2-rgb: 240,144,28;
+  --sh-accent3: #ffab38;
+  --sh-accent3-rgb: 255,171,56;
   --sh-gold: #e2c25a;
   --sh-gold-rgb: 226,194,90;
   --sh-rust: #ef7b53;
@@ -541,10 +543,10 @@ html[data-paper="night"] {
   --sh-heat-trainer-rgb: 224,106,69;
   --sh-heat-nutri: #e2c25a;
   --sh-heat-nutri-rgb: 226,194,90;
-  --sh-heat-client: #f2a03d;
-  --sh-heat-client-rgb: 242,160,61;
-  --sh-accent-ink: #f5ae55;
-  --sh-accent-ink-rgb: 245,174,85;
+  --sh-heat-client: #ffa01e;
+  --sh-heat-client-rgb: 255,160,30;
+  --sh-accent-ink: #ffab38;
+  --sh-accent-ink-rgb: 255,171,56;
   --sh-ember: #f08a5a;
   --sh-ember-rgb: 240,138,90;
   --sh-danger: #f48262;
@@ -557,8 +559,8 @@ html[data-paper="night"] {
   --sh-gold2-rgb: 226,194,90;
   --sh-spotify-ink: #bcc65c;
   --sh-spotify-ink-rgb: 188,198,92;
-  --sh-cycle-heat: #f2a03d;
-  --sh-cycle-heat-rgb: 242,160,61;
+  --sh-cycle-heat: #ffa01e;
+  --sh-cycle-heat-rgb: 255,160,30;
   --sh-cycle-heat-ink: #1c0f02;
   --sh-cycle-heat-ink-rgb: 28,15,2;
   --sh-chart-teal: #e6b35c;
@@ -710,11 +712,11 @@ html[data-paper="night"] img, html[data-paper="night"] video, html[data-paper="n
    so Night repaints them in its amber. The button's sheet is injected after this one; the
    id-plus-attribute selector outranks it without !important. The band is inline, so it
    needs !important. Dark text on the amber reads 8.4:1, as it did on the teal. */
-html[data-paper="night"] #shape-global-chat-button { background: #f2a03d; box-shadow: 0 10px 26px rgba(0,0,0,.32), 0 3px 10px rgba(242,160,61,.28); }
-html[data-paper="night"] #shape-global-chat-button :is(.sgc-star, .shape-global-chat-count) { color: #f2a03d; }
-html[data-paper="night"] #shape-global-chat-panel :is(.sgc-msg.me, .sgc-bdg) { background: #f2a03d; }
-html[data-paper="night"] .dash-demo-band { color: #f2a03d !important; border-top-color: rgba(242,160,61,0.3) !important; }
-html[data-paper="night"] .dash-demo-band a { background: #e8922e !important; }
+html[data-paper="night"] #shape-global-chat-button { background: #ffa01e; box-shadow: 0 10px 26px rgba(0,0,0,.32), 0 3px 10px rgba(255,160,30,.28); }
+html[data-paper="night"] #shape-global-chat-button :is(.sgc-star, .shape-global-chat-count) { color: #ffa01e; }
+html[data-paper="night"] #shape-global-chat-panel :is(.sgc-msg.me, .sgc-bdg) { background: #ffa01e; }
+html[data-paper="night"] .dash-demo-band { color: #ffa01e !important; border-top-color: rgba(255,160,30,0.3) !important; }
+html[data-paper="night"] .dash-demo-band a { background: #f0901c !important; }
 
 /* ── Depth: the lifts (owner's depth review, 2026-11) ───────────────────────
    One depth scale every surface picks from, per paper, so a dark paper gets a lit edge
@@ -734,11 +736,15 @@ html[data-paper="night"] .dash-demo-band a { background: #e8922e !important; }
    ⚠ NO HALF IS EVER `none`: a list with `none` in it is invalid, and the whole shadow drops.
    An empty layer is `0 0 0 transparent`.
    ⚠ COLOUR NEVER CHANGES WITH A LIFT, so no text contrast does: only box-shadow and, on a
-   key, a 1px rise. White and Dark are the review's values verbatim; Bone takes White's
-   alphas in its own ink, Night takes Dark's with its lit edges warm (no white light on
-   the eye-sensitive skin), and Carbon and Glass take Dark's with a brighter edge,
-   because on pure black and on see-through cards the shadow is the half that does not
-   show. tests/dash-depth.test.mjs holds every paper to the full set. */
+   key, a 1px rise. White and Dark are the review's values verbatim. The other four pop
+   (owner, 2026-11-06: "make them pop"): Bone, whose card sits close to its ground, takes a
+   firmer contact and cast than White's and a lit top lip; Carbon, Night and Glass take a
+   brighter lit top edge and a darker bottom lip than Dark's, over a deeper cast, because
+   on pure black, on Night's near-black and on see-through cards the shadow is the half
+   that does not show, and Lift 2 (Needs you) adds a hairline of light round the card so it
+   stands off the board. Night's light is warm (no white light on the eye-sensitive skin).
+   tests/dash-depth.test.mjs holds every paper to the full set, each level above the last,
+   and the four to their pop. */
 :root {
   --lift-0: 0 1px 2px rgba(0,0,0,0.04);
   --lift-1-edge: inset 0 -1px 0 rgba(16,36,32,0.05);
@@ -755,15 +761,15 @@ html[data-paper="night"] .dash-demo-band a { background: #e8922e !important; }
   --lift-2: var(--lift-2-edge), var(--lift-2-cast);
 }
 html[data-paper="bone"] {
-  --lift-0: 0 1px 2px rgba(0,0,0,0.04);
-  --lift-1-edge: inset 0 -1px 0 rgba(26,22,14,0.05);
-  --lift-1-cast: 0 1px 1px rgba(26,22,14,0.05), 0 2px 5px -1px rgba(26,22,14,0.07), 0 12px 28px -10px rgba(26,22,14,0.18);
-  --lift-2-edge: inset 0 -1px 0 rgba(26,22,14,0.05);
-  --lift-2-cast: 0 2px 3px rgba(26,22,14,0.06), 0 10px 18px -8px rgba(26,22,14,0.14), 0 28px 50px -18px rgba(26,22,14,0.3);
-  --lift-3: 0 2px 6px rgba(26,22,14,0.08), 0 20px 44px -10px rgba(26,22,14,0.26), 0 44px 80px -28px rgba(26,22,14,0.24);
-  --lift-key: inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -2px 0 rgba(26,22,14,0.07), 0 1px 2px rgba(26,22,14,0.1), 0 4px 10px -4px rgba(26,22,14,0.16);
-  --lift-key-fill: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -2px 0 rgba(0,0,0,0.2), 0 1px 2px rgba(26,22,14,0.2), 0 8px 18px -7px rgba(26,22,14,0.42);
-  --lift-key-press: inset 0 2px 3px rgba(26,22,14,0.16), 0 0 0 transparent;
+  --lift-0: 0 1px 2px rgba(26,22,14,0.06);
+  --lift-1-edge: inset 0 1px 0 rgba(255,255,255,0.75), inset 0 -1px 0 rgba(26,22,14,0.08);
+  --lift-1-cast: 0 1px 1px rgba(26,22,14,0.09), 0 2px 6px -1px rgba(26,22,14,0.13), 0 14px 30px -10px rgba(26,22,14,0.3);
+  --lift-2-edge: inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -1px 0 rgba(26,22,14,0.08);
+  --lift-2-cast: 0 2px 3px rgba(26,22,14,0.11), 0 12px 22px -8px rgba(26,22,14,0.24), 0 32px 56px -18px rgba(26,22,14,0.46);
+  --lift-3: 0 2px 6px rgba(26,22,14,0.13), 0 22px 48px -10px rgba(26,22,14,0.38), 0 48px 88px -28px rgba(26,22,14,0.36);
+  --lift-key: inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -2px 0 rgba(26,22,14,0.1), 0 1px 2px rgba(26,22,14,0.15), 0 4px 10px -4px rgba(26,22,14,0.24);
+  --lift-key-fill: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(26,22,14,0.25), 0 8px 18px -7px rgba(26,22,14,0.52);
+  --lift-key-press: inset 0 2px 3px rgba(26,22,14,0.2), 0 0 0 transparent;
 }
 html[data-paper="dark"] {
   --lift-0: 0 1px 2px rgba(0,0,0,0.04);
@@ -778,36 +784,36 @@ html[data-paper="dark"] {
 }
 html[data-paper="carbon"] {
   --lift-0: 0 1px 2px rgba(0,0,0,0.04);
-  --lift-1-edge: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3);
-  --lift-1-cast: 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65);
-  --lift-2-edge: inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(0,0,0,0.3);
-  --lift-2-cast: 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75);
-  --lift-3: inset 0 1px 0 rgba(255,255,255,0.09), 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px -12px rgba(0,0,0,0.7);
-  --lift-key: inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -2px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.55);
-  --lift-key-fill: inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.45), 0 10px 20px -8px rgba(0,0,0,0.65);
-  --lift-key-press: inset 0 2px 4px rgba(0,0,0,0.45), 0 0 0 transparent;
+  --lift-1-edge: inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -1px 0 rgba(0,0,0,0.5);
+  --lift-1-cast: 0 0 0 1px rgba(255,255,255,0.03), 0 1px 2px rgba(0,0,0,0.5), 0 16px 34px -12px rgba(0,0,0,0.85);
+  --lift-2-edge: inset 0 1px 0 rgba(255,255,255,0.25), inset 0 -1px 0 rgba(0,0,0,0.5);
+  --lift-2-cast: 0 0 0 1px rgba(255,255,255,0.09), 0 2px 4px rgba(0,0,0,0.55), 0 30px 56px -16px rgba(0,0,0,0.95);
+  --lift-3: inset 0 1px 0 rgba(255,255,255,0.25), 0 0 0 1px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.6), 0 34px 66px -12px rgba(0,0,0,0.9);
+  --lift-key: inset 0 1px 0 rgba(255,255,255,0.15), inset 0 -2px 0 rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.55), 0 6px 12px -6px rgba(0,0,0,0.7);
+  --lift-key-fill: inset 0 1px 0 rgba(255,255,255,0.36), inset 0 -2px 0 rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.5), 0 10px 20px -8px rgba(0,0,0,0.75);
+  --lift-key-press: inset 0 2px 4px rgba(0,0,0,0.55), 0 0 0 transparent;
 }
 html[data-paper="night"] {
   --lift-0: 0 1px 2px rgba(0,0,0,0.04);
-  --lift-1-edge: inset 0 1px 0 rgba(240,212,164,0.06), inset 0 -1px 0 rgba(0,0,0,0.3);
-  --lift-1-cast: 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65);
-  --lift-2-edge: inset 0 1px 0 rgba(240,212,164,0.08), inset 0 -1px 0 rgba(0,0,0,0.3);
-  --lift-2-cast: 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75);
-  --lift-3: 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px -12px rgba(0,0,0,0.7);
-  --lift-key: inset 0 1px 0 rgba(240,212,164,0.07), inset 0 -2px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.55);
-  --lift-key-fill: inset 0 1px 0 rgba(255,236,204,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.45), 0 10px 20px -8px rgba(0,0,0,0.65);
-  --lift-key-press: inset 0 2px 4px rgba(0,0,0,0.4), 0 0 0 transparent;
+  --lift-1-edge: inset 0 1px 0 rgba(240,212,164,0.16), inset 0 -1px 0 rgba(0,0,0,0.45);
+  --lift-1-cast: 0 1px 2px rgba(0,0,0,0.45), 0 16px 34px -12px rgba(0,0,0,0.8);
+  --lift-2-edge: inset 0 1px 0 rgba(240,212,164,0.28), inset 0 -1px 0 rgba(0,0,0,0.45);
+  --lift-2-cast: 0 0 0 1px rgba(240,212,164,0.1), 0 2px 4px rgba(0,0,0,0.5), 0 30px 56px -16px rgba(0,0,0,0.9);
+  --lift-3: inset 0 1px 0 rgba(240,212,164,0.28), 0 0 0 1px rgba(240,212,164,0.11), 0 2px 6px rgba(0,0,0,0.55), 0 34px 66px -12px rgba(0,0,0,0.85);
+  --lift-key: inset 0 1px 0 rgba(240,212,164,0.14), inset 0 -2px 0 rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.5), 0 6px 12px -6px rgba(0,0,0,0.65);
+  --lift-key-fill: inset 0 1px 0 rgba(255,236,204,0.38), inset 0 -2px 0 rgba(0,0,0,0.24), 0 1px 2px rgba(0,0,0,0.5), 0 10px 20px -8px rgba(0,0,0,0.75);
+  --lift-key-press: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 transparent;
 }
 html[data-paper="glass"] {
   --lift-0: 0 1px 2px rgba(0,0,0,0.04);
-  --lift-1-edge: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.25);
-  --lift-1-cast: 0 1px 2px rgba(0,0,0,0.28), 0 14px 32px -12px rgba(0,0,0,0.55);
-  --lift-2-edge: inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 0 rgba(0,0,0,0.25);
-  --lift-2-cast: 0 2px 4px rgba(0,0,0,0.32), 0 26px 50px -16px rgba(0,0,0,0.65);
-  --lift-3: inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 32px 64px -12px rgba(0,0,0,0.7);
-  --lift-key: inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -2px 0 rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.35), 0 6px 12px -6px rgba(0,0,0,0.5);
-  --lift-key-fill: inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.45), 0 10px 20px -8px rgba(0,0,0,0.65);
-  --lift-key-press: inset 0 2px 4px rgba(0,0,0,0.4), 0 0 0 transparent;
+  --lift-1-edge: inset 0 1px 0 rgba(255,255,255,0.17), inset 0 -1px 0 rgba(0,0,0,0.35);
+  --lift-1-cast: 0 1px 2px rgba(0,0,0,0.38), 0 16px 34px -12px rgba(0,0,0,0.7);
+  --lift-2-edge: inset 0 1px 0 rgba(255,255,255,0.27), inset 0 -1px 0 rgba(0,0,0,0.35);
+  --lift-2-cast: 0 0 0 1px rgba(255,255,255,0.08), 0 2px 4px rgba(0,0,0,0.42), 0 30px 56px -16px rgba(0,0,0,0.82);
+  --lift-3: inset 0 1px 0 rgba(255,255,255,0.27), 0 0 0 1px rgba(255,255,255,0.09), 0 2px 6px rgba(0,0,0,0.5), 0 36px 68px -12px rgba(0,0,0,0.8);
+  --lift-key: inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -2px 0 rgba(0,0,0,0.32), 0 1px 2px rgba(0,0,0,0.45), 0 6px 12px -6px rgba(0,0,0,0.6);
+  --lift-key-fill: inset 0 1px 0 rgba(255,255,255,0.36), inset 0 -2px 0 rgba(0,0,0,0.24), 0 1px 2px rgba(0,0,0,0.5), 0 10px 20px -8px rgba(0,0,0,0.72);
+  --lift-key-press: inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 transparent;
 }
 /* The pattern: a class per lift, for a surface that does not clip. A box that clips draws
    -cast on itself and -edge on an overlay above its content (dashGrid.jsx's cell is the
@@ -838,14 +844,18 @@ html[data-paper="glass"] {
   .sh-key, .sh-key:hover, .sh-key:active { transform: none !important; }
 }
 
-/* ── Client colours (clientColors.mjs, window.ShapeClientColors) ─────────────
-   A client's name drawn in their fixed colour: the element carries the two text-safe
-   values inline (`clientColorVars(id)`: --client-ink-light, --client-ink-dark) and this
-   picks the one for the paper in force, so a paper switch recolours it without a render.
-   The light value is for White and Bone, the dark for the four dark papers;
-   tests/dash-depth.test.mjs measures each against every paper's card and ground. */
-.sh-client-ink { color: var(--client-ink-light); }
-html:is([data-paper="dark"], [data-paper="carbon"], [data-paper="night"], [data-paper="glass"]) .sh-client-ink { color: var(--client-ink-dark); }
+/* ── Client tier marks (clientColors.mjs, window.ShapeClientColors) ──────────
+   A client's colour is their Shape Score tier's, exactly, on every paper, drawn on a gem or a
+   dot beside the name and never on the name, which keeps the page's ink. The element carries
+   `--tier-mark` inline (`clientTierVars`) and `data-tier`. A mark keeps 3:1 against its paper
+   (non-text contrast): where the colour alone falls under that, a thin ring in the paper's
+   secondary ink goes round it instead of changing the colour. On White and Bone that is every
+   tier (four of the five are under 3:1 on both, and Form under it on Bone's resting fill); on
+   the dark papers only Form on Glass, on a card over its teal glow. tests/dash-depth.test.mjs measures each
+   pair against every paper's card, ground and resting fill, and holds these rules to it. */
+.sh-tier-mark { background: var(--tier-mark); box-shadow: inset 0 0 0 1px var(--sh-ink2, #a09b94); }
+html:is([data-paper="dark"], [data-paper="carbon"], [data-paper="night"], [data-paper="glass"]) .sh-tier-mark { box-shadow: none; }
+html[data-paper="glass"] .sh-tier-mark[data-tier="form"] { box-shadow: inset 0 0 0 1px var(--sh-ink2, #a09b94); }
 a { text-decoration: none; color: inherit; }
 
 /* ── Cards (the workout builder's vocabulary, owner 2026-09-21) ────────────

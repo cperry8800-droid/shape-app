@@ -358,7 +358,7 @@ test('Glass blurs only what floats, and never a fixed panel or an in-flow card',
 
 test('Night repaints the fixed teal the tokens cannot reach', () => {
   for (const sel of ['#shape-global-chat-button', '.dash-demo-band']) {
-    assert.ok(new RegExp(`html\\[data-paper="night"\\] ${sel.replace(/[.#-]/g, (c) => '\\' + c)}\\s*\\{[^}]*#f2a03d`).test(CSS), `${sel} keeps its teal on Night`);
+    assert.ok(new RegExp(`html\\[data-paper="night"\\] ${sel.replace(/[.#-]/g, (c) => '\\' + c)}\\s*\\{[^}]*#ffa01e`).test(CSS), `${sel} keeps its teal on Night`);
   }
   assert.match(read('dashToday.jsx'), /<div className="dash-demo-band" style=/, 'the demo band lost the class Night repaints it by');
 });

@@ -1,16 +1,17 @@
-// The coach dashboard's depth system and client colours (step 1 of the new coach dashboard).
+// The coach dashboard's depth system and client tier marks (step 1 of the new coach dashboard).
 //
 // The lifts are one shadow scale per paper (dash.css's "Depth" section): every paper declares
-// every half, the grid's cell casts the card's shadow because it clips, and nothing moves for a
-// viewer who asked for reduced motion or on a touch screen. The client colours
-// (clientColors.mjs) are a function of the client's id alone, stay off every colour that
-// already means something, and read 4.5:1 as text on every paper's card and ground, measured
-// against dash.css itself so a paper change that breaks one fails here.
+// every half, each level stands clear of the one below, the four derived papers pop (owner,
+// 2026-11-06), the grid's cell casts the card's shadow because it clips, and nothing moves for a
+// viewer who asked for reduced motion or on a touch screen. A client's colour is their Shape
+// Score tier's (clientColors.mjs), drawn on a mark that keeps 3:1 against every paper's card,
+// ground and resting fill, by its own colour or by a neutral ring; the other maps' colours read
+// 4.5:1 as text. Every measurement is against dash.css itself, so a paper change that breaks one
+// fails here.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import * as CC from '../public/newdesign/clientColors.mjs';
 import * as CCApp from '../mobile-app/src/services/clientColors.mjs';
@@ -156,7 +157,7 @@ test('the coach dashboard\'s surfaces take the lifts, and keep today\'s look wit
   for (const { r } of rulesMatching(ROOT, /\.sh-(key|lift)/)) for (const p of ['background', 'background-color', 'color']) assert.equal(declOf(r, p), null, `${r.selector} sets ${p}`);
 });
 
-// ── Client colours ──────────────────────────────────────────────────────────────────────────
+// ── Colour and contrast ─────────────────────────────────────────────────────────────────────
 const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 const rgbOf = (v) => {
   let m = /^#([0-9a-f]{6})$/i.exec(String(v).trim());
@@ -167,21 +168,17 @@ const rgbOf = (v) => {
 const over = (fg, bg) => [0, 1, 2].map((i) => fg[3] * fg[i] + (1 - fg[3]) * bg[i]).concat(1);
 const lum = ([r, g, b]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-const oklab = ([r, g, b]) => {
-  const [R, G, B] = [r, g, b].map(lin);
-  const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B), m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B), s = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
-  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
-};
-const dE = (a, b) => { const p = oklab(rgbOf(a)), q = oklab(rgbOf(b)); return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]); };
-const hueOf = (h) => { const [, a, b] = oklab(rgbOf(h)); return (Math.atan2(b, a) * 180 / Math.PI + 360) % 360; };
 
-// Each paper's surfaces, from its token block (the FIRST block for that paper), composited the
-// way tests/newdesign-paper-pairs.test.mjs does: a see-through card over the ground, and Glass
-// again over each of its glows.
-function surfaces(paper) {
+// A paper's own tokens, from its FIRST block.
+function tokensOf(paper) {
   const open = paper === 'white' ? ':root {' : `html[data-paper="${paper}"] {`;
   const a = CSS.indexOf(open), b = CSS.indexOf('\n}', a);
-  const tok = new Map([...CSS.slice(a, b).matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]));
+  return new Map([...CSS.slice(a, b).matchAll(/^\s*(--sh-[\w-]+)\s*:\s*([^;]+);/gm)].map((m) => [m[1], m[2].trim()]));
+}
+// Each paper's surfaces, composited the way tests/newdesign-paper-pairs.test.mjs does: a
+// see-through card over the ground, and Glass again over each of its glows.
+function surfaces(paper) {
+  const tok = tokensOf(paper);
   const ground = rgbOf(tok.get('--sh-ground'));
   assert.ok(ground && ground[3] === 1, `${paper}: no solid ground`);
   const bases = [['', ground]];
@@ -197,14 +194,94 @@ function surfaces(paper) {
   }
   return out;
 }
-// Every colour the module hands out as text, with the value each paper takes.
+const minOn = (paper, hex) => Math.min(...surfaces(paper).map(([, bg]) => ratio(rgbOf(hex), bg)));
+
+// ── The lifts stand apart, and four papers pop ─────────────────────────────────────────────
+// A shadow layer, parsed: inset, x, y, blur, spread, and its colour (null for transparent).
+const PARTS = /^(inset )?(-?\d+)(?:px)? (-?\d+)(?:px)? (-?\d+)(?:px)?(?: (-?\d+)(?:px)?)? (?:rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)|transparent)$/;
+const parts = (l) => {
+  const m = PARTS.exec(l);
+  assert.ok(m, `"${l}" is not a shadow layer`);
+  return { inset: !!m[1], y: +m[3], blur: +m[4], spread: +(m[5] || 0), rgb: m[6] ? [+m[6], +m[7], +m[8]] : null, a: m[9] ? +m[9] : 0 };
+};
+const isLight = (p) => !!p.rgb && p.rgb[0] + p.rgb[1] + p.rgb[2] > 600;
+const isDarkInk = (p) => !!p.rgb && p.rgb[0] + p.rgb[1] + p.rgb[2] < 200;
+// How far and how dark a lift's cast falls: each outer dark layer's alpha times its reach.
+const cast = (v) => layers(v).map(parts).filter((p) => !p.inset && isDarkInk(p)).reduce((s, p) => s + p.a * (Math.abs(p.y) + p.blur + p.spread), 0);
+// The lit top edge: the brightest light inset layer one pixel down.
+const litEdge = (v) => Math.max(0, ...layers(v).map(parts).filter((p) => p.inset && p.y === 1 && isLight(p)).map((p) => p.a));
+const edgeLayer = (v) => layers(v).map(parts).filter((p) => p.inset && p.y === 1 && isLight(p)).sort((x, y) => y.a - x.a)[0];
+// The shaded bottom lip: the darkest inset layer one pixel up.
+const lip = (v) => Math.max(0, ...layers(v).map(parts).filter((p) => p.inset && p.y === -1 && isDarkInk(p)).map((p) => p.a));
+// Each paper's four levels as one shadow list each (Lifts 1 and 2 are their two halves).
+const levels = (p) => {
+  const m = liftsOf(p);
+  return [m.get('--lift-0'), m.get('--lift-1-edge') + ', ' + m.get('--lift-1-cast'), m.get('--lift-2-edge') + ', ' + m.get('--lift-2-cast'), m.get('--lift-3')];
+};
+
+test('each lift stands above the one below it on every paper, and Lift 2 (Needs you) stands off the board', () => {
+  for (const p of PAPERS) {
+    const s = levels(p).map(cast);
+    // Lift 0 is flat: a hairline of shadow at most.
+    assert.equal(s[0] < 0.5, true, `${p}: Lift 0 is not flat (${s[0].toFixed(2)})`);
+    for (let i = 1; i < s.length; i++) assert.equal(s[i] >= s[i - 1] * 1.15, true, `${p}: Lift ${i} (${s[i].toFixed(1)}) does not stand clear of Lift ${i - 1} (${s[i - 1].toFixed(1)})`);
+    assert.equal(s[2] >= s[1] * 1.6, true, `${p}: Lift 2 (${s[2].toFixed(1)}) is too close to the resting card (${s[1].toFixed(1)}) to stand off the board`);
+    // On a dark paper the lit edge climbs with the lift too, where the cast is the half that hides.
+    if (CC.paperTone(p) === 'dark') {
+      const e = levels(p).map(litEdge);
+      assert.equal(e[2] > e[1] && e[1] > 0, true, `${p}: Lift 2's lit edge (${e[2]}) is not brighter than Lift 1's (${e[1]})`);
+      // A floating panel's edge is at least Lift 2's, except on Dark: the review gave its Lift 3 none.
+      if (p !== 'dark') assert.equal(e[3] >= e[2], true, `${p}: a floating panel's edge is dimmer than Lift 2's`);
+    }
+  }
+});
+
+// The luminance step a lit edge makes over the card it sits on (its contrast with the card).
+function edgeStep(paper, v) {
+  const card = surfaces(paper).find(([w]) => w === '--sh-card')[1];
+  const e = edgeLayer(v);
+  return e ? ratio(over(e.rgb.concat(e.a), card), card) : 1;
+}
+
+test('Bone, Carbon, Night and Glass pop (owner, 2026-11-06), and White and Dark stay the review\'s', () => {
+  const lv = Object.fromEntries(PAPERS.map((p) => [p, levels(p)]));
+  // Bone's card sits close to its ground: a firmer contact shadow and a longer cast than White's.
+  const contact = (v) => layers(v).map(parts).filter((p) => !p.inset && isDarkInk(p)).sort((x, y) => x.blur - y.blur)[0].a;
+  for (const i of [1, 2, 3]) {
+    assert.equal(cast(lv.bone[i]) >= cast(lv.white[i]) * 1.3, true, `Bone's Lift ${i} casts no firmer than White's`);
+    assert.equal(contact(lv.bone[i]) > contact(lv.white[i]), true, `Bone's Lift ${i} has no firmer contact than White's`);
+  }
+  // Carbon, Night and Glass: a brighter lit edge and a darker lip than Dark's, over a deeper cast,
+  // because on their grounds the shadow alone does not show; the edge measured as the step it makes
+  // over the card. Lift 2 adds a hairline of light round the card.
+  for (const p of ['carbon', 'night', 'glass']) {
+    for (const [i, min] of [[1, 1.4], [2, 1.9]]) {
+      assert.equal(edgeStep(p, lv[p][i]) >= min, true, `${p}: Lift ${i}'s lit edge steps ${edgeStep(p, lv[p][i]).toFixed(2)}:1 over the card, under ${min}`);
+      assert.equal(edgeStep(p, lv[p][i]) > edgeStep('dark', lv.dark[i]), true, `${p}: Lift ${i}'s edge is no brighter than Dark's`);
+      assert.equal(lip(lv[p][i]) > lip(lv.dark[i]), true, `${p}: Lift ${i}'s lip is no darker than Dark's`);
+      assert.equal(cast(lv[p][i]) > cast(lv.dark[i]), true, `${p}: Lift ${i} casts no deeper than Dark's`);
+    }
+    const ring = layers(liftsOf(p).get('--lift-2-cast')).map(parts).find((x) => !x.inset && x.y === 0 && x.blur === 0 && x.spread === 1 && isLight(x));
+    assert.equal(!!ring && ring.a > 0, true, `${p}: Lift 2 has no hairline of light round the card`);
+  }
+  // Night's light stays warm, the blue channel under the red and green: no white light on the
+  // eye-sensitive skin.
+  for (const k of liftsOf('night').keys()) {
+    for (const x of layers(liftsOf('night').get(k)).map(parts).filter(isLight)) {
+      assert.equal(x.rgb[2] < x.rgb[1] && x.rgb[1] < x.rgb[0], true, `Night's ${k} has a cold light layer`);
+    }
+  }
+});
+
+// ── Client tier marks ───────────────────────────────────────────────────────────────────────
+// Every colour the module hands out as TEXT, with the value each paper takes. A client's tier
+// colour is never text: it is a mark (below).
 const TEXT = [
-  ...CC.CLIENT_PALETTE.map((c) => ['client ' + c.key, c]),
   ...Object.values(CC.CALENDAR_KINDS).filter((k) => !k.fromClient).map((k) => ['calendar ' + k.key, k]),
   ...Object.values(CC.PROGRAM_TYPES).map((t) => ['program ' + t.key, t]),
 ];
 
-test('every colour reads 4.5:1 as text on each paper\'s card, ground and resting fill', () => {
+test('every text colour reads 4.5:1 on each paper\'s card, ground and resting fill', () => {
   const failures = [];
   for (const p of PAPERS) {
     const tone = CC.paperTone(p);
@@ -214,101 +291,70 @@ test('every colour reads 4.5:1 as text on each paper\'s card, ground and resting
     }
   }
   assert.deepEqual(failures, [], failures.join('\n'));
-  // And the stylesheet picks the same value per paper as the module.
-  const dark = rulesMatching(ROOT, /\.sh-client-ink$/).find(({ r }) => /data-paper/.test(r.selector));
-  const named = dark ? [...dark.r.selector.matchAll(/data-paper="([a-z]+)"/g)].map((m) => m[1]).sort() : [];
-  assert.deepEqual(named, Object.keys(CC.PAPER_TONE).filter((p) => CC.PAPER_TONE[p] === 'dark').sort(), '.sh-client-ink\'s dark papers are not the module\'s');
-  assert.equal(!!dark && declOf(dark.r, 'color') === 'var(--client-ink-dark)', true);
-  const base = rulesMatching(ROOT, /^\.sh-client-ink$/)[0];
-  assert.equal(!!base && declOf(base.r, 'color') === 'var(--client-ink-light)', true);
 });
 
-const PINNED = ['magenta', 'violet', 'raspberry', 'orchid'];
-// Synthetic ids: uuid-shaped, from a hash, so the spread is not tuned to a lucky seed.
-const uuid =(i) => { const h = createHash('sha256').update('client-' + i).digest('hex'); return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`; };
-
-test('a client\'s colour is a function of their id alone: deterministic and stable when the list reorders', () => {
-  const ids = Array.from({ length: 60 }, (_, i) => uuid(i));
-  const first = new Map(ids.map((id) => [id, CC.clientColor(id).key]));
-  // The same roster reversed, re-sorted by the id's last character, and filtered to a slice:
-  // each client keeps the colour it had, however the coach sorts or filters.
-  for (const order of [[...ids].reverse(), [...ids].sort((a, b) => a.slice(-1).localeCompare(b.slice(-1)) || a.localeCompare(b)), ids.slice(7, 19)]) {
-    assert.equal(order.map((id) => CC.clientColor(id).key).every((k, i) => k === first.get(order[i])), true, 'a reordered or filtered roster recoloured a client');
+// The ring a tier mark wears on a paper: dash.css's `.sh-tier-mark` rules resolved in source order,
+// each selector reading which papers (`data-paper`, none for all) and which tier (`data-tier`, none
+// for all) it reaches. The rules are written base, then paper, then paper and tier, each more
+// specific than the last, so the last that applies wins; the guard checks that order holds.
+const MARK_RULES = rulesMatching(ROOT, /\.sh-tier-mark/).filter(({ media }) => !media).map(({ r }) => r);
+const specOf = (sel) => (sel.replace(/:is\([^)]*\)/g, '[x]').match(/\[|\./g) || []).length;
+function ringOf(paper, tier) {
+  let v = null;
+  for (const r of MARK_RULES) {
+    const shadow = declOf(r, 'box-shadow');
+    if (shadow == null) continue;
+    for (const sel of r.selectors) {
+      const papers = [...sel.matchAll(/data-paper="([a-z]+)"/g)].map((m) => m[1]);
+      const tiers = [...sel.matchAll(/data-tier="([a-z]+)"/g)].map((m) => m[1]);
+      if ((papers.length && !papers.includes(paper)) || (tiers.length && !tiers.includes(tier))) continue;
+      v = shadow;
+    }
   }
-  assert.equal(CC.clientColor('  ' + ids[0].toUpperCase() + ' ').key === first.get(ids[0]), true, 'case or spacing changed a colour');
-  // Pinned, so a change to the hash or the palette's order (either recolours every client a
-  // coach has learned) is a decision, not an accident.
-  assert.deepEqual(['c1', 'demo-marcus', '00000000-0000-4000-a000-000000000001', uuid(0)].map((id) => CC.clientColor(id).key), PINNED);
-  // No id, no colour: the caller keeps its plain ink.
-  assert.equal(CC.clientColor(null), null); assert.equal(CC.clientColor(''), null); assert.equal(CC.clientColorVars(undefined), null);
-  assert.deepEqual(CC.clientColorVars(ids[0]), { '--client-ink-light': CC.clientColor(ids[0]).light, '--client-ink-dark': CC.clientColor(ids[0]).dark });
-  assert.equal(CC.clientColor(ids[0], 'night').color === CC.clientColor(ids[0]).dark && CC.clientColor(ids[0], 'bone').color === CC.clientColor(ids[0]).light, true);
-  // The roster colours by the client's id, never by the row index.
-  const roster = read('dashRoster.jsx');
-  assert.equal(/const ink = dashClientInk\(rec\.profile\.id\);/.test(roster), true, 'the roster does not colour by the client\'s id');
-  assert.equal(/dashClientInk\(\s*i\s*\)/.test(roster), false);
-  // The roster's helper, brace-matched out of the shipped source and run against a window with
-  // and without the module: the colour when it is there, today's plain ink when it is not.
-  const at = roster.indexOf('function dashClientInk(');
-  let depth = 0, end = -1;
-  for (let j = roster.indexOf('{', at); j < roster.length; j++) { if (roster[j] === '{') depth++; else if (roster[j] === '}' && --depth === 0) { end = j + 1; break; } }
-  assert.ok(at > 0 && end > at, 'dashClientInk is gone from dashRoster.jsx');
-  const inkFor = (win) => new Function('window', roster.slice(at, end) + '\nreturn dashClientInk;')(win);
-  assert.deepEqual(inkFor({ ShapeClientColors: CC })(ids[0]), { className: 'sh-client-ink', style: CC.clientColorVars(ids[0]) });
-  assert.equal(inkFor({})(ids[0]), null, 'without the module the name does not keep its plain ink');
-  assert.equal(inkFor({ ShapeClientColors: CC })(null), null);
-});
+  return v;
+}
 
-test('ids spread across the whole palette', () => {
-  const n = CC.CLIENT_PALETTE.length, N = 3000;
-  const count = new Array(n).fill(0);
-  for (let i = 0; i < N; i++) count[CC.clientColorIndex(uuid(i))]++;
-  const lo = Math.min(...count), hi = Math.max(...count), want = N / n;
-  assert.equal(lo > want * 0.75 && hi < want * 1.25, true, `uneven spread: ${count.join(' ')}`);
-  // Short ids too (demo data): twelve of them reach most of the palette.
-  const short = new Set(Array.from({ length: 12 }, (_, i) => CC.clientColorIndex('c' + (i + 1))));
-  assert.equal(short.size >= Math.ceil(n * 0.6), true, `twelve short ids reached only ${short.size} colours`);
-});
-
-test('the palette stays off the role, status and kind colours, and its colours are told apart', () => {
-  // The literals the dashboard and the app use, and every paper's own role and status tokens.
-  const reserved = new Set(['#0a8f87', '#34d6c5', '#2ee0c4', '#0a7a72', '#c0533b', '#b24c36', '#e0644b', '#a07a2e', '#86662a', '#d8a23a', '#387a2b', '#7bbf5a', '#f2a03d',
-    CC.CALENDAR_KINDS.checkin.light, CC.CALENDAR_KINDS.checkin.dark, CC.CALENDAR_KINDS.consult.light, CC.CALENDAR_KINDS.consult.dark]);
+test('a tier mark keeps 3:1 against every paper, by its own colour or by a neutral ring', () => {
+  assert.ok(MARK_RULES.length >= 2, 'the tier mark rules moved — re-derive this guard');
+  const specs = MARK_RULES.map((r) => Math.max(...r.selectors.map(specOf)));
+  assert.deepEqual(specs, [...specs].sort((a, b) => a - b), 'a later .sh-tier-mark rule is less specific than an earlier one: source order no longer decides');
+  const base = MARK_RULES.find((r) => r.selector === '.sh-tier-mark');
+  assert.equal(!!base && declOf(base, 'background') === 'var(--tier-mark)', true, 'the mark does not paint --tier-mark');
+  const failures = [];
   for (const p of PAPERS) {
-    const open = p === 'white' ? ':root {' : `html[data-paper="${p}"] {`;
-    const a = CSS.indexOf(open), b = CSS.indexOf('\n}', a);
-    for (const m of CSS.slice(a, b).matchAll(/^\s*--sh-(accent|rust|rust2|gold|green|heat-trainer|heat-nutri|heat-client)\s*:\s*(#[0-9a-f]{6});/gim)) reserved.add(m[2].toLowerCase());
+    const ink2 = tokensOf(p).get('--sh-ink2');
+    for (const t of CC.MEMBER_TIERS) {
+      const own = minOn(p, t.color);
+      const shadow = ringOf(p, t.key) || 'none';
+      const ring = /^inset 0 0 0 1px var\(--sh-ink2[,)]/.test(shadow);
+      if (own < 3 && !ring) failures.push(`${t.label} (${t.color}) reads ${own.toFixed(2)}:1 on ${p} and wears no ring`);
+      if (ring && minOn(p, ink2) < 3) failures.push(`${p}'s ring (${ink2}) reads under 3:1`);
+      // On a dark paper the ring is only where the colour needs it; White and Bone ring every tier.
+      if (CC.paperTone(p) === 'dark' && own >= 3 && shadow !== 'none') failures.push(`${t.label} wears a ring on ${p}, where its colour reads ${own.toFixed(2)}:1`);
+    }
   }
-  assert.ok(reserved.size >= 20, `read ${reserved.size} reserved colours — the sweep stopped matching`);
-  const near = [];
-  for (const c of CC.CLIENT_PALETTE) for (const v of [c.light, c.dark]) {
-    for (const r of reserved) { const d = dE(v, r); if (d < 0.08) near.push(`${c.key} ${v} is ${d.toFixed(3)} from ${r}`); }
-    // Red, amber, gold, green and teal live between 20 and 200 degrees of OKLCH hue.
-    const h = hueOf(v);
-    if (h > 20 && h < 200) near.push(`${c.key} ${v} sits in the status and role hues (${h.toFixed(0)} degrees)`);
-  }
-  assert.deepEqual(near, [], near.join('\n'));
-  const close = [];
-  const P = CC.CLIENT_PALETTE;
-  for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) for (const t of ['light', 'dark']) {
-    const d = dE(P[i][t], P[j][t]); if (d < 0.06) close.push(`${P[i].key} and ${P[j].key} (${t}) are ${d.toFixed(3)} apart`);
-  }
-  assert.deepEqual(close, [], close.join('\n'));
-  assert.equal(P.length >= 10 && new Set(P.map((c) => c.key)).size === P.length, true);
+  assert.deepEqual(failures, [], failures.join('\n'));
+  // The measurement that made the ring necessary: Peak and Legend all but vanish on White.
+  assert.equal(minOn('white', CC.clientTier('peak').color) < 2 && minOn('white', CC.clientTier('legend').color) < 2, true);
+  // And the old per-paper text inks are gone.
+  assert.equal(/sh-client-ink|--client-ink-/.test(CSS), false, 'the retired client ink rules are back');
 });
 
 test('the maps answer per paper, and the coach pages load the module the app re-exports', () => {
   assert.equal(CC.calendarKindColor('checkin', 'dark').color, CC.CALENDAR_KINDS.checkin.dark);
   assert.equal(CC.calendarKindColor('timeoff').hatch, true);
-  const s = CC.calendarKindColor('session', 'glass', uuid(3));
-  assert.equal(!!s && s.color === CC.clientColor(uuid(3)).dark && s.client === CC.clientColor(uuid(3)).key, true, 'a session is not drawn in its client\'s colour');
+  // A session is its client's tier colour, the same on every paper; an unknown tier is no colour.
+  const s = CC.calendarKindColor('session', 'glass', 2400);
+  assert.equal(!!s && s.color === CC.clientTier('form').color && s.tier === 'form' && s.title === 'Form tier', true, 'a session is not drawn in its client\'s tier colour');
+  assert.equal(CC.calendarKindColor('session', 'white', 2400).color === s.color, true, 'a session\'s colour moved with the paper');
   assert.equal(CC.calendarKindColor('session', 'white', null), null);
+  assert.equal(CC.calendarKindColor('session', 'white'), null);
   assert.equal(CC.calendarKindColor('nope'), null);
   assert.deepEqual(Object.keys(CC.PROGRAM_TYPES), ['cut', 'maintain', 'build', 'race', 'intake']);
   assert.equal(CC.programTypeColor('Build', 'carbon').color, CC.PROGRAM_TYPES.build.dark);
   assert.equal(CC.programTypeColor('nope'), null);
   // The app's entry point is the same module, not a copy.
-  assert.equal(CCApp.clientColor === CC.clientColor && CCApp.CLIENT_PALETTE === CC.CLIENT_PALETTE, true);
+  assert.equal(CCApp.clientTier === CC.clientTier && CCApp.MEMBER_TIERS === CC.MEMBER_TIERS && CCApp.calendarKindColor === CC.calendarKindColor, true);
   for (const page of ['TrainerApp.html', 'NutritionistApp.html']) {
     const html = read(page);
     const tag = /<script type="module">import \* as (\w+) from "\/newdesign\/clientColors\.mjs\?v=\d{8}"; window\.ShapeClientColors = \1;<\/script>/.exec(html);

@@ -25,7 +25,7 @@
   // Night is the low-blue-light skin, so its tour is too: the card, ink, label and accents
   // are Night's own tokens from dash.css (--sh-card, --sh-ink, --sh-deep, --sh-accent and
   // --sh-gold), where any other dark skin's tour keeps the dark teal (Codex, #2481).
-  var NIGHT = { paper: '#1e150c', ink: '#f0d4a4', onAccent: '#1c0f02', accent: { client: '#f2a03d', trainer: '#f2a03d', nutritionist: '#e2c25a' } };
+  var NIGHT = { paper: '#1e150c', ink: '#f0d4a4', onAccent: '#1c0f02', accent: { client: '#ffa01e', trainer: '#ffa01e', nutritionist: '#e2c25a' } };
   function isNightPaper() { try { return document.documentElement.getAttribute('data-paper') === 'night'; } catch (e) { return false; } }
   // Dedicated web keys — NEVER write the app's client_onboarding / coach_onboarding
   // docs from here (replace-semantics would clobber the app tour's own seen flag).

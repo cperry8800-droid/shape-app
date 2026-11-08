@@ -1,40 +1,38 @@
-// Client colours: one fixed colour per client on every page, and the small fixed maps for
-// calendar kinds and program types (the owner's coach cockpit, 2026-11: "Every client has one
-// fixed colour on every page … calendar kinds, program types and playlists get their own.
-// Status is always a labelled chip."). Pure: no DOM, no storage, no network.
+// Client colours: a client's colour is their current Shape Score tier's (the owner, 2026-11-06:
+// "client colors should match their current tier in shape score", then "client colors dont
+// change"), and the small fixed maps for calendar kinds and program types. Status is always a
+// labelled chip, never a colour alone: red, gold and green are tiers here too. Pure: no DOM, no
+// storage, no network.
 //
 // CANONICAL here; the website loads it as `window.ShapeClientColors` (TrainerApp.html,
 // NutritionistApp.html) and mobile-app/src/services/clientColors.mjs re-exports it for the
 // app and for Node tests.
 //
-// ⚠ A CLIENT'S COLOUR IS A FUNCTION OF THEIR ID AND NOTHING ELSE: never their place in a list,
-// a sort, a filter or a roster's length, or the same client turns another colour when the
-// coach re-sorts. Two clients CAN share a colour (ten colours, any number of clients); the name
-// is always drawn beside it, so the colour is a second cue and never the only one.
+// ⚠ A CLIENT'S COLOUR IS THEIR TIER'S, EXACTLY, ON EVERY PAPER. The five are tierColors.jsx's
+// member ladder (the app's BS_TIER_COLORS holds the same), at the rank thresholds the Score page
+// and the database use (award_tier_bonuses, /api/client/score: 0, 750, 2,000, 5,000, 15,000 rank
+// points, the high-water mark of points earned without Store purchases or tier bonuses). A
+// colour changes only when the client's tier does, and the tier never comes down.
+// tests/client-tier-colours.test.mjs holds the three in step.
 //
-// ⚠ THE PALETTE STAYS OFF EVERY COLOUR THAT ALREADY MEANS SOMETHING: Shape's teal (the brand,
-// and "new"), trainer rust and nutritionist gold (the roles), red, amber and green (status),
-// Night's amber, and the check-in azure below. What is left is the blue-to-pink half of the
-// wheel, which holds ten colours at least a just-visible step apart (OKLab distance 0.069 or
-// more, and 0.08 or more from every reserved colour); twelve would put two pairs at 0.045.
+// ⚠ THE COLOUR GOES ON A MARK, NEVER ON THE NAME. Peak and Legend read about 1.5:1 as text on
+// White, so the name stays in the page's ink and the tier is drawn as a gem or a dot beside it
+// (`.sh-tier-mark` in dash.css), with the tier in words for hover and assistive tech
+// ("Form tier"). A mark keeps 3:1 against its paper (non-text contrast): where the exact colour
+// falls under that, dash.css gives the mark a thin neutral ring instead of changing its colour.
+// tests/dash-depth.test.mjs measures every pair against dash.css itself.
 //
-// ⚠ EACH COLOUR IS TWO VALUES, ONE PER KIND OF PAPER, and each is TEXT-SAFE: `light` reads
-// 4.5:1 or better on White's and Bone's card, ground and resting fill, `dark` on the card and
-// ground of Dark, Carbon, Night and Glass (Glass's also over each of its glows). A name drawn
-// in it keeps AA. tests/dash-depth.test.mjs measures every value against dash.css itself.
+// ⚠ AN UNKNOWN TIER IS NO TIER, NEVER RAW. A score not read yet, a read that failed, a client
+// with no reading, the preview's client without one: every helper answers null, and the caller
+// keeps its plain ink and draws no colour. Only a number of points (or a tier's name) is a tier.
 
-/** The ten client colours, in hue order. `key` is stable: store or compare that, never an index. */
-export const CLIENT_PALETTE = Object.freeze([
-  Object.freeze({ key: 'ocean', label: 'Ocean', light: '#054d60', dark: '#15b6df' }),
-  Object.freeze({ key: 'cobalt', label: 'Cobalt', light: '#03328f', dark: '#73a3fc' }),
-  Object.freeze({ key: 'iris', label: 'Iris', light: '#3f4fbb', dark: '#9fb3fe' }),
-  Object.freeze({ key: 'indigo', label: 'Indigo', light: '#4b34a3', dark: '#c5c4fd' }),
-  Object.freeze({ key: 'violet', label: 'Violet', light: '#4e1586', dark: '#b093e5' }),
-  Object.freeze({ key: 'purple', label: 'Purple', light: '#762c95', dark: '#dfa7fc' }),
-  Object.freeze({ key: 'orchid', label: 'Orchid', light: '#640868', dark: '#e484e7' }),
-  Object.freeze({ key: 'magenta', label: 'Magenta', light: '#82126c', dark: '#ca8fb8' }),
-  Object.freeze({ key: 'pink', label: 'Pink', light: '#9f2b70', dark: '#fe9dd0' }),
-  Object.freeze({ key: 'raspberry', label: 'Raspberry', light: '#6f0942', dark: '#fe7bb5' }),
+/** The member ladder, lowest first. `key` is stable: store or compare that, never an index. */
+export const MEMBER_TIERS = Object.freeze([
+  Object.freeze({ key: 'raw', label: 'Raw', min: 0, color: '#5fa96e' }),
+  Object.freeze({ key: 'tempo', label: 'Tempo', min: 750, color: '#d8a23a' }),
+  Object.freeze({ key: 'form', label: 'Form', min: 2000, color: '#e0463c' }),
+  Object.freeze({ key: 'peak', label: 'Peak', min: 5000, color: '#8fe3e6' }),
+  Object.freeze({ key: 'legend', label: 'Legend', min: 15000, color: '#34d6c5' }),
 ]);
 
 /** Which value each paper (`<html data-paper>`) takes. White is the default, with no attribute. */
@@ -45,46 +43,49 @@ export function paperTone(paper) {
   return PAPER_TONE[String(paper || '').trim().toLowerCase()] || 'light';
 }
 
-// FNV-1a, 32-bit: small, fast, and spreads short and long ids (uuids, demo slugs) evenly.
-function hash32(s) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return h >>> 0;
-}
-const idKey = (id) => (id == null ? '' : String(id).trim().toLowerCase());
-
-/** The palette index for a client id, or -1 for no id. Case and surrounding space do not count. */
-export function clientColorIndex(id) {
-  const k = idKey(id);
-  return k ? hash32(k) % CLIENT_PALETTE.length : -1;
-}
-
-/**
- * A client's colour: { key, label, light, dark, color }, where `color` is the value for `paper`
- * (a `data-paper` name; omitted means White). null for a missing id, so a caller can fall back
- * to its plain ink rather than paint an unknown client the first colour.
- */
-export function clientColor(id, paper) {
-  const i = clientColorIndex(id);
-  if (i < 0) return null;
-  const c = CLIENT_PALETTE[i];
-  return { key: c.key, label: c.label, light: c.light, dark: c.dark, color: paperTone(paper) === 'dark' ? c.dark : c.light };
+// A tier from rank points (a finite number, 0 or more) or from a tier's name ('form', 'Form').
+// Anything else, null and NaN and a negative number and a numeric string included, is no tier.
+function tierOf(v) {
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) return null;
+    // A negative number reaches no rung (Raw starts at 0), so it stays no tier.
+    let t = null;
+    for (const x of MEMBER_TIERS) if (v >= x.min) t = x;
+    return t;
+  }
+  if (typeof v === 'string') {
+    const k = v.trim().toLowerCase();
+    return MEMBER_TIERS.find((x) => x.key === k) || null;
+  }
+  return null;
 }
 
 /**
- * The inline custom properties for dash.css's `.sh-client-ink`, which picks the value for the
- * paper in force, so a paper switch recolours the name with no render. null for a missing id.
+ * A client's tier from their rank points or a tier's name: { key, label, min, color, title },
+ * where `color` is the tier's own on every paper and `title` the tier in words ("Form tier").
+ * null when the tier is unknown, so the caller keeps its plain ink rather than claim Raw.
  */
-export function clientColorVars(id) {
-  const c = clientColor(id);
-  return c ? { '--client-ink-light': c.light, '--client-ink-dark': c.dark } : null;
+export function clientTier(pointsOrTier) {
+  const t = tierOf(pointsOrTier);
+  return t ? { key: t.key, label: t.label, min: t.min, color: t.color, title: t.label + ' tier' } : null;
+}
+
+/**
+ * The inline custom property for dash.css's `.sh-tier-mark` (`--tier-mark`, the tier's colour),
+ * or null for an unknown tier. The mark also takes `data-tier`, which is how dash.css rings it on
+ * a paper where the colour alone would not keep 3:1.
+ */
+export function clientTierVars(pointsOrTier) {
+  const t = tierOf(pointsOrTier);
+  return t ? { '--tier-mark': t.color } : null;
 }
 
 // ── Calendar kinds ──────────────────────────────────────────────────────────────────────────
-// A session is drawn in its client's colour; the other kinds have their own, and every block
-// also says its kind in words. Check-ins azure, consults gold, time off hatched in a neutral
-// (cockpit). The azure is the paper's own sky; the gold one step deeper than --sh-gold, which
-// reads 3.8:1 on Bone's ground.
+// A session is drawn in its client's tier colour; the other kinds have their own, and every
+// block also says its kind in words. Check-ins azure, consults gold, time off hatched in a
+// neutral (cockpit). The azure is the paper's own sky; the gold one step deeper than --sh-gold,
+// which reads 3.8:1 on Bone's ground. ⚠ Consult's dark gold is Tempo's colour and the azure
+// sits near Peak's: the kind's label, never the colour, tells a consult from a Tempo session.
 export const CALENDAR_KINDS = Object.freeze({
   session: Object.freeze({ key: 'session', label: 'Session', fromClient: true }),
   checkin: Object.freeze({ key: 'checkin', label: 'Check-in', light: '#1b5f8a', dark: '#7ed4ff' }),
@@ -94,14 +95,15 @@ export const CALENDAR_KINDS = Object.freeze({
 
 /**
  * A calendar block's colour: { key, label, light, dark, color, hatch }. A session takes its
- * client's colour (`clientId`), or null when it has none; an unknown kind is null.
+ * client's tier colour (`clientTier`: rank points or a tier's name), the same on every paper,
+ * with `tier` and `title` beside it; null when that tier is unknown. An unknown kind is null.
  */
-export function calendarKindColor(kind, paper, clientId) {
+export function calendarKindColor(kind, paper, clientTierOrPoints) {
   const k = CALENDAR_KINDS[kind];
   if (!k) return null;
   if (k.fromClient) {
-    const c = clientColor(clientId, paper);
-    return c ? { ...c, key: k.key, label: k.label, client: c.key, hatch: false } : null;
+    const t = clientTier(clientTierOrPoints);
+    return t ? { key: k.key, label: k.label, light: t.color, dark: t.color, color: t.color, tier: t.key, title: t.title, hatch: false } : null;
   }
   return { key: k.key, label: k.label, light: k.light, dark: k.dark, color: paperTone(paper) === 'dark' ? k.dark : k.light, hatch: !!k.hatch };
 }

@@ -830,14 +830,18 @@ function DashRosterTiles({ triage, filters, value, onChange, loading }) {
   );
 }
 
-// A client's fixed colour for their name (clientColors.mjs): the two text-safe values as
-// inline custom properties, which dash.css's `.sh-client-ink` picks between by paper. Read at
-// CALL time, because the module tag that sets window.ShapeClientColors is only on the two
-// coach app pages; anywhere else, and before it loads, the name keeps the plain ink.
-function dashClientInk(id) {
+// A client's colour is their Shape Score tier's (clientColors.mjs), drawn as the gem before the
+// name, never on the name, which keeps the row's ink: { tier, title, style }, the tier in words
+// for hover and assistive tech, and `--tier-mark` for dash.css's `.sh-tier-mark`. `points` is the
+// record's `rankPoints` (useDashboard). Read at CALL time, because the module tag that sets
+// window.ShapeClientColors is only on the two coach app pages. null for an unknown tier (not
+// read, a failed read, no module): no colour, never Raw.
+function dashClientTierMark(points) {
   const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
-  const vars = CC && typeof CC.clientColorVars === "function" ? CC.clientColorVars(id) : null;
-  return vars ? { className: "sh-client-ink", style: vars } : null;
+  if (typeof points !== "number" || !Number.isFinite(points) || points < 0) return null;
+  if (!CC || typeof CC.clientTier !== "function" || typeof CC.clientTierVars !== "function") return null;
+  const t = CC.clientTier(points), vars = CC.clientTierVars(points);
+  return t && vars ? { tier: t.key, title: t.title, style: vars } : null;
 }
 
 // ── Roster table — triage-ordered rows + role-configured columns ─────────────
@@ -932,7 +936,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
       {rows.map((r, i) => {
         const rec = r.client;
         const sevColor = r.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[r.severity];
-        const ink = dashClientInk(rec.profile.id);
+        const tier = dashClientTierMark(rec.rankPoints);
         return (
           <div
             key={rec.profile.id || i}
@@ -940,7 +944,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(rec.profile.id); } }}
             role="button"
             tabIndex={0}
-            aria-label={"Open " + rec.profile.name + " drilldown"}
+            aria-label={"Open " + rec.profile.name + " drilldown" + (tier ? ", " + tier.title : "")}
             data-track="Open client drilldown"
             style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}
           >
@@ -948,10 +952,15 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
                 minimum width the name column is ~130px, and a "STREAK BROKEN" pill beside
                 it cut "Marcus T." to "M…" (measured at 390px, 2026-10-15). */}
             <div style={{ display: "flex", gap: 10, rowGap: 4, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
-              <span style={{ width: 7, height: 7, flexShrink: 0, borderRadius: 2, background: sevColor }} />
-              {/* The name in the client's own colour, the same on every page. The square
-                  before it is the status, a separate thing: no client colour is a status hue. */}
-              <span className={ink ? ink.className : undefined} style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...(ink ? ink.style : null) }}>{rec.profile.name}</span>
+              {/* ⚠ THE SQUARE BEFORE THE NAME IS THE CLIENT'S TIER, NOT THEIR STATUS (owner,
+                  2026-11-06). Red, gold and green are tiers now, so the status is the labelled
+                  pill after the name and never a colour alone; a row with nothing flagged has no
+                  pill. An unknown tier is a hollow square that claims nothing. The name keeps
+                  the row's ink: Peak and Legend would not read as text on White. */}
+              {tier
+                ? <span className="sh-tier-mark" data-tier={tier.tier} role="img" aria-label={tier.title} title={tier.title} style={{ ...tier.style, width: 8, height: 8, flexShrink: 0, borderRadius: 2 }} />
+                : <span aria-hidden="true" data-tier-unknown="" style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, boxShadow: "inset 0 0 0 1px var(--sh-line2, #413d38)" }} />}
+              <span title={tier ? tier.title : undefined} style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.profile.name}</span>
               {/* ⚠ typeof, not truthiness — 0 is a real age. Absence renders as
                   nothing, never as a placeholder or "private". */}
               {typeof ages[rec.profile.id] === "number" && (

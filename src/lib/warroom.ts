@@ -624,6 +624,23 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach dashboard: a client\'s colour is their Shape Score tier, and the lifts pop on Bone, Carbon, Night and Glass (#2630). No migration',
+      items: [
+        { label: 'Owner, 2026-11-06: "client colors should match their current tier in shape score", "client colors dont change … only if their tier changes", and of Night\'s colours and the shadow depths, "make them pop"', status: 'done' },
+        { label: '#2630 the roster routes send each client\'s rankPoints through the existing get_user_points (shape_rank_points, the Score page\'s basis; checked live: authenticated may run it, anon may not); a failed read is null (tier unknown, no colour), no ledger is 0 (Raw); the routes answer private, no-store', status: 'done' },
+        { label: '#2630 the colour is the tier\'s own on every paper, on a mark beside the name (gems in Needs you, a square on the roster, a dot in the brief, Up next and the timeline), the tier in words for hover and screen readers; a ring where a tier is under 3:1 on its paper; the roster\'s bare status square is gone (status is its labelled pill)', status: 'done' },
+        { label: '#2630 the lifts: Bone a firmer cast and a lit lip; Carbon, Night and Glass a brighter edge, a darker lip, a deeper cast and a hairline round Needs you; Night\'s amber #ffa01e', status: 'done' },
+        { label: '#2630 review: Codex P2 (the shells\' clientColors.mjs?v= key served the old API to a returning coach) fixed with a new key and a pin; CI caught two pins (a ring fallback, the roster row\'s label). Mutation rounds: 42/42, 26/26, 62/62', status: 'done' },
+        { label: 'Left by #2630: clientColors.mjs is loaded with a hand-set ?v= (the build re-keys only babel tags and dash.css): a change to its exports needs a new key in TrainerApp.html and NutritionistApp.html', status: 'pending' },
+        { label: 'Left by #2630: consult\'s dark gold is Tempo\'s colour and check-in azure sits near Peak\'s; the calendar kind\'s label tells them apart', status: 'pending' },
+        { label: 'Owner, 2026-11-08: profile builds are on hold for now, for the owner\'s own reviews', status: 'manual' },
+        { label: 'Owner, 2026-11-08: the app and website name back to Shape (the triangles over SHAPE); Club Shape stays as the virtual club. In its own PR', status: 'pending' },
+        { label: 'Owner, 2026-11-08, the app: each user chooses where the nav bar sits: the bottom, or upright on the left or right side of the screen', status: 'pending' },
+        { label: 'Owner, 2026-11-08, the app: Home becomes the Wall activity feed; Chat keeps only the chat pages; Profile becomes today\'s Home; a new tab is the user\'s own public profile (waits on the profile hold)', status: 'pending' },
+        { label: 'OWNER: on the deployed site, open coach Today and Clients on White and Night: each client\'s mark is their tier\'s colour, and Needs you stands off the board', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach dashboard, part 2: depth and client colours, Today as a six-widget board, the real next payout, and CI in four shards (#2625, #2626, #2627, #2628, #2629)',
       items: [
         { label: '#2625 the unit and mount tests run in four shards behind one gate job, "Tests (unit + mount)"; CI takes about 5 to 7 minutes', status: 'done' },
@@ -638,7 +655,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Left by #2628: coaches.jsx\'s Today copy and screenshots describe the old layout; no roster logging trend (records hold 7 days); no ⚙ on At a glance', status: 'pending' },
         { label: 'Left by #2629: the sidebar money card still says "payouts connect soon"; Business prints Stripe arrival dates on the device\'s clock (a day early west of UTC)', status: 'pending' },
         { label: 'Left by #2629: a coach who moved, resized or hid a card on #2628\'s board before #2629 shipped saved the new keys, so their earlier layout is not copied', status: 'pending' },
-        { label: 'OWNER: decide #2627\'s client colours: ten hues, not twelve; no mint for clients; whether two clients may share one; Night\'s blue and purple; the lift values derived for Bone, Carbon, Night and Glass', status: 'manual' },
+        { label: 'Decided by the owner, 2026-11-06: client colours are Shape Score tiers, and the four derived papers pop (#2630 replaces #2627\'s ten hues)', status: 'done' },
         { label: 'OWNER: on the deployed site, open coach Today with a saved layout (it moves to My earlier dashboard), a real payout on its way, and a client shared with a nutritionist', status: 'manual' },
       ],
     },

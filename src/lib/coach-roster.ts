@@ -2,6 +2,8 @@
 // Read-only over existing tables (trainers/nutritionists, subscriptions,
 // sessions) — no new schema. Per-client adherence / at-risk analytics are
 // intentionally NOT here: that needs client data a coach can't read via RLS.
+// Each client's Shape Score rank points ride along (`rankPoints`, the tier the
+// dashboard colours them by), from the existing get_user_points read.
 //
 // Shared by the trainer and nutritionist routes, which differ only in the
 // provider table, the provider_role filter, and the isTrainer/isNutritionist
@@ -13,6 +15,12 @@ import { DAY_MS } from '@/lib/time';
 import { clientNames } from '@/lib/coach-messages';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
 import { OPEN_SUB_STATUSES, openSubsAt } from './coach-trajectory.mjs';
+import { rosterRankPoints } from './roster-rank-points.mjs';
+
+// A coach's roster is theirs alone: never stored by a browser or a shared cache.
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };
+const privateJson = (body: unknown, init?: { status?: number }) =>
+  NextResponse.json(body, { ...(init || {}), headers: PRIVATE_HEADERS });
 
 // The columns the roster reads from a subscriptions row (select('*'), so a pre-migration database
 // simply leaves origin and fee_bps undefined).
@@ -70,7 +78,7 @@ export async function coachClientsResponse(
   const user = await currentUser(request);
 
   if (!user) {
-    return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
+    return privateJson({ error: 'Authentication required.' }, { status: 401 });
   }
   const supabase = await clientForRequest(request);
 
@@ -85,7 +93,7 @@ export async function coachClientsResponse(
 
   const providerId: number | null = providerRow?.id ?? null;
   if (providerId == null) {
-    return NextResponse.json({ [roleKey]: false, clients: [], totals: { active: 0, mrrCents: 0 } });
+    return privateJson({ [roleKey]: false, clients: [], totals: { active: 0, mrrCents: 0 } });
   }
 
   // ⚠ THE ERROR IS KEPT, because dropping it turns "we could not read what
@@ -200,7 +208,12 @@ export async function coachClientsResponse(
   // lookup keeps the booking names, as before.
   const bookedNames = new Map<string, string>();
   for (const e of byClient.values()) if (e.id && e.name !== 'Client') bookedNames.set(e.id, e.name);
-  const names = await clientNames(supabase, [...byClient.values()].map((e) => e.id).filter((id): id is string => !!id), bookedNames);
+  const rosterIds = [...byClient.values()].map((e) => e.id).filter((id): id is string => !!id);
+  // The names and each client's Shape Score rank points (their tier colour) in one round trip.
+  const [names, rankPoints] = await Promise.all([
+    clientNames(supabase, rosterIds, bookedNames),
+    rosterRankPoints(supabase, rosterIds),
+  ]);
   for (const e of byClient.values()) {
     const name = e.id ? names.get(e.id) : undefined;
     if (name) e.name = name;
@@ -254,12 +267,16 @@ export async function coachClientsResponse(
         onPlan: subsUnknown ? null : e.plans > 0,
         // A renewal Stripe is retrying (past_due): still a client, with a mark beside the name.
         paymentRetrying: e.retrying,
+        // ⚠ THE TIER'S BASIS, OR NULL WHEN IT WAS NOT READ (roster-rank-points.mjs): the client's
+        // Shape Score rank points, which the dashboard draws as their tier's colour. null (a read
+        // that failed, a row with no account) is "tier unknown", never 0: 0 is Raw.
+        rankPoints: e.id ? rankPoints.get(e.id.toLowerCase()) ?? null : null,
       };
     });
 
   const mrrCents = clients.reduce((sum, c) => sum + (c.mrrCents ?? 0), 0);
 
-  return NextResponse.json({
+  return privateJson({
     [roleKey]: true,
     clients,
     // `active` is the list (people with a plan or a recent session); `onPlan` is the people with an

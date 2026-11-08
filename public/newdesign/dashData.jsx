@@ -144,6 +144,9 @@ async function _dashOverviews(ids) {
   return out;
 }
 
+// Rank points as the roster sends them: a finite number, 0 or more, or null for anything else.
+function dashRankPoints(v) { return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null; }
+
 // Map one roster row + its (optional) shared-overview into a unified record.
 //
 // `notesByClient` is the coach's own `coach_client_notes` doc, read ONCE for
@@ -184,6 +187,11 @@ function _dashRecordFromLive(row, ov, notesByClient, progressRead) {
     // joinedAt: the earliest live subscription, which the engine reads for a new client's first
     // week (client-onboarding review, M13: "No logs 7d+" on day one).
     profile: { id: row.id, name: row.name, isNew: !!row.isNew, status: row.status || null, joinedAt: row.joinedAt || null },
+    // The client's Shape Score rank points, which the page draws as their tier's colour (the
+    // roster route's `rankPoints`). ⚠ null is "tier unknown" (not read, a failed read, a route
+    // from before the field), never 0: 0 is a measured Raw. Checked inline (dashRankPoints' rule):
+    // tests lift this function out of the file on its own.
+    rankPoints: typeof row.rankPoints === "number" && Number.isFinite(row.rankPoints) && row.rankPoints >= 0 ? row.rankPoints : null,
     // Who they are, for the board's first stage: the overview's coach-only intake rows (fix 2c).
     intake: ov && ov.intake ? ov.intake : null,
     // The last few check-ins themselves (week_of · ratings · wins · struggles ·
@@ -684,9 +692,18 @@ function useDashboard(role, opts) {
         const records = rows.map((row, i) => {
           const cached = _dashCache.get(_dashOverviewKey(row.id));
           if (overviews[i] && cached) lastProgressRead.current.set(row.id, new Date(cached.at).toISOString());
-          // A quiet re-read keeps the record a client had when their overview failed this time.
-          if (!overviews[i] && before && before.has(row.id)) return before.get(row.id);
-          return _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
+          // A quiet re-read keeps the record a client had when their overview failed this time,
+          // with the tier this roster read sent when it sent one.
+          if (!overviews[i] && before && before.has(row.id)) {
+            const kept = before.get(row.id);
+            const fresh = dashRankPoints(row.rankPoints);
+            return fresh != null && fresh !== kept.rankPoints ? { ...kept, rankPoints: fresh } : kept;
+          }
+          const rec = _dashRecordFromLive(row, overviews[i], notes, { state: overviews[i] ? "ready" : "unavailable", checkedAt: lastProgressRead.current.get(row.id) || null });
+          // Likewise the tier: a re-read whose rank read failed keeps the one the page had read (a
+          // tier never comes down, so it is still a floor), rather than dropping the colour.
+          const prior = rec.rankPoints == null && before && before.has(row.id) ? before.get(row.id).rankPoints : null;
+          return prior != null ? { ...rec, rankPoints: prior } : rec;
         });
         const ctx = { dismissals, reviews };
         // Likewise a dismissals or reviews read that fails on a quiet re-read keeps what the page had.
@@ -1774,7 +1791,7 @@ const DASH_PAPER_OPTS = [
   ["bone", "Bone", "Warm off-white", "#ebe3d2", "#f8f4ec", "#1a160e", "#086b64"],
   ["dark", "Black", "The previous dark tones", "#1a1612", "#25211d", "#f2ede4", "#2ee0c4"],
   ["carbon", "Carbon", "True black, steel ink", "#000000", "#0f1114", "#e2e6eb", "#2ee0c4"],
-  ["night", "Night", "Low blue light, for evenings", "#120b05", "#1e150c", "#f0d4a4", "#f2a03d"],
+  ["night", "Night", "Low blue light, for evenings", "#120b05", "#1e150c", "#f0d4a4", "#ffa01e"],
   ["glass", "Glass", "See-through panels over a lit ground", "#0a1020", "rgba(255,255,255,0.1)", "#eef2f8", "#2ee0c4"],
 ];
 function dashPaperKey(p) { return DASH_PAPERS.indexOf(p) >= 0 ? p : "light"; }

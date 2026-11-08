@@ -1,6 +1,8 @@
 // Canonical Shape Score tier-color palette — ONE source of truth for the website
 // surfaces (the mobile app's BS_TIER_COLORS in iosAppBroadsheetClient.jsx holds
-// the same values; keep the two in sync). Window-exposed so any babel-standalone
+// the same values, and so does clientColors.mjs's MEMBER_TIERS, which colours a
+// coach's clients by tier; tests/client-tier-colours.test.mjs keeps the three in
+// sync). Window-exposed so any babel-standalone
 // page that loads this script can read the same map. Each consumer also keeps a
 // local fallback to these exact values, so a page that hasn't loaded this module
 // still renders the canonical colors (no hard load-order dependency).
