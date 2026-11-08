@@ -523,8 +523,8 @@ test('the waiting list: members and what they\'d bring at the listing price, and
   assert.equal(pv.div.querySelector('button') == null, true);
   assert.equal(pv.div.querySelector('[aria-disabled="true"]').textContent, 'Reopen my listing');
   await pv.unmount();
-  for (const [waiting, re] of [[undefined, /Reading your waiting list…/], [null, /Your waiting list couldn't be read just now\./], [0, /No one is waiting\./]]) {
-    const x = await mount(React.createElement(B.DbzWaitlistCard, { preview: false, waiting, rateCents: 18000, capacity: { effective: true }, role: 'trainer' }));
+  for (const [waiting, re, capacity] of [[undefined, /Reading your waiting list…/, { effective: true }], [null, /Your waiting list couldn't be read just now\./, { effective: true }], [0, /No one is waiting\./, { effective: false }], [0, /No one is waiting\./, null]]) {
+    const x = await mount(React.createElement(B.DbzWaitlistCard, { preview: false, waiting, rateCents: 18000, capacity, role: 'trainer' }));
     assert.match(x.text(), re);
     assert.equal(x.div.querySelectorAll('button').length, 0);
     await x.unmount();
@@ -717,4 +717,74 @@ test('each board has one filled control, no nested buttons, and its one thing to
     assert.deepEqual([...m.div.querySelectorAll('[data-card] > section[data-dash-lift="2"]')].map((s) => s.parentElement.getAttribute('data-card')), lift2[section], section);
     await m.unmount();
   }
+});
+
+test('Codex on #2636: an unread plan is neither at risk nor safe, a full listing with no one waiting reopens, and no funnel bar runs past its track', async () => {
+  // 1. The roster sends onPlan: null when it couldn't read subscriptions. Such a client is not named as
+  //    likely to leave, not counted as calm, and not put on the tenure line; each card says so.
+  const live = ROSTER.map((c) => ({ ...c, profile: { ...c.profile }, payments: { ...c.payments }, progressRead: { state: 'ready' } }));
+  const need = DashSignals.coachNeeds(DashSignals.getTriageFeed('trainer', live)).now.map((r) => r.client.profile.name);
+  const unreadName = need[0];
+  live.find((c) => c.profile.name === unreadName).payments.onPlan = null;
+  const model = B.dbzLeaveModel({ triage: DashSignals.getTriageFeed('trainer', live), clientsState: 'ready' });
+  assert.equal(model.rows.some((r) => r.name === unreadName), false);
+  assert.equal(model.planUnread, 1);
+  const m = await mount(React.createElement(B.DbzLeaveCard, { model, role: 'trainer' }));
+  assert.match(m.text(), /1 client's plan couldn't be read, so they aren't counted\./);
+  assert.doesNotMatch(m.text(), new RegExp(esc(unreadName)));
+  await m.unmount();
+  // Every plan unread: no one at risk is not "no one looks likely to leave".
+  const allUnread = ROSTER.map((c) => ({ ...c, payments: { ...c.payments, onPlan: null }, progressRead: { state: 'ready' } }));
+  const none = B.dbzLeaveModel({ triage: DashSignals.getTriageFeed('trainer', allUnread), clientsState: 'ready' });
+  assert.deepEqual([none.rows.length, none.planUnread], [0, ROSTER.length]);
+  const n = await mount(React.createElement(B.DbzLeaveCard, { model: none, role: 'trainer' }));
+  assert.match(n.text(), /No one in what could be read\./);
+  assert.doesNotMatch(n.text(), /No one looks likely to leave/);
+  await n.unmount();
+  // The preview's records carry no onPlan at all: still on a plan.
+  assert.equal(B.dbzLeaveModel({ triage: DashSignals.getTriageFeed('trainer', ROSTER.map((c) => ({ ...c, payments: { ...c.payments, onPlan: undefined } }))), clientsState: 'ready' }).planUnread, 0);
+  const NOW = Date.parse('2026-11-08T12:00:00Z');
+  const iso = (d) => new Date(NOW - d * 86400000).toISOString();
+  const tClients = [
+    { profile: { id: 'a', name: 'Avery Stone' }, rankPoints: 6900, payments: { joinedAt: iso(400), onPlan: true } },
+    { profile: { id: 'u', name: 'Plan Unread' }, rankPoints: 900, payments: { joinedAt: iso(100), onPlan: null } },
+  ];
+  const t = B.dbzTenureModel({ clients: tClients, state: 'ready', now: NOW });
+  assert.deepEqual([t.dots.map((d) => d.name), t.planUnread, t.total], [['Avery Stone'], 1, 1]);
+  const tm = await mount(React.createElement(B.DbzTenureCard, { model: t, worth: null }));
+  assert.match(tm.text(), /1 client's plan couldn't be read, so they aren't on the line\./);
+  await tm.unmount();
+  const tn = await mount(React.createElement(B.DbzTenureCard, { model: B.dbzTenureModel({ clients: [tClients[1]], state: 'ready', now: NOW }), worth: null }));
+  assert.match(tn.text(), /Your clients' plans couldn't be read just now, so no one is on the line\./);
+  assert.doesNotMatch(tn.text(), /No clients on a plan yet/);
+  await tn.unmount();
+
+  // 2. Full, with no one waiting (the route answers waiting 0, effective true): Reopen, not "mark it full".
+  let posted = null;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { posted = { url: String(url), body: JSON.parse(init.body) }; return { ok: true, json: async () => ({ ok: true, listing: null }) }; };
+  try {
+    const w = await mount(React.createElement(B.DbzWaitlistCard, { preview: false, waiting: 0, rateCents: 18000, capacity: { effective: true }, role: 'nutritionist' }));
+    assert.match(w.text(), /^Waiting listNo one yetis on your waiting listYour listing is full, so new members can only join the waiting list\. Reopen it when you have room\.Reopen my listing$/);
+    assert.equal(dollars(w.text()), false, 'no money for no one');
+    assert.doesNotMatch(w.text(), /When you mark your listing full/);
+    await click(w.div.querySelector('button'));
+    await settle();
+    assert.deepEqual(posted, { url: '/api/coach/capacity', body: { role: 'nutritionist', atCapacity: false } });
+    assert.match(w.text(), /Your listing is open again\.$/);
+    assert.doesNotMatch(w.text(), /the people waiting are told/);
+    await w.unmount();
+  } finally { globalThis.fetch = realFetch; }
+
+  // 3. More signed than booked a consult: the largest stage is the scale, so every bar is within 100%.
+  const over = B.dbzFunnelSteps({ views: null, consults90: 3, signed90: 5 }, 'ready');
+  assert.equal(over.scale, 5);
+  const om = await mount(React.createElement(B.DbzFunnelCard, { model: over }));
+  const widths = [...om.div.querySelectorAll('[data-dbz-bar]')].map((b) => Number(b.getAttribute('data-dbz-bar')));
+  assert.deepEqual(widths, [60, 100]);
+  assert.equal([...om.div.querySelectorAll('[data-dbz-bar]')].every((b) => parseFloat(b.style.width) <= 100), true);
+  assert.match(om.text(), /Each bar is to scale against the largest stage measured\./);
+  await om.unmount();
+  // The usual funnel is unchanged: its first stage is still the largest.
+  assert.equal(B.dbzFunnelSteps({ views: 1240, consults90: 40, signed90: 14 }, 'sample').scale, 1240);
 });

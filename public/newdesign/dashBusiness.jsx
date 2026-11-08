@@ -2335,8 +2335,9 @@ function DbzLevelCard({ model }) {
 // "The funnel hides the weak step": its bars shared one scale with a 3% floor, so 40 consults and 14
 // signings drew the same bar, the 3.2% view-to-consult rate was never printed, and the share link sat
 // in another card below the fold.
-// ⚠ EACH BAR IS TO SCALE, AGAINST THE FIRST STAGE MEASURED (no floor past a sliver, so 40 and 14 are
-// two bars), and each step prints its rate. A step at or over its benchmark (consult to signed: the
+// ⚠ EACH BAR IS TO SCALE, AGAINST THE LARGEST STAGE MEASURED (no floor past a sliver, so 40 and 14 are
+// two bars), and each step prints its rate. Normally that's the first; when more signed than booked a
+// consult, the signings are the scale, so no bar runs past its track (Codex on #2636). A step at or over its benchmark (consult to signed: the
 // marketplace's ~30%, dashToday.jsx DASH_FUNNEL_BENCHMARK) is "Good"; the weakest step below one is
 // "The leak". A lone measured step with no benchmark is no leak: there's nothing to call it weak beside.
 const dbzBenchmark = () => (typeof DASH_FUNNEL_BENCHMARK === "number" ? DASH_FUNNEL_BENCHMARK : 30);
@@ -2364,7 +2365,7 @@ function dbzFunnelSteps(f, state) {
   const measured = steps.filter((s) => s.rate != null);
   const weak = measured.filter((s) => s.mark !== "good").sort((a, b) => a.rate - b.rate)[0];
   if (weak && (weak.bench != null || measured.length > 1)) weak.mark = "leak";
-  const scale = (stages.find((s) => s.v != null && s.v > 0) || {}).v || null;
+  const scale = stages.reduce((mx, s) => (s.v != null && s.v > mx ? s.v : mx), 0) || null;
   return { state, stages, steps, scale };
 }
 // `waiting`: the page doesn't yet know whether the viewer is a coach (the funnel plate's own rule).
@@ -2416,7 +2417,7 @@ function DbzFunnelCard({ model }) {
         {stepRow(m.steps[1])}
         {stageRow(m.stages[2])}
         <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 10 }}>
-          {"Each bar is to scale against the first stage measured. " + notes.join(" ")}
+          {"Each bar is to scale against the largest stage measured. " + notes.join(" ")}
         </div>
       </div>
     </DbzCard>
@@ -2573,9 +2574,11 @@ function DbzWaitlistCard({ preview, waiting, rateCents, priceNote, capacity, rol
   const label = "Waiting list";
   if (n === undefined) return <DbzCard label={label}><div data-dbz-wait="loading" style={DBZ_NOTE}>Reading your waiting list…</div></DbzCard>;
   if (n == null) return <DbzCard label={label}><div data-dbz-wait="unread" style={DBZ_NOTE}>Your waiting list couldn't be read just now.</div></DbzCard>;
-  if (!n) return <DbzCard label={label}><div data-dbz-wait="none" style={DBZ_NOTE}>No one is waiting. When you mark your listing full on your Profile, members can join a waiting list here.</div></DbzCard>;
-  const net = CF && rateCents ? CF.earn({ clients: n, priceCents: rateCents, byoShare: 0 }).netCents : null;
   const full = preview ? true : capacity && capacity.effective === true;
+  // ⚠ A FULL LISTING WITH NO ONE WAITING STILL REOPENS HERE (Codex on #2636): the route can answer
+  // waiting 0 with effective true, and the card told that coach to mark a full listing full.
+  if (!n && !full) return <DbzCard label={label}><div data-dbz-wait="none" style={DBZ_NOTE}>No one is waiting. When you mark your listing full on your Profile, members can join a waiting list here.</div></DbzCard>;
+  const net = n && CF && rateCents ? CF.earn({ clients: n, priceCents: rateCents, byoShare: 0 }).netCents : null;
   const go = async () => {
     if (preview || reopen === "busy") return;
     setReopen("busy");
@@ -2588,15 +2591,15 @@ function DbzWaitlistCard({ preview, waiting, rateCents, priceNote, capacity, rol
   };
   return (
     <DbzCard label={label}>
-      <div data-dbz-wait="ready">
-        <div style={{ fontFamily: serif, fontSize: 30, lineHeight: 1.05, letterSpacing: "-0.02em" }}>{n === 1 ? "1 member" : n + " members"}</div>
+      <div data-dbz-wait={n ? "ready" : "full-empty"}>
+        <div style={{ fontFamily: serif, fontSize: 30, lineHeight: 1.05, letterSpacing: "-0.02em" }}>{!n ? "No one yet" : n === 1 ? "1 member" : n + " members"}</div>
         <div style={{ fontSize: 13, lineHeight: 1.5, color: DBZ_INK50, marginTop: 8 }}>
-          {net != null ? "about " + dashMoney(net) + " a month if they all join at " + dashMoney(rateCents) + ", after Shape's fee" : priceNote || "waiting to join you"}
+          {!n ? "is on your waiting list" : net != null ? "about " + dashMoney(net) + " a month if they all join at " + dashMoney(rateCents) + ", after Shape's fee" : priceNote || "waiting to join you"}
         </div>
-        {reopen === "done" ? <div role="status" data-dbz-reopen="done" style={{ ...DBZ_NOTE, color: DBZ_INK, marginTop: 12 }}>Your listing is open again, and the people waiting are told you have room.</div>
+        {reopen === "done" ? <div role="status" data-dbz-reopen="done" style={{ ...DBZ_NOTE, color: DBZ_INK, marginTop: 12 }}>{n ? "Your listing is open again, and the people waiting are told you have room." : "Your listing is open again."}</div>
           : full ? (
             <div style={{ marginTop: 12 }}>
-              <div style={{ ...DBZ_NOTE, marginBottom: 8 }}>Your listing is full, so they're waiting. Reopening tells them you have room.</div>
+              <div style={{ ...DBZ_NOTE, marginBottom: 8 }}>{n ? "Your listing is full, so they're waiting. Reopening tells them you have room." : "Your listing is full, so new members can only join the waiting list. Reopen it when you have room."}</div>
               {preview
                 ? <span aria-disabled="true" title="Reopens your own listing once you're signed in" style={{ ...DBZ_OUTLINE, opacity: 0.6, cursor: "default" }}>Reopen my listing</span>
                 : <button type="button" onClick={go} disabled={reopen === "busy"} style={{ ...DBZ_OUTLINE, opacity: reopen === "busy" ? 0.6 : 1 }}>{reopen === "busy" ? "Reopening…" : "Reopen my listing"}</button>}
@@ -2616,11 +2619,16 @@ function DbzWaitlistCard({ preview, waiting, rateCents, priceNote, capacity, rol
 // ⚠ ONLY REAL READS ARE NAMED. A roster that wasn't read (the demo fallback) names no one, and a client
 // whose progress is still loading or couldn't be read is not counted as safe or at risk: the card says
 // how many it couldn't read. Only clients on a plan can leave one.
+// ⚠ AN UNREAD PLAN IS NEITHER (Codex on #2636). When the roster couldn't read subscriptions it sends
+// onPlan: null; such a client is not named as likely to leave a plan, nor counted as safe on one: the
+// card says how many plans it couldn't read. undefined (the preview's records, which carry no onPlan)
+// still counts as on a plan.
 const DBZ_LEAVE_SHOWN = 4;
+function dbzPlanUnread(c) { return !!(c && c.payments && c.payments.onPlan === null); }
 function dbzLeaveModel({ triage, clientsState }) {
   if (clientsState === "loading") return { state: "loading" };
   if (clientsState !== "ready" || !Array.isArray(triage) || typeof DashSignals === "undefined" || typeof DashSignals.coachNeeds !== "function") return { state: "unread" };
-  const onPlan = (c) => !!(c && c.profile) && !(c.payments && c.payments.onPlan === false);
+  const onPlan = (c) => !!(c && c.profile) && !(c.payments && c.payments.onPlan === false) && !dbzPlanUnread(c);
   const readOf = (c) => (c && c.progressRead && c.progressRead.state) || "ready";
   const real = (r) => r && onPlan(r.client) && readOf(r.client) !== "loading" && readOf(r.client) !== "unavailable";
   const split = DashSignals.coachNeeds(triage);
@@ -2633,6 +2641,7 @@ function dbzLeaveModel({ triage, clientsState }) {
   return {
     state: "ready", rows, week: split.week.filter(real).length,
     unread: plan.filter((c) => readOf(c) === "unavailable").length, pending: plan.filter((c) => readOf(c) === "loading").length,
+    planUnread: triage.filter((r) => r && r.client && r.client.profile && dbzPlanUnread(r.client)).length,
     totalCents: known.reduce((s, r) => s + r.cents, 0), unknown: rows.length - known.length,
   };
 }
@@ -2648,6 +2657,7 @@ function DbzLeaveCard({ model, role }) {
   if (m.state === "ready") {
     if (m.unread) notes.push((m.unread === 1 ? "1 client's progress" : m.unread + " clients' progress") + " couldn't be read, so they aren't counted.");
     if (m.pending) notes.push((m.pending === 1 ? "1 client's progress is" : m.pending + " clients' progress is") + " still loading.");
+    if (m.planUnread) notes.push((m.planUnread === 1 ? "1 client's plan" : m.planUnread + " clients' plans") + " couldn't be read, so they aren't counted.");
     if (m.week) notes.push((m.week === 1 ? "1 more" : m.week + " more") + " to watch this week, on Today.");
   }
   const first = rows[0] || null;
@@ -2655,7 +2665,7 @@ function DbzLeaveCard({ model, role }) {
     <DbzCard label={label} lift={2} right={total}>
       {m.state === "loading" ? <div data-dbz-leave="loading" style={DBZ_NOTE}>Reading your clients' signals…</div>
         : m.state !== "ready" ? <div data-dbz-leave="unread" style={DBZ_NOTE}>Who might leave couldn't be read just now. Nothing is lost; reload to try again.</div>
-        : !rows.length ? <div data-dbz-leave="none" style={{ fontSize: 13.5, lineHeight: 1.5, color: DBZ_INK50 }}>{m.unread || m.pending ? "No one in what could be read." : "No one looks likely to leave right now: no client's signals need you."}</div>
+        : !rows.length ? <div data-dbz-leave="none" style={{ fontSize: 13.5, lineHeight: 1.5, color: DBZ_INK50 }}>{m.unread || m.pending || m.planUnread ? "No one in what could be read." : "No one looks likely to leave right now: no client's signals need you."}</div>
         : <div data-dbz-leave="ready">
             <div style={{ fontSize: 14, color: DBZ_INK50, marginBottom: 6 }}><b style={{ color: DBZ_INK, fontWeight: 600 }}>{rows.length === 1 ? "1 client shows" : rows.length + " clients show"}</b> the signals that come before a client leaves.</div>
             {rows.slice(0, DBZ_LEAVE_SHOWN).map((r, i) => {
@@ -2735,7 +2745,8 @@ function dbzTenureWords(days) {
 }
 function dbzTenureModel({ clients, state, now = Date.now() }) {
   if (state !== "ready") return { state: state || "loading" };
-  const on = (clients || []).filter((c) => c && c.profile && !(c.payments && c.payments.onPlan === false));
+  const on = (clients || []).filter((c) => c && c.profile && !(c.payments && c.payments.onPlan === false) && !dbzPlanUnread(c));
+  const planUnread = (clients || []).filter((c) => c && c.profile && dbzPlanUnread(c)).length;
   const dots = [];
   let unknown = 0;
   for (const c of on) {
@@ -2748,14 +2759,14 @@ function dbzTenureModel({ clients, state, now = Date.now() }) {
   const n = dots.length;
   const maxMo = n ? dots[n - 1].days / 30.4 : 0;
   const median = !n ? null : n % 2 ? dots[(n - 1) / 2].days : (dots[n / 2 - 1].days + dots[n / 2].days) / 2;
-  return { state: "ready", dots, unknown, total: on.length, scaleMo: Math.max(12, Math.ceil(maxMo / 6) * 6), medianDays: median };
+  return { state: "ready", dots, unknown, planUnread, total: on.length, scaleMo: Math.max(12, Math.ceil(maxMo / 6) * 6), medianDays: median };
 }
 function DbzTenureCard({ model, worth }) {
   const m = model || { state: "loading" };
   const label = "How long they stay";
   if (m.state !== "ready") return <DbzCard label={label} lift={0}><div data-dbz-tenure={m.state} style={DBZ_NOTE}>{m.state === "loading" ? "Reading your clients…" : "Your clients couldn't be read just now. Nothing is lost; reload to try again."}</div></DbzCard>;
   if (!m.dots.length) {
-    return <DbzCard label={label} lift={0}><div data-dbz-tenure="none" style={DBZ_NOTE}>{m.unknown ? "Your clients' start dates couldn't be read, so no one is on the line." : "No clients on a plan yet. Each appears on the line the day they subscribe."}</div></DbzCard>;
+    return <DbzCard label={label} lift={0}><div data-dbz-tenure="none" style={DBZ_NOTE}>{m.planUnread ? "Your clients' plans couldn't be read just now, so no one is on the line." : m.unknown ? "Your clients' start dates couldn't be read, so no one is on the line." : "No clients on a plan yet. Each appears on the line the day they subscribe."}</div></DbzCard>;
   }
   const scaleDays = m.scaleMo * 30.4;
   const x = (days) => Math.min(100, (days / scaleDays) * 100);
@@ -2791,7 +2802,7 @@ function DbzTenureCard({ model, worth }) {
           {avg != null && <React.Fragment> The green line is the average stay, about {dbzMonthsWord(Math.round(avg))}.</React.Fragment>}
         </div>
         <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 6 }}>
-          From each client's current plan with you: a client who left and came back counts from their return.{m.unknown ? " " + (m.unknown === 1 ? "1 client's start date" : m.unknown + " clients' start dates") + " couldn't be read, so they aren't on the line." : ""}
+          From each client's current plan with you: a client who left and came back counts from their return.{m.unknown ? " " + (m.unknown === 1 ? "1 client's start date" : m.unknown + " clients' start dates") + " couldn't be read, so they aren't on the line." : ""}{m.planUnread ? " " + (m.planUnread === 1 ? "1 client's plan" : m.planUnread + " clients' plans") + " couldn't be read, so they aren't on the line." : ""}
         </div>
       </div>
     </DbzCard>
