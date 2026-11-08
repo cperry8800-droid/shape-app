@@ -241,24 +241,18 @@ function NavDropdown({ label, href, items, active, activeMatch }) {
   );
 }
 
-// ⚠ COACHES IS A PAGE AND A MENU. Clicking goes to the Coaches page, which IS the coach
-// marketplace since 2026-11-05 (owner: "lets change that whole concept and turn coaches page
-// into what you built"): the goal-first matcher, the filters and the cards, trainers and
-// nutritionists on one page with the switch at its top. Hovering opens ONE item, For coaches,
-// the page that pitches Shape to trainers AND nutritionists and previews the dashboard they get
-// (ForCoaches.html, which was Coaches.html until then). The old Marketplace.html forwards to
-// Coaches.html and keeps its hash.
+// ⚠ COACHES IS A PAGE, NOT A MENU. Clicking goes to the Coaches page, which IS the coach marketplace
+// since 2026-11-05 (owner: "lets change that whole concept and turn coaches page into what you built"):
+// the goal-first matcher, the filters and the cards, trainers and nutritionists on one page with the
+// switch at its top. The old Marketplace.html forwards to Coaches.html and keeps its hash.
 //
-// ⚠ ONE ITEM, NOT TWO. Owner, 2026-09-14: "just have 1 link" — the menu used to carry Trainers
-// and Nutritionists, each deep-linking one of the marketplace's own two tabs, so it offered one
-// destination as two. `marketplace.jsx` still reads a `#trainers` / `#nutritionists` hash for
-// anything that deep-links a side (its own switch writes one); the nav does not pick a side.
+// ⚠ AND ITS MENU IS GONE. Owner, 2026-11-08, of "Coaches ▾": "remove the sub tab from here on website
+// now, no longer needed". Its one item was For coaches (ForCoaches.html, the page that pitches Shape to
+// trainers and nutritionists), which the footer's For coaches column still opens; the tab is a plain
+// link on both bars and both drawers. It still lights on the coach pages (`match`), as the menu did.
 //
-// `tests/site-nav.test.mjs` requires both targets to name files that are in the repo.
+// `tests/site-nav.test.mjs` requires the target to name a file that is in the repo.
 const COACHES_HREF = "Coaches.html";
-const COACHES_ITEMS = [
-  ["For coaches", "ForCoaches.html"],
-];
 
 // ⚠ THE STORE IS A REWARDS MENU ITEM SIGNED OUT AND A TAB OF ITS OWN SIGNED IN.
 // Owner, 2026-10-09: "theres no shape store tab on website on nav bar, it should
@@ -315,7 +309,7 @@ const REWARDS_ITEMS = [
 // their footer links; they simply leave the bar. (`Client.html` was in that
 // list too and is NOT any more — it came back as the `Members` tab below.)
 const SHAPE_NAV_GROUPS = [
-  { kind: "drop", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"], items: COACHES_ITEMS },
+  { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"] },
   { kind: "link", label: "Members", href: "Client.html" },
   { kind: "link", label: "App", href: "GetApp.html" },
   // ⚠ THE KITCHEN WAS FOOTER-ONLY UNTIL NOW, which is the same standing
@@ -332,7 +326,7 @@ const SHAPE_NAV_GROUPS = [
 ];
 
 // ⚠ SIGNED IN, THE ROW IS THE SITE'S OWN TABS MINUS THE TWO SIGN-UP PAGES —
-// Coaches ▾ · App · Kitchen · Community · Rewards · Store, the same row for a
+// Coaches · App · Kitchen · Community · Rewards · Store, the same row for a
 // member, a trainer and a nutritionist. Owner, 2026-09-23, on a screenshot of the
 // signed-in bar reading only "Coaches ▾  About": "need to add more nav tabs on main
 // nav bar when signed into account" — and of the rows put to them, "Site tabs
@@ -1338,7 +1332,7 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
              tapped while already on #today fires no hashchange and re-renders
              nothing, so the full-screen menu stayed open over the page with the
              body scroll still locked and no feedback. */
-          <a key={g.label} href={g.href} onClick={onClose} style={{ ...linkBase, color: active === g.label ? TEAL : INK, fontWeight: active === g.label ? 500 : 400 }}>{g.label}</a>
+          <a key={g.label} href={g.href} onClick={onClose} style={{ ...linkBase, color: (g.match ? g.match.includes(active) : active === g.label) ? TEAL : INK, fontWeight: (g.match ? g.match.includes(active) : active === g.label) ? 500 : 400 }}>{g.label}</a>
         ))}
         {/* ⚠ RADIO IS RENDERED HERE AND NOT FROM THE TABLE, because the table is
             the DESKTOP row and Radio left it on purpose (owner, 2026-09-15: "dont
@@ -1591,11 +1585,15 @@ function Header({ active }) {
       : 'ClientDashboard.html');
   // Wrap plain-link nav items in the same outer container shape NavDropdown
   // uses, so they share vertical-centering and any future container styles.
-  const link = (name, href) => (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
-      <a href={href} className="shape-nav-link" style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: active === name ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center", textDecoration: active === name ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>{name}</a>
-    </div>
-  );
+  // `match` lists the pages that light a tab besides its own (Coaches lights on the coach pages).
+  const link = (name, href, match) => {
+    const on = match ? match.includes(active) : active === name;
+    return (
+      <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: "100%" }}>
+        <a href={href} className="shape-nav-link" style={{ fontFamily: navSans, fontSize: 13.5, fontWeight: 500, color: on ? "var(--sh-nav-ink, #f5efe1)" : "rgba(var(--sh-nav-ink-rgb, 245,239,225),0.78)", whiteSpace: "nowrap", lineHeight: 1, display: "inline-flex", alignItems: "center", textDecoration: on ? "underline" : "none", textDecorationColor: TEAL_BRIGHT, textDecorationThickness: 1.5, textUnderlineOffset: 9 }}>{name}</a>
+      </div>
+    );
+  };
   // The auth cluster's shared shapes. ⚠ `whiteSpace: nowrap` on every one of
   // them, and `min-width: max-content` on the two flex columns below: the
   // homepage's bar broke "Log in" onto two lines at 1180px because a
@@ -1627,7 +1625,7 @@ function Header({ active }) {
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
             ? <NavDropdown key={g.label} label={g.label} href={g.href} active={active} activeMatch={g.match} items={g.items} />
-            : <React.Fragment key={g.label}>{link(g.label, g.href)}</React.Fragment>
+            : <React.Fragment key={g.label}>{link(g.label, g.href, g.match)}</React.Fragment>
           )}
         </nav>
         {/* ⚠ ONE ALWAYS-VISIBLE THIRD COLUMN, so the bell has somewhere to be on a
