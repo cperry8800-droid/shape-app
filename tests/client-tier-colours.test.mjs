@@ -252,3 +252,17 @@ test('a quiet re-read keeps a tier the page had read when the rank read fails, a
     globalThis.window = saved.window; globalThis.document = saved.document; globalThis.fetch = saved.fetch; Date.now = saved.now; globalThis.IS_REACT_ACT_ENVIRONMENT = saved.act;
   }
 });
+
+// ⚠ THE SHELLS' MODULE KEY MOVED WITH THE API (Codex, #2630). The deploy build content-hashes
+// compiled scripts and dash.css, not this inline module import, so its hand-written `?v=` is the
+// only cache key a returning coach's browser has. 20261106 served the hashed-colour API
+// (clientColorVars), which the tier marks' guards would read as "no module" and draw nothing.
+test('both coach shells import clientColors.mjs under a key past the hashed-colour release', () => {
+  const keys = ['public/newdesign/TrainerApp.html', 'public/newdesign/NutritionistApp.html'].map((f) => {
+    const m = /import \* as CC from "\/newdesign\/clientColors\.mjs\?v=(\d{8})"/.exec(source(f));
+    assert.ok(m, `${f} no longer imports clientColors.mjs with a key`);
+    return m[1];
+  });
+  assert.equal(keys[0], keys[1], 'the two shells load different copies');
+  assert.ok(Number(keys[0]) > 20261106, 'the key is still the one that served clientColorVars');
+});
