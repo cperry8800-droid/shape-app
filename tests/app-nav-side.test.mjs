@@ -31,7 +31,7 @@ const ReactDOMClient = require_('react-dom/client');
 const h = React.createElement;
 
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
-const { BSProvider, BSTabBar, BSPage, bsNavSide, bsSetNavSide, BS_NAV_SIDES } = window;
+const { BSProvider, BSTabBar, BSPage, bsNavSide, bsSetNavSide, bsSideNavLength, BS_NAV_SIDES } = window;
 const root = document.documentElement.style;
 const TABS = [{ key: 'home', label: 'Home' }, { key: 'train', label: 'Train' }, { key: 'eat', label: 'Eat' }, { key: 'chat', label: 'Chat' }];
 
@@ -52,7 +52,7 @@ test('the choice: bottom by default, left or right kept on this phone, anything 
 
 test('on a side the page keeps that strip clear and what stands on the tab bar comes down; bottom sets nothing', () => {
   bsSetNavSide('left');
-  assert.match(root.getPropertyValue('--bs-nav-inset-left'), /^calc\(70px \+ env\(safe-area-inset-left, 0px\)\)$/);
+  assert.match(root.getPropertyValue('--bs-nav-inset-left'), /^calc\(64px \+ env\(safe-area-inset-left, 0px\)\)$/);
   assert.equal(root.getPropertyValue('--bs-nav-inset-right'), '0px');
   assert.match(root.getPropertyValue('--bs-tabbar-h'), /^max\(12px/);
   bsSetNavSide('right');
@@ -78,11 +78,14 @@ test('the tab bar stands upright on the side chosen, its gem sliding down it, an
   assert.equal(dock().style.top, '50%');
   const nav = host.querySelector('[data-bs-tabbar]');
   assert.equal(nav.getAttribute('aria-orientation'), 'vertical');
-  assert.equal(nav.style.height, (50 * TABS.length + 18) + 'px', 'one 50px row a tab, the 9px pad top and bottom');
+  assert.equal(nav.style.height, '100%', 'the bar fills its dock');
+  // jsdom lays nothing out, so the dock takes its first-paint length: the bottom bar's width.
+  assert.equal(dock().style.height, 'calc(100vw - 48px)');
+  assert.equal(dock().style.width, '44px', 'as thick as the bottom bar is tall');
   assert.match(nav.style.gridTemplateRows, /repeat\(4, 1fr\)/);
   const gem = host.querySelector('[data-bs-tab-mark]');
-  // 9px pad − half the 30px gem, then two and a half quarters of the bar's inner height (jsdom's form).
-  assert.equal(gem.style.top, 'calc(-6px + 2.5 * (0.25 * (100% - 18px)))', 'the gem sits on the third tab, down the bar');
+  // 9px pad − half the 26px gem, then two and a half quarters of the bar's inner height (jsdom's form).
+  assert.equal(gem.style.top, 'calc(-4px + 2.5 * (0.25 * (100% - 18px)))', 'the gem sits on the third tab, down the bar');
   assert.equal(gem.style.left, '50%');
   assert.equal(host.querySelectorAll('[data-bs-tabbar] button').length, 4, 'every tab is still there');
   await act(async () => { bsSetNavSide('left'); });
@@ -117,4 +120,14 @@ test('Settings → Preferences offers Nav bar: Bottom, Left, Right, kept on this
     const cat = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs', loc, 'settings.json'), 'utf8'));
     for (const k of ['pref.navSide', 'pref.navBottom', 'pref.navLeft', 'pref.navRight', 'pref.navSideDesc']) assert.ok(typeof cat[k] === 'string' && cat[k].length > 0, `${loc}: ${k}`);
   }
+});
+
+// Owner, 2026-11-08: "make it the same size and look just going vertically on the side of the screen".
+test('on a side the bar is as long as the bottom bar is wide, shorter only on a screen too short for it', () => {
+  assert.equal(bsSideNavLength(390, 844, 5), 342, 'a 390 phone: 390 less 24 each side, the bottom bar\'s width');
+  assert.equal(bsSideNavLength(430, 932, 5), 382);
+  assert.equal(bsSideNavLength(844, 390, 5), 342, 'held sideways: the screen\'s height less 24 above and below');
+  assert.equal(bsSideNavLength(844, 200, 5), 220, 'never shorter than 44 a tab');
+  assert.equal(bsSideNavLength(0, 844, 5), null, 'nothing measured: no length');
+  assert.equal(bsSideNavLength(undefined, undefined, 5), null);
 });

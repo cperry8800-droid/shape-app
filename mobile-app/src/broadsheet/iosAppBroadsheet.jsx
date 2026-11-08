@@ -493,9 +493,10 @@ function isInteractiveTarget(target) {
 // capsule BS_DOCK_H tall, BS_DOCK_SIDE in from the phone's sides, BS_DOCK_TOP_GAP
 // clear above it so a composer or banner never sits flush on it, and under it
 // either BS_DOCK_BOTTOM or, on a phone with a home indicator, enough to clear it.
-// 50px (owner, 2026-10-25: "make the nav bar a little smaller, not as thick"; it was 60).
-const BS_DOCK_H = 50;
-const BS_DOCK_SIDE = 16;
+// 44px and 24px in from each side (owner, 2026-11-08: "make this a little smaller actually"; it was 50px and
+// 16px, and 60px before 2026-10-25's "make the nav bar a little smaller, not as thick").
+const BS_DOCK_H = 44;
+const BS_DOCK_SIDE = 24;
 const BS_DOCK_TOP_GAP = 6;
 const BS_DOCK_BOTTOM = 12;
 const BS_DOCK_BOTTOM_CSS = `max(${BS_DOCK_BOTTOM}px, calc(env(safe-area-inset-bottom, 0px) - 10px))`;
@@ -514,8 +515,8 @@ const BS_TABBAR_CSS = `var(--bs-tabbar-h, calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px 
 // nav bar. Either at bottom of screen, vertically displayed on right side of phone screen or left",
 // "on the app that is") ──────────────────────────────────────────────────────────────────────────
 // A choice of THIS PHONE, like the hand it is held in: kept in localStorage, never in the account,
-// set in Settings → Preferences → Nav bar. On a side the capsule stands upright, centred on the
-// screen's height and BS_DOCK_SIDE_GAP in from that edge (and from a landscape notch), and every page
+// set in Settings → Preferences → Nav bar. On a side it is the same bar, the same size, turned upright
+// and centred on the screen's height, BS_DOCK_SIDE_GAP in from that edge (and a landscape notch); every page
 // keeps that strip clear: BSPage's scroller and pinned bar take --bs-nav-inset-left/right. Bottom (the
 // default) sets nothing, so the bottom dock is exactly as it was.
 const BS_NAV_SIDES = ['bottom', 'left', 'right'];
@@ -542,6 +543,15 @@ function bsSetNavSide(v) {
   try { if (side === 'bottom') localStorage.removeItem(BS_NAV_SIDE_LS); else localStorage.setItem(BS_NAV_SIDE_LS, side); } catch (e) {}
   bsApplyNavSide(side);
   try { window.dispatchEvent(new CustomEvent('shape:navSide', { detail: { side } })); } catch (e) {}
+}
+// ⚠ ON A SIDE IT IS THE SAME BAR, THE SAME SIZE (owner, 2026-11-08: "make it the same size and look just
+// going vertically on the side of the screen"): as long as the bottom bar is wide (the screen's width less
+// BS_DOCK_SIDE each side), BS_DOCK_H thick, its tabs as far apart. Only a screen too short for that (a
+// phone held sideways) shortens it, to leave 24px above and below; never shorter than BS_DOCK_H a tab.
+function bsSideNavLength(width, height, n) {
+  const w = Number(width), h = Number(height), tabs = Math.max(1, Number(n) || 1);
+  if (!(w > 0) || !(h > 0)) return null;
+  return Math.max(BS_DOCK_H * tabs, Math.min(w - BS_DOCK_SIDE * 2, h - 48));
 }
 function useBSNavSide() {
   const [side, setSide] = React.useState(bsNavSide);
@@ -1950,17 +1960,30 @@ function BSTabBar({ tabs, active, onChange }) {
   const activeIdx = lastIdx.current;
   const n = tabs.length;
   const PAD = 9;
-  const GEM = 30;
+  const GEM = 26;
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
-  // Bottom (the default), or upright on the left or right edge (Settings → Preferences → Nav bar). On a
-  // side the capsule is BS_DOCK_H wide, each tab BS_DOCK_H tall, centred on the screen's height; the
-  // gem slides down it instead of across.
+  // Bottom (the default), or the same bar turned upright on the left or right edge (Settings →
+  // Preferences → Nav bar), centred on the screen's height: as long as the bottom bar is wide
+  // (bsSideNavLength, measured on the screen it stands on), BS_DOCK_H thick, the gem sliding down it.
   const side = useBSNavSide();
   const upright = side === 'left' || side === 'right';
+  const dockRef = React.useRef(null);
+  const [sideLen, setSideLen] = React.useState(null);
+  React.useEffect(() => {
+    if (!upright) return undefined;
+    const host = dockRef.current && dockRef.current.offsetParent;
+    if (!host) return undefined;
+    const measure = () => { const v = bsSideNavLength(host.clientWidth, host.clientHeight, n); if (v != null) setSideLen(v); };
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(host); else window.addEventListener('resize', measure);
+    return () => { if (ro) ro.disconnect(); else window.removeEventListener('resize', measure); };
+  }, [upright, n]);
   const dock = upright ? {
     position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 55,
     [side]: `calc(${BS_DOCK_SIDE_GAP}px + env(safe-area-inset-${side}, 0px))`,
-    width: BS_DOCK_H, display: 'flex', pointerEvents: 'none',
+    width: BS_DOCK_H, height: sideLen != null ? sideLen : `calc(100vw - ${BS_DOCK_SIDE * 2}px)`,
+    display: 'flex', pointerEvents: 'none',
   } : {
     position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
     height: BS_TABBAR_CSS,
@@ -1972,9 +1995,9 @@ function BSTabBar({ tabs, active, onChange }) {
     ? { left: '50%', marginLeft: -GEM / 2, top: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, transition: 'top .28s cubic-bezier(.4,0,.2,1), opacity .2s ease' }
     : { top: '50%', marginTop: -GEM / 2, left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, transition: 'left .28s cubic-bezier(.4,0,.2,1), opacity .2s ease' };
   return (
-    <div data-bs-tabbar-dock="" data-bs-nav-side={side} style={dock}>
+    <div ref={dockRef} data-bs-tabbar-dock="" data-bs-nav-side={side} style={dock}>
       <nav data-bs-tabbar="" aria-orientation={upright ? 'vertical' : undefined} style={{
-        position: 'relative', flex: '0 0 auto', width: '100%', height: upright ? BS_DOCK_H * n + PAD * 2 : BS_DOCK_H, pointerEvents: 'auto',
+        position: 'relative', flex: '0 0 auto', width: '100%', height: upright ? '100%' : BS_DOCK_H, pointerEvents: 'auto',
         borderRadius: 999,
         // Frosted glass: paper at about 60% over a blur, so what scrolls under it shows through,
         // softened, without competing with the icons (owner, 2026-10-24: "make nav bar a little
@@ -2007,18 +2030,18 @@ function BSTabBar({ tabs, active, onChange }) {
             }}>
               {face
                 ? <span data-bs-tab-face="" style={{ display: 'grid', placeItems: 'center' }}>{React.createElement(FA, {
-                    flat: true, size: on ? 20 : 24, showRank: false, BG: t.PAPER,
+                    flat: true, size: on ? 18 : 21, showRank: false, BG: t.PAPER,
                     c: on ? t.PAPER : `rgba(${t.inkRGB},0.32)`,
                     initial: (window.bsMyInitials && window.bsMyInitials()) || undefined,
                     name: (window.bsMyName && window.bsMyName()) || '',
                     photo: (window.bsMyPhoto && window.bsMyPhoto()) || undefined,
                   })}</span>
                 : BS_TAB_ICON_KEYS.has(tab.key)
-                  ? <BSTabIcon name={tab.key} size={21} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
+                  ? <BSTabIcon name={tab.key} size={19} weight={1.8} filled={on} cut={on ? t.INK : t.PAPER} />
                   : <span style={{ position: 'relative', fontFamily: t.MONO, fontWeight: on ? 800 : 700, fontSize: 11, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{String(i + 1).padStart(2, '0')}</span>}
               {/* The unread count: a teal pill on the icon's shoulder, ringed in the paper. */}
               {unread && (
-                <span style={{ position: 'absolute', top: 5, left: '55%', minWidth: 15, height: 15, borderRadius: 999, background: accent, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
+                <span style={{ position: 'absolute', top: 3, left: '55%', minWidth: 15, height: 15, borderRadius: 999, background: accent, color: t.PAPER, boxShadow: `0 0 0 2px ${t.PAPER}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', lineHeight: 1 }}>{unread}</span>
               )}
             </button>
           );
@@ -2722,7 +2745,7 @@ function BSNavGestures() {
 Object.assign(window, {
   BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
-  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
+  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
