@@ -542,7 +542,9 @@ function bsSideNavLength(width, height, n) {
 function useBSNavSide() {
   const [side, setSide] = React.useState(bsNavSide);
   React.useEffect(() => {
-    const on = () => setSide(bsNavSide());
+    // The side the event carries, so a phone whose storage refuses the write still moves the bar now
+    // (Codex, #2634); storage only keeps the choice for the next launch.
+    const on = (e) => { const v = e && e.detail && e.detail.side; setSide(BS_NAV_SIDES.indexOf(v) >= 0 ? v : bsNavSide()); };
     window.addEventListener('shape:navSide', on);
     return () => window.removeEventListener('shape:navSide', on);
   }, []);

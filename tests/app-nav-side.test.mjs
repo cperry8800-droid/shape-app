@@ -133,3 +133,25 @@ test('on a side the bar is as long as the bottom bar is wide, shorter only on a 
   assert.equal(bsSideNavLength(0, 844, 5), null, 'nothing measured: no length');
   assert.equal(bsSideNavLength(undefined, undefined, 5), null);
 });
+
+// Codex, #2634: a phone whose storage refuses the write still moves the bar when the side is picked.
+test('a side picked on a phone whose storage refuses the write still moves the bar', async () => {
+  localStorage.clear();
+  const proto = Object.getPrototypeOf(localStorage);
+  const realSet = proto.setItem;
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const r = ReactDOMClient.createRoot(host);
+  try {
+    proto.setItem = () => { throw new Error('QuotaExceededError'); };
+    await act(async () => { r.render(h(BSProvider, { paperMode: 'light' }, h(BSTabBar, { tabs: TABS, active: 'home', onChange() {} }))); });
+    await act(async () => { bsSetNavSide('left'); });
+    assert.equal(localStorage.getItem('shape.navSide'), null, 'the write was refused');
+    assert.equal(host.querySelector('[data-bs-tabbar-dock]').getAttribute('data-bs-nav-side'), 'left', 'the bar stayed at the bottom');
+  } finally {
+    proto.setItem = realSet;
+    await act(async () => { bsSetNavSide('bottom'); });
+    await act(async () => r.unmount());
+    localStorage.clear();
+  }
+});
