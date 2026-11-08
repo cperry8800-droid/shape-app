@@ -201,8 +201,7 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.match(bar, /filled=\{on\} cut=\{on \? t\.INK : t\.PAPER\}/);
     // 44px of capsule, 6px above it, and under it 12px or the home indicator's inset less 10px.
     assert.equal(window.BS_TABBAR_H, 62);
-    // A variable a side nav sets (bsSetNavSide, 2026-11-08), with the bottom dock's height as its fallback.
-    assert.equal(window.BS_TABBAR_CSS, 'var(--bs-tabbar-h, calc(50px + max(12px, calc(env(safe-area-inset-bottom, 0px) - 10px))))');
+    assert.equal(window.BS_TABBAR_CSS, 'calc(50px + max(12px, calc(env(safe-area-inset-bottom, 0px) - 10px)))');
     // What stands on the tab bar stands on the same height. The live session's one action and the
     // workout page's held Begin session are their own modules' since the owner's B (2026-11-04).
     for (const [f, n] of [['iosAppBroadsheetClient.jsx', 1], ['iosAppBroadsheetPros.jsx', 2], ['BSWorkoutSession.jsx', 1], ['BSWorkoutDetail.jsx', 1]]) {

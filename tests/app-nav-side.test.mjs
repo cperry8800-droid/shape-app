@@ -2,8 +2,7 @@
 // bar. Either at bottom of screen, vertically displayed on right side of phone screen or left", "on the app
 // that is"). MOUNTED: the real BSTabBar and BSPage from mobile-app/src/broadsheet/iosAppBroadsheet.jsx in the
 // real BSProvider. The choice is this phone's (localStorage), set in Settings → Preferences → Nav bar; on a
-// side it is the same bar turned upright, floating over the page as the bottom one does, and every bar that stands on the tab
-// bar comes down to the screen's foot (--bs-tabbar-h). Bottom sets nothing. Compares strings and booleans.
+// side it is the same bar turned upright, floating over the page as the bottom one does, and nothing else moves. Compares strings and booleans.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
@@ -50,14 +49,14 @@ test('the choice: bottom by default, left or right kept on this phone, anything 
   localStorage.clear();
 });
 
-test('on a side only what stood on the tab bar comes down; no page reserves a strip; bottom sets nothing', () => {
-  for (const side of ['left', 'right']) {
+// Owner, 2026-11-08: "dont change the layout on anything else on the screen". Choosing a side moves the bar
+// and nothing else: no variable is set, so every page, composer and bar lays out as with the bar at the bottom.
+test('choosing a side moves the bar and nothing else', () => {
+  for (const side of ['left', 'right', 'bottom']) {
     bsSetNavSide(side);
-    assert.match(root.getPropertyValue('--bs-tabbar-h'), /^max\(12px/);
-    for (const v of ['--bs-nav-inset-left', '--bs-nav-inset-right']) assert.equal(root.getPropertyValue(v), '', side + ': ' + v + ' reserves a strip');
+    for (const v of ['--bs-tabbar-h', '--bs-nav-inset-left', '--bs-nav-inset-right']) assert.equal(root.getPropertyValue(v), '', side + ': ' + v + ' changes the layout');
   }
-  bsSetNavSide('bottom');
-  assert.equal(root.getPropertyValue('--bs-tabbar-h'), '', '--bs-tabbar-h outlived the side nav');
+  assert.match(window.BS_TABBAR_CSS, /^calc\(/, 'what stands on the tab bar keeps its height whatever the side');
 });
 
 test('the tab bar stands upright on the side chosen, its gem sliding down it, and goes back to the bottom live', async () => {

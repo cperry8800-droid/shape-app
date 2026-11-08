@@ -506,10 +506,7 @@ const BS_DOCK_BOTTOM_CSS = `max(${BS_DOCK_BOTTOM}px, calc(env(safe-area-inset-bo
 // scroll reserve against the number plus the inset. It has drifted from the real
 // height twice (72 → 64 in #1603 left three stale literals), so it lives here once.
 const BS_TABBAR_H = BS_DOCK_TOP_GAP + BS_DOCK_H + BS_DOCK_BOTTOM;
-// ⚠ A CSS VARIABLE WITH THE BOTTOM DOCK AS ITS FALLBACK: a member who puts the nav on a side
-// (bsSetNavSide) sets --bs-tabbar-h to the bottom gap alone, so every composer and bar that stands on
-// the tab bar comes down to the screen's foot with no change of its own.
-const BS_TABBAR_CSS = `var(--bs-tabbar-h, calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_CSS}))`;
+const BS_TABBAR_CSS = `calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_CSS})`;
 
 // ── Where the nav bar sits (owner, 2026-11-08: "the ability for user to choose where they want the
 // nav bar. Either at bottom of screen, vertically displayed on right side of phone screen or left",
@@ -517,27 +514,20 @@ const BS_TABBAR_CSS = `var(--bs-tabbar-h, calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px 
 // A choice of THIS PHONE, like the hand it is held in: kept in localStorage, never in the account,
 // set in Settings → Preferences → Nav bar. On a side it is the same bar, the same size, turned upright
 // and centred on the screen's height, BS_DOCK_SIDE_GAP in from that edge (and a landscape notch).
-// ⚠ IT FLOATS OVER THE PAGE, FROSTED, AS THE BOTTOM BAR DOES (owner, 2026-11-08: "Stop creating a new
-// screen/section for the nav on the page. Just have it overlap, be transparent like it is now"): no page
-// reserves a strip for it. Only --bs-tabbar-h changes, so what stood on the bottom bar comes down. Bottom
-// (the default) sets nothing, so the bottom dock is exactly as it was.
+// ⚠ ONLY THE BAR MOVES (owner, 2026-11-08: "Stop creating a new screen/section for the nav on the page.
+// Just have it overlap, be transparent like it is now", then "dont change the layout on anything else on
+// the screen"): it floats over the page, frosted, as the bottom bar does, and nothing else on any screen
+// moves for it — no strip kept clear, no composer or bar coming down. Every page lays out as it does with
+// the bar at the bottom.
 const BS_NAV_SIDES = ['bottom', 'left', 'right'];
 const BS_NAV_SIDE_LS = 'shape.navSide';
 const BS_DOCK_SIDE_GAP = 10;
 function bsNavSide() {
   try { const v = localStorage.getItem(BS_NAV_SIDE_LS); return BS_NAV_SIDES.indexOf(v) > 0 ? v : 'bottom'; } catch (e) { return 'bottom'; }
 }
-function bsApplyNavSide(side) {
-  try {
-    const st = document.documentElement.style;
-    if (side === 'left' || side === 'right') st.setProperty('--bs-tabbar-h', BS_DOCK_BOTTOM_CSS);
-    else st.removeProperty('--bs-tabbar-h');
-  } catch (e) {}
-}
 function bsSetNavSide(v) {
   const side = BS_NAV_SIDES.indexOf(v) >= 0 ? v : 'bottom';
   try { if (side === 'bottom') localStorage.removeItem(BS_NAV_SIDE_LS); else localStorage.setItem(BS_NAV_SIDE_LS, side); } catch (e) {}
-  bsApplyNavSide(side);
   try { window.dispatchEvent(new CustomEvent('shape:navSide', { detail: { side } })); } catch (e) {}
 }
 // ⚠ ON A SIDE IT IS THE SAME BAR, THE SAME SIZE (owner, 2026-11-08: "make it the same size and look just
@@ -558,8 +548,6 @@ function useBSNavSide() {
   }, []);
   return side;
 }
-// Applied once as the chrome loads, so the first paint already keeps the strip clear.
-if (typeof document !== 'undefined') bsApplyNavSide(bsNavSide());
 // BS_TABBAR_CSS resolved to a number on this phone, for what does arithmetic with
 // it rather than CSS (Radio's lights and hologram stand on the tab bar). Measured
 // on mount and on a resize; BS_TABBAR_H until then, or where nothing can measure.
@@ -574,8 +562,7 @@ function useBSTabbarH() {
     const measure = () => { const v = probe.getBoundingClientRect().height; if (v > 0) setH(Math.round(v)); };
     measure();
     window.addEventListener('resize', measure);
-    window.addEventListener('shape:navSide', measure);
-    return () => { window.removeEventListener('resize', measure); window.removeEventListener('shape:navSide', measure); probe.remove(); };
+    return () => { window.removeEventListener('resize', measure); probe.remove(); };
   }, []);
   return h;
 }
