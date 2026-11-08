@@ -9,11 +9,12 @@
 // 2026-09-09, R11). The sidebar now resolves them itself from the same feeds
 // Today uses — one fetch per page load, cached 60s — so every tab agrees:
 //   signed out (401)         → the demo literal the route passed (under the band)
-//   signed in, feed live     → MONTHLY · NET + clients, or SHAPE SCORE
-//   signed in, feed unknown  → "—" (a number nobody measured is never shown)
+//   signed in, a coach       → Stripe's next payout (DashSidebar, through dashToday.jsx's read),
+//                              whether or not the feed itself was read; the feed gives the count
+//   signed in, a member      → SHAPE SCORE, or "—" when the feed is unknown
 //   still resolving          → "—" (never a flash of demo money on a real account)
-// A route that computed its own live card (Business shows the Stripe balance)
-// keeps it: only the three known demo literals are ever replaced.
+// A route that computed its own live card keeps it: only the three known demo literals are ever
+// replaced. Every coach page passes its demo literal (coach dashboard step 4a).
 const _dsbCache = new Map(); // url -> { at, ok, signedOut, data }
 async function dsbFetch(url) {
   const hit = _dsbCache.get(url);
@@ -42,10 +43,6 @@ async function dsbFetch(url) {
   out.at = Date.now();
   _dsbCache.set(url, out);
   return out;
-}
-function dsbMoney(cents) {
-  const n = Math.round(Number(cents) || 0) / 100;
-  return "$" + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 function dsbRoleFromNav(navItems) {
   const href = (navItems && navItems[0] && navItems[0].href) || "";
@@ -82,16 +79,14 @@ function useDashSidebarLive(role) {
       const okKey = role === "trainer" ? "isTrainer" : "isNutritionist";
       if (!d || !d[okKey] || !d.kpis) return setState({ kind: "unknown" });
       const k = d.kpis;
-      setState({ kind: "live", count: k.activeClients, card: {
-        label: "MONTHLY · NET",
-        amount: k.monthlyNetCents != null ? dsbMoney(k.monthlyNetCents) : "—",
-        // Clients, not subscriptions: the dashboards count today's practice by the Business page's
-        // rule, people with a client whose payment is retrying among them (the sweep after #2394 round 10).
-        // ⚠ A COUNT THE ROUTE COULDN'T READ IS SAID, NOT PRINTED AS "0 clients" (the dashboards after
-        // #2395): the route sends null for a failed read, and this printed null as 0. Today's own card
-        // (dashToday.jsx dashLivePayoutCard) says the same words.
-        sub: k.activeClients == null ? "clients couldn't be read just now" : (k.activeClients === 1 ? "1 client" : k.activeClients + " clients") + " · payouts connect soon",
-      } });
+      // Clients, not subscriptions: the dashboards count today's practice by the Business page's
+      // rule, people with a client whose payment is retrying among them (the sweep after #2394 round
+      // 10). ⚠ A COUNT THE ROUTE COULDN'T READ IS NO COUNT (the dashboards after #2395): null is a
+      // failed read, and the Clients tab then carries no number rather than "0".
+      // ⚠ THE COACH'S MONEY CARD IS THE NEXT PAYOUT, NOT THIS FEED'S NET (coach dashboard step 4a): it
+      // read "MONTHLY · NET · 10 clients · payouts connect soon" long after payouts connected.
+      // DashSidebar asks Stripe through Today's read (useDashNextPayout), so this answers no card.
+      setState({ kind: "live", count: k.activeClients });
     })();
     return () => { on = false; };
   }, [role]);
@@ -196,13 +191,26 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   // literal that has not been marked.
   const demoLiterals = [window.trainerPayoutCard, window.nutriPayoutCard, window.clientPayoutCard].filter(Boolean);
   const passedIsDemo = !!payoutCard && (payoutCard.demo === true || demoLiterals.indexOf(payoutCard) !== -1);
+  // ⚠ A COACH'S CARD IS STRIPE'S NEXT PAYOUT (coach dashboard step 4a), read as Today's Money card
+  // reads it (dashToday.jsx useDashNextPayout, one request a page) and shown in its states: next,
+  // none, setup, unread and loading (dashPayoutSidebarCard), and the page's demo card, the sample, in
+  // the preview only. Asked once the feed has said the viewer is signed in ("live", or "unknown":
+  // signed in, its read failed); never for a signed-out viewer, whose 401 is the preview. The hook is
+  // there on every page that loads dashToday.jsx, which is a constant for the page's life.
+  const coach = role === "trainer" || role === "nutritionist";
+  const askPayout = coach && !!live && (live.kind === "live" || live.kind === "unknown");
+  const payoutRead = coach && typeof useDashNextPayout === "function" ? useDashNextPayout(role, askPayout) : null;
   let card = payoutCard;
   if (passedIsDemo && !(live && (live.kind === "demo" || live.kind === "none"))) {
-    card = live && live.kind === "live"
-      ? live.card
-      : role === "client"
-        ? { label: "SHAPE SCORE", amount: "—", sub: live ? "loads when your score syncs" : "loading…" }
-        : { label: "PAYOUTS", amount: "—", sub: live ? "connects when payouts go live" : "loading…" };
+    if (coach) {
+      // A page without dashToday.jsx (Messages, the live console, the standalone client and builder
+      // pages) has no payout read: its card says where the payout is, never a figure it didn't read.
+      card = typeof dashPayoutSidebarCard === "function"
+        ? dashPayoutSidebarCard(askPayout ? payoutRead : null, role)
+        : { state: "elsewhere", label: "NEXT PAYOUT", amount: "—", sub: "on Business · Money →", href: (role === "nutritionist" ? "NutritionistApp.html" : "TrainerApp.html") + "#business?section=money" };
+    } else if (role === "client") {
+      card = live && live.kind === "live" && live.card ? live.card : { label: "SHAPE SCORE", amount: "—", sub: live ? "loads when your score syncs" : "loading…" };
+    }
   }
   const liveCount = live && live.kind === "live" && live.count != null ? live.count : null;
   const items = (navItems || []).map((n) => (liveCount != null && (n.slug === "clients" || n.label === "Clients")) ? { ...n, count: liveCount } : n);
@@ -243,10 +251,13 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
           ))}
           <div className="dash-rail-group dash-rail-foot">
             {card && (
-              <div className="shape-dash-payout dash-rail-wide">
+              <div className="shape-dash-payout dash-rail-wide" data-dash-payout={card.state || undefined}>
                 <div style={{ fontFamily: mono, fontSize: 9, letterSpacing: "0.14em", color: TEAL_BRIGHT }}>{card.label}</div>
                 <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, marginTop: 5, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112" }}>{card.amount}</div>
-                <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{card.sub}</div>
+                {/* A card that names its next step (payouts to set up) links to it. */}
+                {card.href
+                  ? <a href={card.href} style={{ display: "inline-block", fontSize: 11.5, color: "var(--sh-accent-ink, #2ee0c4)", marginTop: 2, textDecoration: "none" }}>{card.sub}</a>
+                  : <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{card.sub}</div>}
               </div>
             )}
             {foot.map(link)}

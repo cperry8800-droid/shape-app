@@ -122,6 +122,8 @@ export function catalogRows(widgets, hidden) {
       key: w.key,
       title: w.title || String(w.key),
       blurb: typeof w.blurb === 'string' && w.blurb ? w.blurb : null,
+      // The catalogue's group on a coach board (Clients, Schedule, Money, Programs), or null.
+      group: typeof w.group === 'string' && w.group ? w.group : null,
       optional: !!w.optional,
       empty,
       off,

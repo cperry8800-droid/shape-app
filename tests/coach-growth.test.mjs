@@ -267,26 +267,28 @@ test('Today\'s Business card and sidebar say today\'s clients and Shape\'s fee, 
   const pick = (re) => re.exec(src)[0];
   const code = [
     pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/),
-    pick(/function dashLivePayoutCard\(k\) \{[\s\S]*?\n\}/),
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
     pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
   const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
-  const { dashLivePayoutCard, DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
-    js + '\nreturn { dashLivePayoutCard, DashBusinessSummary };')(React, 'serif', {}, {}, {});
+  const { DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { DashBusinessSummary };')(React, 'serif', {}, {}, {});
   const card = renderToStaticMarkup(React.createElement(DashBusinessSummary, { live: { growth: null, funnel: null, kpis: { activeClients: 13, monthlyNetCents: 182700 } }, role: 'trainer', clients: [] })).replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ');
   assert.match(card, /\$1,827 Monthly · net today's clients · after Shape's fee/);
   assert.doesNotMatch(card, /15%|active subs/);
-  assert.deepEqual(dashLivePayoutCard({ activeClients: 13, monthlyNetCents: 182700 }), { label: 'MONTHLY · NET', amount: '$1,827', sub: '13 clients · payouts connect soon' });
-  assert.equal(dashLivePayoutCard({ activeClients: 1, monthlyNetCents: 15300 }).sub, '1 client · payouts connect soon');
-  // Every page's sidebar reads it, or says clients in its own words (the app frame has no dashToday.jsx).
+  // ⚠ THE SIDEBAR'S MONEY CARD IS STRIPE'S NEXT PAYOUT NOW (coach dashboard step 4a): every coach page
+  // hands it the demo card, and the sidebar reads the payout itself (trainerDashboard.jsx DashSidebar,
+  // tests/business-boards.test.mjs). "MONTHLY · NET · 13 clients · payouts connect soon" is gone.
   const page = (f) => readFileSync(ROOT + 'public/newdesign/' + f, 'utf8');
-  assert.match(src, /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : cfg\.payoutCard\(\)\}/);
-  assert.match(page('dashMealBuilder.jsx'), /payoutCard=\{live \? dashLivePayoutCard\(live\.kpis\) : nutriPayoutCard\}/);
-  assert.match(page('dashBuilder.jsx'), /payoutCard=\{live\?dashLivePayoutCard\(live\.kpis\):trainerPayoutCard\}/);
-  for (const f of ['dashToday.jsx', 'dashMealBuilder.jsx', 'dashBuilder.jsx', 'trainerDashboard.jsx']) assert.doesNotMatch(page(f), /active subs/, f);
+  assert.match(src, /payoutCard=\{cfg\.payoutCard\(\)\}/);
+  assert.match(page('dashMealBuilder.jsx'), /payoutCard=\{nutriPayoutCard\}/);
+  assert.match(page('dashBuilder.jsx'), /payoutCard=\{trainerPayoutCard\}/);
+  for (const f of ['dashToday.jsx', 'dashMealBuilder.jsx', 'dashBuilder.jsx', 'trainerDashboard.jsx', 'dashBusiness.jsx']) {
+    assert.doesNotMatch(page(f), /active subs/, f);
+    assert.doesNotMatch(page(f).replace(/\/\/[^\n]*/g, ''), /payouts connect soon/, f + ' still says payouts connect soon');
+  }
 });
 
 // ── The dashboards after #2395: every reader says an unread figure couldn't be read ──
@@ -304,26 +306,23 @@ test('when the dashboards can\'t read the subscriptions, Today\'s card, every pa
   const pick = (re) => re.exec(src)[0];
   const code = [
     pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/),
-    pick(/function dashLivePayoutCard\(k\) \{[\s\S]*?\n\}/),
     pick(/const DASH_FUNNEL_BENCHMARK = [^\n]*/),
     pick(/function dashCloseRate\(f\) \{[\s\S]*?\n\}/),
     pick(/function dashCloseWhy\(f\) \{[\s\S]*?\n\}/),
     pick(/function DashBusinessSummary\([\s\S]*?\n\}/),
   ].join('\n');
   const js = babel.transformSync(code, { presets: [presetReact], babelrc: false, configFile: false }).code;
-  const { dashLivePayoutCard, DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
-    js + '\nreturn { dashLivePayoutCard, DashBusinessSummary };')(React, 'serif', {}, {}, {});
+  const { DashBusinessSummary } = new Function('React', 'serif', 'DASH_MONO_LINK', 'DASH_DEMO_GROWTH', 'DASH_DEMO_FUNNEL',
+    js + '\nreturn { DashBusinessSummary };')(React, 'serif', {}, {}, {});
   const unread = { activeClients: null, monthlyNetCents: null };
-  // Today's card, which Workouts and Meal plans hand the sidebar too (the callers above).
-  assert.deepEqual(dashLivePayoutCard(unread), { label: 'MONTHLY · NET', amount: '—', sub: "clients couldn't be read just now" });
-  assert.deepEqual(dashLivePayoutCard({ activeClients: 0, monthlyNetCents: 0 }), { label: 'MONTHLY · NET', amount: '$0', sub: '0 clients · payouts connect soon' }, 'a measured 0 is still a figure');
-  // Every other page's sidebar builds its own card (trainerDashboard.jsx): its hook, run against each route's answer.
+  // Every page's sidebar reads the feed for the Clients count (trainerDashboard.jsx): its hook, run
+  // against each route's answer. Its money card is Stripe's next payout (coach dashboard step 4a,
+  // tests/business-boards.test.mjs), so the hook answers no card for a coach.
   const shell = readFileSync(ROOT + 'public/newdesign/trainerDashboard.jsx', 'utf8');
   const lift = (re) => { const m = re.exec(shell); assert.ok(m, re + ' moved'); return m[0]; };
   const hookSrc = [
     lift(/const _dsbCache = new Map\(\);/),
     lift(/async function dsbFetch\(url\) \{[\s\S]*?\n\}/),
-    lift(/function dsbMoney\(cents\) \{[\s\S]*?\n\}/),
     lift(/function useDashSidebarLive\(role\) \{[\s\S]*?\n\}/),
   ].join('\n');
   const sidebar = async (role, kpis) => {
@@ -336,10 +335,10 @@ test('when the dashboards can\'t read the subscriptions, Today\'s card, every pa
   };
   for (const [role] of ROLES) {
     const s = await sidebar(role, unread);
-    assert.deepEqual([s.kind, s.count, s.card], ['live', null, dashLivePayoutCard(unread)], role + ': the sidebar says what Today\'s card says, and puts no count on Clients');
+    assert.deepEqual([s.kind, s.count, s.card], ['live', null, undefined], role + ': an unread count puts no count on Clients, and the feed answers no money card');
     for (const kpis of [{ activeClients: 13, monthlyNetCents: 182700 }, { activeClients: 1, monthlyNetCents: 15300 }, { activeClients: 0, monthlyNetCents: 0 }]) {
       const live = await sidebar(role, kpis);
-      assert.deepEqual([live.count, live.card], [kpis.activeClients, dashLivePayoutCard(kpis)], role + ': ' + kpis.activeClients + ' clients');
+      assert.deepEqual([live.count, live.card], [kpis.activeClients, undefined], role + ': ' + kpis.activeClients + ' clients, a measured 0 included');
     }
   }
   // Today's summary: the net is a dash, said as unread.

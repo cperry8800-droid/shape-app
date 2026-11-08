@@ -224,6 +224,33 @@
     return toCsv(REVENUE_HEADER, revenueRows(trajectory));
   }
 
+  // ── Payouts (Business · Money, coach dashboard step 4a) ──────────────────
+  // The payouts Stripe sent the analytics route (src/lib/stripe.ts loadStripe: the latest 12), one
+  // row each, newest first. The arrival date is Stripe's bank day (that day's midnight in UTC), so it
+  // is written as that calendar day. The amount is in the payout's own currency's major units:
+  // Stripe counts cents for most, the whole yen or won for its zero-decimal currencies, and
+  // thousandths for its three-decimal ones (dashToday.jsx dashPayoutAmount's rule). An amount that
+  // could not be read is an empty cell, never 0.00.
+  var ZERO_DECIMAL = ["bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg", "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"];
+  var THREE_DECIMAL = ["bhd", "jod", "kwd", "omr", "tnd"];
+  function payoutMajor(minor, currency) {
+    if (minor == null || !isFinite(Number(minor))) return null;
+    var cur = String(currency || "").toLowerCase();
+    var digits = ZERO_DECIMAL.indexOf(cur) >= 0 ? 0 : THREE_DECIMAL.indexOf(cur) >= 0 ? 3 : 2;
+    return (Math.round(Number(minor)) / Math.pow(10, digits)).toFixed(digits);
+  }
+  var PAYOUTS_HEADER = ["Arrival date", "Amount", "Currency", "Status", "Payout id"];
+  function payoutRows(payouts) {
+    var rows = (Array.isArray(payouts) ? payouts : []).filter(function (p) { return p && typeof p === "object"; });
+    rows = rows.slice().sort(function (a, b) { return (Number(b.arrivalDate) || 0) - (Number(a.arrivalDate) || 0); });
+    return rows.map(function (p) {
+      return [isoDay(p.arrivalDate), payoutMajor(p.amountCents, p.currency), p.currency ? String(p.currency).toUpperCase() : null, p.status || null, p.id || null];
+    });
+  }
+  function payoutsCsv(payouts) {
+    return toCsv(PAYOUTS_HEADER, payoutRows(payouts));
+  }
+
   // `roster-2026-09-10.csv` — the date is in the name because a coach exporting
   // monthly ends up with a folder of them and "roster (3).csv" tells them nothing.
   function fileName(kind, now) {
@@ -238,5 +265,6 @@
     ROSTER_HEADER: ROSTER_HEADER, REVENUE_HEADER: REVENUE_HEADER,
     rosterRows: rosterRows, rosterCsv: rosterCsv,
     revenueRows: revenueRows, revenueCsv: revenueCsv,
+    PAYOUTS_HEADER: PAYOUTS_HEADER, payoutMajor: payoutMajor, payoutRows: payoutRows, payoutsCsv: payoutsCsv,
   };
 });

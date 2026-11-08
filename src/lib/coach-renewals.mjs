@@ -49,6 +49,9 @@ export function renewalRows(picked, { names, flags, cutCents }) {
       dueAt: new Date(ms(r.current_period_end)).toISOString(),
       priceCents: price,
       netCents: cutCents(price, r.fee_bps == null ? null : r.fee_bps),
+      // The fee the row stores, in basis points (0: a client the coach brought; null: none stored,
+      // which nets at the published rate). The Money tab says per row why Shape takes a fee or none.
+      feeBps: r.fee_bps == null || !Number.isFinite(Number(r.fee_bps)) ? null : Number(r.fee_bps),
       ending: flag === true ? true : flag === false ? false : null,
     };
   });
