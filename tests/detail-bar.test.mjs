@@ -154,6 +154,6 @@ test('Home\'s pinned bar keeps the SHAPE wordmark; a page without the flag does 
   assert.equal(img.style.filter, 'brightness(0)', 'the paper\'s filter rides with it');
   // A page without the flag: the plain logo row, no wordmark.
   await render(false);
-  assert.equal(bar.querySelector('[data-bs-pinned-word]'), null, 'a page without the flag kept Home\'s wordmark');
+  assert.ok(!bar.querySelector('[data-bs-pinned-word]'), 'a page without the flag kept Home\'s wordmark');
   await act(async () => root.unmount());
 });
