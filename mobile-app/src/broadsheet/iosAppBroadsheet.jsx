@@ -1232,7 +1232,7 @@ const BS_BACK_SLOT_TOP_CSS = `calc(${BS_MAST_TOP_CSS} + ${BS_MAST_ROW_H + BS_BAC
 // this part of the masthead stays present on every page and stays visible as you scroll down page" and
 // "make sure this new masthead applies to both coaches and members profile"). Every top row draws its
 // tools through this: BSMastRow (and so the pinned bar and BSDetailHeader), BSMasthead, BSPageHeader,
-// the flag, and the hand-built rows (the profiles, Nora's page, sheets). The Club Shape wordmark stays on
+// the flag, and the hand-built rows (the profiles, Nora's page, sheets). The Shape wordmark stays on
 // Home alone ("the club shape part of masthead should only be on home page"). The pill is 30px tall
 // and sits 6px inside the outer buttons; each button keeps a 44px tap target past the pill's edge.
 // `ink` is the row's own ink where it sits on a photo or a band (a hex).
@@ -1264,9 +1264,9 @@ function BSMastToolPill({ children, ink = null }) {
   );
 }
 
-// The wordmark masthead of member Home and coach Today (`layout`): the Club Shape wordmark, its
+// The wordmark masthead of member Home and coach Today (`layout`): the Shape wordmark, its
 // tools and the dateline ({ edition, editionColor, date, extra, clock }). The wordmark element is
-// the page's own (club-shape-wordmark.svg); the layout sets only its width and place.
+// the page's own (shape-wordmark.svg); the layout sets only its width and place.
 function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
   const t = useBS();
   const word = (width) => (React.isValidElement(title) ? (
@@ -1301,9 +1301,11 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       </div>
       {onBack && <BSBackRow onBack={onBack} />}
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
-        {/* A size up from 228 (owner, 2026-11-04: "make the club shape a little larger on home pages");
-            it still gives way on a narrow phone, the flanks keeping at least 10px. */}
-        {flank}{word(262)}{flank}
+        {/* The letters a size up (owner, 2026-11-04: "make the club shape a little larger on home pages"),
+            the size the Club Shape wordmark had at 262px: SHAPE alone is 138px at that letter height
+            (owner, 2026-11-08: the name back to Shape). It still gives way on a narrow phone, the
+            flanks keeping at least 10px. */}
+        {flank}{word(138)}{flank}
       </div>
       {dateline && (
         <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>

@@ -151,9 +151,9 @@ export default async function Nav() {
       `}</style>
       <nav className="navbar">
         <div className="nav-container">
-          <Link href="/" className="nav-logo" aria-label="Club Shape home">
+          <Link href="/" className="nav-logo" aria-label="Shape home">
             {/* An .svg src is served unoptimized by next/image on its own (its docs, "dangerouslyAllowSVG"). */}
-            <Image src="/club-shape-logo-teal-white.svg" alt="Club Shape" width={129} height={32} priority />
+            <Image src="/shape-logo-teal-white.svg" alt="Shape" width={68} height={32} priority />
           </Link>
 
           <div className="nav-links">

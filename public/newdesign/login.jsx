@@ -10,7 +10,7 @@ const LOGIN_DESTS = {
 
 function LoginMark() {
   return (
-    <a href="index.html" aria-label="Club Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+    <a href="index.html" aria-label="Shape home" style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
       <Logo variant="white" height={42} />
     </a>
   );
@@ -259,7 +259,7 @@ function LoginCard() {
     <div className="lgA-card">
       <div aria-hidden className="lgA-edge" />
       <div className="lgA-eyebrow">Welcome back</div>
-      <h1 className="lgA-title">Log in to <em>Club&nbsp;Shape</em>.</h1>
+      <h1 className="lgA-title">Log in to <em>Shape</em>.</h1>
       <p className="lgA-sub">Pick up where you left off. Your coaches, your plans, your progress.</p>
 
       {/* Email / Phone method toggle */}
@@ -338,7 +338,7 @@ function LoginCard() {
       </form>
 
       <div className="lgA-foot">
-        <span>New to Club Shape?</span>
+        <span>New to Shape?</span>
         <a href="Landing.html">Create an account →</a>
       </div>
     </div>
@@ -365,7 +365,7 @@ function LoginSeg({ options, value, onChange, labelledBy, ariaLabel }) {
 // and the phone layout need a stylesheet, so the look lives here.
 function LoginStyles() {
   return <style>{`
-/* Anybody for Club Shape in the title: the login page mounts no site header, which is what requests it elsewhere.
+/* Anybody for Shape in the title: the login page mounts no site header, which is what requests it elsewhere.
    The URL is pageShell's own (ShapeMobileStyles), both axes named, so a page that has both fetches it once. */
 @import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap');
 @font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
@@ -389,7 +389,7 @@ function LoginStyles() {
 .lgA-edge{position:absolute;top:-1px;left:28px;right:28px;height:1px;background:linear-gradient(90deg,transparent,#34d6c5 30%,#34d6c5 70%,transparent);opacity:.8}
 .lgA-eyebrow{font-family:${mono};font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#34d6c5;margin-bottom:12px}
 .lgA-title{font-family:${serif};font-size:38px;font-weight:400;letter-spacing:-.025em;line-height:1.02;margin:0 0 8px;color:#f2ede4}
-/* Club Shape in the website's own display face, as the homepage's headings set their teal words (index.html h1 em). */
+/* Shape in the website's own display face, as the homepage's headings set their teal words (index.html h1 em). */
 .lgA-title em{font-family:'Anybody','Anybody Fallback',system-ui,sans-serif;font-style:normal;font-weight:500;font-variation-settings:'wdth' 90;letter-spacing:-.01em;color:#34d6c5}
 .lgA-sub{font-family:${sans};font-size:14px;line-height:1.5;color:rgba(242,237,228,.62);margin:0 0 20px;max-width:32ch}
 .lgA-form{display:flex;flex-direction:column;gap:16px;margin-top:20px}

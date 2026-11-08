@@ -166,8 +166,8 @@ function CheckoutTopBar() {
         backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)',
       }}
     >
-      <a href="/trainers" aria-label="Club Shape" style={{ display: 'flex', alignItems: 'center' }}>
-        <img src="/club-shape-logo-teal-white.svg" alt="Club Shape" style={{ height: 26, width: 'auto', display: 'block' }} />
+      <a href="/trainers" aria-label="Shape" style={{ display: 'flex', alignItems: 'center' }}>
+        <img src="/shape-logo-teal-white.svg" alt="Shape" style={{ height: 26, width: 'auto', display: 'block' }} />
       </a>
       <a
         href="/trainers"

@@ -1499,9 +1499,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     <BSPage>
       <BSMasthead
         layout="flag"
-        // The Club Shape wordmark (club-shape-wordmark.svg, 14.2:1, cropped close), unchanged: the
+        // The Shape wordmark (shape-wordmark.svg, 7.5:1, cropped close; owner 2026-11-08), unchanged: the
         // layout sets its size and place, never its letters.
-        title={<img src={`${import.meta.env.BASE_URL}club-shape-wordmark.svg`} alt="Club Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(200px, 100%)', height: 'auto', aspectRatio: '1764 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
+        title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}{typeof window !== 'undefined' && window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile }) : null}</span>}
         // The top bars stay (owner, 2026-10-25: "Keep the top bars in home page"): the edition band
         // (edition · the day the strip shows · the clock) rides in the masthead now.

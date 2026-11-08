@@ -241,15 +241,16 @@
 
   // ── The website bar's mark (owner, 2026-11-03: "add the same effect to the triangles in top left
   // logo on nav bar that we did on the app") ──────────────────────────────────────────────────────
-  // The bar's logo is the Club Shape lockup (/club-shape-logo-*.svg: the two triangles stacked over
-  // CLUB SHAPE, from marketing/club-shape/build-logo.mjs --site). mountNav() lays the app masthead's
+  // The bar's logo is the Shape lockup (/shape-logo-*.svg: the two triangles stacked over SHAPE,
+  // from marketing/club-shape/build-logo.mjs --site; the owner, 2026-11-08, took the name back from
+  // Club Shape, which is now the virtual club's). mountNav() lays the app masthead's
   // turning glass (logo(), MAST, turn()) over the lockup's triangles and hands the <img> the same
   // lockup without them, so the prisms take the triangles' place.
   // NAV_BOX is the lockup's geometry in its own units (tests/club-shape-nav-mark.test.mjs checks it
   // against build-logo's layout): the file's size, the triangles' centre and their height. The glass
   // is the 99 x 113 masthead mark, whose triangles span 82 units of height centred at (49.5, 56),
   // scaled so they are the lockup's triangles' height and centred where they are.
-  const NAV_BOX = { w: 1763.85, h: 439, cx: 889.33, cy: 132, markH: 240 };
+  const NAV_BOX = { w: 931.78, h: 439, cx: 473.29, cy: 132, markH: 240 };
   function navPlace() {
     const k = NAV_BOX.markH / 82, pct = (v, of) => `${r2((v / of) * 100)}%`;
     return {

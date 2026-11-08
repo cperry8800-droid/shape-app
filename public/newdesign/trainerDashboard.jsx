@@ -219,7 +219,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
   return (
     <aside className="dash-rail">
       <div className="dash-rail-panel">
-        <a href={homeHref} className="dash-rail-brand" aria-label="Club Shape home">
+        <a href={homeHref} className="dash-rail-brand" aria-label="Shape home">
           {/* The app masthead's mark (viewBox 0 0 99 113): the flat triangles, then the glass in their place. */}
           <svg ref={railMarkRef} aria-hidden viewBox="0 0 99 113" width="21" height="24" style={{ flex: "0 0 auto", display: "block", overflow: "visible" }}>
             <g className="flat">
@@ -228,7 +228,7 @@ function DashSidebar({ navItems, payoutCard, homeHref = "index.html" }) {
             </g>
             <g className="glass" />
           </svg>
-          {/* CLUB SHAPE over the role: the wordmark is long, so the chip sits under it (dash.css). */}
+          {/* SHAPE over the role, the chip under it (dash.css). */}
           <span className="dash-rail-label dash-rail-name">
             <span className="dash-rail-wordmark" aria-hidden />
             {roleName && <span className="dash-rail-role">{roleName}</span>}

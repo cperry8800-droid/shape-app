@@ -100,9 +100,9 @@ test('the ticker is 10px in from each side, as the deck and panels under it on e
   assert.match(RADIO, /margin: '12px 8px 4px', borderRadius: 14,/);
 });
 
-test('the Club Shape wordmark on the Home flag is a size up, 262px, and still gives way on a narrow phone', () => {
+test('the Shape wordmark on the Home flag keeps the letters a size up (138px, as Club Shape at 262) and still gives way on a narrow phone', () => {
   const flag = between(CHROME, 'function BSMastLayout(', '\nfunction BSMasthead(');
-  assert.match(flag, /\{flank\}\{word\(262\)\}\{flank\}/);
+  assert.match(flag, /\{flank\}\{word\(138\)\}\{flank\}/);
   assert.match(flag, /<div style=\{\{ flex: `0 1 \$\{width\}px`, width, minWidth: 0 \}\}>/, 'it shrinks');
   assert.match(flag, /flex: '1 1 0', minWidth: 10,/, 'the flanks keep 10px');
 });
