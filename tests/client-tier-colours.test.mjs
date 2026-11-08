@@ -81,7 +81,8 @@ function fakeDb(answer) {
 }
 
 test('the roster reads rank points with get_user_points: unread is absent, no ledger is 0', async () => {
-  const A = uuid(1), B = uuid(2), C = uuid(3), D = uuid(4);
+  // B has letters, so the database's answer for it can differ in case from the roster's id.
+  const A = uuid(1), B = 'bbbbbbbb-cccc-4ddd-8eee-ffffffffffff', C = uuid(3), D = uuid(4);
   const db = fakeDb((fn, ids) => ({ data: [{ user_id: A, points: 2400 }, { user_id: B.toUpperCase(), points: '16000' }, { user_id: D, points: 'n/a' }], error: null }));
   const got = await rosterRankPoints(db, [A, B, C, D, 'name:Ana', null, A]);
   assert.deepEqual(db.calls.map((c) => c.fn), ['get_user_points']);

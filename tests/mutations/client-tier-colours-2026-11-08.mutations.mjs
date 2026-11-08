@@ -18,7 +18,7 @@ export default {
   timeoutMs: 240_000,
   mutations: [
     // ── a tier from rank points, never Raw by default ──
-    { name: 'tier: a negative number is Raw', file: CC, find: 'if (!Number.isFinite(v) || v < 0) return null;', replace: 'if (!Number.isFinite(v)) return null;' },
+    { name: 'tier: a negative number is Raw', file: CC, find: '    let t = null;\n    for (const x of MEMBER_TIERS) if (v >= x.min) t = x;', replace: '    let t = MEMBER_TIERS[0];\n    for (const x of MEMBER_TIERS) if (v >= x.min) t = x;' },
     { name: 'tier: null is Raw', file: CC, find: "function tierOf(v) {\n  if (typeof v === 'number') {", replace: "function tierOf(v) {\n  if (v == null) return MEMBER_TIERS[0];\n  if (typeof v === 'number') {" },
     { name: 'tier: a numeric string is points', file: CC, find: 'return MEMBER_TIERS.find((x) => x.key === k) || null;', replace: 'return MEMBER_TIERS.find((x) => x.key === k) || tierOf(Number(k));' },
     { name: 'tier: a threshold is exclusive', file: CC, find: 'for (const x of MEMBER_TIERS) if (v >= x.min) t = x;', replace: 'for (const x of MEMBER_TIERS) if (v > x.min) t = x;' },

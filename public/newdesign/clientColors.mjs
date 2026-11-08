@@ -47,7 +47,8 @@ export function paperTone(paper) {
 // Anything else, null and NaN and a negative number and a numeric string included, is no tier.
 function tierOf(v) {
   if (typeof v === 'number') {
-    if (!Number.isFinite(v) || v < 0) return null;
+    if (!Number.isFinite(v)) return null;
+    // A negative number reaches no rung (Raw starts at 0), so it stays no tier.
     let t = null;
     for (const x of MEMBER_TIERS) if (v >= x.min) t = x;
     return t;
