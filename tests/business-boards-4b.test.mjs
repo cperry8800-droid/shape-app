@@ -293,6 +293,15 @@ test('the levers are priced from the forecast, most first, and the top one is th
   const levers = B.dbzLevers(BASE, plan);
   assert.deepEqual(levers.map((l) => [l.key, l.deltaCents]), want.map((w) => [w.key, w.cents]));
   assert.equal(levers.every((l, i) => i === 0 || l.deltaCents <= levers[i - 1].deltaCents), true, 'most first');
+  // Priced from the plan as it stands, not the coach's start, and sorted: with few leaving and new
+  // clients at a lower rate, fewer leaving moves it more than one more client a month does.
+  const other = { adds: 4, churnPct: 3, rate: 120 };
+  const fromOther = runOf(BASE, other).rows[12].netCents;
+  const otherWant = [
+    ['more', { ...other, adds: 5 }], ['keep', { ...other, churnPct: 0 }], ['price', { ...other, rate: 140 }],
+  ].map(([key, o]) => [key, Math.round(runOf(BASE, o).rows[12].netCents - fromOther)]).sort((a, b) => b[1] - a[1]);
+  assert.equal(otherWant[0][0], 'keep', 'the fixture puts fewer leaving first');
+  assert.deepEqual(B.dbzLevers(BASE, other).map((l) => [l.key, l.deltaCents]), otherWant);
   // No one leaving: no "fewer leaving" lever.
   assert.deepEqual(B.dbzLevers(BASE, { ...plan, churnPct: 0 }).map((l) => l.key).sort(), ['more', 'price']);
   const applied = [];

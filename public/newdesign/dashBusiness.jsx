@@ -2784,7 +2784,7 @@ function DbzTenureCard({ model, worth }) {
           ))}
         </div>
         <div aria-hidden="true" style={{ position: "relative", height: 14, margin: "0 4px", fontFamily: DBZ_MONO, fontSize: 10, color: DBZ_INK50 }}>
-          {ticks.map((t, i) => <span key={t} style={{ position: "absolute", left: x(t * 30.4) + "%", transform: i === 0 ? "none" : i === ticks.length - 1 ? "translateX(-100%)" : "translateX(-50%)" }}>{t === 0 ? "joined" : t + " mo"}</span>)}
+          {ticks.map((t, i) => <span key={t} style={{ position: "absolute", whiteSpace: "nowrap", left: x(t * 30.4) + "%", transform: i === 0 ? "none" : i === ticks.length - 1 ? "translateX(-100%)" : "translateX(-50%)" }}>{t === 0 ? "joined" : t + " mo"}</span>)}
         </div>
         <div data-dbz-tenure-ends="" style={{ fontSize: 13, lineHeight: 1.5, color: DBZ_INK50, marginTop: 10 }}>
           Longest: <b style={{ color: DBZ_INK, fontWeight: 600 }}>{oldest.name}</b>, {dbzTenureWords(oldest.days)}.{m.dots.length > 1 && <React.Fragment> Newest: <b style={{ color: DBZ_INK, fontWeight: 600 }}>{newest.name}</b>, {dbzTenureWords(newest.days)}.</React.Fragment>}
