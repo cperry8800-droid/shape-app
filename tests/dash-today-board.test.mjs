@@ -1,8 +1,8 @@
 // The coach Today as a widget board (coach dashboard step 3; the owner's design, 2026-11-06):
 // six widgets, one question each — the Brief and Up next, At a glance and Money, Needs you and the
 // Today timeline — with the catalogue docked beside the board instead of over it.
-//   1. the brief: "N clients need your attention" (plural, singular, nobody), the names in their
-//      client colours and never a time; then its own sentence, the next session still to come
+//   1. the brief: "N clients need your attention" (plural, singular, nobody), each name in ink with
+//      their tier's mark beside it, and never a time; then its own sentence, the next session still to come
 //      today on the coach's day (owner, 2026-11-06) — not one that has passed or started;
 //   2. Needs you shows three rows and folds the rest into gems with what they are;
 //   3. the default board is the six, in three pairs of two thirds beside one third;
@@ -56,7 +56,7 @@ function mount() {
     },
   };
 }
-const row = (id, name, severity, reason, action) => ({ severity, client: { profile: { id, name } }, lead: reason ? { reason, action: action || { kind: 'message', label: 'Message' } } : null, flags: [] });
+const row = (id, name, severity, reason, action, rankPoints) => ({ severity, client: { profile: { id, name }, ...(rankPoints !== undefined ? { rankPoints } : {}) }, lead: reason ? { reason, action: action || { kind: 'message', label: 'Message' } } : null, flags: [] });
 const T = today({ ShapeZone, ShapeClientColors });
 
 // ── 1. The brief ──────────────────────────────────────────────────────────────
@@ -125,23 +125,55 @@ test('the brief names the next session still to come today, at its time, and nev
   assert.deepEqual(T.dashNextToday(null, [{ time: '07:00', who: 'Priya S.', status: 'DONE' }, { time: '14:00', who: 'Sam O.', status: 'NEXT' }], NOW, zone), { who: 'Sam O.', time: '14:00' });
 });
 
-test('the brief card draws each named client in their colour', async () => {
+test('the brief card marks each named client\'s tier beside their name, which stays in ink', async () => {
   const m = mount();
   try {
     const t = today(m.dom.window);
-    const model = t.dashBriefModel([row('client-1', 'Marcus T.', 'red', 'r')], { who: 'Sam O.', id: 'client-2', time: '2:00 PM' });
+    // Marcus is Form (2,400 rank points), Sam Raw at a measured 0, Elena unread (no rank points).
+    const model = t.dashBriefModel([row('client-1', 'Marcus T.', 'red', 'r', null, 2400), row('client-3', 'Elena R.', 'red', 'r')], { who: 'Sam O.', id: 'client-2', time: '2:00 PM', points: 0 });
     await m.render(React.createElement(t.DashBriefCard, { model }));
-    assert.equal(m.text().includes('1 client needs your attention: Marcus T. Next up today: Sam O. at 2:00 PM.'), true);
-    const inks = [...document.querySelectorAll('[data-dash-brief] .sh-client-ink')].map((n) => n.textContent);
-    assert.deepEqual(inks, ['Marcus T.', 'Sam O.']);
+    assert.equal(m.text().includes('2 clients need your attention: Marcus T. and Elena R. Next up today: Sam O. at 2:00 PM.'), true);
+    const marks = [...document.querySelectorAll('[data-dash-brief] .sh-tier-mark')];
+    assert.deepEqual(marks.map((n) => [n.getAttribute('data-tier'), n.getAttribute('aria-label'), n.getAttribute('title')]),
+      [['form', 'Form tier', 'Form tier'], ['raw', 'Raw tier', 'Raw tier']], 'a mark per known tier, named in words; none for the unread one');
+    assert.deepEqual(marks.map((n) => n.style.getPropertyValue('--tier-mark')), ['#e0463c', '#5fa96e'], 'the marks are not the tiers\' own colours');
+    // The mark rides with the name's first word, and the name itself carries no colour.
+    assert.deepEqual(marks.map((n) => n.parentElement.textContent), ['Marcus', 'Sam']);
+    assert.equal([...document.querySelectorAll('[data-dash-brief] span')].some((n) => n.style.color !== ''), false, 'a name is tinted');
+    // The names carry their tier in words on hover; the unread one carries none.
+    assert.deepEqual([...document.querySelectorAll('[data-dash-brief] > span')].map((n) => [n.textContent, n.getAttribute('title')]),
+      [['Marcus T.', 'Form tier'], ['Elena R.', null], ['Sam O.', 'Raw tier']]);
+  } finally { await m.done(); }
+});
+
+test('an unknown tier draws no colour: never Raw, never a status colour', async () => {
+  const m = mount();
+  try {
+    const t = today(m.dom.window);
+    for (const v of [undefined, null, NaN, -5, '2400', Infinity]) {
+      const model = t.dashBriefModel([row('c', 'Ana B.', 'red', 'r', null, v)], null);
+      await m.render(React.createElement(t.DashBriefCard, { model }));
+      assert.equal(document.querySelectorAll('[data-dash-brief] .sh-tier-mark').length, 0, `rank points ${String(v)} drew a tier`);
+    }
+    // A needs-you row with no tier: a hollow gem, no colour and nothing read aloud.
+    const items = T.dashNeedsItems({ now: [row('u', 'U.', 'red', 'Reason u')], week: [] }, []);
+    await m.render(React.createElement(t.DashNeedsBoard, { items, feed: [], role: 'trainer', prefs: null, dismiss: null }));
+    const gem = document.querySelector('[data-dash-need] [data-tier-unknown]');
+    assert.equal(!!gem && gem.getAttribute('aria-hidden') === 'true' && gem.style.background === '' && !gem.className, true, 'an unknown tier is not a hollow gem');
+    assert.equal(document.querySelectorAll('[data-dash-need] .sh-tier-mark').length, 0);
+    // Without the module on the page, a known tier draws nothing either.
+    const bare = today({ ShapeZone });
+    await m.render(React.createElement(bare.DashBriefCard, { model: bare.dashBriefModel([row('c', 'Ana B.', 'red', 'r', null, 9000)], null) }));
+    assert.equal(document.querySelectorAll('.sh-tier-mark').length, 0);
   } finally { await m.done(); }
 });
 
 // ── 2. Needs you ──────────────────────────────────────────────────────────────
 test('Needs you shows three rows, then folds the rest into gems with what they are', async () => {
-  const now = ['m', 'p', 'e'].map((id) => row(id, id.toUpperCase() + '.', 'red', 'Reason ' + id));
-  const week = ['w1', 'w2', 'w3', 'w4'].map((id) => row(id, id.toUpperCase() + '.', 'amber', 'Watch ' + id));
-  const wins = [{ client: { profile: { id: 'g1', name: 'G1.' } }, hit: { label: 'First 10k', hitAt: '2026-11-05' } },
+  const now = ['m', 'p', 'e'].map((id, i) => row(id, id.toUpperCase() + '.', 'red', 'Reason ' + id, null, [16000, 800, 0][i]));
+  // One of the week's clients has no tier read: their gem is hollow.
+  const week = ['w1', 'w2', 'w3', 'w4'].map((id, i) => row(id, id.toUpperCase() + '.', 'amber', 'Watch ' + id, null, [5000, 2000, undefined, 749][i]));
+  const wins = [{ client: { profile: { id: 'g1', name: 'G1.' }, rankPoints: 120 }, hit: { label: 'First 10k', hitAt: '2026-11-05' } },
     { client: { profile: { id: 'g2', name: 'G2.' } }, hit: { label: 'Streak 30', hitAt: '2026-11-04' } },
     { client: { profile: { id: 'm', name: 'M.' } }, hit: { label: 'Dup', hitAt: '2026-11-03' } }];
   const items = T.dashNeedsItems({ now, week }, wins);
@@ -173,10 +205,19 @@ test('Needs you shows three rows, then folds the rest into gems with what they a
     const foldBtn = document.querySelector('[data-dash-fold]');
     assert.equal(!!foldBtn, true);
     assert.equal(/6 more/.test(foldBtn.textContent) && /4 this week/.test(foldBtn.textContent) && /2 good news/.test(foldBtn.textContent), true);
-    assert.equal(foldBtn.querySelectorAll('.sh-client-ink').length, 6, 'one gem per folded client, in their colour');
-    // Each row: name, a labelled status chip, one reason, one action.
+    // One gem per folded client in their tier's colour (a hollow one for the unread tier), named on
+    // hover; inside the fold's button they are not read aloud, which says what they are in words.
+    const gems = [...foldBtn.querySelectorAll('.sh-tier-mark, [data-tier-unknown]')];
+    // (749 points is still Raw: Tempo starts at 750.)
+    assert.deepEqual(gems.map((g) => g.getAttribute('data-tier') || 'unknown'), ['peak', 'form', 'unknown', 'raw', 'raw', 'unknown']);
+    assert.deepEqual(gems.map((g) => g.getAttribute('title')), ['W1. · Peak tier', 'W2. · Form tier', 'W3.', 'W4. · Raw tier', 'G1. · Raw tier', 'G2.']);
+    assert.equal(gems.every((g) => g.getAttribute('aria-hidden') === 'true' && !g.hasAttribute('role')), true);
+    // Each row: the tier gem, the name in ink, a labelled status chip, one reason, one action.
     const first = document.querySelector('[data-dash-need]');
     assert.equal(first.textContent.includes('M.') && first.textContent.includes('Needs you') && first.textContent.includes('Reason m'), true);
+    const gem = first.querySelector('.sh-tier-mark');
+    assert.deepEqual([gem.getAttribute('data-tier'), gem.getAttribute('role'), gem.getAttribute('aria-label')], ['legend', 'img', 'Legend tier']);
+    assert.equal([...first.querySelectorAll('span')].some((n) => n.style.color !== '' && n.textContent === 'M.'), false, 'the name is tinted');
     assert.equal(first.querySelectorAll('button').length, 1, 'a row offers one action');
     await act(async () => foldBtn.dispatchEvent(new m.dom.window.MouseEvent('click', { bubbles: true })));
     assert.equal(document.querySelectorAll('[data-dash-need]').length, 9, 'the fold opens the rest');

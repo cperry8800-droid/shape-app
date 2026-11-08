@@ -1911,8 +1911,8 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
     : "UP NEXT · IN " + dashCountdown(+next.at - now);
   const eyebrow = DASH_NOW_EYEBROW;
   const btn = { flex: 1, minHeight: 38, borderRadius: 9, font: "inherit", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", boxSizing: "border-box" };
-  const ink = single && rec && rec.profile ? dashTodayInk(rec.profile.id) : null;
-  const name = next ? <span className={ink ? ink.className : undefined} style={ink ? ink.style : undefined}>{next.who}</span> : null;
+  // The board's card marks the client's tier beside the name; the name keeps the card's ink.
+  const name = next ? <DashClientName points={single ? dashRecordTier(rec) : null} size={10} weight={null}>{next.who}</DashClientName> : null;
   return (
     <section aria-label="Up next" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line2, #413d38)", borderRadius: single ? 12 : 14, padding: single ? "16px 18px" : 18 }}>
       {next ? (
@@ -1944,17 +1944,13 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
   );
 }
 
-// Today's timeline, marked where the day is. `clients` (the board's widget) draws each name in
-// its client's colour when the row's client is on the roster.
+// Today's timeline, marked where the day is. `clients` (the board's widget) marks each name still
+// to come with its client's tier when the row's client is on the roster.
 function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, role, card = false, unread = false }) {
   const { now, items, nextIdx } = state;
   const eyebrow = DASH_NOW_EYEBROW;
   const plural = unit + (items.length === 1 ? "" : "s");
-  const inkOf = (who) => {
-    if (!clients) return null;
-    const rec = dashFindRecord(clients, who);
-    return rec && rec.profile ? dashTodayInk(rec.profile.id) : null;
-  };
+  const tierOf = (who) => (clients ? dashRecordTier(dashFindRecord(clients, who)) : null);
   const marker = (label) => (
     <div aria-hidden style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
       <span style={{ fontFamily: mono, fontSize: 10, letterSpacing: "0.12em", color: "var(--sh-accent, #2ee0c4)" }}>{label}</span>
@@ -1971,14 +1967,14 @@ function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, ro
       </div>
       {items.length === 0 && <div data-dash-timeline={unread ? "unread" : "empty"} style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "9px 0" }}>{unread ? "Today's timeline couldn't be read just now. " : "No " + unit + "s on today's timeline. "}<a href={dashTabHref("schedule", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a></div>}
       {items.map((r, i) => {
-        const ink = r.done ? null : inkOf(r.who);
+        const points = r.done ? null : tierOf(r.who);
         return (
           <React.Fragment key={i}>
             {i === nextIdx && (rows || r.status === "NEXT") && marker(rows ? "NOW " + dashFmtTime(new Date(now).toISOString(), zone) : "NOW")}
             <div style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 10, padding: "9px 0", color: r.done ? "var(--sh-ink3, #75706a)" : INK }}>
               <span style={{ fontFamily: mono, fontSize: 11, color: i === nextIdx ? "var(--sh-accent, #2ee0c4)" : "var(--sh-ink3, #75706a)" }}>{r.time}</span>
               <span style={{ fontSize: 13, fontWeight: i === nextIdx ? 600 : 400, minWidth: 0 }}>
-                <span className={ink ? ink.className : undefined} style={ink ? ink.style : undefined}>{r.who}</span>{r.sub ? <span style={{ color: "var(--sh-ink3, #75706a)", fontWeight: 400 }}>{" · " + r.sub}</span> : null}
+                <DashClientName points={points} size={7} weight={null}>{r.who}</DashClientName>{r.sub ? <span style={{ color: "var(--sh-ink3, #75706a)", fontWeight: 400 }}>{" · " + r.sub}</span> : null}
               </span>
             </div>
           </React.Fragment>
@@ -2006,26 +2002,57 @@ function DashNowColumn({ rows, demoRows, clients, role, unit, onOpenCalendar, zo
 // rollout rule). Height means priority: Needs you, the one thing to act on, stands at Lift 2, the
 // timeline (a list) rests at Lift 0, and the rest sit at the cell's resting Lift 1 (dashGrid.jsx).
 
-// A client's fixed colour for their name (clientColors.mjs, read at CALL time, as dashRoster.jsx's
-// dashClientInk): the two text-safe values as inline custom properties that dash.css's
-// `.sh-client-ink` picks between by paper. Null without the module or an id: the plain ink.
-function dashTodayInk(id) {
+// ⚠ A CLIENT'S COLOUR IS THEIR SHAPE SCORE TIER'S (the owner, 2026-11-06), ON A MARK, NEVER ON THE
+// NAME: the name keeps the page's ink, and a gem or a dot beside it takes the tier's own colour,
+// with the tier in words for hover and assistive tech ("Form tier"). clientColors.mjs is read at
+// CALL time (window.ShapeClientColors, as dashRoster.jsx's dashClientTierMark). An unknown tier
+// (not read, a failed read, the preview's client without one, no module on the page) draws no
+// colour at all: never Raw, and never a severity colour, since red, gold and green are tiers too.
+// A record's rank points (useDashboard's `rankPoints`, a triage row's client's), or null.
+function dashRecordTier(rec) {
+  const r = rec && rec.client && typeof rec.client === "object" ? rec.client : rec;
+  const v = r && typeof r === "object" ? r.rankPoints : null;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+}
+// The mark for a tier: { tier, title, style }, or null when it is unknown.
+function dashTierMark(points) {
   try {
     const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
-    const vars = id != null && CC && typeof CC.clientColorVars === "function" ? CC.clientColorVars(id) : null;
-    return vars ? { className: "sh-client-ink", style: vars } : null;
+    if (points == null || !CC || typeof CC.clientTier !== "function" || typeof CC.clientTierVars !== "function") return null;
+    const t = CC.clientTier(points), vars = CC.clientTierVars(points);
+    return t && vars ? { tier: t.key, title: t.title, style: vars } : null;
   } catch (e) { return null; }
 }
-function DashClientInkName({ id, children }) {
-  const ink = dashTodayInk(id);
-  return <span className={ink ? ink.className : undefined} style={ink ? { ...ink.style, fontWeight: 600 } : { fontWeight: 600 }}>{children}</span>;
+// A dot before a name where no gem is drawn. Nothing for an unknown tier.
+function DashTierDot({ points, size = 8 }) {
+  const m = dashTierMark(points);
+  if (!m) return null;
+  return <span className="sh-tier-mark" data-tier={m.tier} role="img" aria-label={m.title} title={m.title}
+    style={{ ...m.style, display: "inline-block", width: size, height: size, borderRadius: "50%", flexShrink: 0, verticalAlign: "0.08em", marginRight: Math.round(size * 0.7) }} />;
 }
-// A gem: a small square in the client's colour (the same text-safe value, so it reads on every
-// paper), the severity's when the module is not on this page.
-function DashClientGem({ id, fallback, title }) {
-  const ink = dashTodayInk(id);
-  return <span aria-hidden title={title} className={ink ? ink.className : undefined}
-    style={{ ...(ink ? ink.style : {}), display: "inline-block", width: 9, height: 9, borderRadius: 3, flexShrink: 0, background: ink ? "currentColor" : (fallback || DASH_SEV_COLORS.unknown) }} />;
+// A client's name in the page's ink, their tier's dot before it, the tier in words on hover. The
+// dot is held to the name's first word, so a narrow card wraps the name but never strands the dot.
+function DashClientName({ points, size, weight = 600, children }) {
+  const m = dashTierMark(points);
+  const text = typeof children === "string" ? children : null;
+  const cut = text ? text.indexOf(" ") : -1;
+  const head = cut > 0 ? text.slice(0, cut) : children;
+  const tail = cut > 0 ? text.slice(cut) : null;
+  return (
+    <span title={m ? m.title : undefined} style={weight == null ? undefined : { fontWeight: weight }}>
+      {m ? <span style={{ whiteSpace: "nowrap" }}><DashTierDot points={points} size={size} />{head}</span> : head}{tail}
+    </span>
+  );
+}
+// A gem: a small square in the tier's colour, the tier in words (`title`, the label for assistive
+// tech unless `decorative`, inside a control that already names itself). An unknown tier is a
+// hollow square that claims nothing.
+function DashClientGem({ points, title, decorative = false }) {
+  const m = dashTierMark(points);
+  const box = { display: "inline-block", width: 9, height: 9, borderRadius: 3, flexShrink: 0 };
+  if (!m) return <span aria-hidden="true" title={title} data-tier-unknown="" style={{ ...box, boxShadow: "inset 0 0 0 1px var(--sh-line2, #413d38)" }} />;
+  const words = title ? title + " · " + m.title : m.title;
+  return <span className="sh-tier-mark" data-tier={m.tier} title={words} {...(decorative ? { "aria-hidden": "true" } : { role: "img", "aria-label": m.title })} style={{ ...m.style, ...box }} />;
 }
 
 // The brief's clock, in prose: the next session's start on the coach's own day (the route's
@@ -2067,10 +2094,11 @@ function dashNextToday(rows, demoRows, now, zone) {
 }
 
 // ⚠ THE BRIEF NAMES WHO NEEDS THE COACH, NEVER A TIME (owner, 2026-11-06): "3 clients need your
-// attention", their names in their client colours; then, as its own sentence, the next appointment
-// still to come today. The count is the engine's "Needs you" (coachNeeds' `now`: red, with a lead
-// of the coach's own), the same set the roster's status calls "Needs you". One reading, as pieces:
-// the card colours the named ones, and dashBriefText is the same words as plain text.
+// attention", each name in the card's ink with their tier's dot before it; then, as its own
+// sentence, the next appointment still to come today. The count is the engine's "Needs you"
+// (coachNeeds' `now`: red, with a lead of the coach's own), the same set the roster's status calls
+// "Needs you". One reading, as pieces:
+// the card marks the named ones' tiers, and dashBriefText is the same words as plain text.
 // `needNow` null is a pulse that could not be read: the brief says so, never "nobody". With nothing
 // left today it says "No more sessions today." (owner, 2026-11-06), but only over a day that was
 // read (`day.read`): the preview has no clock, and an unread day is not an empty one.
@@ -2079,7 +2107,7 @@ function dashBriefModel(needNow, next, day) {
   const rows = read ? needNow : [];
   const names = rows.slice(0, 3).map((r) => {
     const p = r && r.client && r.client.profile ? r.client.profile : {};
-    return { id: p.id != null ? p.id : null, name: p.name || "A client" };
+    return { id: p.id != null ? p.id : null, name: p.name || "A client", points: dashRecordTier(r && r.client) };
   });
   const unit = day && typeof day.unit === "string" && day.unit ? day.unit : "session";
   return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit };
@@ -2091,7 +2119,7 @@ function dashBriefPieces(model) {
   else if (!n) out.push({ t: "Nobody needs your attention right now." });
   else {
     out.push({ t: (n === 1 ? "1 client needs" : n + " clients need") + " your attention: " });
-    const names = model.names.map((x) => ({ t: x.name, id: x.id, name: true }));
+    const names = model.names.map((x) => ({ t: x.name, id: x.id, points: x.points != null ? x.points : null, name: true }));
     if (model.more > 0) names.push({ t: model.more + " more" });
     names.forEach((p, i) => {
       if (i > 0) out.push({ t: i === names.length - 1 ? " and " : ", " });
@@ -2102,7 +2130,7 @@ function dashBriefPieces(model) {
   }
   if (model && model.next) {
     out.push({ t: " Next up today: " });
-    out.push({ t: model.next.who, id: model.next.id != null ? model.next.id : null, name: true });
+    out.push({ t: model.next.who, id: model.next.id != null ? model.next.id : null, points: model.next.points != null ? model.next.points : null, name: true });
     out.push({ t: " at " + model.next.time + "." });
   } else if (model && model.dayRead) {
     out.push({ t: (out.length ? " " : "") + "No more " + model.unit + "s today." });
@@ -2126,7 +2154,7 @@ function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
   const rec = next ? dashFindRecord(clients, next.who) : null;
-  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null } : null, { read: Array.isArray(rows), unit });
+  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit });
   return <DashBriefCard model={model} />;
 }
 function DashBriefCard({ model }) {
@@ -2134,7 +2162,7 @@ function DashBriefCard({ model }) {
     <section aria-label="Brief" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 22px" }}>
       <div style={{ ...DASH_MONO_EYEBROW, marginBottom: 10 }}>Brief</div>
       <p data-dash-brief="" style={{ margin: 0, fontFamily: serif, fontSize: 22, lineHeight: 1.35, fontWeight: 500, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 108" }}>
-        {dashBriefPieces(model).map((p, i) => p.name ? <DashClientInkName key={i} id={p.id}>{p.t}</DashClientInkName> : <React.Fragment key={i}>{p.t}</React.Fragment>)}
+        {dashBriefPieces(model).map((p, i) => p.name ? <DashClientName key={i} points={p.points} size={10}>{p.t}</DashClientName> : <React.Fragment key={i}>{p.t}</React.Fragment>)}
       </p>
     </section>
   );
@@ -2143,8 +2171,8 @@ function DashBriefCard({ model }) {
 // ⚠ NEEDS YOU SHOWS THREE, THEN FOLDS THE REST (owner, 2026-11-06). The rows are the engine's
 // (coachNeeds): who needs the coach now (red), who to look at this week (amber), then good news (a
 // client's dated milestone, the Client wins rule), each client once, in that order. Each row is the
-// client's colour, their name, one reason and one action, with its status as a labelled chip; the
-// rest fold into one row of colour gems with what they are ("4 this week", "2 good news").
+// client's tier gem, their name in ink, one reason and one action, with its status as a labelled
+// chip; the rest fold into one row of tier gems with what they are ("4 this week", "2 good news").
 const DASH_NEEDS_SHOWN = 3;
 const DASH_NEEDS_KINDS = {
   now: { chip: "Needs you", fold: (n) => n + " more need" + (n === 1 ? "s" : "") + " you", color: DASH_SEV_COLORS.red },
@@ -2259,16 +2287,18 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
   );
   const renderRow = (it, i) => {
     const canOpen = !!(Drawer && it.id != null && rowOf(it.id));
+    const points = dashRecordTier(it.client);
+    const tier = dashTierMark(points);
     return (
       <div key={(it.id != null ? it.id : "x") + ":" + i} data-dash-need={it.kind}
         onClick={() => { if (canOpen) setSelectedId(it.id); }}
         onKeyDown={(e) => dashRowKeyOpen(e, canOpen, () => setSelectedId(it.id))}
-        role={canOpen ? "button" : undefined} tabIndex={canOpen ? 0 : undefined} aria-label={canOpen ? "Open " + it.name : undefined}
+        role={canOpen ? "button" : undefined} tabIndex={canOpen ? 0 : undefined} aria-label={canOpen ? "Open " + it.name + (tier ? ", " + tier.title : "") : undefined}
         style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "11px 2px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", cursor: canOpen ? "pointer" : "default" }}>
-        <DashClientGem id={it.id} fallback={DASH_NEEDS_KINDS[it.kind].color} />
+        <DashClientGem points={points} />
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 14 }}><DashClientInkName id={it.id}>{it.name}</DashClientInkName></span>
+            <span title={tier ? tier.title : undefined} style={{ fontSize: 14, fontWeight: 600 }}>{it.name}</span>
             {chip(it.kind)}
             {it.shared && sharedChip(it)}
           </div>
@@ -2297,7 +2327,7 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
       {!all && fold.rest.length > 0 && (
         <button type="button" data-dash-fold="" aria-expanded={false} onClick={() => setAll(true)}
           style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: "100%", marginTop: 6, padding: "10px 2px 2px", background: "transparent", border: 0, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", font: "inherit", textAlign: "left", cursor: "pointer", color: "var(--sh-ink2, #a09b94)" }}>
-          <span style={{ display: "inline-flex", gap: 4 }}>{fold.rest.map((it, i) => <DashClientGem key={i} id={it.id} fallback={DASH_NEEDS_KINDS[it.kind].color} title={it.name} />)}</span>
+          <span style={{ display: "inline-flex", gap: 4 }}>{fold.rest.map((it, i) => <DashClientGem key={i} points={dashRecordTier(it.client)} title={it.name} decorative />)}</span>
           <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--sh-accent-ink, #2ee0c4)" }}>{fold.rest.length} more</span>
           <span style={{ fontSize: 12 }}>{dashNeedsFoldText(fold)}</span>
         </button>

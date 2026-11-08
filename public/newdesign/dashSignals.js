@@ -12,6 +12,7 @@
 // Unified client record shape:
 //   {
 //     profile:   { id, name, isNew?, status? },
+//     rankPoints: n | null,   // Shape Score rank points (the tier colour); the website's, no rule reads it
 //     trainingAdherence: { pct, done, planned } | null,
 //     foodLogs:  { lastLoggedOn: 'YYYY-MM-DD'|null, daysLogged7d: n|null } | null,
 //     shapeScoreHistory: [{ weekOf: 'YYYY-MM-DD', points: n }, … asc, ≤8] | null,
@@ -1309,9 +1310,16 @@
         origin: origin, feeCents: origin === "marketplace" ? Math.round(mrrCents * (1 - PREVIEW_NET_RATE)) : 0,
       };
     };
+    // Each persona's Shape Score standing: rank points (the high-water mark of points earned), which
+    // the coach dashboard draws as the client's tier colour (clientColors.mjs). Sized to the cast's
+    // own weekly points (~60 a week) over their time on Shape, most of them members before they joined
+    // this coach: Tess's is her two weeks exactly, Sam's his two years with the coach. No persona has
+    // been on Shape the four-plus years Legend takes at that pace, so the preview shows four tiers.
+    var STANDING = { 1: 5180, 2: 2240, 3: 1460, 4: 6890, 5: 2980, 6: 3350, 7: 1240, 8: 610, 9: 39, 10: 3720 };
     var person = function (id, name, over) {
       var base = {
         profile: { id: "demo-" + id, name: name, isNew: false, status: "ontrack" },
+        rankPoints: STANDING[id] != null ? STANDING[id] : null,
         trainingAdherence: { pct: 90, done: 18, planned: 20 },
         foodLogs: { lastLoggedOn: ago(1), daysLogged7d: 6 },
         shapeScoreHistory: history([54, 61, 58, 66, 70, 73, 71, 75]),
