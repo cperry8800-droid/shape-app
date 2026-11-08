@@ -143,10 +143,12 @@ test('Overview and Money are boards on their own tab keys: five and four default
   for (const f of ['dashGrid.jsx', 'dashboardLayout.mjs', 'dashBusiness.jsx']) assert.doesNotMatch(read(f), /\[["']business["']\]|\.business\b|tab="business"/, f + ' reads an old Business layout');
 });
 
-test('Plan, Growth and Retention stay the fixed pages they were (they become boards in 4b)', async () => {
+// Plan, Growth and Retention are boards since step 4b: their cards are pinned in
+// tests/business-boards-4b.test.mjs. Here, only that each is its own board, on its own tab key.
+test('Plan, Growth and Retention are boards too (step 4b), each on its own tab key', async () => {
   for (const section of ['plan', 'growth', 'retention']) {
     const { m, seen } = await page({ source: 'demo', section }, answer(401, { error: 'x' }));
-    assert.deepEqual(Object.keys(seen.boards), [], section);
+    assert.deepEqual(Object.keys(seen.boards), ['business-' + section], section);
     await m.unmount();
   }
 });

@@ -148,7 +148,7 @@ test('no two DashGrid call sites in one module share a role+tab key', () => {
 // Growth and Retention stay fixed until 4b.
 const BOARDS = {
   'clientHabits.jsx': ['client|habits'],
-  'dashBusiness.jsx': ['role|business-overview', 'role|business-money'],
+  'dashBusiness.jsx': ['role|business-overview', 'role|business-money', 'role|business-plan', 'role|business-growth', 'role|business-retention'],
   'clientScore.jsx': ['client|score'],
   'dashClient.jsx': ['client|'],
   'dashGoals.jsx': ['client|goal'],
@@ -193,7 +193,7 @@ test('no two modules claim the same role+tab board', () => {
   }
 });
 
-test('the coach Clients, Goal and Score pages are fixed pages, and Business boards only Overview and Money', () => {
+test('the coach Clients, Goal and Score pages are fixed pages, and every Business section is a board', () => {
   for (const f of FIXED) {
     const src = fs.readFileSync(path.join(ND, f), 'utf8').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
     assert.ok(!/<DashGrid[\s/>]/.test(src), f + ' renders a DashGrid again — the builder bar, grips and × come back with it');
@@ -203,9 +203,10 @@ test('the coach Clients, Goal and Score pages are fixed pages, and Business boar
   const biz = fs.readFileSync(path.join(ND, 'dashBusiness.jsx'), 'utf8');
   assert.match(biz, /const DBZ_SECTION_KEYS = DBZ_SECTIONS\.map\(\(x\) => x\[0\]\);/);
   assert.match(biz, /useRememberedChoice\(prefs, "businessSection:" \+ role, DBZ_SECTION_KEYS, "overview"\)/);
-  for (const k of ['overview', 'money', 'growth', 'retention']) assert.match(biz, new RegExp('\\n    ' + k + ': '), 'the ' + k + ' section has no content');
-  // Only Overview and Money are boards (step 4a); Plan, Growth and Retention are fixed until 4b.
-  for (const k of ['plan', 'growth', 'retention']) assert.doesNotMatch(biz.match(new RegExp('\\n    ' + k + ': [^\\n]*'))[0], /DashGrid/, k + ' became a board before 4b');
+  for (const k of ['overview', 'money', 'plan', 'growth', 'retention']) assert.match(biz, new RegExp('\\n    ' + k + ': '), 'the ' + k + ' section has no content');
+  // Every section is a board (Overview and Money in step 4a; Plan, Growth and Retention in 4b), each on
+  // its own tab key, and stacks its default cards without dashGrid.jsx on the page.
+  for (const k of ['overview', 'money', 'plan', 'growth', 'retention']) assert.match(biz.match(new RegExp('\\n    ' + k + ': [^\\n]*'))[0], new RegExp('<DashGrid key="business-' + k + '" role=\\{role\\} tab="business-' + k + '" widgets=\\{' + k + 'Widgets\\} /> : stack\\(' + k + 'Widgets\\)'), k + ' is not a board on its own key');
 });
 
 test('the Business outcomes card needs a rollup, and says why it is not there without one', () => {
