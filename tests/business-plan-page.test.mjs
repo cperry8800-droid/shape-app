@@ -24,6 +24,10 @@ globalThis.serif = 'serif';
 // The page's money format is dashToday.jsx's own function, read from the file.
 const today = readFileSync(ND('dashToday.jsx'), 'utf8');
 globalThis.dashMoney = new Function(/function dashMoney\(cents\) \{[\s\S]*?\n\}/.exec(today)[0] + '\nreturn dashMoney;')();
+// The preview's funnel and its benchmark: dashToday.jsx's top-level constants, which Growth's funnel
+// card reads by name as the browser shares them across the page's scripts.
+globalThis.DASH_DEMO_FUNNEL = new Function(/const DASH_DEMO_FUNNEL = [^\n]*/.exec(today)[0] + '\nreturn DASH_DEMO_FUNNEL;')();
+globalThis.DASH_FUNNEL_BENCHMARK = new Function(/const DASH_FUNNEL_BENCHMARK = [^\n;]*/.exec(today)[0] + ';\nreturn DASH_FUNNEL_BENCHMARK;')();
 const money = globalThis.dashMoney;
 // The preview roster's people (Today's ten), which Business's origin list and renewals name too.
 const ROSTER_NAMES = new RegExp(globalThis.DashSignals.buildMockClients(new Date()).map((c) => c.profile.name.replace(/[.$]/g, '\\$&')).join('|'));
@@ -32,7 +36,7 @@ const { loadRealModule } = await import('./helpers/load-real-module.mjs');
 // The routes' own rules for the trajectory and for each ended plan (both analytics routes use them).
 const { buildTrajectory, subDeparture, NOT_ENDED_STATUSES } = await import('../src/lib/coach-trajectory.mjs');
 const B = await loadRealModule(ND('dashBusiness.jsx'), {
-  appendExports: 'export { DbzBringClientsZone, DbzChurnZone, DbzOutcomesZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistZone, DbzLifetimeZone, DbzOriginZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
+  appendExports: 'export { DbzBringClientsZone, DbzChurnZone, DbzOutcomesZone, DbzGoalEarn, dbzGoalEarnBase, dbzPlanBase, DbzPlanZone, DbzEarnZone, DbzPayoutsZone, DbzRenewalsZone, dbzRenewalsHead, DbzWaitlistCard, DbzLifetimeZone, DbzOriginZone, DBZ_DEMO_CHURN, dbzDemoTrajectory, dbzDemoBook, dbzDemoOrigin, dbzDemoRenewals, DBZ_DEMO_OUTCOMES };',
 });
 
 async function mount(el) {
@@ -448,12 +452,13 @@ test('renewals: none due, not read, and still loading are three different senten
 });
 
 // ── Growth: the waiting list; Retention: what a client is worth ──────────────
+// Growth's waiting list is a board card since coach dashboard step 4b (tests/business-boards-4b.test.mjs).
 test('the waiting list in money: each one found the coach on Shape, so 15% comes off', async () => {
-  const m = await mount(React.createElement(B.DbzWaitlistZone, { live: true, waiting: 4, rateCents: 18000 }));
-  assert.equal(m.text(), `4 people are waiting to join you. If they all join at $180 a month, that's about ${money(CF.earn({ clients: 4, priceCents: 18000, byoShare: 0 }).netCents)} a month to you.`);
+  const m = await mount(React.createElement(B.DbzWaitlistCard, { preview: false, waiting: 4, rateCents: 18000, capacity: null, role: 'trainer' }));
+  assert.equal(m.text(), `Waiting list4 membersabout ${money(CF.earn({ clients: 4, priceCents: 18000, byoShare: 0 }).netCents)} a month if they all join at $180, after Shape's fee`);
   await m.unmount();
-  for (const [waiting, re] of [[0, /^No one is waiting\./], [null, /^Couldn't read your waiting list/], [undefined, /load/i]]) {
-    const x = await mount(React.createElement(B.DbzWaitlistZone, { live: true, waiting, rateCents: 18000 }));
+  for (const [waiting, re] of [[0, /^Waiting listNo one is waiting\./], [null, /^Waiting listYour waiting list couldn't be read/], [undefined, /^Waiting listReading your waiting list…$/]]) {
+    const x = await mount(React.createElement(B.DbzWaitlistCard, { preview: false, waiting, rateCents: 18000, capacity: null, role: 'trainer' }));
     assert.match(x.text(), re);
     await x.unmount();
   }
@@ -597,9 +602,11 @@ test('the churn zone counts over the pace\'s window and says it in the pace\'s w
   }
 });
 
-// The whole page, live, opened on one section, with the analytics answering `analytics`.
-async function mountBusiness(analytics, section) {
-  stubPage({ source: 'live', section });
+// The whole page, live, opened on one section, with the analytics answering `analytics`. `all` draws
+// the board's catalogue cards too (the old churn list and lifetime plate are Retention's catalogue
+// since coach dashboard step 4b), beside its default cards.
+async function mountBusiness(analytics, section, { all = false } = {}) {
+  stubPage({ source: 'live', section, all });
   const ok = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
   globalThis.fetch = window.fetch = (url) => {
     if (url.startsWith('/api/trainer/analytics')) return ok(analytics);
@@ -619,11 +626,14 @@ test('on the Retention tab, who left and what a client is worth read one window'
   const weeks = weeksFor(now, 400, [13]);
   const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 10, brought: 0 }, trajectory: weeks, renewals: [], stripe: { connected: false },
     churn: [{ name: 'Day ninety', clientId: 'n', departed: true, startedAt: new Date(now - 300 * day).toISOString(), endedAt: new Date(now - 90.5 * day).toISOString(), priceCents: 18000, reason: null }] };
-  const m = await mountBusiness(analytics, 'retention');
-  assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
-  assert.match(m.text(), /1 left over the last 3 months−\$180 a month/);
-  assert.doesNotMatch(m.text(), /None left/);
-  await m.unmount();
+  // The board's "What a client is worth" and "Why people left", and the catalogue's churn list beside them.
+  for (const all of [false, true]) {
+    const m = await mountBusiness(analytics, 'retention', { all });
+    assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
+    assert.match(m.text(), /1 left over the last 3 months−\$180 a month/);
+    assert.doesNotMatch(m.text(), /None left/);
+    await m.unmount();
+  }
 });
 
 // Its review (the sweep after #2394 round 10): the route decides each ended plan at the close of the
@@ -652,7 +662,7 @@ test('on the Retention tab, a client back later the week they left is no departu
   const { monday, day, iso, row, others, gone } = weekCase(now);
   // Back on the Thursday: the pace has no one leaving, and neither does the churn zone.
   const back = row({ id: 'x2', client_id: 'x', name: 'Card Failed', created_at: iso(monday + 3 * day + 9 * 3600000) });
-  let m = await mountBusiness(analyticsFrom([...others, gone, back], now), 'retention');
+  let m = await mountBusiness(analyticsFrom([...others, gone, back], now), 'retention', { all: true });
   assert.match(m.text(), /No one has left over the last 3 months, so there isn't an average stay to measure yet\./);
   assert.match(m.text(), /None left over the last 3 months/);
   assert.doesNotMatch(m.text(), /1 left over the last 3 months|Card Failed/);
@@ -662,9 +672,10 @@ test('on the Retention tab, a client back later the week they left is no departu
   const again = row({ id: 'x2', client_id: 'x', name: 'Card Failed', status: 'canceled', price_cents: 6000, created_at: iso(monday + day + 8 * 3600000), current_period_end: iso(monday + 2 * day + 18 * 3600000) });
   const twice = analyticsFrom([...others, gone, again], now);
   assert.equal(CF.paceFrom(twice.trajectory, now).ended, 1, 'the pace counts one');
-  m = await mountBusiness(twice, 'retention');
+  m = await mountBusiness(twice, 'retention', { all: true });
   assert.match(m.text(), /From [\d.]+% of clients leaving a month over the last 3 months/);
-  assert.match(m.text(), /1 left over the last 3 months−\$60 a month/);
+  // The board's grouped reasons and the catalogue's list count the same one departure.
+  assert.equal((m.text().match(/1 left over the last 3 months−\$60 a month/g) || []).length, 2);
   assert.equal((m.text().match(/Card Failed/g) || []).length, 1, 'listed once');
   await m.unmount();
 });
@@ -882,8 +893,10 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
 // arrangement; without it the page stacks the default cards).
 function stubPage({ source, today = null, section, all = false }) {
   const seen = { card: null };
+  // The engine's triage over whatever roster it hands back, as useDashboard runs it (Retention reads it).
+  const clients = source === 'demo' ? DashSignals.buildMockClients(new Date()) : [];
   Object.assign(globalThis, {
-    useDashboard: () => ({ today, source, clients: source === 'demo' ? DashSignals.buildMockClients(new Date()) : [] }),
+    useDashboard: () => ({ today, source, clients, triage: DashSignals.getTriageFeed('trainer', clients) }),
     DashGrid: all ? ({ widgets }) => React.createElement(React.Fragment, null, widgets.filter((w) => !w.empty).map((w) => React.createElement(React.Fragment, { key: w.key }, w.render()))) : undefined,
     useRememberedChoices: () => null,
     useRememberedChoice: () => React.useState(section),
@@ -913,9 +926,10 @@ test('a signed-in coach whose reads all failed sees unread states, never the pre
     // The boards (coach dashboard step 4a): each default card says so on its own.
     overview: [/Your net a month couldn't be read just now/, /What's at risk couldn't be read just now/, /Couldn't read your subscriptions just now, and the pace starts from them/, /Your next payout couldn't be read just now/, /Your clients couldn't be read just now/],
     money: [/Your next payout couldn't be read just now/, /Your balance couldn't be read just now/, /Your renewals couldn't be read just now, so none are on the track/, /Couldn't read whether Stripe is linked just now/, /Couldn't read your subscriptions just now/, /Your past payouts couldn't be read just now/],
+    // Plan, Growth and Retention are boards too (step 4b): each default card says so on its own.
     plan: [/Couldn't read your subscriptions just now, and the plan starts from them/],
-    growth: [/Couldn't read your funnel just now/, /Couldn't read where your clients came from just now/, /Couldn't read your waiting list just now/],
-    retention: [/Couldn't read your subscriptions just now/, /Couldn't read your roster outcomes just now/, /Couldn't read your cancellations just now/],
+    growth: [/Couldn't read your funnel just now/, /Your link couldn't be made just now/, /Couldn't read where your clients came from just now/, /Your waiting list couldn't be read just now/],
+    retention: [/Who might leave couldn't be read just now/, /Couldn't read your subscriptions just now/, /Your clients couldn't be read just now/, /Couldn't read your cancellations just now/],
   };
   const outages = [
     ['a 500', answer(500, { error: 'Could not read your listing.' })],
@@ -966,7 +980,8 @@ test('the preview is for a viewer the analytics answer as signed out or not a co
   }
   // Each preview tab draws the preview's own figures, under the band.
   // The preview's waiting list is valued at its sample rate, as a listing price would value it.
-  for (const [section, re] of [['growth', /DEMO FUNNEL.*Found you on Shape.*3 people are waiting to join you\. If they all join at \$\d+ a month, that's about \$\d+ a month to you\./], ['retention', /Jordan M\..*Devon Sharpe/]]) {
+  // (Growth and Retention are boards since step 4b: the funnel names its leak, and Retention who might leave.)
+  for (const [section, re] of [['growth', /Marketplace funnel.*The leak.*Found you on Shape.*3 membersabout \$\d+ a month if they all join at \$\d+, after Shape's fee/], ['retention', /Who might leave, first.*Marcus T\.Needs you.*Devon Sharpe/]]) {
     stubPage({ source: 'demo', section });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
@@ -1186,7 +1201,8 @@ test("the preview's roster outcomes are the preview's roster, each on a list the
   const weights = {};
   let compared = 0;
   for (const [role, consistentLabel] of [['trainer', 'Most consistent · 30d'], ['nutritionist', 'Most consistent loggers · 30d']]) {
-    stubPage({ source: 'demo', section: 'retention' });
+    // The outcomes plate is Retention's catalogue card since step 4b: drawn with the catalogue.
+    stubPage({ source: 'demo', section: 'retention', all: true });
     globalThis.fetch = window.fetch = answer(401, { error: 'x' });
     const m = await mount(React.createElement(window.CoachBusinessPage, { role }));
     await settle();
@@ -1248,9 +1264,10 @@ test('while the analytics are out, a dashboard that fell back to its demo is loa
     // The boards (coach dashboard step 4a): each default card reads, none says it failed.
     overview: [/Reading your subscriptions…/, /Reading what's at risk…/, /Reading your history…/, /Reading your payouts…/, /Reading your clients…/],
     money: [/Reading your next payout…/, /Reading your balance…/, /Your renewals are still loading/, /Reading your Stripe account…/, /Your renewals load with the analytics rollup/, /Reading your payouts…/],
-    plan: [/Your numbers load with the analytics rollup/],
-    growth: [/Your funnel is loading/, /Where your clients came from loads with the analytics rollup/, /Loads with your listing/],
-    retention: [/Loads with the analytics rollup/, /Roster outcomes load with the analytics rollup/, /Your cancellations load with the analytics rollup/],
+    // Plan, Growth and Retention's boards (step 4b), each default card reading.
+    plan: [/A year from nowReading your numbers…/, /Which lever moves it mostReading your numbers…/, /Where it levels offReading your numbers…/],
+    growth: [/Reading your funnel…/, /Making your link…/, /Reading where your clients came from…/, /Reading your waiting list…/],
+    retention: [/Reading your clients' signals…/, /Reading your history…/, /Reading your clients…/, /Reading who left…/],
   };
   for (const section of SECTIONS) {
     const seen = stubPage({ source: 'demo', section });
@@ -1275,7 +1292,7 @@ test('a "signed out" analytics answer is a preview only when the dashboard resol
     const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
     await settle();
     assert.doesNotMatch(m.text(), /PREVIEW|is coming to you|DEMO FUNNEL|Couldn't read/, section + ': ' + m.text().slice(0, 300));
-    assert.match(m.text(), section === 'money' ? /Reading your next payout…/ : /Your funnel is loading/);
+    assert.match(m.text(), section === 'money' ? /Reading your next payout…/ : /Reading your funnel…/);
     await m.unmount();
   }
   // The dashboard resolved a coach (its roster read, or its own feed): an unread state, not loading forever.
@@ -1302,9 +1319,9 @@ test('a live coach whose dashboard feed failed is told the funnel could not be r
   await settle();
   const t = m.text();
   assert.match(t, /Couldn't read your funnel just now/, t.slice(0, 400));
-  assert.doesNotMatch(t, /Your funnel is loading|DEMO FUNNEL|PREVIEW/, t.slice(0, 400));
-  // The zone the analytics feed is still loading: only the funnel had its answer.
-  assert.match(t, /Where your clients came from loads with the analytics rollup/);
+  assert.doesNotMatch(t, /Reading your funnel|DEMO FUNNEL|PREVIEW/, t.slice(0, 400));
+  // The card the analytics feed is still loading: only the funnel had its answer.
+  assert.match(t, /Reading where your clients came from…/);
   await m.unmount();
 });
 
@@ -1321,9 +1338,10 @@ test('the waiting list is valued at the listing price, and says why when there i
   const analytics = { isTrainer: true, providerId: 7, metrics: {}, byOrigin: [], byoMix: { clients: 10, brought: 0 }, trajectory: { weeks, firstSubAt: weeks[0].weekOf + 'T00:00:00Z' }, renewals: [], churn: [], stripe: { connected: false } };
   const answer = (d) => Promise.resolve({ ok: true, json: () => Promise.resolve(d) });
   for (const [why, listingAnswer, re] of [
-    ['the listing read failed', () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }), /2 people are waiting to join you\. Couldn't read your listing price just now, so they aren't valued here\./],
-    ['no listing price yet', () => answer({ listings: [] }), /2 people are waiting to join you\. Set a monthly price on your Profile to see what they'd bring in\./],
-    ['a listing at $200', () => answer({ listings: [{ role: 'trainer', monthly: 200, ready: true }] }), new RegExp("2 people are waiting to join you\\. If they all join at \\$200 a month, that's about " + money(CF.earn({ clients: 2, priceCents: 20000, byoShare: 0 }).netCents).replace(/[$.,]/g, (c) => '\\' + c) + ' a month to you\\.')],
+    // Growth's waiting-list card (coach dashboard step 4b).
+    ['the listing read failed', () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }), /2 membersCouldn't read your listing price just now, so they aren't valued here\./],
+    ['no listing price yet', () => answer({ listings: [] }), /2 membersSet a monthly price on your Profile to see what they'd bring in\./],
+    ['a listing at $200', () => answer({ listings: [{ role: 'trainer', monthly: 200, ready: true }] }), new RegExp('2 membersabout ' + money(CF.earn({ clients: 2, priceCents: 20000, byoShare: 0 }).netCents).replace(/[$.,]/g, (c) => '\\' + c) + " a month if they all join at \\$200, after Shape's fee")],
   ]) {
     stubPage({ source: 'live', section: 'growth' });
     globalThis.fetch = window.fetch = (url) => {
@@ -1384,7 +1402,9 @@ test('the Plan keeps the coach\'s sliders when the page re-renders (the pace is 
     // A late answer re-renders the page: the waiting list lands.
     await React.act(async () => { capacityLands(); await capacity; await new Promise((r) => setTimeout(r, 0)); });
     assert.equal(adds().value, '4', 'the coach\'s plan survives the re-render');
-    assert.match(m.text(), /Your plan/);
+    // The Plan board's scenario (step 4b): the plan is the coach's own now, and the levers price from it.
+    assert.match(m.text(), /with your changes/);
+    assert.match(m.text(), /4\.0 → 5\.0 a month/);
     await m.unmount();
   } finally {
     Date.now = realNow;
