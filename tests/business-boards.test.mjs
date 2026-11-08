@@ -83,7 +83,7 @@ const withZone = async (zone, fn) => { ShapeZone.setAccountZone(zone); try { ret
 
 // The whole page, with its neighbours stubbed: the band, the sidebar card, the funnel, and a DashGrid
 // that records the boards it was handed and draws every card each declares.
-function stubPage({ source, today = null, section, clients }) {
+function stubPage({ source, today = null, section, clients, asks = null }) {
   const seen = { card: null, boards: {} };
   Object.assign(globalThis, {
     useDashboard: () => ({ today, source, clients: clients !== undefined ? clients : source === 'demo' ? DashSignals.buildMockClients(new Date()) : [] }),
@@ -99,7 +99,8 @@ function stubPage({ source, today = null, section, clients }) {
     },
     trainerNavItems: () => [], nutriNavItems: () => [], trainerPayoutCard: { demo: 'trainer' }, nutriPayoutCard: { demo: 'nutritionist' },
     useDashUnits: () => ({ measure: (value, unit) => ({ value, unit }) }),
-    useDashNextPayout: undefined,
+    // Today's payout read: recorded when a test asks (`asks`), absent otherwise, as on a page without it.
+    useDashNextPayout: asks ? (role, live) => { asks.push(role + ':' + live); return live ? { state: 'unread' } : null; } : undefined,
   });
   return seen;
 }
@@ -153,16 +154,21 @@ test('Plan, Growth and Retention stay the fixed pages they were (they become boa
 // ── 2. Live versus sample ─────────────────────────────────────────────────────
 test('the preview draws its own sample on both boards, under the band; a coach whose reads failed never sees it', async () => {
   for (const section of ['overview', 'money']) {
-    const demo = await page({ source: 'demo', section }, answer(401, { error: 'x' }));
+    const asked = [];
+    const demo = await page({ source: 'demo', section, asks: asked }, answer(401, { error: 'x' }));
     const t = demo.m.text();
     assert.match(t, /^PREVIEW/, section);
     assert.match(t, ROSTER_NAMES, section + ': the preview names its roster');
     assert.equal(dollars(t), true, section + ': the preview has figures');
     assert.deepEqual(demo.seen.card, { demo: 'trainer' });
+    // The preview never asks Stripe for a payout (Today's read is handed live false throughout).
+    assert.equal(asked.length > 0 && asked.every((a) => a === 'trainer:false'), true, section + ': ' + asked.join());
     await demo.m.unmount();
     // Signed in, every read failed: useDashboard fell back to its demo, roster and all.
     for (const fail of [answer(500, { error: 'x' }), answer(503, { error: 'x' }), () => Promise.reject(new TypeError('Failed to fetch'))]) {
-      const out = await page({ source: 'demo', section }, (url) => (url.startsWith('/api/trainer/analytics') ? fail() : answer(500, {})()));
+      const coachAsks = [];
+      const out = await page({ source: 'demo', section, asks: coachAsks }, (url) => (url.startsWith('/api/trainer/analytics') ? fail() : answer(500, {})()));
+      assert.equal(coachAsks[coachAsks.length - 1], 'trainer:true', section + ': a coach whose analytics failed is still asked for their payout');
       const u = out.m.text();
       assert.doesNotMatch(u, /PREVIEW|DEMO FUNNEL/, section);
       assert.doesNotMatch(u, ROSTER_NAMES, section + ': the sample roster on a coach\'s page');
@@ -208,6 +214,8 @@ test('Net a month: loading, unread and a figure are three things, and null never
   const ready = B.dbzNetModel({ preview: false, extra: { trajectory: { weeks }, metrics: { activeClients: 12, mrrNetCents: 1, mrrGrossCents: 1 } } });
   assert.deepEqual([ready.clients, ready.netCents, ready.grossCents], [13, 195300, 228000], 'the trajectory\'s today, as every tab reads it');
   assert.equal(B.dbzNetModel({ preview: true }).state, 'sample');
+  // A latest week whose net couldn't be read is unread, never a figure.
+  assert.equal(B.dbzNetModel({ preview: false, extra: { trajectory: { weeks: [{ weekOf: '2026-11-02', active: 4, mrrNetCents: null, mrrGrossCents: null }] } } }).state, 'unread');
 });
 
 test('money at risk: cancellations and retried payments, one row a client, and every partial read said', () => {
@@ -230,6 +238,8 @@ test('money at risk: cancellations and retried payments, one row a client, and e
   assert.equal(B.dbzAtRisk({ renewals: null, clients: [], clientsState: 'unread' }).state, 'unread');
   const half = B.dbzAtRisk({ renewals: null, clients: retry, clientsState: 'ready' });
   assert.deepEqual([half.state, half.renewState, half.rows.length], ['ready', 'unread', 2]);
+  // A roster that wasn't read is no evidence: its rows (the demo fallback's) are never listed.
+  assert.deepEqual(B.dbzAtRisk({ renewals: [], clients: retry, clientsState: 'unread' }).rows, []);
   const none = B.dbzAtRisk({ renewals: [], clients: [], clientsState: 'ready' });
   assert.deepEqual([none.state, none.rows.length, none.totalCents], ['ready', 0, 0]);
 });
@@ -248,6 +258,9 @@ test('money at risk stands at Lift 2 with one filled button, "Message Sam", and 
   assert.match(m.text(), /at least −\$153 a month/, 'a row whose money was unread makes the total a floor');
   assert.match(m.text(), /Cancelling · ends /);
   assert.match(m.text(), /Payments Stripe is retrying couldn't be read\./);
+  const unchecked = await mount(React.createElement(B.DbzAtRiskCard, { model: B.dbzAtRisk({ renewals: [{ name: 'Uma', clientId: 'u', dueAt: '2026-11-11T12:00:00Z', netCents: 9000, ending: null }], clients: [], clientsState: 'ready' }), clients: [], role: 'trainer' }));
+  assert.match(unchecked.text(), /Nothing at risk in what could be read\.1 renewal this week couldn't be checked with Stripe, so a cancellation there wouldn't show here\./);
+  await unchecked.unmount();
   await m.unmount();
   // Nothing at risk is said in full only over a whole read.
   const whole = await mount(React.createElement(B.DbzAtRiskCard, { model: B.dbzAtRisk({ renewals: [], clients: [], clientsState: 'ready' }), clients: [], role: 'trainer' }));
@@ -522,6 +535,9 @@ test('a Stripe arrival date prints as its bank day west of Greenwich; a plan\'s 
   assert.equal(B.dbzBankDay(nov14), ShapeZone.formatDate(Date.parse('2026-11-14T12:00:00Z'), { zone: 'UTC', month: 'short', day: 'numeric' }));
   assert.match(B.dbzBankDay(nov14), /14/);
   assert.equal(B.dbzBankDay(null), '—');
+  // At UTC+14 the day's noon in UTC is already the next morning: still the 14th.
+  await withZone('Pacific/Kiritimati', async () => assert.match(B.dbzBankDay(nov14), /14/));
+  ShapeZone.setAccountZone('America/Los_Angeles');
   const m = await mount(React.createElement(B.DbzPayoutsZone, { live: true, stripe: { connected: true, status: 'active', balanceCents: 0, pendingCents: 0, schedule: null, payouts: [{ id: 'a', amountCents: 52000, status: 'in_transit', arrivalDate: nov14 }] }, providerId: 7, role: 'trainer', metrics: null }));
   assert.match(m.text(), /The next payout, \$520, lands Nov 14\./, m.text());
   assert.match(m.text(), /arrives Nov 14/);
