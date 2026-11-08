@@ -1,0 +1,308 @@
+<title>Shape Depth Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400..800&family=Schibsted+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (~66ch) for findings, widening to a full-bleed 1180px track for the screenshot comparisons. Shape's own type system and teal, dark-first like the site. */
+:root {
+  --bg: #070b10;
+  --surface: #0d141c;
+  --surface-2: #121b25;
+  --fg: #eef3f0;
+  --fg-2: rgba(238, 243, 240, 0.74);
+  --fg-3: rgba(238, 243, 240, 0.56);
+  --line: rgba(238, 243, 240, 0.11);
+  --accent: #34d6c5;
+  --accent-ink: #04110f;
+  --high: #f08a6c;
+  --med: #e6c373;
+  --low: #8fb8ff;
+  --lift-1: inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.45), 0 20px 40px -18px rgba(0,0,0,0.8);
+  --disp: 'Anybody', 'Arial Narrow', system-ui, sans-serif;
+  --body: 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f3f6f5; --surface: #ffffff; --surface-2: #eef2f1; --fg: #15211e; --fg-2: #3f4b48; --fg-3: #5d6865;
+    --line: #dde3e1; --accent: #0a7a72; --accent-ink: #ffffff; --high: #b24c36; --med: #86662a; --low: #1f5fa8;
+    --lift-1: inset 0 -1px 0 rgba(16,36,32,0.05), 0 1px 1px rgba(16,36,32,0.05), 0 2px 5px -1px rgba(16,36,32,0.07), 0 12px 28px -10px rgba(16,36,32,0.18);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f3f6f5; --surface: #ffffff; --surface-2: #eef2f1; --fg: #15211e; --fg-2: #3f4b48; --fg-3: #5d6865;
+  --line: #dde3e1; --accent: #0a7a72; --accent-ink: #ffffff; --high: #b24c36; --med: #86662a; --low: #1f5fa8;
+  --lift-1: inset 0 -1px 0 rgba(16,36,32,0.05), 0 1px 1px rgba(16,36,32,0.05), 0 2px 5px -1px rgba(16,36,32,0.07), 0 12px 28px -10px rgba(16,36,32,0.18);
+  color-scheme: light;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.page { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 96px; }
+.col { max-width: 720px; margin: 0 auto; }
+.wide { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--disp); font-weight: 600; letter-spacing: -0.01em; line-height: 1.05; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(38px, 6vw, 64px); font-variation-settings: 'wdth' 92; }
+h1 em, h2 em { font-style: normal; color: var(--accent); }
+h2 { font-size: clamp(26px, 3.4vw, 36px); font-variation-settings: 'wdth' 96; }
+h3 { font-size: 19px; font-variation-settings: 'wdth' 100; }
+p { margin: 0; }
+.eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 18.5px; color: var(--fg-2); max-width: 62ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-family: var(--mono); font-size: 12px; color: var(--fg-3); }
+.meta b { color: var(--fg); font-weight: 600; }
+section { margin-top: 72px; }
+.stack { display: flex; flex-direction: column; gap: 18px; }
+.rule { height: 2px; background: linear-gradient(90deg, var(--fg), var(--accent) 60%, transparent); opacity: 0.6; margin: 10px 0 0; max-width: 220px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.notice { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); border-radius: 8px; padding: 14px 18px; color: var(--fg-2); font-size: 15px; }
+
+/* Diagnosis */
+.dx { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.dx article { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; box-shadow: var(--lift-1); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dx .k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-3); }
+.dx p { color: var(--fg-2); font-size: 15px; }
+code { font-family: var(--mono); font-size: 0.86em; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+
+/* The lift specimen: each level drawn live, on Shape's white paper and its dark paper. */
+.spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.paper { border-radius: 12px; padding: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 18px; border: 1px solid var(--line); }
+.paper.white { background: #f4f6f5; color: #15211e; }
+.paper.dark { background: #1a1612; color: #f2ede4; }
+.tile { border-radius: 10px; padding: 14px 12px 12px; min-height: 92px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; font-size: 13px; line-height: 1.3; }
+.tile small { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+.white .tile { background: #fff; border: 1px solid #e1e6e3; }
+.dark .tile { background: #25211d; border: 1px solid #302c27; }
+.white .t0 { box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.white .t1 { box-shadow: inset 0 -1px 0 rgba(16,36,32,0.05), 0 1px 1px rgba(16,36,32,0.05), 0 2px 5px -1px rgba(16,36,32,0.07), 0 12px 28px -10px rgba(16,36,32,0.18); }
+.white .t2 { box-shadow: inset 0 -1px 0 rgba(16,36,32,0.05), 0 2px 3px rgba(16,36,32,0.06), 0 10px 18px -8px rgba(16,36,32,0.14), 0 28px 50px -18px rgba(16,36,32,0.3); transform: translateY(-2px); }
+.white .t3 { box-shadow: 0 2px 6px rgba(16,36,32,0.08), 0 20px 44px -10px rgba(16,36,32,0.26), 0 44px 80px -28px rgba(16,36,32,0.24); }
+.dark .t0 { box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.dark .t1 { box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65); }
+.dark .t2 { box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75); transform: translateY(-2px); }
+.dark .t3 { box-shadow: 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px -12px rgba(0,0,0,0.7); }
+.keys { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.key { font: 600 13px var(--body); border-radius: 8px; padding: 10px 16px; border: 1px solid transparent; }
+.white .key.card { background: #fff; border-color: #c9d2ce; color: #15211e; box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -2px 0 rgba(16,36,32,0.07), 0 1px 2px rgba(16,36,32,0.1), 0 4px 10px -4px rgba(16,36,32,0.16); }
+.white .key.fill { background: #0a7a72; color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -2px 0 rgba(0,0,0,0.2), 0 1px 2px rgba(16,36,32,0.2), 0 8px 18px -7px rgba(16,36,32,0.42); }
+.dark .key.card { background: #25211d; border-color: #413d38; color: #f2ede4; box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -2px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.55); }
+.dark .key.fill { background: #2ee0c4; color: #04110f; box-shadow: inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.45), 0 10px 20px -8px rgba(0,0,0,0.65); }
+.key.flat { box-shadow: none !important; }
+.cap { font-family: var(--mono); font-size: 11px; color: var(--fg-3); letter-spacing: 0.06em; }
+
+/* Before / after */
+.pairs { display: flex; flex-direction: column; gap: 56px; }
+.pair { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.pair-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+.pair-head p { color: var(--fg-2); font-size: 15px; max-width: 70ch; }
+.tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); border: 1px solid var(--line); border-radius: 4px; padding: 3px 7px; white-space: nowrap; }
+.tag.mock { color: var(--med); border-color: color-mix(in srgb, var(--med) 45%, transparent); }
+.cmp { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #000; aspect-ratio: 16 / 10; max-width: 100%; box-shadow: var(--lift-1); --pos: 50%; user-select: none; }
+.cmp img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; pointer-events: none; }
+.cmp .after { clip-path: inset(0 0 0 var(--pos)); }
+.cmp .bar { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.35); pointer-events: none; }
+.cmp .bar::after { content: "‹ ›"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; background: #fff; color: #0d141c; font: 700 14px/40px var(--mono); text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.cmp .lbl { position: absolute; top: 12px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 9px; border-radius: 5px; background: rgba(7,11,16,0.78); color: #eef3f0; pointer-events: none; }
+.cmp .lbl.b { left: 12px; }
+.cmp .lbl.a { right: 12px; background: #34d6c5; color: #04110f; }
+.cmp input[type=range] { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
+.cmp:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+.views { display: flex; gap: 8px; flex-wrap: wrap; }
+.views button { font: 600 12.5px var(--body); color: var(--fg-2); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; min-height: 36px; cursor: pointer; }
+.views button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+
+/* Findings */
+.group { display: flex; flex-direction: column; gap: 12px; }
+.find { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 4px 16px; padding: 16px 0; border-top: 1px solid var(--line); }
+.sev { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; padding-top: 3px; }
+.sev.h { color: var(--high); } .sev.m { color: var(--med); } .sev.l { color: var(--low); }
+.find h3 { font-size: 16.5px; font-family: var(--body); font-weight: 700; letter-spacing: 0; }
+.find p { grid-column: 2; color: var(--fg-2); font-size: 15px; }
+.find .fix { color: var(--fg); }
+.find .fix::before { content: "Fix → "; font-family: var(--mono); font-size: 11.5px; color: var(--accent); letter-spacing: 0.04em; }
+.where { font-family: var(--mono); font-size: 11.5px; color: var(--fg-3); }
+ol.steps { margin: 0; padding-left: 22px; color: var(--fg-2); display: flex; flex-direction: column; gap: 10px; }
+ol.steps b { color: var(--fg); }
+
+@media (max-width: 760px) {
+  .dx, .spec { grid-template-columns: minmax(0, 1fr); }
+  .find { grid-template-columns: minmax(0, 1fr); }
+  .find p { grid-column: 1; }
+  .cmp { aspect-ratio: 16 / 11; }
+}
+@media (prefers-reduced-motion: reduce) { .white .t2, .dark .t2 { transform: none; } }
+</style>
+
+<div class="page">
+  <header class="col stack">
+    <div class="eyebrow">Design review · 4 Nov 2026</div>
+    <h1>Shape, with <em>depth.</em></h1>
+    <div class="rule" aria-hidden="true"></div>
+    <p class="lede">A review of the website and the three dashboards, and what a depth pass would do to them. Every "after" below is a screenshot of the proposed styling. Nothing has been changed in the repo or on the live site.</p>
+    <div class="meta">
+      <span><b>13</b> pages reviewed</span><span><b>3</b> dashboards · member, trainer, nutritionist</span><span><b>1440</b> and <b>390</b> px widths</span><span><b>3</b> dashboard themes shown · White, Dark, Glass</span>
+    </div>
+  </header>
+
+  <section class="col stack" aria-labelledby="why">
+    <div class="eyebrow">01 · Diagnosis</div>
+    <h2 id="why">Why it reads <em>flat</em></h2>
+    <p class="lede">The brand, the photography and the type are strong. What is missing is light: almost every surface is drawn as an outline on a background of nearly the same value, so nothing stands off the page.</p>
+    <div class="dx">
+      <article>
+        <span class="k">Dashboards</span>
+        <h3>Cards are a hairline, not an object</h3>
+        <p>A white card on the <code>#f4f6f5</code> ground with a <code>0 1px 2px</code> shadow at 4% opacity. The two surfaces differ by about 3% in brightness, so the 1px border is the only thing drawing the card.</p>
+      </article>
+      <article>
+        <span class="k">Dashboards</span>
+        <h3>The grid clips every shadow</h3>
+        <p>Each grid cell is <code>overflow: hidden</code> (its height measurement needs it), so even a strong shadow on a card is cut off at the card's edge. The cell itself has to cast the shadow.</p>
+      </article>
+      <article>
+        <span class="k">Website</span>
+        <h3>Dark cards on a dark page</h3>
+        <p>Cards are a 4% white fill and a 10% white line on near-black, with no shadow and no lit edge. They read as boxes drawn on the page rather than panels above it.</p>
+      </article>
+      <article>
+        <span class="k">Everywhere</span>
+        <h3>Buttons are flat fills</h3>
+        <p>No highlight, no lip, no shadow. Hover only changes the colour, and a click has no pressed state, so primary actions don't feel pressable.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="col stack" aria-labelledby="sys">
+    <div class="eyebrow">02 · The proposal</div>
+    <h2 id="sys">Five <em>lifts</em>, one per job</h2>
+    <p class="lede">One depth scale that every surface picks from, defined per colour theme so the dark themes get lit edges where a shadow would not show. Each lift stacks four layers: a lit top edge, a shaded bottom lip, a tight contact shadow and a long soft one.</p>
+    <div class="spec" role="group" aria-label="The five lifts on Shape's white and dark dashboard themes">
+      <div class="paper white">
+        <div class="tile t0"><small>Today</small>Current card</div>
+        <div class="tile t1"><small>Lift 1</small>Resting card</div>
+        <div class="tile t2"><small>Lift 2</small>Under the pointer</div>
+        <div class="tile t3"><small>Lift 3</small>Floating panel</div>
+        <div class="keys"><span class="key card flat">Rename</span><span class="key card">Rename</span><span class="key fill flat">New session</span><span class="key fill">New session</span><span class="cap">flat · key</span></div>
+      </div>
+      <div class="paper dark">
+        <div class="tile t0"><small>Today</small>Current card</div>
+        <div class="tile t1"><small>Lift 1</small>Resting card</div>
+        <div class="tile t2"><small>Lift 2</small>Under the pointer</div>
+        <div class="tile t3"><small>Lift 3</small>Floating panel</div>
+        <div class="keys"><span class="key card flat">Rename</span><span class="key card">Rename</span><span class="key fill flat">New session</span><span class="key fill">New session</span><span class="cap">flat · key</span></div>
+      </div>
+    </div>
+    <p style="color: var(--fg-2); font-size: 15px;">On top of the lifts: buttons rise 1–2px on hover and press in on click; showcase cards on the website lean up to 5° toward the pointer with a soft highlight that follows it; the phone mockups get a bezel, a rim light and a slight 3D turn. All motion is off for visitors who ask for reduced motion and on touch screens. Dashboard card colours don't change, so their text contrast doesn't either; on the homepage's lit cards the faintest text still reads 4.9:1 at the brightest point, above the 4.5:1 minimum.</p>
+  </section>
+
+  <section class="wide stack" aria-labelledby="ba">
+    <div class="col stack" style="max-width: 720px; margin: 0;">
+      <div class="eyebrow">03 · Before and after</div>
+      <h2 id="ba">Drag across each <em>screen</em></h2>
+      <p class="lede">Left of the handle is the site today; right is the depth pass. Same page, same window size, same pointer position. Use the arrow keys on a focused comparison, or the Before/After buttons.</p>
+    </div>
+    <div class="pairs" id="pairs"></div>
+  </section>
+
+  <section class="col stack" aria-labelledby="find">
+    <div class="eyebrow">04 · Design and layout findings</div>
+    <h2 id="find">What else to <em>fix</em></h2>
+    <p class="lede">Beyond depth, ordered by impact. High means a visitor notices it on first use; low is polish.</p>
+
+    <div class="group">
+      <h3 style="font-size: 21px; margin-top: 8px;">Across the site</h3>
+      <div class="find"><span class="sev h">High</span><div><h3>Two type systems, one brand</h3><div class="where">Homepage, dashboards vs Marketplace, Pricing, Coach, Score, Store, Community, Login</div></div>
+        <p>The homepage and dashboards use Anybody, Doto and Schibsted Grotesk. Every other marketing page uses Fraunces serif with outlined italics and Space Grotesk. Clicking from the homepage to Pricing or the Marketplace feels like landing on a different company's site.</p>
+        <p class="fix">Pick one system. The homepage's is newer and matches the app; moving the other pages' headings to it is mostly a font swap in each page's heading styles.</p></div>
+      <div class="find"><span class="sev h">High</span><div><h3>Ask Nora and Chat cover content</h3><div class="where">Every page, bottom right</div></div>
+        <p>The two floating pills sit over whatever is in the corner: the Privacy link on Login, the search field on the Store, the demo banner on the phone dashboard.</p>
+        <p class="fix">Reserve 80px of bottom padding on pages that show the pills, or merge them into one button that opens both.</p></div>
+      <div class="find"><span class="sev m">Med</span><div><h3>Copy over busy photography</h3><div class="where">Store hero, Score hero, Community preview banner</div></div>
+        <p>On the Store, "Trade Shape Score for Shape merch…" runs across the product flat-lay and its grey text is hard to read on the concrete. The Score subhead crosses the runner.</p>
+        <p class="fix">Add a directional scrim behind the copy column, or move the copy to the photo's empty side.</p></div>
+      <div class="find"><span class="sev l">Low</span><div><h3>A coloured emoji in the Community banner</h3><div class="where">Community · "This is a preview"</div></div>
+        <p>The 💬 is the only full-colour emoji on the site, and the house rule is typographic symbols. The banner also takes prime space right under the headline.</p>
+        <p class="fix">Swap for a monochrome mark and move the notice below the first feed item.</p></div>
+    </div>
+
+    <div class="group">
+      <h3 style="font-size: 21px; margin-top: 20px;">Homepage</h3>
+      <div class="find"><span class="sev m">Med</span><div><h3>Coach cards lift on hover but go nowhere</h3><div class="where">"The marketplace" section</div></div>
+        <p>The eight coach cards are plain blocks with a hover lift, which promises a click that doesn't exist.</p>
+        <p class="fix">Make each card a link into the marketplace (filtered to that coach's speciality), or drop the hover lift.</p></div>
+      <div class="find"><span class="sev m">Med</span><div><h3>The price section is unbalanced at desktop width</h3><div class="where">"$5/mo" section, 1440px</div></div>
+        <p>The copy sits in a 330px column at the far left and the phone at the far right, with about 600px of empty space between them.</p>
+        <p class="fix">Cap the section at ~1100px and centre it, or use the middle for the three things $5 includes.</p></div>
+    </div>
+
+    <div class="group">
+      <h3 style="font-size: 21px; margin-top: 20px;">Dashboards</h3>
+      <div class="find"><span class="sev m">Med</span><div><h3>The board toolbar outweighs the day</h3><div class="where">Today, all three roles</div></div>
+        <p>Dashboard picker, Save as, Rename, Coaching preset, Undo and Add widget sit above the cards at the same weight as the page's real actions. Customising the board is occasional; it shouldn't be the first row a coach reads.</p>
+        <p class="fix">Fold them into one "Customize" menu; show Undo only after a change.</p></div>
+      <div class="find"><span class="sev m">Med</span><div><h3>Card and page are the same value</h3><div class="where">White theme (the default)</div></div>
+        <p>The default theme's ground is so close to white that cards depend entirely on shadow. The lifts fix most of this.</p>
+        <p class="fix">Ship the lifts first; if it still reads flat, take the ground one step darker and re-run the contrast tests for the smallest labels.</p></div>
+      <div class="find"><span class="sev l">Low</span><div><h3>The demo band is cut off on a phone</h3><div class="where">Member Today, 390px</div></div>
+        <p>"Preview · demo data — an example of a live account" is clipped at the right edge, and the Nora button sits on top of it.</p>
+        <p class="fix">Let the band wrap to two lines on narrow screens and lift the Nora button above it.</p></div>
+    </div>
+  </section>
+
+  <section class="col stack" aria-labelledby="next">
+    <div class="eyebrow">05 · If you want to ship it</div>
+    <h2 id="next">What it would <em>take</em></h2>
+    <ol class="steps">
+      <li><b>Dashboards: one stylesheet.</b> The lifts become five tokens in each of the six dashboard themes, applied to cards, grid cells, the side rail, the app bar and buttons. Small, and the existing theme and contrast tests pass with it.</li>
+      <li><b>Homepage: one page.</b> Its styles are self-contained, so the keys, lit cards, tilt and phone pose stay inside that file plus a tiny shared pointer-tilt script.</li>
+      <li><b>Other marketing pages: per page.</b> They're styled inline, so each showcase card and button needs a class before shared depth styles can reach it. The marketing "afters" above were made by applying those styles at screenshot time.</li>
+    </ol>
+    <div class="notice">The depth styling behind these screenshots is saved as a patch in this session, not in the repo. Say the word and it can go up as a pull request for review.</div>
+  </section>
+</div>
+
+<script>
+const PAIRS = [
+  { id: 'home-hero', title: 'Homepage · the fold', tag: 'Homepage', note: 'Get started and See how it works become keys with a lit edge and a teal-tinted shadow (pointer is on Get started). The headline gets a soft lift off the terrain and the score plate a bevel and glow.' },
+  { id: 'home-moments', title: 'Homepage · "Four things" cards', tag: 'Homepage', note: 'Cards become lit slabs with a contact shadow. The one under the pointer leans toward it, lifts, and shows a highlight that follows the cursor.' },
+  { id: 'home-coaches', title: 'Homepage · marketplace cards', tag: 'Homepage', note: 'Same slab treatment, and the initials tiles become bevelled gems. Leo Martins is under the pointer.' },
+  { id: 'home-radio', title: 'Homepage · Shape Radio', tag: 'Homepage', note: 'The radio panel casts a deep shadow and its button is a key.' },
+  { id: 'home-price', title: 'Homepage · price and phone', tag: 'Homepage', note: 'The phone gets a bezel, a rim light and a slight 3D turn toward the copy; it squares up under the pointer.' },
+  { id: 'dash-client', title: 'Member dashboard · White theme', tag: 'Dashboard', note: 'Every grid card now casts a shadow from its cell, and the one under the pointer lifts. Check in, Save as, Rename and Undo are raised keys.' },
+  { id: 'dash-trainer', title: 'Trainer dashboard · White theme', tag: 'Dashboard', note: 'New session, Message, + Program and Start joint note are raised; the selected Attention tab stands out of its track; the Needs you card lifts under the pointer.' },
+  { id: 'dash-client-dark', title: 'Member dashboard · Dark theme', tag: 'Dashboard', note: 'On dark, depth comes mostly from a lit top edge and a dark lip, since a shadow on near-black barely shows.' },
+  { id: 'dash-nutri-glass', title: 'Nutritionist dashboard · Glass theme', tag: 'Dashboard', note: 'Glass already had a lit edge; the lift is now the same system as the other themes, with deeper panels.' },
+  { id: 'mk-pricing', title: 'Pricing · the plan card', tag: 'Mock-up', mock: true, note: 'On a dark video a black shadow disappears, so the plan card is lifted with a light rim and a teal under-glow instead. Get started becomes a key.' },
+  { id: 'mk-marketplace', title: 'Marketplace · spotlight', tag: 'Mock-up', mock: true, note: 'The featured coach card lifts off the gym photo with the same rim and glow; the three side cards get a teal edge and stand slightly forward.' },
+  { id: 'mk-coach', title: 'For trainers · session card', tag: 'Mock-up', mock: true, note: 'The workout card turns in 3D with a cast shadow, like a device on a desk. Apply now is a key.' },
+  { id: 'mk-login', title: 'Log in', tag: 'Mock-up', mock: true, note: 'The sign-in card lifts off the stage and the Log in button gets a lit edge.' },
+];
+const host = document.getElementById('pairs');
+for (const p of PAIRS) {
+  const el = document.createElement('article');
+  el.className = 'pair';
+  el.innerHTML = `
+    <div class="pair-head"><h3>${p.title}</h3><span class="tag${p.mock ? ' mock' : ''}">${p.mock ? 'Mock-up · styles applied at screenshot time' : p.tag}</span></div>
+    <p class="pair-note" style="color: var(--fg-2); font-size: 15px; max-width: 70ch;">${p.note}</p>
+    <div class="cmp" style="--pos: 50%">
+      <img src="img/${p.id}-before.jpg" alt="${p.title}, today" loading="lazy">
+      <img class="after" src="img/${p.id}-after.jpg" alt="${p.title}, with the depth pass" loading="lazy">
+      <span class="lbl b">Before</span><span class="lbl a">After</span>
+      <span class="bar" aria-hidden="true"></span>
+      <input type="range" id="cmp-${p.id}" min="0" max="100" value="50" aria-label="Compare ${p.title}: before on the left, after on the right">
+    </div>
+    <div class="views" role="group" aria-label="Show">
+      <button type="button" data-v="100">Before</button>
+      <button type="button" data-v="50" aria-pressed="true">Split</button>
+      <button type="button" data-v="0">After</button>
+    </div>`;
+  const cmp = el.querySelector('.cmp'), range = el.querySelector('input'), btns = el.querySelectorAll('.views button');
+  const set = (v) => { cmp.style.setProperty('--pos', v + '%'); range.value = v; btns.forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === Number(v)))); };
+  range.addEventListener('input', () => set(range.value));
+  btns.forEach(b => b.addEventListener('click', () => set(b.dataset.v)));
+  host.appendChild(el);
+}
+</script>

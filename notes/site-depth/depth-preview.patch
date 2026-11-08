@@ -1,0 +1,478 @@
+diff --git a/public/newdesign/dash.css b/public/newdesign/dash.css
+index 18ea6d0..ea3e90d 100644
+--- a/public/newdesign/dash.css
++++ b/public/newdesign/dash.css
+@@ -22,8 +22,8 @@
+    nobody anticipated still lands on the right hue.
+ 
+    ⚠ WHAT IS DELIBERATELY *NOT* HERE, so the next reader does not read the gap as
+-   an oversight: shadows (`rgba(0,0,0,a)` — a light card still casts a dark
+-   shadow); the near-blacks used as text ON an accent fill (`#031f1c`, `#0b0e0c`,
++   an oversight: loose shadows (`rgba(0,0,0,a)` — a light card still casts a dark
++   shadow; the card and button LIFTS are tokens, --sh-elev-* and --sh-key*); the near-blacks used as text ON an accent fill (`#031f1c`, `#0b0e0c`,
+    `#0a0f0d`, `#04110f` — dark-on-teal reads on either paper, and folding four
+    values into one token would change pixels rather than rename them); chart and
+    tier series colours; and brand marks (Spotify green, Apple red). None of them
+@@ -209,6 +209,15 @@
+   --sh-logo-light: block;
+   --sh-logo-dark: none;
+ 
++  /* Depth (owner, 2026-11-04: "pop more, almost look 3D"): a resting card, the card under
++     the pointer, a panel floating over the page, a raised button in the card's colour and
++     one filled with a colour. Each paper declares its own; see "Depth" below. */
++  --sh-elev-1: inset 0 -1px 0 rgba(16,36,32,0.05), 0 1px 1px rgba(16,36,32,0.05), 0 2px 5px -1px rgba(16,36,32,0.07), 0 12px 28px -10px rgba(16,36,32,0.18);
++  --sh-elev-2: inset 0 -1px 0 rgba(16,36,32,0.05), 0 2px 3px rgba(16,36,32,0.06), 0 10px 18px -8px rgba(16,36,32,0.14), 0 28px 50px -18px rgba(16,36,32,0.3);
++  --sh-elev-3: 0 2px 6px rgba(16,36,32,0.08), 0 20px 44px -10px rgba(16,36,32,0.26), 0 44px 80px -28px rgba(16,36,32,0.24);
++  --sh-key: inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -2px 0 rgba(16,36,32,0.07), 0 1px 2px rgba(16,36,32,0.1), 0 4px 10px -4px rgba(16,36,32,0.16);
++  --sh-key-fill: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -2px 0 rgba(0,0,0,0.2), 0 1px 2px rgba(16,36,32,0.2), 0 8px 18px -7px rgba(16,36,32,0.42);
++
+   /* Type — the builder's faces. Fallbacks are the marketing faces, which the
+      shared header keeps on the pages that do not load this file. */
+   --sh-font-body: 'Schibsted Grotesk', system-ui, sans-serif;
+@@ -304,6 +313,11 @@ html[data-paper="dark"] {
+   --sh-footer-bg-rgb: 11,14,12;
+   --sh-logo-light: none;
+   --sh-logo-dark: block;
++  --sh-elev-1: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65);
++  --sh-elev-2: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75);
++  --sh-elev-3: 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px -12px rgba(0,0,0,0.7);
++  --sh-key: inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -2px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.55);
++  --sh-key-fill: inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.45), 0 10px 20px -8px rgba(0,0,0,0.65);
+ }
+ 
+ /* ── THE OTHER FOUR SKINS (owner, 2026-10-27: "create different dashboard skins for
+@@ -407,6 +421,11 @@ html[data-paper="bone"] {
+   --sh-footer-bg-rgb: 228,219,201;
+   --sh-logo-light: block;
+   --sh-logo-dark: none;
++  --sh-elev-1: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(74,56,26,0.06), 0 1px 1px rgba(74,56,26,0.06), 0 2px 5px -1px rgba(74,56,26,0.08), 0 12px 28px -10px rgba(74,56,26,0.22);
++  --sh-elev-2: inset 0 1px 0 rgba(255,255,255,0.7), inset 0 -1px 0 rgba(74,56,26,0.06), 0 2px 3px rgba(74,56,26,0.07), 0 10px 18px -8px rgba(74,56,26,0.16), 0 28px 50px -18px rgba(74,56,26,0.34);
++  --sh-elev-3: 0 2px 6px rgba(74,56,26,0.1), 0 20px 44px -10px rgba(74,56,26,0.28), 0 44px 80px -28px rgba(74,56,26,0.26);
++  --sh-key: inset 0 1px 0 rgba(255,255,255,0.85), inset 0 -2px 0 rgba(74,56,26,0.08), 0 1px 2px rgba(74,56,26,0.12), 0 4px 10px -4px rgba(74,56,26,0.18);
++  --sh-key-fill: inset 0 1px 0 rgba(255,255,255,0.26), inset 0 -2px 0 rgba(0,0,0,0.2), 0 1px 2px rgba(74,56,26,0.22), 0 8px 18px -7px rgba(74,56,26,0.45);
+ }
+ 
+ html[data-paper="carbon"] {
+@@ -489,6 +508,11 @@ html[data-paper="carbon"] {
+   --sh-footer-bg-rgb: 6,7,8;
+   --sh-logo-light: none;
+   --sh-logo-dark: block;
++  --sh-elev-1: inset 0 1px 0 rgba(255,255,255,0.09), inset 0 -1px 0 rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.6), 0 14px 30px -12px rgba(0,0,0,0.9);
++  --sh-elev-2: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03), 0 26px 50px -16px rgba(0,0,0,0.9);
++  --sh-elev-3: inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 6px rgba(0,0,0,0.6), 0 28px 60px -12px rgba(0,0,0,0.9);
++  --sh-key: inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -2px 0 rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.6), 0 6px 12px -6px rgba(0,0,0,0.8);
++  --sh-key-fill: inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.6), 0 10px 22px -8px rgba(0,0,0,0.85);
+ }
+ 
+ html[data-paper="night"] {
+@@ -571,6 +595,11 @@ html[data-paper="night"] {
+   --sh-footer-bg-rgb: 13,8,4;
+   --sh-logo-light: none;
+   --sh-logo-dark: block;
++  --sh-elev-1: inset 0 1px 0 rgba(255,214,160,0.06), inset 0 -1px 0 rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.35), 0 14px 30px -12px rgba(0,0,0,0.7);
++  --sh-elev-2: inset 0 1px 0 rgba(255,214,160,0.08), inset 0 -1px 0 rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.4), 0 26px 50px -16px rgba(0,0,0,0.8);
++  --sh-elev-3: 0 2px 6px rgba(0,0,0,0.45), 0 28px 60px -12px rgba(0,0,0,0.75);
++  --sh-key: inset 0 1px 0 rgba(255,214,160,0.07), inset 0 -2px 0 rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.45), 0 6px 12px -6px rgba(0,0,0,0.6);
++  --sh-key-fill: inset 0 1px 0 rgba(255,236,200,0.34), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.5), 0 10px 20px -8px rgba(0,0,0,0.7);
+ }
+ 
+ html[data-paper="glass"] {
+@@ -653,6 +682,11 @@ html[data-paper="glass"] {
+   --sh-footer-bg-rgb: 8,13,26;
+   --sh-logo-light: none;
+   --sh-logo-dark: block;
++  --sh-elev-1: inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.25), 0 18px 40px -12px rgba(0,0,0,0.5);
++  --sh-elev-2: inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(0,0,0,0.2), 0 2px 4px rgba(0,0,0,0.3), 0 30px 56px -16px rgba(0,0,0,0.6);
++  --sh-elev-3: inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.35), 0 28px 60px -12px rgba(0,0,0,0.6);
++  --sh-key: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.3), 0 6px 14px -6px rgba(0,0,0,0.45);
++  --sh-key-fill: inset 0 1px 0 rgba(255,255,255,0.34), inset 0 -2px 0 rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.35), 0 10px 22px -8px rgba(0,0,0,0.55);
+ }
+ 
+ html, body { margin: 0; padding: 0; background: var(--sh-ground, #1a1612); }
+@@ -681,7 +715,6 @@ html[data-paper="glass"] {
+   background-attachment: fixed;
+ }
+ html[data-paper="glass"] body, html[data-paper="glass"] .dash-app { background: transparent !important; }
+-html[data-paper="glass"] .dash-plate { box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 12px 32px rgba(0,0,0,0.28); }
+ html[data-paper="glass"] :is([style*="position: absolute"], [style*="position: sticky"])[style*="var(--sh-card,"] {
+   background-color: rgba(18,26,44,0.88) !important;
+   -webkit-backdrop-filter: blur(18px) saturate(140%);
+@@ -723,9 +756,42 @@ a { text-decoration: none; color: inherit; }
+    the --dac role colour stay (12 modules set them; the eyebrow still takes the role
+    colour), so the restyle is this block and nothing per page. The tick and the
+    bracket are retired rather than restyled — the builder has neither. */
+-.dash-plate { position:relative; background:var(--sh-card, #25211d); border:1px solid var(--sh-line, #302c27); border-radius:12px; padding:18px 20px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
++.dash-plate { position:relative; background:var(--sh-card, #25211d); border:1px solid var(--sh-line, #302c27); border-radius:12px; padding:18px 20px; box-shadow:var(--sh-elev-1, inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65)); }
+ .dash-plate--tick::before { content:none; }
+ .dash-plate--bracket::after { content:none; }
++
++/* ── Depth (owner, 2026-11-04: "I want the look of everything to pop more, almost look 3D") ──
++   Every surface takes one of five lifts from its paper (the tokens above): --sh-elev-1 a
++   resting card, --sh-elev-2 the card under the pointer, --sh-elev-3 a panel floating over
++   the page, --sh-key a raised button in the card's colour and --sh-key-fill a button filled
++   with a colour. Each is a stack: a lit top edge and a shaded bottom lip drawn INSIDE the
++   box (the bevel), a tight contact shadow, and a long soft one, so a card reads as a slab
++   standing off the ground rather than a rectangle drawn on it. The dark papers lean on the
++   lit edge, because a shadow on near-black barely shows.
++   ⚠ A GRID CARD'S SHADOW IS CAST BY ITS CELL, NOT BY THE CARD. `.grid-stack-item-content`
++   is overflow:hidden (dashGrid.jsx: the card's height measurement depends on it), which
++   clips any shadow a card inside it casts, and every grid card fills its cell. An element's
++   own shadow is not clipped by its own overflow, so the cell casts it, at the card's radius.
++   ⚠ A BUTTON IS MATCHED BY ITS INLINE FILL, the way Glass matches a floating panel: the
++   dashboard's buttons are styled inline. An inline box-shadow or transform still wins, so a
++   button that draws its own keeps it. Switches and checkboxes are left flat. The `\(` in each
++   attribute string is CSS's escape for a plain "(": spelled bare, the token sweep in
++   tests/newdesign-paper-tokens.test.mjs reads `var(--sh-card,"]` as a var() call. */
++.dash-gridstack .grid-stack-item-content { border-radius:12px; box-shadow:var(--sh-elev-1, inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65)); transition:box-shadow .2s ease; }
++.dash-gridstack .grid-stack-item:hover > .grid-stack-item-content { box-shadow:var(--sh-elev-2, inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75)); }
++.dash-plate, .dash-card { transition:box-shadow .2s ease, transform .2s ease; }
++:is(a, button).dash-plate:hover, :is(a, button).dash-card:hover { box-shadow:var(--sh-elev-2, inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75)); transform:translateY(-2px); }
++.dash-app :is(a, button):is([style*="background: var\(--sh-accent,"], [style*="background: var\(--sh-accent2,"], [style*="background: var\(--sh-accent3,"], [style*="background: var\(--sh-rust,"], [style*="background: var\(--sh-rust2,"], [style*="background: var\(--sh-gold,"], [style*="background: var\(--sh-gold2,"], [style*="background: var\(--sh-green,"]):not([role="switch"], [role="checkbox"]) {
++  box-shadow:var(--sh-key-fill, inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -2px 0 rgba(0,0,0,0.22), 0 1px 2px rgba(0,0,0,0.45), 0 10px 20px -8px rgba(0,0,0,0.65)); transition:transform .14s ease, box-shadow .14s ease; }
++.dash-app :is(a, button)[style*="background: var\(--sh-card,"]:not([role="switch"], [role="checkbox"]) {
++  box-shadow:var(--sh-key, inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -2px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.4), 0 6px 12px -6px rgba(0,0,0,0.55)); transition:transform .14s ease, box-shadow .14s ease; }
++.dash-app :is(a, button):is([style*="background: var\(--sh-accent,"], [style*="background: var\(--sh-accent2,"], [style*="background: var\(--sh-accent3,"], [style*="background: var\(--sh-rust,"], [style*="background: var\(--sh-rust2,"], [style*="background: var\(--sh-gold,"], [style*="background: var\(--sh-gold2,"], [style*="background: var\(--sh-green,"], [style*="background: var\(--sh-card,"]):not(:disabled, [aria-disabled="true"], [role="switch"], [role="checkbox"]):hover { transform:translateY(-1px); }
++.dash-app :is(a, button):is([style*="background: var\(--sh-accent,"], [style*="background: var\(--sh-accent2,"], [style*="background: var\(--sh-accent3,"], [style*="background: var\(--sh-rust,"], [style*="background: var\(--sh-rust2,"], [style*="background: var\(--sh-gold,"], [style*="background: var\(--sh-gold2,"], [style*="background: var\(--sh-green,"], [style*="background: var\(--sh-card,"]):not(:disabled, [aria-disabled="true"], [role="switch"], [role="checkbox"]):active {
++  transform:translateY(1px); box-shadow:inset 0 2px 5px rgba(0,0,0,0.18); }
++@media (prefers-reduced-motion: reduce) {
++  .dash-plate, .dash-card, .dash-app :is(a, button) { transition:none !important; }
++  :is(a, button).dash-plate:hover, :is(a, button).dash-card:hover, .dash-app :is(a, button):hover, .dash-app :is(a, button):active { transform:none !important; }
++}
+ .dash-eyebrow { font-family:var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size:9.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--dac, var(--sh-accent, #2ee0c4)); }
+ .dash-ledger { height:1px; background:var(--sh-line, #302c27); margin:8px 0 14px; }
+ 
+@@ -834,7 +900,7 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
+ 
+ .dash-facet { position:relative; display:inline-flex; }
+ .dash-facet-pop { position:absolute; top:calc(100% + 6px); left:0; z-index:40; width:300px; max-width:calc(100vw - 32px); box-sizing:border-box; padding:12px 12px 8px;
+-  background:var(--sh-card, #25211d); border:1px solid var(--sh-line2, #413d38); border-radius:8px; box-shadow:0 16px 40px rgba(0,0,0,.22); }
++  background:var(--sh-card, #25211d); border:1px solid var(--sh-line2, #413d38); border-radius:8px; box-shadow:var(--sh-elev-3, 0 2px 6px rgba(0,0,0,0.4), 0 28px 60px -12px rgba(0,0,0,0.7)); }
+ .dash-facet-h { margin:0 0 4px; font-family:var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size:9px; font-weight:700;
+   letter-spacing:.16em; text-transform:uppercase; color:var(--sh-ink2, #a09b94); }
+ .dash-facet-help { margin:0 0 8px; font-size:12px; line-height:1.45; color:var(--sh-ink2, #a09b94); }
+@@ -945,6 +1011,9 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
+ .dash-rail-panel::-webkit-scrollbar { display: none; }
+ .dash-rail:hover .dash-rail-panel, .dash-rail:has(:focus-visible) .dash-rail-panel {
+   width: 240px; box-shadow: 14px 0 36px rgba(0,0,0,0.28); }
++.dash-rail-panel { box-shadow: 10px 0 30px -22px rgba(0,0,0,0.45); }
++.dash-rail-link[data-active] { box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(var(--sh-accent-rgb, 46,224,196),0.12), 0 1px 2px rgba(var(--sh-accent-rgb, 46,224,196),0.14), 0 6px 14px -7px rgba(var(--sh-accent-rgb, 46,224,196),0.5); }
++html:is([data-paper="dark"], [data-paper="carbon"], [data-paper="night"], [data-paper="glass"]) .dash-rail-link[data-active] { box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.3), 0 6px 14px -7px rgba(0,0,0,0.6); }
+ .dash-rail-label { opacity: 0; white-space: nowrap; transition: opacity .12s ease; }
+ .dash-rail:hover .dash-rail-label, .dash-rail:has(:focus-visible) .dash-rail-label { opacity: 1; transition-delay: .05s; }
+ .dash-rail-wide { display: none; }
+@@ -991,6 +1060,7 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
+ .dash-appbar .shape-header { position: relative !important; left: auto !important; right: auto !important;
+   background: rgba(var(--sh-ground-rgb, 26,22,18), 0.9) !important; }
+ .dash-appbar .shape-header-spacer { display: none !important; }
++.dash-appbar .shape-header { box-shadow: 0 10px 28px -20px rgba(0,0,0,0.4); }
+ .dash-appbar .shape-header-inner { max-width: none !important; height: 60px !important; padding: 0 24px !important; }
+ .dash-appbar .shape-nav-tabs, .dash-appbar .shape-nav-hi, .dash-appbar .shape-nav-logo,
+ .dash-appbar .shape-nav-dash { display: none !important; }
+@@ -1057,7 +1127,7 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
+ .lb-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+ .lb-controls .lb-push { margin-left: auto; }
+ .lb-sh { display: none; }
+-.lb-card { background: var(--sh-card, #25211d); border: 1px solid var(--sh-line, #302c27); border-radius: 12px; }
++.lb-card { background: var(--sh-card, #25211d); border: 1px solid var(--sh-line, #302c27); border-radius: 12px; box-shadow: var(--sh-elev-1, inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65)); }
+ .lb-eyebrow { font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--sh-ink3, #75706a); }
+ .lb-you { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px 26px; align-items: center; padding: 18px 22px; margin-bottom: 16px;
+   border-color: rgba(var(--sh-accent-rgb, 46,224,196), .35);
+diff --git a/public/newdesign/depth3d.js b/public/newdesign/depth3d.js
+new file mode 100644
+index 0000000..856919e
+--- /dev/null
++++ b/public/newdesign/depth3d.js
+@@ -0,0 +1,61 @@
++/* Depth: the pointer tilt (owner, 2026-11-04: "I want the look of everything to pop more,
++   almost look 3D").
++
++   An element marked `data-tilt` leans toward the pointer while it is over it: up to
++   --tilt-max degrees on each axis (6 unless the element sets its own), lifted a few pixels,
++   with --tilt-mx / --tilt-my (0–100%) saying where the pointer is, for a page that draws a
++   moving highlight from them. It settles back flat when the pointer leaves.
++
++   ⚠ ONE LISTENER FOR THE WHOLE DOCUMENT, NOT ONE PER CARD. The website's pages render their
++   cards with React after Babel compiles them, so there is nothing to bind to when this
++   script runs; delegation finds the card under the pointer whenever it exists.
++   ⚠ THE TRANSFORM IS ONLY ON WHILE THE CARD IS TILTING (.tilt-on). A transform makes an
++   element the containing block of its position:fixed children, so a card that carried one
++   at rest would trap any fixed overlay drawn inside it.
++   ⚠ NOTHING MOVES for a visitor who asked for reduced motion or who has no hovering pointer
++   (a phone: the tilt would fire on the tap and stick). */
++(function () {
++  if (typeof window === "undefined" || window.__shapeDepth3d) return;
++  window.__shapeDepth3d = true;
++  var mq = function (q) { try { return window.matchMedia(q).matches; } catch (e) { return false; } };
++  if (mq("(prefers-reduced-motion: reduce)") || !mq("(hover: hover) and (pointer: fine)")) return;
++
++  var css = "[data-tilt].tilt-on{transform:perspective(900px) rotateX(var(--tilt-rx,0deg)) rotateY(var(--tilt-ry,0deg)) translateY(var(--tilt-lift,0px));"
++    + "transition:transform .5s cubic-bezier(.2,.7,.2,1);will-change:transform}"
++    + "[data-tilt].tilt-on.tilt-move{transition:transform .12s ease-out}";
++  var style = document.createElement("style");
++  style.setAttribute("data-depth3d", "");
++  style.textContent = css;
++  (document.head || document.documentElement).appendChild(style);
++
++  var active = null, timer = 0;
++  function settle(el) {
++    el.classList.remove("tilt-move");
++    el.style.setProperty("--tilt-rx", "0deg");
++    el.style.setProperty("--tilt-ry", "0deg");
++    el.style.setProperty("--tilt-lift", "0px");
++    clearTimeout(timer);
++    timer = setTimeout(function () { if (el !== active) el.classList.remove("tilt-on"); }, 520);
++  }
++  document.addEventListener("pointermove", function (e) {
++    if (e.pointerType && e.pointerType !== "mouse") return;
++    var el = e.target && e.target.closest ? e.target.closest("[data-tilt]") : null;
++    if (active && active !== el) { var was = active; active = null; settle(was); }
++    if (!el) return;
++    active = el;
++    var r = el.getBoundingClientRect();
++    if (!r.width || !r.height) return;
++    var x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
++    var max = parseFloat(el.getAttribute("data-tilt")) || 6;
++    el.classList.add("tilt-on", "tilt-move");
++    el.style.setProperty("--tilt-rx", ((0.5 - y) * 2 * max).toFixed(2) + "deg");
++    el.style.setProperty("--tilt-ry", ((x - 0.5) * 2 * max).toFixed(2) + "deg");
++    el.style.setProperty("--tilt-lift", "-4px");
++    el.style.setProperty("--tilt-mx", (x * 100).toFixed(1) + "%");
++    el.style.setProperty("--tilt-my", (y * 100).toFixed(1) + "%");
++  }, { passive: true });
++  // Leaving the window (pointerleave does not bubble, so this is the root's own leave alone;
++  // moving from one card to another is handled above).
++  document.documentElement.addEventListener("pointerleave", function () { if (active) { var was = active; active = null; settle(was); } });
++  window.addEventListener("blur", function () { if (active) { var was = active; active = null; settle(was); } });
++})();
+diff --git a/public/newdesign/index.html b/public/newdesign/index.html
+index 61b5d72..d62b442 100644
+--- a/public/newdesign/index.html
++++ b/public/newdesign/index.html
+@@ -103,13 +103,21 @@
+   p{margin:0;line-height:1.55}
+ 
+   /* ── buttons ─────────────────────────────────────────────── */
++  /* Depth (owner, 2026-11-04: "pop more, almost look 3D"): each button is a key — a lit
++     top edge and a shaded lip drawn inside it, a contact shadow and a long soft one under
++     it (teal-tinted on the filled one) — that rises on hover and presses in on click. */
+   .btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--sans);font-weight:700;font-size:14px;
+-       padding:13px 22px;border-radius:6px;border:1px solid transparent;transition:transform .18s,background .18s,border-color .18s;
++       padding:13px 22px;border-radius:6px;border:1px solid transparent;transition:transform .18s,background .18s,border-color .18s,box-shadow .18s;
+        min-height:44px}
+-  .btn.p{background:var(--teal);color:#04110f}
+-  .btn.p:hover{transform:translateY(-1px);background:#4ce4d4}
+-  .btn.g{border-color:var(--line);color:var(--fg);background:rgba(255,255,255,.02)}
+-  .btn.g:hover{border-color:rgba(var(--teal-rgb),.5);transform:translateY(-1px)}
++  .btn.p{background:var(--teal);color:#04110f;
++         box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -2px 0 rgba(4,17,15,.22),0 1px 2px rgba(0,0,0,.45),0 12px 26px -10px rgba(var(--teal-rgb),.6)}
++  .btn.p:hover{transform:translateY(-2px);background:#4ce4d4;
++               box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -2px 0 rgba(4,17,15,.22),0 2px 4px rgba(0,0,0,.45),0 20px 38px -12px rgba(var(--teal-rgb),.75)}
++  .btn.g{border-color:var(--line);color:var(--fg);background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.02));
++         box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 2px rgba(0,0,0,.45),0 12px 24px -12px rgba(0,0,0,.8)}
++  .btn.g:hover{border-color:rgba(var(--teal-rgb),.5);transform:translateY(-2px);
++               box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 2px 4px rgba(0,0,0,.45),0 18px 34px -12px rgba(0,0,0,.85),0 0 22px -6px rgba(var(--teal-rgb),.35)}
++  .btn:active{transform:translateY(1px);box-shadow:inset 0 2px 6px rgba(0,0,0,.35)}
+ 
+   /* ── nav: six primary items (was 17 targets) ─────────────── */
+   nav{position:sticky;top:0;z-index:60;background:rgba(6,9,15,.72);backdrop-filter:blur(14px);
+@@ -163,10 +171,10 @@
+      tests/site-nav.test.mjs compares the two numbers. */
+   .nauth .nhi{max-width:150px;overflow:hidden;text-overflow:ellipsis}
+   @media (max-width:1200px){.nauth .nhi{display:none}}
+-  .ncta{font-family:var(--sans);font-weight:600;font-size:13px;background:var(--teal);color:#04110f;
++  .ncta{font-family:var(--sans);font-weight:600;font-size:13px;background:linear-gradient(180deg,#62eadb,var(--teal) 55%,#27c3b2);color:#04110f;
+         padding:0 15px;height:36px;display:inline-flex;align-items:center;
+         white-space:nowrap;line-height:1;transition:background .16s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%)}
+-  .ncta:hover{background:#4ce4d4}
++  .ncta:hover{background:linear-gradient(180deg,#7cf0e3,#4ce4d4 55%,#34d6c5)}
+   /* ⚠ The permanent "ON AIR" chip is GONE. Measured 2026-09-11: public.radio_station
+      does not exist in production, so /api/radio/now-playing falls through to the mock
+      provider and the station is not broadcasting. A chip that always says ON AIR is a
+@@ -247,7 +255,7 @@
+       radial-gradient(60% 40% at 72% 36%, rgba(255,180,84,.13), transparent 70%),
+       linear-gradient(to bottom, var(--ink) 0%, var(--ink-2) 100%)}
+   .hero .hcopy{position:relative;z-index:3;max-width:var(--maxw);margin:0 auto;padding:0 32px;width:100%}
+-  .hero h1{font-size:clamp(42px,7.2vw,104px);max-width:15ch}
++  .hero h1{font-size:clamp(42px,7.2vw,104px);max-width:15ch;text-shadow:0 2px 0 rgba(0,0,0,.28),0 22px 50px rgba(0,0,0,.5)}
+   .hero h1 .w{display:inline-block;font-variation-settings:'wdth' var(--hw,var(--w));will-change:font-variation-settings}
+   .hero .sub{margin-top:22px;max-width:52ch;font-size:17px;color:var(--fg-2)}
+   .hero .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+@@ -266,7 +274,8 @@
+   /* ⚠ Doto gets a PLATE, never a glow — a blur stacks on every dot. */
+   .summit .sc{display:inline-block;font-family:var(--num);font-weight:900;font-size:clamp(30px,4.4vw,58px);
+               line-height:1;color:#fff;font-variation-settings:'ROND' 100;padding:7px 12px 5px;border-radius:7px;
+-              background:rgba(6,9,15,.66);border:1px solid rgba(var(--teal-rgb),.34)}
++              background:rgba(6,9,15,.66);border:1px solid rgba(var(--teal-rgb),.34);
++              box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.4),0 12px 28px -8px rgba(0,0,0,.75),0 0 34px -6px rgba(var(--teal-rgb),.4)}
+   .summit .lb{font-family:var(--num);font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+               color:var(--teal);margin-top:5px;font-variation-settings:'ROND' 30}
+ 
+@@ -320,7 +329,7 @@
+ 
+   /* ── the moments strip (replaces 525vh of pinned scroll) ── */
+   .mo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+-  .mo{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;overflow:hidden;transition:border-color .25s}
++  .mo{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:18px;overflow:hidden;transition:border-color .25s,box-shadow .25s}
+   .mo h3{font-size:20px;margin-top:6px}
+   .mo .shot{position:relative;margin-top:16px;border-radius:8px;overflow:hidden;aspect-ratio:3/4;
+             background:var(--ink-3);border:1px solid var(--line-2)}
+@@ -348,13 +357,15 @@
+ 
+   /* ── coaches ─────────────────────────────────────────────── */
+   .co-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+-  .co{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:22px;
+-      transition:border-color .2s,transform .2s}
++  .co{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:22px;
++      transition:border-color .2s,transform .2s,box-shadow .2s}
+   .co:hover{border-color:rgba(var(--teal-rgb),.34);transform:translateY(-2px)}
+   .co .gem{width:46px;height:46px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+            background:linear-gradient(135deg,var(--teal-d),var(--teal));color:#04110f;
++           box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -3px 0 rgba(0,0,0,.18),0 8px 18px -8px rgba(var(--teal-rgb),.7);
+            font-family:var(--num);font-weight:700;font-size:15px;font-variation-settings:'ROND' 30}
+-  .co .gem.nu{background:linear-gradient(135deg,#8f6620,#e6c373)}
++  .co .gem.nu{background:linear-gradient(135deg,#8f6620,#e6c373);
++               box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 -3px 0 rgba(0,0,0,.18),0 8px 18px -8px rgba(230,195,115,.6)}
+   .co .nm{font-family:var(--disp);font-weight:600;font-variation-settings:'wdth' 100;font-size:18px;margin-top:14px}
+   .co .ro{font-family:var(--num);font-weight:700;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;
+           color:var(--teal);margin-top:5px;font-variation-settings:'ROND' 30}
+@@ -385,8 +396,16 @@
+   .jph{position:relative;z-index:2}
+ 
+   /* the phone frame used beside the journey and the price */
++  /* Depth: a phone body, not a screenshot in a box — a 6px bezel and a lit rim drawn as rings
++     of shadow round the screen, a long shadow cast down and to the side, and the whole
++     handset turned in 3D toward the copy beside it. It squares up under the pointer. */
+   .appph{position:relative;border-radius:26px;overflow:hidden;border:1px solid var(--line);
+-         background:var(--ink-3);box-shadow:0 24px 60px rgba(0,0,0,.5);aspect-ratio:600/1387}
++         background:var(--ink-3);aspect-ratio:600/1387;
++         box-shadow:0 0 0 6px #0b121c,0 0 0 7px rgba(255,255,255,.1),0 2px 4px 6px rgba(0,0,0,.35),-28px 46px 80px -18px rgba(0,0,0,.8),0 0 70px -20px rgba(var(--teal-rgb),.25);
++         transform:perspective(1600px) rotateY(-11deg) rotateX(4deg);transition:transform .7s cubic-bezier(.2,.7,.2,1)}
++  .appph:hover{transform:perspective(1600px) rotateY(-2deg) rotateX(1deg)}
++  @media (prefers-reduced-motion:reduce){.appph{transition:none}.appph:hover{transform:perspective(1600px) rotateY(-11deg) rotateX(4deg)}}
++  @media (max-width:760px){.appph{transform:none}.appph:hover{transform:none}}
+   .appph img{display:block;width:100%;height:auto;transform:translateY(calc(var(--y,0%) * -1))}
+   .appph .isl{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:30%;height:16px;
+               border-radius:10px;background:#05080d;z-index:2}
+@@ -423,8 +442,8 @@
+      whole card read aloud as one link text. tests/homepage-climb.test.mjs walks
+      this element to check the ON AIR chip carries its label, so its matcher reads
+      the tag name rather than assuming a div. */
+-  .air{display:block;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:24px;
+-       transition:border-color .2s,transform .2s}
++  .air{position:relative;display:block;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:24px;
++       transition:border-color .2s,transform .2s,box-shadow .2s}
+   .air:hover{border-color:rgba(var(--teal-rgb),.34);transform:translateY(-2px)}
+   .air .hd{display:flex;align-items:center;justify-content:space-between;gap:14px}
+   .air .wm{display:inline-flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:500;
+@@ -471,6 +490,23 @@
+   .air .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-2);
+              font-size:12px;color:var(--fg-3)}
+ 
++  /* ── depth: the cards (owner, 2026-11-04: "pop more, almost look 3D") ──
++     A card is a slab, not an outline: lit from above (a 5.5% → 1.8% wash and a 1px lit top
++     edge), a shaded bottom lip, a contact shadow and a long soft one. Under the pointer it
++     lifts, takes a teal under-glow, and depth3d.js leans it toward the pointer (data-tilt)
++     while a soft highlight follows the cursor (--tilt-mx/--tilt-my, which that script sets).
++     ⚠ THE WASH IS MEASURED, NOT GUESSED: --fg-3 at its brightest point (the top of the card,
++     with the highlight over it) still reads 4.9:1, over the 4.5 floor for its 12–13px text. */
++  .mo,.co,.air{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018) 62%);
++    box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 -1px 0 rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.45),0 20px 40px -18px rgba(0,0,0,.8)}
++  .mo:hover,.co:hover,.air:hover{
++    box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -1px 0 rgba(0,0,0,.35),0 2px 4px rgba(0,0,0,.45),0 34px 60px -22px rgba(0,0,0,.85),0 18px 44px -18px rgba(var(--teal-rgb),.28)}
++  .mo::after,.co::after,.air::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:4;
++    background:radial-gradient(380px circle at var(--tilt-mx,50%) var(--tilt-my,0%),rgba(255,255,255,.07),transparent 46%);
++    opacity:0;transition:opacity .3s}
++  .mo:hover::after,.co:hover::after,.air:hover::after{opacity:1}
++  .rd{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 4px rgba(0,0,0,.4),0 40px 80px -36px rgba(0,0,0,.9)}
++
+   /* ── price ───────────────────────────────────────────────── */
+   .prc2{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:52px;align-items:center}
+   .big{font-family:var(--num);font-weight:900;font-size:clamp(52px,6.6vw,88px);line-height:1;
+@@ -990,19 +1026,19 @@
+       <p>Written before you arrive. The ledger ticks live. The list writes itself. The social side of strong. Four screens of the app as it ships today.</p>
+     </div>
+     <div class="mo-grid" id="mo-grid">
+-      <div class="mo on">
++      <div class="mo on" data-tilt="4">
+         <div class="eb">Eat · the menu</div><h3>The ledger ticks.</h3>
+         <div class="shot"><img src="/newdesign/home-eat-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the fuel left today, 532 kcal, and what is left of each macro, then lunch up next with Log it and Swap" style="--y:19%"><span class="hl" style="top:27.06%;height:45.38%"></span></div>
+       </div>
+-      <div class="mo">
++      <div class="mo" data-tilt="4">
+         <div class="eb">Eat · the shop</div><h3>The list writes itself.</h3>
+         <div class="shot"><img src="/newdesign/home-grocery-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan, 8 of 89 in the cart, shopped by aisle with the aisles stepped across the top and Produce open, 24 to get" style="--y:34%"><span class="hl" style="top:53.3%;height:27.38%"></span></div>
+       </div>
+-      <div class="mo">
++      <div class="mo" data-tilt="4">
+         <div class="eb">Train · in the session</div><h3>A set logs.</h3>
+         <div class="shot"><img src="/newdesign/home-session-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, set one up with its load and reps" style="--y:10.75%"><span class="hl" style="top:41.61%;height:16.75%"></span></div>
+       </div>
+-      <div class="mo">
++      <div class="mo" data-tilt="4">
+         <div class="eb">Community · the Wall</div><h3>A PR lands.</h3>
+         <div class="shot"><img src="/newdesign/home-feed-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A deadlift PR from the Wall: 245 lb as the top set under the headline, the member's note, and the coach's co-sign below" style="--y:0%"><span class="hl" style="top:44.13%;height:37.88%"></span></div>
+       </div>
+@@ -1027,14 +1063,14 @@
+       <p>Certified trainers and nutritionists, filtered by speciality, city and rate. Read a coach's page, message them, and book before you commit to anything.</p>
+     </div>
+     <div class="co-grid">
+-      <div class="co"><div class="gem"><b>MO</b></div><div class="nm">Maya Okafor</div><div class="ro">Trainer · Strength</div><div class="sm">Strength &amp; hypertrophy · Brooklyn · in person</div><div class="rt"><span>9 yrs</span><b>$120<i>/session</i></b></div></div>
+-      <div class="co"><div class="gem"><b>LM</b></div><div class="nm">Leo Martins</div><div class="ro">Trainer · Powerlifting</div><div class="sm">Powerlifting &amp; strength · Lisbon · in person</div><div class="rt"><span>8 yrs</span><b>$105<i>/session</i></b></div></div>
+-      <div class="co"><div class="gem nu"><b>RL</b></div><div class="nm">Rae Lindqvist</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Sports performance &amp; hydration · Stockholm · remote</div><div class="rt"><span>11 yrs</span><b>$140<i>/month</i></b></div></div>
+-      <div class="co"><div class="gem"><b>DA</b></div><div class="nm">Diego Alvarez</div><div class="ro">Trainer · Endurance</div><div class="sm">Marathon &amp; VO2 · Austin · hybrid</div><div class="rt"><span>7 yrs</span><b>$95<i>/session</i></b></div></div>
+-      <div class="co"><div class="gem"><b>NP</b></div><div class="nm">Nina Petrova</div><div class="ro">Trainer · Mobility</div><div class="sm">Mobility &amp; return-to-lift · Berlin · remote</div><div class="rt"><span>6 yrs</span><b>$85<i>/session</i></b></div></div>
+-      <div class="co"><div class="gem nu"><b>SH</b></div><div class="nm">Samir Haddad</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Body composition &amp; habits · Toronto · remote</div><div class="rt"><span>9 yrs</span><b>$120<i>/month</i></b></div></div>
+-      <div class="co"><div class="gem"><b>GM</b></div><div class="nm">Grace Mwangi</div><div class="ro">Trainer · Conditioning</div><div class="sm">Conditioning &amp; field sport · Nairobi · hybrid</div><div class="rt"><span>5 yrs</span><b>$70<i>/session</i></b></div></div>
+-      <div class="co"><div class="gem nu"><b>YT</b></div><div class="nm">Yuki Tanaka</div><div class="ro nu">Nutritionist · MS</div><div class="sm">Endurance fuelling &amp; recovery · Osaka · remote</div><div class="rt"><span>12 yrs</span><b>$115<i>/month</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem"><b>MO</b></div><div class="nm">Maya Okafor</div><div class="ro">Trainer · Strength</div><div class="sm">Strength &amp; hypertrophy · Brooklyn · in person</div><div class="rt"><span>9 yrs</span><b>$120<i>/session</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem"><b>LM</b></div><div class="nm">Leo Martins</div><div class="ro">Trainer · Powerlifting</div><div class="sm">Powerlifting &amp; strength · Lisbon · in person</div><div class="rt"><span>8 yrs</span><b>$105<i>/session</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem nu"><b>RL</b></div><div class="nm">Rae Lindqvist</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Sports performance &amp; hydration · Stockholm · remote</div><div class="rt"><span>11 yrs</span><b>$140<i>/month</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem"><b>DA</b></div><div class="nm">Diego Alvarez</div><div class="ro">Trainer · Endurance</div><div class="sm">Marathon &amp; VO2 · Austin · hybrid</div><div class="rt"><span>7 yrs</span><b>$95<i>/session</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem"><b>NP</b></div><div class="nm">Nina Petrova</div><div class="ro">Trainer · Mobility</div><div class="sm">Mobility &amp; return-to-lift · Berlin · remote</div><div class="rt"><span>6 yrs</span><b>$85<i>/session</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem nu"><b>SH</b></div><div class="nm">Samir Haddad</div><div class="ro nu">Nutritionist · RD</div><div class="sm">Body composition &amp; habits · Toronto · remote</div><div class="rt"><span>9 yrs</span><b>$120<i>/month</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem"><b>GM</b></div><div class="nm">Grace Mwangi</div><div class="ro">Trainer · Conditioning</div><div class="sm">Conditioning &amp; field sport · Nairobi · hybrid</div><div class="rt"><span>5 yrs</span><b>$70<i>/session</i></b></div></div>
++      <div class="co" data-tilt="5"><div class="gem nu"><b>YT</b></div><div class="nm">Yuki Tanaka</div><div class="ro nu">Nutritionist · MS</div><div class="sm">Endurance fuelling &amp; recovery · Osaka · remote</div><div class="rt"><span>12 yrs</span><b>$115<i>/month</i></b></div></div>
+     </div>
+     <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-top:22px">
+       <span class="exlabel">Example profiles until real ones render</span>
+@@ -1101,7 +1137,7 @@
+         <p style="max-width:46ch;font-size:15px;color:var(--fg-2);margin-top:18px">One live channel and the playlists your coaches put together, ad-free. When a coach attaches a playlist, it plays right on the card. Free with every membership.</p>
+         <div style="margin-top:26px"><a class="btn p" href="/newdesign/Radio.html">Open Shape Radio →</a></div>
+       </div>
+-      <a class="air" href="/newdesign/Radio.html" aria-label="Shape Radio">
++      <a class="air" href="/newdesign/Radio.html" aria-label="Shape Radio" data-tilt="4">
+         <div class="hd">
+           <span class="wm"><span>Shape</span><svg aria-hidden="true" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="rgba(238,243,240,.92)"/></svg><span class="r">Radio</span></span>
+           <span class="oa"><i></i>On air</span>
+@@ -2026,6 +2062,7 @@
+ </script>
+ 
+ <script src="globalChatButton.js?v=20260714c" defer></script>
++<script src="/newdesign/depth3d.js" defer></script>
+ <!-- Universal search ⌕ in the nav — reuses pageShell's SiteSearch (the index
+      page has its own static header, so the React component is mounted into
+      the #shape-nav-search slot instead of coming via the shared Header). -->
+diff --git a/public/newdesign/trainerDashboard.jsx b/public/newdesign/trainerDashboard.jsx
+index 31a65e4..fbca75f 100644
+--- a/public/newdesign/trainerDashboard.jsx
++++ b/public/newdesign/trainerDashboard.jsx
+@@ -309,14 +309,15 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
+ 
+ // Small helpers available to every inner page
+ function Card({ children, style }) {
+-  // The builder's card: white, one hairline, a 12px radius, no glass and no
+-  // 48px shadow — on the light paper a blurred cream gradient reads as a smudge.
+-  return <div style={{
++  // The builder's card: white, one hairline, a 12px radius, no glass. Its lift is the paper's
++  // resting one (dash.css "Depth": a lit edge, a contact shadow and a long soft one), not a
++  // blurred cream gradient, which on the light paper reads as a smudge.
++  return <div className="dash-card" style={{
+     background: "var(--sh-card, #25211d)",
+     border: "1px solid var(--sh-line, #302c27)",
+     borderRadius: 12,
+     padding: 20,
+-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
++    boxShadow: "var(--sh-elev-1, inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65))",
+     ...style
+   }}>{children}</div>;
+ }
