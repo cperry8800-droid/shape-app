@@ -853,9 +853,9 @@ html[data-paper="glass"] {
    tier (four of the five are under 3:1 on both, and Form under it on Bone's resting fill); on
    the dark papers only Form on Glass, on a card over its teal glow. tests/dash-depth.test.mjs measures each
    pair against every paper's card, ground and resting fill, and holds these rules to it. */
-.sh-tier-mark { background: var(--tier-mark); box-shadow: inset 0 0 0 1px var(--sh-ink2, #5a6763); }
+.sh-tier-mark { background: var(--tier-mark); box-shadow: inset 0 0 0 1px var(--sh-ink2, #a09b94); }
 html:is([data-paper="dark"], [data-paper="carbon"], [data-paper="night"], [data-paper="glass"]) .sh-tier-mark { box-shadow: none; }
-html[data-paper="glass"] .sh-tier-mark[data-tier="form"] { box-shadow: inset 0 0 0 1px var(--sh-ink2, #b0bacb); }
+html[data-paper="glass"] .sh-tier-mark[data-tier="form"] { box-shadow: inset 0 0 0 1px var(--sh-ink2, #a09b94); }
 a { text-decoration: none; color: inherit; }
 
 /* ── Cards (the workout builder's vocabulary, owner 2026-09-21) ────────────

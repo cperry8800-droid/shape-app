@@ -62,8 +62,8 @@ export default {
     { name: 'roster: an unknown tier is a coloured square', file: ROSTER, find: 'const tier = dashClientTierMark(rec.rankPoints);', replace: 'const tier = dashClientTierMark(rec.rankPoints == null ? 0 : rec.rankPoints);' },
 
     // ── the ring ──
-    { name: 'ring: none on White and Bone', file: CSS, find: '.sh-tier-mark { background: var(--tier-mark); box-shadow: inset 0 0 0 1px var(--sh-ink2, #5a6763); }', replace: '.sh-tier-mark { background: var(--tier-mark); box-shadow: none; }' },
-    { name: 'ring: none for Form on Glass', file: CSS, find: 'html[data-paper="glass"] .sh-tier-mark[data-tier="form"] { box-shadow: inset 0 0 0 1px var(--sh-ink2, #b0bacb); }\n', replace: '' },
+    { name: 'ring: none on White and Bone', file: CSS, find: '.sh-tier-mark { background: var(--tier-mark); box-shadow: inset 0 0 0 1px var(--sh-ink2, #a09b94); }', replace: '.sh-tier-mark { background: var(--tier-mark); box-shadow: none; }' },
+    { name: 'ring: none for Form on Glass', file: CSS, find: 'html[data-paper="glass"] .sh-tier-mark[data-tier="form"] { box-shadow: inset 0 0 0 1px var(--sh-ink2, #a09b94); }\n', replace: '' },
     { name: 'ring: every tier ringed on the dark papers', file: CSS, find: 'html:is([data-paper="dark"], [data-paper="carbon"], [data-paper="night"], [data-paper="glass"]) .sh-tier-mark { box-shadow: none; }\n', replace: '' },
 
     // ── the lifts pop ──
