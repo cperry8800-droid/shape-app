@@ -126,8 +126,10 @@ test('outside a BSPage with a masthead, a detail header gets no bar and stays st
 });
 
 // Owner, 2026-11-08: "keep shape present on masthead when you scroll down on home page". The flag masthead
-// (member Home, coach Today) hands BSPage its SHAPE wordmark, and the pinned bar centres it between the
-// mark and the tools once the page scrolls; a page without the flag keeps the plain row.
+// (member Home, coach Today) hands BSPage its SHAPE wordmark, and the pinned bar draws the flag's own row
+// with it (BSMastWordRow) once the page scrolls; a page without the flag keeps the plain row. Then: "Make
+// the shape logo in the masthead like this even when scrolled all the way to the top", so the top of the
+// page is that same row.
 test('Home\'s pinned bar keeps the SHAPE wordmark; a page without the flag does not', async () => {
   const { BSMasthead } = window;
   assert.equal(typeof BSMasthead, 'function');
@@ -143,10 +145,19 @@ test('Home\'s pinned bar keeps the SHAPE wordmark; a page without the flag does 
   await render(true);
   const bar = host.querySelector('[data-bs-pinned-mast]');
   const scroller = host.querySelector('.bs-scroll');
+  // At the top of the page the wordmark is in the masthead row itself, at the row's centre, not on a row
+  // of its own under it.
+  const top = scroller.querySelector('[data-bs-mast-layout="flag"] [data-bs-mast-word-row]');
+  assert.ok(top, 'the flag has no wordmark row');
+  const slot = top.querySelector('[data-bs-mast-word]');
+  assert.ok(slot && slot.querySelector('img[alt="Shape"]'), 'the wordmark left the masthead row');
+  assert.equal(slot.style.left, '50%', 'the wordmark is not at the row\'s centre');
+  assert.equal(scroller.querySelectorAll('img[alt="Shape"]').length, 1, 'the wordmark is drawn twice');
   await act(async () => { Object.defineProperty(scroller, 'scrollTop', { value: 120, configurable: true, writable: true }); scroller.dispatchEvent(new window.Event('scroll')); });
   assert.equal(bar.getAttribute('aria-hidden'), 'false', 'the bar is in');
   const row = bar.querySelector('[data-bs-pinned-word]');
   assert.ok(row, 'the pinned bar dropped the wordmark');
+  assert.ok(row.querySelector('[data-bs-mast-word-row] [data-bs-mast-word]'), 'the pinned bar is not the flag\'s row');
   const img = row.querySelector('img');
   assert.equal(img.getAttribute('src'), '/m/shape-wordmark.svg');
   assert.equal(img.getAttribute('alt'), 'Shape');

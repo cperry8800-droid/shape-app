@@ -22729,25 +22729,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const cardInk = t.INK;
   const muted = t.INK50;
   const hair = t.RULE;
-  // Sub-tab chip — minimal "bracket-frame": plain text at rest; accent corner
-  // brackets (top-left + bottom-right) + accent text + dot when active. A render
-  // FUNCTION (called inline like renderPost/Row), not a <Component/>, so it
-  // doesn't remount the chips on the parent's frequent re-renders. Shared by the
-  // Feed role chips and the Team Coaches/Friends selector so both match.
-  // Typographic underline index — one tab grammar across the whole chat (the feed
-  // role chips + the Team Coaches/Friends selector), in the Wall's magazine look (owner,
-  // 2026-10-24): ink when active over the magazine's teal underline, a bare teal count for
-  // unread, as the Wall masthead's own tabs read.
+  // The magazine's teal: unread counts, New, and the Team tabs' pill (owner, 2026-10-24: "everything on chat
+  // page should match new feed wall design").
   const magAccent = bsWsAccent(t);
-  const bsSubTab = ({ key, on, onClick, label, badge }) => (
-    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-      {/* The underline hugs the word (owner, 2026-10-24: "clean it up"), not the foot of the 44px target. */}
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: on ? t.INK : bsTHexA(t.INK, 0.38), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-        {label}
-        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
-      </span>
-    </button>
-  );
   const ROLE = {
     SHAPE: { color: TEALB, label: tr('feed:roleTag.client', { defaultValue: 'Client' }) },
     TRAINER: { color: '#ff7a59', label: tr('feed:roleTag.trainer', { defaultValue: 'Trainer' }) },
@@ -23581,69 +23565,31 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             );
           }
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
-          const _tabIdea = (() => { try { return localStorage.getItem('bs.idea.tabs') || 'old'; } catch (e) { return 'old'; } })();
           return (
             // On the Wall's 12px edge (owner, 2026-10-24), so the list's rules end where the strip's do.
-            // The tabs sit close over the list (owner, 2026-11-04: "reduce gap here", and 2026-11-08: "reduce
-            // the gap here"): no gap under them, and the list's head tucks 8px up under their 44px taps.
             <div style={{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* The row's 44px taps reach 4px up into the gap under the rail, never onto it (lifted here, outside
-                  the sub-row's clip, so no part of a tap is cut off). */}
-              <div inert={subHidden} style={{ ...bsSubStyle(0), marginTop: _tabIdea === 'old' ? -4 : -8 }}>
-              {_tabIdea === 'A' ? (
-                // A · SEGMENTED: one raised track the width of the list, the list shown a flat teal pill in
-                // it, as the Wall's type chips read.
-                <div data-bs-team-tabs="segmented" style={{ ...bsWallRaised(t, 999), display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '0 3px' }}>
+              {/* THE TWO LISTS IN ONE TRACK (owner, 2026-11-08: "reduce the gap here and improve the coaches and
+                  friends header looks", idea A of three): one raised track the width of the list, the list shown
+                  a flat teal pill in it, as the Wall's type chips read; a list's unread is a small count beside
+                  its name. The track sits 10px under the rail's cards (it rises 8px into the rail's 14px foot,
+                  never onto a card), and the room under it is inside the row that hides on scroll, so it goes
+                  with the row and the track's shadow is not cut off. */}
+              <div inert={subHidden} style={{ ...bsSubStyle(0), marginTop: -8 }}>
+                <div data-bs-team-tabs="" style={{ ...bsWallRaised(t, 999), display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '0 3px' }}>
                   {selectors.map((sec) => {
                     const on = active.key === sec.key;
                     return (
-                      <button key={sec.key} type="button" aria-pressed={on} onClick={() => setTeamsSel(sec.key)} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                        <span style={{ flex: 1, height: 36, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: on ? 700 : 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', ...(on ? bsWallLit(t) : { background: 'transparent', color: bsTHexA(t.INK, 0.62) }) }}>
-                          {sec.label}
-                          {sec.badge > 0 && <span style={{ minWidth: 18, height: 18, padding: '0 5px', boxSizing: 'border-box', borderRadius: 999, display: 'inline-grid', placeItems: 'center', fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 800, fontVariantNumeric: 'tabular-nums', ...(on ? { background: 'rgba(0,0,0,0.18)', color: 'inherit' } : { background: magAccent, color: t.isLight ? '#fff' : '#06110e' }) }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
+                      <button key={sec.key} type="button" aria-pressed={on} onClick={() => setTeamsSel(sec.key)} style={{ minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ flex: 1, minWidth: 0, height: 36, padding: '0 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: on ? 700 : 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', ...(on ? bsWallLit(t) : { background: 'transparent', color: bsTHexA(t.INK, 0.62) }) }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{sec.label}</span>
+                          {sec.badge > 0 && <span style={{ flexShrink: 0, minWidth: 18, height: 18, padding: '0 5px', boxSizing: 'border-box', borderRadius: 999, display: 'inline-grid', placeItems: 'center', fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 800, fontVariantNumeric: 'tabular-nums', ...(on ? { background: 'rgba(0,0,0,0.18)', color: 'inherit' } : { background: magAccent, color: t.isLight ? '#ffffff' : '#06110e' }) }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-              ) : _tabIdea === 'B' ? (
-                // B · LENS: the Wall's Universal / Following row, word for word: two halves on a hairline, the
-                // list shown in ink over a short teal bar.
-                <div data-bs-team-tabs="lens" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: `1px solid ${bsTHexA(t.INK, t.isLight ? 0.1 : 0.12)}` }}>
-                  {selectors.map((sec) => {
-                    const on = active.key === sec.key;
-                    return (
-                      <button key={sec.key} type="button" aria-pressed={on} onClick={() => setTeamsSel(sec.key)} style={{ position: 'relative', minHeight: 46, padding: '0 4px', border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: on ? t.INK : bsTHexA(t.INK, 0.5), fontFamily: BS_CLEAN_HEAD, fontSize: 15, fontWeight: on ? 700 : 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
-                        {sec.label}
-                        {sec.badge > 0 && <span style={{ fontFamily: BS_CLEAN_SANS, fontSize: 12, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
-                        <span aria-hidden style={{ position: 'absolute', left: '50%', bottom: -1, width: 32, marginLeft: -16, height: 2.5, borderRadius: 2, background: magAccent, opacity: on ? 1 : 0, transition: 'opacity 200ms ease' }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : _tabIdea === 'C' ? (
-                // C · HEADLINE: the two lists named in the Wall's headline face at the left, the one shown in
-                // ink with a teal rule under it, the other quiet.
-                <div data-bs-team-tabs="headline" style={{ display: 'flex', alignItems: 'flex-end', gap: 20, padding: '0 2px' }}>
-                  {selectors.map((sec) => {
-                    const on = active.key === sec.key;
-                    return (
-                      <button key={sec.key} type="button" aria-pressed={on} onClick={() => setTeamsSel(sec.key)} style={{ position: 'relative', minHeight: 44, padding: '0 0 8px', border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'flex-end', gap: 4, color: on ? t.INK : bsTHexA(t.INK, 0.34), fontFamily: bsWsHead(t), fontSize: 25, fontWeight: 600, lineHeight: 1, letterSpacing: '0.01em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                        {sec.label}
-                        {sec.badge > 0 && <span style={{ alignSelf: 'flex-start', marginTop: 6, fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
-                        <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, background: magAccent, opacity: on ? 1 : 0 }} />
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-              /* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */
-              <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
-                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
+                <div aria-hidden style={{ height: 16 }} />
               </div>
-              )}
-              </div>
-              {_tabIdea !== 'old' && <div aria-hidden style={{ height: _tabIdea === 'C' ? 14 : 16 }} />}
               {active.key === 'friends' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <BSFollowSuggestions onOpenProfile={(p) => setOpenProfile(p)} />

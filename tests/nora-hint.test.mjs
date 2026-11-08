@@ -28,7 +28,7 @@ test('the device remembers the hint; storage it can\'t read counts as seen', () 
   assert.doesNotThrow(() => mod.bsMarkNoraHintSeen({ setItem() { throw new Error('full'); } }));
 });
 
-test('the note sits 8px under the ✦, its arrow under the ✦\'s centre', () => {
+test('the note sits 8px under the ✦, on its side, its arrow under the ✦\'s centre', () => {
   // A 375px page with an 18px gutter; the ✦ is the 34px square at x 290..324, its bottom 70px down,
   // and the note hangs from a box 130px down: the note rises 52px, over the masthead's title.
   const place = mod.bsNoraHintPlace({ left: 290, width: 34, bottom: 70 }, { top: 130, right: 375 }, 18);
@@ -37,6 +37,12 @@ test('the note sits 8px under the ✦, its arrow under the ✦\'s centre', () =>
   assert.deepEqual(mod.bsNoraHintPlace({ left: 290, width: 34, bottom: -230 }, { top: -170, right: 375 }, 18), place);
   // An arrow never runs past the note's rounded corner.
   assert.equal(mod.bsNoraHintPlace({ left: 350, width: 34, bottom: 70 }, { top: 130, right: 375 }, 18).arrowRight, 10);
+  // On Home the ✦ sits by the mark at the left (owner, 2026-11-08): the note hangs from the left gutter
+  // and its arrow is measured from the note's left edge. The box's left decides the side.
+  const leftPlace = mod.bsNoraHintPlace({ left: 40, width: 44, bottom: 70 }, { top: 130, left: 0, right: 375 }, 18);
+  assert.deepEqual(leftPlace, { top: -52, arrowLeft: 62 - 18 - 6 });
+  assert.deepEqual(mod.bsNoraHintPlace({ left: 290, width: 34, bottom: 70 }, { top: 130, left: 0, right: 375 }, 18), place, 'a ✦ in the right half keeps the right');
+  assert.equal(mod.bsNoraHintPlace({ left: 10, width: 10, bottom: 70 }, { top: 130, left: 0, right: 375 }, 18).arrowLeft, 10);
   assert.equal(mod.bsNoraHintPlace({ left: 0, width: 0, bottom: 0 }, { top: 0, right: 0 }, 18), null, 'a ✦ not laid out');
   assert.equal(mod.bsNoraHintPlace(null, { top: 0, right: 0 }, 18), null);
 });

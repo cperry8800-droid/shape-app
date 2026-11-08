@@ -100,14 +100,21 @@ test('no section strip and no role tabs: the title is the switch, on the Wall\'s
   assert.doesNotMatch(CLIENT, /<Pill key=\{k\}/, 'the teal pill is gone');
 });
 
-test('Team\'s Coaches / Friends row is an index, ink against grey, centred on the page', () => {
-  const sub = CLIENT.slice(CLIENT.indexOf('const bsSubTab = '), CLIENT.indexOf('const ROLE = {'));
-  assert.match(sub, /minHeight: 44, padding: 0/, 'the 44px target stays');
-  // No underline of their own ("look too busy").
-  assert.match(sub, /color: on \? t\.INK : bsTHexA\(t\.INK, 0\.38\)/);
-  assert.doesNotMatch(sub, /borderBottom|position: 'absolute'|magAccent \}/, 'no underline');
-  // Team's Coaches / Friends sits centred on the page ("center these on page").
-  assert.match(CLIENT, /<div style=\{\{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 \}\}>\s*\{selectors\.map\(sec => bsSubTab\(/);
+test('Team\'s Coaches / Friends is one raised track, the list shown a teal pill (owner, 2026-11-08, idea A)', () => {
+  const tabs = between(CLIENT, '<div data-bs-team-tabs=""', '<div aria-hidden style={{ height: 16 }} />');
+  // One raised track (the Wall's type chips' bsWallRaised), its two halves the width of the list.
+  assert.match(tabs, /style=\{\{ \.\.\.bsWallRaised\(t, 999\), display: 'grid', gridTemplateColumns: '1fr 1fr'/);
+  assert.match(tabs, /\{selectors\.map\(\(sec\) => \{/);
+  // Each half keeps a 44px target and says which list is shown.
+  assert.match(tabs, /aria-pressed=\{on\} onClick=\{\(\) => setTeamsSel\(sec\.key\)\}/);
+  assert.match(tabs, /minHeight: 44, padding: 0/, 'the 44px target stays');
+  // The list shown is the Wall's lit pill; the other quiet ink.
+  assert.match(tabs, /\.\.\.\(on \? bsWallLit\(t\) : \{ background: 'transparent', color: bsTHexA\(t\.INK, 0\.62\) \}\)/);
+  // A list's unread is a small count beside its name, capped at 9+.
+  assert.match(tabs, /\{sec\.badge > 0 && <span [^>]*>\{sec\.badge > 9 \? '9\+' : sec\.badge\}<\/span>\}/);
+  assert.match(CLIENT, /^import \{ BSWallTop, bsWallRaised, bsWallLit \} from '\.\/BSWallTop\.jsx';$/m);
+  // The old mono index is gone, with its helper.
+  assert.doesNotMatch(CLIENT, /const bsSubTab = |bsSubTab\(/, 'the mono index is back');
   // The Wall's lens is BSWallTop's (the owner's B, 2026-11-04; tests/wall-top.test.mjs), the switch the client's.
   assert.match(CLIENT, /<BSWallTop [^>]*lenses=\{wallLenses\} mode=\{feedMode\} onMode=\{switchFeedMode\}/);
   assert.doesNotMatch(CLIENT, /BSWallLensChips|bsWsLed/, 'the lit chips are back in the title row');
@@ -128,9 +135,11 @@ test('the Team list is in the magazine look: a masthead, flat faces, teal unread
   assert.match(team, /<header data-bs-team-head="" style=\{\{ marginTop: -8 \}\}>/);
   assert.doesNotMatch(team, /<header data-bs-team-head=""[^>]*>[\s\S]{0,400}<h2 /, 'no big head over the list');
   assert.match(team, /color: magAccent, padding: 0 \}\}>\{tr\('feed:team\.new'/, 'New in teal');
-  // The Team tab's column sits on the Wall's 12px edge, the tabs close over the list (owner, 2026-11-04:
-  // "reduce gap here"; 2026-11-08: "reduce the gap here"): no gap, the head tucked up under the taps.
-  assert.match(CLIENT, /<div style=\{\{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 0 \}\}>\s*\{\/\*[^]*?\*\/\}\s*<div inert=\{subHidden\} style=\{\{ \.\.\.bsSubStyle\(0\), marginTop: -4 \}\}>/);
+  // The Team tab's column sits on the Wall's 12px edge, the track 10px under the rail's cards (owner,
+  // 2026-11-04: "reduce gap here"; 2026-11-08: "reduce the gap here"): it rises 8px into the rail's 14px
+  // foot, and the room under it is inside the row that hides on scroll, so it goes with the row.
+  assert.match(CLIENT, /<div style=\{\{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 0 \}\}>\s*\{\/\*[^]*?\*\/\}\s*<div inert=\{subHidden\} style=\{\{ \.\.\.bsSubStyle\(0\), marginTop: -8 \}\}>\s*<div data-bs-team-tabs=""/);
+  assert.match(CLIENT, /<\/div>\s*<div aria-hidden style=\{\{ height: 16 \}\} \/>\s*<\/div>\s*\{active\.key === 'friends' \?/, 'the room under the track hides with it');
   assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} aria-hidden style=\{\{ height: tab === 'feed' \? 14 : 4 \}\} \/>/, 'the gap under the rail on Chat');
 });
 

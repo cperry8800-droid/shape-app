@@ -7,7 +7,9 @@
 // then "actually leave the bubble just make it more condensed, not as thick. tighter around icons".
 // So: the newspaper flag (the mark and Vol·No at the left, the tools in a slim pill at the right, the
 // wordmark centred between double hairlines, the dateline centred under it with the clock), the same
-// wordmark SVG.
+// wordmark SVG. Owner, 2026-11-08: the wordmark moved up into the masthead row, as on the pinned bar, at
+// the row's true centre, with ✦ beside the mark at the left ("move noras icon to the right of shape
+// triangles in top left"), and the double hairlines frame the dateline instead (idea 3 of three).
 //
 // Shape Radio's box: "lets make this shape radio box look way cooler and fit the home page better";
 // of three, "go with b for radio box and make it go a little further across screen. almost full width
@@ -51,13 +53,23 @@ test('the flag masthead: only member Home and coach Today ask for it, and both h
 
 test('the flag keeps the wordmark\'s letters and draws its tools in the shared pill', () => {
   const flag = body(CHROME, 'function BSMastLayout(');
+  const row = body(CHROME, 'function BSMastWordRow(');
+  // The flag's row is the pinned bar's row (BSMastWordRow), with the page's own wordmark and tools.
+  assert.match(flag, /<BSMastWordRow word=\{wordEl\} tools=\{trailing \|\| null\} \/>/);
   // The page's own wordmark element, sized and placed, never redrawn in a font.
-  assert.match(flag, /React\.cloneElement\(title, \{ style: \{ \.\.\.\(title\.props\.style \|\| \{\}\), margin: 0, width: '100%' \} \}\)/);
-  assert.doesNotMatch(flag, /Club Shape|CLUB SHAPE/, 'the flag sets the name in type');
-  // The tools ride in the shared slim pill.
-  assert.match(flag, /const tools = trailing \? <BSMastToolPill>\{trailing\}<\/BSMastToolPill> : null;/);
-  // The dateline centred, the clock folded in.
-  assert.match(flag, /\{dl\.clock \? <>/);
+  assert.match(row, /React\.cloneElement\(word, \{ style: \{ \.\.\.\(word\.props\.style \|\| \{\}\), margin: 0, width: '100%' \} \}\)/);
+  assert.doesNotMatch(flag + row, /Club Shape|CLUB SHAPE/, 'the flag sets the name in type');
+  // At the row's true centre, up to 116px, leaving each side its reserve.
+  assert.match(row, /position: 'absolute', left: '50%', top: '50%', transform: 'translate\(-50%, -50%\)', width: `min\(116px, calc\(100% - \$\{2 \* BS_MAST_SIDE\}px\)\)`/);
+  // The mark and ✦ at the left; the tools ride in the shared slim pill at the right.
+  assert.match(row, /<BSLogo size=\{16\} color=\{t\.INK\} \/>\s*\{Nora \? <Nora bare \/> : null\}/);
+  assert.match(row, /\{tools \? <BSMastToolPill>\{tools\}<\/BSMastToolPill> : null\}/);
+  // No second wordmark row under it: the hairlines frame the dateline, centred, the clock folded in.
+  assert.equal((flag.match(/<BSMastWordRow /g) || []).length, 1);
+  assert.match(flag, /\{flank\}\s*<span style=\{\{ flex: '0 1 auto', minWidth: 0, textAlign: 'center'[\s\S]*?\{dl\.clock \? <>[\s\S]*?<\/span>\s*\{flank\}/);
+  // Home and coach Today hand the pill ⌕ and ⚙ alone; ✦ is the row's.
+  assert.match(body(CLIENT, 'function BSClientHome('), /trailing=\{<BSHeaderTools onProfile=\{onProfile\} nora=\{false\} \/>\}/);
+  assert.match(body(PROS, 'function BSProToday('), /React\.createElement\(window\.BSSearchCorner, \{ size: [^}]*, nora: false \}\)/);
   // BSMasthead turns to the layout only when asked, after the one hook every masthead calls.
   assert.match(body(CHROME, 'function BSMasthead('), /useBSReportBareMast\(trailing == null\);\n\s+if \(layout\) return <BSMastLayout /);
 });
