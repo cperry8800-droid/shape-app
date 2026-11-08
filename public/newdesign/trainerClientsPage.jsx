@@ -9,7 +9,7 @@ const TCP_FILTERS = [["all", "All"], ["red", "Needs you"], ["amber", "Watch"], [
 const TCP_FILTER_KEYS = TCP_FILTERS.map((f) => f[0]);
 
 function TrainerClientsPage() {
-  const { loading, clients, triage, today: liveToday, source, planCount, dismissable, setDismissal, clearDismissal } = useDashboard("trainer");
+  const { loading, clients, triage, source, planCount, dismissable, setDismissal, clearDismissal } = useDashboard("trainer");
   const [sharedBadge, setSharedBadge] = React.useState(0);
   // ⚠ THE SEARCH BOX IS DELIBERATELY NOT REMEMBERED. A filter is a standing preference
   // about how you read your roster; a half-typed name is a moment. Restoring one would
@@ -34,7 +34,6 @@ function TrainerClientsPage() {
   // sessions with no plan included, so search and the export still say how many rows there are.
   const activeCount = dashPlanClientCount(clients, planCount);
   const activeWord = activeCount == null ? "\u2014" : String(activeCount);
-  const mrrCents = clients.reduce((s, c) => s + ((c.payments && c.payments.mrrCents) || 0), 0);
   const eyesCount = triage.filter((r) => r.severity === "red" || r.severity === "amber").length;
 
   // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
@@ -48,9 +47,9 @@ function TrainerClientsPage() {
     <DashPage
       tourHero="hero-clients"
       navItems={trainerNavItems("clients")}
-      payoutCard={liveToday
-        ? { label: "MONTHLY · MRR", amount: dashMoney(mrrCents), sub: activeWord + " active client" + (activeCount === 1 ? "" : "s") + " · payouts connect soon" }
-        : trainerPayoutCard}
+      // The sidebar shows Stripe's next payout on every coach page (DashSidebar, coach dashboard step 4a):
+      // this page hands it the demo card, shown only to a signed-out viewer (Codex, #2633).
+      payoutCard={trainerPayoutCard}
       eyebrow={activeWord + " ACTIVE CLIENT" + (activeCount === 1 ? "" : "S") + (eyesCount ? " · " + eyesCount + " AT-RISK" : "")}
       title="Clients"
       subtitle="Find a client, review their progress, and open their plan or private notes."

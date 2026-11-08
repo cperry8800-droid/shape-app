@@ -637,3 +637,18 @@ test('the Overview\'s next payout says each state, and its pace card draws today
   await m.unmount();
   assert.equal(B.dbzPaceModel({ state: 'unread' }).state, 'unread');
 });
+
+// Codex, #2633: the Clients pages passed their own "MONTHLY · MRR … payouts connect soon" card, which the
+// sidebar keeps (it replaces only the demo literals), so the money card went back to the old line there.
+// Every coach page hands the sidebar its demo literal now, and no page carries the old words.
+test('every coach page hands the sidebar its demo card; no page says "payouts connect soon"', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const dir = new URL('../public/newdesign/', import.meta.url);
+  for (const [page, lit] of [['trainerClientsPage.jsx', 'trainerPayoutCard'], ['nutritionistClientsPage.jsx', 'nutriPayoutCard']]) {
+    const src = readFileSync(new URL(page, dir), 'utf8');
+    assert.match(src, new RegExp('payoutCard=\\{' + lit + '\\}'), page + ' passes its own card again');
+  }
+  const stale = readdirSync(dir).filter((f) => /\.(jsx|js)$/.test(f))
+    .filter((f) => /payouts connect soon|label: "MONTHLY · MRR"/.test(readFileSync(new URL(f, dir), 'utf8').replace(/\/\/[^\n]*/g, '')));
+  assert.deepEqual(stale, [], 'a page still builds the old money card');
+});
