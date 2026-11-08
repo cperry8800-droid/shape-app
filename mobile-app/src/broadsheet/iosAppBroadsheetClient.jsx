@@ -432,11 +432,12 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true, clos
 // room to sit at the centre. `bare` gives it its own 44px target where no pill gives one.
 function BSNoraCorner({ size = BS_HEADER_AVATAR, close = null, bare = false }) {
   const t = useBS();
+  const tr = useShapeTr();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const send = () => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} };
   const fire = () => { if (typeof close === 'function') { close(); setTimeout(send, 0); } else send(); };
   return (
-    <button data-nora-corner onClick={fire} aria-label="Ask Nora"
+    <button data-nora-corner onClick={fire} aria-label={tr('common:search.askNora', { defaultValue: 'Ask Nora' })}
       style={{ ...bsCornerBtn(size, t.INK), ...(bare ? { width: 44, height: 44, margin: '-5px 0 -5px -6px' } : null), color: teal, fontSize: Math.max(18, Math.round(size * 0.7)), lineHeight: 1, textShadow: `0 0 10px ${teal}${t.isLight ? '66' : 'aa'}` }}>
       <span aria-hidden>✦</span>
     </button>
