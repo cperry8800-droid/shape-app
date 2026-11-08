@@ -505,7 +505,55 @@ const BS_DOCK_BOTTOM_CSS = `max(${BS_DOCK_BOTTOM}px, calc(env(safe-area-inset-bo
 // scroll reserve against the number plus the inset. It has drifted from the real
 // height twice (72 → 64 in #1603 left three stale literals), so it lives here once.
 const BS_TABBAR_H = BS_DOCK_TOP_GAP + BS_DOCK_H + BS_DOCK_BOTTOM;
-const BS_TABBAR_CSS = `calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_CSS})`;
+// ⚠ A CSS VARIABLE WITH THE BOTTOM DOCK AS ITS FALLBACK: a member who puts the nav on a side
+// (bsSetNavSide) sets --bs-tabbar-h to the bottom gap alone, so every composer and bar that stands on
+// the tab bar comes down to the screen's foot with no change of its own.
+const BS_TABBAR_CSS = `var(--bs-tabbar-h, calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_CSS}))`;
+
+// ── Where the nav bar sits (owner, 2026-11-08: "the ability for user to choose where they want the
+// nav bar. Either at bottom of screen, vertically displayed on right side of phone screen or left",
+// "on the app that is") ──────────────────────────────────────────────────────────────────────────
+// A choice of THIS PHONE, like the hand it is held in: kept in localStorage, never in the account,
+// set in Settings → Preferences → Nav bar. On a side the capsule stands upright, centred on the
+// screen's height and BS_DOCK_SIDE_GAP in from that edge (and from a landscape notch), and every page
+// keeps that strip clear: BSPage's scroller and pinned bar take --bs-nav-inset-left/right. Bottom (the
+// default) sets nothing, so the bottom dock is exactly as it was.
+const BS_NAV_SIDES = ['bottom', 'left', 'right'];
+const BS_NAV_SIDE_LS = 'shape.navSide';
+const BS_DOCK_SIDE_GAP = 10;
+function bsNavSide() {
+  try { const v = localStorage.getItem(BS_NAV_SIDE_LS); return BS_NAV_SIDES.indexOf(v) > 0 ? v : 'bottom'; } catch (e) { return 'bottom'; }
+}
+function bsApplyNavSide(side) {
+  try {
+    const st = document.documentElement.style;
+    const edge = (k) => `calc(${BS_DOCK_H + BS_DOCK_SIDE_GAP * 2}px + env(safe-area-inset-${k}, 0px))`;
+    if (side === 'left' || side === 'right') {
+      st.setProperty('--bs-tabbar-h', BS_DOCK_BOTTOM_CSS);
+      st.setProperty('--bs-nav-inset-left', side === 'left' ? edge('left') : '0px');
+      st.setProperty('--bs-nav-inset-right', side === 'right' ? edge('right') : '0px');
+    } else {
+      st.removeProperty('--bs-tabbar-h'); st.removeProperty('--bs-nav-inset-left'); st.removeProperty('--bs-nav-inset-right');
+    }
+  } catch (e) {}
+}
+function bsSetNavSide(v) {
+  const side = BS_NAV_SIDES.indexOf(v) >= 0 ? v : 'bottom';
+  try { if (side === 'bottom') localStorage.removeItem(BS_NAV_SIDE_LS); else localStorage.setItem(BS_NAV_SIDE_LS, side); } catch (e) {}
+  bsApplyNavSide(side);
+  try { window.dispatchEvent(new CustomEvent('shape:navSide', { detail: { side } })); } catch (e) {}
+}
+function useBSNavSide() {
+  const [side, setSide] = React.useState(bsNavSide);
+  React.useEffect(() => {
+    const on = () => setSide(bsNavSide());
+    window.addEventListener('shape:navSide', on);
+    return () => window.removeEventListener('shape:navSide', on);
+  }, []);
+  return side;
+}
+// Applied once as the chrome loads, so the first paint already keeps the strip clear.
+if (typeof document !== 'undefined') bsApplyNavSide(bsNavSide());
 // BS_TABBAR_CSS resolved to a number on this phone, for what does arithmetic with
 // it rather than CSS (Radio's lights and hologram stand on the tab bar). Measured
 // on mount and on a resize; BS_TABBAR_H until then, or where nothing can measure.
@@ -520,7 +568,8 @@ function useBSTabbarH() {
     const measure = () => { const v = probe.getBoundingClientRect().height; if (v > 0) setH(Math.round(v)); };
     measure();
     window.addEventListener('resize', measure);
-    return () => { window.removeEventListener('resize', measure); probe.remove(); };
+    window.addEventListener('shape:navSide', measure);
+    return () => { window.removeEventListener('resize', measure); window.removeEventListener('shape:navSide', measure); probe.remove(); };
   }, []);
   return h;
 }
@@ -888,6 +937,8 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       height: '100%',
       overflowX: 'hidden',
       overflowY: 'scroll',
+      // The strip a side nav stands in (bsSetNavSide): 0 with the nav at the bottom.
+      paddingLeft: 'var(--bs-nav-inset-left, 0px)', paddingRight: 'var(--bs-nav-inset-right, 0px)', boxSizing: 'border-box',
       WebkitOverflowScrolling: 'touch',
       touchAction: 'pan-y',
       overscrollBehaviorY: 'contain',
@@ -919,7 +970,8 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     // MEASURE the bar instead of restating its padding + row height, which a
     // safe-area inset, a notch floor or a text-size change would make wrong.
     <div ref={pinnedRef} aria-hidden={!mastCondensed} data-bs-pinned-mast="" style={{
-      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60,
+      // Clear of a side nav's strip, as the page under it is.
+      position: 'absolute', top: 0, left: 'var(--bs-nav-inset-left, 0px)', right: 'var(--bs-nav-inset-right, 0px)', zIndex: 60,
       // Match the in-page masthead's gutter (t.padX) AND its element rhythm — a
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
       // the bar; only its vertical padding is trimmed vs the hero.
@@ -1900,16 +1952,29 @@ function BSTabBar({ tabs, active, onChange }) {
   const PAD = 9;
   const GEM = 30;
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
+  // Bottom (the default), or upright on the left or right edge (Settings → Preferences → Nav bar). On a
+  // side the capsule is BS_DOCK_H wide, each tab BS_DOCK_H tall, centred on the screen's height; the
+  // gem slides down it instead of across.
+  const side = useBSNavSide();
+  const upright = side === 'left' || side === 'right';
+  const dock = upright ? {
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 55,
+    [side]: `calc(${BS_DOCK_SIDE_GAP}px + env(safe-area-inset-${side}, 0px))`,
+    width: BS_DOCK_H, display: 'flex', pointerEvents: 'none',
+  } : {
+    position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
+    height: BS_TABBAR_CSS,
+    paddingTop: BS_DOCK_TOP_GAP, paddingLeft: BS_DOCK_SIDE, paddingRight: BS_DOCK_SIDE,
+    paddingBottom: BS_DOCK_BOTTOM_CSS,
+    display: 'flex', pointerEvents: 'none',
+  };
+  const mark = upright
+    ? { left: '50%', marginLeft: -GEM / 2, top: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, transition: 'top .28s cubic-bezier(.4,0,.2,1), opacity .2s ease' }
+    : { top: '50%', marginTop: -GEM / 2, left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, transition: 'left .28s cubic-bezier(.4,0,.2,1), opacity .2s ease' };
   return (
-    <div data-bs-tabbar-dock="" style={{
-      position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
-      height: BS_TABBAR_CSS,
-      paddingTop: BS_DOCK_TOP_GAP, paddingLeft: BS_DOCK_SIDE, paddingRight: BS_DOCK_SIDE,
-      paddingBottom: BS_DOCK_BOTTOM_CSS,
-      display: 'flex', pointerEvents: 'none',
-    }}>
-      <nav data-bs-tabbar="" style={{
-        position: 'relative', flex: '0 0 auto', width: '100%', height: BS_DOCK_H, pointerEvents: 'auto',
+    <div data-bs-tabbar-dock="" data-bs-nav-side={side} style={dock}>
+      <nav data-bs-tabbar="" aria-orientation={upright ? 'vertical' : undefined} style={{
+        position: 'relative', flex: '0 0 auto', width: '100%', height: upright ? BS_DOCK_H * n + PAD * 2 : BS_DOCK_H, pointerEvents: 'auto',
         borderRadius: 999,
         // Frosted glass: paper at about 60% over a blur, so what scrolls under it shows through,
         // softened, without competing with the icons (owner, 2026-10-24: "make nav bar a little
@@ -1922,11 +1987,11 @@ function BSTabBar({ tabs, active, onChange }) {
         boxShadow: t.isLight
           ? '0 6px 22px rgba(15,14,12,0.12), 0 1px 3px rgba(15,14,12,0.06)'
           : '0 8px 26px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',
-        display: 'grid', gridTemplateColumns: `repeat(${n}, 1fr)`, padding: `0 ${PAD}px`,
+        display: 'grid', ...(upright ? { gridTemplateRows: `repeat(${n}, 1fr)`, padding: `${PAD}px 0` } : { gridTemplateColumns: `repeat(${n}, 1fr)`, padding: `0 ${PAD}px` }),
       }}>
         {/* The selected tab's gem: an ink square turned 45°, its corners rounded as the facet's are,
             centred on the tab. It slides to the tab tapped. */}
-        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', top: '50%', width: GEM, height: GEM, marginTop: -GEM / 2, borderRadius: '27%', transform: 'rotate(45deg)', left: `calc(${PAD}px + ((100% - ${PAD * 2}px) / ${n}) * ${activeIdx + 0.5} - ${GEM / 2}px)`, background: t.INK, opacity: tabIdx >= 0 ? 1 : 0, transition: 'left .28s cubic-bezier(.4,0,.2,1), opacity .2s ease' }} />
+        <span aria-hidden data-bs-tab-mark="" style={{ position: 'absolute', width: GEM, height: GEM, borderRadius: '27%', transform: 'rotate(45deg)', ...mark, background: t.INK, opacity: tabIdx >= 0 ? 1 : 0 }} />
         {tabs.map((tab, i) => {
           const on = tab.key === active;
           const face = tab.key === 'me' && FA;
@@ -2657,7 +2722,7 @@ function BSNavGestures() {
 Object.assign(window, {
   BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
-  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
+  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
