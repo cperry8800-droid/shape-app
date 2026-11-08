@@ -58,16 +58,19 @@ export function bsNoraHintDone(win = typeof window !== 'undefined' ? window : nu
 }
 
 /** Where the note goes, from the ✦'s box and the box the note hangs from (viewport rects of the
- * same scroller, so the page's scroll cancels out): its top 8px under the ✦, and how far its
- * arrow sits from the note's right edge (which is at the page's gutter) to point at the ✦'s
- * centre. null while the ✦ isn't laid out. */
+ * same scroller, so the page's scroll cancels out): its top 8px under the ✦, hung from the page's
+ * gutter on the ✦'s side (the right in the pill; the left on Home, where ✦ sits by the mark, owner
+ * 2026-11-08), and how far its arrow sits from that edge to point at the ✦'s centre: `arrowRight`
+ * from the right edge, or `arrowLeft` from the left. null while the ✦ isn't laid out. */
 export function bsNoraHintPlace(star, box, padX) {
   if (!star || !box || !(star.width > 0)) return null;
   const ARROW = 12;
-  return {
-    top: Math.round(star.bottom - box.top + 8),
-    arrowRight: Math.max(10, Math.round(box.right - padX - (star.left + star.width / 2) - ARROW / 2)),
-  };
+  const top = Math.round(star.bottom - box.top + 8);
+  const mid = star.left + star.width / 2;
+  if (typeof box.left === 'number' && mid < (box.left + box.right) / 2) {
+    return { top, arrowLeft: Math.max(10, Math.round(mid - (box.left + padX) - ARROW / 2)) };
+  }
+  return { top, arrowRight: Math.max(10, Math.round(box.right - padX - mid - ARROW / 2)) };
 }
 
 export function BSNoraHint({ t }) {
@@ -109,14 +112,15 @@ export function BSNoraHint({ t }) {
   return (
     <div ref={boxRef} data-nora-hint="" style={{ position: 'relative', height: 0, zIndex: 5 }}>
       <div role="note" style={{
-        position: 'absolute', top: place ? place.top : 0, right: t.padX,
+        position: 'absolute', top: place ? place.top : 0,
+        ...(place && place.arrowLeft != null ? { left: t.padX } : { right: t.padX }),
         width: `min(264px, calc(100% - ${t.padX * 2}px))`, boxSizing: 'border-box',
         visibility: place ? 'visible' : 'hidden',
         padding: '12px 14px 4px', borderRadius: 10, background: teal, color: ink,
         fontFamily: t.BODY, fontSize: 14, lineHeight: 1.35, textAlign: 'left',
         boxShadow: '0 10px 28px rgba(0,0,0,0.32)',
       }}>
-        <span aria-hidden style={{ position: 'absolute', top: -6, right: place ? place.arrowRight : 10, width: 12, height: 12, borderRadius: 2, background: teal, transform: 'rotate(45deg)' }} />
+        <span aria-hidden style={{ position: 'absolute', top: -6, ...(place && place.arrowLeft != null ? { left: place.arrowLeft } : { right: place ? place.arrowRight : 10 }), width: 12, height: 12, borderRadius: 2, background: teal, transform: 'rotate(45deg)' }} />
         <span style={{ fontWeight: 700 }}>{tr('home:noraHint.title', { defaultValue: 'Ask Nora anything about Shape.' })}</span>
         {' '}{tr('home:noraHint.body', { defaultValue: 'Tap ✦ any time.' })}
         <div>

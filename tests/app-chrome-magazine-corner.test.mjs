@@ -18,7 +18,7 @@ import { loadBroadsheet, drive, THEME, ROOT } from './helpers/broadsheet-mount.m
 // named stand-in marks where the corner draws it (the real one is mounted in app-chrome-magazine-tabbar).
 function BSSettingsCorner() { return null; }
 globalThis.BSSettingsCorner = BSSettingsCorner;
-const mod = await loadBroadsheet(['BSSearchCorner', 'BSHeaderTools', 'BSMeCorner', 'BSFacetAvatar']);
+const mod = await loadBroadsheet(['BSSearchCorner', 'BSNoraCorner', 'BSHeaderTools', 'BSMeCorner', 'BSFacetAvatar']);
 const DIR = join(ROOT, 'mobile-app/src/broadsheet');
 const read = (f) => readFileSync(join(DIR, f), 'utf8');
 const CLIENT = read('iosAppBroadsheetClient.jsx');
@@ -29,8 +29,13 @@ const ACCENT = '#0a7a72';
 const TEAL = '#0a8f87';
 
 test('the corner\'s controls are bare glyphs on the avatar\'s square, and ✦ is the theme\'s teal', () => {
+  // ✦ is its own control (BSNoraCorner), which the corner draws ahead of ⌕, and Home's masthead draws beside
+  // the mark at the left (owner, 2026-11-08: "move noras icon to the right of shape triangles in top left").
   const api = drive(mod.BSSearchCorner, { size: 34 });
-  const btns = api.nodes().filter((n) => n.type === 'button');
+  const star = api.nodes().filter((n) => n.type === mod.BSNoraCorner);
+  assert.equal(star.length, 1, '✦ ahead of ⌕');
+  assert.equal(star[0].props.size, 34);
+  const btns = [...drive(mod.BSNoraCorner, star[0].props).nodes(), ...api.nodes()].filter((n) => n.type === 'button');
   assert.equal(btns.length, 2, '✦ and ⌕');
   for (const b of btns) {
     assert.equal(b.props.style.border, 0, 'a ring around a corner control');
@@ -52,6 +57,7 @@ test('the corner\'s controls are bare glyphs on the avatar\'s square, and ✦ is
   const radio = drive(mod.BSSearchCorner, { size: 34, ink: '#f2ede4', nora: false });
   const only = radio.nodes().filter((n) => n.type === 'button');
   assert.equal(only.length, 1);
+  assert.equal(radio.nodes().filter((n) => n.type === mod.BSNoraCorner).length, 0, 'no ✦');
   assert.equal(only[0].props.style.color, '#f2ede4');
   assert.equal(only[0].props.style.border, 0);
 });
@@ -138,4 +144,19 @@ test('every other page\'s corner ends in the same gear: the coach apps, the cale
   for (const f of ['iosAppBroadsheetPros.jsx', 'iosAppBroadsheetCalendar.jsx', 'iosAppBroadsheetMarketplace.jsx', 'iosAppBroadsheetRadio.jsx']) {
     assert.doesNotMatch(read(f), /bsMyPhoto/, `${f}: the member's own face in a corner`);
   }
+});
+
+test('Home\'s ✦ stands alone by the mark with its own 44px target; its tools drop ✦ (owner, 2026-11-08)', () => {
+  const bare = drive(mod.BSNoraCorner, { bare: true }).nodes().find((n) => n.type === 'button');
+  assert.equal(bare.props.style.width, 44, 'a full tap target where no pill gives one');
+  assert.equal(bare.props.style.height, 44);
+  assert.equal(bare.props.style.color, TEAL);
+  assert.equal(bare.props['data-nora-corner'], true, 'the Nora hint finds it');
+  // The tool clusters pass nora through to the corner, so Home's pill holds ⌕ and ⚙ alone.
+  const tools = drive(mod.BSHeaderTools, { onProfile() {}, nora: false }).nodes().find((n) => n.type === mod.BSSearchCorner);
+  assert.equal(tools.props.nora, false);
+  const me = drive(mod.BSMeCorner, { nora: false }).nodes().find((n) => n.type === mod.BSSearchCorner);
+  assert.equal(me.props.nora, false);
+  assert.equal(drive(mod.BSHeaderTools, { onProfile() {} }).nodes().find((n) => n.type === mod.BSSearchCorner).props.nora, true, 'every other page keeps ✦ in the pill');
+  assert.match(CLIENT, /trailing=\{<BSHeaderTools onProfile=\{onProfile\} nora=\{false\} \/>\}/, 'member Home');
 });

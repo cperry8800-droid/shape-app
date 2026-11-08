@@ -12,18 +12,24 @@ const RADIO = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadshee
 const between = (src, a, b) => src.slice(src.indexOf(a), src.indexOf(b, src.indexOf(a)));
 
 test('the header corner: ✦ Ask Nora left of ⌕, and it opens Nora', async () => {
-  const { BSSearchCorner } = await loadBroadsheet(['BSSearchCorner']);
+  const { BSSearchCorner, BSNoraCorner } = await loadBroadsheet(['BSSearchCorner', 'BSNoraCorner']);
   const sent = [];
   const prev = globalThis.window;
   globalThis.window = Object.assign(prev || {}, { dispatchEvent: (e) => sent.push(e.type) });
   globalThis.CustomEvent = globalThis.CustomEvent || class { constructor(type) { this.type = type; } };
   try {
+    // ✦ is its own control (BSNoraCorner, which Home's masthead also draws beside the mark, owner
+    // 2026-11-08); the corner draws it ahead of ⌕. Each is driven in turn.
     const d = drive(BSSearchCorner, { size: 34 });
-    const buttons = d.nodes().filter((n) => n.type === 'button');
+    const order = d.nodes().filter((n) => n.type === BSNoraCorner || n.type === 'button');
+    assert.equal(order[0].type, BSNoraCorner, '✦ is not first');
+    const star = drive(BSNoraCorner, order[0].props).nodes().find((n) => n.type === 'button');
+    const buttons = [star, ...order.slice(1)];
     assert.deepEqual(buttons.map((b) => b.props['aria-label']), ['Ask Nora', 'Search Shape']);
     buttons[0].props.onClick();
     assert.deepEqual(sent, ['shape:openNora']);
     const quiet = drive(BSSearchCorner, { size: 34, nora: false });
+    assert.equal(quiet.nodes().filter((n) => n.type === BSNoraCorner).length, 0, 'a surface can opt out');
     assert.deepEqual(quiet.nodes().filter((n) => n.type === 'button').map((b) => b.props['aria-label']), ['Search Shape'], 'a surface can opt out');
   } finally { globalThis.window = prev; }
 });

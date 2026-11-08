@@ -977,7 +977,9 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // The detail header's eyebrows went (owner, 2026-11-04: "also remove these eyebrow headers"), and the
   // hardcoded ones with them (the untranslated pages' "Section · …", "Legal", "Support", "Pricing" and the like): 586 -> 571; with
   // the move above, 574 -> 559.
-  assert.equal(noneStrings, 559, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // ✦ became its own control (BSNoraCorner, owner 2026-11-08: Home draws it beside the mark), labelled by
+  // common:search.askNora in all 13 locales; BSSearchCorner draws it and keeps only "Search Shape": 559 -> 558.
+  assert.equal(noneStrings, 558, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.

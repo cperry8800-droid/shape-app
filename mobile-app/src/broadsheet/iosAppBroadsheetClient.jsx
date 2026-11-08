@@ -99,7 +99,7 @@ import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow } from './BSWallLive.jsx';
 import { BSLiveBoostSheet } from './BSLiveBoost.jsx';
-import { BSWallTop } from './BSWallTop.jsx';
+import { BSWallTop, bsWallRaised, bsWallLit } from './BSWallTop.jsx';
 import { BSWallStoryHead, BSWallStoryFigures, BSWallStoryRecord, BSWallStoryQuote, bsWsAccent, bsWsHead } from './BSWallStory.jsx';
 import { BSChatPlaceTitle, BSChatPlacesSheet } from './BSChatPlaces.jsx';
 import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.jsx';
@@ -414,22 +414,33 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true, clos
   // teal little symbol on mast head more noticeable", option A). The glow is fainter
   // on a light paper, where a strong one muddies the ink around it.
   const corner = bsCornerBtn(size, ink || t.INK);
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   const send = (name) => { try { window.dispatchEvent(new CustomEvent(name)); } catch (e) {} };
   const fire = (name) => { if (typeof close === 'function') { close(); setTimeout(() => send(name), 0); } else send(name); };
   return (
     <>
-      {nora && (
-        <button data-nora-corner onClick={() => fire('shape:openNora')} aria-label="Ask Nora"
-          style={{ ...corner, color: teal, fontSize: Math.max(18, Math.round(size * 0.7)), lineHeight: 1, textShadow: `0 0 10px ${teal}${t.isLight ? '66' : 'aa'}` }}>
-          <span aria-hidden>✦</span>
-        </button>
-      )}
+      {nora && <BSNoraCorner size={size} close={close} />}
       <button onClick={() => fire('shape:openSearch')} aria-label="Search Shape"
         style={corner}>
         <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
       </button>
     </>
+  );
+}
+
+// ✦ alone: BSSearchCorner draws it ahead of ⌕, and the Home masthead (BSMastWordRow) beside the mark at the
+// left (owner, 2026-11-08: "move noras icon to the right of shape triangles in top left"), so SHAPE has the
+// room to sit at the centre. `bare` gives it its own 44px target where no pill gives one.
+function BSNoraCorner({ size = BS_HEADER_AVATAR, close = null, bare = false }) {
+  const t = useBS();
+  const tr = useShapeTr();
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const send = () => { try { window.dispatchEvent(new CustomEvent('shape:openNora')); } catch (e) {} };
+  const fire = () => { if (typeof close === 'function') { close(); setTimeout(send, 0); } else send(); };
+  return (
+    <button data-nora-corner onClick={fire} aria-label={tr('common:search.askNora', { defaultValue: 'Ask Nora' })}
+      style={{ ...bsCornerBtn(size, t.INK), ...(bare ? { width: 44, height: 44, margin: '-5px 0 -5px -6px' } : null), color: teal, fontSize: Math.max(18, Math.round(size * 0.7)), lineHeight: 1, textShadow: `0 0 10px ${teal}${t.isLight ? '66' : 'aa'}` }}>
+      <span aria-hidden>✦</span>
+    </button>
   );
 }
 
@@ -446,10 +457,10 @@ function useBSIdentityTick() {
     return () => window.removeEventListener('shape:identity', f);
   }, []);
 }
-function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
+function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR, nora = true }) {
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-      <BSSearchCorner size={size} />
+      <BSSearchCorner size={size} nora={nora} />
       <BSSettingsCorner size={size} onClick={onProfile} />
     </span>
   );
@@ -471,11 +482,11 @@ function BSHeaderTools({ onProfile, size = BS_HEADER_AVATAR }) {
 // done it in that order since it shipped). A page in normal flow passes nothing
 // and keeps both controls.
 // `ink` is the band's ink where the masthead sits on one (a chat thread's desk, 2026-11-01).
-function BSMeCorner({ size = BS_HEADER_AVATAR, close = null, ink = null }) {
+function BSMeCorner({ size = BS_HEADER_AVATAR, close = null, ink = null, nora = true }) {
   const goProfile = () => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} };
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
-      {close ? null : <BSSearchCorner size={size} ink={ink} />}
+      {close ? null : <BSSearchCorner size={size} ink={ink} nora={nora} />}
       <BSSettingsCorner size={size} ink={ink} onClick={close ? () => { close(); setTimeout(goProfile, 0); } : goProfile} />
     </span>
   );
@@ -3966,7 +3977,8 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // The Shape wordmark (shape-wordmark.svg, 7.5:1, cropped close; owner 2026-11-08), unchanged: the
         // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        trailing={<BSHeaderTools onProfile={onProfile} />}
+        // ⌕ and ⚙ at the right; ✦ sits beside the mark at the left (BSMastWordRow).
+        trailing={<BSHeaderTools onProfile={onProfile} nora={false} />}
         // The dateline rides in the masthead: the day, the phase and week, the live clock (no edition
         // label: owner, 2026-11-08).
         dateline={{
@@ -22718,25 +22730,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const cardInk = t.INK;
   const muted = t.INK50;
   const hair = t.RULE;
-  // Sub-tab chip — minimal "bracket-frame": plain text at rest; accent corner
-  // brackets (top-left + bottom-right) + accent text + dot when active. A render
-  // FUNCTION (called inline like renderPost/Row), not a <Component/>, so it
-  // doesn't remount the chips on the parent's frequent re-renders. Shared by the
-  // Feed role chips and the Team Coaches/Friends selector so both match.
-  // Typographic underline index — one tab grammar across the whole chat (the feed
-  // role chips + the Team Coaches/Friends selector), in the Wall's magazine look (owner,
-  // 2026-10-24): ink when active over the magazine's teal underline, a bare teal count for
-  // unread, as the Wall masthead's own tabs read.
+  // The magazine's teal: unread counts, New, and the Team tabs' pill (owner, 2026-10-24: "everything on chat
+  // page should match new feed wall design").
   const magAccent = bsWsAccent(t);
-  const bsSubTab = ({ key, on, onClick, label, badge }) => (
-    <button key={key} onClick={onClick} aria-pressed={!!on} style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: 0, background: 'transparent', border: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-      {/* The underline hugs the word (owner, 2026-10-24: "clean it up"), not the foot of the 44px target. */}
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: on ? t.INK : bsTHexA(t.INK, 0.38), fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-        {label}
-        {badge > 0 && <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, color: magAccent, fontVariantNumeric: 'tabular-nums' }}>{badge > 9 ? '9+' : badge}</span>}
-      </span>
-    </button>
-  );
   const ROLE = {
     SHAPE: { color: TEALB, label: tr('feed:roleTag.client', { defaultValue: 'Client' }) },
     TRAINER: { color: '#ff7a59', label: tr('feed:roleTag.trainer', { defaultValue: 'Trainer' }) },
@@ -23572,16 +23568,28 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             // On the Wall's 12px edge (owner, 2026-10-24), so the list's rules end where the strip's do.
-            // The tabs sit close over the list (owner, 2026-11-04: "reduce gap here", and 2026-11-08: "reduce
-            // the gap here"): no gap under them, and the list's head tucks 8px up under their 44px taps.
             <div style={{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-              {/* The row's 44px taps reach 4px up into the gap under the rail, never onto it (lifted here, outside
-                  the sub-row's clip, so no part of a tap is cut off). */}
-              <div inert={subHidden} style={{ ...bsSubStyle(0), marginTop: -4 }}>
-              {/* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */}
-              <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
-                {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
-              </div>
+              {/* THE TWO LISTS IN ONE TRACK (owner, 2026-11-08: "reduce the gap here and improve the coaches and
+                  friends header looks", idea A of three): one raised track the width of the list, the list shown
+                  a flat teal pill in it, as the Wall's type chips read; a list's unread is a small count beside
+                  its name. The track sits 10px under the rail's cards (it rises 8px into the rail's 14px foot,
+                  never onto a card), and the room under it is inside the row that hides on scroll, so it goes
+                  with the row and the track's shadow is not cut off. */}
+              <div inert={subHidden} style={{ ...bsSubStyle(0), marginTop: -8 }}>
+                <div data-bs-team-tabs="" style={{ ...bsWallRaised(t, 999), display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '0 3px' }}>
+                  {selectors.map((sec) => {
+                    const on = active.key === sec.key;
+                    return (
+                      <button key={sec.key} type="button" aria-pressed={on} onClick={() => setTeamsSel(sec.key)} style={{ minWidth: 0, minHeight: 44, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ flex: 1, minWidth: 0, height: 36, padding: '0 10px', borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: BS_CLEAN_HEAD, fontSize: 14, fontWeight: on ? 700 : 600, letterSpacing: '-0.01em', whiteSpace: 'nowrap', ...(on ? bsWallLit(t) : { background: 'transparent', color: bsTHexA(t.INK, 0.62) }) }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{sec.label}</span>
+                          {sec.badge > 0 && <span style={{ flexShrink: 0, minWidth: 18, height: 18, padding: '0 5px', boxSizing: 'border-box', borderRadius: 999, display: 'inline-grid', placeItems: 'center', fontFamily: BS_CLEAN_SANS, fontSize: 11, fontWeight: 800, fontVariantNumeric: 'tabular-nums', ...(on ? { background: 'rgba(0,0,0,0.18)', color: 'inherit' } : { background: magAccent, color: t.isLight ? '#ffffff' : '#06110e' }) }}>{sec.badge > 9 ? '9+' : sec.badge}</span>}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div aria-hidden style={{ height: 16 }} />
               </div>
               {active.key === 'friends' ? (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -36668,7 +36676,7 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
   );
 }
 
-Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, bsBuilderAisleFor, bsAisleLabel, BSUniversalSearch, BSSearchCorner, bsOpenCheckout, bsStartPlatformCheckout });
+Object.assign(window, { bsNoraOpen, bsNoraPage, bsAskNora, BSAskNoraLink, BSNoraSheet, BSCookMode, BSPrepSession, BSClientApp, BSClientChat, BSSettings, BSDetailHeader, BSContactPage, BSTermsPage, bsScreenName, bsBuilderAisleFor, bsAisleLabel, BSUniversalSearch, BSNoraCorner, BSSearchCorner, bsOpenCheckout, bsStartPlatformCheckout });
 // The notification router, for the coach shells' tapped pushes (fix 3a, Codex on #2360).
 Object.assign(window, { bsRouteNotification });
 // The coach app's Notifications page shows the same phone-notifications row (L5).
