@@ -815,7 +815,6 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
           <div style={{ position: 'relative', padding: `${topPad} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: W.BS_MAST_ROW_H || 34 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: '#fff' }}>
               {W.BSLogo ? <W.BSLogo size={16} color="#ffffff" /> : null}
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
             </span>
             {/* The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill). */}
             {(() => { const Pill = W.BSMastToolPill; const tools = (

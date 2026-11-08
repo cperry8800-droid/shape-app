@@ -542,6 +542,10 @@ function useBSTabbarH() {
 // in one mode and a Settings pane in the other) is therefore correct in BOTH
 // modes with no extra thought, which is the property a prop cannot have.
 const BSMastBareCtx = React.createContext(null);
+// The page's wordmark for the pinned bar (owner, 2026-11-08: "keep shape present on masthead when you
+// scroll down on home page"): the flag masthead (member Home, coach Today) hands BSPage its SHAPE
+// wordmark, and the pinned bar centres it between the mark and the tools once the flag scrolls away.
+const BSMastWordCtx = React.createContext(null);
 
 // Called by every masthead-row component that owns a `trailing` slot. `bare` is
 // simply "I rendered no trailing element" — the fact the page already states by
@@ -744,6 +748,8 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
   // Full-screen flows with their own chrome (e.g. the meal logger) opt out
   // with mast={false}.
   const [mastCondensed, setMastCondensed] = useStateBS(false);
+  // The flag masthead's wordmark (BSMastWordCtx), for the pinned bar; null on every other page.
+  const [mastWord, setMastWord] = useStateBS(null);
   // A detail header on this page (useBSDetailBar): its title and back, and the title's words.
   const pinnedRef = useRefBS(null);
   const detailRef = useRefBS(null);
@@ -893,7 +899,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     }}>
       <BSMastBareCtx.Provider value={reportBareMast}>
         <BSDetailBarCtx.Provider value={detailBar}>
-          <BSPageBackCtx.Provider value={pageBacks}>{children}</BSPageBackCtx.Provider>
+          <BSPageBackCtx.Provider value={pageBacks}><BSMastWordCtx.Provider value={setMastWord}>{children}</BSMastWordCtx.Provider></BSPageBackCtx.Provider>
         </BSDetailBarCtx.Provider>
       </BSMastBareCtx.Provider>
     </div>
@@ -951,6 +957,19 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
         <div data-bs-pin-bar="" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
           {pinBackButton()}
           <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} /></div>
+        </div>
+      ) : mastWord ? (
+        // Home's bar keeps SHAPE (owner, 2026-11-08): the mark at the left, the wordmark centred, the
+        // tools at the right, in the same 34px row. The sides take what they need, so on a narrow phone
+        // the wordmark gives way rather than running under the tools.
+        <div data-bs-pinned-word="" style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: BS_MAST_ROW_H }}>
+          <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center' }}><BSLogo size={16} color={t.INK} /></div>
+          <div style={{ flex: '0 1 96px', width: 96, minWidth: 40 }}>
+            {React.cloneElement(mastWord, { style: { ...(mastWord.props.style || {}), margin: 0, width: '100%' } })}
+          </div>
+          <div style={{ flex: '1 1 0', display: 'flex', justifyContent: 'flex-end' }}>
+            {(MastCorner && !bareMast) ? <BSMastToolPill><MastCorner /></BSMastToolPill> : null}
+          </div>
         </div>
       ) : (
         <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
@@ -1265,10 +1284,21 @@ function BSMastToolPill({ children, ink = null }) {
 }
 
 // The wordmark masthead of member Home and coach Today (`layout`): the Shape wordmark, its
-// tools and the dateline ({ edition, editionColor, date, extra, clock }). The wordmark element is
+// tools and the dateline ({ date, extra, clock }). The wordmark element is
 // the page's own (shape-wordmark.svg); the layout sets only its width and place.
 function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
   const t = useBS();
+  // The flag hands its wordmark to the pinned bar (BSMastWordCtx), so SHAPE stays on screen when the
+  // page scrolls. Re-sent only when the image or its paper filter changes, and taken back on unmount.
+  const reportWord = React.useContext(BSMastWordCtx);
+  const wordEl = layout === 'flag' && React.isValidElement(title) ? title : null;
+  const wordSrc = wordEl ? wordEl.props.src : null;
+  const wordFilter = wordEl && wordEl.props.style ? wordEl.props.style.filter : null;
+  useEffectBS(() => {
+    if (!reportWord || !wordEl) return undefined;
+    reportWord(wordEl);
+    return () => reportWord(null);
+  }, [reportWord, wordSrc, wordFilter]);
   const word = (width) => (React.isValidElement(title) ? (
     <div style={{ flex: `0 1 ${width}px`, width, minWidth: 0 }}>
       {React.cloneElement(title, { style: { ...(title.props.style || {}), margin: 0, width: '100%' } })}
@@ -1295,7 +1325,6 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
           <BSLogo size={16} color={t.INK} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{vol} · {no}</div>
         </div>
         {tools}
       </div>
@@ -1310,9 +1339,10 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       {dateline && (
         <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
           {/* Each piece keeps together; on a narrow phone the line breaks between them. */}
-          <span style={{ color: dl.editionColor || t.ACCENT, whiteSpace: 'nowrap' }}>{dl.edition}</span>
-          {run ? <>{' '}<span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>· {run}</span></> : null}
-          {dl.clock ? <>{' '}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>· {dl.clock}</span></> : null}
+          {/* No edition label and no Vol · No (owner, 2026-11-08: "remove these from app"): the day, then
+              the clock. */}
+          {run ? <span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>{run}</span> : null}
+          {dl.clock ? <>{run ? ' ' : null}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{run ? '· ' : null}{dl.clock}</span></> : null}
         </div>
       )}
     </div>
@@ -1378,9 +1408,6 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, marginBottom: onBack ? 0 : (title ? (compact ? 4 : 10) : 6) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
-            {vol} · {no}
-          </div>
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
@@ -1425,7 +1452,6 @@ function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
     <div data-bs-mast-row="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <BSLogo size={size} color={ink || t.INK} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink || t.INK70, opacity: ink ? 0.75 : 1 }}>Vol. 1 · No. 1</div>
       </div>
       <BSMastToolPill ink={ink}>{trailing}</BSMastToolPill>
     </div>
@@ -1444,9 +1470,6 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
-            {vol} · {no}
-          </div>
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
