@@ -34,7 +34,7 @@ const gridCode = compile(GRID);
 
 const NAMES = ['dashBriefModel', 'dashBriefPieces', 'dashBriefText', 'dashNextToday', 'dashNeedsItems', 'dashNeedsFold', 'dashNeedsFoldText',
   'DashNeedsBoard', 'DashBriefCard', 'dashRowKeyOpen', 'dashMoneyModel', 'DashMoneyCard', 'dashGlanceCells', 'DASH_TODAY_BOARD',
-  'DashUpNextCard', 'DashTimelineCard',
+  'DashUpNextCard', 'DashTimelineCard', 'DashBriefWidget',
   'dashPayoutRead', 'dashPayoutView', 'dashPayoutWhen', 'dashPayoutAmount', 'dashFetchNextPayout', 'dashJointReason'];
 function today(win) {
   return new Function('React', 'window', 'DashSignals', 'useDashUnits', 'useRememberedChoice', 'dashMilestonesIn', 'serif', 'sans', 'mono', 'INK', 'TEAL_BRIGHT',
@@ -137,12 +137,39 @@ test('the brief card marks each named client\'s tier beside their name, which st
     assert.deepEqual(marks.map((n) => [n.getAttribute('data-tier'), n.getAttribute('aria-label'), n.getAttribute('title')]),
       [['form', 'Form tier', 'Form tier'], ['raw', 'Raw tier', 'Raw tier']], 'a mark per known tier, named in words; none for the unread one');
     assert.deepEqual(marks.map((n) => n.style.getPropertyValue('--tier-mark')), ['#e0463c', '#5fa96e'], 'the marks are not the tiers\' own colours');
-    // The mark rides with the name's first word, and the name itself carries no colour.
-    assert.deepEqual(marks.map((n) => n.parentElement.textContent), ['Marcus', 'Sam']);
+    // The mark rides with the name's first word (no wrap between them), and the name carries no colour.
+    assert.deepEqual(marks.map((n) => [n.parentElement.textContent, n.parentElement.style.whiteSpace]), [['Marcus', 'nowrap'], ['Sam', 'nowrap']]);
     assert.equal([...document.querySelectorAll('[data-dash-brief] span')].some((n) => n.style.color !== ''), false, 'a name is tinted');
     // The names carry their tier in words on hover; the unread one carries none.
     assert.deepEqual([...document.querySelectorAll('[data-dash-brief] > span')].map((n) => [n.textContent, n.getAttribute('title')]),
       [['Marcus T.', 'Form tier'], ['Elena R.', null], ['Sam O.', 'Raw tier']]);
+  } finally { await m.done(); }
+});
+
+test('Up next, the timeline and the brief\'s next appointment mark the client\'s tier from the roster', async () => {
+  const m = mount();
+  try {
+    const t = today(m.dom.window);
+    const clients = [{ profile: { id: 'p', name: 'Priya S.' }, rankPoints: 3000 }, { profile: { id: 's', name: 'Sam O.' }, rankPoints: 800 }];
+    const items = [{ time: '07:00', who: 'Priya S.', status: 'DONE', done: true }, { time: '14:00', who: 'Sam O.', status: 'NEXT', done: false }, { time: '19:00', who: 'Jaya P.', done: false }];
+    const state = { now: Date.UTC(2026, 10, 6, 12), items, nextIdx: 1, next: items[1] };
+    const tiers = () => [...document.querySelectorAll('.sh-tier-mark')].map((n) => n.getAttribute('data-tier') + ':' + n.parentElement.textContent);
+    // The timeline: the session still to come is marked; the one behind the coach and the client
+    // who is not on the roster are not.
+    await m.render(React.createElement(t.DashTimelineCard, { rows: null, state, unit: 'session', zone: null, clients, role: 'trainer', card: true }));
+    assert.deepEqual(tiers(), ['tempo:Sam']);
+    // Up next, the board's card: the client's tier beside the name.
+    await m.render(React.createElement(t.DashUpNextCard, { rows: null, state, clients, role: 'trainer', unit: 'session', zone: null, single: true }));
+    assert.deepEqual(tiers(), ['tempo:Sam']);
+    // The brief widget: its next appointment carries the roster client's tier.
+    await m.render(React.createElement(t.DashBriefWidget, { needNow: [], rows: null, demoRows: [{ time: '14:00', who: 'Sam O.', status: 'NEXT' }], zone: null, clients, unit: 'session' }));
+    assert.equal(m.text().includes('Next up today: Sam O. at 14:00.'), true);
+    assert.deepEqual(tiers(), ['tempo:Sam']);
+    // A Needs you row the coach can open says the tier in its name for assistive tech.
+    m.dom.window.DashClientDrawer = () => null;
+    const r = row('s', 'Sam O.', 'red', 'Reason', null, 800);
+    await m.render(React.createElement(t.DashNeedsBoard, { items: T.dashNeedsItems({ now: [r], week: [] }, []), feed: [r], role: 'trainer', prefs: null, dismiss: null }));
+    assert.equal(document.querySelector('[data-dash-need]').getAttribute('aria-label'), 'Open Sam O., Tempo tier');
   } finally { await m.done(); }
 });
 
