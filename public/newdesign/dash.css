@@ -1094,13 +1094,12 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
 
 .dash-rail-brand { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; margin-bottom: 4px;
   color: var(--sh-ink, #f2ede4); text-decoration: none; border-radius: 9px; }
-/* The Club Shape wordmark (owner, 2026-11-03: "need to update logo on website dashboard also"), the
-   logo's own letters as a mask so it takes the paper's ink; the role chip under it, as CLUB SHAPE and
-   a chip on one line do not fit the 240px rail at a size that reads. */
+/* The Shape wordmark (owner, 2026-11-08: the name back to Shape; the rail took the logo on 2026-11-03),
+   the logo's own letters as a mask so it takes the paper's ink; the role chip under it. */
 .dash-rail-name { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; min-width: 0; }
-.dash-rail-wordmark { display: block; width: 136px; height: 9.6px; background: currentColor;
-  -webkit-mask: url(/club-shape-wordmark.svg) left center / contain no-repeat;
-  mask: url(/club-shape-wordmark.svg) left center / contain no-repeat; }
+.dash-rail-wordmark { display: block; width: 72px; height: 9.6px; background: currentColor;
+  -webkit-mask: url(/shape-wordmark.svg) left center / contain no-repeat;
+  mask: url(/shape-wordmark.svg) left center / contain no-repeat; }
 .dash-rail-role { font-family: var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size: 9.5px;
   letter-spacing: 0.14em; text-transform: uppercase; color: var(--sh-ink2, #a09b94);
   border: 1px solid var(--sh-line2, #413d38); border-radius: 6px; padding: 3px 6px; }

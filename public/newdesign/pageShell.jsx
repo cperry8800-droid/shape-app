@@ -93,13 +93,14 @@ const NAV_MARK_WRAP = { position: "relative", lineHeight: 0 };
 const NAV_GLASS_IDLE = { position: "absolute", width: 0, height: 0 };
 
 function Logo({ variant = "black", size = 28, height = null }) {
-  // The Club Shape logo (owner, 2026-11-03): the two triangles stacked over CLUB SHAPE, drawn by
-  // marketing/club-shape/build-logo.mjs --site. It is about 4:1, twice as wide as the SHAPE lockup
+  // The Shape logo (owner, 2026-11-08: the name back to Shape; Club Shape is the virtual club's): the
+  // two triangles stacked over SHAPE, drawn by marketing/club-shape/build-logo.mjs --site, at the same
+  // letter size the Club Shape logo had (2026-11-03). It was about 4:1, twice as wide as the SHAPE lockup
   // it replaced at the same height, its letters a little smaller (11.8px against 12.8 at 52px).
-  const src = variant === "white" ? "/club-shape-logo-white.svg"
-    : variant === "black" ? "/club-shape-logo-black.svg"
-    : variant === "teal" ? "/club-shape-logo-teal-white.svg"
-    : "/club-shape-logo-white.svg";
+  const src = variant === "white" ? "/shape-logo-white.svg"
+    : variant === "black" ? "/shape-logo-black.svg"
+    : variant === "teal" ? "/shape-logo-teal-white.svg"
+    : "/shape-logo-white.svg";
   // The play-icon stacked above the wordmark, not inline like the old one.
   // Scale so the overall mark reads at a comparable visual weight to the previous inline logo.
   // `height` sets it exactly: the standalone headers (login, landing, signup) draw it at the bar's
@@ -108,7 +109,7 @@ function Logo({ variant = "black", size = 28, height = null }) {
   // Size inline (not just via the external .shape-brand-logo rule) so standalone
   // pages that don't load pageShell's stylesheet (login, landing) still constrain
   // the logo — otherwise the high-res source renders at its full intrinsic size.
-  return <img className="shape-brand-logo" src={src} alt="Club Shape" style={{ "--shape-logo-h": `${h}px`, height: `${h}px`, width: "auto", maxWidth: "none", maxHeight: "none", objectFit: "contain", display: "block" }} />;
+  return <img className="shape-brand-logo" src={src} alt="Shape" style={{ "--shape-logo-h": `${h}px`, height: `${h}px`, width: "auto", maxWidth: "none", maxHeight: "none", objectFit: "contain", display: "block" }} />;
 }
 
 // Typeset Shape Radio wordmark for the nav — replaces the washed-out PNG
@@ -1272,7 +1273,7 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
   // below 336px it narrows with the window: measured in Chromium, the close button's left edge sits
   // at 100vw - 59px and the logo starts at 24, so (100vw - 95px) / 4.02 keeps a 12px gap (Codex, #2569:
   // at 320 the two touched).
-  const logoH = "min(60px, calc((100vw - 95px) / 4.02))";
+  const logoH = "min(60px, calc((100vw - 95px) / 2.12))";
   // ⚠ PORTALED TO <body>, THE WAY SiteSearch's OVERLAY ALREADY IS. `.shape-header`
   // carries `backdrop-filter`, and a backdrop-filter makes an element the
   // containing block for its position:fixed descendants — so while this rendered
@@ -1311,8 +1312,8 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
             near-white sheet. Bare <img>s, not <Logo>: its class carries
             `display: block !important`, which beats the token. */}
         <a href="index.html" style={{ display: "inline-flex", alignItems: "center" }}>
-          <img src="/club-shape-logo-white.svg" alt="Club Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} />
-          <img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
+          <img src="/shape-logo-white.svg" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} />
+          <img src="/shape-logo-black.svg" alt="Shape" style={{ height: logoH, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} />
         </a>
         <button ref={closeRef} onClick={onClose} aria-label="Close menu"
           style={{ background: "transparent", color: INK, border: 0, fontSize: 30, lineHeight: 1, padding: 8, cursor: "pointer", fontFamily: sans }}>×</button>
@@ -1486,8 +1487,8 @@ function Header({ active }) {
   const burgerRef = React.useRef(null);
   const markDarkRef = React.useRef(null);
   const markLightRef = React.useRef(null);
-  useNavGlass(markDarkRef, true, "/club-shape-logo-bare-white.svg");
-  useNavGlass(markLightRef, false, "/club-shape-logo-bare-black.svg");
+  useNavGlass(markDarkRef, true, "/shape-logo-bare-white.svg");
+  useNavGlass(markLightRef, false, "/shape-logo-bare-black.svg");
   // ⚠ THE DRAWER IS THE NARROW SCREEN'S NAV, SO IT CLOSES WHEN THE SCREEN STOPS BEING ONE.
   // Widened past the collapse width (1020px, or 1120 and 1170 for the wider signed-in
   // headers), the burger hides and the tabs come back, but the drawer stayed open over
@@ -1621,7 +1622,7 @@ function Header({ active }) {
           lines at 1180px. */}
       <div className="shape-header-inner" style={{ maxWidth: 1440, margin: "0 auto", display: "flex", alignItems: "center", height: NAV_H, padding: "0 32px", gap: 26 }}>
         <a href="index.html" className="shape-nav-logo" style={{ flex: "1 1 0", minWidth: "max-content", display: "inline-flex", alignItems: "center", lineHeight: 0 }}>
-          <span ref={markDarkRef} className="shape-nav-mark" style={{ ...NAV_MARK_WRAP, display: "var(--sh-logo-dark, block)" }}><img src="/club-shape-logo-teal-white.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><svg className="shape-nav-glass" style={NAV_GLASS_IDLE} /></span><span ref={markLightRef} className="shape-nav-mark" style={{ ...NAV_MARK_WRAP, display: "var(--sh-logo-light, none)" }}><img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} /><svg className="shape-nav-glass" style={NAV_GLASS_IDLE} /></span>
+          <span ref={markDarkRef} className="shape-nav-mark" style={{ ...NAV_MARK_WRAP, display: "var(--sh-logo-dark, block)" }}><img src="/shape-logo-teal-white.svg" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-dark, block)", objectFit: "contain" }} /><svg className="shape-nav-glass" style={NAV_GLASS_IDLE} /></span><span ref={markLightRef} className="shape-nav-mark" style={{ ...NAV_MARK_WRAP, display: "var(--sh-logo-light, none)" }}><img src="/shape-logo-black.svg" alt="Shape" style={{ height: NAV_LOGO_H, width: "auto", maxWidth: "none", display: "var(--sh-logo-light, none)", objectFit: "contain" }} /><svg className="shape-nav-glass" style={NAV_GLASS_IDLE} /></span>
         </a>
         <nav className="shape-nav-tabs" style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "nowrap", whiteSpace: "nowrap", justifyContent: "center", flex: "0 1 auto", minWidth: 0 }}>
           {navGroupsFor(authUser).map(g => g.kind === "drop"
@@ -1741,11 +1742,11 @@ function Footer({ logoHeight = 36 } = {}) {
         <div className="shape-footer-cta" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingBottom: 20, textAlign: "center" }}>
           {/* Two lockups, one visible per paper: the dashboards' light footer shows the
               black mark, the dark paper and every marketing page the white one. BOTH
-              carry alt="Club Shape", as the header's pair does: display:none already drops
+              carry alt="Shape", as the header's pair does: display:none already drops
               the hidden one from the accessibility tree, so an aria-hidden on either
               strips the name from whichever paper shows it. */}
-          <img src="/club-shape-logo-white.svg" alt="Club Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-dark, block)", margin: "0 auto", objectFit: "contain" }} />
-          <img src="/club-shape-logo-black.svg" alt="Club Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/shape-logo-white.svg" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-dark, block)", margin: "0 auto", objectFit: "contain" }} />
+          <img src="/shape-logo-black.svg" alt="Shape" style={{ height: logoHeight, width: "auto", display: "var(--sh-logo-light, none)", margin: "0 auto", objectFit: "contain" }} />
           <div style={{ fontFamily: serif, fontSize: 17, fontStyle: "italic", letterSpacing: "-0.02em", color: INK }}>Join the community</div>
         </div>
         <div className="shape-footer-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", justifyItems: "center", textAlign: "center" }}>
@@ -2053,7 +2054,7 @@ function ShapeMobileStyles() {
            At 52px the Club Shape logo was 209px and overflowed below 342 (measured in Chromium:
            the burger ended at 324 on a 320px window; Codex, #2569). (100vw - 139px) / 4.02 keeps
            8px spare; at NAV_LOGO_H's 42 (169px) that only bites below 308. */
-        .shape-nav-logo img { height: min(${NAV_LOGO_H}px, calc((100vw - 139px) / 4.02)) !important; }
+        .shape-nav-logo img { height: min(${NAV_LOGO_H}px, calc((100vw - 139px) / 2.12)) !important; }
 
         /* Dashboard layout (240px sidebar + main): collapse to one column and
            turn the sidebar into a horizontal scrolling nav bar so signed-in

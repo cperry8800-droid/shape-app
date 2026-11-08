@@ -1,4 +1,4 @@
-// build-logo.mjs — the Club Shape logo, drawn from the Shape wordmark's own letterforms.
+// build-logo.mjs — the Shape and Club Shape logos, drawn from the Shape wordmark's own letterforms.
 //
 // The brand art (public/SHAPE-logo-teal-white.png) is the word SHAPE with no font file behind it.
 // prototypes/nora-booth/src/wordmarkGlyphs.mjs rebuilds that face as strokes (fitted to the PNG
@@ -6,14 +6,19 @@
 // club's stage screen says CLUB SHAPE. This script turns those strokes into vector outlines and
 // sets them with the brand's two triangles:
 //
-//   stacked     the mark over CLUB SHAPE, as the brand's own lockup sets it over SHAPE
+//   stacked     the mark over CLUB SHAPE, as the brand's own lockup sets it over SHAPE; or the
+//               same mark over SHAPE alone (the app and the website, SITE_FILES' shape-* files)
 //   horizontal  CLUB ▸◂ SHAPE on one line, the mark between the words as in SHAPE ▸◂ RADIO
+//
+// The app and the website are Shape again (owner, 2026-11-08: "change the app and website name back
+// to shape, not club shape. Keep club shape its own thing"); Club Shape is the virtual club, which
+// keeps the club-shape-* files.
 //
 // Run from the repository root:
 //   node marketing/club-shape/build-logo.mjs           writes the SVGs, PNGs and preview.png
 //   node marketing/club-shape/build-logo.mjs --check   scores the rebuilt SHAPE against the brand PNG
-//   node marketing/club-shape/build-logo.mjs --site    writes the chosen logo where the site and the
-//                                                      app serve it (SITE_FILES)
+//   node marketing/club-shape/build-logo.mjs --site    writes the logos where the site and the app
+//                                                      serve them (SITE_FILES)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -149,23 +154,37 @@ function markPolys({ x, y, height }) {
 // ── The lockups ──────────────────────────────────────────────────────────────────────────────────
 export const CAP = 100;   // the files' cap height, in SVG units
 
-// The mark over CLUB SHAPE, with `padCaps` of clear space round it.
-function stacked(padCaps = LOCKUP.pad) {
+// Each word a logo sets, and the name its file is read as (the SVG's aria-label).
+export const LABELS = { 'CLUB SHAPE': 'Club Shape', SHAPE: 'Shape' };
+
+// A word's two fills, its first upright box at `x`: CLUB (none for SHAPE alone) and SHAPE.
+function wordFills(word, x, baseline) {
+  if (word === 'SHAPE') return { club: [], shape: wordPolys('SHAPE', { x, y: baseline, cap: CAP }).polys };
+  if (word !== 'CLUB SHAPE') throw new Error('build-logo: no lockup for ' + word);
+  const shapeAt = places('CLUB SHAPE')[4][1] * CAP;
+  return {
+    club: wordPolys('CLUB', { x, y: baseline, cap: CAP }).polys,
+    shape: wordPolys('SHAPE', { x: x + shapeAt, y: baseline, cap: CAP }).polys,
+  };
+}
+
+// The mark over CLUB SHAPE (or over SHAPE alone), with `padCaps` of clear space round it. SHAPE alone
+// keeps the Club Shape lockup's own mark, gap and nudge (LOCKUP), so the two are one height and, at
+// one height, their triangles and letters are one size: only the width changes.
+function stacked(padCaps = LOCKUP.pad, word = 'CLUB SHAPE') {
   const pad = padCaps * CAP;
   const markH = LOCKUP.markCaps * CAP;
-  const all = places('CLUB SHAPE');
-  const shapeAt = all[4][1] * CAP;
-  const wordW = wordPolys('CLUB SHAPE', { x: 0, y: 0, cap: CAP }).width;
+  const wordW = wordPolys(word, { x: 0, y: 0, cap: CAP }).width;
   const markW = markPolys({ x: 0, y: 0, height: markH }).w;
   const markTop = pad;
   const baseline = markTop + markH + LOCKUP.markGap * CAP + CAP;
   return {
     W: wordW + 2 * pad,
     H: baseline + pad,
+    label: LABELS[word],
     // centred over the word's ink, nudged right as the brand art nudges it
     mark: markPolys({ x: pad + wordW / 2 + LOCKUP.markShift * CAP - markW / 2, y: markTop, height: markH }),
-    club: wordPolys('CLUB', { x: pad, y: baseline, cap: CAP }).polys,
-    shape: wordPolys('SHAPE', { x: pad + shapeAt, y: baseline, cap: CAP }).polys,
+    ...wordFills(word, pad, baseline),
   };
 }
 
@@ -214,7 +233,7 @@ export function svgOf(l, s) {
   const W = n2(l.W), H = n2(l.H);
   const fill = (color, polys) => (polys.length ? `<path fill="${color}" d="${pathOf(polys)}"/>` : '');
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Club Shape">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${l.label || LABELS['CLUB SHAPE']}">`,
     s.bg ? `<rect width="${W}" height="${H}" fill="${s.bg}"/>` : '',
     fill(s.teal, l.mark.teal),
     fill(s.white, l.mark.white),
@@ -253,28 +272,42 @@ async function check(sharp) {
 // ── The served files: the chosen logo (owner, 2026-11-03: the stacked triangles) ───────────────────
 // Cropped close, as the nav PNGs they replace are (the site and the app size a logo by its height).
 // The wordmark alone is the app masthead's title, as shape-wordmark.png was.
+// The app and the website draw the shape-* files: the same triangles over SHAPE (owner, 2026-11-08:
+// "change the app and website name back to shape, not club shape"). The club-shape-* files stay for
+// the virtual club ("Keep club shape its own thing"), unchanged.
 const SITE_PAD = 0.12;
-function wordmark(padCaps) {
+function wordmark(padCaps, word = 'CLUB SHAPE') {
   const pad = padCaps * CAP, baseline = pad + CAP;
-  const shapeAt = places('CLUB SHAPE')[4][1] * CAP;
   return {
-    W: wordPolys('CLUB SHAPE', { x: 0, y: 0, cap: CAP }).width + 2 * pad, H: CAP + 2 * pad,
+    W: wordPolys(word, { x: 0, y: 0, cap: CAP }).width + 2 * pad, H: CAP + 2 * pad,
+    label: LABELS[word],
     mark: { teal: [], white: [] },
-    club: wordPolys('CLUB', { x: pad, y: baseline, cap: CAP }).polys,
-    shape: wordPolys('SHAPE', { x: pad + shapeAt, y: baseline, cap: CAP }).polys,
+    ...wordFills(word, pad, baseline),
   };
 }
+const bare = (l) => ({ ...l, mark: { teal: [], white: [] } });
 export const SITE_FILES = {
+  // Shape: the app and the website.
+  'public/shape-logo-white.svg': () => [stacked(SITE_PAD, 'SHAPE'), SCHEMES['-mono-white']],
+  'public/shape-logo-black.svg': () => [stacked(SITE_PAD, 'SHAPE'), SCHEMES['-mono-black']],
+  'public/shape-logo-teal-white.svg': () => [stacked(SITE_PAD, 'SHAPE'), SCHEMES['']],
+  // The lockup without its triangles, same box: the website bar hands its <img> these once the
+  // turning glass mark (splitGlassMark.js's mountNav) has taken the triangles' place.
+  'public/shape-logo-bare-white.svg': () => [bare(stacked(SITE_PAD, 'SHAPE')), SCHEMES['-mono-white']],
+  'public/shape-logo-bare-black.svg': () => [bare(stacked(SITE_PAD, 'SHAPE')), SCHEMES['-mono-black']],
+  'mobile-app/public/shape-logo.svg': () => [stacked(SITE_PAD, 'SHAPE'), SCHEMES['']],
+  'mobile-app/public/shape-wordmark.svg': () => [wordmark(SITE_PAD, 'SHAPE'), SCHEMES['-mono-white']],
+  // The website dashboard rail's wordmark, drawn as a CSS mask so it takes the paper's ink (dash.css).
+  'public/shape-wordmark.svg': () => [wordmark(SITE_PAD, 'SHAPE'), SCHEMES['-mono-white']],
+  // Club Shape: the virtual club's own logo (2026-11-03), the same set as Shape's, rebuilt unchanged.
+  // The app and the website drew these from 2026-11-03 to 2026-11-08; the club keeps them.
   'public/club-shape-logo-white.svg': () => [stacked(SITE_PAD), SCHEMES['-mono-white']],
   'public/club-shape-logo-black.svg': () => [stacked(SITE_PAD), SCHEMES['-mono-black']],
   'public/club-shape-logo-teal-white.svg': () => [stacked(SITE_PAD), SCHEMES['']],
-  // The lockup without its triangles, same box: the website bar hands its <img> these once the
-  // turning glass mark (splitGlassMark.js's mountNav) has taken the triangles' place.
-  'public/club-shape-logo-bare-white.svg': () => [{ ...stacked(SITE_PAD), mark: { teal: [], white: [] } }, SCHEMES['-mono-white']],
-  'public/club-shape-logo-bare-black.svg': () => [{ ...stacked(SITE_PAD), mark: { teal: [], white: [] } }, SCHEMES['-mono-black']],
+  'public/club-shape-logo-bare-white.svg': () => [bare(stacked(SITE_PAD)), SCHEMES['-mono-white']],
+  'public/club-shape-logo-bare-black.svg': () => [bare(stacked(SITE_PAD)), SCHEMES['-mono-black']],
   'mobile-app/public/club-shape-logo.svg': () => [stacked(SITE_PAD), SCHEMES['']],
   'mobile-app/public/club-shape-wordmark.svg': () => [wordmark(SITE_PAD), SCHEMES['-mono-white']],
-  // The website dashboard rail's wordmark, drawn as a CSS mask so it takes the paper's ink (dash.css).
   'public/club-shape-wordmark.svg': () => [wordmark(SITE_PAD), SCHEMES['-mono-white']],
 };
 

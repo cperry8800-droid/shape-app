@@ -37,7 +37,7 @@ test('the flag masthead: only member Home and coach Today ask for it, and both h
   const flagged = [CLIENT, PROS].flatMap(callers).filter((m) => /layout="flag"/.test(m));
   assert.equal(flagged.length, 2, 'member Home and coach Today are not both on the flag');
   for (const m of flagged) {
-    assert.match(m, /club-shape-wordmark\.svg/, 'the flag lost the Club Shape wordmark');
+    assert.match(m, /shape-wordmark\.svg/, 'the flag lost the Shape wordmark');
     assert.match(m, /dateline=\{\{/, 'a flag page draws its own dateline band again');
     assert.doesNotMatch(m, /\bcompact\b|thinRule|showDotTexture/, 'a flag page still passes the old masthead\'s switches');
   }
@@ -125,8 +125,8 @@ test('the slim tool pill is on every page\'s top row and the pinned bar, the pro
   assert.match(read('BSTrainerProfile.jsx'), /const Pill = W\.BSMastToolPill;/);
   assert.match(read('BSNoraProfile.jsx'), /const Pill = window\.BSMastToolPill;/);
   assert.match(read('iosAppBroadsheetMarketplace.jsx'), /window\.BSMastToolPill \? React\.createElement\(window\.BSMastToolPill, null, tools\) : tools/);
-  // The wordmark stays on Home alone: only the two flag pages hand the masthead club-shape-wordmark.svg.
+  // The wordmark stays on Home alone: only the two flag pages hand the masthead shape-wordmark.svg.
   const files = ['iosAppBroadsheetClient.jsx', 'iosAppBroadsheetPros.jsx', 'BSTrainerProfile.jsx', 'BSNoraProfile.jsx', 'iosAppBroadsheetMarketplace.jsx'];
-  const wordmarks = files.reduce((n, f) => n + (read(f).match(/club-shape-wordmark\.svg/g) || []).length, 0);
-  assert.equal(wordmarks, 2, 'the Club Shape wordmark shows beyond member Home and coach Today');
+  const wordmarks = files.reduce((n, f) => n + (read(f).match(/shape-wordmark\.svg/g) || []).length, 0);
+  assert.equal(wordmarks, 2, 'the Shape wordmark shows beyond member Home and coach Today');
 });

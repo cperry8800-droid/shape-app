@@ -13,17 +13,17 @@ const src = readFileSync(new URL('../public/newdesign/login.jsx', import.meta.ur
 
 test('Back to home and the logo go to the homepage, not the path chooser (#2573)', () => {
   assert.match(src, /<a href="index\.html" className="lgA-back">← Back to home<\/a>/);
-  assert.match(src, /<a href="index\.html" aria-label="Club Shape home"/);
+  assert.match(src, /<a href="index\.html" aria-label="Shape home"/);
   assert.doesNotMatch(src, /href="Landing\.html"[^>]*>← Back to home/);
   // signing up still starts at the path chooser
   assert.match(src, /<a href="Landing\.html">Create an account →<\/a>/);
 });
 
-test('the card says Club Shape (owner, 2026-11-03: "change log in to club shape")', () => {
-  // the name stays on one line: a narrow phone wraps after "Log in to", never inside Club Shape
-  assert.match(src, /<h1 className="lgA-title">Log in to <em>Club&nbsp;Shape<\/em>\.<\/h1>/);
-  assert.match(src, /<span>New to Club Shape\?<\/span>/);
-  assert.match(readFileSync(new URL('../public/newdesign/Login.html', import.meta.url), 'utf8'), /<title>Log in — Club Shape<\/title>/);
+test('the card says Shape (owner, 2026-11-08: the name back to Shape; Club Shape is the virtual club)', () => {
+  assert.match(src, /<h1 className="lgA-title">Log in to <em>Shape<\/em>\.<\/h1>/);
+  assert.match(src, /<span>New to Shape\?<\/span>/);
+  assert.match(readFileSync(new URL('../public/newdesign/Login.html', import.meta.url), 'utf8'), /<title>Log in — Shape<\/title>/);
+  assert.doesNotMatch(src, /Club(&nbsp;| )Shape/, 'the login page still names Club Shape');
 });
 
 test('the card stands in the middle of the screen, and Club Shape is in the website\'s face (owner, 2026-11-04)', () => {
