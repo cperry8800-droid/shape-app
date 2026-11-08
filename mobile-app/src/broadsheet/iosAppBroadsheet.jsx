@@ -962,14 +962,8 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
         // Home's bar keeps SHAPE (owner, 2026-11-08): the mark at the left, the wordmark centred, the
         // tools at the right, in the same 34px row. The sides take what they need, so on a narrow phone
         // the wordmark gives way rather than running under the tools.
-        <div data-bs-pinned-word="" style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: BS_MAST_ROW_H }}>
-          <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center' }}><BSLogo size={16} color={t.INK} /></div>
-          <div style={{ flex: '0 1 96px', width: 96, minWidth: 40 }}>
-            {React.cloneElement(mastWord, { style: { ...(mastWord.props.style || {}), margin: 0, width: '100%' } })}
-          </div>
-          <div style={{ flex: '1 1 0', display: 'flex', justifyContent: 'flex-end' }}>
-            {(MastCorner && !bareMast) ? <BSMastToolPill><MastCorner /></BSMastToolPill> : null}
-          </div>
+        <div data-bs-pinned-word="">
+          <BSMastWordRow word={mastWord} tools={(MastCorner && !bareMast) ? <MastCorner nora={false} /> : null} />
         </div>
       ) : (
         <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
@@ -1283,6 +1277,45 @@ function BSMastToolPill({ children, ink = null }) {
   );
 }
 
+// TEMP (design ideas, removed before merge): which masthead and tab idea to draw.
+function bsIdea(k, d) { try { return localStorage.getItem('bs.idea.' + k) || d; } catch (e) { return d; } }
+
+// HOME'S MASTHEAD ROW, at the top of the page and on the pinned bar alike (owner, 2026-11-08: "Make the
+// shape logo in the masthead like this even when scrolled all the way to the top. And reorganize the
+// masthead so the shape logo fits cleanly in the center", then "move noras icon to the right of shape
+// triangles in top left"): the mark and ✦ at the left, the wordmark at the true centre of the row, ⌕ and ⚙
+// in the pill at the right. The two sides are near the same width (66 and 78px), so the wordmark is placed
+// at the row's centre, not between them, and gets the room both sides leave: up to 116px, giving way on a
+// narrow phone rather than running under either side. `word` is the page's wordmark element; `tools` the
+// right side's buttons (without ✦), or null on a page with no corner.
+const BS_MAST_SIDE = 84;
+function BSMastWordRow({ word, tools }) {
+  const t = useBS();
+  const idea = bsIdea('mast', '1');
+  const Nora = typeof window !== 'undefined' ? window.BSNoraCorner : null;
+  const nora = Nora ? <Nora bare={idea !== '2'} /> : null;
+  const rgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
+  const left = idea === '2' ? (
+    <span data-bs-mast-pill="" style={{ display: 'flex', alignItems: 'center', height: 30, borderRadius: 999, paddingLeft: 11, border: `1px solid rgba(${rgb},0.12)`, background: `rgba(${rgb},0.05)` }}>
+      <BSLogo size={16} color={t.INK} />
+      <span data-bs-mast-tools="" style={{ display: 'flex', alignItems: 'center', margin: '0 -6px 0 -2px' }}>{nora}</span>
+    </span>
+  ) : (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><BSLogo size={16} color={t.INK} />{nora}</span>
+  );
+  return (
+    <div data-bs-mast-word-row="" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
+      {left}
+      {word ? (
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: `min(116px, calc(100% - ${2 * BS_MAST_SIDE}px))`, pointerEvents: 'none' }}>
+          {React.cloneElement(word, { style: { ...(word.props.style || {}), margin: 0, width: '100%' } })}
+        </div>
+      ) : null}
+      {tools ? <BSMastToolPill>{tools}</BSMastToolPill> : null}
+    </div>
+  );
+}
+
 // The wordmark masthead of member Home and coach Today (`layout`): the Shape wordmark, its
 // tools and the dateline ({ date, extra, clock }). The wordmark element is
 // the page's own (shape-wordmark.svg); the layout sets only its width and place.
@@ -1322,21 +1355,20 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
         backgroundImage: `repeating-linear-gradient(135deg, rgba(${inkRgb},0.035) 0, rgba(${inkRgb},0.035) 1px, transparent 1px, transparent 7px)`,
         WebkitMaskImage: 'linear-gradient(180deg, black 0%, transparent 100%)', maskImage: 'linear-gradient(180deg, black 0%, transparent 100%)',
       }} />
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <BSLogo size={16} color={t.INK} />
-        </div>
-        {tools}
-      </div>
+      {/* The wordmark in the masthead row, as on the pinned bar (BSMastWordRow), so the bar that pins
+          once the page scrolls is this same row. */}
+      <BSMastWordRow word={React.isValidElement(title) ? title : null} tools={trailing || null} />
       {onBack && <BSBackRow onBack={onBack} />}
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
-        {/* The letters a size up (owner, 2026-11-04: "make the club shape a little larger on home pages"),
-            the size the Club Shape wordmark had at 262px: SHAPE alone is 138px at that letter height
-            (owner, 2026-11-08: the name back to Shape). It still gives way on a narrow phone, the
-            flanks keeping at least 10px. */}
-        {flank}{word(138)}{flank}
-      </div>
-      {dateline && (
+      {dateline && (bsIdea('mast', '1') === '3' ? (
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 9px' }}>
+          {flank}
+          <span style={{ flex: '0 1 auto', textAlign: 'center', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
+            {run ? <span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>{run}</span> : null}
+            {dl.clock ? <>{run ? ' ' : null}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{run ? '· ' : null}{dl.clock}</span></> : null}
+          </span>
+          {flank}
+        </div>
+      ) : (
         <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
           {/* Each piece keeps together; on a narrow phone the line breaks between them. */}
           {/* No edition label and no Vol · No (owner, 2026-11-08: "remove these from app"): the day, then
@@ -1344,7 +1376,7 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
           {run ? <span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>{run}</span> : null}
           {dl.clock ? <>{run ? ' ' : null}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{run ? '· ' : null}{dl.clock}</span></> : null}
         </div>
-      )}
+      ))}
     </div>
   );
 }
