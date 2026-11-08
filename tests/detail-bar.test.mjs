@@ -124,3 +124,36 @@ test('outside a BSPage with a masthead, a detail header gets no bar and stays st
   assert.equal(got, null);
   await act(async () => root.unmount());
 });
+
+// Owner, 2026-11-08: "keep shape present on masthead when you scroll down on home page". The flag masthead
+// (member Home, coach Today) hands BSPage its SHAPE wordmark, and the pinned bar centres it between the
+// mark and the tools once the page scrolls; a page without the flag keeps the plain row.
+test('Home\'s pinned bar keeps the SHAPE wordmark; a page without the flag does not', async () => {
+  const { BSMasthead } = window;
+  assert.equal(typeof BSMasthead, 'function');
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  const word = h('img', { src: '/m/shape-wordmark.svg', alt: 'Shape', style: { width: 'min(106px, 100%)', filter: 'brightness(0)' } });
+  const render = (flag) => act(async () => {
+    root.render(h(BSProvider, { paperMode: 'light' }, h(BSPage, null, flag
+      ? h(BSMasthead, { layout: 'flag', title: word, dateline: { date: 'Sun · Nov 8', clock: '14:02' } })
+      : h('p', null, 'no flag'))));
+  });
+  await render(true);
+  const bar = host.querySelector('[data-bs-pinned-mast]');
+  const scroller = host.querySelector('.bs-scroll');
+  await act(async () => { Object.defineProperty(scroller, 'scrollTop', { value: 120, configurable: true, writable: true }); scroller.dispatchEvent(new window.Event('scroll')); });
+  assert.equal(bar.getAttribute('aria-hidden'), 'false', 'the bar is in');
+  const row = bar.querySelector('[data-bs-pinned-word]');
+  assert.ok(row, 'the pinned bar dropped the wordmark');
+  const img = row.querySelector('img');
+  assert.equal(img.getAttribute('src'), '/m/shape-wordmark.svg');
+  assert.equal(img.getAttribute('alt'), 'Shape');
+  assert.equal(img.style.width, '100%', 'the wordmark fills its slot in the bar');
+  assert.equal(img.style.filter, 'brightness(0)', 'the paper\'s filter rides with it');
+  // A page without the flag: the plain logo row, no wordmark.
+  await render(false);
+  assert.equal(bar.querySelector('[data-bs-pinned-word]'), null, 'a page without the flag kept Home\'s wordmark');
+  await act(async () => root.unmount());
+});
