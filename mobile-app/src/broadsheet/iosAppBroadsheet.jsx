@@ -516,9 +516,11 @@ const BS_TABBAR_CSS = `var(--bs-tabbar-h, calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px 
 // "on the app that is") ──────────────────────────────────────────────────────────────────────────
 // A choice of THIS PHONE, like the hand it is held in: kept in localStorage, never in the account,
 // set in Settings → Preferences → Nav bar. On a side it is the same bar, the same size, turned upright
-// and centred on the screen's height, BS_DOCK_SIDE_GAP in from that edge (and a landscape notch); every page
-// keeps that strip clear: BSPage's scroller and pinned bar take --bs-nav-inset-left/right. Bottom (the
-// default) sets nothing, so the bottom dock is exactly as it was.
+// and centred on the screen's height, BS_DOCK_SIDE_GAP in from that edge (and a landscape notch).
+// ⚠ IT FLOATS OVER THE PAGE, FROSTED, AS THE BOTTOM BAR DOES (owner, 2026-11-08: "Stop creating a new
+// screen/section for the nav on the page. Just have it overlap, be transparent like it is now"): no page
+// reserves a strip for it. Only --bs-tabbar-h changes, so what stood on the bottom bar comes down. Bottom
+// (the default) sets nothing, so the bottom dock is exactly as it was.
 const BS_NAV_SIDES = ['bottom', 'left', 'right'];
 const BS_NAV_SIDE_LS = 'shape.navSide';
 const BS_DOCK_SIDE_GAP = 10;
@@ -528,14 +530,8 @@ function bsNavSide() {
 function bsApplyNavSide(side) {
   try {
     const st = document.documentElement.style;
-    const edge = (k) => `calc(${BS_DOCK_H + BS_DOCK_SIDE_GAP * 2}px + env(safe-area-inset-${k}, 0px))`;
-    if (side === 'left' || side === 'right') {
-      st.setProperty('--bs-tabbar-h', BS_DOCK_BOTTOM_CSS);
-      st.setProperty('--bs-nav-inset-left', side === 'left' ? edge('left') : '0px');
-      st.setProperty('--bs-nav-inset-right', side === 'right' ? edge('right') : '0px');
-    } else {
-      st.removeProperty('--bs-tabbar-h'); st.removeProperty('--bs-nav-inset-left'); st.removeProperty('--bs-nav-inset-right');
-    }
+    if (side === 'left' || side === 'right') st.setProperty('--bs-tabbar-h', BS_DOCK_BOTTOM_CSS);
+    else st.removeProperty('--bs-tabbar-h');
   } catch (e) {}
 }
 function bsSetNavSide(v) {
@@ -947,8 +943,6 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
       height: '100%',
       overflowX: 'hidden',
       overflowY: 'scroll',
-      // The strip a side nav stands in (bsSetNavSide): 0 with the nav at the bottom.
-      paddingLeft: 'var(--bs-nav-inset-left, 0px)', paddingRight: 'var(--bs-nav-inset-right, 0px)', boxSizing: 'border-box',
       WebkitOverflowScrolling: 'touch',
       touchAction: 'pan-y',
       overscrollBehaviorY: 'contain',
@@ -980,8 +974,7 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
     // MEASURE the bar instead of restating its padding + row height, which a
     // safe-area inset, a notch floor or a text-size change would make wrong.
     <div ref={pinnedRef} aria-hidden={!mastCondensed} data-bs-pinned-mast="" style={{
-      // Clear of a side nav's strip, as the page under it is.
-      position: 'absolute', top: 0, left: 'var(--bs-nav-inset-left, 0px)', right: 'var(--bs-nav-inset-right, 0px)', zIndex: 60,
+      position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60,
       // Match the in-page masthead's gutter (t.padX) AND its element rhythm — a
       // full-size corner (34) with room to breathe, so scrolling doesn't shrink
       // the bar; only its vertical padding is trimmed vs the hero.

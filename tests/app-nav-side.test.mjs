@@ -2,7 +2,7 @@
 // bar. Either at bottom of screen, vertically displayed on right side of phone screen or left", "on the app
 // that is"). MOUNTED: the real BSTabBar and BSPage from mobile-app/src/broadsheet/iosAppBroadsheet.jsx in the
 // real BSProvider. The choice is this phone's (localStorage), set in Settings → Preferences → Nav bar; on a
-// side the capsule stands upright and the page keeps that strip clear, and every bar that stands on the tab
+// side it is the same bar turned upright, floating over the page as the bottom one does, and every bar that stands on the tab
 // bar comes down to the screen's foot (--bs-tabbar-h). Bottom sets nothing. Compares strings and booleans.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,16 +50,14 @@ test('the choice: bottom by default, left or right kept on this phone, anything 
   localStorage.clear();
 });
 
-test('on a side the page keeps that strip clear and what stands on the tab bar comes down; bottom sets nothing', () => {
-  bsSetNavSide('left');
-  assert.match(root.getPropertyValue('--bs-nav-inset-left'), /^calc\(64px \+ env\(safe-area-inset-left, 0px\)\)$/);
-  assert.equal(root.getPropertyValue('--bs-nav-inset-right'), '0px');
-  assert.match(root.getPropertyValue('--bs-tabbar-h'), /^max\(12px/);
-  bsSetNavSide('right');
-  assert.equal(root.getPropertyValue('--bs-nav-inset-left'), '0px');
-  assert.match(root.getPropertyValue('--bs-nav-inset-right'), /safe-area-inset-right/);
+test('on a side only what stood on the tab bar comes down; no page reserves a strip; bottom sets nothing', () => {
+  for (const side of ['left', 'right']) {
+    bsSetNavSide(side);
+    assert.match(root.getPropertyValue('--bs-tabbar-h'), /^max\(12px/);
+    for (const v of ['--bs-nav-inset-left', '--bs-nav-inset-right']) assert.equal(root.getPropertyValue(v), '', side + ': ' + v + ' reserves a strip');
+  }
   bsSetNavSide('bottom');
-  for (const v of ['--bs-tabbar-h', '--bs-nav-inset-left', '--bs-nav-inset-right']) assert.equal(root.getPropertyValue(v), '', v + ' outlived the side nav');
+  assert.equal(root.getPropertyValue('--bs-tabbar-h'), '', '--bs-tabbar-h outlived the side nav');
 });
 
 test('the tab bar stands upright on the side chosen, its gem sliding down it, and goes back to the bottom live', async () => {
@@ -97,18 +95,23 @@ test('the tab bar stands upright on the side chosen, its gem sliding down it, an
   localStorage.clear();
 });
 
-test('every page and its pinned bar take the strip a side nav stands in', async () => {
+// Owner, 2026-11-08: "Stop creating a new screen/section for the nav on the page. Just have it overlap, be
+// transparent like it is now". The page runs edge to edge under a side nav, as it runs under the bottom one.
+test('a side nav floats over the page: the page and its pinned bar keep their full width', async () => {
+  bsSetNavSide('right');
   const host = document.createElement('div');
   document.body.appendChild(host);
   const r = ReactDOMClient.createRoot(host);
   await act(async () => { r.render(h(BSProvider, { paperMode: 'light' }, h(BSPage, null, h('p', null, 'page')))); });
   const scroller = host.querySelector('.bs-scroll');
-  assert.equal(scroller.style.paddingLeft, 'var(--bs-nav-inset-left, 0px)');
-  assert.equal(scroller.style.paddingRight, 'var(--bs-nav-inset-right, 0px)');
+  assert.equal(scroller.style.paddingLeft, '');
+  assert.equal(scroller.style.paddingRight, '');
   const bar = host.querySelector('[data-bs-pinned-mast]');
-  assert.equal(bar.style.left, 'var(--bs-nav-inset-left, 0px)');
-  assert.equal(bar.style.right, 'var(--bs-nav-inset-right, 0px)');
+  assert.equal(bar.style.left, '0px');
+  assert.equal(bar.style.right, '0px');
   await act(async () => r.unmount());
+  bsSetNavSide('bottom');
+  localStorage.clear();
 });
 
 test('Settings → Preferences offers Nav bar: Bottom, Left, Right, kept on this phone', () => {
