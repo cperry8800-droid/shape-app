@@ -133,7 +133,7 @@ test('All: the search and the role switch lead, then the coach of the week, This
   const back = p.nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSBackRow');
   assert.equal(back.length, 1, 'one ← Back, through BSBackRow');
   assert.equal(textOf({ props: { children: back[0].props.trailing } }), 'The classifieds');
-  assert.match(p.text, /Vol\. 1 · No\. 1/);
+  assert.doesNotMatch(p.text, /Vol\. 1|No\. 1/, 'Vol · No is back on the masthead (owner, 2026-11-08: removed)');
   assert.match(p.text, /Find your coach\./);
   // Search and the switch, before any coach.
   const order = p.nodes().filter((n) => typeof n.type === 'function' && /^MktDir/.test(n.type.name)).map((n) => n.type.name);
