@@ -47,8 +47,23 @@ branch `claude/backup-plan-notes`: `git fetch origin claude/backup-plan-notes &&
      - `claude/backup-p5-programs-messaging`;
      - `claude/backup-p6-builders-nora`;
      - `claude/backup-p7-parity`.
-3. **Later:** P8, member profile privacy. Accepted followers see everything; withhold points from `get_public_profile` for viewers the profile isn't open to. See PLAN.md.
-4. **The War Room (`src/lib/warroom.ts`) and `docs/WORKLOG.md` updates** for #2620–#2622 and everything after, as the last commit of the last PR in flight (house rule). They were NOT done for #2620–#2622.
+3. **The website's look: the depth pass and design fixes** (the first review, 2026-11-04). The owner asked "make the Shape website and dashboards pop and look 3D". The review page is `notes/site-depth/shape-depth-review.html` (also the "Shape Depth Review" artifact, https://claude.ai/artifact/5QsJhpiGQuWd1zgRypFRCi), and its styling is `notes/site-depth/depth-preview.patch`, never in the repo.
+   - **Depth:** five "lifts" (a lit edge, a shaded lip, a contact shadow and a soft shadow), as tokens in each of the six dashboard themes, applied to cards, grid cells, the rail, the app bar and buttons. Buttons rise on hover and press in on click. Homepage showcase cards tilt toward the pointer, and the phone mockups get a bezel and rim light. All motion is off for reduced motion and on touch screens.
+   - **The patch** touches `dash.css`, `depth3d.js` (new), `index.html` and `trainerDashboard.jsx`. On 2026-11-08 three of the four files applied cleanly to main; `dash.css` had 2 conflicting hunks.
+   - **The other marketing pages are styled inline,** so each needs classes before the shared depth styles reach it: one page at a time.
+   - **Design findings, in the review's order:**
+     - (High) two type systems: the homepage and dashboards use Anybody/Doto/Schibsted, the other pages Fraunces/Space Grotesk. Pick one.
+     - (High) the Ask Nora and Chat pills cover content.
+     - (Med) copy over busy photos on Store and Score.
+     - (Med) the homepage's coach cards lift on hover but link nowhere.
+     - (Med) the $5 section is unbalanced at 1440px.
+     - (Med) the board toolbar outweighs the day.
+     - (Med) the white theme's card and page are the same value.
+     - (Low) the Community banner emoji.
+     - (Low) the phone demo band is clipped.
+   - Ship it after the coach dashboard, so the new dashboard gets the lifts from the start.
+4. **Later:** P8, member profile privacy. Accepted followers see everything; withhold points from `get_public_profile` for viewers the profile isn't open to. See PLAN.md.
+5. **The War Room (`src/lib/warroom.ts`) and `docs/WORKLOG.md` updates** for #2620–#2622 and everything after, as the last commit of the last PR in flight (house rule). They were NOT done for #2620–#2622.
 
 ## How to run the build agents (what worked here)
 - **One fresh agent per package, briefed like a peer.** Give it the goal and the owner's words; the exact files and line numbers; what other agents are touching right now (so it stays out); and the rules: targeted tests only (never `npm test`), `npx tsc --noEmit` once, parse-check the JSX, commit locally with `SKIP_VERIFY=1` and the trailers, no push, no PR. End with a report: commits, tests with counts, migration and what happens before it runs, open decisions.
