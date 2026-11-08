@@ -616,7 +616,6 @@ function BSScoreIntro({ onClose, onOpenScore }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 6px` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
         </div>
         {/* Uppercase via CSS, never JS: String.toUpperCase() is locale-insensitive
             (Turkish i → I, should be İ). text-transform honors the document locale. */}
@@ -3968,10 +3967,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<BSHeaderTools onProfile={onProfile} />}
-        // The dateline rides in the masthead: the edition, the day, the phase and week, the live clock.
+        // The dateline rides in the masthead: the day, the phase and week, the live clock (no edition
+        // label: owner, 2026-11-08).
         dateline={{
-          edition: tr('home:dateline.edition', { defaultValue: 'CLIENTS EDITION' }),
-          editionColor: t.ACCENT,
           date: `${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()}`,
           extra: `${bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} ${tr('home:dateline.weekAbbr', { defaultValue: 'W' })}${isoWeek}`,
           clock: `${String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:${String(bsNowMin % 60).padStart(2, '0')}`,
@@ -4942,7 +4940,6 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <button onClick={onClose} aria-label={tr('session:build.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -13800,7 +13797,6 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
-              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
@@ -17074,7 +17070,6 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
                   {BSLogo && <BSLogo size={16} color={WHITE} />}
-                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', opacity: 0.85 }}>Vol. 1 · No. 1</span>
                 </span>
                 <BSMastToolPill ink={WHITE}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={corner} ink={WHITE} />
@@ -18324,7 +18319,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {BSLogo && <BSLogo size={16} color={INK} />}
-                <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
               </div>
               <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
@@ -18342,7 +18336,6 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {BSLogo && <BSLogo size={16} color={INK} />}
-              <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(INK, 0.7) }}>Vol. 1 · No. 1</div>
             </div>
             {isSelf
               ? <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
@@ -19055,7 +19048,6 @@ function BSUniversalSearch({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <button onClick={onClose} aria-label={tr('common:search.closeAria', { defaultValue: 'Close search' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -20196,7 +20188,6 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: bsTHexA(t.INK, 0.7) }}>Vol. 1 · No. 1</div>
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} /></BSMastToolPill>
         </div>
@@ -23293,7 +23284,6 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   ];
   const place = tab === 'feed' ? placeOf(filter) : tab === 'channels' ? 'channels' : 'team';
   const placeLabel = (places.find((p) => p.key === place) || places[0]).label;
-  const unreadElsewhere = places.reduce((a, p) => a + (p.key === place ? 0 : p.badge), 0);
   const closePlaces = () => {
     setPlacesOpen(false);
     try { placesTitleRef.current?.focus({ preventScroll: true }); } catch (e) {}
@@ -23312,17 +23302,13 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={onProfile} /></BSMastToolPill>
         </div>
         <div style={{ minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, rowGap: 8 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: magAccent, fontWeight: 700 }}>
-              {tr('feed:masthead.eyebrow', { defaultValue: 'Chat' })}
-              {/* Unread in a place the page is not showing, so a message is never hidden behind the title. */}
-              {unreadElsewhere > 0 && <span style={{ color: t.INK50 }}> · {tr('feed:places.unreadElsewhere', { defaultValue: '{count, number} unread elsewhere', count: unreadElsewhere })}</span>}
-            </div>
+            {/* No "CHAT · N unread elsewhere" kicker (owner, 2026-11-08: "remove this"); each place's unread
+                count stays on its row in the places sheet the title opens. */}
             {/* The place's name in the Wall's headline face (owner, 2026-10-24: "everything on chat page should
                 match new feed wall design"); tapping it opens the places. */}
             <BSChatPlaceTitle label={placeLabel} open={placesOpen} onOpen={() => setPlacesOpen(true)} buttonRef={placesTitleRef} place={place} places={places.map((x) => x.key)} />
@@ -23351,7 +23337,9 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
 
       {/* Where the Feed / Team / Channels strip stood: the gap under the rail, and the always-rendered
           anchor the sub-row auto-hide finds the scroller from (Team's Coaches / Friends still hides). */}
-      <div ref={bsSubAnchorRef} aria-hidden style={{ height: 14 }} />
+      {/* 14px under the Wall's rail; 4px on Chat's other places, where the tabs sit close under it (owner,
+          2026-11-08: "reduce the gap here"). */}
+      <div ref={bsSubAnchorRef} aria-hidden style={{ height: tab === 'feed' ? 14 : 4 }} />
       {placesOpen && <BSChatPlacesSheet places={places} current={place} onPick={pickPlace} onClose={closePlaces} />}
 
       {tab !== 'feed' ? (
@@ -23402,7 +23390,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
             const tot = (rows || []).reduce((a, f) => a + ((unread && unread['dm:' + (f.conversation_id || '')]) || 0), 0);
             const n = (rows || []).length;
             return (
-              <header data-bs-team-head="">
+              <header data-bs-team-head="" style={{ marginTop: -8 }}>
                 {/* The register alone: the big COACHES / FRIENDS head went (owner, 2026-11-04: "get rid of the large
                     coaches header and Friends header"); the tab above says which list this is. */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderBottom: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>
@@ -23584,11 +23572,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
           // Team — Coaches / Friends sub-tabs (shared by every profile type).
           return (
             // On the Wall's 12px edge (owner, 2026-10-24), so the list's rules end where the strip's do.
-            // The tabs sit close over the list (owner, 2026-11-04: "reduce gap here").
-            <div style={{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {/* The row's 44px taps reach 6px up into the gap under the rail, never onto it (lifted here, outside
+            // The tabs sit close over the list (owner, 2026-11-04: "reduce gap here", and 2026-11-08: "reduce
+            // the gap here"): no gap under them, and the list's head tucks 8px up under their 44px taps.
+            <div style={{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {/* The row's 44px taps reach 4px up into the gap under the rail, never onto it (lifted here, outside
                   the sub-row's clip, so no part of a tap is cut off). */}
-              <div inert={subHidden} style={{ ...bsSubStyle(6), marginTop: -6 }}>
+              <div inert={subHidden} style={{ ...bsSubStyle(0), marginTop: -4 }}>
               {/* Centred on the page under the strip (owner, 2026-10-24: "center these on page"). */}
               <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'center', gap: 22 }}>
                 {selectors.map(sec => bsSubTab({ key: sec.key, on: active.key === sec.key, onClick: () => setTeamsSel(sec.key), label: sec.label, badge: sec.badge }))}
@@ -27123,7 +27112,6 @@ function BSCycleOptInSheet({ onClose, onDone }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <button onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -27732,7 +27720,6 @@ function BSStepsHistory({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {BSLogo && <BSLogo size={16} color={t.INK} />}
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>Vol. 1 · No. 1</div>
           </div>
           <BSMastToolPill><BSMeCorner /></BSMastToolPill>
         </div>

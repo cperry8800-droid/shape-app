@@ -84,7 +84,7 @@ test('a detail page: the bar comes in at 64px, then reads ← and the title once
   await scrollTo(80);
   assert.equal(bar.getAttribute('aria-hidden'), 'false', 'the bar is not in at 80px, so the page would run under the status bar');
   assert.ok(!bar.querySelector('[data-bs-detail-bar]'), 'the title shows in the bar while the page still shows it');
-  assert.match(bar.textContent, /Vol\. 1 · No\. 1/);
+  assert.doesNotMatch(bar.textContent, /Vol\. 1|No\. 1/, 'the plain bar shows Vol · No again (owner, 2026-11-08: removed)');
 
   await scrollTo(120);
   const row = bar.querySelector('[data-bs-detail-bar]');
@@ -108,7 +108,7 @@ test('a detail page: the bar comes in at 64px, then reads ← and the title once
   await render(false);
   await scrollTo(400);
   assert.ok(!bar.querySelector('[data-bs-detail-bar]'), 'the title outlived its header');
-  assert.match(bar.textContent, /Vol\. 1 · No\. 1/);
+  assert.doesNotMatch(bar.textContent, /Vol\. 1|No\. 1/, 'the plain bar shows Vol · No again (owner, 2026-11-08: removed)');
   await act(async () => root.unmount());
 });
 

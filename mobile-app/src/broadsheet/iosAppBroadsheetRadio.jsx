@@ -2700,9 +2700,6 @@ function BSRadioScreen({ onBack }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: window.BS_MAST_ROW_H || 34 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <BSLogo size={16} color={CREAM} />
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>
-              {tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}
-            </div>
           </div>
           {bsRadioCorner(CREAM)}
         </div>
@@ -3207,7 +3204,6 @@ function BSShapeSetsScreen({ onBack }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: window.BS_MAST_ROW_H || 34 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: CREAM70 }}>{tr('radio:masthead.volNo', { defaultValue: 'Vol. 1 · No. 1' })}</div>
               </div>
               {/* Canonical trailing corners — CREAM `ink` variant, this page is
                   fixed-dark on the venue ground (owner ruling 2026-08-01). Same

@@ -95,7 +95,7 @@ test('no section strip and no role tabs: the title is the switch, on the Wall\'s
   // tabs are gone; where the strip stood is the gap under the rail and the auto-hide's anchor.
   assert.doesNotMatch(CLIENT, /data-bs-chat-sections|const SectionTab = /, 'the section strip is back');
   assert.doesNotMatch(CLIENT, /CHIP_KEYS\.map\(k => bsSubTab\(/, 'the role tabs are back');
-  assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} aria-hidden style=\{\{ height: 14 \}\} \/>/);
+  assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} aria-hidden style=\{\{ height: tab === 'feed' \? 14 : 4 \}\} \/>/);
   assert.match(CLIENT, /<BSChatPlaceTitle label=\{placeLabel\} open=\{placesOpen\}/);
   assert.doesNotMatch(CLIENT, /<Pill key=\{k\}/, 'the teal pill is gone');
 });
@@ -125,21 +125,22 @@ test('the Team list is in the magazine look: a masthead, flat faces, teal unread
   assert.doesNotMatch(team, /background: TEAL|teal\} 62%|bsSdPrBreath|bsTierColor/, 'no teal pill, gradient rule, breathing dot or tier gem');
   // The register alone: the big COACHES / FRIENDS head went (owner, 2026-11-04: "get rid of the large
   // coaches header and Friends header").
-  assert.match(team, /<header data-bs-team-head="">/);
-  assert.doesNotMatch(team, /<header data-bs-team-head="">[\s\S]{0,400}<h2 /, 'no big head over the list');
+  assert.match(team, /<header data-bs-team-head="" style=\{\{ marginTop: -8 \}\}>/);
+  assert.doesNotMatch(team, /<header data-bs-team-head=""[^>]*>[\s\S]{0,400}<h2 /, 'no big head over the list');
   assert.match(team, /color: magAccent, padding: 0 \}\}>\{tr\('feed:team\.new'/, 'New in teal');
   // The Team tab's column sits on the Wall's 12px edge, the tabs close over the list (owner, 2026-11-04:
-  // "reduce gap here").
-  assert.match(CLIENT, /<div style=\{\{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 6 \}\}>\s*\{\/\*[^]*?\*\/\}\s*<div inert=\{subHidden\} style=\{\{ \.\.\.bsSubStyle\(6\), marginTop: -6 \}\}>/);
+  // "reduce gap here"; 2026-11-08: "reduce the gap here"): no gap, the head tucked up under the taps.
+  assert.match(CLIENT, /<div style=\{\{ padding: '0 12px 90px', display: 'flex', flexDirection: 'column', gap: 0 \}\}>\s*\{\/\*[^]*?\*\/\}\s*<div inert=\{subHidden\} style=\{\{ \.\.\.bsSubStyle\(0\), marginTop: -4 \}\}>/);
+  assert.match(CLIENT, /<div ref=\{bsSubAnchorRef\} aria-hidden style=\{\{ height: tab === 'feed' \? 14 : 4 \}\} \/>/, 'the gap under the rail on Chat');
 });
 
 // Owner, 2026-10-24: "everything on chat page should match new feed wall design". The page's title, the
 // Client / Community posts, Channels, the thread screen and the composer follow the Wall.
 const between = (src, a, b) => { const i = src.indexOf(a); return src.slice(i, src.indexOf(b, i)); };
 
-test('the chat page\'s title is in the Wall\'s face under a teal kicker', () => {
+test('the chat page\'s title is in the Wall\'s face, with no kicker over it (owner, 2026-11-08)', () => {
   const feed = between(CLIENT, 'function BSClientFeed(', 'function BSNoraSheet(');
-  assert.match(feed, /color: magAccent, fontWeight: 700 \}\}>\s*\{tr\('feed:masthead\.eyebrow'/);
+  assert.doesNotMatch(feed, /feed:masthead\.eyebrow/, 'the CHAT kicker is back');
   // The title is the places' button now (BSChatPlaces.jsx), in the same face and size.
   const places = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSChatPlaces.jsx'), 'utf8');
   assert.match(places, /<h1 style=\{\{ margin: '4px 0 0', lineHeight: 1 \}\}>\s*<button ref=\{buttonRef\}/);

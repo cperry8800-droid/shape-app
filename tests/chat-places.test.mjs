@@ -140,9 +140,8 @@ test('a pick opens the place: a feed sets the chip, Team and Channels their tab,
   assert.match(FEED, /\{placesOpen && <BSChatPlacesSheet places=\{places\} current=\{place\} onPick=\{pickPlace\} onClose=\{closePlaces\} \/>\}/);
 });
 
-test('a message waiting in a place the page is not showing is named in the kicker', () => {
-  assert.match(FEED, /const unreadElsewhere = places\.reduce\(\(a, p\) => a \+ \(p\.key === place \? 0 : p\.badge\), 0\);/);
-  assert.match(FEED, /\{unreadElsewhere > 0 && <span[^>]*> · \{tr\('feed:places\.unreadElsewhere', \{ defaultValue: '\{count, number\} unread elsewhere', count: unreadElsewhere \}\)\}<\/span>\}/);
+test('no CHAT kicker over the title (owner, 2026-11-08: "remove this"); each place keeps its unread on its row', () => {
+  assert.doesNotMatch(FEED, /unreadElsewhere|feed:masthead\.eyebrow/, 'the "CHAT · N unread elsewhere" kicker is back');
   // Team's and Channels' unread are the ones the strip carried.
   assert.match(FEED, /\{ key: 'team', [^\n]*badge: coachUnread \+ friendUnread, group: 'messages' \}/);
   assert.match(FEED, /\{ key: 'channels', [^\n]*badge: chUnread, group: 'messages' \}/);

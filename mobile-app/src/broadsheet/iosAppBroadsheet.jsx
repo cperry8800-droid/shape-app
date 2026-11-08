@@ -1265,7 +1265,7 @@ function BSMastToolPill({ children, ink = null }) {
 }
 
 // The wordmark masthead of member Home and coach Today (`layout`): the Shape wordmark, its
-// tools and the dateline ({ edition, editionColor, date, extra, clock }). The wordmark element is
+// tools and the dateline ({ date, extra, clock }). The wordmark element is
 // the page's own (shape-wordmark.svg); the layout sets only its width and place.
 function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
   const t = useBS();
@@ -1295,7 +1295,6 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
           <BSLogo size={16} color={t.INK} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, whiteSpace: 'nowrap' }}>{vol} · {no}</div>
         </div>
         {tools}
       </div>
@@ -1310,9 +1309,10 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       {dateline && (
         <div style={{ position: 'relative', textAlign: 'center', padding: '10px 0 9px', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
           {/* Each piece keeps together; on a narrow phone the line breaks between them. */}
-          <span style={{ color: dl.editionColor || t.ACCENT, whiteSpace: 'nowrap' }}>{dl.edition}</span>
-          {run ? <>{' '}<span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>· {run}</span></> : null}
-          {dl.clock ? <>{' '}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>· {dl.clock}</span></> : null}
+          {/* No edition label and no Vol · No (owner, 2026-11-08: "remove these from app"): the day, then
+              the clock. */}
+          {run ? <span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>{run}</span> : null}
+          {dl.clock ? <>{run ? ' ' : null}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{run ? '· ' : null}{dl.clock}</span></> : null}
         </div>
       )}
     </div>
@@ -1378,9 +1378,6 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, marginBottom: onBack ? 0 : (title ? (compact ? 4 : 10) : 6) }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
-            {vol} · {no}
-          </div>
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
@@ -1425,7 +1422,6 @@ function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
     <div data-bs-mast-row="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <BSLogo size={size} color={ink || t.INK} />
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink || t.INK70, opacity: ink ? 0.75 : 1 }}>Vol. 1 · No. 1</div>
       </div>
       <BSMastToolPill ink={ink}>{trailing}</BSMastToolPill>
     </div>
@@ -1444,9 +1440,6 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSLogo size={16} color={t.INK} />
-          <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70 }}>
-            {vol} · {no}
-          </div>
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>

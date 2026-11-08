@@ -1504,10 +1504,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34 }) : null}{typeof window !== 'undefined' && window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile }) : null}</span>}
         // The top bars stay (owner, 2026-10-25: "Keep the top bars in home page"): the edition band
-        // (edition · the day the strip shows · the clock) rides in the masthead now.
+        // (the day the strip shows · the clock) rides in the masthead now; no edition label (owner,
+        // 2026-11-08: "remove these from app").
         dateline={{
-          edition: isNutri ? tr('coach:today.editionNutri', { defaultValue: 'NUTRI EDITION' }) : tr('coach:today.editionTrainer', { defaultValue: 'TRAINERS EDITION' }),
-          editionColor: heatText,
           date: dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' }),
           clock: fmtClock(nowMin),
         }}
