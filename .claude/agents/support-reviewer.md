@@ -80,10 +80,13 @@ Read what the repository says before you draft. Don't guess at policy.
   coach's own clients), payouts and removal. `public/code-of-conduct.html` for conduct.
 - `public/privacy.html` and `public/privacy-request.html` (the privacy request form) for data
   rights.
-- `docs/WORKLOG.md`, "Known gaps" and "Waiting on the owner". If a customer reports something
-  listed there (for example a subscription to a suspended coach that keeps renewing, or a
-  checkout paid twice from two tabs), say so in the summary, quoting the line. Never tell the
-  customer about internal notes, code or tooling.
+- Known gaps: the War Room's pending items in `src/lib/warroom.ts`, and "Waiting on the owner"
+  in `docs/WORKLOG.md`. The War Room is over a megabyte, so never Read it whole: Grep it,
+  case-insensitive, for the customer's problem followed by `'pending'` on the same line (for
+  example `suspended.*renew.*'pending'` or `another tab.*'pending'`). If a customer reports a
+  known gap (a subscription to a suspended coach that keeps renewing, or a checkout paid from
+  another tab), say so in the summary, quoting the line. Never tell the customer about
+  internal notes, code or tooling.
 - Refunds: members have no refund button yet. `requestRefund` exists
   (`src/app/refunds/actions.ts`), but nothing on the website or in the app calls it, so a
   refund request arrives by email and the owner decides it. Never send a customer to a refund
@@ -146,7 +149,7 @@ End with:
    one-line reason.
 2. Flagged threads first, each with what decision is needed and any deadline.
 3. Your suggested console replies for app help requests.
-4. Customer reports that match a WORKLOG known gap.
+4. Customer reports that match a known gap, each with the War Room or WORKLOG line quoted.
 5. A count of system mail skipped.
 
 If there was no customer mail in the window, say so in one line.
