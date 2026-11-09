@@ -296,7 +296,7 @@ function dbuNextFreeWeekday(week) {
 // days' values keeps the week a permutation, so that state is unrepresentable rather than
 // merely avoided at each call site.
 // ⚠ BOTH WRITERS ROUTE THROUGH HERE, and the second is why this is a module helper rather
-// than a closure: the Grid's drag lives in `DbuGrid` and the day editor's Training-day
+// than a closure: the plan's drag lives in `DbuPlan` and the day editor's Training-day
 // select lives in `DbuBuilder`, so a shared rule cannot be a local function of either. The
 // select wrote through a blind positional replace until #2143 — picking a weekday another
 // day already held produced exactly the collision the drag had just been fixed to prevent,
@@ -565,220 +565,86 @@ function dbuRpeOptions(current) {
   return stored ? [...DBU_RPE_STEPS, n].sort((a, b) => a - b) : DBU_RPE_STEPS;
 }
 
-// ── The client preview: where it sits, and how it is moved ───────────────────
-// ⚠ ONE PANEL FLOATS NOW, AND IT IS THE PREVIEW. The day editor floated too, in three
-// positions (beside the canvas, a fixed side panel, popped out and dragged), and the
-// builder plan's step 3 retired all three with the Guided, Editor and Planner layouts
-// (owner, 2026-10-07: "I like everything that is proposed ... proceed with
-// upgrades/improvements"). The day editor docks under the canvas at the builder's full
-// width, where step 2's detail sits beside the list. What the floating panels learned
-// stays with the one that still floats: it is dragged by its header, clamped to the
-// screen and budgeted from its own top.
-const DBU_PANEL_W = 344;   // matches `.pop`'s width
-const DBU_PANEL_GAP = 12;  // the margin it keeps to every screen edge
-const DBU_PANEL_MIN_H = 160; // enough of it to stay grabbable
-
-// ⚠ CLAMPED ON EVERY MOVE **AND** ON RESIZE, because a floating control you can
-// lose is worse than one that covers something. `y` is bounded so at least the
-// header stays on screen; the panel's own height then takes whatever is left
-// below it, so it can never end up extending past the bottom edge again.
-function dbuClampPanel(x, y, w) {
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const width = w || DBU_PANEL_W;
-  return {
-    x: Math.min(Math.max(DBU_PANEL_GAP, x), Math.max(DBU_PANEL_GAP, vw - width - DBU_PANEL_GAP)),
-    y: Math.min(Math.max(DBU_PANEL_GAP, y), Math.max(DBU_PANEL_GAP, vh - DBU_PANEL_MIN_H - DBU_PANEL_GAP)),
-  };
-}
-
 // ── One drag rule ───────────────────────────────────────────────────────────
-// "Grab the header, stay on screen, and move by keyboard too" — written once, for the
-// client preview (the day editor used it too until it docked, step 3).
-// ⚠ THE CAPTURE DANCE IS WRITTEN ONCE, and two gestures use it: the client preview and,
-// since the day became a list, a row dragged by its handle. A capture can throw (the
-// pointer already gone, an element detached mid-gesture) and a throw there must not end
-// the gesture it was only protecting.
+// ⚠ THE CAPTURE DANCE IS WRITTEN ONCE: a row dragged by its handle uses it. (The floating
+// client preview used it too until step 6c made Client view a tab on the sheet.) A capture can
+// throw (the pointer already gone, an element detached mid-gesture) and a throw there must not
+// end the gesture it was only protecting.
 function dbuCapture(e) { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {} }
 function dbuRelease(e, id) { try { e.currentTarget.releasePointerCapture(id); } catch (err) {} }
-function useDbuDrag({ enabled, open, defaultPos }) {
-  const ref = React.useRef(null);
-  const [pos, setPos] = React.useState(null);
-  const [dragging, setDragging] = React.useState(false);
-  const dragRef = React.useRef(null);
-  // Held on a ref so the open effect can read today's closure without listing a
-  // fresh function identity as a dependency (which would re-place the panel on
-  // every render).
-  const defRef = React.useRef(defaultPos); defRef.current = defaultPos;
-  // ⚠ THE WIDTH IS MEASURED, NEVER DECLARED. `.pop` carries
-  // `max-width:calc(100vw - 40px)`, so below ~384px it is genuinely narrower
-  // than the 344 it asks for — and a clamp against the constant bounds a box
-  // that is not the one on screen.
-  const rect = () => (ref.current && ref.current.getBoundingClientRect ? ref.current.getBoundingClientRect() : null);
-  // ⚠ POINTER EVENTS, NOT MOUSE — one code path covers mouse, trackpad, pen and
-  // touch, and `setPointerCapture` keeps the drag alive when the pointer outruns
-  // the header (which it does: the header is ~40px tall and the gesture crosses
-  // a 1440px screen).
-  const onGrab = (e) => {
-    if (!enabled || !ref.current) return;
-    // A press on a control is that control's, never a drag — EXCEPT the grip.
-    // ⚠ THE GRIP IS A `<button>`, SO IT MATCHED THIS EXCLUSION: the one element
-    // that LOOKS like the handle was the one element that could not start a
-    // drag. Shipped in #2144, found by reading rather than by a report.
-    const hit = e.target.closest && e.target.closest('button,a,input,select,textarea');
-    if (hit && !(e.target.closest && e.target.closest('.gh'))) return;
-    // ⚠ ONE POINTER DRIVES A DRAG. A second finger landing on the header while the
-    // first is still dragging used to REPLACE the drag — so the panel stopped
-    // following the hand moving it and waited on the finger that was only
-    // resting. The same pointer pressing again (a mouse whose last `pointerup`
-    // landed off the page) is allowed through, so a missed release cannot strand
-    // the drag for good.
-    if (dragRef.current && dragRef.current.id !== e.pointerId) return;
-    const r = ref.current.getBoundingClientRect();
-    dragRef.current = { dx: e.clientX - r.x, dy: e.clientY - r.y, id: e.pointerId, w: r.width };
-    dbuCapture(e);
-    setDragging(true);
-    e.preventDefault();
-  };
-  const onMove = (e) => {
-    const d = dragRef.current;
-    if (!d || d.id !== e.pointerId) return;
-    setPos(dbuClampPanel(e.clientX - d.dx, e.clientY - d.dy, d.w));
-  };
-  const end = () => { dragRef.current = null; setDragging(false); };
-  const onDrop = (e) => {
-    const d = dragRef.current;
-    // ⚠ POINTER-ID MATCHED, exactly like `onMove`. A second finger landing on the
-    // header and lifting would otherwise release the FIRST finger's capture and
-    // end a drag that is still under way — the panel would simply stop following
-    // the hand moving it.
-    if (!d || (e && e.pointerId != null && d.id !== e.pointerId)) return;
-    dbuRelease(e, d.id);
-    end();
-  };
-  // ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the
-  // browser taking the pointer back. `lostpointercapture` is the one event that
-  // fires however the gesture ends, so the grabbing cursor and the unselectable
-  // text cannot outlive it.
-  const onLostCapture = () => end();
-  // ⚠ ARROW KEYS MOVE IT TOO. A drag-only affordance is unreachable by keyboard,
-  // and the panel can cover the thing it is about — so the way out of that
-  // has to exist without a pointer.
-  const onKey = (e) => {
-    const step = e.shiftKey ? 48 : 12;
-    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
-    const r = rect();
-    if (!d || !r) return;
-    setPos(dbuClampPanel(r.x + d[0], r.y + d[1], r.width));
-    e.preventDefault();
-  };
-  // ⚠ `dragging` LIVES ABOVE THE PANEL, WHICH IT OUTLIVES. A drag interrupted by
-  // the panel closing, or by the window narrowing out of floating mode, would
-  // otherwise leave the NEXT open stuck in `grabbing` with its text
-  // unselectable — including down paths no handler can be attached to.
-  React.useEffect(() => { if (!(open && enabled)) end(); }, [open, enabled]);
-  // ⚠ WHERE THEY PUT IT IS WHERE IT STAYS. Resetting on close would make a coach
-  // re-drag the panel for every day they open, which is most of the work this
-  // editor is for — so the position outlives the close and only the first open
-  // computes a default. It is re-clamped on the way back in, because the window
-  // may have been resized while the panel was shut.
-  //
-  // ⚠ A LAYOUT EFFECT, NOT A PASSIVE ONE. The panel mounts already open, and a
-  // passive effect runs AFTER the browser paints — so every builder open showed
-  // one frame of the panel at the stylesheet's fallback corner with no height
-  // cap (the budget lives only in the inline style), then jumped. Placing it in
-  // the commit means the first frame on screen is the placed one.
-  React.useLayoutEffect(() => {
-    if (!enabled || !open) return;
-    const r = rect();
-    setPos((prev) => (prev ? dbuClampPanel(prev.x, prev.y, r ? r.width : 0) : (defRef.current ? defRef.current() : null)));
-  }, [enabled, open]);
-  React.useEffect(() => {
-    if (!enabled) return;
-    const on = () => { const r = rect(); setPos((prev) => (prev ? dbuClampPanel(prev.x, prev.y, r ? r.width : 0) : prev)); };
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
-  }, [enabled]);
-  return {
-    ref, pos, dragging, onKey,
-    // Spread onto the panel's header — the header IS the drag surface.
-    headerProps: { onPointerDown: onGrab, onPointerMove: onMove, onPointerUp: onDrop, onPointerCancel: onDrop, onLostPointerCapture: onLostCapture },
-    // What a positioned panel writes inline. ⚠ `bottom`/`right` are RELEASED, not
-    // merely left alone: `.pop` is anchored `right:20px;bottom:20px`, and a
-    // `height:auto` box given BOTH `top` and `bottom` is over-constrained — CSS
-    // stretches it to span them, so handing it a `top` alone would silently
-    // resize the panel as well as move it.
-    style: pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto", maxHeight: Math.max(DBU_PANEL_MIN_H, window.innerHeight - pos.y - DBU_PANEL_GAP) } : undefined,
-    grabStyle: dragging ? { cursor: "grabbing", userSelect: "none" } : undefined,
-  };
-}
 
-// ── Exercise picker popover ──────────────────────────────────────────────────
-function DbuExercisePicker({ onPick, onClose, customMoves = [] }) {
+// ── The library, open beside the day ────────────────────────────────────────
+// ⚠ IT REPLACES THE 12-RESULT POP-UP (the owner's coach review, step 6c: "The library stays
+// open: Search, Legs / Upper / Core, an equipment filter, a ✓ on moves already in, and drag or
+// ＋ Main"). The pop-up showed the first 12 of 75 moves with no filters and closed on every
+// pick; this lists every move the filters leave, stays on screen, and adds one move per press
+// to the block being built (its ＋ names it). Each move can also be dragged into the list at the
+// line it is dropped on. The coach's own moves come first, and a name nothing matches can be
+// added as a new move, as the pop-up allowed.
+const DBU_REGIONS = [
+  { key: "", label: "All" },
+  { key: "lower", label: "Legs" },
+  { key: "upper", label: "Upper" },
+  { key: "core", label: "Core" },
+];
+// The move a library drag carries, read by the list's drop. One drag at a time, so one slot.
+const dbuLibDrag = { current: null };
+const dbuNameKey = (n) => String(n || "").trim().toLowerCase();
+function DbuLibrary({ customMoves = [], inDay, target = "Main", onAdd, searchRef }) {
   const [q, setQ] = React.useState("");
-  const [selected, setSelected] = React.useState([]);
+  const [region, setRegion] = React.useState("");
+  const [equipment, setEquipment] = React.useState("");
   const term = q.trim();
-  const chosen = new Set(selected.map((x) => x.id));
-  // ⚠ WHAT IS TICKED IS ALWAYS ON SCREEN, in its own group at the top. Ticking
-  // three moves and then searching again used to hide every one of them behind
-  // the new results, so the count on the button was the only evidence they
-  // existed and a mis-tick could not be found again to undo it.
-  const mine = DashBuilder.searchCustomMoves(customMoves, term).filter((e) => !chosen.has(e.id));
-  const shape = DashBuilder.searchExercises(term).filter((e) => !chosen.has(e.id));
-  const canCreate = DashBuilder.canCreateMove(term, customMoves)
-    && !selected.some((x) => String(x.name).toLowerCase() === term.toLowerCase());
-  const toggle = (ex, on) => setSelected((prev) => (on ? [...prev, ex] : prev.filter((x) => x.id !== ex.id)));
-  const create = () => {
-    setSelected((prev) => [...prev, { id: "new-" + term.toLowerCase(), name: term, muscle: "", equipment: "", own: true }]);
-    setQ("");
-  };
-  const row = (ex, on) => (
-    <label key={ex.id} className="pk-row">
-      <input type="checkbox" checked={on} onChange={(e) => toggle(ex, e.target.checked)} />
-      <span>
+  const found = DashBuilder.libraryMoves(customMoves, term, region, equipment);
+  const canCreate = DashBuilder.canCreateMove(term, customMoves);
+  const kit = DashBuilder.libraryEquipment();
+  const has = (ex) => !!inDay && inDay.has(dbuNameKey(ex.name));
+  const create = () => { if (!canCreate) return; onAdd({ id: "new-" + term.toLowerCase(), name: term, muscle: "", equipment: "", own: true }); setQ(""); };
+  const total = found.mine.length + found.shape.length;
+  const row = (ex) => (
+    <li key={ex.id} className="lib-row" draggable
+      onDragStart={(e) => { dbuLibDrag.current = ex; try { e.dataTransfer.setData("text/plain", ex.name); e.dataTransfer.effectAllowed = "copy"; } catch (err) {} }}
+      onDragEnd={() => { dbuLibDrag.current = null; }}>
+      <span className="lib-nm">
         <b>{ex.name}</b>
         <small>{[ex.muscle, ex.equipment].filter(Boolean).join(" · ") || (ex.own ? "Your own move" : "")}</small>
       </span>
-    </label>
+      {has(ex) && <span className="lib-in" title="Already in this session"><span aria-hidden="true">✓</span><span className="sr">Already in this session</span></span>}
+      <button type="button" className="lib-add" aria-label={"Add " + ex.name + " to " + target} onClick={() => onAdd(ex)}>＋ {target}</button>
+    </li>
   );
-  return <DbuDialog title="Add exercises" onClose={onClose} busy={false}>
-    <h2 style={{ fontSize: 20, margin: "0 0 14px" }}>Add exercises</h2>
-    <input autoFocus aria-label="Search exercises" value={q} onChange={(e) => setQ(e.target.value)}
-      onKeyDown={(e) => {
-        // ⚠ WHILE AN IME IS COMPOSING, THE KEYSTROKES BELONG TO THE IME. The Enter that
-        // confirms a candidate would otherwise also create a half-composed move, and the
-        // Escape that cancels one would close this dialog — throwing away every move
-        // ticked so far, because `selected` lives here and nowhere else.
-        // Safari's composing Enter reads isComposing false and keyCode 229 (dbuImeComposing).
-        if (dbuImeComposing(e.nativeEvent)) return;
-        if (e.key === "Escape") onClose();
-        if (e.key === "Enter" && canCreate) { e.preventDefault(); create(); }
-      }}
-      placeholder="Search exercises, muscles, equipment…" className="dbu-field" style={{ ...dbuField, width: "100%", marginBottom: 4 }} />
-    {/* ⚠ THE OFFER TO CREATE IS NOT GATED ON AN EMPTY RESULT LIST. It used to be,
-        so a coach typing a move that merely RESEMBLED a listed one got the
-        resemblance and no way to add what they actually meant. It sits above the
-        list, because it is the answer to the search they just typed. */}
-    {canCreate && (
-      <button type="button" className="pk-new" onClick={create}>
-        <span aria-hidden>＋</span> Add “{term}” as a new exercise
-      </button>
-    )}
-    <div className="pk-list dash-thin-scroll">
-      {!!selected.length && <div className="pk-head">Selected · {selected.length}</div>}
-      {selected.map((ex) => row(ex, true))}
-      {!!mine.length && <div className="pk-head">Your moves</div>}
-      {mine.map((ex) => row(ex, false))}
-      {!!shape.length && <div className="pk-head">Shape library</div>}
-      {shape.map((ex) => row(ex, false))}
-      {!selected.length && !mine.length && !shape.length && (
-        <div className="pk-none">{term ? "Nothing in the library matches that." : "Start typing to search."}</div>
-      )}
-    </div>
-    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-      <button disabled={!selected.length} style={dbuBtn(true)} onClick={() => onPick(selected)}>Add {selected.length || ""} exercise{selected.length === 1 ? "" : "s"}</button>
-      <button style={dbuBtn(false)} onClick={onClose}>Cancel</button>
-    </div>
-  </DbuDialog>;
+  return (
+    <aside className="dlib" aria-label="Exercise library">
+      <div className="lib-h">Library <small>{total} {total === 1 ? "move" : "moves"}</small></div>
+      <input ref={searchRef} className="lib-q" aria-label="Search exercises" placeholder="Search moves, muscles, equipment…" value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          // ⚠ WHILE AN IME IS COMPOSING, ITS ENTER AND ESCAPE ARE ITS OWN (dbuImeComposing): the
+          // Enter that confirms a candidate would otherwise add a half-composed move.
+          if (dbuImeComposing(e.nativeEvent)) return;
+          if (e.key === "Enter" && canCreate) { e.preventDefault(); create(); }
+          else if (e.key === "Escape" && q) { e.preventDefault(); e.stopPropagation(); setQ(""); }
+        }} />
+      <div className="lib-f">
+        <div className="lib-seg" role="group" aria-label="Body region">
+          {DBU_REGIONS.map((r) => <button key={r.key || "all"} type="button" aria-pressed={region === r.key} onClick={() => setRegion(r.key)}>{r.label}</button>)}
+        </div>
+        <select aria-label="Equipment" value={equipment} onChange={(e) => setEquipment(e.target.value)}>
+          <option value="">Any equipment</option>
+          {kit.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
+        </select>
+      </div>
+      {canCreate && <button type="button" className="lib-new" onClick={create}><span aria-hidden="true">＋</span> Add “{term}” as a new exercise</button>}
+      <ul className="lib-list dash-thin-scroll" aria-label="Moves">
+        {!!found.mine.length && <li role="presentation" className="lib-g">Your moves</li>}
+        {found.mine.map(row)}
+        {!!found.shape.length && <li role="presentation" className="lib-g">Shape library</li>}
+        {found.shape.map(row)}
+        {!total && <li role="presentation" className="lib-none">{term || region || equipment ? "Nothing in the library matches that." : "The library is empty."}</li>}
+      </ul>
+      <p className="lib-hint">Drag a move into the list, or press ＋ to add it to {target}.</p>
+    </aside>
+  );
 }
 
 // ── Exercise row editor ──────────────────────────────────────────────────────
@@ -1028,12 +894,18 @@ function dbuRankMoves(list, term) {
 }
 
 // ── One line per exercise ────────────────────────────────────────────────────
-// ⠿ · index · name · sets × reps · load · RPE · rest, then small marks for what the
-// detail holds. Every cell is a real input that reads as text until it is used, so Tab
-// walks the line like a spreadsheet; each one names its move for a screen reader.
-// Focus anywhere in the line selects it, so the detail follows the coach's cursor.
-// Usable on its own (two suites mount it bare), with selection and drag handed in.
-function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '', rpeProgress = '' }) {
+// ⚠ A WHITEBOARD LINE (the owner's coach review, step 6c): "Back squat 4 × 5 @ 255 lb · RPE 8 ·
+// 3-1-X-1 · 2:30, edited in place". ⠿ · index · name · sets × reps · @ load · RPE · tempo ·
+// rest, and the cue under the name, so nothing a coach writes on the whiteboard hides behind
+// the detail any more (the review: "a row hides tempo and cues"). Every cell is a real input
+// that reads as text until it is used, so Tab walks the line like a spreadsheet; each one
+// names its move for a screen reader. Focus anywhere in the line selects it, so the detail
+// follows the coach's cursor. Usable on its own (two suites mount it bare), with selection
+// and drag handed in.
+// ⚠ IN A SUPERSET, A MOVE THAT IS NOT THE LAST READS "→ A2" WHERE ITS REST WOULD BE: the member
+// goes straight on, so a rest there prescribes nothing. Its stored rest is kept, untouched,
+// and returns if the pair is undone. `bracket` is the superset's line, drawn on its first move.
+function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, rowKey, handle, dragging = false, dy = 0, onRowKeyDown, progress = '', rpeProgress = '', restTo = '', bracket = '' }) {
   const set = (k,v) => {const next={...row,[k]:v}; if(k==='load'||k==='loadType') delete next.loadText;
     // A trainer's new Rest value replaces any older numeric override, as in the mobile editor.
     if(k==='rest') delete next.restSeconds; onChange(next);};
@@ -1043,7 +915,6 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
   // ⚠ U+FE0E ON THE ARROWS: ▶ and ↗ have emoji forms that iOS draws in colour, and the
   // house rule is monochrome symbols only. The text selector keeps them type.
   const marks = [
-    row.cue && ['“', 'Has a coaching cue'],
     video && ['▶︎', 'Has a demo video'],
     // ⚠ THE PROGRAM'S PROGRESSION, NOT THE ROW'S OLD CHECKBOX. `row.progression` only ever
     // did anything when a week was copied with Progress, a tool step 3 retired, so marking
@@ -1054,6 +925,7 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
   const pick = () => { if (onSelect) onSelect(); };
   return <div className={'dr' + (selected ? ' on' : '') + (row.group ? ' grp' : '') + (dragging ? ' drag' : '')} data-rk={rowKey} role="listitem"
     onFocus={pick} onClick={pick} onKeyDown={onRowKeyDown} style={dragging ? { transform: 'translateY(' + dy + 'px)' } : undefined}>
+    {bracket && <span className="ssb">{bracket}</span>}
     <button type="button" className="rh" tabIndex={-1} aria-label={'Drag to reorder ' + who} title="Drag to reorder. From the keyboard: Alt+↑ or Alt+↓" {...(handle || {})}>⠿</button>
     <i className={'ix' + (row.group ? ' ss' : '')}>{label}</i>
     <span className="nmc">
@@ -1067,6 +939,7 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
         <input className="ci" data-cell="reps" aria-label={who+' Reps'} value={row.reps ?? ''} onChange={e=>set('reps',e.target.value)}/>
       </span>
       <span className="c ld">
+        <span className="tm" aria-hidden="true">@</span>
         <DbuLoadInput row={row} who={who} className="ci n" onLoad={v=>set('load',v)}/>
         {/* ⚠ RPE LEFT THIS LIST AND GOT ITS OWN. As a fourth `loadType` it was
                EXCLUSIVE with a weight — a coach could say 100 kg or RPE 8 and never
@@ -1079,8 +952,12 @@ function DbuRow({ row, label, onChange, selected = false, onSelect, detailId, ro
       </span>
       {/* No target RPE reads "—", as an empty load does: a placeholder, not a word. */}
       <span className="c rp"><select className="ci" data-cell="rpe" aria-label={who+' target RPE'} value={row.rpe ?? ''} onChange={e=>set('rpe',e.target.value===''?'':Number(e.target.value))}><option value="">—</option>{dbuRpeOptions(row.rpe).map(v=><option key={v} value={v}>{v}</option>)}</select></span>
-      <span className="c rs"><input className="ci" data-cell="rest" aria-label={who+' Rest'} placeholder="—" value={row.rest ?? ''} onChange={e=>set('rest',e.target.value)}/></span>
+      <span className="c tp"><input className="ci" data-cell="tempo" aria-label={who+' Tempo'} placeholder="Tempo" value={row.tempo ?? ''} onChange={e=>set('tempo',e.target.value)}/></span>
+      <span className="c rs">{restTo
+        ? <span className="ci to" title={'Straight on to ' + restTo}><span aria-hidden="true">→ {restTo}</span><span className="sr">{who + ' Rest: straight on to ' + restTo}</span></span>
+        : <input className="ci" data-cell="rest" aria-label={who+' Rest'} placeholder="—" value={row.rest ?? ''} onChange={e=>set('rest',e.target.value)}/>}</span>
     </span>
+    <input className="ci cue" data-cell="cue" aria-label={who+' Coach cue'} placeholder="＋ Cue" value={row.cue ?? ''} onChange={e=>set('cue',e.target.value)}/>
   </div>;
 }
 
@@ -1099,17 +976,14 @@ function DbuRowDetail({ id, row, label, blockLabel, onChange, onRemove, onDuplic
   const upload=async(file)=>{if(!file)return; setUploading(true);setError('');onUploading(1);try {const url=await dbuUploadVideo(file);if(mounted.current)latest.current.onChange({...latest.current.row,video:url});}catch(e){if(mounted.current)setError(e.message || 'Upload failed. Choose the file to retry.');}finally{if(mounted.current)setUploading(false);onUploading(-1);}};
   const video=ShapeWorkoutDocument.videoUrl(row.video);
   const who = String(row.name || '').trim() || 'New exercise';
-  const field=(key,lbl)=><label><span>{lbl}</span><input className="df" aria-label={who+' '+lbl} value={row[key] ?? ''} onChange={e=>set(key,e.target.value)}/></label>;
   return <aside className="ddetail" id={id} aria-label={'Exercise detail · ' + who}>
     <div className="deb">{label}{blockLabel ? ' · ' + blockLabel : ''}</div>
     <h3 className="dnm">{who}</h3>
     {row.loadText && <p className="dnote">Original load instruction: {row.loadText}</p>}
     <DbuLadder row={row} onChange={onChange}/>
-    <div className="sub">Coaching</div>
-    <div className="dfs">
-      {field('cue','Coach cue')}{field('tempo','Tempo')}
-      <label><span>Superset</span><select className="df" aria-label={who+' superset'} value={row.group || ''} onChange={e=>set('group',e.target.value || null)}><option value="">None</option>{['A','B','C','D'].map(g=><option key={g}>{g}</option>)}</select></label>
-    </div>
+    {/* ⚠ THE CUE AND THE TEMPO ARE ON THE LINE NOW, and the Superset select is gone (step 6c:
+        "one control instead of a dropdown and a button"): Superset with next, below, pairs and
+        unpairs, and a move dropped on another pairs them too. */}
     {/* ⚠ THE CHECKBOX THAT WAS HERE ("Increase it when a week is copied with Progress")
         carried increments fixed in code. The program's progression bar sets one rule for
         every move it covers; this line says what it does to this one. */}
@@ -1229,7 +1103,13 @@ function DbuDayChips({ day, onChange, onWeekday, takenBy, playlists = [], clips,
   // A playlist the day already carries is offered even when the list has not loaded it
   // (signed out, or since renamed), or the select would DISPLAY "No playlist" over a day
   // that has one — the same trap `dbuRpeOptions` closes for a stored RPE.
-  const lists = day.playlist && day.playlist.name && !playlists.some((p) => p.name === day.playlist.name) ? [day.playlist, ...playlists] : playlists;
+  // ⚠ A PLAYLIST IS MATCHED BY ITS ID (step 6b's Playlists page writes `{ id, name, meta }` and
+  // matches by id), and a day saved before ids keeps matching by name, so a renamed playlist is
+  // still the one the day carries. Each option is keyed by id where it has one.
+  const keyOf = (p) => (p && p.id != null && p.id !== "" ? "id:" + p.id : "name:" + ((p && p.name) || ""));
+  const same = (p, q) => !!p && !!q && (q.id != null && q.id !== "" ? p.id === q.id : p.name === q.name);
+  const lists = day.playlist && day.playlist.name && !playlists.some((p) => same(p, day.playlist)) ? [day.playlist, ...playlists] : playlists;
+  const current = day.playlist ? lists.find((p) => same(p, day.playlist)) : null;
   const closeVid = () => { setVidOpen(false); if (chipRef.current) chipRef.current.focus(); };
   return <>
     <div className="dchips" role="group" aria-label="Day settings">
@@ -1250,12 +1130,12 @@ function DbuDayChips({ day, onChange, onWeekday, takenBy, playlists = [], clips,
       </span>
       <span className={"dchip" + (day.playlist ? "" : " dim")} title="Playlist on the client's card">
         <span aria-hidden="true">{day.playlist ? "♫ " + day.playlist.name : "＋ Playlist"}</span>
-        <select aria-label="Playlist on the client's card" value={day.playlist ? day.playlist.name : ""} onChange={(e) => {
-          const p = lists.find((x) => x.name === e.target.value);
-          onChange({ ...day, playlist: p ? { name: p.name, meta: p.meta || "" } : null });
+        <select aria-label="Playlist on the client's card" value={current ? keyOf(current) : ""} onChange={(e) => {
+          const p = lists.find((x) => keyOf(x) === e.target.value);
+          onChange({ ...day, playlist: p ? { ...(p.id != null && p.id !== "" ? { id: p.id } : {}), name: p.name, meta: p.meta || "" } : null });
         }}>
           <option value="">No playlist</option>
-          {lists.map((p) => <option key={p.name} value={p.name}>{p.name}{p.meta ? " · " + p.meta : ""}</option>)}
+          {lists.map((p) => <option key={keyOf(p)} value={keyOf(p)}>{p.name}{p.meta ? " · " + p.meta : ""}</option>)}
           {!lists.length && <option value="" disabled>No Shape Radio playlists yet</option>}
         </select>
       </span>
@@ -1372,8 +1252,55 @@ function dbuMergeDraft(blocks, draftBlocks) {
   return next;
 }
 
+// ── The session adds itself up ──────────────────────────────────────────────
+// Step 6c: "≈62 min, 19 working sets, 12.2k lb and a muscle-balance bar (Quads 7, Hamstrings 6,
+// Core 6), with one note". Every figure is `DashBuilder.sessionTotals`, read off the rows and the
+// library's own muscle tags. ⚠ NO MINUTES UNLESS THE DAY HAS THEM: Shape has no rule for how
+// long a set takes, so a duration is shown only where the day carries its planned minutes (an
+// outline import stamps them), never estimated. A move with no muscle tag (a coach's own) adds
+// nothing to the bar and is counted under it, so the bar never claims a balance it cannot see.
+const DBU_MUSCLE_TONES = ["var(--sh-accent, #2ee0c4)", "var(--sh-rust2, #c0533b)", "var(--sh-gold, #d8a23a)", "var(--sh-ink2, #a09b94)"];
+function dbuVolume(n) {
+  if (!(n > 0)) return "";
+  return n >= 1000 ? (Math.round(n / 100) / 10).toLocaleString("en-US") + "k" : String(Math.round(n));
+}
+function DbuSessionTotals({ day }) {
+  const t = DashBuilder.sessionTotals(day);
+  if (!t.workingSets && !t.minutes) return null;
+  const vol = [t.volume.lb > 0 && dbuVolume(t.volume.lb) + " lb", t.volume.kg > 0 && dbuVolume(t.volume.kg) + " kg"].filter(Boolean).join(" · ");
+  const shown = t.muscles.slice(0, 4);
+  const rest = t.muscles.slice(4).reduce((n, m) => n + m.sets, 0);
+  const parts = [...shown.map((m, i) => ({ ...m, c: DBU_MUSCLE_TONES[i] })), ...(rest ? [{ label: "Other", sets: rest, c: DBU_LINE2 }] : [])];
+  const tagged = parts.reduce((n, p) => n + p.sets, 0);
+  const notes = [];
+  if (vol && t.unweighed) notes.push("Volume leaves out " + t.unweighed + (t.unweighed === 1 ? " move" : " moves") + " with a set that has no weight or no whole rep count.");
+  if (t.untagged) notes.push(t.untagged + (t.untagged === 1 ? " set is" : " sets are") + " on moves with no muscle recorded.");
+  return (
+    <section className="dtot" aria-label="This session adds up to">
+      <div className="dtot-n">
+        {t.minutes != null && <span><b>{t.minutes} min</b> planned</span>}
+        <span><b>{t.workingSets}</b> working {t.workingSets === 1 ? "set" : "sets"}</span>
+        {vol && <span><b>{vol}</b> volume</span>}
+      </div>
+      {tagged > 0 && <div className="dtot-m">
+        <div className="mbar" role="img" aria-label={"Working sets by muscle: " + parts.map((p) => p.label + " " + p.sets).join(", ")}>
+          {parts.map((p) => <i key={p.label} style={{ flexGrow: p.sets, background: p.c }} />)}
+        </div>
+        <ul className="mleg" aria-hidden="true">{parts.map((p) => <li key={p.label}><i style={{ background: p.c }} />{p.label} <b>{p.sets}</b></li>)}</ul>
+      </div>}
+      {t.pairWith && <p className="dtot-note">{t.pairWith}</p>}
+      {!!notes.length && <p className="dtot-foot">{notes.join(" ")}</p>}
+    </section>
+  );
+}
+
 function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onUploading, customMoves, busy = false, live = false, clientId = null, progress = {}, rpeProgress = {}, rule = null }) {
-  const [pickerFor, setPickerFor] = React.useState(null); // block index
+  // The block the library adds to: the one a block label's ＋ Exercise named, else the block of
+  // the selected move (as the type-ahead does).
+  // It opens on the Main block (step 6c: "drag or ＋ Main"), until the coach picks a move or a
+  // block of their own.
+  const [aim, setAim] = React.useState(() => { const i = (day.blocks || []).findIndex((b) => b && b.kind === "main"); return i >= 0 ? i : null; });
+  const libSearch = React.useRef(null);
   const blocks = day.blocks || [];
   const flat = dbuFlatRows(day);
   // ⚠ ONE MOVE IS SELECTED, AND THE DAY OPENS ON ITS FIRST. Step 1 folded every move to a
@@ -1393,7 +1320,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
   // result is written by the detail that started it; switching moves mid-upload would
   // unmount it and drop the video on the floor. The fieldset already stops every control;
   // this stops the row clicks that are not controls.
-  const select = (key) => { if (!busy && key !== selKey) setSelKey(key); };
+  const select = (key) => { if (!busy && key !== selKey) { setSelKey(key); setAim(null); } };
   const write = (next) => onChange({ ...day, blocks: next });
   const setBlock = (bi, next) => write(blocks.map((b, i) => (i === bi ? next : b)));
   const updateRow = (key, next) => write(blocks.map((b, bi) => ({ ...b, rows: (b.rows || []).map((r, ri) => (dbuRowKey(r, bi, ri) === key ? next : r)) })));
@@ -1406,6 +1333,31 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
     setSelKey(key);
     if (focusSets) focusNext.current = { key, cell: "sets", select: true };
     setSay(rows.length === 1 ? (rows[0].name || "An exercise") + " added to " + dbuKindLabel((blocks[bi] || { kind: "main" }).kind) + "." : rows.length + " exercises added.");
+  };
+  // The library's two ways in. ＋ adds to the end of the block it names; a drop lands at the line
+  // it was let go on, read off the rows as drawn (`dbuDropTarget`, the handle drag's own rule).
+  const addBi = aim != null && blocks[aim] ? aim : curBi;
+  const addKind = dbuKindLabel((blocks[addBi] || { kind: "main" }).kind);
+  const inDay = new Set(flat.map((x) => dbuNameKey(x.row.name)));
+  const [libLine, setLibLine] = React.useState(null);
+  const libOver = (e) => {
+    if (!dbuLibDrag.current || busy) return;
+    e.preventDefault();
+    const to = dbuDropTarget(listRef.current, "", e.clientY);
+    setLibLine(to ? to.y : null);
+  };
+  const libDrop = (e) => {
+    const ex = dbuLibDrag.current;
+    dbuLibDrag.current = null;
+    setLibLine(null);
+    if (!ex || busy) return;
+    e.preventDefault();
+    const to = dbuDropTarget(listRef.current, "", e.clientY) || { bi: addBi, index: ((blocks[addBi] || {}).rows || []).length };
+    const row = DashBuilder.newRow(ex);
+    if (!blocks.length) { write([{ kind: "main", rows: [row] }]); }
+    else write(blocks.map((b, i) => (i === to.bi ? { ...b, rows: [...(b.rows || []).slice(0, to.index), row, ...(b.rows || []).slice(to.index)] } : b)));
+    setSelKey(String(row.id));
+    setSay((ex.name || "An exercise") + " added to " + dbuKindLabel((blocks[to.bi] || { kind: "main" }).kind) + ".");
   };
   const move = (key, to) => {
     const next = dbuMoveRow(day, key, to.bi, to.index);
@@ -1441,7 +1393,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
   });
 
   // ── Drag by the handle ────────────────────────────────────────────────────
-  // ⚠ POINTER EVENTS WITH CAPTURE, the panel drag's own rule (`useDbuDrag`): one path for
+  // ⚠ POINTER EVENTS WITH CAPTURE, the capture rule written once above (`dbuCapture`): one path for
   // mouse, pen and touch, one pointer drives a drag, and losing capture ends it. The row
   // follows the pointer and a line marks where it will land; nothing moves in the
   // document until the drop, so an abandoned drag (Escape, a cancelled touch) writes
@@ -1535,13 +1487,34 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
     setSay((String(x.row.name || "").trim() || "The exercise") + " removed.");
   };
 
+  // ⚠ A SUPERSET IS A BRACKET (step 6c): its first move carries "Superset A · 3 rounds, rest 90s
+  // after A2", every move but the last reads "→ A2" where its rest would be, and the last keeps
+  // the rest the round takes. Read off the flat list, so the labels are the member card's.
+  const ssOf = (x) => dbuGroupOf(x.row);
+  const pairInfo = {};
+  flat.forEach((x, i) => {
+    const g = ssOf(x);
+    if (!g) return;
+    const members = flat.filter((y) => ssOf(y) === g);
+    if (members.length < 2) return;
+    const at = members.indexOf(x), last = members[members.length - 1];
+    const info = {};
+    if (at < members.length - 1) info.restTo = members[at + 1].label;
+    if (at === 0) {
+      const b = DashBuilder.supersetBracket(day, g);
+      info.bracket = "Superset " + g + (b && b.rounds ? " · " + b.rounds + (b.rounds === 1 ? " round" : " rounds") : "")
+        + (b && b.rest ? ", rest " + b.rest + " after " + last.label : ", no rest after " + last.label);
+    }
+    pairInfo[x.key] = info;
+  });
   return (
     <div className="dday">
       <DbuDayChips day={day} onChange={onChange} onWeekday={onWeekday} takenBy={takenBy} playlists={playlists} clips={clips} onUploading={onUploading} />
-      <div className="dsplit">
+      <DbuSessionTotals day={day} />
+      <div className="dsplit lib">
         <div className="dmain">
-          <div className="dlist" ref={listRef} data-dragging={drag ? "" : undefined}>
-            <div className="dhd" aria-hidden="true"><span /><span /><span>Exercise</span><span>Sets × reps</span><span>Load</span><span>RPE</span><span>Rest</span></div>
+          <div className="dlist" ref={listRef} data-dragging={drag ? "" : undefined} onDragOver={libOver} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setLibLine(null); }} onDrop={libDrop}>
+            <div className="dhd" aria-hidden="true"><span /><span /><span>Exercise</span><span>Sets × reps</span><span>Load</span><span>RPE</span><span>Tempo</span><span>Rest</span></div>
             {blocks.map((block, bi) => {
               const kl = dbuKindLabel(block.kind);
               const rows = flat.filter((x) => x.bi === bi);
@@ -1552,7 +1525,9 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
                       {DashBuilder.BLOCK_KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
                     </select>
                     <span className="rule" aria-hidden="true" />
-                    <button type="button" className="dq" onClick={() => setPickerFor(bi)}>+ Exercise</button>
+                    {/* The library is open beside the list; this names the block it adds to and
+                        puts the keyboard in its search. */}
+                    <button type="button" className="dq" aria-pressed={addBi === bi} title={"The library adds to " + kl} onClick={() => { setAim(bi); if (libSearch.current) libSearch.current.focus(); }}>+ Exercise</button>
                     {blocks.length > 1 && <button type="button" className="dq" aria-label={"Remove the " + kl + " block"} title="Remove this block" onClick={() => write(blocks.filter((_, i) => i !== bi))}>×</button>}
                   </div>
                   {rows.length ? (
@@ -1562,19 +1537,16 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
                           selected={!!current && current.key === x.key} onSelect={() => select(x.key)}
                           dragging={!!drag && drag.key === x.key} dy={drag && drag.key === x.key ? drag.dy : 0}
                           handle={handleFor(x.key)} onRowKeyDown={onRowKey(x.key)} progress={progress[x.key] || ''} rpeProgress={rpeProgress[x.key] || ''}
+                          restTo={(pairInfo[x.key] || {}).restTo || ''} bracket={(pairInfo[x.key] || {}).bracket || ''}
                           onChange={(next) => updateRow(x.key, next)} />
                       ))}
                     </div>
-                  ) : <p className="dempty">Nothing here yet. Drag a move in, or use + Exercise.</p>}
-                  {pickerFor === bi && (
-                    <DbuExercisePicker customMoves={customMoves}
-                      onPick={(items) => { addRows(bi, items.map((ex) => DashBuilder.newRow(ex)), false); setPickerFor(null); }}
-                      onClose={() => setPickerFor(null)} />
-                  )}
+                  ) : <p className="dempty">Nothing here yet. Drag a move in from the library, or press + Exercise.</p>}
                 </div>
               );
             })}
             {drag && drag.line != null && <div className="dline" style={{ top: drag.line }} aria-hidden="true" />}
+            {libLine != null && <div className="dline" style={{ top: libLine }} aria-hidden="true" />}
             {drag && drag.pair && <div className="dpair" style={{ top: drag.pair.y, height: drag.pair.h }} aria-hidden="true"><span>Superset with {drag.pair.name}</span></div>}
             <DbuQuickAdd customMoves={customMoves} inputRef={addRef} blockLabel={dbuKindLabel((blocks[curBi] || { kind: "main" }).kind)}
               onAdd={(ex) => addRows(curBi, [DashBuilder.newRow(ex)], true)} />
@@ -1585,21 +1557,23 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
             <button type="button" className="dbtn ghost" aria-expanded={aiOpen} onClick={() => setAiOpen((o) => !o)}>✦ Draft with AI</button>
             {canUndoDraft && <button type="button" className="dbtn" onClick={undoDraft}>Undo draft</button>}
           </div>
+          {current ? (
+            <DbuRowDetail key={current.key} id={detailId} row={current.row} label={current.label} blockLabel={dbuKindLabel(blocks[current.bi].kind)}
+              clips={clips} onUploading={onUploading} pair={dbuPairState(day, current.key)}
+              progress={progress[current.key] || ''} rpeProgress={rpeProgress[current.key] || ''} rule={rule}
+              onFollow={() => updateRow(current.key, ShapeWorkoutDocument.unpinned(current.row, 'load'))}
+              onFollowRpe={() => updateRow(current.key, ShapeWorkoutDocument.unpinned(current.row, 'rpe'))}
+              onChange={(next) => updateRow(current.key, next)}
+              onPair={() => onChange(dbuTogglePair(day, current.key))}
+              onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} />
+          ) : (
+            <aside className="ddetail empty" aria-label="Exercise detail">
+              <p>Add a move from the library, or type one in the last line and press Enter. Its per-set targets and demo open here.</p>
+            </aside>
+          )}
         </div>
-        {current ? (
-          <DbuRowDetail key={current.key} id={detailId} row={current.row} label={current.label} blockLabel={dbuKindLabel(blocks[current.bi].kind)}
-            clips={clips} onUploading={onUploading} pair={dbuPairState(day, current.key)}
-            progress={progress[current.key] || ''} rpeProgress={rpeProgress[current.key] || ''} rule={rule}
-            onFollow={() => updateRow(current.key, ShapeWorkoutDocument.unpinned(current.row, 'load'))}
-            onFollowRpe={() => updateRow(current.key, ShapeWorkoutDocument.unpinned(current.row, 'rpe'))}
-            onChange={(next) => updateRow(current.key, next)}
-            onPair={() => onChange(dbuTogglePair(day, current.key))}
-            onDuplicate={() => duplicate(current)} onRemove={() => remove(current)} />
-        ) : (
-          <aside className="ddetail empty" aria-label="Exercise detail">
-            <p>Type an exercise in the last line and press Enter. Its per-set targets, cues and demo open here.</p>
-          </aside>
-        )}
+        <DbuLibrary customMoves={customMoves} inDay={inDay} target={addKind} searchRef={libSearch}
+          onAdd={(ex) => addRows(addBi, [DashBuilder.newRow(ex)], false)} />
       </div>
       <p className="sr" role="status" aria-live="polite">{say}</p>
     </div>
@@ -1611,7 +1585,7 @@ function DbuDayEditor({ day, onChange, onWeekday, takenBy, playlists, clips, onU
 // has, so every playlist in the picker came with no count at all.
 function dbuPlaylistChoice(x) {
   const n = Number(x && x.tracks);
-  return { name: x && x.name, meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? ' track' : ' tracks') : '' };
+  return { ...(x && x.id != null && x.id !== '' ? { id: x.id } : {}), name: x && x.name, meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? ' track' : ' tracks') : '' };
 }
 
 function DbuDialog({title,onClose,busy,children}) {
@@ -1668,47 +1642,27 @@ function DbuFutureUpdates({template,clients,onClose}) {
   </DbuDialog>;
 }
 
-// ── Assign modal — multi-client + start date; marks the programming queue ───
-// `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
-// could not be read says so, and only a read, empty roster reads "No clients yet."
+// ── Assigning: one publish path, two places to start it ─────────────────────
+// The Assign sheet (the library's Assign, the single workout's) and the program builder's own
+// Assign panel (step 6c: "Assign on the same screen") both publish through `useDbuAssign`, so the
+// two cannot drift on what a partial publish means or who is read again afterwards.
 // `onAssigned(ids)`: the clients something was published for, so the page reads who is on what again
 // (Codex on #2645); it fires on a partial publish too, since those weeks are live.
-function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, emptyNote, onAssigned }) {
-  // ⚠ ONE CLOSE PER SHEET (Codex on #2645). A finished assign closes itself a moment later; a coach
-  // who closes it first (Cancel, the scrim, Esc) used to get a second close when the timer fired, and
-  // the library's Assign all stepped past the next client. The first close wins, and the timer goes
-  // with the sheet.
-  const closedRef = React.useRef(false);
-  const closeTimer = React.useRef(null);
-  React.useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
-  const close = () => {
-    if (closedRef.current) return;
-    closedRef.current = true;
-    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
-    onClose();
-  };
-  const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
-  React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
-  const [startDate, setStartDate] = React.useState(() => {
-    const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); // next Monday
-    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-  });
+function useDbuAssign({ template, doc, live, onAssigned }) {
   const [state, setState] = React.useState("");
   // ⚠ The guardrail's REASON, kept. A 409 is the gate holding the week and it
   // carries the sentence the coach has to act on ("this is a 40% jump on
   // her last four weeks"); a fixed "try again" is advice that can never work,
   // because retrying an unchanged week returns the same 409 forever.
   const [errMsg, setErrMsg] = React.useState("");
-  const queueState = (id) => { const q = (queue || []).find((r) => r.client.profile.id === id); return q ? q.state : null; };
-  const dayCount = doc.weeks.reduce((s, w) => s + w.days.length, 0);
-  const ids = Object.keys(picked).filter((k) => picked[k]);
-
-  const assign = async () => {
-    if (!ids.length || state === "working" || state === "done") return;
+  // Resolves true once every week has published (or, signed out, the queue is marked).
+  const assign = async (ids, startDate, meta) => {
+    const tpl = meta || template;
+    if (!ids.length || state === "working" || state === "done") return false;
     setState("working");
     setErrMsg("");
     let rows;
-    try { rows=DashBuilder.buildAssignmentRows(doc, template, startDate); if(!rows.length || rows.some(r=>!r.payload.exercises.length))throw new Error("Add exercises to each training day before assigning."); } catch(e){setErrMsg(e.message);setState("error");return;}
+    try { rows=DashBuilder.buildAssignmentRows((meta && meta.doc) || doc, tpl, startDate); if(!rows.length || rows.some(r=>!r.payload.exercises.length))throw new Error("Add exercises to each training day before assigning."); } catch(e){setErrMsg(e.message);setState("error");return false;}
     // Weeks publish one at a time, so a failure partway through leaves the
     // earlier weeks LIVE. Counting them is the difference between "nothing
     // happened" and "three weeks landed and week four was held" — and only the
@@ -1739,7 +1693,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
             body: JSON.stringify({
               clientIds: ids,
               sessions: wk.rows.map((row) => ({
-                title: row.title, description: template.name, kind: "template",
+                title: row.title, description: tpl.name, kind: "template",
                 scheduledDate: row.scheduledDate, payload: row.payload,
               })),
             }),
@@ -1763,7 +1717,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
       } catch (e) {}
       setState("done");
       if (live && typeof onAssigned === "function") onAssigned(ids);
-      closeTimer.current = setTimeout(close, 1100);
+      return true;
     } catch (e) {
       if (live && (landed > 0 || landedFor.size) && typeof onAssigned === "function") onAssigned(landed > 0 ? ids : [...landedFor]);
       const reason = (e && e.message ? String(e.message) : "").trim();
@@ -1775,8 +1729,48 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
         : "";
       setErrMsg(partial + (reason || "Couldn't assign — try again."));
       setState("error");
+      return false;
     }
   };
+  return { state, errMsg, assign, reset: () => { setState(""); setErrMsg(""); } };
+}
+// A guardrail reason is a SENTENCE, so it gets a line to be read on — out of the button row,
+// where a long one would wrap the actions apart. role=alert because this is the one thing on the
+// screen the coach must not miss.
+function DbuAssignError({ msg }) {
+  return (
+    <div role="alert" style={{ marginTop: 12, borderLeft: "3px solid " + DBU_RUST, paddingLeft: 11 }}>
+      <div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Publish stopped</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink, #f2ede4)", marginTop: 3 }}>{msg}</div>
+    </div>
+  );
+}
+
+// ── Assign modal — multi-client + start date; marks the programming queue ───
+// `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
+// could not be read says so, and only a read, empty roster reads "No clients yet."
+function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, emptyNote, onAssigned }) {
+  // ⚠ ONE CLOSE PER SHEET (Codex on #2645). A finished assign closes itself a moment later; a coach
+  // who closes it first (Cancel, the scrim, Esc) used to get a second close when the timer fired, and
+  // the library's Assign all stepped past the next client. The first close wins, and the timer goes
+  // with the sheet.
+  const closedRef = React.useRef(false);
+  const closeTimer = React.useRef(null);
+  React.useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+  const close = () => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    onClose();
+  };
+  const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
+  React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
+  const [startDate, setStartDate] = React.useState(() => dbuNextMonday());
+  const { state, errMsg, assign: publish } = useDbuAssign({ template, doc, live, onAssigned });
+  const queueState = (id) => { const q = (queue || []).find((r) => r.client.profile.id === id); return q ? q.state : null; };
+  const dayCount = doc.weeks.reduce((s, w) => s + w.days.length, 0);
+  const ids = Object.keys(picked).filter((k) => picked[k]);
+  const assign = async () => { if (await publish(ids, startDate)) closeTimer.current = setTimeout(close, 1100); };
 
   return (
     <DbuDialog title="Assign workout" onClose={close} busy={state === "working"}>
@@ -1808,17 +1802,75 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
           <button disabled={state === "working"} onClick={close} style={dbuBtn(false)}>Cancel</button>
           {!live && <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>DEMO · marks the queue only</span>}
         </div>
-        {state === "error" && (
-          // A guardrail reason is a SENTENCE, so it gets a line to be read on —
-          // out of the button row, where a long one would wrap the actions apart.
-          // role=alert because this is the one thing on the screen the coach must
-          // not miss.
-          <div role="alert" style={{ marginTop: 12, borderLeft: "3px solid " + DBU_RUST, paddingLeft: 11 }}>
-            <div style={{ fontFamily: DBU_MONO, fontSize: 8.5, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Publish stopped</div>
-            <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--sh-ink, #f2ede4)", marginTop: 3 }}>{errMsg}</div>
-          </div>
-        )}
+        {state === "error" && <DbuAssignError msg={errMsg} />}
     </DbuDialog>
+  );
+}
+
+// ── Assign on the program's own screen ──────────────────────────────────────
+// Step 6c: "The five clients on it now with Update theirs, then add-client gems in their colours,
+// a start date and one button: Assign to Sam and Nadia. Each gets a copy." Who is on it now is the
+// usage read's (`/api/coach/plans/usage`, the library's own), never a sample; "Update theirs" is the
+// library's Update future assignments (`/api/coach/plans/assignments`). Each person wears their
+// tier mark (`DashClientGem`, hollow when the tier is unknown), with the name in words.
+function dbuNameList(names) {
+  if (names.length <= 1) return names[0] || "";
+  if (names.length > 3) return names.slice(0, 2).join(", ") + " and " + (names.length - 2) + " more";
+  return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+}
+function DbuAssignPanel({ panelRef, template, doc, clients, usage, live, persisted, preselectId, emptyNote, onAssigned, onUpdateTheirs, beforeAssign }) {
+  const [picked, setPicked] = React.useState(() => (preselectId ? { [preselectId]: true } : {}));
+  const [startDate, setStartDate] = React.useState(() => dbuNextMonday());
+  const { state, errMsg, assign, reset } = useDbuAssign({ template, doc, live, onAssigned });
+  const u = usage || { state: "idle" };
+  const entry = u.state === "ready" && template.id && Object.prototype.hasOwnProperty.call(u.map, template.id) ? u.map[template.id] : null;
+  const who = u.state === "ready" ? DashBuilder.programWho(entry, clients) : null;
+  const onIds = new Set(((who && who.people) || []).map((p) => String(p.id)));
+  const others = (clients || []).filter((c) => c && c.profile && !onIds.has(String(c.profile.id)));
+  const ids = Object.keys(picked).filter((k) => picked[k]);
+  const names = ids.map((id) => ((clients || []).find((c) => String(c.profile.id) === id) || { profile: { name: "a client" } }).profile.name);
+  const gem = (p) => (typeof DashClientGem === "function" ? <DashClientGem points={p.rankPoints} title={p.name} /> : null);
+  let now;
+  if (!live) now = <span className="dash-lib-quiet">Preview · no client calendars to read</span>;
+  else if (!persisted) now = <span className="dash-lib-quiet">No clients yet · it saves before it assigns</span>;
+  else if (u.state !== "ready") now = <span className="dash-lib-quiet">{u.state === "error" ? "Couldn’t read who’s on it" : "Checking who’s on it…"}</span>;
+  else if (!who.count) now = <span className="dash-lib-quiet">{u.capped ? "None found on the calendars read" : "No clients yet"}</span>;
+  else if (!who.people) now = <span>{who.count + (u.capped ? "+ clients" : who.count === 1 ? " client" : " clients")}</span>;
+  else now = <>
+    <ul className="das-on">{(who.people || []).map((p) => <li key={p.id}>{gem(p)}<b>{p.name}</b></li>)}
+      {who.count > (who.people || []).length && <li className="dash-lib-quiet">{(who.people || []).length ? "and " : ""}{who.count - (who.people || []).length} not on your roster</li>}</ul>
+    {typeof onUpdateTheirs === "function" && <button type="button" className="das-b" onClick={onUpdateTheirs}>Update theirs</button>}
+  </>;
+  const go = async () => {
+    if (!ids.length || state === "working") return;
+    const meta = beforeAssign ? await beforeAssign() : template;
+    if (!meta) return;
+    if (await assign(ids, startDate, meta)) setPicked({});
+  };
+  return (
+    <section className="das" ref={panelRef} tabIndex={-1} aria-label="Assign this program">
+      <h3 className="das-h">Assign</h3>
+      <div className="das-row"><span className="das-l">On it now</span><div className="das-v">{now}</div></div>
+      <div className="das-row"><span className="das-l">Add clients</span><div className="das-v">
+        {others.length ? <div className="das-gems" role="group" aria-label="Clients to assign">{others.map((c) => {
+          const on = !!picked[c.profile.id];
+          return <button key={c.profile.id} type="button" className="das-gem" aria-pressed={on} onClick={() => { if (state === "done" || state === "error") reset(); setPicked({ ...picked, [c.profile.id]: !on }); }}>
+            {gem({ rankPoints: c.rankPoints, name: c.profile.name })}<span>{c.profile.name}</span>{on && <span aria-hidden="true">✓</span>}
+          </button>;
+        })}</div> : <span className="dash-lib-quiet" role="status">{clients && clients.length ? "Everyone on your roster is on it." : emptyNote || "No clients loaded."}</span>}
+      </div></div>
+      <div className="das-row"><span className="das-l">Start</span><div className="das-v">
+        <input type="date" aria-label="Start date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="dbu-field das-date" />
+        <span className="dash-lib-quiet">Each gets their own copy: later edits here don’t change it.</span>
+      </div></div>
+      <div className="das-go">
+        <button type="button" style={{ ...dbuBtn(true, DBU_RUST), color: "#fff" }} disabled={!ids.length || state === "working"} onClick={go}>
+          {state === "working" ? "Assigning…" : state === "done" ? "Assigned ✓" : ids.length ? "Assign to " + dbuNameList(names) : "Pick clients to assign"}
+        </button>
+        {!live && <span className="das-demo">Preview · marks the queue only</span>}
+      </div>
+      {state === "error" && <DbuAssignError msg={errMsg} />}
+    </section>
   );
 }
 
@@ -1838,7 +1890,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
 // `useRememberedChoice` silently ignores a stored value outside its allow-list, which on
 // screen reads as "the switch forgot what I picked" rather than as a missing entry.
 const DBU_VIEWS = [
-  { key: "grid", glyph: "▦", label: "Grid" },
+  { key: "plan", glyph: "▦", label: "Plan" },
   { key: "sheet", glyph: "▤", label: "Sheet" },
 ];
 const DBU_VIEW_KEYS = DBU_VIEWS.map((v) => v.key);
@@ -1856,93 +1908,232 @@ function DbuViewSwitch({ view, setView }) {
   );
 }
 
-// ── Grid — the calendar is the builder ───────────────────────────────────────
+// ── The plan — weeks across, training days down ─────────────────────────────
+// ⚠ IT REPLACES THE MON–SUN GRID (the owner's coach review, step 6c: "A calendar where most cells
+// say Rest"). Weeks were rows and the seven weekdays columns, so Strength Block 3 drew 14 cells and
+// 10 said "Rest · ＋ Add session", and 12 weeks would draw 84. Now each week is a column, each row
+// a weekday the program trains on, and a strip of seven letters under each week's heading shows
+// its training days: a rest letter adds a session on that day, and a training letter peeks at it.
+// Every session card carries that week's loads with the change on last week ("Back squat 260 ▲5",
+// `DashBuilder.sessionLoadLines`), so the progression shows on the plan, and a click PEEKS at the
+// full session, with Open in builder, rather than navigating away.
 // A deload week from before the progression that its cadence does not name: the coach can
 // take its flag off. A week the cadence names is a deload either way.
 const dbuLegacyOff = (rule, w, wi) => !!(rule && rule.deloadEvery) && ShapeWorkoutDocument.legacyDeload(w) && (wi + 1) % rule.deloadEvery !== 0;
-function DbuGrid({ doc, dates, sel, setSel, setWeeks, uploads, onWeek }) {
+const DBU_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
+// A saved session a tray drag carries (`DbuTray`), read by the plan's drop.
+const dbuTrayDrag = { current: null };
+// The weekdays the plan draws a row for: every weekday any week trains on, Monday first.
+function dbuPlanWeekdays(doc) {
+  const on = new Set();
+  (doc.weeks || []).forEach((w) => (w.days || []).forEach((d) => { if (dbuHasWeekday(d)) on.add(d.weekday); }));
+  return [...on].sort((a, b) => a - b);
+}
+const dbuDelta = (l) => (l.delta ? (l.delta > 0 ? "▲" : "▼") + Math.abs(l.delta) : "");
+function DbuPlan({ doc, dates, peek, onPeek, setWeeks, uploads, onWeek, onAddAt, onPlace }) {
   const dragRef = React.useRef(null);
   const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
   const cadence = !!(rule && rule.deloadEvery);
-  const weekStart = (wi) => ((doc.weeks[wi].days || []).map((_, di) => dates[wi + ":" + di]).filter(Boolean).sort()[0] || "");
+  const weeks = doc.weeks || [];
+  const rows = dbuPlanWeekdays(doc);
+  const weekStart = (wi) => ((weeks[wi].days || []).map((_, di) => dates[wi + ":" + di]).filter(Boolean).sort()[0] || "");
   // ⚠ A DROP SWAPS, IT DOES NOT OVERWRITE. Measured on a Mon/Wed/Fri week, dragging Mon onto
   // the POPULATED Wed cell: 3 of 3 sessions visible becomes 2 of 3, silently. That drop is
   // the ordinary same-week case and it passes the `f.wi === wi` guard, so the guard is not
-  // what protects it. The retired builder could not hit this — its `moveDay` REORDERED
-  // within a week (a permutation, so no collision existed); assigning a weekday is new here,
-  // and so is the collision. The rule itself is `dbuAssignWeekday`, shared with the day
-  // editor's Training-day select, so the two controls cannot drift into two answers.
-  const moveTo = (wi, di, weekday) => setWeeks(doc.weeks.map((w, i) => (i === wi ? dbuAssignWeekday(w, di, weekday) : w)));
-  const addAt = (wi, weekday) => {
-    const w = doc.weeks[wi];
-    setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days: [...x.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday }] } : x)));
-    setSel({ w: wi, d: w.days.length });
+  // what protects it. The rule itself is `dbuAssignWeekday`, shared with the day editor's
+  // Training-day select, so the two controls cannot drift into two answers.
+  // ⚠ AND THE `f.wi === wi` GUARD IS ON EVERY TARGET: `moveTo` only ever edits week `f.wi`, so
+  // dragging a Week 1 session onto a free day of Week 3 used to leave it in Week 1 and silently
+  // change its WEEKDAY there — the drop target the coach aimed at was ignored. (CodeRabbit,
+  // #2143.) Moving a day BETWEEN weeks is a feature, not this fix; registered.
+  // ⚠ ONE DROP HANDLER FOR EVERY TARGET (a session, a free slot, a rest letter), so the targets
+  // cannot drift apart again. A session from the tray lands only on a free day.
+  const moveTo = (wi, di, weekday) => setWeeks(weeks.map((w, i) => (i === wi ? dbuAssignWeekday(w, di, weekday) : w)));
+  const drop = (wi, wd) => {
+    const f = dragRef.current, t = dbuTrayDrag.current;
+    dragRef.current = null; dbuTrayDrag.current = null;
+    if (uploads) return;
+    if (t) { onPlace(t, wi, wd); return; }
+    if (f && f.wi === wi) moveTo(f.wi, f.di, wd);
   };
+  const dayAt = (w, wd) => (w.days || []).findIndex((d) => dbuHasWeekday(d) && d.weekday === wd);
   return (
     <div className="scroll">
-      <div className="wg" style={{ minWidth: 760 }}>
-        <div />
-        {DBU_DOW.map((d) => <div className="h" key={d}>{d}</div>)}
-        {doc.weeks.map((w, wi) => (
-          <React.Fragment key={wi}>
-            <div className="wk">
-              <b>Week {wi + 1}</b>
-              <span>{dbuDayMonth(weekStart(wi)) || "—"}</span>
-              {w.deload && <span className="dl">Deload −40%</span>}
-              {/* ⚠ Every week tool the retired tree carried, kept — except Progress, which
-                  step 3 retired with the per-move checkbox it read: the progression bar
-                  above the canvas is the one rule now, so Copy brings a week that already
-                  climbs. Under a deload cadence the bar owns which weeks deload, so the
-                  week's own Deload says so instead of fighting it. */}
-              {/* A deload week saved before the cadence keeps its flag under it (its sets
-                  were cut with nothing to give back), so its own Deload stays the coach's
-                  to clear: the one week tool a cadence does not take over. */}
-              <span className="tools">
-                <button type="button" onClick={() => onWeek("duplicate", wi)} title={cadence ? "Copy this week. The progression sets its loads" : "Copy this week unchanged"}>Copy</button>
-                <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} disabled={cadence && !dbuLegacyOff(rule, w, wi)}
-                  title={cadence ? (dbuLegacyOff(rule, w, wi) ? "Deloaded before the progression. Press to take the deload off; its sets stay as they are" : "The progression sets the deload weeks") : "Deload: −40% volume, then edit freely"}>Deload</button>
-                {doc.weeks.length > 1 && <button type="button" onClick={() => onWeek("remove", wi)} aria-label={"Remove week " + (wi + 1)}>×</button>}
-              </span>
+      <div className="dpl" style={{ gridTemplateColumns: "88px repeat(" + weeks.length + ", minmax(176px, 1fr))", minWidth: 88 + weeks.length * 184 }}>
+        <div className="rl" />
+        {weeks.map((w, wi) => (
+          <div className={"wkh" + (w.deload ? " dl" : "")} key={"h" + wi}>
+            <div className="wkt"><b>Week {wi + 1}</b><span>{dbuDayMonth(weekStart(wi)) || "—"}</span>{w.deload && <span className="chip gold">Deload −40%</span>}</div>
+            {/* ⚠ Every week tool the retired tree carried, kept — except Progress, which step 3
+                retired with the per-move checkbox it read. Under a deload cadence the bar owns
+                which weeks deload, so the week's own Deload says so instead of fighting it; a
+                deload week saved before the cadence keeps its flag the coach's to clear. */}
+            <span className="tools">
+              <button type="button" onClick={() => onWeek("duplicate", wi)} title={cadence ? "Copy this week. The progression sets its loads" : "Copy this week unchanged"}>Copy</button>
+              <button type="button" onClick={() => onWeek("deload", wi)} aria-pressed={!!w.deload} disabled={cadence && !dbuLegacyOff(rule, w, wi)}
+                title={cadence ? (dbuLegacyOff(rule, w, wi) ? "Deloaded before the progression. Press to take the deload off; its sets stay as they are" : "The progression sets the deload weeks") : "Deload: −40% volume, then edit freely"}>Deload</button>
+              {weeks.length > 1 && <button type="button" onClick={() => onWeek("remove", wi)} aria-label={"Remove week " + (wi + 1)}>×</button>}
+            </span>
+            <div className="wst" role="group" aria-label={"Week " + (wi + 1) + " training days"}>
+              {DBU_LETTERS.map((letter, wd) => {
+                const di = dayAt(w, wd);
+                return di >= 0
+                  ? <button type="button" key={wd} className="on" aria-label={DBU_DOW_FULL[wd] + ", week " + (wi + 1) + ": " + w.days[di].name}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => drop(wi, wd)}
+                      onClick={() => onPeek(wi, di)}>{letter}</button>
+                  : <button type="button" key={wd} aria-label={"Add a session on " + DBU_DOW_FULL[wd] + " of week " + (wi + 1)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={() => drop(wi, wd)}
+                      onClick={() => onAddAt(wi, wd)}>{letter}</button>;
+              })}
             </div>
-            {DBU_DOW.map((_, wd) => {
-              const di = (w.days || []).findIndex((d) => dbuHasWeekday(d) && d.weekday === wd);
-              const day = di >= 0 ? w.days[di] : null;
-              const iso = di >= 0 ? dates[wi + ":" + di] : "";
-              if (!day) {
-                // ⚠ THE SAME `f.wi === wi` GUARD THE POPULATED CELL CARRIES, and its absence
-                // here was not a no-op: `moveTo` only ever edits week `f.wi`, so dragging a
-                // Week 1 session onto an empty cell under Week 3 left it in Week 1 and
-                // silently changed its WEEKDAY there — the drop target the coach aimed at
-                // was ignored. (CodeRabbit, #2143.) Moving a day BETWEEN weeks is a feature,
-                // not this fix; registered.
-                return (
-                  <button type="button" key={wd} className="c rest"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => { const f = dragRef.current; if (f && !uploads && f.wi === wi) moveTo(f.wi, f.di, wd); dragRef.current = null; }}
-                    onClick={() => addAt(wi, wd)}
-                    aria-label={"Add a session on " + DBU_DOW[wd] + " of week " + (wi + 1)}>
-                    <span className="r">Rest · ＋ Add session</span>
-                  </button>
-                );
-              }
-              const moves = (day.blocks || []).reduce((n, b) => n + (b.rows || []).length, 0);
+          </div>
+        ))}
+        {rows.map((wd) => (
+          <React.Fragment key={wd}>
+            <div className="rl">{DBU_DOW_FULL[wd]}</div>
+            {weeks.map((w, wi) => {
+              const di = dayAt(w, wd);
+              if (di < 0) return (
+                <button type="button" key={wi} className="ses empty" aria-label={"Add a session on " + DBU_DOW[wd] + " of week " + (wi + 1)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => drop(wi, wd)}
+                  onClick={() => onAddAt(wi, wd)}><span aria-hidden="true">＋</span></button>
+              );
+              const day = w.days[di];
+              const moves = dbuMoves(day);
+              const lines = DashBuilder.sessionLoadLines(doc, wi, di, 3);
+              const on = peek && peek.w === wi && peek.d === di;
               return (
-                <button type="button" key={wd} className={"c" + (sel.w === wi && sel.d === di ? " on" : "")} draggable={!uploads}
+                <button type="button" key={wi} className={"ses" + (on ? " on" : "") + (w.deload ? " dl" : "")} draggable={!uploads} aria-expanded={!!on}
                   onDragStart={(e) => { if (uploads) { e.preventDefault(); return; } dragRef.current = { wi, di }; }}
                   onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { const f = dragRef.current; if (f && !uploads && f.wi === wi) moveTo(f.wi, f.di, wd); dragRef.current = null; }}
-                  onClick={() => setSel({ w: wi, d: di })}>
-                  <span className="d">{dbuDayMonth(iso) || "—"}</span>
-                  <span className="s">
-                    <b>{day.name}</b>
-                    <span>{moves} moves{day.playlist ? " · ♪" : ""}</span>
-                  </span>
+                  onDrop={() => drop(wi, wd)}
+                  onClick={() => onPeek(wi, di)}>
+                  <span className="d">{dbuDayMonth(dates[wi + ":" + di]) || "—"}</span>
+                  <b>{day.name}</b>
+                  <span className="m">{moves} {moves === 1 ? "move" : "moves"}{day.playlist ? " · ♪" : ""}</span>
+                  {lines.filter((l) => l.weight).map((l, k) => (
+                    <span className="ln" key={k}><span className="n">{l.name}</span>
+                      <span className="v">{l.weight.replace(/ (kg|lb)$/, "")}{dbuDelta(l) && <> <i aria-hidden="true">{dbuDelta(l)}</i><span className="sr">{", " + (l.delta > 0 ? "up " : "down ") + Math.abs(l.delta) + (l.unit === "%" ? "%" : " " + l.unit) + " on last week"}</span></>}</span>
+                    </span>
+                  ))}
                 </button>
               );
             })}
           </React.Fragment>
         ))}
       </div>
+      {!rows.length && <p className="dmsg">No sessions yet. Press a letter under a week to add one.</p>}
+    </div>
+  );
+}
+
+// One move as the whiteboard writes it: "4 × 5 @ 255 lb · RPE 8 · 3-1-X-1 · 2:30".
+function dbuWhiteboard(row) {
+  const W = ShapeWorkoutDocument, l = W.ladder(row);
+  const reps = l ? l.reps : W.repsLabel(row);
+  const weight = l ? l.weight : W.weightLabel(row);
+  const head = [row.sets, reps].filter((x) => String(x ?? "").trim() !== "").join(" × ");
+  return [head + (weight ? " @ " + weight : ""), row.rpe !== "" && row.rpe != null ? "RPE " + row.rpe : "", row.tempo, row.rest].filter((x) => String(x || "").trim()).join(" · ");
+}
+// The peek: the whole session, read-only, with the one way into it.
+function DbuPeek({ doc, wi, di, dates, onOpen, onClose }) {
+  const w = doc.weeks[wi], day = w && w.days[di];
+  const ref = React.useRef(null);
+  React.useEffect(() => { if (ref.current) ref.current.focus(); }, [wi, di]);
+  if (!day) return null;
+  const labels = DashBuilder.rowLabels(day);
+  let k = 0;
+  return (
+    <section className="dpeek" ref={ref} tabIndex={-1} aria-label={"Session · " + day.name}
+      onKeyDown={(e) => { if (e.key === "Escape" && !dbuImeComposing(e.nativeEvent)) { e.preventDefault(); e.stopPropagation(); onClose(); } }}>
+      <div className="pk-hd">
+        <div><div className="when">Week {wi + 1} of {doc.weeks.length}{dates[wi + ":" + di] ? " · " + dbuShortDate(dates[wi + ":" + di]) : ""}{w.deload ? " · Deload" : ""}</div><b>{day.name}</b></div>
+        <span className="pk-acts">
+          <button type="button" style={dbuBtn(true)} onClick={onOpen}>Open in builder</button>
+          <button type="button" className="x" aria-label="Close the session" onClick={onClose}>×</button>
+        </span>
+      </div>
+      {(day.blocks || []).filter((b) => (b.rows || []).length).map((b, bi) => (
+        <div className="pk-b" key={bi}>
+          <span className="kl">{dbuKindLabel(b.kind)}</span>
+          <ul>{(b.rows || []).map((r, ri) => { const label = labels[k++]; return <li key={ri}><i>{label}</i><b>{String(r.name || "").trim() || "New exercise"}</b><span>{dbuWhiteboard(r)}</span></li>; })}</ul>
+        </div>
+      ))}
+      {!dbuMoves(day) && <p className="dmsg">No moves yet. Open it in the builder to add some.</p>}
+    </section>
+  );
+}
+
+// ── Sessions you can drag in ────────────────────────────────────────────────
+// Step 6c: "This program's sessions and saved days from your other programs, as cards in their
+// program-type colours, replace 'Add a saved day…'." The colour is the program's first tag
+// (`DashBuilder.tagInfo`), always with the tag in words beside it; an untagged program's cards
+// say so. A card is dragged onto a free day of any week, or pressed to add it to the week being
+// looked at (week 1 when none is).
+function dbuTrayItems(doc, dayTemplates, selfId) {
+  const own = [], seen = new Set();
+  (doc.weeks || []).forEach((w) => (w.days || []).forEach((d) => {
+    const key = dbuNameKey(d.name);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    own.push({ key: "own:" + key, name: d.name, day: d, tags: doc.tags, from: "This program" });
+  }));
+  const others = (dayTemplates || []).filter((x) => x && x.day && (!selfId || x.programId !== selfId))
+    .map((x, i) => ({ key: "saved:" + i, name: x.dayName || x.name, day: x.day, tags: x.tags, from: x.program || "Saved day" }));
+  return { own, others };
+}
+function DbuTray({ doc, dayTemplates, selfId, week, onAdd }) {
+  const { own, others } = dbuTrayItems(doc, dayTemplates, selfId);
+  if (!own.length && !others.length) return null;
+  const card = (it) => {
+    const tags = DashBuilder.normalizeTags(it.tags);
+    const info = tags.length ? DashBuilder.tagInfo(tags[0]) : null;
+    const n = dbuMoves(it.day);
+    return (
+      <button key={it.key} type="button" className="tray-c" draggable style={{ "--c": info ? info.c : DBU_LINE2 }}
+        aria-label={"Add " + it.name + " to week " + (week + 1)}
+        onDragStart={(e) => { dbuTrayDrag.current = it; try { e.dataTransfer.setData("text/plain", it.name); } catch (err) {} }}
+        onDragEnd={() => { dbuTrayDrag.current = null; }}
+        onClick={() => onAdd(it)}>
+        <span className="tk">{info ? info.label : "No tag"}</span>
+        <b>{it.name}</b>
+        <small>{it.from} · {n} {n === 1 ? "move" : "moves"}</small>
+      </button>
+    );
+  };
+  return (
+    <section className="dtray" aria-label="Sessions you can drag in">
+      <div className="tray-h">Sessions <small>Drag one onto a free day, or press it to add it to week {week + 1}.</small></div>
+      {!!own.length && <><div className="tray-g">This program</div><div className="tray-l">{own.map(card)}</div></>}
+      {!!others.length && <><div className="tray-g">From your other programs</div><div className="tray-l">{others.map(card)}</div></>}
+    </section>
+  );
+}
+
+// ── The program's length, in one tap ────────────────────────────────────────
+// Step 6c: "4, 6, 8 or 12 weeks, or Custom". Longer copies the last week into the weeks not written
+// yet, and the progression sets their loads (`DashBuilder.resizeProgram`); shorter asks first when
+// the weeks it drops hold any move.
+const DBU_LENGTHS = [4, 6, 8, 12];
+function DbuLength({ weeks, onLength }) {
+  const custom = !DBU_LENGTHS.includes(weeks);
+  const [open, setOpen] = React.useState(false);
+  const [text, setText] = React.useState(null);
+  const apply = () => { const n = Math.floor(Number(text)); setText(null); if (Number.isFinite(n) && n >= 1 && n <= 52 && n !== weeks) onLength(n); };
+  return (
+    <div className="dlen" role="group" aria-label="Program length">
+      <span className="dlen-l">Length</span>
+      <span className="seg">
+        {DBU_LENGTHS.map((n) => <button key={n} type="button" aria-pressed={weeks === n} onClick={() => { setOpen(false); if (weeks !== n) onLength(n); }}>{n}</button>)}
+        <button type="button" aria-pressed={custom || open} onClick={() => setOpen(true)}>Custom</button>
+      </span>
+      {(custom || open) && <input type="number" min="1" max="52" aria-label="Program length in weeks" value={text != null ? text : String(weeks)}
+        onFocus={() => setText(String(weeks))} onChange={(e) => setText(e.target.value)} onBlur={apply}
+        onKeyDown={(e) => { if (dbuImeComposing(e.nativeEvent)) return; if (e.key === "Enter") { e.preventDefault(); apply(); } }} />}
+      <span className="dlen-w">weeks</span>
     </div>
   );
 }
@@ -2107,6 +2298,54 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
   );
 }
 
+// ── The progression, drawn ──────────────────────────────────────────────────
+// Step 6c: "Back squat 255 → 295 lb across the 12 weeks, deload weeks hatched, Now at week 6".
+// One series, so no legend: the caption names the move. The loads are the document's own (the
+// rule writes them into the weeks), read for the first move the rule climbs. "Now" is where the
+// clients on this program are, from each client's program leg on the roster (`now`), and is drawn
+// only when there is one: a program nobody is on has no now.
+function DbuProgressionChart({ doc, rule, now = [] }) {
+  const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+  if (!rule) return null;
+  const W = ShapeWorkoutDocument, weeks = doc.weeks || [];
+  let pick = null;
+  ((weeks[0] || {}).days || []).forEach((d, di) => (d.blocks || []).forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
+    if (!pick && W.progressionStatus(doc, 0, di, bi, ri) === "source") pick = { name: String(r.name || "").trim(), di };
+  })));
+  if (!pick || weeks.length < 2) return null;
+  const series = DashBuilder.progressionSeries(doc, pick.name, pick.di, rule.unit);
+  const pts = series.filter((p) => p.load != null);
+  if (pts.length < 2) return null;
+  const unit = rule.unit === "pct" ? "% 1RM" : " " + dbuUnitLabel(rule.unit);
+  const lo = Math.min(...pts.map((p) => p.load)), hi = Math.max(...pts.map((p) => p.load));
+  const n = weeks.length, colW = Math.max(34, Math.min(84, Math.floor(720 / n))), L = 44, T = 16, H = 76, B = 20;
+  const width = L + n * colW + 8, height = T + H + B;
+  const x = (wk) => L + (wk - 0.5) * colW;
+  const y = (v) => T + (hi === lo ? H / 2 : H - ((v - lo) / (hi - lo)) * H);
+  const path = pts.map((p, i) => (i ? "L" : "M") + x(p.week).toFixed(1) + " " + y(p.load).toFixed(1)).join(" ");
+  const marks = now.filter((m) => m.week >= 1 && m.week <= n);
+  const first = pts[0], last = pts[pts.length - 1];
+  const caption = pick.name + " " + first.load + " → " + last.load + unit + " across the " + n + " weeks"
+    + (series.some((p) => p.deload) ? ", deload weeks hatched" : "")
+    + (marks.length ? ". Now at " + marks.map((m) => "week " + m.week + " (" + m.names.join(", ") + ")").join(", ") : "") + ".";
+  return (
+    <figure className="dpc">
+      <svg viewBox={"0 0 " + width + " " + height} width={width} height={height} role="img" aria-label={caption}>
+        <defs><pattern id={"h" + uid} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="currentColor" strokeWidth="2" /></pattern></defs>
+        {series.map((p) => p.deload && <rect key={"d" + p.week} className="dpc-dl" x={L + (p.week - 1) * colW + 1} y={T - 6} width={colW - 2} height={H + 12} fill={"url(#h" + uid + ")"} />)}
+        <line className="dpc-ax" x1={L} x2={L + n * colW} y1={T + H + 2} y2={T + H + 2} />
+        <text className="dpc-t" x={L - 6} y={y(hi) + 4} textAnchor="end">{hi}</text>
+        {hi !== lo && <text className="dpc-t" x={L - 6} y={y(lo) + 4} textAnchor="end">{lo}</text>}
+        {series.map((p) => (n <= 12 || p.week % 2 === 1 || p.week === n) && <text key={"w" + p.week} className="dpc-t" x={x(p.week)} y={height - 5} textAnchor="middle">{p.week}</text>)}
+        {marks.map((m) => <g key={"n" + m.week}><line className="dpc-now" x1={x(m.week)} x2={x(m.week)} y1={T - 8} y2={T + H + 2} /><text className="dpc-nt" x={x(m.week) + 4} y={T - 1}>Now</text></g>)}
+        <path className="dpc-l" d={path} />
+        {pts.map((p) => <circle key={p.week} className="dpc-p" cx={x(p.week)} cy={y(p.load)} r="4"><title>{"Week " + p.week + (p.deload ? " · deload" : "") + " · " + p.load + unit}</title></circle>)}
+      </svg>
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+
 // ── The progression bar ──────────────────────────────────────────────────────
 // One rule for the program, set once and always in view above the canvas: "+5 lb a week
 // on main lifts, deload every 4th week" (owner, 2026-10-07, step 3 of the builder plan;
@@ -2114,7 +2353,7 @@ function DbuSheet({ doc, dates, setSel, setWeeks }) {
 // toolbar). The rule writes each later week's loads into the document as week 1 changes
 // (`applyProgramProgression`), so the Sheet's cells, the client preview and every
 // assignment read the climbed loads, not a label.
-function DbuProgressionBar({ doc, onRule }) {
+function DbuProgressionBar({ doc, onRule, now = [] }) {
   // The amount is held as typed while the field is in use: clearing "5" to type "2.5"
   // must not write a rule of nothing, or the weeks would flatten under the coach's hands.
   const [amount, setAmount] = React.useState(null);
@@ -2186,6 +2425,7 @@ function DbuProgressionBar({ doc, onRule }) {
         <button type="button" className="dp-b" onClick={() => onRule(null)}>Turn off</button>
       </div>
       <p className="dp-s">{lines.join(" ")}</p>
+      <DbuProgressionChart doc={doc} rule={rule} now={now} />
     </div>
   );
 }
@@ -2255,7 +2495,30 @@ function DbuDeleteDay({ day, wi, onDelete, onCancel }) {
   );
 }
 
-function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved, emptyNote, onAssigned }) {
+// ── The two builders (the owner's coach review, step 6c) ────────────────────
+// ⚠ ONE WORKOUT NO LONGER OPENS THE WHOLE PROGRAM BUILDER. "＋ Single workout day opened the
+// program builder with a week of six empty Rest cells, so 36 controls sat above the first exercise
+// and the add line fell below the fold." A single workout opens the DAY CANVAS alone: no plan,
+// no progression, no ＋ Week, the library open beside the list, the session's totals over it,
+// and one primary action, Assign. A program opens on its PLAN (weeks across, `DbuPlan`), and a
+// session peeked there opens in this same day canvas with Open in builder.
+// What counts as a single workout: a template saved as one (`buildType: 'workout'`), or, for one
+// that names no type, a document of one week and one day, which is the shared normaliser's own
+// rule (`normalizeWorkoutDetail`). A stored 'workout' that somehow holds more days than one is a
+// program here, so no day of it can be hidden.
+function dbuIsSingle(template, doc) {
+  const days = ((doc && doc.weeks) || []).reduce((n, w) => n + ((w && w.days) || []).length, 0);
+  const type = template && template.detail && template.detail.buildType;
+  return days === 1 && (doc.weeks || []).length === 1 && (type ? type === "workout" : true);
+}
+// "Saved just now" (step 6c: it "replaces Save template"). The time is the last save this page
+// made; a program opened from the library was saved before it opened, so it reads "Saved".
+function dbuSavedWords(at, nowMs) {
+  if (!at) return "Saved";
+  const mins = Math.floor((nowMs - at) / 60000);
+  return mins < 1 ? "Saved just now" : mins < 60 ? "Saved " + mins + " min ago" : "Saved";
+}
+function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved, emptyNote, onAssigned, usage }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
@@ -2269,7 +2532,16 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // or removed, or a day copied to other weeks leaves every later week's governed loads
   // where the rule puts them. Without a rule this returns the document it was given.
   const setDoc = (next) => setDocState(ShapeWorkoutDocument.applyProgramProgression(next));
-  const [sel, setSel] = React.useState({w:0,d:0});
+  // Decided once, from what opened: a single workout stays one while it is open.
+  const [single] = React.useState(() => dbuIsSingle(template, initial.current.doc));
+  // A single workout opens on its day; a program opens on its plan, with nothing open.
+  const [sel, setSel] = React.useState(() => (single ? {w:0,d:0} : {w:-1,d:-1}));
+  // The session peeked at on the plan, or null.
+  const [peek, setPeek] = React.useState(null);
+  // The day canvas's two tabs: build it, or see it as the client does (step 6c: "Client view is
+  // a tab on the sheet", where it used to float).
+  const [tab, setTab] = React.useState("build");
+  const assignRef = React.useRef(null);
   // ⚠ REMEMBERED PER COACH, which the board's G tab asks for in as many words: "the
   // switch is remembered per coach, so whoever thinks in calendars opens to the grid and
   // whoever programs in spreadsheets opens to the sheet". It rides the dashboard's own
@@ -2280,13 +2552,13 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // no account to remember against, and `useRememberedChoices` declines to open a
   // per-account document without one; the switch still works, it just does not persist.
   //
-  // ⚠ GRID ⇄ SHEET IS THE ONLY CHOICE LEFT (step 3 of the builder plan, owner, 2026-10-07).
-  // The Guided / Editor / Planner layouts and the day editor's three panel positions are
-  // retired, so nothing reads `workoutBuilderLayout` any more: a coach whose prefs still
-  // name "planner" opens on the Grid with the day editor docked, like everyone else, and
-  // the stale key is simply never asked for. (The meal builder keeps its own layouts.)
+  // ⚠ PLAN ⇄ SHEET IS THE ONLY CHOICE LEFT. The Guided / Editor / Planner layouts and the day
+  // editor's three panel positions were retired in step 3 (owner, 2026-10-07), so nothing reads
+  // `workoutBuilderLayout` any more. Step 6c replaced the Grid with the Plan, under a key of its
+  // own: a coach whose prefs still say "grid" opens on the Plan, which is what the Grid became.
+  // (The meal builder keeps its own layouts.)
   const prefs = useRememberedChoices(!!live);
-  const [view, setViewRaw] = useRememberedChoice(prefs, "builderView", DBU_VIEW_KEYS, "grid");
+  const [view, setViewRaw] = useRememberedChoice(prefs, "builderView", DBU_VIEW_KEYS, "plan");
   // What opened the day editor, so Done, Escape and Delete give focus back to it; and the
   // one-shot request to move focus into the editor once it has rendered.
   const dayTrigger = React.useRef(null);
@@ -2298,13 +2570,17 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // Said once a day is copied or deleted, since the result is in weeks the editor is not
   // showing (copy) or the editor itself is gone (delete).
   const [notice, setNotice] = React.useState("");
-  const [templateSaved, setTemplateSaved] = React.useState(false);
-  React.useEffect(() => setTemplateSaved(false), [name, doc]);
+  // When this page last saved, for "Saved just now", and a clock that moves it on.
+  const [savedAt, setSavedAt] = React.useState(0);
+  const [clock, setClock] = React.useState(() => Date.now());
+  React.useEffect(() => { if (!savedAt) return undefined; const t = setInterval(() => setClock(Date.now()), 30000); return () => clearInterval(t); }, [savedAt]);
   React.useEffect(() => setDayTool(null), [sel.w, sel.d]);
-  const selectDay = next => { dayTrigger.current = document.activeElement; focusPanel.current = true; setNotice(""); setSel(next); };
+  // Opening a day (from the plan's peek, a Sheet band, ＋ Add a day) puts the canvas on screen in
+  // the plan's place and the keyboard in it; the peek closes, and Build is the tab it opens on.
+  const selectDay = next => { dayTrigger.current = document.activeElement; focusPanel.current = true; setNotice(""); setPeek(null); setTab("build"); setSel(next); };
   // Sheet edits its own cells. Close the day editor when switching, then reopen
   // it from a day heading.
-  const setView = (next) => { if (next === "sheet") setSel({ w: -1, d: -1 }); setViewRaw(next); };
+  const setView = (next) => { if (next === "sheet") { setSel({ w: -1, d: -1 }); setPeek(null); } setViewRaw(next); };
   // ⚠ THE OPEN DOCUMENT COUNTS TOO. `customMoves` comes from SAVED templates, so a
   // move created ten seconds ago would not be offered for the next day until the
   // program had been saved and re-fetched — which reads as the feature not
@@ -2314,13 +2590,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // any descriptor the open copy is missing from the saved one, so the reorder loses
   // nothing; it is the library walk's own rule, not a second one written here.
   const ownMoves = React.useMemo(() => DashBuilder.ownMovesFor(doc, customMoves), [customMoves, doc]);
-  const [preview, setPreview] = React.useState(false);
-  // ⚠ THE PREVIEW IS DRAGGABLE AT EVERY WIDTH. `.pop` is `position:fixed` in every media
-  // query — nothing drops it back into the flow — so there is no width at which an inline
-  // position would fight the stylesheet. It also needs no default: the stylesheet already
-  // anchors it bottom-right, and leaving the position null until a coach moves it keeps
-  // that anchor live across a resize instead of freezing today's pixels.
-  const previewPanel = useDbuDrag({ enabled: true, open: preview, defaultPos: null });
+  const [updating, setUpdating] = React.useState(false);
   const [saveState, setSaveState] = React.useState(template.recovered ? 'dirty' : 'saved');
   const [error,setError] = React.useState('');
   const [saveConflict,setSaveConflict] = React.useState(false);
@@ -2328,14 +2598,23 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const [uploads,setUploads] = React.useState(0);
   // Focus goes back to whatever opened the day, or, when nothing on the canvas did (the
   // day the builder opens on), to ＋ Add a day, so the keyboard is never left on nothing.
-  const refocus = () => {
+  // ⚠ THE PLAN IS NOT ON THE PAGE WHILE A DAY IS OPEN (the canvas takes its place), so the
+  // focus is handed back once it has rendered again, not in the click that closes the day.
+  const refocusNext = React.useRef(false);
+  const refocus = () => { refocusNext.current = true; };
+  React.useEffect(() => {
+    if (!refocusNext.current) return;
+    refocusNext.current = false;
     const el = dayTrigger.current && dayTrigger.current.isConnected ? dayTrigger.current : addDayRef.current;
     if (el) el.focus();
-  };
+  });
+  // Closing a day goes back to the plan with that session peeked, so the coach lands where they
+  // left (the peek takes the keyboard). A single workout has no plan, so it has nothing to close.
   const closeDayEditor = () => {
-    if (uploads) return;
+    if (uploads || single) return;
+    const was = sel;
     setSel({w:-1,d:-1});
-    refocus();
+    if (view === "sheet") refocus(); else setPeek(was.w >= 0 ? { w: was.w, d: was.d } : null);
   };
   // ⚠ THE DAY EDITOR DOCKS UNDER THE CANVAS, so a day opened from week 1 of an 8-week Grid
   // can open below the fold. Focus moves into it once it has rendered, which brings it on
@@ -2377,7 +2656,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         if(live && copiedFrom.current){dbuWriteDraft(ownerRef.current,copiedFrom.current,null);copiedFrom.current=null;}
         if(live && serial===JSON.stringify(latest.current))dbuWriteDraft(ownerRef.current,idRef.current,null);
         else draft(latest.current);
-        if(active.current){setSaveState('saved');onSaved?.({id:plan.id,name:plan.name,doc:plan.detail.builder,plan});}
+        if(active.current){setSaveState('saved');setSavedAt(Date.now());setClock(Date.now());onSaved?.({id:plan.id,name:plan.name,doc:plan.detail.builder,plan});}
         return true;
       }catch(e){if(active.current){setSaveState('error');setSaveConflict(!!e.saveConflict);setError(e.message || 'Save failed. Retry.');}return false;}
       finally{flight.current=null;}
@@ -2448,6 +2727,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
     if (action === "remove" && doc.weeks.length > 1) {
       setWeeks(doc.weeks.filter((_, i) => i !== wi));
       setSel({ w: -1, d: -1 });
+      setPeek(null);
     }
   };
   // ⚠ TAKING A DELOAD OFF GIVES THE SETS BACK (`undeloadWeek`), unless the coach changed them
@@ -2497,6 +2777,84 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   // for the editor to open, and the Grid would be the only way back.
   const onlyDay = doc.weeks.reduce((n, w) => n + (w.days || []).length, 0) <= 1;
 
+  // ── The plan's own writers ──
+  // A rest letter or a free slot adds an empty session on that weekday and opens it.
+  const addAt = (wi, weekday) => {
+    const w = doc.weeks[wi];
+    setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days: [...x.days, { ...DashBuilder.newDay("Day " + (w.days.length + 1)), weekday }] } : x)));
+    selectDay({ w: wi, d: w.days.length });
+  };
+  // A session from the tray lands on a free day only: a day already there is the coach's, and
+  // this is an add, not a replace (Copy to weeks is the tool that replaces, and says so first).
+  // The copy is a day of its own (`dbuCopiedDay`: new ids, the full week's sets, loads that follow
+  // the progression), cut like the rest of a deload week it lands in.
+  const placeSession = (item, wi, weekday) => {
+    const w = doc.weeks[wi];
+    if (!w || !item || !item.day) return;
+    const taken = (w.days || []).find((d) => dbuHasWeekday(d) && d.weekday === weekday);
+    if (taken) { setNotice("Week " + (wi + 1) + " already has " + (taken.name || "a session") + " on " + DBU_DOW_FULL[weekday] + ". Drop " + item.name + " on a free day."); return; }
+    const copy = dbuCopiedDay(item.day, !!w.deload);
+    copy.weekday = weekday;
+    const after = w.days.findIndex((d) => dbuHasWeekday(d) && d.weekday > weekday);
+    const days = after < 0 ? [...w.days, copy] : [...w.days.slice(0, after), copy, ...w.days.slice(after)];
+    setWeeks(doc.weeks.map((x, i) => (i === wi ? { ...x, days } : x)));
+    setNotice(item.name + " added to week " + (wi + 1) + ", " + DBU_DOW_FULL[weekday] + ".");
+  };
+  // Pressed rather than dragged: the week being peeked at (week 1 when none is), on the saved
+  // day's own weekday when that is free, else the week's next free one.
+  const trayWeek = peek ? peek.w : 0;
+  const addFromTray = (item) => {
+    const w = doc.weeks[trayWeek];
+    if (!w) return;
+    const own = dbuHasWeekday(item.day) && !(w.days || []).some((d) => dbuHasWeekday(d) && d.weekday === item.day.weekday) ? item.day.weekday : null;
+    const free = [0, 1, 2, 3, 4, 5, 6].filter((x) => !(w.days || []).some((d) => dbuHasWeekday(d) && d.weekday === x));
+    if (own == null && !free.length) { setNotice("Week " + (trayWeek + 1) + " trains every day already."); return; }
+    placeSession(item, trayWeek, own != null ? own : dbuNextFreeWeekday(w));
+  };
+  // The length control's one writer. Dropping weeks that hold a move asks first, through the
+  // site's own confirm; never the browser's.
+  const setLength = async (n) => {
+    const out = DashBuilder.resizeProgram(doc, n);
+    if (out.builder === doc) return;
+    if (out.removed && out.removed.moves) {
+      const C = typeof window !== "undefined" && window.ShapeConfirm;
+      if (!C || typeof C.open !== "function") { setNotice("Remove weeks with the × on each week."); return; }
+      const r = out.removed, k = r.to - r.from + 1;
+      const ok = await C.open({ title: "Shorten to " + n + (n === 1 ? " week?" : " weeks?"), name: latest.current.name,
+        confirmLabel: "Remove " + k + (k === 1 ? " week" : " weeks"),
+        message: (k === 1 ? "Week " + r.from + " goes" : "Weeks " + r.from + "–" + r.to + " go") + ", with " + r.sessions + (r.sessions === 1 ? " session" : " sessions") + " in " + (k === 1 ? "it" : "them") + ". Clients already assigned keep every session on their calendar." });
+      if (!ok) return;
+      const again = DashBuilder.resizeProgram(latest.current.doc, n);
+      setDoc(again.builder);
+    } else setDoc(out.builder);
+    if (peek && peek.w >= n) setPeek(null);
+    setNotice("The program is " + n + (n === 1 ? " week" : " weeks") + " long" + (n > doc.weeks.length ? "; the new weeks copy the last one, with the progression applied." : "."));
+  };
+  // Where the clients on this program are now, from each one's program leg on the roster.
+  const nowMarks = React.useMemo(() => {
+    const by = new Map();
+    (clients || []).forEach((c) => {
+      const leg = DashBuilder.trainerProgramOf(c);
+      const wk = leg && Number(leg.week);
+      if (!leg || leg.templateId !== idRef.current || !Number.isInteger(wk) || wk < 1) return;
+      if (!by.has(wk)) by.set(wk, []);
+      by.get(wk).push(String((c.profile && c.profile.name) || "A client"));
+    });
+    return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([week, names]) => ({ week, names }));
+    // The program's id is a ref: "Save as new copy" changes it without a new roster (Codex on #2648).
+  }, [clients, idRef.current]);
+  // The header's Assign: the sheet for a single workout; the program's own panel for a program,
+  // back on the plan if a session is open.
+  const openAssign = async () => {
+    if (single) { if (await flush()) setAssigning(true); return; }
+    setSel({ w: -1, d: -1 });
+    setTimeout(() => { const el = assignRef.current; if (el) { if (el.scrollIntoView) el.scrollIntoView({ block: "center" }); el.focus(); } }, 0);
+  };
+  // The panel saves first, then assigns the version it saved.
+  // What Assign sends is what just saved (Codex on #2648): the document the save wrote, read after it,
+  // never the one on screen when Assign was pressed (an edit made while the save ran is in the save).
+  const beforeAssign = async () => ((await flush()) ? { id: idRef.current, name: latest.current.name, revision: revision.current, doc: latest.current.doc } : null);
+
   // What the program's progression does to each move of the open day, for its marks.
   const progress = {}, rpeProgress = {};
   if (day) (day.blocks || []).forEach((b, bi) => (b.rows || []).forEach((r, ri) => {
@@ -2508,8 +2866,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
   const rule = ShapeWorkoutDocument.normalizeProgression(doc.progression);
 
   const previewCard = day ? DashBuilder.dayToClientCard(day, { coach: "you", programVideo:doc.video }) : null;
-  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? "Saved" : "New template · not saved yet") : "Draft saved locally";
-
+  const saveLabel = saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Draft on this device" : saveState === "error" ? "Save failed · draft retained" : live ? (persisted.current ? dbuSavedWords(savedAt, clock) : "New · not saved yet") : savedAt ? "Draft saved locally · " + dbuSavedWords(savedAt, clock).replace(/^Saved /, "") : "Draft saved locally";
   // The reference Monday the dates on this page are drawn for. It lives ON the document
   // (`detail.builder.previewStart`) so it survives a reload, and it is a REFERENCE only —
   // ⚠ each client's real start is still chosen per client at assign, which is why the
@@ -2550,36 +2907,11 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .chip.q{background:transparent;border-color:transparent;color:${DBU_INK2};font-weight:500;padding:0 2px}
 .dbu2 .acts{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-top:2px}
 .dbu2 .saved{font-size:13px;color:${DBU_INK3}}
-.dbu2 .tog{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:${DBU_INK2};font-weight:500;background:transparent;border:0;cursor:pointer;height:40px;padding:0}
-.dbu2 .tog i{width:36px;height:20px;border-radius:10px;background:${DBU_LINE2};position:relative;display:inline-block}
-.dbu2 .tog[aria-pressed="true"]{color:${DBU_INK}}
-.dbu2 .tog[aria-pressed="true"] i{background:${DBU_TEAL}}
-.dbu2 .tog i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .14s}
-.dbu2 .tog[aria-pressed="true"] i::after{left:18px}
 .dbu2 .seg{display:inline-flex;gap:3px;background:${DBU_PG};border:1px solid ${DBU_LINE2};border-radius:9px;padding:3px;height:40px;align-items:center}
 .dbu2 .seg button{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border:0;border-radius:7px;font-size:13.5px;font-weight:600;color:${DBU_INK2};white-space:nowrap;background:transparent;cursor:pointer}
 .dbu2 .seg button[aria-pressed="true"]{background:${DBU_WH};color:${DBU_INK};box-shadow:0 1px 2px rgba(0,0,0,.14)}
 .dbu2 .seg button i{font-style:normal;font-size:13px;line-height:1;opacity:.85}
 .dbu2 .tb{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.dbu2 .wg{display:grid;grid-template-columns:150px repeat(7,minmax(0,1fr));gap:8px}
-.dbu2 .wg .h{font-size:12px;font-weight:700;color:${DBU_INK3};text-transform:uppercase;letter-spacing:.06em;padding:0 0 4px 10px}
-.dbu2 .wg .wk{padding:10px 8px 10px 0}
-.dbu2 .wg .wk b{display:block;font-size:15px;font-weight:700}
-.dbu2 .wg .wk span{display:block;font-size:13px;color:${DBU_INK2};margin-top:2px}
-.dbu2 .wg .wk .dl{display:inline-block;margin-top:8px;font-size:12px;padding:3px 8px;border-radius:6px;background:${DBU_GOLDBG};color:${DBU_GOLD};font-weight:600}
-.dbu2 .wg .wk .tools{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
-.dbu2 .wg .wk .tools button{height:26px;padding:0 8px;border-radius:6px;border:1px solid ${DBU_LINE2};background:${DBU_WH};font-size:12px;font-weight:600;color:${DBU_INK2};cursor:pointer}
-.dbu2 .wg .wk .tools button[aria-pressed="true"]{background:${DBU_GOLDBG};border-color:transparent;color:${DBU_GOLD}}
-.dbu2 .wg .c{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:10px;min-height:112px;padding:9px 10px;position:relative;text-align:left;width:100%;cursor:pointer;display:block}
-.dbu2 .wg .c .d{display:block;font-size:13px;color:${DBU_INK3};font-variant-numeric:tabular-nums}
-.dbu2 .wg .c.rest{background:${DBU_REST};border-color:transparent}
-.dbu2 .wg .c.rest .r{display:block;position:absolute;left:10px;bottom:9px;font-size:12.5px;color:${DBU_INK3}}
-.dbu2 .wg .c.rest:hover,.dbu2 .wg .c.rest:focus-visible{border:1.5px dashed ${DBU_TEAL};background:${DBU_TEALBG}}
-.dbu2 .wg .c.rest:hover .r,.dbu2 .wg .c.rest:focus-visible .r{color:${DBU_TEAL};font-weight:700}
-.dbu2 .wg .s{display:block;margin-top:8px;border-left:3px solid ${DBU_RUST};background:${DBU_RUSTBG};border-radius:6px;padding:7px 9px}
-.dbu2 .wg .s b{display:block;font-size:14px;font-weight:700;line-height:1.2}
-.dbu2 .wg .s span{display:block;font-size:12px;color:${DBU_INK2};margin-top:3px}
-.dbu2 .wg .c.on{outline:2px solid ${DBU_TEAL};border-color:transparent}
 .dbu2 .sh{width:100%;border-collapse:separate;border-spacing:0;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:12px;overflow:hidden;table-layout:fixed}
 .dbu2 .sh th{text-align:left;padding:12px 12px 10px;border-bottom:1px solid ${DBU_LINE};vertical-align:top;font-weight:600;font-size:14px;background:${DBU_PG}}
 .dbu2 .sh th small{display:block;font-size:12.5px;color:${DBU_INK2};font-weight:500;margin-top:2px}
@@ -2628,18 +2960,11 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dmsg{margin:0 0 12px;font-size:13.5px;font-weight:600;color:${DBU_TEAL}}
 .dbu2 .sh .cell .pg{position:absolute;top:3px;right:6px;font-size:11px;line-height:1;color:${DBU_TEAL};background:transparent;border:0;padding:0}
 .dbu2 .sh .cell button.pg.pin{top:0;right:0;min-width:24px;min-height:24px;padding:3px 6px;display:flex;justify-content:flex-end;align-items:flex-start;color:${DBU_GOLD};cursor:pointer}
-/* The day editor docks under the canvas at the builder's full width (step 3). It used to
-   float in three positions; now only the client preview floats. */
+/* The day editor sits at the builder's full width: under the canvas since step 3, in the plan's
+   place since step 6c. It used to float in three positions; nothing floats now. */
 .dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;padding:20px 22px 18px;margin-top:16px;scroll-margin-top:16px}
 .dbu2 .drawer:focus{outline:none}
 .dbu2 .drawer:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:2px}
-.dbu2 .pop .ph2.grab{cursor:grab;touch-action:none}
-.dbu2 .gh{flex:0 0 auto;order:-1;height:28px;width:22px;padding:0;border:0;cursor:grab;border-radius:6px;background-image:radial-gradient(currentColor 1.1px, transparent 1.2px);background-size:6px 6px;background-position:center;background-repeat:repeat;background-clip:content-box;padding:5px 7px;color:${DBU_LINE2}}
-.dbu2 .gh:hover{color:${DBU_INK2}}
-.dbu2 .gh:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:1px}
-.dbu2 .pop{position:fixed;right:20px;bottom:20px;width:344px;max-width:calc(100vw - 40px);max-height:calc(100vh - 120px);overflow-y:auto;z-index:60;background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;box-shadow:0 18px 50px rgba(21,33,30,.16);padding:16px 18px 18px}
-.dbu2 .pop .ph2{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
-.dbu2 .pop .ph2 b{font-size:15px;font-weight:700;margin-right:auto}
 .dbu2 .x{height:32px;padding:0 11px;border-radius:8px;border:1px solid ${DBU_LINE};background:${DBU_WH};color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer}
 .dbu2 .scroll{overflow-x:auto}
 /* ── The day editor: one line per exercise, the detail beside it ─────────────
@@ -2711,6 +3036,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dmain{min-width:0}
 @container dday (min-width:760px){
  .dbu2 .dsplit{grid-template-columns:minmax(0,1fr) 284px}
+ .dbu2 .dsplit.lib{grid-template-columns:minmax(0,1fr) 300px}
 }
 .dbu2 .dlist{container:dlist / inline-size;position:relative;border:1px solid ${DBU_LINE};border-radius:10px;background:${DBU_WH}}
 .dbu2 .dlist[data-dragging]{user-select:none;-webkit-user-select:none}
@@ -2724,7 +3050,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 /* A line, two rows of it where the list is narrow: the move on top, its four numbers
    under it in fixed columns, which the list's header names once. (A caption on every
    cell was tried first and ran a phone row to three lines.) */
-.dbu2 .dhd{display:grid;grid-template-columns:16px 84px 82px 38px minmax(0,1fr);column-gap:6px;padding:7px 8px 4px 4px;font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${DBU_INK3}}
+.dbu2 .dhd{display:grid;grid-template-columns:16px 84px 96px 38px 72px minmax(0,1fr);column-gap:6px;padding:7px 8px 4px 4px;font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${DBU_INK3}}
 .dbu2 .dhd span:nth-child(-n+3){display:none}
 .dbu2 .dhd span:nth-child(4){grid-column:2}
 .dbu2 .dhd span:nth-child(n+4){padding-left:5px;white-space:nowrap}
@@ -2743,7 +3069,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dr .nm{flex:0 1 auto;min-width:0;height:var(--dbu-cell);padding:0 4px;border:0;border-radius:5px;background:transparent;color:${DBU_INK};font-size:14px;font-weight:600;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .dbu2 .dr .mk{flex:0 0 auto;display:inline-flex;gap:6px;color:${DBU_INK3};font-size:12.5px;line-height:1}
 .dbu2 .dr .mk b{font-weight:600;cursor:default}
-.dbu2 .dr .dcells{grid-column:2/-1;display:grid;grid-template-columns:84px 82px 38px minmax(0,1fr);column-gap:6px;align-items:center}
+.dbu2 .dr .dcells{grid-column:2/-1;display:grid;grid-template-columns:84px 96px 38px 72px minmax(0,1fr);column-gap:6px;align-items:center}
 .dbu2 .dr .c{display:flex;align-items:center;gap:1px;min-width:0}
 .dbu2 .dr .tm{flex:0 0 auto;color:${DBU_INK3};font-size:12px}
 .dbu2 .dr .ci{box-sizing:border-box;height:var(--dbu-cell);min-width:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;color:${DBU_INK};font-size:14px;font-variant-numeric:tabular-nums;outline:none}
@@ -2760,10 +3086,10 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dr .rp .ci{width:100%;text-align:center}
 .dbu2 .dr .rs .ci{width:100%}
 @container dlist (min-width:500px){
- .dbu2 .dhd{grid-template-columns:16px 26px minmax(0,1fr) 96px 92px 38px 52px;column-gap:4px;padding:8px 8px 5px 4px}
+ .dbu2 .dhd{grid-template-columns:16px 26px minmax(0,1fr) 96px 104px 38px 74px 52px;column-gap:4px;padding:8px 8px 5px 4px}
  .dbu2 .dhd span:nth-child(-n+3){display:block}
  .dbu2 .dhd span:nth-child(4){grid-column:auto}
- .dbu2 .dr{grid-template-columns:16px 26px minmax(0,1fr) 96px 92px 38px 52px;column-gap:4px;padding:3px 8px 3px 4px}
+ .dbu2 .dr{grid-template-columns:16px 26px minmax(0,1fr) 96px 104px 38px 74px 52px;column-gap:4px;padding:3px 8px 3px 4px}
  .dbu2 .dr .dcells{display:contents}
 }
 .dbu2 .dline{position:absolute;left:8px;right:8px;height:2px;margin-top:-1px;border-radius:2px;background:${DBU_TEAL};pointer-events:none;z-index:4}
@@ -2815,33 +3141,151 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .ddetail .drow .df{width:auto;flex:1 1 150px}
 .dbu2 .ddetail .dacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start;margin:14px 0 0;padding-top:12px;border-top:1px solid ${DBU_LINE}}
 @media(max-width:760px){.dbu2{padding:16px 12px}.dbu2 .hd>div{min-width:0!important}.dbu2 .drawer{padding:14px 12px 16px}}
-/* NOTE: these rules carry NO .dbu2 prefix on purpose. DbuDialog portals into
-   document.body, so the picker is NOT inside the builder's root and every
-   prefixed rule above misses it — which is why its checkboxes drew at the
-   browser default while .dbu2 input[type=checkbox] sized every other one on the
-   page to 24px. (No backticks in here: this block is a template literal, and a
-   backtick in a comment ends it — see the 2026-09-15 pageShell post-mortem.) */
-.pk-list{max-height:min(48vh,380px);overflow-y:auto;margin-top:4px;padding-right:4px}
-.pk-head{font-family:${DBU_MONO};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${DBU_INK2};margin:13px 0 3px;padding:0 6px}
-.pk-list>.pk-head:first-child{margin-top:2px}
-.pk-row{display:flex;gap:11px;align-items:center;min-height:44px;padding:4px 6px;border-radius:6px;cursor:pointer}
-.pk-row:hover{background:rgba(var(--sh-ink-rgb, 242,237,228),.06)}
-.pk-row input[type="checkbox"]{flex:0 0 auto;width:20px;height:20px;accent-color:${DBU_TEAL};cursor:pointer}
-.pk-row b{display:block;font-size:13.5px;font-weight:500}
-.pk-row small{display:block;font-size:11.5px;color:${DBU_INK2};margin-top:1px}
-.pk-none{font-size:12.5px;color:${DBU_INK2};padding:12px 6px}
-.pk-new{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;margin-top:8px;padding:0 12px;border-radius:9px;cursor:pointer;
-  font-family:${DBU_BODY};font-size:13.5px;font-weight:600;text-align:left;
-  color:${DBU_TEAL};background:rgba(var(--sh-accent-rgb, 46,224,196),.08);border:1px dashed rgba(var(--sh-accent-rgb, 46,224,196),.45)}
-.pk-new:hover{background:rgba(var(--sh-accent-rgb, 46,224,196),.14)}
+/* ── Step 6c: the two builders ─────────────────────────────────────────────
+   A tool page with a fixed layout: the header, then the plan (a program) or the day canvas
+   (a single workout, or a program's session opened from the plan). */
+.dbu2 .savenow{height:28px;padding:0 10px;border-radius:7px;border:1px solid ${DBU_LINE2};background:transparent;color:${DBU_INK2};font-size:12.5px;font-weight:600;cursor:pointer}
+.dbu2 .dlen{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:${DBU_INK2}}
+.dbu2 .dlen-l{font-family:${DBU_MONO};font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_INK3}}
+.dbu2 .dlen .seg button{padding:0 11px}
+.dbu2 .dlen input{width:58px;height:34px;padding:0 8px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-size:14px;font-variant-numeric:tabular-nums}
+/* The plan: weeks across, training days down. */
+.dbu2 .dpl{display:grid;gap:8px;align-items:stretch}
+.dbu2 .dpl .rl{padding:10px 4px 0 0;font-size:12px;font-weight:700;color:${DBU_INK3};text-transform:uppercase;letter-spacing:.06em}
+.dbu2 .dpl .wkh{display:grid;gap:8px;align-content:start;padding:10px 10px 12px;border-radius:10px;background:${DBU_WH};border:1px solid ${DBU_LINE}}
+.dbu2 .dpl .wkh.dl{background-image:repeating-linear-gradient(135deg,transparent 0 7px,${DBU_GOLDBG} 7px 9px)}
+.dbu2 .dpl .wkt{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.dbu2 .dpl .wkt b{font-size:15px;font-weight:700}
+.dbu2 .dpl .wkt>span:not(.chip){font-size:13px;color:${DBU_INK2}}
+.dbu2 .dpl .wkh .chip{height:22px;font-size:11.5px}
+.dbu2 .dpl .tools{display:flex;gap:4px;flex-wrap:wrap}
+.dbu2 .dpl .tools button{height:26px;padding:0 8px;border-radius:6px;border:1px solid ${DBU_LINE2};background:${DBU_WH};font-size:12px;font-weight:600;color:${DBU_INK2};cursor:pointer}
+.dbu2 .dpl .tools button[aria-pressed="true"]{background:${DBU_GOLDBG};border-color:transparent;color:${DBU_GOLD}}
+.dbu2 .dpl .wst{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.dbu2 .dpl .wst button{height:26px;min-width:0;padding:0;border-radius:6px;border:1px dashed ${DBU_LINE2};background:transparent;color:${DBU_INK3};font-family:${DBU_MONO};font-size:11px;font-weight:700;cursor:pointer}
+.dbu2 .dpl .wst button.on{border:1px solid ${DBU_RUST};background:${DBU_RUSTBG};color:${DBU_RUST}}
+.dbu2 .dpl .wst button:not(.on):hover{border-color:${DBU_TEAL};color:${DBU_TEAL}}
+.dbu2 .dpl .ses{display:flex;flex-direction:column;gap:2px;width:100%;min-height:96px;padding:9px 10px 10px;border:1px solid ${DBU_LINE};border-left:3px solid ${DBU_RUST};border-radius:10px;background:${DBU_WH};color:${DBU_INK};text-align:left;cursor:pointer;font:inherit}
+.dbu2 .dpl .ses.dl{background-image:repeating-linear-gradient(135deg,transparent 0 7px,${DBU_GOLDBG} 7px 9px);border-left-color:${DBU_GOLD}}
+.dbu2 .dpl .ses.on{outline:2px solid ${DBU_TEAL};outline-offset:1px}
+.dbu2 .dpl .ses .d{font-size:12px;color:${DBU_INK3};font-variant-numeric:tabular-nums}
+.dbu2 .dpl .ses b{font-size:14px;font-weight:700;line-height:1.2}
+.dbu2 .dpl .ses .m{font-size:12px;color:${DBU_INK2};margin-bottom:4px}
+.dbu2 .dpl .ses .ln{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;line-height:1.35;font-variant-numeric:tabular-nums}
+.dbu2 .dpl .ses .ln .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${DBU_INK2}}
+.dbu2 .dpl .ses .ln .v{flex:0 0 auto;font-weight:600}
+.dbu2 .dpl .ses .ln i{font-style:normal;color:${DBU_TEAL};font-weight:700}
+.dbu2 .dpl .ses.empty{min-height:44px;align-items:center;justify-content:center;border:1px dashed ${DBU_LINE2};background:transparent;color:${DBU_INK3}}
+.dbu2 .dpl .ses.empty:hover,.dbu2 .dpl .ses.empty:focus-visible{border-color:${DBU_TEAL};color:${DBU_TEAL};background:${DBU_TEALBG}}
+/* The peek: one session, read-only, under the plan. */
+.dbu2 .dpeek{margin-top:14px;padding:14px 16px;border:1px solid ${DBU_LINE2};border-top:3px solid ${DBU_TEAL};border-radius:12px;background:${DBU_WH}}
+.dbu2 .dpeek:focus{outline:none}
+.dbu2 .dpeek .pk-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.dbu2 .dpeek .when{font-family:${DBU_MONO};font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_RUST}}
+.dbu2 .dpeek .pk-hd b{font-family:${DBU_DISPLAY};font-size:20px;font-weight:700}
+.dbu2 .dpeek .pk-acts{display:flex;gap:8px;align-items:center}
+.dbu2 .dpeek .pk-b{display:grid;grid-template-columns:96px 1fr;gap:4px 12px;padding:8px 0;border-top:1px solid ${DBU_LINE}}
+.dbu2 .dpeek .kl{font-family:${DBU_MONO};font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_INK3};padding-top:2px}
+.dbu2 .dpeek ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.dbu2 .dpeek li{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:13.5px}
+.dbu2 .dpeek li i{font-style:normal;font-family:${DBU_MONO};font-size:10.5px;font-weight:700;color:${DBU_INK3};width:22px}
+.dbu2 .dpeek li span{color:${DBU_INK2};font-variant-numeric:tabular-nums}
+/* The tray of sessions to drag in. */
+.dbu2 .dtray{margin-top:16px}
+.dbu2 .tray-h{font-size:14px;font-weight:700;margin-bottom:6px}
+.dbu2 .tray-h small{margin-left:8px;font-size:12.5px;font-weight:500;color:${DBU_INK2}}
+.dbu2 .tray-g{font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${DBU_INK3};margin:8px 0 6px}
+.dbu2 .tray-l{display:flex;gap:8px;flex-wrap:wrap}
+.dbu2 .tray-c{display:grid;gap:1px;min-width:150px;max-width:230px;padding:8px 12px 9px;border:1px solid ${DBU_LINE};border-left:4px solid var(--c);border-radius:9px;background:${DBU_WH};color:${DBU_INK};text-align:left;cursor:grab;font:inherit}
+.dbu2 .tray-c .tk{font-size:11px;font-weight:700;color:${DBU_INK2}}
+.dbu2 .tray-c b{font-size:13.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbu2 .tray-c small{font-size:12px;color:${DBU_INK3};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Assign on the same screen. */
+.dbu2 .das{margin-top:18px;padding:16px 18px;border:1px solid ${DBU_LINE};border-left:3px solid ${DBU_RUST};border-radius:12px;background:${DBU_WH};display:grid;gap:10px}
+.dbu2 .das:focus{outline:none}
+.dbu2 .das:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:2px}
+.dbu2 .das-h{margin:0;font-family:${DBU_DISPLAY};font-size:20px;font-weight:700}
+.dbu2 .das-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:10px;align-items:start}
+.dbu2 .das-l{font-family:${DBU_MONO};font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${DBU_INK3};padding-top:8px}
+.dbu2 .das-v{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;min-height:36px;font-size:13.5px}
+.dbu2 .das-on{display:flex;gap:6px 14px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
+.dbu2 .das-on li{display:inline-flex;align-items:center;gap:6px}
+.dbu2 .das-b{height:32px;padding:0 12px;border-radius:8px;border:1px solid ${DBU_LINE2};background:${DBU_WH};color:${DBU_INK};font-size:13px;font-weight:600;cursor:pointer}
+.dbu2 .das-gems{display:flex;gap:6px;flex-wrap:wrap}
+.dbu2 .das-gem{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid ${DBU_LINE2};background:transparent;color:${DBU_INK};font-size:13px;font-weight:600;cursor:pointer}
+.dbu2 .das-gem[aria-pressed="true"]{border-color:${DBU_TEAL};background:${DBU_TEALBG}}
+.dbu2 .das-date{height:36px;padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-size:14px}
+.dbu2 .das-go{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-top:4px}
+.dbu2 .das-demo{font-family:${DBU_MONO};font-size:9px;color:${DBU_INK2};letter-spacing:.1em;text-transform:uppercase}
+/* The progression, drawn. */
+.dbu2 .dpc{margin:6px 0 0;overflow-x:auto}
+.dbu2 .dpc svg{display:block;color:${DBU_GOLD}}
+.dbu2 .dpc figcaption{font-size:12.5px;color:${DBU_INK2};margin-top:2px}
+.dbu2 .dpc .dpc-dl{opacity:.45}
+.dbu2 .dpc .dpc-ax{stroke:${DBU_LINE2};stroke-width:1}
+.dbu2 .dpc .dpc-t{fill:${DBU_INK3};font-size:10px;font-family:${DBU_MONO}}
+.dbu2 .dpc .dpc-l{fill:none;stroke:${DBU_TEAL};stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.dbu2 .dpc .dpc-p{fill:${DBU_TEAL};stroke:${DBU_WH};stroke-width:2}
+.dbu2 .dpc .dpc-now{stroke:${DBU_RUST};stroke-width:1.5;stroke-dasharray:3 3}
+.dbu2 .dpc .dpc-nt{fill:${DBU_RUST};font-size:10px;font-weight:700;font-family:${DBU_MONO}}
+/* The day canvas: tabs, the totals, the library beside the list. */
+.dbu2 .drawer.solo{margin-top:0}
+.dbu2 .dtabs{display:inline-flex;gap:3px;padding:3px;margin:0 0 14px;border:1px solid ${DBU_LINE2};border-radius:9px;background:${DBU_PG}}
+.dbu2 .dtabs button{height:30px;padding:0 14px;border:0;border-radius:7px;background:transparent;color:${DBU_INK2};font-size:13px;font-weight:600;cursor:pointer}
+.dbu2 .dtabs button[aria-selected="true"]{background:${DBU_WH};color:${DBU_INK};box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.dbu2 .dclient{max-width:420px}
+.dbu2 .dtot{display:grid;gap:8px;margin:0 0 14px;padding:10px 14px;border:1px solid ${DBU_LINE};border-radius:10px;background:${DBU_PG}}
+.dbu2 .dtot-n{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:13px;color:${DBU_INK2}}
+.dbu2 .dtot-n b{font-family:${DBU_DISPLAY};font-size:19px;font-weight:700;color:${DBU_INK};margin-right:3px;font-variant-numeric:tabular-nums}
+.dbu2 .dtot-m{display:grid;gap:6px}
+.dbu2 .mbar{display:flex;gap:2px;height:10px}
+.dbu2 .mbar i{display:block;min-width:4px;border-radius:3px}
+.dbu2 .mleg{display:flex;gap:4px 14px;flex-wrap:wrap;list-style:none;margin:0;padding:0;font-size:12.5px;color:${DBU_INK2}}
+.dbu2 .mleg li{display:inline-flex;align-items:center;gap:5px}
+.dbu2 .mleg i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.dbu2 .mleg b{color:${DBU_INK};font-variant-numeric:tabular-nums}
+.dbu2 .dtot-note{margin:0;font-size:13px;font-weight:600;color:${DBU_INK}}
+.dbu2 .dtot-foot{margin:0;font-size:12px;color:${DBU_INK3}}
+.dbu2 .dlib{min-width:0;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid ${DBU_LINE2};border-radius:12px;background:${DBU_PG}}
+.dbu2 .lib-h{font-family:${DBU_MONO};font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${DBU_INK2}}
+.dbu2 .lib-h small{margin-left:6px;font-family:${DBU_BODY};font-size:12px;letter-spacing:0;text-transform:none;font-weight:500;color:${DBU_INK3}}
+.dbu2 .lib-q{height:var(--dbu-ctl);padding:0 10px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-size:13.5px;outline:none}
+.dbu2 .lib-q:focus{border-color:${DBU_TEAL}}
+.dbu2 .lib-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.dbu2 .lib-seg{display:inline-flex;gap:2px;padding:2px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH}}
+.dbu2 .lib-seg button{height:28px;padding:0 9px;border:0;border-radius:6px;background:transparent;color:${DBU_INK2};font-size:12.5px;font-weight:600;cursor:pointer}
+.dbu2 .lib-seg button[aria-pressed="true"]{background:${DBU_TEALBG};color:${DBU_INK}}
+.dbu2 .lib-f select{flex:1 1 110px;min-width:0;height:32px;padding:0 6px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-size:12.5px}
+.dbu2 .lib-new{display:flex;align-items:center;gap:6px;min-height:34px;padding:0 10px;border:1px dashed ${DBU_TEAL};border-radius:8px;background:${DBU_TEALBG};color:${DBU_TEAL};font-size:13px;font-weight:600;text-align:left;cursor:pointer}
+/* Positioned, so a visually hidden label inside a row is clipped with the list rather than
+   stretching the page below it. */
+.dbu2 .lib-list{position:relative;list-style:none;margin:0;padding:0 2px 0 0;max-height:520px;overflow-y:auto}
+.dbu2 .lib-g{padding:8px 4px 3px;font-family:${DBU_MONO};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${DBU_INK3}}
+.dbu2 .lib-row{display:flex;align-items:center;gap:6px;min-height:40px;padding:3px 4px;border-radius:7px;cursor:grab}
+.dbu2 .lib-row:hover{background:${DBU_WH}}
+.dbu2 .lib-nm{flex:1 1 auto;min-width:0;display:grid}
+.dbu2 .lib-nm b{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbu2 .lib-nm small{font-size:11.5px;color:${DBU_INK3};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbu2 .lib-in{flex:0 0 auto;color:${DBU_TEAL};font-weight:700;font-size:13px}
+.dbu2 .lib-add{flex:0 0 auto;height:28px;padding:0 8px;border:1px solid ${DBU_LINE2};border-radius:7px;background:${DBU_WH};color:${DBU_TEAL};font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.dbu2 .lib-none{padding:10px 4px;font-size:12.5px;color:${DBU_INK2}}
+.dbu2 .lib-hint{margin:0;font-size:11.5px;color:${DBU_INK3}}
+/* The whiteboard line: the superset bracket, the tempo, the cue, and the rest that goes on. */
+.dbu2 .dr .ssb{grid-column:1/-1;padding:3px 0 1px 46px;font-family:${DBU_MONO};font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${DBU_RUST}}
+.dbu2 .dr .tp .ci{width:100%}
+.dbu2 .dr .ci.to{display:inline-flex;align-items:center;width:100%;color:${DBU_RUST};font-family:${DBU_MONO};font-size:12px;font-weight:700}
+.dbu2 .dr .ci.cue{grid-column:3/-1;height:24px;font-size:12.5px;font-style:italic;color:${DBU_INK2}}
+.dbu2 .dr .ci.cue::placeholder{font-style:normal}
+@container dday (max-width:759px){.dbu2 .dsplit.lib .dlib .lib-list{max-height:320px}}
 /* The thin-scrollbar rules live in dash.css (.dash-thin-scroll) because the meal
    builder needs the same ones and has no style host of its own. */
 `}</style>
-      <div className="dbu2" data-view={view}>
+      <div className="dbu2" data-view={view} data-mode={single ? "workout" : "program"}>
         {template.sourceName && <p className="cb-copy">Based on <strong>{template.sourceName}</strong>. You’re editing a new copy; the original template stays unchanged.</p>}
         {/* ── Header ──────────────────────────────────────────────────────────
-            One row that never moves between the two views: who this is, when it is
-            drawn for, what it adds up to, and the one primary action. */}
+            One row that never moves: who this is, what it adds up to, whether it is saved,
+            and the one primary action, Assign (step 6c). "Saved just now" replaces Save
+            template; Save now stays beside it for the coach who wants to be sure. */}
         <div className="hd">
           <div style={{ minWidth: 260, flex: "1 1 320px" }}>
             <button type="button" className="back" onClick={leave} disabled={!!uploads} style={{ marginBottom: 6 }}>← Library</button>
@@ -2851,40 +3295,38 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               onFocus={(e) => { e.target.style.borderBottomColor = DBU_LINE2; }}
               onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
             <div className="meta">
-              <span className="chip q">{summary.weeks} {summary.weeks === 1 ? "week" : "weeks"} · {weekdayLabel} · {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}{summary.last ? " · last " + dbuShortDate(summary.last) : ""}</span>
-              <span className="saved">v{doc.version} · {saveLabel}</span>
+              {single
+                ? <span className="chip q">Single workout · {dbuMoves(day)} {dbuMoves(day) === 1 ? "move" : "moves"}</span>
+                : <span className="chip q">{summary.weeks} {summary.weeks === 1 ? "week" : "weeks"} · {weekdayLabel} · {summary.sessions} {summary.sessions === 1 ? "session" : "sessions"}{summary.last ? " · last " + dbuShortDate(summary.last) : ""}</span>}
+              <span className="saved" role="status">v{doc.version} · {saveLabel}</span>
+              <button type="button" className="savenow" disabled={!!uploads || saveState === "saving"} onClick={() => flush()}>Save now</button>
             </div>
           </div>
           <div className="acts">
-            <button type="button" className="tog" onClick={() => setPreview(!preview)} aria-pressed={preview}>
-              <i aria-hidden="true" />Preview as client
-            </button>
-            <button type="button" disabled={!!uploads || saveState === "saving"} onClick={async () => { if (await flush()) setTemplateSaved(true); }} style={dbuBtn(false)}>Save template</button>
+            {!single && <DbuLength weeks={doc.weeks.length} onLength={setLength} />}
             <button type="button" disabled={!!uploads || saveState === "saving"} onClick={() => flush(true)} style={dbuBtn(false)}>Publish</button>
-            <button type="button" disabled={!!uploads} onClick={async () => { if (await flush()) setAssigning(true); }} style={dbuBtn(true, DBU_RUST)}>Assign to clients →</button>
+            <button type="button" disabled={!!uploads} onClick={openAssign} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff" }}>Assign</button>
           </div>
         </div>
 
         <details className="cb-details">
-          <summary>Program details <small>Tags, start date &amp; introduction video{doc.video ? " · Video added" : ""}</small></summary>
+          <summary>{single ? "Details" : "Program details"} <small>{single ? "Tags" : "Tags, start date & introduction video"}{doc.video ? " · Video added" : ""}</small></summary>
           <div className="meta">
               <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
-              <span className="chip">
+              {!single && <span className="chip">
                 Starts
                 <input type="date" aria-label="Reference start Monday the dates on this page are drawn for"
                   value={startISO} onChange={(e) => setStart(dbuMondayOf(e.target.value) || startISO)} />
-              </span>
+              </span>}
           </div>
-          <p>The reference date sets the dates shown here. Each client's own start is chosen at assign.</p>
-          <p><strong>Program introduction video · Optional.</strong> Explain the entire program, its goals, structure and what to expect.</p>
-          <ShapeVideoAttachment value={doc.video} title="Program introduction" onChange={video=>setDoc({...doc,video})} upload={dbuUploadVideo} onBusy={uploadCount} clips={clips}/>
+          {!single && <p>The reference date sets the dates shown here. Each client's own start is chosen at assign.</p>}
+          {!single && <p><strong>Program introduction video · Optional.</strong> Explain the entire program, its goals, structure and what to expect.</p>}
+          {!single && <ShapeVideoAttachment value={doc.video} title="Program introduction" onChange={video=>setDoc({...doc,video})} upload={dbuUploadVideo} onBusy={uploadCount} clips={clips}/>}
         </details>
 
-        {/* ⚠ F6 retires *Save draft* and *Publish template* into autosave + Publish — but the
-            header's button was ALSO the retry (it re-labelled itself "Retry save" on failure),
-            so removing it outright would have left a coach whose save failed with no way to
-            try again short of editing something else. The retry moves here, beside the other
-            two recovery actions, rather than disappearing with the verb. */}
+        {/* ⚠ F6 retired *Save draft* and *Publish template* into autosave + Publish — but the
+            header's button was ALSO the retry, so a coach whose save failed keeps a way to try
+            again here, beside the other two recovery actions. */}
         {error && (
           <div role="alert" style={{ fontSize: 13.5, color: DBU_RUST, background: DBU_RUSTBG, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
             <p style={{ margin: "0 0 10px" }}>{error}</p>
@@ -2893,138 +3335,116 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
             {saveConflict && <button type="button" disabled={!!uploads || saveState === "saving"} style={dbuBtn(false)} onClick={saveAsCopy}>Save as new copy</button>}
           </div>
         )}
-        {templateSaved && <p role="status">{live ? "Template saved to your library. Use as template makes a separate copy next time." : "Template draft saved on this device. Sign in to save to your library."}</p>}
         {doc.outlineOnly && <p style={{ fontSize: 13.5, color: DBU_INK2 }}>This imported outline has day or week titles only. Add exercises before assigning it as a structured workout.</p>}
-
-        {/* ── Toolbar ─────────────────────────────────────────────────────────
-            ⚠ ONE WAY TO BUILD (step 3 of the builder plan, owner, 2026-10-07). The Guided,
-            Editor and Planner layouts each drew this toolbar, the canvas and the day editor
-            in a different arrangement, and the day editor sat in three positions besides;
-            what is left is the Grid ⇄ Sheet switch the owner picked on 21 Sept, with the
-            day editor docked under whichever canvas is showing. */}
-        <div className="tb">
-          <DbuViewSwitch view={view} setView={setView} />
-          <div style={{ flex: 1 }} />
-          {/* ⚠ "Reuse a saved day" survives the retired tree. It is the one control there with
-              no home in either canvas, and dropping it would have removed a shipped feature in
-              a layout PR. Its developer-voice label (F10) is what changed, not its behaviour. */}
-          {!!dayTemplates?.length && (
-            <select aria-label="Add a saved day to week 1" value="" className="dbu-field" style={{ ...dbuField, cursor: "pointer" }}
-              onChange={(e) => {
-                const savedDay = dayTemplates[Number(e.target.value)];
-                if (!savedDay) return;
-                const next = JSON.parse(JSON.stringify(savedDay.day));
-                next.id = crypto.randomUUID();
-                const target = Math.max(0, sel.w);
-                if (!dbuHasWeekday(next)) next.weekday = dbuNextFreeWeekday(doc.weeks[target]);
-                setWeeks(doc.weeks.map((w, i) => (i === target ? { ...w, days: [...w.days, next] } : w)));
-              }}>
-              <option value="">Add a saved day…</option>
-              {dayTemplates.map((x, i) => <option key={i} value={i}>{x.name}</option>)}
-            </select>
-          )}
-          <button type="button" ref={addDayRef} style={dbuBtn(false)} onClick={addDay}>＋ Add a day</button>
-          <button type="button" style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
-        </div>
-        <DbuProgressionBar doc={doc} onRule={setRule} />
         {notice && <p className="dmsg" role="status">{notice}</p>}
 
-        {/* ⚠ F1 (P0): `.dbu-layout` DECLARED TWO COLUMNS AND HAD THREE CHILDREN, so the client
-            preview wrapped into the second grid row, below the fold, where `position:sticky`
-            could not lift it. ⚠ AND NEVER THREE COLUMNS: at 1440 the content area is 1,104px,
-            and a canvas beside an editor AND a preview clips Sunday and the sheet's week
-            columns. So the canvas takes the full width, the day editor docks under it, and the
-            preview floats. */}
-        <div className="stage">
-          {view === "grid"
-            ? <DbuGrid doc={doc} dates={dates} sel={sel} setSel={selectDay} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} />
-            : <DbuSheet doc={doc} dates={dates} setSel={selectDay} setWeeks={setWeeks} />}
-        </div>
+        {!single && !day && <>
+          {/* ── The plan ───────────────────────────────────────────────────────
+              ⚠ ONE WAY TO BUILD A PROGRAM: its plan (or the Sheet, the same document read
+              move by move), the progression in a sentence and a chart, the sessions to drag in,
+              and Assign, all on one screen. A session opens in the day canvas below, in the
+              plan's place, and Back to the plan returns. */}
+          <div className="tb">
+            <DbuViewSwitch view={view} setView={setView} />
+            <div style={{ flex: 1 }} />
+            <button type="button" ref={addDayRef} style={dbuBtn(false)} onClick={addDay}>＋ Add a day</button>
+            <button type="button" style={dbuBtn(false)} onClick={() => setWeeks([...doc.weeks, { ...DashBuilder.newWeek(), days: [{ ...DashBuilder.newDay("Day 1"), weekday: 0 }] }])}>＋ Week</button>
+          </div>
+          <DbuProgressionBar doc={doc} onRule={setRule} now={nowMarks} />
+          <div className="stage">
+            {view === "sheet"
+              ? <DbuSheet doc={doc} dates={dates} setSel={selectDay} setWeeks={setWeeks} />
+              : <DbuPlan doc={doc} dates={dates} peek={peek} onPeek={(w, d) => setPeek(peek && peek.w === w && peek.d === d ? null : { w, d })} setWeeks={setWeeks} uploads={uploads} onWeek={onWeek} onAddAt={addAt} onPlace={placeSession} />}
+          </div>
+          {peek && view !== "sheet" && doc.weeks[peek.w] && doc.weeks[peek.w].days[peek.d] && (
+            <DbuPeek doc={doc} wi={peek.w} di={peek.d} dates={dates} onOpen={() => selectDay({ w: peek.w, d: peek.d })} onClose={() => setPeek(null)} />
+          )}
+          <DbuTray doc={doc} dayTemplates={dayTemplates} selfId={idRef.current} week={trayWeek} onAdd={addFromTray} />
+          <DbuAssignPanel panelRef={assignRef} template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients || []} usage={usage}
+            live={!!live} persisted={persisted.current} preselectId={preselectId} emptyNote={emptyNote} onAssigned={onAssigned}
+            onUpdateTheirs={live && persisted.current ? () => setUpdating(true) : null} beforeAssign={beforeAssign} />
+        </>}
 
         {day && (
-          /* ⚠ role="group", NOT "dialog": this panel is not modal, traps no focus and sits
-             under a canvas that stays live. Calling it a dialog tells a screen-reader user
-             the rest of the page is inert when it is not.
-             Escape closes it, as Done does — unless the Escape belonged to something inside
-             it (a list, a strip, the walkthrough panel), which marks it handled. */
-          <div className="drawer dash-thin-scroll" ref={panelRef} role="group" tabIndex={-1} aria-label={"Day editor · " + day.name}
-            onKeyDown={(e) => { if (e.key === "Escape" && !e.defaultPrevented && !dbuImeComposing(e.nativeEvent) && !e.target.closest('[role="dialog"]')) { e.stopPropagation(); closeDayEditor(); } }}>
+          /* ⚠ role="group", NOT "dialog": this panel is not modal and traps no focus. Escape
+             goes back to the plan, as Done does — unless the Escape belonged to something
+             inside it (a list, a strip, the walkthrough panel), which marks it handled. A
+             single workout has no plan to go back to, so there Escape leaves it alone. */
+          <div className={"drawer dash-thin-scroll" + (single ? " solo" : "")} ref={panelRef} role="group" tabIndex={-1} aria-label={(single ? "Workout · " : "Day editor · ") + day.name}
+            onKeyDown={(e) => { if (e.key === "Escape" && !single && !e.defaultPrevented && !dbuImeComposing(e.nativeEvent) && !e.target.closest('[role="dialog"]')) { e.stopPropagation(); closeDayEditor(); } }}>
             <div className="dh">
-              {/* ⚠ THE DAY'S NAME IS ITS HEADING, AND THE HEADING IS THE FIELD (owner,
-                  2026-10-07: day settings in the header). The date line above it is the one
-                  the assignment would write. */}
+              {/* ⚠ THE DAY'S NAME IS ITS HEADING, AND THE HEADING IS THE FIELD: it is the title the
+                  client's card carries. In a program the line above it is the date the assignment
+                  would write, and where the week sits in the program's length. */}
               <div className="dt">
-                <div className="when">Week {sel.w + 1}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</div>
+                <div className="when">{single ? "Session title · what the client sees" : <>Week {sel.w + 1} of {doc.weeks.length}{dates[sel.w + ":" + sel.d] ? <> · <b>{dbuShortDate(dates[sel.w + ":" + sel.d])}</b></> : null}</>}</div>
                 <label htmlFor="dbu-day-name" className="sr">Day name</label>
                 <input id="dbu-day-name" className="dn" value={day.name} title="Rename this day" onChange={(e) => setDay({ ...day, name: e.target.value })} />
               </div>
               <div className="dacts">
-                {view === "grid" && <button type="button" className="x" onClick={() => setView("sheet")} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
-                {/* ⚠ The tree carried a per-day Copy button; the grid moves a day by dragging it
-                    to another weekday, which is a different action. Duplication would have been
-                    lost with the tree, so it lands here — on the day it is about. */}
-                <button type="button" className="x" aria-label={"Duplicate " + day.name} onClick={() => {
+                {!single && <button type="button" className="x" aria-label="Back to the plan" disabled={!!uploads} onClick={closeDayEditor}>← Plan</button>}
+                {!single && view === "plan" && <button type="button" className="x" onClick={() => setView("sheet")} title="See this move across every week">Edit all {doc.weeks.length} weeks in the sheet</button>}
+                {/* ⚠ The tree carried a per-day Copy button; the plan moves a day by dragging it
+                    to another weekday, which is a different action. Duplication lands here — on
+                    the day it is about. */}
+                {!single && <button type="button" className="x" aria-label={"Duplicate " + day.name} onClick={() => {
                   const next = JSON.parse(JSON.stringify(day));
                   next.name += " (copy)";
                   next.id = crypto.randomUUID();
                   next.weekday = dbuNextFreeWeekday(doc.weeks[sel.w]);
                   setWeeks(doc.weeks.map((x, i) => (i === sel.w ? { ...x, days: [...x.days.slice(0, sel.d + 1), next, ...x.days.slice(sel.d + 1)] } : x)));
                   setSel({ w: sel.w, d: sel.d + 1 });
-                }}>Duplicate day</button>
-                <button type="button" className="x" aria-expanded={dayTool === "copy"} disabled={doc.weeks.length < 2}
+                }}>Duplicate day</button>}
+                {!single && <button type="button" className="x" aria-expanded={dayTool === "copy"} disabled={doc.weeks.length < 2}
                   title={doc.weeks.length < 2 ? "Add a week to copy this day into" : undefined}
-                  onClick={() => { setNotice(""); setDayTool(dayTool === "copy" ? null : "copy"); }}>Copy to weeks</button>
-                <button type="button" className="x danger" aria-expanded={dayTool === "delete"} disabled={onlyDay}
+                  onClick={() => { setNotice(""); setDayTool(dayTool === "copy" ? null : "copy"); }}>Copy to weeks</button>}
+                {!single && <button type="button" className="x danger" aria-expanded={dayTool === "delete"} disabled={onlyDay}
                   title={onlyDay ? "A program keeps at least one day" : undefined}
-                  onClick={() => { setNotice(""); setDayTool(dayTool === "delete" ? null : "delete"); }}>Delete day</button>
-                <button type="button" className="x" aria-label="Close the day editor" disabled={!!uploads} onClick={closeDayEditor}>Done</button>
+                  onClick={() => { setNotice(""); setDayTool(dayTool === "delete" ? null : "delete"); }}>Delete day</button>}
+                {!single && <button type="button" className="x" aria-label="Close the day editor" disabled={!!uploads} onClick={closeDayEditor}>Done</button>}
               </div>
             </div>
             {dayTool === "copy" && <DbuCopyToWeeks doc={doc} wi={sel.w} di={sel.d} onCopy={copyDay} onCancel={() => setDayTool(null)} />}
             {dayTool === "delete" && <DbuDeleteDay day={day} wi={sel.w} onDelete={deleteDay} onCancel={() => setDayTool(null)} />}
-            {/* Keyed by the day's PLACE as well as its id: `newDay` gives a day no id, so two
-                id-less days in one week shared a key and the second opened on the first's
-                selection. */}
-            <DbuDayEditor
-              key={sel.w + ":" + sel.d + ":" + (day.id || "")}
-              busy={!!uploads}
-              day={day}
-              onChange={setDay}
-              onWeekday={setDayWeekday}
-              takenBy={dbuTakenByWeekday(week, sel.d)}
-              playlists={playlists}
-              clips={clips}
-              customMoves={ownMoves}
-              onUploading={uploadCount}
-              live={!!live}
-              clientId={preselectId || null}
-              progress={progress}
-              rpeProgress={rpeProgress}
-              rule={rule}
-            />
-          </div>
-        )}
-
-        {/* Client preview — the EXACT card the client dashboard renders, as the board's `.pop`.
-            ⚠ IT IS DRAGGABLE, on the owner's ruling. Anchored bottom-right it lands on top of
-            the site-wide chat button and, at the widths a coach actually builds at, over the
-            sidebar it is meant to be read beside. Header-grab, a clamp to the screen and the
-            arrow keys, through `useDbuDrag`. */}
-        {preview && (
-          <div className="pop" ref={previewPanel.ref} role="dialog" aria-label="Client preview" style={previewPanel.style}>
-            <div className="ph2 grab" {...previewPanel.headerProps} style={previewPanel.grabStyle}>
-              <button type="button" className="gh" aria-label="Move the client preview — arrow keys nudge it, shift with an arrow moves it further" onKeyDown={previewPanel.onKey} title="Drag to move" />
-              <b>Client preview</b>
-              <button type="button" className="x" onClick={() => setPreview(false)} aria-label="Close the client preview">Close</button>
+            <div className="dtabs" role="tablist" aria-label="Session view">
+              <button type="button" role="tab" id="dbu-tab-build" aria-selected={tab === "build"} aria-controls="dbu-pane" onClick={() => setTab("build")}>Build</button>
+              <button type="button" role="tab" id="dbu-tab-client" aria-selected={tab === "client"} aria-controls="dbu-pane" onClick={() => setTab("client")}>Client view</button>
             </div>
-            {previewCard
-              ? <DashWorkoutCard workout={previewCard} interactive={false} maxRows={99} />
-              : <div style={{ color: DBU_INK3, fontSize: 13.5 }}>Pick a session to see what the client gets.</div>}
+            <div id="dbu-pane" role="tabpanel" aria-labelledby={tab === "build" ? "dbu-tab-build" : "dbu-tab-client"}>
+              {/* Keyed by the day's PLACE as well as its id: `newDay` gives a day no id, so two
+                  id-less days in one week shared a key and the second opened on the first's
+                  selection. Kept mounted under Client view (hidden), so an upload started in the
+                  build tab outlives a look at the client's card. */}
+              <div hidden={tab !== "build"}>
+                <DbuDayEditor
+                  key={sel.w + ":" + sel.d + ":" + (day.id || "")}
+                  busy={!!uploads}
+                  day={day}
+                  onChange={setDay}
+                  onWeekday={setDayWeekday}
+                  takenBy={dbuTakenByWeekday(week, sel.d)}
+                  playlists={playlists}
+                  clips={clips}
+                  customMoves={ownMoves}
+                  onUploading={uploadCount}
+                  live={!!live}
+                  clientId={preselectId || null}
+                  progress={progress}
+                  rpeProgress={rpeProgress}
+                  rule={rule}
+                />
+              </div>
+              {/* The EXACT card the client dashboard renders. */}
+              {tab === "client" && <div className="dclient" aria-label="Client view">
+                <DashWorkoutCard workout={previewCard} interactive={false} maxRows={99} />
+              </div>}
+            </div>
           </div>
         )}
       </div>
 
       {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} emptyNote={emptyNote} onAssigned={onAssigned} onClose={() => setAssigning(false)} />}
+      {updating && <DbuFutureUpdates template={{ id: idRef.current, name }} clients={clients || []} onClose={() => setUpdating(false)} />}
     </fieldset>
   );
 }
@@ -3299,7 +3719,9 @@ function TrainerProgramsPage() {
       setNotice(t.name+' is deleted.');
     }catch(e){setNotice(e.message||'Couldn’t delete that program. Retry.');}
   };
-  const days=(templates||[]).flatMap(t=>t.detail.builder.weeks.flatMap(w=>w.days.map(day=>({name:t.name+' · '+day.name,day}))));
+  // Every saved session, for a program's tray (step 6c): the program it comes from and that program's
+  // tags, so its card wears the program's colour with the tag in words.
+  const days=(templates||[]).flatMap(t=>t.detail.builder.weeks.flatMap(w=>w.days.map(day=>({name:t.name+' · '+day.name,dayName:day.name,program:t.name,programId:t.id,tags:t.detail.builder.tags,day}))));
   // Every move this coach has written that Shape does not list — derived from
   // their own saved programs, so the picker can offer it back with no store.
   const customMoves=DashBuilder.customMovesFromTemplates(templates||[]);
@@ -3317,7 +3739,7 @@ function TrainerProgramsPage() {
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {targetPerson && <p role="status">Choose a program for {targetPerson.profile.name}{/\.$/.test(targetPerson.profile.name)?'':'.'} The assignment will have this client selected.{pickFor&&<> <button type="button" style={dbuLibBtn(false)} onClick={()=>setPickFor(null)}>Not now</button></>}</p>}
-      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} emptyNote={emptyNote} onAssigned={assigned} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} emptyNote={emptyNote} onAssigned={assigned} usage={usage} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
         <div className="dbu-library-actions">
           <button type="button" style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button>
           <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
