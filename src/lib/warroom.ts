@@ -655,6 +655,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Step 7: the coach profile is the Climb, on the website and in the app (#2652, #2653). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09: "keep current profile coach design thats on marketplace/coaches page, the climb" (for now), "complete full buildout of the climb", "step 7"; then "fix everything with profile then open PR": one camp list on both surfaces, and the coach\'s accent tints the drawing only', status: 'done' },
+        { label: 'Owner, 2026-11-09: coaches don\'t set a client limit, they decide when they are at capacity (the on/off toggle stays; "spots open" dropped). Sessions coached and active clients are recorded, and each coach chooses which are public', status: 'done' },
+        { label: '#2652 website (coachProfileWeb.jsx): the Climb replaces the photo-banner page for every coach. The terrain over the photo, the route to the rating at the summit, milestone pins from real figures only, the prism portrait, the name with its stop, chips, quote, headline-stat plates and the wire (real events). Camps: Base, Book, Programs / Meal plans, Kitchen and Plate notes or Replays, Proof (pinned reviews, members only, none on a sample), Words, About, Find me (practice, links, listing photos), Posts, Summit (the storefront). The phone docks Book and Message; the camp row follows the scroll', status: 'done' },
+        { label: '#2653 app (BSCoachClimb.jsx, BSTrainerProfile.jsx): the same page and camps; the camps pin under the condensed masthead and fill as you scroll; a program opens as a dark sheet; the console docks above the tab bar; a failed posts, programs or reviews read keeps its camp with Try again. Camp keys findme → day and plans → range, the new find; strings in all 13 locales', status: 'done' },
+        { label: 'The accent: Make it yours\' look.accent (bsCoachPalette on dark) tints the route, contours, summit ring, pins, spine, diamonds and the full stops; every word and button keeps teal, gold and rust. The role\'s own key is no pick, and one under 1.6 contrast on the Climb\'s ground is none', status: 'done' },
+        { label: 'Review: each helper diff read line by line; fixed before the PRs: the route through the name on a phone, Message missing on a phone and a private profile, the open-times camp mislabelled, an untitled photo post with no name. Codex on #2652: a desktop referral link left the visitor at the top (fixed in bfcb01c, scrolls to the summit\'s storefront), and below 375px the dock\'s avatar ran under Message and the waiting-list action past its edge (fixed in f97ad56, measured 320 to 390px); each with a test failing on the head it read. Codex clean on #2653 (772a493). Mutation spec coach-climb-camps: 23 killed, 1 proven no-op', status: 'done' },
+        { label: 'Next: coach public stats (sessions coached, active clients, coaching since, clients per program), each opted into by the coach in Make it yours, with a migration; then on the Climb\'s plates', status: 'pending' },
+        { label: 'Next: scan every Kitchen recipe\'s ingredients against the allergen words and say plainly the check reads ingredient names (its own session and PR)', status: 'pending' },
+        { label: 'Left by #2652 and #2653: Proof shows reviews the coach pinned, not results from clients\' logs (no consent source for those yet); a nutritionist\'s Base shows photos only when her posts carry one', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website depth pass and design fixes (the owner\'s depth review, 2026-11-04) (#2646, #2647). No migration',
       items: [
         { label: '#2646 the homepage: buttons as keys, card slabs with a pointer tilt (depth3d.js, off for reduced motion and touch), a phone bezel and rim light; the sample coach cards are the Coaches page card, generated from marketplace.jsx\'s data and CSS, linked to each coach, next open on the account\'s zone. Codex P2 ×2 fixed; clean on 281228b; merged as 0ee90b4', status: 'done' },
