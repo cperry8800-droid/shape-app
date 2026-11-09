@@ -15,7 +15,10 @@ function NutritionistClientsPage() {
   // about how you read your roster; a half-typed name is a moment. Restoring one would
   // show a coach a roster mysteriously narrowed to "pri" a week later.
   const [q, setQ] = React.useState("");
-  const prefs = useRememberedChoices(source === "live");
+  // ⚠ A ROSTER THAT COULD NOT BE READ (source "unread") IS NOT THE PREVIEW AND NOT EMPTY: no band, no
+  // sample people, every count "—" and the list saying so, never "No clients yet" or 0.
+  const unread = source === "unread";
+  const prefs = useRememberedChoices(source === "live" || unread);
   const [tab, setTab] = useRememberedChoice(prefs, "clientsTab", ["all", "shared"], "all");
   const [flt, setFlt] = useRememberedChoice(prefs, "rosterFilter", NCP_FILTER_KEYS, "all");
   const requestedStatus = dashRouteParam("status");
@@ -33,14 +36,14 @@ function NutritionistClientsPage() {
   // The people with an open plan, as the Clients badge counts them (dashData.jsx dashPlanClientCount);
   // null when the plans could not be read. The list below keeps everyone, people from recent
   // sessions with no plan included, so search and the export still say how many rows there are.
-  const activeCount = dashPlanClientCount(clients, planCount);
+  const activeCount = unread ? null : dashPlanClientCount(clients, planCount);
   const activeWord = activeCount == null ? "\u2014" : String(activeCount);
   const eyesCount = triage.filter((r) => r.severity === "red" || r.severity === "amber").length;
   // The bar's counts (unread is "—", never 0), and check-ins reviewed as Today's At a glance
   // reads it, over this page's roster: the same figure, never a second count of its own.
-  const health = dashRosterHealth(triage, loading);
+  const health = dashRosterHealth(triage, loading, unread);
   const reviewed = typeof dashGlanceCells === "function"
-    ? dashGlanceCells("nutritionist", { live: source === "live" ? today || {} : null, clients, triage, role: "nutritionist", zone: today && today.dayZone }, ["reviewed"])[0]
+    ? dashGlanceCells("nutritionist", { live: source === "live" ? today || {} : null, clients, triage, role: "nutritionist", zone: today && today.dayZone, rosterUnread: unread }, ["reviewed"])[0]
     : null;
   // The panel's next session, from the schedule this page already reads (useDashboard's feed).
   const sessions = dashPeekSessions(today, source, "nutritionist");
@@ -87,7 +90,7 @@ function NutritionistClientsPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 240px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", padding: "10px 14px" }}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" strokeWidth="2" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-                    <input aria-label="Search clients" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${clients.length} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", color: INK, fontFamily: sans, fontSize: 14 }} />
+                    <input aria-label="Search clients" value={q} onChange={(e) => setQ(e.target.value)} placeholder={unread ? "Search clients" : `Search ${clients.length} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", color: INK, fontFamily: sans, fontSize: 14 }} />
                   </div>
                   {/* ⚠ THE EXPORT IS THE WHOLE ROSTER, NOT THE FILTERED VIEW, AND IT SAYS SO.
                       A file that silently held whichever filter happened to be on is how a
@@ -101,7 +104,7 @@ function NutritionistClientsPage() {
                 </div>
                 {loading
                   ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
-                  : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={dismiss}
+                  : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={dismiss} unread={unread}
                       selectedId={peek.selectedId} onSelect={peek.select} docked={peek.docked} />}
               </Card>
             )}
