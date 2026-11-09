@@ -49,7 +49,7 @@ export default {
     { name: 'card: the model drops the coach\'s zone', file: TODAY, find: 'if (read) payout = dashPayoutView(read, ctx && ctx.zone, now);', replace: 'if (read) payout = dashPayoutView(read, null, now);' },
     { name: 'card: the setup link opens Business\'s overview', file: TODAY, find: 'dashLinkedTab("business", role, { section: "money" })', replace: 'dashTabHref("business", role)' },
     { name: 'card: the preview is handed a read', file: TODAY, find: 'return live ? (read || { state: "loading" }) : null;', replace: 'return read || { state: "loading" };' },
-    { name: 'card: the payout is read on a page that is not live', file: TODAY, find: 'useDashNextPayout(role, source === "live")', replace: 'useDashNextPayout(role, true)' },
+    { name: 'card: the payout is read on a page that is not live', file: TODAY, find: 'useDashNextPayout(role, ownReads)', replace: 'useDashNextPayout(role, true)' },
     { name: 'card: the sample\'s payout flashes while the page loads', file: TODAY, find: 'dashMoneyModel(live, kpiCtx, source === "demo", source == null ? { state: "loading" } : payoutRead)', replace: 'dashMoneyModel(live, kpiCtx, source !== "live", payoutRead)' },
     { name: 'card: no read claims payouts aren\'t set up', file: TODAY, find: '  else payout = { state: "unread" };\n  return { recurring, payout, live: !!live };', replace: '  else payout = { state: "setup" };\n  return { recurring, payout, live: !!live };' },
     { name: 'card: the halves never stack', file: TODAY, find: '"repeat(auto-fit, minmax(" + DASH_MONEY_CELL + "px, 1fr))"', replace: '"minmax(0,1fr) minmax(0,1fr)"' },

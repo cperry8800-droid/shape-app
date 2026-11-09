@@ -121,9 +121,10 @@ test('the roster route sends each client\'s rank points, null when unread, and a
   // Every answer, the 401 and the not-a-coach one included, goes out private and unstored.
   assert.match(roster, /const PRIVATE_HEADERS = \{ 'Cache-Control': 'private, no-store, max-age=0' \};/);
   assert.equal((roster.match(/NextResponse\.json\(/g) || []).length, 1, 'a response skips the private headers');
-  assert.equal((roster.match(/return privateJson\(/g) || []).length, 3);
+  // Four answers: the sign-in check that didn't finish (503, #2642), signed out (401), not a coach, and the roster.
+  assert.equal((roster.match(/return privateJson\(/g) || []).length, 4);
   // It reads the caller the app's way (a Bearer token or the cookie), and the War Room lists both routes.
-  assert.match(roster, /const user = await currentUser\(request\);[\s\S]*const supabase = await clientForRequest\(request\);/);
+  assert.match(roster, /const \{ user, error: authErr \} = await userLookupForRequest\(request\);[\s\S]*const supabase = await clientForRequest\(request\);/);
   const war = source('src/lib/warroom.ts');
   for (const r of ['/api/trainer/clients', '/api/nutritionist/clients']) assert.equal(war.includes(`['${r}', 'GET'],`), true, `${r} is not in RAW_ROUTES`);
   // No new definer: the read is the one the app's avatar tiers already make.

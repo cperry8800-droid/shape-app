@@ -52,9 +52,9 @@ export default {
       find: '"/mo" : "—"}</span>\n                {i === 0 && typeof dashMessageClient === "function" && (', replace: '"/mo" : "—"}</span>\n                {typeof dashMessageClient === "function" && (' },
     // ── The next payout and the boards' reads
     { name: 'the preview is handed a read', file: BIZ,
-      find: '  const askPayout = !preview && (source === "live" || !!live || analytics === "ok" || extraFailed);', replace: '  const askPayout = source === "live" || !!live || analytics === "ok" || extraFailed || preview;' },
+      find: '  const askPayout = !preview && (source === "live" || source === "unread" || !!live || analytics === "ok" || extraFailed);', replace: '  const askPayout = source === "live" || source === "unread" || !!live || analytics === "ok" || extraFailed || preview;' },
     { name: 'a failed analytics read never asks for the payout', file: BIZ,
-      find: '  const askPayout = !preview && (source === "live" || !!live || analytics === "ok" || extraFailed);', replace: '  const askPayout = !preview && (source === "live" || analytics === "ok");' },
+      find: '  const askPayout = !preview && (source === "live" || source === "unread" || !!live || analytics === "ok" || extraFailed);', replace: '  const askPayout = !preview && (source === "live" || analytics === "ok");' },
     { name: 'the demo roster reads as a coach\'s clients', file: BIZ,
       find: '  const clientsState = preview || source === "live" ? "ready"', replace: '  const clientsState = preview || source != null ? "ready"' },
     { name: 'an unread payout read shows as the sample', file: BIZ,

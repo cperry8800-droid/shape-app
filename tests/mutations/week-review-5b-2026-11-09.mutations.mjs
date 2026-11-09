@@ -98,10 +98,11 @@ export default {
       find: 'patch: { reviewedAt: now, checkinSignature: e.ck ? JSON.stringify(e.ck) : null } }', replace: 'patch: { reviewedAt: now, checkinSignature: null } }' },
 
     // ── Live versus sample
+    // (Since tests/dash-roster-unread.test.mjs's contract the unread is useDashboard's own, not the session's.)
     { name: 'a signed-in coach\'s failed roster shows the sample', file: WEEK,
-      find: 'const preview = source === "demo" && reviews.accountId === null;', replace: 'const preview = source === "demo";' },
+      find: 'const preview = source === "demo";', replace: 'const preview = source === "demo" || source === "unread";' },
     { name: 'a failed roster reads as an empty one', file: WEEK,
-      find: 'const rosterUnread = source === "demo" && typeof reviews.accountId === "string";', replace: 'const rosterUnread = false;' },
+      find: 'const rosterUnread = source === "unread";', replace: 'const rosterUnread = false;' },
     { name: 'the band shows on a live page', file: WEEK, find: '{preview && <DashDemoBand />}', replace: '{<DashDemoBand />}' },
     { name: 'a failed page is called a preview', file: WEEK,
       find: 'const storeLine = !live ? (preview ? "Preview — ticks and notes stay on this tab" : "")', replace: 'const storeLine = !live ? "Preview — ticks and notes stay on this tab"' },

@@ -166,11 +166,12 @@ test('the preview draws its own sample on both boards, under the band; a coach w
     // The preview never asks Stripe for a payout (Today's read is handed live false throughout).
     assert.equal(asked.length > 0 && asked.every((a) => a === 'trainer:false'), true, section + ': ' + asked.join());
     await demo.m.unmount();
-    // Signed in, every read failed: useDashboard fell back to its demo, roster and all.
-    for (const fail of [answer(500, { error: 'x' }), answer(503, { error: 'x' }), () => Promise.reject(new TypeError('Failed to fetch'))]) {
+    // Signed in, every read failed: useDashboard's "unread" (no clients), and, as the second witness,
+    // the demo roster it resolved for an outage before tests/dash-roster-unread.test.mjs's contract.
+    for (const source of ['unread', 'demo']) for (const fail of [answer(500, { error: 'x' }), answer(503, { error: 'x' }), () => Promise.reject(new TypeError('Failed to fetch'))]) {
       const coachAsks = [];
-      const out = await page({ source: 'demo', section, asks: coachAsks }, (url) => (url.startsWith('/api/trainer/analytics') ? fail() : answer(500, {})()));
-      assert.equal(coachAsks[coachAsks.length - 1], 'trainer:true', section + ': a coach whose analytics failed is still asked for their payout');
+      const out = await page({ source, section, asks: coachAsks }, (url) => (url.startsWith('/api/trainer/analytics') ? fail() : answer(500, {})()));
+      assert.equal(coachAsks[coachAsks.length - 1], 'trainer:true', section + ', ' + source + ': a coach whose analytics failed is still asked for their payout');
       const u = out.m.text();
       assert.doesNotMatch(u, /PREVIEW|DEMO FUNNEL/, section);
       assert.doesNotMatch(u, ROSTER_NAMES, section + ': the sample roster on a coach\'s page');
@@ -527,7 +528,7 @@ test('the roster logging trend draws only the days each record holds, and says w
   const w = todayWidgets().find((x) => x.key === 'logtrend');
   assert.deepEqual(w, { key: 'logtrend', group: 'clients' });
   const pg = TODAY.slice(TODAY.indexOf('function CoachDashboardPage('));
-  assert.match(pg, /\{ key: "logtrend", title: "Roster logging trend", [^\n]*optional: true, group: "clients", size: "half",\n\s+empty: !logTrend \|\| logTrend\.held === 0,/);
+  assert.match(pg, /\{ key: "logtrend", title: "Roster logging trend", [^\n]*optional: true, group: "clients", size: "half",\n\s+empty: !rosterUnread && \(!logTrend \|\| logTrend\.held === 0\),/);
   assert.match(pg, /const logTrend = dashLogTrend\(clients, \{ today: [^\n]*, sample \}\);/);
 });
 

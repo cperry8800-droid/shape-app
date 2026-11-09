@@ -429,8 +429,9 @@ test('the sample roster only in the signed-out preview, under the band; a coach\
   assert.equal(signedOut.all('[data-dwk-pattern]').length > 0, true, 'the preview works its patterns out of its own sample');
   await signedOut.close();
 
-  // Signed in, and the roster read failed (useDashboard fell back to its demo): no sample people.
-  const failed = await page({ rows: demoRows, source: 'demo', db: makeDb({ uid: 'coach-1' }) });
+  // Signed in, and the roster read failed: useDashboard's "unread", with no clients (it fell back to
+  // its demo before tests/dash-roster-unread.test.mjs's contract). No sample people.
+  const failed = await page({ rows: [], source: 'unread', db: makeDb({ uid: 'coach-1' }) });
   assert.equal(!!failed.q('[data-band]'), false);
   assert.equal(failed.all('[data-dwk-row]').length, 0);
   assert.equal(SAMPLE.some((n) => failed.text(failed.div).includes(n)), false);

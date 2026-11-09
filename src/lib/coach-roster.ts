@@ -10,7 +10,8 @@
 // response key — all derived from `role` below.
 
 import { NextResponse } from 'next/server';
-import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { clientForRequest, userLookupForRequest } from '@/lib/request-auth';
+import { isMeasuredSignedOut } from '@/lib/auth-lookup';
 import { DAY_MS } from '@/lib/time';
 import { clientNames } from '@/lib/coach-messages';
 import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
@@ -75,9 +76,18 @@ export async function coachClientsResponse(
   role: 'trainer' | 'nutritionist',
   request: Request
 ): Promise<NextResponse> {
-  const user = await currentUser(request);
+  const { user, error: authErr } = await userLookupForRequest(request);
 
   if (!user) {
+    // ⚠ A 401 IS THE PREVIEW, SO IT MUST MEAN SIGNED OUT (Codex on #2642). getUser() answers an
+    // auth outage with a null user too, and the coach pages read a 401 from this route as the
+    // signed-out preview: an outage showed a signed-in coach the sample's people. A sign-in check
+    // that did not finish is a 503, which useDashboard reads as its "unread", as the analytics
+    // routes answer (src/lib/auth-lookup.ts).
+    if (!isMeasuredSignedOut(authErr)) {
+      console.warn('[shape-app] coach roster: the sign-in check failed, answering 503, not 401:', authErr?.message);
+      return privateJson({ error: 'Could not check your sign-in just now.' }, { status: 503 });
+    }
     return privateJson({ error: 'Authentication required.' }, { status: 401 });
   }
   const supabase = await clientForRequest(request);

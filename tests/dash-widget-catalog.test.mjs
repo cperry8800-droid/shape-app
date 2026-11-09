@@ -316,14 +316,16 @@ test('the data widgets declare emptiness from the SAME derivation their panel re
   for (const [name, fnName] of [['weekAhead', 'dashWeekAhead'], ['rosterStatus', 'dashRosterStatus'], ['movers', 'dashTopMovers'], ['tenureMarks', 'dashTenureMilestones'], ['revenue', 'dashRevenueByClient'], ['ending', 'dashProgramsEnding']]) {
     assert.match(page, new RegExp('const ' + name + ' = sigOk \\? DashSignals\\.' + fnName + '\\('), name + ' is not derived through the stale-module guard');
   }
-  // …and each entry's `empty` reads that value, so the catalogue and the card agree
+  // …and each entry's `empty` reads that value, so the catalogue and the card agree. With the roster
+  // unread a roster card stays addable and says so (tests/dash-roster-unread.test.mjs), so its
+  // `empty` is the stale-module guard alone there.
   const arr = page.slice(page.indexOf('const gridWidgets = ['));
   assert.match(arr, /key: "week"[^}]*empty: !weekAhead/);
-  assert.match(arr, /key: "status"[^}]*empty: !rosterStatus/);
-  assert.match(arr, /key: "movers"[^}]*empty: !movers \|\| movers\.known === 0/);
-  assert.match(arr, /key: "anniversaries"[^}]*empty: !tenureMarks \|\| tenureMarks\.total === 0 \|\| tenureMarks\.unknown === tenureMarks\.total/);
-  assert.match(arr, /key: "revenue"[^}]*empty: !revenue \|\| revenue\.total === 0/);
-  assert.match(arr, /key: "ending"[^}]*empty: !ending \|\| ending\.total === 0 \|\| ending\.unknown === ending\.total/);
+  assert.match(arr, /key: "status"[^}]*empty: rosterUnread \? !sigOk : !rosterStatus/);
+  assert.match(arr, /key: "movers"[^}]*empty: rosterUnread \? !sigOk : !movers \|\| movers\.known === 0/);
+  assert.match(arr, /key: "anniversaries"[^}]*empty: rosterUnread \? !sigOk : !tenureMarks \|\| tenureMarks\.total === 0 \|\| tenureMarks\.unknown === tenureMarks\.total/);
+  assert.match(arr, /key: "revenue"[^}]*empty: rosterUnread \? !sigOk : !revenue \|\| revenue\.total === 0/);
+  assert.match(arr, /key: "ending"[^}]*empty: rosterUnread \? !sigOk : !ending \|\| ending\.total === 0 \|\| ending\.unknown === ending\.total/);
   // ⚠ THE GUARD IS A FEATURE TEST, NOT A VERSION STRING. dashSignals.js is a plain
   // <script> with a hand-typed ?v=, so a cached copy can predate these functions; the
   // widgets degrade to `empty` with a reason rather than throwing at render.

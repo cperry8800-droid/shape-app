@@ -883,12 +883,13 @@ test('a signed-in coach never sees the preview\'s figures while the page is stil
 });
 
 // ── The whole page: a preview needs a preview viewer, not a failed read (Codex, #2394) ──
-// useDashboard falls back to the demo whenever the roster read fails, signed out and outage
-// alike, so `source: "demo"` alone cannot say who is looking. The page's own analytics answer can.
+// useDashboard fell back to the demo whenever the roster read failed, signed out and outage alike,
+// so `source: "demo"` alone could not say who is looking; it says "unread" for an outage now
+// (tests/dash-roster-unread.test.mjs), and the page's own analytics answer is the second witness.
 // The neighbours are stubbed so the page shows which it drew: the band, the sidebar card, and the
 // funnel the panel would draw (the preview's when it is handed no feed).
-// useDashboard hands back the preview's roster whenever it resolved its demo, signed out or an
-// outage alike (dashData.jsx), so the stub does too: a page that shows it to a coach is caught.
+// useDashboard hands back the preview's roster whenever it resolved its demo (dashData.jsx), and
+// none for "unread", so the stub does too: a page that shows the demo's to a coach is caught.
 // `all` draws every card a board declares, its catalogue's included (DashGrid draws the coach's
 // arrangement; without it the page stacks the default cards).
 function stubPage({ source, today = null, section, all = false }) {
@@ -939,15 +940,17 @@ test('a signed-in coach whose reads all failed sees unread states, never the pre
     ['a thrown fetch', () => Promise.reject(new TypeError('Failed to fetch'))],
     ['an answer that is not JSON', () => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('Unexpected token <')) })],
   ];
+  // The roster and dashboard reads failed too: useDashboard's "unread" (no clients), and, as the
+  // second witness, a demo roster the analytics never confirm as the preview (what the hook resolved
+  // for an outage before tests/dash-roster-unread.test.mjs's contract).
   for (const [label, analytics] of outages) {
-    for (const section of SECTIONS) {
-      // The roster and dashboard reads failed too, so the dashboard resolved its demo fallback.
-      const seen = stubPage({ source: 'demo', section });
+    for (const section of SECTIONS) for (const source of ['unread', 'demo']) {
+      const seen = stubPage({ source, section });
       globalThis.fetch = window.fetch = (url) => (url.startsWith('/api/trainer/analytics') ? analytics() : answer(500, { error: 'x' })());
       const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
       await settle();
       const t = m.text();
-      const at = label + ', ' + section + ': ' + t.slice(0, 400);
+      const at = label + ', ' + section + ', ' + source + ': ' + t.slice(0, 400);
       assert.doesNotMatch(t, DEMO, at);
       assert.equal(dollars(t), false, at);
       assert.doesNotMatch(t, /loads? with|is loading/i, at);

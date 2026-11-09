@@ -757,7 +757,9 @@ function dashPeekSessions(today, source, role) {
     });
     return { state: "read", rows };
   }
-  if (source !== "live") return { state: "unread" };
+  // A roster that couldn't be read (useDashboard's "unread") still has the day feed as it answered:
+  // its own read, so its calendar is read as a live page's is.
+  if (source !== "live" && source !== "unread") return { state: "unread" };
   // The route's sessions read failed: its calendar is empty because nobody could read it (Codex on #2639).
   if (today && today.sessionsRead === false) return { state: "unread" };
   const cal = today && Array.isArray(today.calendar) ? today.calendar : null;
@@ -1186,8 +1188,10 @@ const DASH_HEALTH_WORDS = {
   new: () => "new",
   unknown: () => "progress unknown",
 };
-function dashRosterHealth(triage, loading) {
+// `unread`: the roster couldn't be read (useDashboard's source "unread"): every count is "—", never 0.
+function dashRosterHealth(triage, loading, unread) {
   const none = { red: null, amber: null, green: null, new: null, unknown: null };
+  if (unread) return { state: "unread", counts: none, reading: null, total: null };
   if (loading || !Array.isArray(triage)) return { state: "loading", counts: none, reading: null, total: null };
   const rows = triage.filter((r) => r && r.client && r.client.profile);
   const reading = rows.filter((r) => r.client.progressRead && r.client.progressRead.state === "loading").length;
@@ -1240,7 +1244,7 @@ function DashRosterHealth({ health, filters, value, onChange, reviewed }) {
         )}
       </div>
       <span role="status" style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>
-        {h.state === "loading" ? "Reading your roster…" : h.state === "reading" ? "Reading " + h.reading + (h.reading === 1 ? " client's" : " clients'") + " progress…" : ""}
+        {h.state === "unread" ? "Your roster couldn't be read just now · reload to try again" : h.state === "loading" ? "Reading your roster…" : h.state === "reading" ? "Reading " + h.reading + (h.reading === 1 ? " client's" : " clients'") + " progress…" : ""}
       </span>
       {reviewed && (
         <span data-health-reviewed="" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", fontSize: 12.5, color: "var(--sh-ink2, #a09b94)" }}>
@@ -1298,7 +1302,9 @@ function dashRosterGroups(rows) {
 // `docked`: the panel is open beside the list, so the list keeps its compact columns
 // (dashRosterColumns), the selected row lifts to meet the panel, and ↑ ↓ on a row move the
 // selection through the list as it is drawn, groups included.
-function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss, selectedId, onSelect, docked = false, joint, sessions }) {
+// `unread`: the roster couldn't be read (useDashboard's source "unread"): the empty list says so, never
+// "No clients yet".
+function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss, selectedId, onSelect, docked = false, joint, sessions, unread = false }) {
   const controlled = typeof onSelect === "function";
   const [ownId, setOwnId] = React.useState(null);
   const selId = controlled ? (selectedId == null ? null : selectedId) : ownId;
@@ -1399,8 +1405,8 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
         {headCell("CLIENT", "name")}{columns.keep.map((j) => headCell(view.heads[j][0], view.heads[j][1]))}
       </div>
       {rows.length === 0 && (
-        <div style={{ padding: "34px 4px", textAlign: "center", color: ink50, fontSize: 13.5 }}>
-          {triage.length === 0 ? "No clients yet. Share your public profile to start getting subscribers." : "No clients match this search or filter."}
+        <div data-roster-empty={unread ? "unread" : triage.length === 0 ? "none" : "filtered"} style={{ padding: "34px 4px", textAlign: "center", color: ink50, fontSize: 13.5 }}>
+          {unread ? "Your roster couldn't be read just now · reload to try again" : triage.length === 0 ? "No clients yet. Share your public profile to start getting subscribers." : "No clients match this search or filter."}
         </div>
       )}
       {groups.map((g) => (

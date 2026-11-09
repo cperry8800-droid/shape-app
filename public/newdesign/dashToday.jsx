@@ -167,9 +167,32 @@ function dashMoney(cents) {
 const DASH_OVERVIEW_DEFAULT = ["activeClients", "monthlyNet", "weekSessions", "upcoming"];
 const DASH_PRACTICE_DEFAULT = ["todaySessions", "due", "compliance", "mrr"];
 
+// ⚠ A ROSTER THAT COULD NOT BE READ IS NOT AN EMPTY ONE (useDashboard's source "unread", handed in
+// as `ctx.rosterUnread`). The pool's figures built on the roster, its programming queue or its pulse
+// would count 0 over the empty list it hands back; each is "—", couldn't be read. The day feed's own
+// figures (its KPIs, today's sessions) still show when that read answered: the client count and the
+// net are the feed's when it sent them, the roster's only without it. ⚠ AND "live only" IS THE
+// PREVIEW'S WORD: on a page that is not the preview, a figure the feed didn't send couldn't be read.
+// Before the page's first read lands (`ctx.waiting`, source null) every figure is still loading.
+const DASH_KPI_FROM_ROSTER = ["due", "compliance", "mrr", "reviewed", "needsEyes", "newClients"];
+function dashKpiFromRoster(key, ctx) {
+  if (DASH_KPI_FROM_ROSTER.indexOf(key) !== -1) return true;
+  return (key === "activeClients" || key === "monthlyNet") && !(ctx && ctx.live && ctx.live.kpis);
+}
+function dashKpiOut(key, ctx) {
+  const out = DashSignals.dashKpiValue(key, ctx);
+  if (!out || !ctx) return out;
+  if (ctx.waiting) return { value: null, unit: out.unit, why: "loading" };
+  if (ctx.rosterUnread) {
+    if (dashKpiFromRoster(key, ctx)) return { value: null, unit: out.unit, why: "couldn't be read" };
+    if (out.value == null && out.why === "live only") return { ...out, why: "couldn't be read" };
+  }
+  return out;
+}
+
 function dashKpiCell(key, role, ctx) {
   const label = DashSignals.dashKpiLabel(key, role);
-  const out = DashSignals.dashKpiValue(key, ctx);
+  const out = dashKpiOut(key, ctx);
   // ⚠ A KEY THIS BUILD DOES NOT RECOGNISE RENDERS AS A REDACTION, NEVER AS A GAP. The
   // stored choice is validated at the hook, but a strip handed a retired key directly
   // still has to draw something honest rather than an empty column.
@@ -541,7 +564,9 @@ function dashClientHref(rec, role) {
 // Expandable schedule rows (step 4.1) — same anatomy as DashShell's default
 // rows (time / who+sub / DONE-NEXT pill), tap to reveal the pre-session
 // context line + inline actions: Message · Last notes · Start log.
-function ExpandableSchedule({ schedule, clients, role }) {
+// `rosterUnread`: the roster couldn't be read (useDashboard's "unread"), so a session's client has no
+// record here to say anything about: never "No shared history yet".
+function ExpandableSchedule({ schedule, clients, role, rosterUnread = false }) {
   const [openIdx, setOpenIdx] = React.useState(null);
   const units = useDashUnits();
   const actionStyle = { display: "inline-block", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 4, padding: "7px 11px", cursor: "pointer", textDecoration: "none" };
@@ -574,7 +599,7 @@ function ExpandableSchedule({ schedule, clients, role }) {
             {open && (
               <div style={{ padding: "0 4px 14px 80px" }}>
                 <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", color: "var(--sh-accent, #2ee0c4)", marginBottom: 9 }}>
-                  {context || "No shared history yet"}
+                  {context || (rosterUnread ? DASH_ROSTER_UNREAD : "No shared history yet")}
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button onClick={() => dashMessageClient(s.who, role, undefined, rec && rec.profile && rec.profile.id)} style={actionStyle}>Message</button>
@@ -1039,9 +1064,16 @@ function TriagePulsePanel({ feed, role, joint = [], pinned, onTogglePin, prefs, 
 }
 
 
-// Demo-mode band — whenever the data layer fell back to the demo dataset
-// (signed out, wrong role, or the API is down) the page SAYS so, exactly like
-// the profiles' preview band. Demo data must never look like real tracking.
+// ⚠ A ROSTER THAT COULD NOT BE READ (useDashboard's source "unread") IS NOT AN EMPTY ONE, AND NOT THE
+// PREVIEW: a card built on it says so in these words, never "nobody", "no clients yet" or a 0.
+const DASH_ROSTER_UNREAD = "Your roster couldn't be read just now · reload to try again";
+function DashRosterUnread() {
+  return <div data-dash-roster="unread" role="status" style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>{DASH_ROSTER_UNREAD}</div>;
+}
+
+// Demo-mode band — whenever the data layer resolved the demo dataset (signed
+// out, or signed in without this role) the page SAYS so, exactly like the
+// profiles' preview band. Demo data must never look like real tracking.
 function DashDemoBand() {
   // The band is a FIXED near-black fill on every skin, so its ink is the fixed
   // bright teal — the paper's accent is the light paper's dark teal, which read
@@ -1148,10 +1180,14 @@ function DashFunnelPanel({ live }) {
 // and Plan said half of them were brought at 0%, and Business quoted its own figure. The rule is
 // dashSignals.js `rosterNetCents`, which the sidebar card and Business read too, so the preview
 // states one net; and since a brought client pays no fee, the line no longer says "after 15%".
-function DashBusinessSummary({ live, role, clients }) {
+// `preview`: the page is the signed-out preview (its own source "demo"), the only viewer the sample's
+// growth, funnel and net are for. A page that is not the preview and has no feed (the day feed failed,
+// or the roster couldn't be read either) says each couldn't be read. Without it, no feed is the preview,
+// as before.
+function DashBusinessSummary({ live, role, clients, preview = !live }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
-  const g = live ? (live.growth || null) : DASH_DEMO_GROWTH[role];
-  const f = live ? (live.funnel || null) : DASH_DEMO_FUNNEL;
+  const g = live ? (live.growth || null) : preview ? DASH_DEMO_GROWTH[role] : null;
+  const f = live ? (live.funnel || null) : preview ? DASH_DEMO_FUNNEL : null;
   const counts = g && Array.isArray(g.weeklyAdds) ? g.weeklyAdds.map((w) => w.count) : null;
   // ⚠ THE 90 DAYS THE SIGNINGS COVER, NOT THE SUMMED WEEKS (the sweep after #2394 round 10): the
   // weekly buckets open up to six days after them, so the sum could fall below "Signed from Shape ·
@@ -1161,7 +1197,7 @@ function DashBusinessSummary({ live, role, clients }) {
   const why = dashCloseWhy(f);
   const netCents = live
     ? (live.kpis && live.kpis.monthlyNetCents != null ? live.kpis.monthlyNetCents : null)
-    : DashSignals.rosterNetCents(clients);
+    : preview ? DashSignals.rosterNetCents(clients) : null;
   const href = role === "nutritionist" ? "NutritionistAnalytics.html" : "TrainerAnalytics.html";
   const max = counts ? Math.max(...counts, 1) : 1;
   const stat = (k, l, sub, color) => (
@@ -1199,7 +1235,8 @@ function DashBusinessSummary({ live, role, clients }) {
 }
 
 // Nutritionist roster aggregates + the recipe-publishing insight.
-function DashNutriAggPanel({ clients, live }) {
+// `preview` as DashBusinessSummary's: the sample's renewals are the preview's only.
+function DashNutriAggPanel({ clients, live, preview = !live }) {
   const ink50 = "var(--sh-ink2, #a09b94)";
   const withLogs = clients.filter((c) => c.foodLogs && c.foodLogs.daysLogged7d != null);
   const avgCompliance = withLogs.length
@@ -1208,7 +1245,7 @@ function DashNutriAggPanel({ clients, live }) {
   const pctLogged = withLogs.length
     ? Math.round((withLogs.filter((c) => c.foodLogs.daysLogged7d > 0).length / withLogs.length) * 100)
     : null;
-  const renewals = live ? null : 4; // billing dates aren't exposed yet
+  const renewals = preview ? 4 : null; // billing dates aren't exposed yet
   const cellStyle = { background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "13px 15px" };
   const stat = (k, l, sub) => (
     <div style={cellStyle}>
@@ -1899,7 +1936,10 @@ const DASH_NOW_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 
 // Up next: the session the coach is in or goes to next, what they know about the client, and a
 // way to reach them. `single` is the board's widget: one action (Message), the name opens the file.
 // `peek` (the board's card): the name opens the client panel, and keeps the file's address.
-function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false, peek }) {
+// `unread`: true when the day feed failed, "loading" before the page's first read has landed (neither
+// may say the day is clear). `rosterUnread`: the roster couldn't be read, so the client's history
+// is unread, never "No shared history yet".
+function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false, peek, rosterUnread = false }) {
   const units = useDashUnits();
   const { now, items, next } = state;
   const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
@@ -1925,7 +1965,7 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
             {single && rec ? <DashPeekLink id={rec.profile ? rec.profile.id : null} rec={rec} role={role} peek={peek}>{name}</DashPeekLink> : name}
           </div>
           {next.sub && <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{next.sub}</div>}
-          <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: single ? 10 : 12, paddingTop: single ? 10 : 12, borderTop: "1px solid var(--sh-line, #302c27)" }}>{context || "No shared history yet"}</div>
+          <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: single ? 10 : 12, paddingTop: single ? 10 : 12, borderTop: "1px solid var(--sh-line, #302c27)" }}>{context || (rosterUnread ? DASH_ROSTER_UNREAD : "No shared history yet")}</div>
           <div style={{ display: "flex", gap: 8, marginTop: single ? 12 : 14 }}>
             {fileHref && !single
               ? <a href={fileHref} style={{ ...btn, border: 0, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)" }}>Client file</a>
@@ -1936,7 +1976,7 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
       ) : (
         <React.Fragment>
           <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{unread ? "Today" : items.length ? "Done for today" : "Nothing booked today"}</span>
-          <div data-dash-upnext={unread ? "unread" : items.length ? "done" : "clear"} style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{unread ? "Today's " + unit + "s couldn't be read just now." : items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
+          <div data-dash-upnext={unread === "loading" ? "loading" : unread ? "unread" : items.length ? "done" : "clear"} style={{ fontFamily: serif, fontSize: 22, fontWeight: 650, fontVariationSettings: "'wdth' 112", marginTop: 10 }}>{unread === "loading" ? "Reading today's " + unit + "s…" : unread ? "Today's " + unit + "s couldn't be read just now." : items.length ? "Every " + unit + " is behind you." : "Your schedule is clear."}</div>
           <a href={dashTabHref("schedule", role)} style={{ display: "inline-block", fontSize: 13, marginTop: 10, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a>
         </React.Fragment>
       )}
@@ -1965,7 +2005,7 @@ function DashTimelineCard({ rows, state, unit, onOpenCalendar, zone, clients, ro
           ? <button type="button" onClick={onOpenCalendar} style={{ background: "transparent", border: 0, padding: "6px 0", cursor: "pointer", ...eyebrow, color: "var(--sh-accent-ink, #2ee0c4)" }}>Calendar →</button>
           : <span style={{ ...eyebrow, color: "var(--sh-ink3, #75706a)" }}>{unread ? "—" : items.length + " " + plural}</span>}
       </div>
-      {items.length === 0 && <div data-dash-timeline={unread ? "unread" : "empty"} style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "9px 0" }}>{unread ? "Today's timeline couldn't be read just now. " : "No " + unit + "s on today's timeline. "}<a href={dashTabHref("schedule", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a></div>}
+      {items.length === 0 && <div data-dash-timeline={unread === "loading" ? "loading" : unread ? "unread" : "empty"} style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", padding: "9px 0" }}>{unread === "loading" ? "Reading today's timeline… " : unread ? "Today's timeline couldn't be read just now. " : "No " + unit + "s on today's timeline. "}<a href={dashTabHref("schedule", role)} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Open the schedule →</a></div>}
       {items.map((r, i) => {
         const points = r.done ? null : tierOf(r.who);
         return (
@@ -2138,12 +2178,13 @@ function dashBriefModel(needNow, next, day) {
     return { id: p.id != null ? p.id : null, name: p.name || "A client", points: dashRecordTier(r && r.client) };
   });
   const unit = day && typeof day.unit === "string" && day.unit ? day.unit : "session";
-  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit };
+  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit, loading: !!(day && day.loading) };
 }
 function dashBriefPieces(model) {
   const out = [];
   const n = model ? model.count : 0;
-  if (n == null) out.push({ t: "Who needs your attention couldn't be read just now." });
+  // Before the page's first read lands nothing has been read: neither "nobody" nor a failure.
+  if (n == null) out.push({ t: model && model.loading ? "Reading who needs your attention…" : "Who needs your attention couldn't be read just now." });
   else if (!n) out.push({ t: "Nobody needs your attention right now." });
   else {
     out.push({ t: (n === 1 ? "1 client needs" : n + " clients need") + " your attention: " });
@@ -2178,11 +2219,11 @@ function dashRowKeyOpen(e, canOpen, open) {
 
 // The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
 // day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
-function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek }) {
+function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek, loading = false }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
   const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
-  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit });
+  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit, loading });
   return <DashBriefCard model={model} role={role} peek={peek} />;
 }
 // With a `role`, each named client is a name that opens the client panel (`peek`), or their file.
@@ -2380,21 +2421,22 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss, peek, joint }) {
 
 // The widget: the engine's split (null when the pulse could not be read), the roster's wins, in the
 // reader's units, and the shared clients' joint attention (useDashboard's `joint`).
-function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss, peek }) {
+// `loading`: the page's first read hasn't landed (source null), so nobody has been read yet.
+function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss, peek, loading = false }) {
   const units = useDashUnits();
   if (!split) {
-    return <section aria-label="Needs you" data-dash-lift="2" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
+    return <section aria-label="Needs you" data-dash-lift="2" data-dash-needs={loading ? "loading" : "unread"} style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
       <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>Needs you</h2>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Who needs you couldn't be read just now. Reload to try again.</p>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>{loading ? "Reading who needs you…" : "Who needs you couldn't be read just now. Reload to try again."}</p>
     </section>;
   }
   return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units), joint)} feed={feed} role={role} prefs={prefs} dismiss={dismiss} peek={peek} joint={joint} />;
 }
 // `unread`: a signed-in coach's day feed failed (rows null on a live page). Neither card may then
 // say the day is clear or done; that is a claim about a day nobody read.
-function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone, unread = false, peek }) {
+function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone, unread = false, peek, rosterUnread = false }) {
   const state = useDashNowState(rows, demoRows);
-  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single unread={unread} peek={peek} />;
+  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single unread={unread} peek={peek} rosterUnread={rosterUnread} />;
 }
 function DashTimelineWidget({ rows, demoRows, clients, role, unit, zone, onOpenCalendar, unread = false }) {
   const state = useDashNowState(rows, demoRows);
@@ -2653,7 +2695,7 @@ function dashPayoutSidebarCard(read, role, now = Date.now()) {
 // payout on their page as theirs. `preview` is the page's own source, never inferred from `live`;
 // anywhere else the card shows what the payout read answered, and "couldn't be read" without one.
 function dashMoneyModel(live, ctx, preview, read, now = Date.now()) {
-  const out = DashSignals.dashKpiValue("monthlyNet", ctx);
+  const out = dashKpiOut("monthlyNet", ctx);
   const recurring = out && out.value != null
     ? { k: dashMoney(out.value), sub: out.sub || null }
     : { k: "—", sub: (out && out.why) || "couldn't be read" };
@@ -2743,6 +2785,19 @@ function CoachDashboardPage({ role }) {
   const { today: live, triage, clients, queue, joint, source, dismissable, setDismissal, clearDismissal } = useDashboard(role, { refreshOnFocus: true });
   // Dismiss and snooze from the drawer (P2); `ok` false until the dismissals table answered.
   const dismiss = { ok: !!dismissable, set: setDismissal, clear: clearDismissal };
+  // ⚠ THE SAMPLE IS FOR THE PREVIEW ONLY, AND THE PREVIEW IS useDashboard's "demo" ALONE (signed out,
+  // or signed in without this role). `sample` was `source !== "live"`, so a signed-in coach whose
+  // roster read failed (source "unread") was handed the sample's name, day, calendar and pulse; and
+  // before that it was `!live`, so one whose day feed failed while the roster loaded was too.
+  const sample = source === "demo";
+  // ⚠ UNREAD IS NOT EMPTY: with the roster unread every card built on it (clients, triage, queue,
+  // joint) says the roster couldn't be read, never "nobody" or a 0; the day feed, the payout, replies,
+  // capacity and the notes are reads of their own and still show when they answer.
+  const rosterUnread = source === "unread";
+  // Before the first read lands nobody knows who is looking: neither the sample nor a failure.
+  const waiting = source == null;
+  // The page's own reads run for any viewer who is not the preview.
+  const ownReads = source === "live" || rosterUnread;
   // The coach's pinned clients, per ACCOUNT (review 2026-09-09, R15) — the same
   // `dashboard_prefs` document the roster filter and the Schedule view already use, so a
   // pin follows them between devices and costs no second mechanism.
@@ -2750,7 +2805,7 @@ function CoachDashboardPage({ role }) {
   // ⚠ THE KEY IS PER ROLE. One auth user can own both a trainer and a nutritionist row,
   // and the two Todays show different rosters; a shared key would put a nutrition client
   // at the top of the training pulse. The same split `coach_week_publishes` needed.
-  const prefs = useRememberedChoices(source === "live");
+  const prefs = useRememberedChoices(ownReads);
   const [pinned, togglePin] = useRememberedSet(prefs, "pulsePinned:" + role, 12);
 
   // ── The client panel (coach dashboard step 5a: "any client name opens the same side panel the
@@ -2772,10 +2827,8 @@ function CoachDashboardPage({ role }) {
   // At a glance's three, chosen with its ⚙ (dashGlanceCells).
   const [glanceChosen, setGlanceKpis] = useDashGlanceKpis(prefs, role);
 
-  // ⚠ THE SAMPLE IS FOR THE PREVIEW ONLY. `sample` is the page's own source, never `!live`: a
-  // signed-in coach whose day feed failed while the roster loaded has `live` null too, and every
-  // `live ? … : mock` below used to put the sample's name, figures, calendar and pulse on their page.
-  const sample = source !== "live";
+  // `sample` (above) is the page's own source, never `!live`: every `live ? … : mock` below draws the
+  // sample's name, figures, calendar and pulse only in the preview.
   const firstName = live ? live.user.firstName : sample ? cfg.mockName : "";
 
   // ⚠ A FAILED SESSIONS READ IS UNREAD, NOT AN EMPTY DAY (Codex on #2639): the route says so with
@@ -2786,8 +2839,10 @@ function CoachDashboardPage({ role }) {
   // ⚠ THE SAMPLE'S SESSIONS ARE FOR THE PREVIEW ONLY: a signed-in coach whose day feed failed gets
   // one row saying so, never the sample's day as theirs (the optional Schedule card, the KPI pool).
   const scheduleRead = !!todayRows || sample;
+  // Up next's and the timeline's word for a day nobody has read: still loading, or unread.
+  const dayUnread = waiting ? "loading" : !scheduleRead;
   const schedule = !todayRows
-    ? (!sample ? [{ time: "—", who: "Today's " + cfg.unit + "s couldn't be read", sub: "Reload to try again" }] : cfg.mockSchedule)
+    ? (!sample ? [waiting ? { time: "—", who: "Reading today's " + cfg.unit + "s…", sub: "" } : { time: "—", who: "Today's " + cfg.unit + "s couldn't be read", sub: "Reload to try again" }] : cfg.mockSchedule)
     : todayRows.length
       ? todayRows.map((s, i) => ({
           time: dashFmtTime(s.scheduledAt, dayZone),
@@ -2810,7 +2865,8 @@ function CoachDashboardPage({ role }) {
   // Everything the KPI pool derives from, gathered once. Nothing here is fetched for the
   // strips — it is the state Today already holds — which is the constraint that decides
   // what may be in the pool at all.
-  const kpiCtx = { live, clients, triage, queue, schedule, scheduleRead, role, kpiKeys: cfg.kpiKeys, zone: dayZone };
+  // `rosterUnread` and `waiting` are the pool's gates (dashKpiOut): a roster figure unread, or loading.
+  const kpiCtx = { live, clients, triage, queue, schedule, scheduleRead, role, kpiKeys: cfg.kpiKeys, zone: dayZone, rosterUnread, waiting };
 
   // ⚠ THE OVERVIEW STRIP IS THE PAYOUT PREVIEW WHEN THERE IS NO LIVE PAYLOAD, AND IT IS
   // NOT CONFIGURABLE THERE. Those four demo figures are a preview of the money card, not
@@ -2819,7 +2875,7 @@ function CoachDashboardPage({ role }) {
   // withheld where there is nothing card-level to configure.
   const kpis = live ? overviewKpis.map((k) => dashKpiCell(k, role, kpiCtx))
     : sample ? cfg.mockKpis()
-    : overviewKpis.map((k) => { const c = dashKpiCell(k, role, kpiCtx); return c.k === "\u2014" ? { ...c, sub: "couldn't be read" } : c; });
+    : overviewKpis.map((k) => { const c = dashKpiCell(k, role, kpiCtx); return c.k === "\u2014" ? { ...c, sub: waiting ? "loading" : "couldn't be read" } : c; });
   // The practice strip derives from the roster, the queue and today's schedule, all of
   // which the preview has — so its picker works in both states (unsaved when signed out,
   // exactly as every other remembered control on this page behaves).
@@ -2861,18 +2917,22 @@ function CoachDashboardPage({ role }) {
   // is the engine's one rule (coachNeeds), null when the pulse could not be read or the cached
   // signals module predates it; the day's rows are the day column's; the three figures and the
   // money are the KPI pool's, so each says why when it cannot be read.
-  const needSplit = Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
-  const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;
+  // A roster that couldn't be read is a pulse nobody read (null): the brief and Needs you say so.
+  // Before the first read lands (`waiting`) the empty list is nobody read, not nobody: null, said as loading.
+  const needSplit = !rosterUnread && !waiting && Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
+  // The sample's day is the preview's only: an unread roster, or a page still loading, has none.
+  const dayDemoRows = nowRows ? null : sample ? cfg.mockSchedule : [];
   const glance = dashGlanceCells(role, kpiCtx, glanceChosen);
   // The roster's logging, day by day, over the days its records hold (dashLogTrend): today on the
   // account's clock, as the KPI pool's week is; the preview's from its own sample.
   const zoneLib = dashZoneLib();
   const logTrend = dashLogTrend(clients, { today: zoneLib ? zoneLib.dayKey(Date.now(), zoneLib.normalizeZone(dayZone) || zoneLib.viewerZone()) : dashLocalDate(new Date()), sample });
-  // The next payout is read on a live page only, and the preview is the page's own source: a coach
-  // whose day feed failed still gets their own payout, never the sample's. ⚠ AND MONEY WAITS FOR THE
+  // The next payout is read on any page that is not the preview (live, or a roster unread), and the
+  // preview is the page's own source: a coach whose day feed or roster failed still gets their own
+  // payout, never the sample's. ⚠ AND MONEY WAITS FOR THE
   // SOURCE: before the page's first read lands (`source` null) nobody knows whether this is the
   // preview, so the card says it is reading rather than flash the sample's payout at a coach.
-  const payoutRead = useDashNextPayout(role, source === "live");
+  const payoutRead = useDashNextPayout(role, ownReads);
   const money = dashMoneyModel(live, kpiCtx, source === "demo", source == null ? { state: "loading" } : payoutRead);
   // The calendar overlay is DashShell's; it hands its opener back through this ref as it renders.
   const openCalRef = React.useRef(null);
@@ -2889,6 +2949,10 @@ function CoachDashboardPage({ role }) {
       {children}
     </div>
   );
+  // A card or a Work queues tab built on the roster: with the roster unread it says so, never its
+  // empty sentence or a list of nobody (DashRosterUnread).
+  const rosterPanel = (title, children) => renderPanel(title, rosterUnread ? <DashRosterUnread /> : children);
+  const rosterTab = (tab) => (rosterUnread ? { key: tab.key, label: tab.label, render: () => <DashRosterUnread /> } : tab);
   const renderKpiStrip = (row) => (
     <div style={{ display: "grid", gridTemplateColumns: `repeat(${row.length},1fr)`, background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, overflow: "hidden" }}>
       {row.map((k, i) => (
@@ -2912,80 +2976,82 @@ function CoachDashboardPage({ role }) {
     // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
     // the Business overview and summary) stays in the catalogue as an optional card.
     { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", group: "clients", size: "wide",
-      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} /> },
+      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} loading={waiting} /> },
     { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", group: "schedule", size: "narrow",
-      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} peek={peek} /> },
+      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={dayUnread} peek={peek} rosterUnread={rosterUnread} /> },
     { key: "glance", title: "At a glance", blurb: "Three figures: " + (role === "nutritionist" ? "plans" : "programs") + " due, check-ins reviewed and roster logging, or pick your own with ⚙.", group: "clients", size: "wide",
       render: () => <DashGlanceCard cells={glance} />,
       settings: dashGlanceSettings(glanceChosen, role, setGlanceKpis) },
     { key: "money", title: "Money", blurb: "Recurring revenue, and your next payout from Stripe.", group: "money", size: "narrow",
       render: () => <DashMoneyCard model={money} role={role} /> },
     { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", group: "clients", size: "wide",
-      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} peek={peek} /> },
+      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} peek={peek} loading={waiting} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", group: "schedule", size: "narrow",
-      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={!scheduleRead} /> },
+      render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={dayUnread} /> },
     // ── Optional (off until added) ──
     // The tabbed queues that led the old board: client attention, new clients, check-ins, replies
     // and programs, one tab each.
     { key: "queues", title: "Work queues", blurb: "Attention, new clients, check-ins, replies" + (cfg.programmingQueue ? " and programs" : "") + ", one tab each.", optional: true, group: "clients", size: "full",
       render: () => <DashNeedsYou prefs={prefs} role={role} tabs={[
-        { key: "attention", label: "Attention", empty: !triage || triage.length === 0,
+        rosterTab({ key: "attention", label: "Attention", empty: !triage || triage.length === 0,
           emptyText: "No one needs your attention right now. Clients appear here when their logs, check-ins or Shape Score slip.",
-          render: () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} /> },
+          render: () => <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} /> }),
         // The onboarding board for clients in their first 30 days (client-onboarding review, fix 4).
-        { key: "new", label: "New clients", empty: dashOnboardingRows(clients, role).length === 0,
+        rosterTab({ key: "new", label: "New clients", empty: dashOnboardingRows(clients, role).length === 0,
           emptyText: "No clients in their first 30 days with you. A new client's board appears here the day they subscribe.",
-          render: () => <DashOnboardingPanel clients={clients} role={role} live={source === "live"} /> },
-        { key: "checkins", label: "Check-ins", render: () => <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} /> },
-        { key: "replies", label: "Replies", render: () => <DashRepliesPanel role={role} live={source === "live"} /> },
-        ...(cfg.programmingQueue ? [{ key: "programs", label: "Programs", render: () => <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} /> }] : []),
+          render: () => <DashOnboardingPanel clients={clients} role={role} live={source === "live"} /> }),
+        rosterTab({ key: "checkins", label: "Check-ins", render: () => <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} /> }),
+        { key: "replies", label: "Replies", render: () => <DashRepliesPanel role={role} live={ownReads} /> },
+        ...(cfg.programmingQueue ? [rosterTab({ key: "programs", label: "Programs", render: () => <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} /> })] : []),
       ]} /> },
     { key: "checkins", title: "Check-ins to review", blurb: "Recent shared check-ins, oldest first, with your saved review status.", optional: true, group: "clients", size: "half",
-      render: () => renderPanel("Check-ins to review", <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
+      render: () => rosterPanel("Check-ins to review", <DashCheckinQueuePanel clients={clients} prefs={prefs} role={role} live={source === "live"} />) },
     // The onboarding board (fix 4) is the "New clients" tab of Needs you, which the Coaching preset
     // carries; this card is the same board for a coach who wants it on its own.
     { key: "setup", title: "New clients", blurb: "Each new client's first 30 days, ticked by real records.", optional: true, group: "clients", size: "full",
-      render: () => renderPanel("New clients", <DashOnboardingPanel clients={clients} role={role} live={source === "live"} />) },
+      render: () => rosterPanel("New clients", <DashOnboardingPanel clients={clients} role={role} live={source === "live"} />) },
     { key: "replies", title: "Replies needed", blurb: "Conversations where the latest message came from your client.", optional: true, group: "clients", size: "half",
-      render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={source === "live"} />) },
+      render: () => renderPanel("Replies needed", <DashRepliesPanel role={role} live={ownReads} />) },
     { key: "capacity", title: "Capacity this week", blurb: "Booked time, working hours and gaps over the next seven days.", optional: true, group: "schedule", size: "half",
-      render: () => renderPanel("Capacity this week", <DashCapacityPanel role={role} live={source === "live"} />) },
-    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, group: "clients", size: "half", render: () => renderPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} />) },
-    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, group: "schedule", size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} />) },
-    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, group: "programs", size: "full", render: () => renderPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
+      render: () => renderPanel("Capacity this week", <DashCapacityPanel role={role} live={ownReads} />) },
+    { key: "pulse", title: "Client attention", blurb: "Who needs attention, ranked by the signal engine.", optional: true, group: "clients", size: "half", render: () => rosterPanel("Client attention", <TriagePulsePanel feed={triage} role={role} joint={joint} pinned={pinned} onTogglePin={togglePin} prefs={prefs} dismiss={dismiss} />) },
+    { key: "schedule", title: cfg.scheduleTitle, blurb: "Today's " + cfg.unit + "s, in order, with context on each.", optional: true, group: "schedule", size: "half", render: () => renderPanel(cfg.scheduleTitle, <ExpandableSchedule schedule={schedule} clients={clients} role={role} rosterUnread={rosterUnread} />) },
+    ...(cfg.programmingQueue ? [{ key: "queue", title: "Programming queue", blurb: "Who is ready for next week's programming.", optional: true, group: "programs", size: "full", render: () => rosterPanel("Programming queue", <ProgrammingQueuePanel queue={queue} role={role} live={source === "live"} />) }] : []),
     { key: "practice", title: "Practice", blurb: "Four figures about today's practice — pick them with ⚙.", optional: true, group: "clients", size: "full", render: () => renderKpiStrip(practiceKpis),
       settings: dashKpiSettings(practiceChosen, role, setPracticeKpis) },
-    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", optional: true, group: "clients", size: "full", render: () => renderPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
-    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", optional: true, group: "clients", size: "full", render: () => renderPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} />) }] : []),
+    { key: "wins", title: "Client wins", blurb: "Milestones your clients just hit, with a one-tap congratulation.", optional: true, group: "clients", size: "full", render: () => rosterPanel("Client wins", <DashWinsPanel clients={clients} role={role} />) },
+    ...(role === "nutritionist" ? [{ key: "roster", title: "Roster health", blurb: "Logging and protein across the whole roster.", optional: true, group: "clients", size: "full", render: () => rosterPanel("Roster health", <DashNutriAggPanel clients={clients} live={live} preview={sample} />) }] : []),
     { key: "kpis", title: "Business overview", blurb: "Four figures about the business — pick them with ⚙ once you're live.", optional: true, group: "money", size: "full", render: () => renderKpiStrip(kpis),
       settings: live ? dashKpiSettings(overviewKpis, role, setOverviewKpis) : undefined },
-    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", optional: true, group: "money", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} />) },
+    { key: "business", title: "Business", blurb: "Revenue, payouts, funnel and churn at a glance.", optional: true, group: "money", size: "full", render: () => renderPanel("Business", <DashBusinessSummary live={live} role={role} clients={clients} preview={sample} />) },
     // ── Optional (off until added) ──
     { key: "week", title: "Week ahead", blurb: "The next seven days of your calendar, with links to each day.", optional: true, group: "schedule", size: "half",
       empty: !weekAhead, emptyWhy: staleWhy,
       render: () => renderPanel("Week ahead", <DashWeekAheadPanel week={weekAhead} role={role} />) },
+    // ⚠ A ROSTER CARD STAYS ADDABLE WITH THE ROSTER UNREAD, AND SAYS SO: `empty` would take it off the
+    // board, and its reason ("appears once you have clients") would be a claim about nobody read.
     { key: "status", title: "Roster by status", blurb: "How many clients need you, need watching, and are on track.", optional: true, group: "clients", size: "half",
-      empty: !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : staleWhy,
-      render: () => renderPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role={role} />) },
+      empty: rosterUnread ? !sigOk : !rosterStatus, emptyWhy: sigOk ? "the pulse could not be read" : staleWhy,
+      render: () => rosterPanel("Roster by status", <DashRosterStatusPanel status={rosterStatus} role={role} />) },
     // Nothing to draw until a client's record holds a day (dashLogTrend): a card of empty bars
     // would read as nobody logging.
     { key: "logtrend", title: "Roster logging trend", blurb: "How many clients logged each of the last 7 days, the days their records hold.", optional: true, group: "clients", size: "half",
-      empty: !logTrend || logTrend.held === 0,
+      empty: !rosterUnread && (!logTrend || logTrend.held === 0),
       emptyWhy: !(logTrend && logTrend.clients > 0) ? "appears once you have clients who log"
         : (clients || []).some((c) => c && c.progressRead && c.progressRead.state === "loading") ? "your clients' logs are still loading" : "your clients' logs couldn't be read just now",
-      render: () => renderPanel("Roster logging trend", <DashLogTrendPanel trend={logTrend} />) },
+      render: () => rosterPanel("Roster logging trend", <DashLogTrendPanel trend={logTrend} />) },
     { key: "movers", title: "Top movers", blurb: "The biggest Shape Score moves, week over week.", optional: true, group: "clients", size: "half",
-      empty: !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
-      render: () => renderPanel("Top movers", <DashTopMoversPanel movers={movers} role={role} />) },
+      empty: rosterUnread ? !sigOk : !movers || movers.known === 0, emptyWhy: sigOk ? "appears once clients share two full weeks of Shape Score" : staleWhy,
+      render: () => rosterPanel("Top movers", <DashTopMoversPanel movers={movers} role={role} />) },
     { key: "anniversaries", title: "Client anniversaries", blurb: "Who reaches a milestone with your practice in the next 30 days.", optional: true, group: "clients", size: "half",
-      empty: !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
-      render: () => renderPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} role={role} />) },
+      empty: rosterUnread ? !sigOk : !tenureMarks || tenureMarks.total === 0 || tenureMarks.unknown === tenureMarks.total, emptyWhy: sigOk ? "appears once a client's start date is shared" : staleWhy,
+      render: () => rosterPanel("Client anniversaries", <DashAnniversariesPanel marks={tenureMarks} role={role} />) },
     { key: "revenue", title: "Revenue by client", blurb: "Who pays what per month, from their subscriptions.", optional: true, group: "money", size: "half",
-      empty: !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
-      render: () => renderPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} role={role} />) },
+      empty: rosterUnread ? !sigOk : !revenue || revenue.total === 0, emptyWhy: sigOk ? "appears once you have clients" : staleWhy,
+      render: () => rosterPanel("Revenue by client", <DashRevenueByClientPanel rev={revenue} role={role} />) },
     { key: "ending", title: role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", blurb: "Whose current block runs out in the next three weeks — write the next one before the last session.", optional: true, group: "programs", size: "half",
-      empty: !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? (role === "nutritionist" ? "appears once a client is on one of your plans" : "appears once a client is on one of your programs") : staleWhy,
-      render: () => renderPanel(role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", <DashProgramsEndingPanel ending={ending} role={role} />) },
+      empty: rosterUnread ? !sigOk : !ending || ending.total === 0 || ending.unknown === ending.total, emptyWhy: sigOk ? (role === "nutritionist" ? "appears once a client is on one of your plans" : "appears once a client is on one of your programs") : staleWhy,
+      render: () => rosterPanel(role === "nutritionist" ? "Plans ending soon" : "Programs ending soon", <DashProgramsEndingPanel ending={ending} role={role} />) },
     { key: "notes", title: "Notes to self", blurb: "A private scratchpad, kept with your account.", optional: true, group: "schedule", size: "half",
       render: () => renderPanel("Notes to self", <DashNotesPanel prefs={prefs} role={role} />) },
   ];

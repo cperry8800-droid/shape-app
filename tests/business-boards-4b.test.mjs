@@ -191,9 +191,10 @@ test('the preview draws its own sample under the band; a coach whose reads faile
     if (section === 'retention') assert.match(t, ROSTER_NAMES, section + ': the preview names its roster');
     if (section === 'growth') assert.match(titles, ROSTER_NAMES, section + ': the preview\'s tier marks are its roster');
     await demo.m.unmount();
-    // Signed in, every read failed: useDashboard fell back to its demo, roster and all.
-    for (const fail of [answer(500, { error: 'x' }), answer(503, { error: 'x' }), () => Promise.reject(new TypeError('Failed to fetch'))]) {
-      const out = await page({ source: 'demo', section }, (url) => (url.startsWith('/api/trainer/analytics') ? fail() : answer(500, {})()));
+    // Signed in, every read failed: useDashboard's "unread" (no clients), and, as the second witness,
+    // the demo roster it resolved for an outage before tests/dash-roster-unread.test.mjs's contract.
+    for (const source of ['unread', 'demo']) for (const fail of [answer(500, { error: 'x' }), answer(503, { error: 'x' }), () => Promise.reject(new TypeError('Failed to fetch'))]) {
+      const out = await page({ source, section }, (url) => (url.startsWith('/api/trainer/analytics') ? fail() : answer(500, {})()));
       const u = out.m.text();
       assert.doesNotMatch(u, /PREVIEW|DEMO FUNNEL/, section);
       assert.doesNotMatch(u, ROSTER_NAMES, section + ': the sample roster on a coach\'s page');

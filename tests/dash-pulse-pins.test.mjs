@@ -106,7 +106,9 @@ test('the pulse renders one band from one order, and the pin is on the row', () 
 
 test('the pinned set is remembered per ACCOUNT and per ROLE', () => {
   const t = stripComments(TODAY);
-  assert.match(t, /useRememberedChoices\(source === "live"\)/);
+  // (Opened for a coach whose roster couldn't be read too, `ownReads`: tests/dash-roster-unread.test.mjs.)
+  assert.match(t, /const ownReads = source === "live" \|\| rosterUnread;/);
+  assert.match(t, /useRememberedChoices\(ownReads\)/);
   // ⚠ PER ROLE. One auth user can own a trainer row AND a nutritionist row, and the two
   // Todays show different rosters — a shared key puts a nutrition client at the top of
   // the training pulse.

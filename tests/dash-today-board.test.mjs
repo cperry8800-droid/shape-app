@@ -474,9 +474,11 @@ test('the Money card says each payout state, and links to setting payouts up whe
     await m.render(React.createElement(t.DashMoneyCard, { model: t.dashMoneyModel({ kpis: {} }, { live: { kpis: {} }, clients: [] }, false, { state: 'setup' }), role: 'nutritionist' }));
     assert.equal(document.querySelector('[data-dash-payout="setup"] a').getAttribute('href'), 'NutritionistApp.html#business?section=money');
   } finally { await m.done(); }
-  // The page reads it on a live page only, and the preview is its own source, never `live` null.
+  // The page reads it on any page that is not the preview (live, or a roster unread:
+  // tests/dash-roster-unread.test.mjs), and the preview is its own source, never `live` null.
   const page = TODAY.slice(TODAY.indexOf('function CoachDashboardPage('));
-  assert.equal(/const payoutRead = useDashNextPayout\(role, source === "live"\);/.test(page), true);
+  assert.equal(/const ownReads = source === "live" \|\| rosterUnread;/.test(page), true);
+  assert.equal(/const payoutRead = useDashNextPayout\(role, ownReads\);/.test(page), true);
   assert.equal(/const money = dashMoneyModel\(live, kpiCtx, source === "demo", /.test(page), true);
   assert.equal(/return live \? \(read \|\| \{ state: "loading" \}\) : null;/.test(TODAY), true, 'the preview is handed a read');
 });
@@ -822,14 +824,17 @@ test('the switcher on Today reaches the earlier dashboard', async () => {
 // figures, calendar, pulse or sessions, and no "your schedule is clear" over a day nobody read.
 test('a failed day feed is unread on a live page, never the sample and never a clear day', async () => {
   const page = TODAY.slice(TODAY.indexOf('function CoachDashboardPage('));
-  assert.equal(/const sample = source !== "live";/.test(page), true);
+  // The preview is useDashboard's "demo" alone: an unread roster (tests/dash-roster-unread.test.mjs)
+  // is no sample either.
+  assert.equal(/const sample = source === "demo";/.test(page), true);
   assert.equal(/const firstName = live \? live\.user\.firstName : sample \? cfg\.mockName : "";/.test(page), true);
   assert.equal(/: sample \? cfg\.mockKpis\(\)/.test(page), true);
   assert.equal(/: sample \? dashDemoCalendar\(cfg\.mockCalendar\) : null;/.test(page), true);
   assert.equal(/\(sample \? cfg\.mockPulse : \[/.test(page), true);
   assert.equal(/const scheduleRead = !!todayRows \|\| sample;/.test(page), true);
-  assert.equal(/\? \(!sample \? \[\{ time: "—", who: "Today's " \+ cfg\.unit \+ "s couldn't be read"/.test(page), true);
-  assert.equal((page.match(/unread=\{!scheduleRead\}/g) || []).length, 2, 'Up next and the timeline both take the read flag');
+  assert.equal(/const dayUnread = waiting \? "loading" : !scheduleRead;/.test(page), true);
+  assert.equal(/\? \(!sample \? \[waiting \? \{[^}]*\} : \{ time: "—", who: "Today's " \+ cfg\.unit \+ "s couldn't be read"/.test(page), true);
+  assert.equal((page.match(/unread=\{dayUnread\}/g) || []).length, 2, 'Up next and the timeline both take the read flag');
   assert.equal(/onOpenCalendar=\{calendarEvents \? openCalendar : null\}/.test(page), true, 'no calendar read, no Calendar button');
   assert.equal(/greeting=\{firstName \? cfg\.greeting\(firstName\) : "Good morning\."\}/.test(page), true);
   // No mock fallback is left keyed on `live` alone.

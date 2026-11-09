@@ -54,7 +54,7 @@ export default {
     { name: 'health: the part that is on cannot be turned off', file: ROSTER, find: 'onClick={() => onChange(on ? "all" : k)}', replace: 'onClick={() => onChange(k)}' },
     { name: 'health: a remembered empty filter loses its part', file: ROSTER, find: 'k === "green" || k === value || (h.counts[k]', replace: 'k === "green" || (h.counts[k]' },
     { name: 'health: no way back to everyone', file: ROSTER, find: '{value && value !== "all" && (', replace: '{false && (' },
-    { name: 'health: check-ins reviewed is a different figure', file: TCP, find: 'role: "trainer", zone: today && today.dayZone }, ["reviewed"])[0]', replace: 'role: "trainer", zone: today && today.dayZone }, ["compliance"])[0]' },
+    { name: 'health: check-ins reviewed is a different figure', file: TCP, find: 'role: "trainer", zone: today && today.dayZone, rosterUnread: unread }, ["reviewed"])[0]', replace: 'role: "trainer", zone: today && today.dayZone, rosterUnread: unread }, ["compliance"])[0]' },
 
     // ── docked versus the slide-over ──
     { name: 'docked: the panel is modal anyway', file: ROSTER, find: '    if (docked) {\n      // Docked, Esc is the only key the panel takes', replace: '    if (false) {\n      // Docked, Esc is the only key the panel takes' },

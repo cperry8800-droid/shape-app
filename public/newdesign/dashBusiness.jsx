@@ -2964,10 +2964,11 @@ function CoachBusinessPage({ role }) {
   // ⚠ THE PREVIEW IS ONLY FOR A DEMO VIEWER, AND AN OUTAGE IS NOT ONE (Codex, #2394). Live was "a
   // feed has landed", so while the reads were pending a signed-in coach was shown the preview's
   // renewals, payouts and waiting list as their own, with no band. Then it was "the dashboard
-  // resolved a demo", but useDashboard falls back to the demo whenever the roster read fails,
+  // resolved a demo", but useDashboard fell back to the demo whenever the roster read failed,
   // signed out and outage alike: a coach whose roster, dashboard and analytics reads all failed
-  // was shown the preview's payouts, renewals, trajectory and plan as their own. The analytics
-  // answer tells the two apart. Demo figures (and the band) need the dashboard's demo AND an
+  // was shown the preview's payouts, renewals, trajectory and plan as their own. useDashboard now
+  // tells the two apart itself (its "unread" for a failed roster read), and the analytics answer
+  // stays a second witness. Demo figures (and the band) need the dashboard's demo AND an
   // analytics answer that the viewer is signed out or not a coach; until both have answered the
   // page is loading, and a failed read is an unread state.
   const preview = !live && !extra && source === "demo" && analytics === "preview";
@@ -3056,11 +3057,13 @@ function CoachBusinessPage({ role }) {
   // asked once the page knows the viewer is a coach (the roster read live, or the analytics answered),
   // never for the preview, which shows its sample. The hook is on every page that loads this one.
   // (extraFailed: the analytics failed, or answered "signed out" to a viewer the dashboard resolved.)
-  const askPayout = !preview && (source === "live" || !!live || analytics === "ok" || extraFailed);
+  const askPayout = !preview && (source === "live" || source === "unread" || !!live || analytics === "ok" || extraFailed);
   const payoutRead = typeof useDashNextPayout === "function" ? useDashNextPayout(role, askPayout) : askPayout ? { state: "unread" } : null;
   // The roster (useDashboard's clients): the preview's people under the band, a coach's own once it
-  // read live, and otherwise loading (the page doesn't know yet) or unread (it fell back to the demo).
-  const clientsState = preview || source === "live" ? "ready" : source == null || analytics === "pending" ? "loading" : "unread";
+  // read live, unread as soon as useDashboard says its read failed (source "unread", whatever the
+  // analytics still owe), and otherwise loading (the page doesn't know yet) or unread (a demo
+  // roster the analytics did not confirm as the preview).
+  const clientsState = preview || source === "live" ? "ready" : source === "unread" ? "unread" : source == null || analytics === "pending" ? "loading" : "unread";
   const boardClients = clientsState === "ready" && Array.isArray(rosterClients) ? rosterClients : [];
   const renewalsIn = preview ? dbzDemoRenewals() : fromExtra("renewals");
   const stripeIn = preview ? null : extra ? (extra.stripe || null) : extraFailed ? null : undefined;
@@ -3069,7 +3072,7 @@ function CoachBusinessPage({ role }) {
   // navigate"). Nine cards on one board was a 2,700px page; a switch shows one question at a time —
   // how the practice is doing, the money, the plan, where clients come from, and who stays — and
   // remembers the one a coach reads. Each section is its own small board (steps 4a and 4b).
-  const prefs = useRememberedChoices(source === "live");
+  const prefs = useRememberedChoices(source === "live" || source === "unread");
   const [section, setSection] = useRememberedChoice(prefs, "businessSection:" + role, DBZ_SECTION_KEYS, "overview");
   // A link that names a section opens on it (the Goal tab's "Plan the next 12 months" sends
   // #business?section=plan). It counts as the coach's choice, as a tap on that tab would.
