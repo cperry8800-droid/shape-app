@@ -278,3 +278,21 @@ test('the house rules: no coloured emoji, no ● in a pill, the wire still for r
   assert.match(src, /family=Doto:ROND,wght@0\.\.100,100\.\.900/);
   assert.doesNotMatch(src, /\bconfirm\(/, 'destructive steps go through ShapeConfirm');
 });
+
+// My review of the Climb (9 Nov): Message stays in reach for every visitor, as today's page had it.
+test('Message is in the docked console on a phone too, and a private coach keeps Message alone', async () => {
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  // The phone console hides its cells and status, never Message (today's page had "Message {name}" on a phone).
+  const phone = /@media \(max-width:760px\)\{([\s\S]*?)\n    \}/.exec(src)[1];
+  assert.doesNotMatch(phone, /\.cpw-dock-msg[^{]*\{[^}]*display:none/, 'Message is hidden on a phone');
+  // A private profile: the console docks with Message, and nothing to book or buy.
+  WIDE = false; backend();
+  const p = await mount({ ...LIVE, row: { ...ROW, is_public: false, can_view: false } });
+  assert.ok($('[data-dock]'), 'a private profile docks the console');
+  assert.ok($('[data-dock] [data-message]'), 'Message on a private profile');
+  assert.ok(!$('[data-dock] [data-dock-book]') && !$('[data-dock] [data-work-with]'), 'nothing to book or buy on a private profile');
+  assert.ok(!$('[data-dock-next]'), 'no open times on a private profile');
+  // It is the page's own Message (the coach's chat once their listing is read), as on the stage before.
+  assert.match(read('public/newdesign/coachProfileWeb.jsx'), /book=\{dockBook\} onMessage=\{message\}/);
+  await p.unmount();
+});

@@ -573,7 +573,7 @@ function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork })
         {book ? (book.kind === "link"
           ? <a href={book.href} data-dock-book="" className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{book.label}</a>
           : <button type="button" data-dock-book="" onClick={book.onClick} className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{book.label}</button>)
-          : <button type="button" data-work-with="" onClick={onWork} className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{words.work}</button>}
+          : onWork ? <button type="button" data-work-with="" onClick={onWork} className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{words.work}</button> : null}
       </div>
     </div>
   );
@@ -1046,7 +1046,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const seed = cpwHash(uid || sampleKey || name);
   const cssA = (x) => cpwA(ACC, x);
   React.useEffect(() => { cpwLoadDoto(); }, []);
-  const docked = !isSelf && !isPrivate;
+  // Docked for every visitor. A private profile's console is Message alone, as today's page kept
+  // Message on a private profile: no times, no Book, no storefront.
+  const docked = !isSelf;
 
   const workWith = (
     <CpwWorkWith T={T} cm={cm} sells={sells} monthly={monthly} listed={listed} sample={!!sample} providerId={providerId}
@@ -1161,11 +1163,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-prism-edge{padding:2px;clip-path:polygon(0 0,calc(100% - 46px) 0,100% 46px,100% 100%,46px 100%,0 calc(100% - 46px))}
     .cpw-prism-in{position:relative;aspect-ratio:330/440;background:#0c131d;display:grid;place-items:center;overflow:hidden;clip-path:polygon(0 0,calc(100% - 45px) 0,100% 45px,100% 100%,45px 100%,0 calc(100% - 45px))}
     .cpw-prism-in img{position:absolute;inset:0}
-    .cpw-prism-cap{position:absolute;left:0;right:0;bottom:0;padding:44px 22px 22px;background:linear-gradient(0deg,rgba(6,9,15,.92),rgba(6,9,15,0))}
-    .cpw .cpw-h1{margin-top:12px !important;font-size:max(44px,min(clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.64)))) !important;line-height:.86 !important;font-weight:850;font-stretch:125%;letter-spacing:-0.025em !important}
+    .cpw-prism-cap{position:absolute;left:0;right:0;bottom:0;padding:44px 22px 22px;background:linear-gradient(0deg,rgba(6,9,15,.97) 0%,rgba(6,9,15,.86) 55%,rgba(6,9,15,0) 100%)}
+    .cpw .cpw-h1{margin-top:12px !important;font-size:max(44px,min(clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.76)))) !important;line-height:.86 !important;font-weight:850;font-stretch:125%;letter-spacing:-0.025em !important}
     .cpw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
-    .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(238,243,240,.2);border-radius:8px;background:rgba(6,9,15,.6);font-size:14.5px;font-weight:600;color:#eef3f0}
-    .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:#eef3f0;white-space:pre-line;overflow-wrap:anywhere}
+    .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(238,243,240,.2);border-radius:8px;background:rgba(6,9,15,.86);font-size:14.5px;font-weight:600;color:#eef3f0}
+    .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:#eef3f0;white-space:pre-line;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(6,9,15,.95),0 0 16px rgba(6,9,15,.9)}
     .cpw-sample-note{margin:14px 0 0;padding:9px 12px;border-left:2px solid;background:rgba(6,9,15,.78);font-size:13.5px;line-height:1.45;color:rgba(238,243,240,.85)}
     .cpw-stage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px}
     .cpw-cta{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border:0;border-radius:10px;font-family:${CPW_BODY};font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 10px 22px -12px rgba(0,0,0,.8)}
@@ -1249,7 +1251,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     }
     @media (max-width:999px){
       .cpw-stage{min-height:0}
-      .cpw-stage-art{bottom:auto;height:min(560px,140vw)}
+      .cpw-stage-art{bottom:auto;height:calc(min(0.58 * (100vw - 72px), 250px) * 1.3334 + 34px)}
       .cpw-stage-shade{background:linear-gradient(0deg,#070b11 0%,rgba(7,11,17,.4) 30%,rgba(7,11,17,.15) 70%,rgba(7,11,17,.4) 100%)}
       .cpw-bar{gap:8px}
       .cpw-bar .cpw-pill{padding:0 12px}
@@ -1275,7 +1277,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     }
     @media (max-width:760px){
       .cpw-dock{left:0;right:0;bottom:0;transform:none;width:100%;border-radius:0;border-left:0;border-right:0;border-bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));gap:12px}
-      .cpw-dock-cell,.cpw-dock-msg,.cpw-dock-status{display:none !important}
+      .cpw-dock-cell,.cpw-dock-status{display:none !important}
+      .cpw-dock-msg{padding:0 14px}
       ${docked ? "#shape-global-chat-button{bottom:calc(84px + env(safe-area-inset-bottom)) !important}" : ""}
     }
     @media (max-width:640px){
@@ -1466,9 +1469,9 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 
       {/* ── The booking console, docked at the foot of the window ── */}
       {docked ? (
-        <CpwDock T={T} avatar={avatarShown} status={atCapacity ? "Full · waiting list" : (listed && !sample ? "Taking new clients" : sample ? "Sample profile" : "")}
-          introMin={weekReady && !sample ? avail.introMin : null} next={nextOpen ? whenSaid(nextOpen.ms) : null}
-          book={dockBook} onMessage={message} onWork={openWork} />
+        <CpwDock T={T} avatar={avatarShown} status={isPrivate ? "" : atCapacity ? "Full · waiting list" : (listed && !sample ? "Taking new clients" : sample ? "Sample profile" : "")}
+          introMin={weekReady && !sample && !isPrivate ? avail.introMin : null} next={nextOpen && !isPrivate ? whenSaid(nextOpen.ms) : null}
+          book={dockBook} onMessage={message} onWork={isPrivate ? null : openWork} />
       ) : null}
 
       {/* ── Sheets ── */}
