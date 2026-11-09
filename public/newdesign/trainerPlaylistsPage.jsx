@@ -126,17 +126,20 @@ function plProgramDays(plan) {
     const slots = plDaySlots(days);
     days.forEach((day, di) => {
       const key = slots[di];
-      if (!rows.has(key)) rows.set(key, { index: rows.size, key, id: (day && day.id) || key, name: (day && day.name) || "Day " + (di + 1), weeks: 0, byName: Object.create(null) });
+      if (!rows.has(key)) rows.set(key, { index: rows.size, key, id: (day && day.id) || key, name: (day && day.name) || "Day " + (di + 1), weeks: 0, byKey: new Map() });
       const row = rows.get(key);
       row.weeks += 1;
-      const name = day && day.playlist && typeof day.playlist.name === "string" ? day.playlist.name : "";
-      if (name) row.byName[name] = (row.byName[name] || 0) + 1;
+      const pl = day && day.playlist;
+      const name = pl && typeof pl.name === "string" ? pl.name : "";
+      if (!name) return;
+      const id = typeof pl.id === "string" && pl.id ? pl.id : null;
+      const k = id ? "id:" + id : "name:" + name;
+      const e = row.byKey.get(k) || { id, name, weeksWith: 0 };
+      e.weeksWith += 1;
+      row.byKey.set(k, e);
     });
   });
-  return [...rows.values()].map((r) => {
-    const names = Object.keys(r.byName);
-    return { index: r.index, key: r.key, id: r.id, name: r.name, weeks: r.weeks, playlists: names.map((n) => ({ name: n, weeksWith: r.byName[n] })) };
-  });
+  return [...rows.values()].map((r) => ({ index: r.index, key: r.key, id: r.id, name: r.name, weeks: r.weeks, playlists: [...r.byKey.values()] }));
 }
 // The programs as the page reads them: { id, name, type, clients, revision, days, plan }.
 // `clients` is the clients with the program on their calendar, null when that couldn't be read.
@@ -160,11 +163,27 @@ function plDemoPrograms(targets, playlists) {
   });
   return [...groups.values()];
 }
+// ⚠ A DAY NAMES ITS PLAYLIST BY ID, AND BY NAME ONLY WHEN THE NAME IS UNAMBIGUOUS (Codex P1 on
+// #2644). Two saved playlists can share a name, so this page writes `day.playlist.id` beside the name
+// and matches on it. A day written without an id (the program builder's chip, older programs) matches
+// by name, but only while no other playlist has that name (`dupNames`, the library's repeated names);
+// with two, neither column claims it until the coach picks one here.
+function plEntryIs(entry, p, dupNames) {
+  if (!entry || !p) return false;
+  if (entry.id) return entry.id === p.id;
+  return entry.name === p.name && !(dupNames && dupNames.has(p.name));
+}
+// The names two or more of the library's playlists share.
+function plDupNames(playlists) {
+  const seen = new Set(), dup = new Set();
+  (playlists || []).forEach((p) => { if (seen.has(p.name)) dup.add(p.name); seen.add(p.name); });
+  return dup;
+}
 // Does this day play this playlist in every week (true), in some ('some'), or not at all (false)?
-function plDayHas(day, name) {
-  const hit = (day.playlists || []).find((x) => x.name === name);
-  if (!hit) return false;
-  return hit.weeksWith >= day.weeks ? true : "some";
+function plDayHas(day, p, dupNames) {
+  const hits = (day.playlists || []).filter((x) => plEntryIs(x, p, dupNames));
+  if (!hits.length) return false;
+  return hits.reduce((s, x) => s + x.weeksWith, 0) >= day.weeks ? true : "some";
 }
 // The program with one slot's playlist set (or cleared) in every week that has that slot
 // (plDaySlots). A day plays one playlist, so setting one replaces the one it had. Returns the new
@@ -173,17 +192,31 @@ function plSetDayPlaylist(plan, slot, playlist) {
   const builder = plan && plan.detail && plan.detail.builder;
   if (!builder || !Array.isArray(builder.weeks)) return null;
   let changed = false;
-  const next = playlist ? { name: playlist.name, meta: playlist.meta || "" } : null;
+  const next = playlist ? { ...(playlist.id ? { id: playlist.id } : {}), name: playlist.name, meta: playlist.meta || "" } : null;
+  const sig = (x) => (x && x.name ? (x.id || "") + "\u0000" + x.name : "");
   const weeks = builder.weeks.map((week) => {
     const days = week && Array.isArray(week.days) ? week.days : [];
     const slots = plDaySlots(days);
     const at = slots.indexOf(slot);
     if (at < 0) return week;
     const day = days[at];
-    const had = day.playlist && day.playlist.name ? day.playlist.name : "";
-    if ((next ? next.name : "") === had) return week;
+    if (sig(next) === sig(day.playlist)) return week;
     changed = true;
     return { ...week, days: days.map((d, i) => (i === at ? { ...d, playlist: next } : d)) };
+  });
+  return changed ? { ...builder, weeks } : null;
+}
+// The program with this playlist taken off every day that plays it (deleting the playlist), or null
+// when no day does.
+function plClearPlaylist(plan, p, dupNames) {
+  const builder = plan && plan.detail && plan.detail.builder;
+  if (!builder || !Array.isArray(builder.weeks)) return null;
+  let changed = false;
+  const weeks = builder.weeks.map((week) => {
+    const days = week && Array.isArray(week.days) ? week.days : [];
+    if (!days.some((d) => d && d.playlist && plEntryIs({ id: typeof d.playlist.id === "string" && d.playlist.id ? d.playlist.id : null, name: d.playlist.name }, p, dupNames))) return week;
+    changed = true;
+    return { ...week, days: days.map((d) => (d && d.playlist && plEntryIs({ id: typeof d.playlist.id === "string" && d.playlist.id ? d.playlist.id : null, name: d.playlist.name }, p, dupNames) ? { ...d, playlist: null } : d)) };
   });
   return changed ? { ...builder, weeks } : null;
 }
@@ -209,8 +242,8 @@ function plMusicCoverage(programs) {
 }
 // Who hears a playlist: the clients on the programs whose days carry it, and who it was sent to.
 // { programs: [{ program, days }], programClients: number|null, all: boolean, clients: [ids] }.
-function plWhoHears(p, programs) {
-  const on = (Array.isArray(programs) ? programs : []).map((prog) => ({ program: prog, days: prog.days.filter((d) => plDayHas(d, p.name)) })).filter((x) => x.days.length);
+function plWhoHears(p, programs, dupNames) {
+  const on = (Array.isArray(programs) ? programs : []).map((prog) => ({ program: prog, days: prog.days.filter((d) => plDayHas(d, p, dupNames)) })).filter((x) => x.days.length);
   const counts = on.map((x) => x.program.clients);
   const programClients = counts.some((c) => c == null) ? null : counts.reduce((s, c) => s + c, 0);
   const attached = Array.isArray(p.attached) ? p.attached : [];
@@ -338,6 +371,7 @@ function PlaylistPage({ ctx }) {
   const programsState = role !== "trainer" ? "none" : demo ? "ready" : plans.state === "ready" && usage === undefined ? "loading" : plans.state;
   const programs = role !== "trainer" ? [] : demo ? demoPrograms : programsState === "ready" ? plProgramsModel(plans.list, usage) : null;
   const coverage = programs && programs.length ? plMusicCoverage(programs) : null;
+  const dupNames = plDupNames(playlists);
 
   const setViewPersist = (v) => { setView(v); try { localStorage.setItem(storageKey, v); } catch (e) {} };
   const openAttach = (f) => { setFocus(f || null); setViewPersist("matrix"); };
@@ -345,13 +379,13 @@ function PlaylistPage({ ctx }) {
 
   // ── Writes ──
   const replaceRow = (row) => setRead((r) => ({ ...r, rows: r.rows.map((x) => (x.id === row.id ? row : x)) }));
-  const importSoundtrack = async ({ name, url, note: tag, provider }) => {
+  const importSoundtrack = async ({ name, url, note: tag, provider, tracks }) => {
     const prov = provider || (/music\.apple|apple\s*music/i.test(url || "") ? "apple" : "spotify");
     if (demo) return { error: "Sign in as a coach to save playlists." };
     try {
       const res = await fetch("/api/coach/soundtracks", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider: prov, url: url || "", tag: (tag || "").trim(), role }),
+        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider: prov, url: url || "", tag: (tag || "").trim(), role, ...(tracks != null ? { tracks } : {}) }),
       });
       const d = await plJson(res);
       if (res.ok && d.soundtrack) { setRead((r) => ({ ...r, rows: [soundtrackToWeb(d.soundtrack), ...r.rows] })); return { ok: true }; }
@@ -367,12 +401,34 @@ function PlaylistPage({ ctx }) {
       return { error: d.error || "Couldn't save. Try again." };
     } catch (e) { return { error: "Couldn't save. Check your connection and try again." }; }
   };
+  // ⚠ DELETING A PLAYLIST TAKES IT OFF ITS PROGRAM DAYS FIRST (Codex P2 on #2644). A day keeps the
+  // playlist it names, so a deleted one would stay "music" on its days with no column to detach it
+  // from, and every later assignment would copy it. Each program that plays it is written first; a
+  // write that fails stops the delete. With the programs unread, it can't know, so it doesn't delete.
   const deletePlaylist = async (p) => {
+    if (role === "trainer" && !demo && programsState !== "ready") return { error: "Your programs couldn't be read, so this can't take the playlist off their days. Reload and try again." };
+    const who = plWhoHears(p, programs || [], dupNames);
+    const dayCount = who.programs.reduce((s2, x) => s2 + x.days.length, 0);
+    const onDays = dayCount ? " It also comes off " + (dayCount === 1 ? "the program day" : "the " + dayCount + " program days") + " it plays on." : "";
     const ok = window.ShapeConfirm && window.ShapeConfirm.open
-      ? await window.ShapeConfirm.open({ title: "Delete this playlist?", name: p.name, message: "It comes off your Shape library and stops showing to the clients it was sent to. Sessions already sent keep their link. The playlist itself stays in " + plProviderName(p.provider) + ".", confirmLabel: "Delete playlist" })
+      ? await window.ShapeConfirm.open({ title: "Delete this playlist?", name: p.name, message: "It comes off your Shape library and stops showing to the clients it was sent to." + onDays + " Sessions already sent keep it. The playlist itself stays in " + plProviderName(p.provider) + ".", confirmLabel: "Delete playlist" })
       : false;
     if (!ok) return { cancelled: true };
-    if (demo) { setDemoPlaylists((list) => list.filter((x) => x.id !== p.id)); return { ok: true }; }
+    if (demo) {
+      setDemoPrograms((list) => list.map((g) => ({ ...g, days: g.days.map((d) => ({ ...d, playlists: (d.playlists || []).filter((x) => !plEntryIs(x, p, dupNames)) })) })));
+      setDemoPlaylists((list) => list.filter((x) => x.id !== p.id));
+      return { ok: true };
+    }
+    for (const x of who.programs) {
+      const builder = plClearPlaylist(x.program.plan, p, dupNames);
+      if (!builder) continue;
+      try {
+        const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: x.program.id, detail: { builder }, expectedRevision: x.program.revision }) });
+        const d = await plJson(res);
+        if (!res.ok || !d.plan) return { error: "Couldn't take it off “" + x.program.name + "”" + (res.status === 409 ? ", which changed somewhere else. Reload and try again." : ". Try again.") + " The playlist wasn't deleted." };
+        setPlans((st) => ({ ...st, list: (st.list || []).map((pl) => (pl.id === d.plan.id ? d.plan : pl)) }));
+      } catch (e) { return { error: "Couldn't take it off “" + x.program.name + "”. Check your connection and try again. The playlist wasn't deleted." }; }
+    }
     try {
       const res = await fetch("/api/coach/soundtracks", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
       if (res.ok) { setRead((r) => ({ ...r, rows: r.rows.filter((x) => x.id !== p.id) })); return { ok: true }; }
@@ -394,11 +450,11 @@ function PlaylistPage({ ctx }) {
   // Set a program day's playlist (or clear it), every week of that program.
   const setDay = async (program, dayIndex, playlist) => {
     if (demo) {
-      setDemoPrograms((list) => list.map((g) => (g.id !== program.id ? g : { ...g, days: g.days.map((d) => (d.index !== dayIndex ? d : { ...d, playlists: playlist ? [{ name: playlist.name, weeksWith: d.weeks }] : [] })) })));
+      setDemoPrograms((list) => list.map((g) => (g.id !== program.id ? g : { ...g, days: g.days.map((d) => (d.index !== dayIndex ? d : { ...d, playlists: playlist ? [{ id: playlist.id || null, name: playlist.name, weeksWith: d.weeks }] : [] })) })));
       return { ok: true };
     }
     const slot = (program.days.find((d) => d.index === dayIndex) || {}).key;
-    const builder = slot ? plSetDayPlaylist(program.plan, slot, playlist ? { name: playlist.name, meta: plPlaylistMeta(playlist) } : null) : null;
+    const builder = slot ? plSetDayPlaylist(program.plan, slot, playlist ? { id: playlist.id, name: playlist.name, meta: plPlaylistMeta(playlist) } : null) : null;
     if (!builder) return { ok: true };
     try {
       const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: program.id, detail: { builder }, expectedRevision: program.revision }) });
@@ -410,7 +466,7 @@ function PlaylistPage({ ctx }) {
     } catch (e) { const msg = "Couldn't save the program. Check your connection and try again."; setNote(msg); return { error: msg }; }
   };
 
-  const mctx = { ...ctx, role, demo, live, playlists, programs, programsState, coverage, roster, importSoundtrack, savePlaylist, deletePlaylist, toggleSent, setDay, openAttach, openBuilder, setAdding };
+  const mctx = { ...ctx, role, demo, live, playlists, dupNames, programs, programsState, coverage, roster, importSoundtrack, savePlaylist, deletePlaylist, toggleSent, setDay, openAttach, openBuilder, setAdding };
   const attachFlag = coverage ? coverage.missing.length : 0;
   const eyebrow = read.state === "loading" ? "PLAYLISTS" : read.state === "unread" ? "PLAYLISTS · COULDN'T BE READ" : `${playlists.length} ${playlists.length === 1 ? "PLAYLIST" : "PLAYLISTS"}`;
 
@@ -537,7 +593,7 @@ function plFacts(p) {
 
 function PlaylistCard({ p, onPeek }) {
   const c = React.useContext(PlaylistCtx);
-  const who = plWhoHears(p, c.programs);
+  const who = plWhoHears(p, c.programs, c.dupNames);
   const heard = plWhoHearsText(who, c.role);
   const quiet = heard === "Not playing anywhere yet";
   const facts = plFacts(p);
@@ -562,7 +618,7 @@ function PlaylistCard({ p, onPeek }) {
 
 function PlaylistDetail({ p, onClose }) {
   const c = React.useContext(PlaylistCtx);
-  const who = plWhoHears(p, c.programs);
+  const who = plWhoHears(p, c.programs, c.dupNames);
   const facts = plFacts(p);
   React.useEffect(() => {
     const key = (e) => { if (e.key === "Escape") onClose(); };
@@ -652,6 +708,9 @@ function NewPlaylistDialog({ onClose }) {
   const [err, setErr] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [pickProvider, setPickProvider] = React.useState(null);
+  // The track count the library pick reported (Apple's MusicKit trackCount, Spotify's list): the
+  // server resolves a Spotify link itself, but nothing resolves an Apple one (Codex P2 on #2644).
+  const [pickTracks, setPickTracks] = React.useState(null);
   // Two library sources — Spotify (server OAuth) and Apple Music (in-page MusicKit).
   // Both degrade gracefully to the paste-a-link path, which works for everyone.
   const [mode, setMode] = React.useState("form"); // 'form' | 'spotify' | 'apple'
@@ -671,7 +730,7 @@ function NewPlaylistDialog({ onClose }) {
   const doImport = async () => {
     if (!url.trim() && !name.trim()) { setErr("Paste a playlist link or give it a name."); return; }
     setBusy(true); setErr("");
-    const r = await ctx.importSoundtrack({ name, url, note, provider: pickProvider });
+    const r = await ctx.importSoundtrack({ name, url, note, provider: pickProvider, tracks: pickTracks });
     setBusy(false);
     if (r && r.ok) onClose(); else setErr((r && r.error) || "Couldn't save the playlist. Try again.");
   };
@@ -730,7 +789,7 @@ function NewPlaylistDialog({ onClose }) {
       setMode("apple");
     } finally { setAppleBusy(false); }
   };
-  const pick = (pl, prov) => { setUrl(pl.url || ""); setName(pl.name || ""); setPickProvider(prov || null); setMode("form"); };
+  const pick = (pl, prov) => { const n = Number(pl.tracks); setUrl(pl.url || ""); setName(pl.name || ""); setPickProvider(prov || null); setPickTracks(pl.tracks !== "" && pl.tracks != null && Number.isFinite(n) && n > 0 ? Math.round(n) : null); setMode("form"); };
   const connectHref = "/api/integrations/spotify/authorize?return=" + encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search + window.location.hash) : "/newdesign/TrainerApp.html#playlists");
   const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1DB954", display: "inline-block" };
   const redDot = { width: 8, height: 8, borderRadius: 999, background: "#fa243c", display: "inline-block" };
@@ -804,7 +863,7 @@ function NewPlaylistDialog({ onClose }) {
               <span style={{ marginLeft: "auto", fontFamily: PL_MONO, fontSize: 9, letterSpacing: "0.1em", color: PL_INK2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
             </button>
             <div style={{ fontFamily: PL_MONO, fontSize: 9.5, letterSpacing: "0.12em", color: PL_INK3, textAlign: "center", margin: "12px 0" }}>OR PASTE A LINK</div>
-            <label style={lbl}>Playlist URL<input value={url} onChange={e => { setUrl(e.target.value); setPickProvider(null); }} placeholder="Spotify or Apple Music playlist link" style={{ ...input, marginTop: 6 }} /></label>
+            <label style={lbl}>Playlist URL<input value={url} onChange={e => { setUrl(e.target.value); setPickProvider(null); setPickTracks(null); }} placeholder="Spotify or Apple Music playlist link" style={{ ...input, marginTop: 6 }} /></label>
             <label style={lbl}>Name (optional override)<input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={{ ...input, marginTop: 6 }} /></label>
             <label style={lbl}>Note for clients<input value={note} maxLength={60} onChange={e => setNote(e.target.value)} placeholder="What's the vibe? Any cues?" style={{ ...input, marginTop: 6, fontFamily: sans }} /></label>
             {err && <div role="alert" data-pl-error style={{ marginTop: 12, fontSize: 13, color: PL_RUST }}>{err}</div>}
@@ -902,7 +961,7 @@ function AttachMatrix({ focus }) {
                 {d.weeks > 1 && !needs && <div style={{ fontSize: 10.5, color: PL_INK3, fontFamily: PL_MONO, marginTop: 2 }}>{d.weeks} weeks</div>}
               </td>
               {playlists.map((p) => {
-                const on = plDayHas(d, p.name);
+                const on = plDayHas(d, p, c.dupNames);
                 const key = prog.id + ":" + d.index + ":" + p.id;
                 const label = (on === true ? "Take " + p.name + " off " : "Put " + p.name + " on ") + prog.name + " · " + d.name;
                 return cell(key, ["prog:" + prog.id], on, label, prog.clients, needs, () => c.setDay(prog, d.index, on === true ? null : p), p.accent);
@@ -1012,7 +1071,7 @@ function BuilderDetailPane({ p }) {
     return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
   }, [menu]);
   const dirty = draft.name.trim() !== p.name || draft.bpm.trim() !== (p.bpm || "") || draft.duration.trim() !== (p.duration || "") || draft.note.trim() !== (p.note || "") || draft.url.trim() !== (p.url || "");
-  const who = plWhoHears(p, c.programs);
+  const who = plWhoHears(p, c.programs, c.dupNames);
   // A program day names its playlist (day.playlist.name): renaming here doesn't rename it there.
   const dayCount = who.programs.reduce((s, x) => s + x.days.length, 0);
   const renamed = draft.name.trim() && draft.name.trim() !== p.name && dayCount > 0;

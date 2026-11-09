@@ -55,7 +55,7 @@ Object.assign(globalThis, {
   Card: ({ style, children }) => React.createElement('div', { style }, children),
 });
 const P = await loadRealModule(ND('trainerPlaylistsPage.jsx'), {
-  appendExports: 'export { PlaylistPage, plDaySlots, plSetDayPlaylist, plDayHas, plMusicCoverage, plProgramsModel, plProgramDays, plWhoHears, plWhoHearsText, plToggleSent, plRosterFrom, plTrackListNote, soundtrackToWeb };',
+  appendExports: 'export { PlaylistPage, plDupNames, plClearPlaylist, plDaySlots, plSetDayPlaylist, plDayHas, plMusicCoverage, plProgramsModel, plProgramDays, plWhoHears, plWhoHearsText, plToggleSent, plRosterFrom, plTrackListNote, soundtrackToWeb };',
 });
 const { TRAINER_PLAYLISTS, TRAINER_WORKOUTS, NUTRI_PLAYLISTS, NUTRI_ATTACH_TARGETS } = globalThis;
 // window.confirm is never the delete gate.
@@ -293,7 +293,7 @@ test('a program-day cell writes the day in every week, held to the revision read
   const weeks = w[0].body.detail.builder.weeks;
   assert.equal(weeks.length, 2);
   for (const wk of weeks) {
-    assert.deepEqual(wk.days[1].playlist, { name: 'Leg Day', meta: '24 tracks' }, 'every week');
+    assert.deepEqual(wk.days[1].playlist, { id: 'st-1', name: 'Leg Day', meta: '24 tracks' }, 'every week, by id');
     assert.deepEqual(wk.days[0].playlist, { name: 'Leg Day', meta: '24 tracks' }, 'the other day kept');
   }
   assert.deepEqual(w[0].body.detail.builder.tags, ['strength'], 'the rest of the program kept');
@@ -334,7 +334,7 @@ test('one write per program at a time: a second day of the same program waits', 
   const w = p.reqs('PATCH', '/api/coach/plans');
   assert.equal(w.length, 2);
   assert.equal(w[1].body.expectedRevision, 4, 'the second write is held to the revision the first left');
-  assert.deepEqual(w[1].body.detail.builder.weeks[0].days[1].playlist, { name: 'Leg Day', meta: '24 tracks' }, 'and keeps the first write');
+  assert.deepEqual(w[1].body.detail.builder.weeks[0].days[1].playlist, { id: 'st-1', name: 'Leg Day', meta: '24 tracks' }, 'and keeps the first write');
 });
 
 test('a send cell writes the entry members read, and leaves the row\'s role alone', async () => {
@@ -537,10 +537,11 @@ test('plDayHas: every week, some weeks, or not at all', () => {
   half.detail.builder.weeks[1].days[0].playlist = null;
   const [lower, upper] = P.plProgramDays(half);
   assert.equal(lower.weeks, 2);
-  assert.equal(P.plDayHas(lower, 'Leg Day'), 'some');
-  assert.equal(P.plDayHas(P.plProgramDays(STRENGTH())[0], 'Leg Day'), true);
-  assert.equal(P.plDayHas(upper, 'Leg Day'), false);
-  assert.equal(P.plDayHas(lower, 'Quiet'), false);
+  const leg = { id: 'st-1', name: 'Leg Day' }, quiet = { id: 'st-2', name: 'Quiet' };
+  assert.equal(P.plDayHas(lower, leg), 'some');
+  assert.equal(P.plDayHas(P.plProgramDays(STRENGTH())[0], leg), true);
+  assert.equal(P.plDayHas(upper, leg), false);
+  assert.equal(P.plDayHas(lower, quiet), false);
 });
 
 test('plMusicCoverage counts the programs clients are on when that was read, every program when not', () => {
@@ -618,4 +619,71 @@ test('the usage read asks for today on the account\'s clock (P2)', async () => {
     const p = await page();
     assert.match(p.reqs('GET', '/api/coach/plans/usage')[0].url, /\?today=2031-02-03$/);
   } finally { window.ShapeZone = ShapeZone; }
+});
+
+test('two playlists with one name: a day matches by id, and a name-only day claims neither (P1)', async () => {
+  const twin = { ...LEG, id: 'st-9', provider: 'apple', url: 'https://music.apple.com/x' };
+  const byId = () => { const s = STRENGTH(); s.detail.builder.weeks.forEach((w) => { w.days[0].playlist = { id: 'st-9', name: 'Leg Day', meta: '' }; }); return s; };
+  const dup = P.plDupNames([{ name: 'Leg Day' }, { name: 'Leg Day' }, { name: 'Quiet' }]);
+  assert.deepEqual([...dup], ['Leg Day']);
+  const days = P.plProgramDays(byId());
+  assert.equal(P.plDayHas(days[0], { id: 'st-9', name: 'Leg Day' }, dup), true);
+  assert.equal(P.plDayHas(days[0], { id: 'st-1', name: 'Leg Day' }, dup), false, 'the other Leg Day is not on it');
+  const legacy = P.plProgramDays(STRENGTH());
+  assert.equal(P.plDayHas(legacy[0], { id: 'st-1', name: 'Leg Day' }, dup), false, 'ambiguous: neither claims it');
+  assert.equal(P.plDayHas(legacy[0], { id: 'st-1', name: 'Leg Day' }, new Set()), true, 'unique: the name is enough');
+  // Switching between the twins is a change, written with the id.
+  const sw = P.plSetDayPlaylist(byId(), 'name:lower', { id: 'st-1', name: 'Leg Day', meta: '' });
+  assert.deepEqual(sw.weeks.map((w) => w.days[0].playlist.id), ['st-1', 'st-1']);
+  // Through the page: only the twin the day names is on.
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/soundtracks': () => ok({ soundtracks: [LEG, twin] }), 'GET /api/coach/plans': () => ok({ plans: [byId()] }) }) });
+  await p.tab('matrix');
+  assert.deepEqual([p.on('p1:0:st-1'), p.on('p1:0:st-9')], ['0', '1']);
+  await p.click(p.cell('p1:0:st-1'));
+  assert.deepEqual(p.reqs('PATCH', '/api/coach/plans')[0].body.detail.builder.weeks.map((w) => w.days[0].playlist.id), ['st-1', 'st-1']);
+});
+
+test('deleting a playlist takes it off its program days first, and stops if that fails (P2)', async () => {
+  window.ShapeConfirm = { open: async () => true };
+  const p = await page();
+  await p.tab('builder');
+  await p.click(p.q('[data-pl-more]'));
+  await p.click(p.q('[data-pl-delete]'));
+  const w = p.reqs('PATCH', '/api/coach/plans');
+  assert.equal(w.length, 1);
+  assert.equal(w[0].body.expectedRevision, 3);
+  assert.deepEqual(w[0].body.detail.builder.weeks.map((wk) => wk.days[0].playlist), [null, null]);
+  const order = p.log.filter((r) => r.method !== 'GET').map((r) => r.method + ' ' + r.url);
+  assert.deepEqual(order, ['PATCH /api/coach/plans', 'DELETE /api/coach/soundtracks'], 'the days first, then the playlist');
+  await p.close();
+  const f = await page({ handlers: trainerLive({ 'PATCH /api/coach/plans': () => ({ status: 409, body: {} }) }) });
+  await f.tab('builder');
+  await f.click(f.q('[data-pl-more]'));
+  await f.click(f.q('[data-pl-delete]'));
+  assert.equal(f.reqs('DELETE', '/api/coach/soundtracks').length, 0, 'not deleted');
+  assert.equal(/changed somewhere else.*wasn't deleted/.test(f.text(f.q('[data-pl-save-msg]'))), true);
+  await f.close();
+  // The programs unread: it can't know which days play it, so it doesn't delete.
+  const u = await page({ handlers: trainerLive({ 'GET /api/coach/plans': () => ({ status: 500, body: {} }) }) });
+  await u.tab('builder');
+  await u.click(u.q('[data-pl-more]'));
+  await u.click(u.q('[data-pl-delete]'));
+  assert.equal(u.reqs('DELETE', '/api/coach/soundtracks').length, 0);
+  assert.equal(/programs couldn't be read/.test(u.text(u.q('[data-pl-save-msg]'))), true);
+});
+
+test('a playlist picked from the library keeps its track count in the save (P2)', async () => {
+  const p = await page({ handlers: trainerLive({
+    'GET /api/integrations/spotify/playlists': () => ok({ playlists: [{ id: 'sp1', name: 'Picked', url: 'https://open.spotify.com/playlist/sp1', tracks: 31 }] }),
+    'POST /api/coach/soundtracks': ({ body }) => ok({ soundtrack: { id: 'st-new', ...body } }),
+  }) });
+  await p.click([...p.div.querySelectorAll('[data-actions] button')][0]);
+  const btn = (t) => [...document.querySelectorAll('[data-pl-new] button')].find((b) => b.textContent.includes(t));
+  await p.click(btn('Pick from your Spotify'));
+  await p.click(btn('Picked'));
+  await p.click(btn('Save playlist'));
+  const post = p.reqs('POST', '/api/coach/soundtracks');
+  assert.equal(post.length, 1);
+  assert.equal(post[0].body.tracks, 31);
+  assert.equal(post[0].body.name, 'Picked');
 });
