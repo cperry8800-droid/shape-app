@@ -29,7 +29,7 @@
     var st = document.createElement("style");
     st.id = "shape-global-radio-style";
     st.textContent = [
-      "#" + BTN_ID + "{position:fixed;right:24px;bottom:92px;z-index:2147482900;display:inline-flex;align-items:center;gap:11px;padding:12px 18px 12px 14px;border:0;border-radius:999px;background:#1a1612;color:#f2ede4;font-family:'Space Grotesk',Inter,Arial,sans-serif;text-decoration:none;box-shadow:0 16px 40px rgba(0,0,0,.42);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s ease,box-shadow .16s ease}",
+      "#" + BTN_ID + "{position:fixed;right:24px;bottom:92px;z-index:2147482900;display:inline-flex;align-items:center;gap:11px;padding:12px 18px 12px 14px;border:0;border-radius:999px;background:#1a1612;color:#f2ede4;font-family:'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;text-decoration:none;box-shadow:0 16px 40px rgba(0,0,0,.42);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .16s ease,box-shadow .16s ease}",
       "#" + BTN_ID + ":hover{transform:translateY(-2px);box-shadow:0 20px 48px rgba(0,0,0,.5)}",
       "#" + BTN_ID + ":focus-visible{outline:3px solid rgba(30,192,168,.7);outline-offset:4px}",
       "#" + BTN_ID + " .gr-ic{width:30px;height:30px;border-radius:999px;background:#1ec0a8;color:#1a1612;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:11px;line-height:1}",

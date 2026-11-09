@@ -568,7 +568,12 @@
   .rd{box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 4px rgba(0,0,0,.4),0 40px 80px -36px rgba(0,0,0,.9)}
 
   /* ── price ───────────────────────────────────────────────── */
-  .prc2{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:52px;align-items:center}
+  /* ⚠ CAPPED AND CENTRED (the depth review, 2026-11-04): with a 1fr copy column the copy
+     sat in its ~440px at the far left and the phone at the far right, about 670px of
+     nothing between them at 1440. The copy column is now as wide as its own copy, and the
+     pair sits together in the middle of an 1100px cap. It stacks at 860 (the media rule below). */
+  .prc2{display:grid;grid-template-columns:minmax(0,520px) 264px;justify-content:center;
+        gap:clamp(52px,7vw,104px);align-items:center;max-width:1100px;margin-inline:auto}
   .big{font-family:var(--num);font-weight:900;font-size:clamp(52px,6.6vw,88px);line-height:1;
        font-variation-settings:'ROND' 100}
   .big i{font-style:normal;font-size:.26em;color:var(--fg-3);font-weight:700;font-variation-settings:'ROND' 30}
@@ -605,14 +610,18 @@
        past the screen edge at 1021. The shared header trims the same. */
     .nlinks{gap:14px}
     .mo-grid,.co-grid{grid-template-columns:repeat(2,1fr)}
-    .rd,.prc2{grid-template-columns:1fr;gap:34px}
+    .rd{grid-template-columns:1fr;gap:34px}
     .rd{padding:36px 28px}
-    .rd .air,.prc2 .appph{max-width:420px}
+    .rd .air{max-width:420px}
     .ftg{grid-template-columns:1fr 1fr 1fr}
   }
   @media (max-width:860px){
     .jpin{grid-template-columns:1fr}
     .jph{display:none}
+    /* The price pair stays side by side down to here (its copy column shrinks first),
+       so 900-1100 is not one 420px phone at the left of an empty row. */
+    .prc2{grid-template-columns:1fr;gap:34px}
+    .prc2 .appph{max-width:420px}
   }
   /* ⚠ THE NAV COLLAPSES AT 1020px, AND THAT NUMBER IS MEASURED, NOT PICKED.
      It was 980 for seven links (the bar needed ~975px: 15px over at 960, fit at

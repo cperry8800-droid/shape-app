@@ -48,8 +48,8 @@
   var INK50 = 'rgba(242,237,228,0.55)';
   var TEAL = '#0ac5a8';
   var DANGER = '#ff6b5e';
-  var serif = "'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif";
-  var sans = "'Space Grotesk', 'Space Grotesk Fallback', sans-serif";
+  var serif = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
+  var sans = "'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif";
   var mono = "'JetBrains Mono', 'JetBrains Mono Fallback', monospace";
 
   function el(tag, style, text) {

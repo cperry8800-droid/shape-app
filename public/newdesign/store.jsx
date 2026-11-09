@@ -106,6 +106,16 @@ const UNLOCKED = [
   { code: "NUTRI-PLAN-04F1", name: "Grocery list buildout", expires: "May 20", cost: 420, redeemed: "Apr 04" },
 ];
 
+// The scrim behind a hero's copy over the page photo (the depth review, 2026-11-04). It sits
+// inside the copy (position: relative + isolation) at z-index -1: behind the words, above the photo.
+// Feathered on every edge, so it reads as shade on the photo, not a box.
+const STORE_COPY_SCRIM = {
+  position: "absolute", inset: "-44px -52px", zIndex: -1, pointerEvents: "none",
+  background: "linear-gradient(90deg, rgba(14,11,9,0) 0, rgba(14,11,9,0.74) 52px, rgba(14,11,9,0.74) calc(100% - 52px), rgba(14,11,9,0) 100%)",
+  WebkitMaskImage: "linear-gradient(180deg, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%)",
+  maskImage: "linear-gradient(180deg, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%)",
+};
+
 function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } }) {
   const hasCredit = (credit.session > 0 || credit.nutrition > 0);
   return (
@@ -116,7 +126,8 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
           <h1 style={{ fontFamily: serif, fontSize: "clamp(56px, 7.5vw, 108px)", lineHeight: 0.9, letterSpacing: "-0.035em", fontWeight: 400, margin: 0, color: INK }}>
             Spend<br />the <em style={{ fontStyle: "italic", fontWeight: 500, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>points</em> you earned.
           </h1>
-          <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, maxWidth: 420 }}>
+          <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.55, color: "rgba(242,237,228,0.65)", margin: 0, position: "relative", isolation: "isolate", maxWidth: 420 }}>
+            <span aria-hidden style={STORE_COPY_SCRIM} />
             Trade Shape Score for Shape merch, training credits, nutrition services, and membership perks. No expiry on points.
             <span style={{ display: "block", marginTop: 14, fontSize: 13, color: TEAL, fontWeight: 600 }}>150 points = $1 · earned by showing up.</span>
           </p>
@@ -467,8 +478,9 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           )}
         </div>
       </section>
+      {/* Above the Ask Nora / Chat dock, which reserves --shape-dock-space while it shows. */}
       {cartCount > 0 && (
-        <button onClick={() => { setNotice(""); setCheckoutOpen(true); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
+        <button onClick={() => { setNotice(""); setCheckoutOpen(true); }} style={{ position: "fixed", bottom: "var(--shape-dock-space, 24px)", right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
           <span>Cart · {cartCount} item{cartCount !== 1 ? "s" : ""}</span>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{cartTotal.toLocaleString()} pts · Review →</span>
         </button>

@@ -287,6 +287,26 @@ function ActivityFooter({ a }) {
   );
 }
 
+// The preview notice, under the feed's first post rather than under the headline (the depth
+// review, 2026-11-04: it took the prime space, and its speech-balloon emoji was the site's only
+// full-colour one). The mark is a speech bubble drawn in the theme's teal, the house rule's
+// alternative to emoji; it matches the Chat half of the corner dock.
+function CmPreviewNotice() {
+  return (
+    <div role="note" style={{ flex: "none", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.2)`, background: `rgba(var(--sh-accent2-rgb, 10,197,168), 0.0588)`, borderRadius: 16, padding: "16px 20px" }}>
+      <svg aria-hidden viewBox="0 0 16 16" width="22" height="22" fill="none" style={{ flex: "none", color: TEAL }}>
+        <path d="M2 6.5a4 4 0 0 1 4-4h4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H6.5L3.5 14V8.5a3.5 3.5 0 0 1-1.5-2Z" stroke="currentColor" strokeWidth="1.35" strokeLinejoin="round" />
+      </svg>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>This is a preview</div>
+        <div style={{ fontFamily: sans, fontSize: 15, lineHeight: 1.5, color: "rgba(242,237,228,0.78)" }}>
+          The activity here is a sample of what the community looks like. To actually send messages, open the <strong style={{ color: INK }}>chat bubble in the bottom-right</strong> — that's where real conversations happen (Shape members only).
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LiveActivity() {
   return (
     <section style={{ padding: "70px 72px 40px", borderTop: "1px solid rgba(242,237,228,0.12)" }}>
@@ -316,7 +336,7 @@ function LiveActivity() {
                 <ActivityFooter a={a} />
               </article>
             </CmReveal>
-          ))}
+          )).flatMap((post, i) => (i === 0 ? [post, <CmPreviewNotice key="preview" />] : [post]))}
         </div>
 
         <div style={{ marginTop: 32, textAlign: "center" }}>
@@ -640,19 +660,6 @@ function Community() {
       <div style={{ position: "relative", zIndex: 1 }}>
         <Header active="Community" />
         <HeroC />
-        <section style={{ padding: "4px 72px 8px", position: "relative" }}>
-          <div style={{ maxWidth: 1320, margin: "0 auto" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.2)`, background: `rgba(var(--sh-accent2-rgb, 10,197,168), 0.0588)`, borderRadius: 16, padding: "16px 20px" }}>
-              <span style={{ fontSize: 22 }} aria-hidden>💬</span>
-              <div style={{ flex: 1, minWidth: 240 }}>
-                <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL, marginBottom: 4 }}>This is a preview</div>
-                <div style={{ fontFamily: sans, fontSize: 15, lineHeight: 1.5, color: "rgba(242,237,228,0.78)" }}>
-                  The activity below is a sample of what the community looks like. To actually send messages, open the <strong style={{ color: INK }}>chat bubble in the bottom-right</strong> — that's where real conversations happen (Shape members only).
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
         <LiveActivity />
         <Chat />
         <Events />

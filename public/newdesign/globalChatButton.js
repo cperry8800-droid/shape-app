@@ -247,15 +247,15 @@
       "#shape-global-chat-panel .sgc-msg.them{align-self:flex-start;border-top-left-radius:4px}",
       "#shape-global-chat-panel .sgc-time{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.1em;color:rgba(var(--sh-ink-rgb, 242,237,228),.36);margin-top:-5px}",
       "#shape-global-chat-panel .sgc-quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:2px}",
-      "#shape-global-chat-panel .sgc-quick a{display:inline-block;text-decoration:none;border:1px solid rgba(30,192,168,.42);color:var(--sh-accent, #2ee0c4);border-radius:999px;padding:7px 11px;font:600 12px 'Space Grotesk',Inter,Arial,sans-serif}",
-      "#shape-global-chat-panel .sgc-quick button{border:1px solid rgba(30,192,168,.42);background:transparent;color:var(--sh-accent, #2ee0c4);border-radius:999px;padding:7px 11px;font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer}",
+      "#shape-global-chat-panel .sgc-quick a{display:inline-block;text-decoration:none;border:1px solid rgba(30,192,168,.42);color:var(--sh-accent, #2ee0c4);border-radius:999px;padding:7px 11px;font:600 12px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif}",
+      "#shape-global-chat-panel .sgc-quick button{border:1px solid rgba(30,192,168,.42);background:transparent;color:var(--sh-accent, #2ee0c4);border-radius:999px;padding:7px 11px;font:600 12px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;cursor:pointer}",
       "#shape-global-chat-panel .sgc-compose{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.09)}",
-      "#shape-global-chat-panel textarea{flex:1;min-height:40px;max-height:110px;resize:none;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.12);border-radius:12px;background:rgba(var(--sh-ink-rgb, 242,237,228),.045);color:var(--sh-ink, #f2ede4);padding:11px 12px;font:13.5px 'Space Grotesk',Inter,Arial,sans-serif;outline:none}",
-      "#shape-global-chat-panel .sgc-send{border:0;border-radius:999px;background:var(--sh-ink, #f2ede4);color:var(--sh-ground, #1a1612);padding:0 16px;font:700 13px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer}",
+      "#shape-global-chat-panel textarea{flex:1;min-height:40px;max-height:110px;resize:none;border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.12);border-radius:12px;background:rgba(var(--sh-ink-rgb, 242,237,228),.045);color:var(--sh-ink, #f2ede4);padding:11px 12px;font:13.5px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;outline:none}",
+      "#shape-global-chat-panel .sgc-send{border:0;border-radius:999px;background:var(--sh-ink, #f2ede4);color:var(--sh-ground, #1a1612);padding:0 16px;font:700 13px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;cursor:pointer}",
       "#shape-global-chat-panel .sgc-send:disabled{opacity:.45;cursor:not-allowed}",
       "#shape-global-chat-panel .sgc-tabs{display:flex;gap:4px;overflow-x:auto;padding:8px 10px;border-bottom:1px solid rgba(var(--sh-ink-rgb, 242,237,228),.09);-ms-overflow-style:none;scrollbar-width:none}",
       "#shape-global-chat-panel .sgc-tabs::-webkit-scrollbar{display:none}",
-      "#shape-global-chat-panel .sgc-tab{flex:none;border:0;background:transparent;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;padding:6px 10px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}",
+      "#shape-global-chat-panel .sgc-tab{flex:none;border:0;background:transparent;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);font:600 12px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;padding:6px 10px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}",
       "#shape-global-chat-panel .sgc-tab.active{background:rgba(30,192,168,.16);color:var(--sh-accent, #2ee0c4)}",
       "#shape-global-chat-panel .sgc-bdg{min-width:16px;height:16px;padding:0 5px;border-radius:999px;background:#1ec0a8;color:#1a1612;font:700 9px 'JetBrains Mono',Consolas,monospace;display:inline-flex;align-items:center;justify-content:center}",
       "#shape-global-chat-panel .sgc-list{flex:1;overflow:auto;display:flex;flex-direction:column}",
@@ -265,7 +265,7 @@
       "#shape-global-chat-panel .sgc-row .rl{font-size:11px;color:rgba(var(--sh-ink-rgb, 242,237,228),.5);grid-column:1/2}",
       "#shape-global-chat-panel .sgc-row .tm{font-family:'JetBrains Mono',Consolas,monospace;font-size:9.5px;color:rgba(var(--sh-ink-rgb, 242,237,228),.4)}",
       "#shape-global-chat-panel .sgc-row .ls{font-size:12px;color:rgba(var(--sh-ink-rgb, 242,237,228),.6);grid-column:1/-1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-      "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:var(--sh-accent, #2ee0c4);font:600 12px 'Space Grotesk',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
+      "#shape-global-chat-panel .sgc-back{border:0;background:transparent;color:var(--sh-accent, #2ee0c4);font:600 12px 'Schibsted Grotesk','Schibsted Fallback',Inter,Arial,sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:0;margin-bottom:2px}",
       "#shape-global-chat-panel .sgc-from{font-family:'JetBrains Mono',Consolas,monospace;font-size:9px;letter-spacing:.08em;color:rgba(var(--sh-ink-rgb, 242,237,228),.42);margin:-3px 0 -2px}",
       "@media (max-width:640px){#shape-global-chat-button{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));font-size:13px}#shape-global-chat-button .shape-global-chat-count{min-width:20px;height:18px;font-size:10px}#shape-global-chat-panel{right:16px;bottom:72px;width:calc(100vw - 32px);height:min(560px,calc(100vh - 94px));max-height:calc(100vh - 94px)}}"
     ].join("");
@@ -942,6 +942,43 @@
     catch (e) { return false; }
   }
 
+  // ⚠ THE DOCK RESERVES ITS CORNER (the depth review, 2026-11-04: Ask Nora and Chat sat
+  // over the Privacy link on Login and the footer's last links). While the dock shows,
+  // an empty block at the end of <body> keeps the page's last 80px clear of it, so a
+  // visitor scrolled to the bottom can reach everything; and --shape-dock-space on <html>
+  // tells a page's own fixed bottom-right control (the Store's Cart) how far to lift.
+  // A spacer, not body padding: an app shell sized to 100vh would lose 80px to padding.
+  // The dock's top edge is 59px up (38px tall, 20px off the edge; 44 and 16 on a phone).
+  var SPACER_ID = "shape-global-chat-spacer";
+  function syncDockSpace(button) {
+    if (!button || !document.body) return;
+    var shown = false;
+    try {
+      var cs = window.getComputedStyle(button);
+      shown = cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) !== 0
+        || button.classList.contains(HIDDEN_CLASS); // a panel is open: keep the space, no jump
+    } catch (e) {}
+    var spacer = document.getElementById(SPACER_ID);
+    if (!shown) {
+      if (spacer) spacer.remove();
+      document.documentElement.style.removeProperty("--shape-dock-space");
+      return;
+    }
+    if (!spacer) {
+      spacer = document.createElement("div");
+      spacer.id = SPACER_ID;
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.cssText = "display:block;flex:none;width:100%;height:calc(80px + env(safe-area-inset-bottom, 0px));pointer-events:none";
+    }
+    // Last in <body>, ahead of the dock itself, so it follows the page's own content.
+    // Compared with where it should be first, so the body observer that runs this never loops.
+    var ref = button.parentNode === document.body ? button : null;
+    if (spacer.parentNode !== document.body || spacer.nextSibling !== ref) {
+      document.body.insertBefore(spacer, ref);
+    }
+    document.documentElement.style.setProperty("--shape-dock-space", "calc(80px + env(safe-area-inset-bottom, 0px))");
+  }
+
   function mount() {
     if (document.getElementById(ID)) return;
     // ⚠ PHONES GET NORA. This used to return here below 760 px, so a visitor on a
@@ -992,9 +1029,19 @@
 
     document.body.appendChild(button);
     syncVisibility(button);
+    syncDockSpace(button);
+
+    // A page that hides the dock with a class (the homepage intro, an open drawer)
+    // changes only an attribute, which the childList observer below never sees.
+    new MutationObserver(function () { syncDockSpace(button); })
+      .observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
+    new MutationObserver(function () { syncDockSpace(button); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("resize", function () { syncDockSpace(button); });
 
     var observer = new MutationObserver(function () {
       syncVisibility(button);
+      syncDockSpace(button);
       // clientChatTabs arrives when the app mounts (async) — keep the badge
       // honest as threads load/read-states change.
       syncUnreadBadge(button);

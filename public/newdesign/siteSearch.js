@@ -15,8 +15,8 @@
   window.__shapeSiteSearch = true;
 
   var TEAL = '#0ac5a8';
-  var SANS = "'Space Grotesk', sans-serif";
-  var SERIF = "'Fraunces', serif";
+  var SANS = "'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif";
+  var SERIF = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
   var MONO = "'JetBrains Mono', monospace";
   // The Shape Score ladder's own colors (tierColors.jsx), so a person's facet here
   // matches their profile: Raw · Tempo · Form · Peak · Legend.

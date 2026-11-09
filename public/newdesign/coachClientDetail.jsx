@@ -10,7 +10,7 @@ function CKStat({ label, value, small, sub, color }) {
   return (
     <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 12, padding: "14px 16px", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" }}>
       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color, textTransform: "uppercase" }}>{label}</div>
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "var(--sh-ink2, #a09b94)" }}>{small}</span> : null}</div>
+      <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 30, letterSpacing: "-0.01em", marginTop: 6 }}>{value}{small ? <span style={{ fontSize: 15, color: "var(--sh-ink2, #a09b94)" }}>{small}</span> : null}</div>
       {sub ? <div style={{ marginTop: 6, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{sub}</div> : null}
     </div>
   );
@@ -90,7 +90,7 @@ function CKCycleStation({ cycle, accent }) {
   return (
     <Card style={{ marginBottom: 16 }}>
       <CKSecHead>CYCLE · SHARED BY THE MEMBER</CKSecHead>
-      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 6 }}>{timing}</div>
+      <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 20, marginTop: 6 }}>{timing}</div>
       {c.predictedStart && (
         <div style={{ marginTop: 5, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>
           Next period window · {ckCycleShortDate(c.predictedStart.from)} – {ckCycleShortDate(c.predictedStart.to)}
@@ -98,7 +98,7 @@ function CKCycleStation({ cycle, accent }) {
       )}
       <CkCycleMonthStrip starts={cycle.starts} today={cycle.today} heat={accent} />
       {c.phase === "luteal" && c.predictedStart && (
-        <div style={{ marginTop: 8, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>
+        <div style={{ marginTop: 8, fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 13, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>
           Week of the {ckCycleShortDate(c.predictedStart.from)} is a natural deload window.
         </div>
       )}
@@ -619,8 +619,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
               {liftRows.length ? liftRows.map((l, i) => (
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.n}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{l.v} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>▲ {l.d}</span></span>
+                    <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 16 }}>{l.n}</span>
+                    <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 16 }}>{l.v} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: accent }}>▲ {l.d}</span></span>
                   </div>
                   <div style={{ marginTop: 8, height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, l.p) * 100}%`, background: accent }} /></div>
                 </div>
@@ -634,8 +634,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
               {macros.map((m, i) => (
                 <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.n}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "var(--sh-ink3, #75706a)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
+                    <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 16 }}>{m.n}</span>
+                    <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 16 }}>{m.cur != null ? m.cur + " g" : "—"} <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: m.tgt != null ? m.c : "var(--sh-ink3, #75706a)" }}>{m.tgt != null ? "▲ " + m.tgt + " g" : m.cur != null ? "no target set" : "not shared"}</span></span>
                   </div>
                   {m.cur != null && m.tgt ? <div style={{ marginTop: 8, height: 3, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(1, m.cur / m.tgt) * 100}%`, background: m.c }} /></div> : null}
                 </div>
@@ -703,7 +703,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{p.providerRole} · {p.coachName}</span>
                         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: tone, marginLeft: "auto", textTransform: "uppercase" }}>{p.status}</span>
                       </div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>{tpl ? tpl.title : "Custom plan"}</div>
+                      <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 20, letterSpacing: "-0.01em", marginBottom: 6 }}>{tpl ? tpl.title : "Custom plan"}</div>
                       <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.6 }}>
                         {tpl ? [tpl.goal, tpl.level, tpl.durationWeeks ? `${tpl.durationWeeks} wks` : null, tpl.daysPerWeek ? `${tpl.daysPerWeek}×/wk` : null].filter(Boolean).join(" · ") : "Details visible to the assigning coach."}
                       </div>
@@ -733,7 +733,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   {items.map(([k, l]) => (
                     <div key={k} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{l}</div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{R[k] != null ? `${R[k]}/10` : "—"}</div>
+                      <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 22, marginTop: 4 }}>{R[k] != null ? `${R[k]}/10` : "—"}</div>
                     </div>
                   ))}
                 </div>
@@ -859,8 +859,8 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                 {s && s.readiness != null && (
                   <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>READINESS</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
-                    <span style={{ fontFamily: "Fraunces, serif", fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>/100</span>
+                    <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 30, color: rc, lineHeight: 1 }}>{s.readiness}</span>
+                    <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>/100</span>
                     {s.readinessLabel && <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: rc }}>{s.readinessLabel}</span>}
                   </div>
                 )}
@@ -868,7 +868,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   {cells.map(([l, v]) => (
                     <div key={l} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{l}</div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 22, marginTop: 4 }}>{v}</div>
+                      <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 22, marginTop: 4 }}>{v}</div>
                     </div>
                   ))}
                 </div>
@@ -979,7 +979,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
                   {data.measurements.map((m) => (
                     <div key={m.site} style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "10px 12px" }}>
                       <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.08em", color: "var(--sh-ink2, #a09b94)", textTransform: "uppercase" }}>{m.site}</div>
-                      <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, marginTop: 4 }}>{ckMeasure(m, units).value} <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{ckMeasure(m, units).unit}</span></div>
+                      <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 20, marginTop: 4 }}>{ckMeasure(m, units).value} <span style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>{ckMeasure(m, units).unit}</span></div>
                       <div style={{ marginTop: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, color: "var(--sh-ink3, #75706a)" }}>{String(m.measured_on)}</div>
                     </div>
                   ))}
@@ -1027,7 +1027,7 @@ function GoalsCard({ data, teal, rust, gold }) {
     <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, padding: "12px 14px", marginTop: 10, display: "flex", gap: 12, alignItems: "center" }}>
       <span style={{ width: 5, height: 18, borderRadius: 3, background: c, flexShrink: 0 }} />
       <div>
-        <div style={{ fontFamily: "Fraunces, serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
+        <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 16, letterSpacing: "-0.01em" }}>{title}</div>
         {subtitle && <div style={{ marginTop: 3, fontSize: 12, fontStyle: "italic", color: "var(--sh-ink2, #a09b94)", lineHeight: 1.4 }}>{subtitle}</div>}
       </div>
     </div>
@@ -1057,7 +1057,7 @@ function GoalsCard({ data, teal, rust, gold }) {
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-accent, #2ee0c4)" }}>OVERALL{byLabel ? ` · BY ${byLabel}` : ""}</span>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink2, #a09b94)" }}>{Math.round(pct * 100)}% there</span>
                 </div>
-                <div style={{ fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
+                <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 18, letterSpacing: "-0.01em", margin: "6px 0 8px" }}>{ov.title}</div>
                 <div style={{ height: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 999, overflow: "hidden" }}><div style={{ height: "100%", width: `${pct * 100}%`, background: "var(--sh-accent2, #0ac5a8)" }} /></div>
                 <div style={{ marginTop: 7, fontSize: 11.5, color: "var(--sh-ink2, #a09b94)" }}>{down} {unit} so far · {Math.abs(toGo)} {unit} to go · now {cv(now)}{unit} · target {cv(target)}{unit}</div>
               </div>

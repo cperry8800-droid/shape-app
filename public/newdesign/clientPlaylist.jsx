@@ -1,13 +1,13 @@
 // Client-side playlist components — for the mobile app.
 // Shape-branded mini player, coach-note hero, send-to-friend sheet, connect-music fallback.
-// All match the dark warm Fraunces + Grotesk system.
+// All match the site's Anybody + Schibsted Grotesk system.
 
 const CP_PAPER = "#1a1612";
 const CP_INK = "#f2ede4";
 const CP_TEAL = "#0ac5a8";
 const CP_TEAL_BRIGHT = "#2ee0c4";
-const cpSerif = "'Fraunces', serif";
-const cpSans = "'Space Grotesk', sans-serif";
+const cpSerif = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
+const cpSans = "'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif";
 const cpMono = "'JetBrains Mono', monospace";
 
 // ─── Icons ──────────────────────────────────────────────

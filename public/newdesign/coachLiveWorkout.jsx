@@ -140,7 +140,7 @@ function CoachLiveWorkoutSession({ clientId, clientName = 'client', role = 'trai
           {lp.exercises.map((exercise, i) => <details key={i} open={i === lp.curIdx} style={{ borderTop: '1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)', padding: '8px 0' }}>
             <summary style={{ lineHeight: 1.6, padding: '7px 0', overflowWrap: 'anywhere' }}>
               <span style={{ ...mono, color: i === lp.curIdx ? accent : 'rgba(var(--sh-ink-rgb, 242,237,228),0.8)', marginRight: 10 }}>{i === lp.curIdx ? 'NOW' : exercise.done === exercise.total ? 'DONE' : String(i + 1).padStart(2, '0')}</span>
-              <span style={{ fontFamily: 'Fraunces, serif', fontSize: 20 }}>{exercise.n}</span>
+              <span style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 20 }}>{exercise.n}</span>
               <span style={{ ...mono, marginLeft: 12 }}>{exercise.done}/{exercise.total} sets</span>
             </summary>
             {cp && Array.isArray(exercise.sets) ? <>
