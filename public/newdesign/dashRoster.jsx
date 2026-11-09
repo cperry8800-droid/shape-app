@@ -1201,8 +1201,12 @@ function DashRosterHealth({ health, filters, value, onChange, reviewed }) {
               <button type="button" data-health={k} aria-pressed={on} title={words[k]} onClick={() => onChange(on ? "all" : k)}
                 style={{ display: "inline-flex", alignItems: "baseline", gap: 6, minHeight: 32, padding: "4px 10px 4px 9px", borderRadius: 6, cursor: "pointer", font: "inherit", fontSize: 13.5, whiteSpace: "nowrap",
                   color: "var(--sh-ink, #f2ede4)", background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.1)" : "transparent",
-                  border: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"), borderLeft: "3px solid " + colour[k] }}>
-                <b style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{n == null ? "\u2014" : n}</b>
+                  // Four sides written apart: a shorthand beside borderLeft is a React styling trap on re-render.
+                  borderTop: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"),
+                  borderRight: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"),
+                  borderBottom: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"),
+                  borderLeft: "3px solid " + colour[k] }}>
+                <b style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{n == null ? "\u2014" : n}</b>{" "}
                 <span style={{ color: on ? "var(--sh-ink, #f2ede4)" : "var(--sh-ink2, #a09b94)" }}>{DASH_HEALTH_WORDS[k](n)}</span>
               </button>
             </React.Fragment>
@@ -1220,9 +1224,9 @@ function DashRosterHealth({ health, filters, value, onChange, reviewed }) {
       </span>
       {reviewed && (
         <span data-health-reviewed="" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", fontSize: 12.5, color: "var(--sh-ink2, #a09b94)" }}>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase" }}>{reviewed.l || "Check-ins reviewed"}</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase" }}>{reviewed.l || "Check-ins reviewed"}</span>{" "}
           <b style={{ fontSize: 14, fontWeight: 600, color: reviewed.k === "\u2014" ? "var(--sh-ink2, #a09b94)" : "var(--sh-ink, #f2ede4)", fontVariantNumeric: "tabular-nums" }}>{reviewed.k}</b>
-          {reviewed.sub && <span>{reviewed.sub}</span>}
+          {reviewed.sub && <React.Fragment>{" "}<span>{reviewed.sub}</span></React.Fragment>}
         </span>
       )}
     </div>
@@ -1383,9 +1387,9 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
         <div key={g.key} data-roster-group={g.key}>
           {/* The group's status, in words, on a rule of its colour: a heading, never a bare swatch. */}
           <div role="heading" aria-level={3} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "16px 0 4px", padding: "2px 0 2px 9px", borderLeft: "3px solid " + (DASH_SEV_COLORS[g.key] || DASH_SEV_COLORS.unknown) }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{g.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{g.label}</span>{" "}
             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50 }}>{g.rows.length}</span>
-            {g.note && <span style={{ fontSize: 11.5, color: ink50 }}>{g.note}</span>}
+            {g.note && <React.Fragment>{" "}<span style={{ fontSize: 11.5, color: ink50 }}>{g.note}</span></React.Fragment>}
           </div>
           {g.rows.map((r, i) => {
             const rec = r.client;

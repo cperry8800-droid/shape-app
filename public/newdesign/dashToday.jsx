@@ -2319,7 +2319,9 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss, peek, joint }) {
     const tier = dashTierMark(points);
     return (
       <div key={(it.id != null ? it.id : "x") + ":" + i} data-dash-need={it.kind}
-        onClick={() => { if (canOpen) pk.open(it.id); }}
+        // A click on the row's own surface opens the panel; one on the name or the action is theirs,
+        // so a ⌘/Ctrl-click on the name opens the file in a tab and nothing here.
+        onClick={(e) => { if (!canOpen || (e.target && e.target.closest && e.target.closest("a, button"))) return; pk.open(it.id); }}
         style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "11px 2px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", cursor: canOpen ? "pointer" : "default" }}>
         <DashClientGem points={points} />
         <div style={{ minWidth: 0 }}>
