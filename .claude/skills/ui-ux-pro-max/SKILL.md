@@ -66,19 +66,32 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
   form; don't make a directive a flat row.
 - **Theme tokens only.** `const t = useBS()`. Use `t.INK/PAPER/PAPER2/RULE/HAIR/
   ACCENT/INK50/INK70/GREEN/RUST/AMBER/BLUE/DISPLAY/MONO`. **Never** hardcode
-  ink/paper on a themed surface (it breaks across the 14 papers). Teal accent
-  literal when you must: `t.isLight ? '#0a8f87' : '#34d6c5'`.
+  ink/paper on a themed surface: it breaks on every other paper (`PAPERS` in
+  `iosAppBroadsheet.jsx`). Teal accent literal when you must:
+  `t.isLight ? '#0a8f87' : '#34d6c5'`.
 - **Role colors**: client **teal**, trainer **rust `#c0533b`**, nutritionist
   **gold `#a07a2e`/#d8b25a**. Coach/role accents ride borders/spines/eyebrows;
   the title stays theme ink.
-- **Typographic system**: mono **uppercase eyebrows** (letter-spacing ~0.16–
-  0.2em), serif **display titles** with an accent-colored period
-  (`Daily <i style=accent>habits.</i>`), squared radii (≈4–9), and the **2px
-  ink→accent gradient ledger** rule under section heads.
+- **Typographic system**: **Saira** display (`t.DISPLAY`) for mastheads, titles
+  and section labels; JetBrains Mono (`t.MONO`) **uppercase eyebrows**
+  (letter-spacing ~0.16–0.2em); the native system stack for body. The screens
+  WORKLOG's Theme line names take Geist/Inter Tight through `useBSClean` (imported
+  as `useBSProClean` in the coach apps).
+  Squared radii (≈4–9), and the **2px ink→accent gradient** rule under section
+  heads (`linear-gradient(90deg, ${t.INK}, <accent> 58%, transparent)`). A title
+  ends in an accent-colored period:
+  `{title}<span aria-hidden="true" style={{ color: c }}>.</span>`.
 - **Sheets/overlays** must `createPortal` into `#bs-phone-surface` (so they don't
   overhang the phone frame in desktop preview).
-- **Monochrome emoji rule**: any emoji you *add* must be monochrome typographic
-  symbols (⚙ ↗ ✓ → × ♡ ＋ #) — never recolor existing emoji.
+- **Back** is the ← in the masthead's `BSMastBackSlot`, filled by `BSBackRow`
+  (`BSDetailHeader`, or `onBack` on `BSMasthead`/`BSPageHeader`). Never draw one
+  by hand: `tests/back-placement.test.mjs` fails on it. A sticky row takes
+  `top: useBSPinnedMastTop()`.
+- **App copy** (`mobile-app/`) goes through `useShapeTr()` in all 13 locales; a
+  new English-only string shows up in `tests/i18n-surface-inventory.test.mjs`. The
+  hook is the app's own: the website and `src/` don't have it.
+- **No colored emoji in new work**: typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or a
+  theme-tinted SVG. Leave existing emoji alone.
 
 ### Where UI lives
 
@@ -87,13 +100,12 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
   (`BSPlate`, `BSPage`, `BSFooter`) in `iosAppBroadsheet.jsx`; coach apps in
   `iosAppBroadsheetPros.jsx`.
 - **Website** — `public/newdesign/*.html` + their `*.jsx` babel blocks.
-  ⚠️ **Do NOT bump the `?v=N`** — that convention is **obsolete** (superseded
-  2026-07-16). The deploy precompile (`scripts/build-newdesign.mjs`) rewrites
-  every newdesign script tag to `nd/<name>?v=<content-hash>`, so editing a
-  `.jsx` cache-busts itself. **Never sweep `?v` across a shared jsx's
-  consumers** — `pageShell.jsx` has 69, and a 70-file PR makes **CodeRabbit skip
-  review entirely (>50 files)**. Keep the PR to the jsx file. Confirm a file is
-  actually referenced before relying on an edit.
+  **Never bump a script's `?v=`**: the deploy precompile
+  (`scripts/build-newdesign.mjs`) stamps each script tag with a content hash, so
+  editing a `.jsx` cache-busts itself, and sweeping `?v` across a shared jsx's
+  consumers (dozens of pages load `pageShell.jsx`) only bloats the PR. An image
+  replaced under its own name is the exception: it takes a new `?v=` by hand.
+  Confirm a legacy `.jsx` is still loaded before editing it.
 - **Next app** — `src/` (API routes + gated `/dashboard`).
 
 ## Verify-before-ship loop (mandatory)
@@ -101,18 +113,18 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
 - Parse-check a changed JSX file:
   `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
 - TS: `npx tsc --noEmit`.
-- Mobile build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`; then from repo
-  root **republish** `rm -rf public/m && cp -r mobile-app/dist public/m` and
-  confirm `diff -rq mobile-app/dist public/m` is clean (CI fails on stale
-  `public/m`).
-- Run `npm test`; open a PR only when asked; wait for CI green; review the diff
-  for theme-token violations, demo-vs-live leaks, and shared-component blast
-  radius before merging. (Don't hunt for "missed `?v=` bumps" — obsolete; flag a
-  needless `?v` sweep instead, it trips CodeRabbit's 50-file skip.)
+- Mobile build: from `mobile-app/`, `VITE_BASE=/m/ npm run build`, to prove it
+  builds. `public/m` is gitignored and `scripts/build-m.sh` builds it at deploy:
+  never copy `dist` into it or commit it.
+- Run `npm test`, read your own diff for theme-token violations, demo-vs-live
+  leaks and shared-component blast radius, then follow WORKLOG's **Branch and
+  merge** (PR, review, CI green on the final head). Flag a needless `?v` sweep in
+  review; a "missed `?v=` bump" isn't a finding.
 
 ## Self-review before declaring done
 
 Hierarchy clear? · one primary action? · all states designed? · AA contrast? ·
 44px targets? · 0px overflow at narrow width? · theme tokens (no hardcoded
 ink/paper)? · honest data (no fake numbers signed-in)? · no duplicated feed? ·
-built + `public/m` synced + tests green? If any "no" — it's not done.
+Back through `BSBackRow`? · app copy through `useShapeTr()`? · parse-checked, built
+and tests green? If any "no" — it's not done.

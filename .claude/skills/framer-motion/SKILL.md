@@ -92,18 +92,18 @@ sequences, **gesture/drag**, **layout/shared-element** transitions, or
 - **Framer Motion is NOT currently a dependency.** The broadsheet
   (`mobile-app/src/broadsheet/*`) animates with **inline CSS keyframes**
   (e.g. `bsPlatePulse`, `bs-blink`) injected via `<style>`, and the website
-  (`public/newdesign/`) runs **babel-standalone React with no build/bundler** —
-  npm imports don't resolve there. So:
+  (`public/newdesign/`) has **no bundler**: its JSX is compiled per file, in the
+  browser or by the deploy precompile, so npm imports don't resolve there. So:
   - To use it in the **mobile app**: `cd mobile-app && npm i motion`, import from
-    `motion/react`, then rebuild + republish `public/m` (`VITE_BASE=/m/ npm run
-    build` → `rm -rf public/m && cp -r mobile-app/dist public/m`, keep CI's
-    `public/m` diff clean). Watch bundle size (the client chunk is already large
-    — prefer `LazyMotion`/`m`).
-  - On the **website** (`public/newdesign`), Framer Motion won't load without a
-    build step — keep using CSS keyframes there unless the page is migrated off
-    babel-standalone.
+    `motion/react`, prefer `LazyMotion` + `m` (the client chunk is already large:
+    put the bundle-size change in the PR description), and check
+    `VITE_BASE=/m/ npm run build` still builds.
+    `public/m` is gitignored and built at deploy (`scripts/build-m.sh`): never
+    copy `dist` into it or commit it.
+  - On the **website**, Framer Motion won't load without a bundler: keep using
+    CSS keyframes there.
 - Match the house style: motion should reinforce the instrument-plate language
   (the live **tick** pulse, plate enter), not add flourish. Honor the two-tier
   rule and `useReducedMotion`.
-- Verify after any motion change: parse-check the JSX, build, republish
-  `public/m`, run `npm test`, CI green.
+- Verify after any motion change: parse-check the JSX, build, run `npm test`,
+  CI green.
