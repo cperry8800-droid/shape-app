@@ -880,7 +880,11 @@ function CoachWeekPage({ role }) {
       if (narrow && panelRef.current && typeof panelRef.current.scrollIntoView === "function") panelRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
     } catch (e) { /* the panel is there all the same */ }
   };
-  const select = (id, how) => { setSelId(id); setNotice(null); if (how !== "key") reveal(); };
+  // ⚠ AFTER THE COMMIT, NOT IN THE HANDLER: a smooth scroll started in the click was cut short by
+  // the row's focus and the panel's own re-render (measured at 900px: it stopped a screen short).
+  const revealNext = React.useRef(false);
+  React.useEffect(() => { if (revealNext.current) { revealNext.current = false; reveal(); } });
+  const select = (id, how) => { setSelId(id); setNotice(null); revealNext.current = how !== "key"; };
   const focusRow = (id) => {
     try {
       const el = tableRef.current ? Array.from(tableRef.current.querySelectorAll("[data-dwk-row]")).find((x) => x.getAttribute("data-dwk-row") === String(id)) : null;
