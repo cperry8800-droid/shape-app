@@ -132,6 +132,7 @@ function plProgramDays(plan) {
       const pl = day && day.playlist;
       const name = pl && typeof pl.name === "string" ? pl.name : "";
       if (!name) return;
+      row.withMusic = (row.withMusic || 0) + 1;
       const id = typeof pl.id === "string" && pl.id ? pl.id : null;
       const k = id ? "id:" + id : "name:" + name;
       const e = row.byKey.get(k) || { id, name, weeksWith: 0 };
@@ -139,7 +140,9 @@ function plProgramDays(plan) {
       row.byKey.set(k, e);
     });
   });
-  return [...rows.values()].map((r) => ({ index: r.index, key: r.key, id: r.id, name: r.name, weeks: r.weeks, playlists: [...r.byKey.values()] }));
+  // `withMusic`: the weeks this slot has ANY playlist in. A day with A in some weeks and B in the
+  // rest has music every week (Codex P2 on #2644); `playlists` says which, week by week.
+  return [...rows.values()].map((r) => ({ index: r.index, key: r.key, id: r.id, name: r.name, weeks: r.weeks, withMusic: r.withMusic || 0, playlists: [...r.byKey.values()] }));
 }
 // The programs as the page reads them: { id, name, type, clients, revision, days, plan }.
 // `clients` is the clients with the program on their calendar, null when that couldn't be read.
@@ -225,6 +228,12 @@ function plPlaylistMeta(p) {
   const n = Number(p && p.trackCount);
   return Number.isFinite(n) && n > 0 ? n + (n === 1 ? " track" : " tracks") : "";
 }
+// The weeks a day has any playlist in (plProgramDays' `withMusic`; summed from its playlists for a
+// day built without it, as the preview's are).
+function plDayMusicWeeks(d) {
+  if (d && Number.isFinite(d.withMusic)) return d.withMusic;
+  return Math.min(d ? d.weeks : 0, ((d && d.playlists) || []).reduce((s, x) => s + x.weeksWith, 0));
+}
 // The days that need music: on a program clients are on (or, when that couldn't be read, on any
 // program), with no playlist in every week. `total` and `covered` count the same days.
 function plMusicCoverage(programs) {
@@ -232,11 +241,11 @@ function plMusicCoverage(programs) {
   const usageRead = list.every((p) => p.clients != null);
   const inUse = list.filter((p) => (usageRead ? p.clients > 0 : true));
   const days = [];
-  inUse.forEach((p) => p.days.forEach((d) => days.push({ program: p, day: d, music: (d.playlists || []).some((x) => x.weeksWith >= d.weeks) })));
+  inUse.forEach((p) => p.days.forEach((d) => days.push({ program: p, day: d, music: plDayMusicWeeks(d) >= d.weeks })));
   const missing = days.filter((x) => !x.music);
   // The one raised: the missing day on the program most clients are on.
   // A day with music in only some weeks is partial, not silent: it says how many.
-  missing.forEach((x) => { x.most = (x.day.playlists || []).reduce((m, y) => Math.max(m, y.weeksWith), 0); });
+  missing.forEach((x) => { x.most = plDayMusicWeeks(x.day); });
   missing.sort((a, b) => (Number(b.program.clients) || 0) - (Number(a.program.clients) || 0));
   return { usageRead, total: days.length, covered: days.length - missing.length, missing };
 }
@@ -419,22 +428,41 @@ function PlaylistPage({ ctx }) {
       setDemoPlaylists((list) => list.filter((x) => x.id !== p.id));
       return { ok: true };
     }
+    // ⚠ ALL OR NOTHING, AS FAR AS THE PAGE CAN MAKE IT (Codex P2 on #2644). There is no transaction
+    // across programs and the playlist, so a step that fails puts back every program already
+    // changed (each held to the revision its own write left), and the message says exactly what
+    // couldn't be put back.
+    const writePlan = async (id, builder, expectedRevision) => {
+      try {
+        const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, detail: { builder }, expectedRevision }) });
+        const d = await plJson(res);
+        if (!res.ok || !d.plan) return { error: true, conflict: res.status === 409 };
+        setPlans((st) => ({ ...st, list: (st.list || []).map((pl) => (pl.id === d.plan.id ? d.plan : pl)) }));
+        return { plan: d.plan };
+      } catch (e) { return { error: true }; }
+    };
+    const done = [];
+    const undo = async (why) => {
+      const stuck = [];
+      for (const x of done.slice().reverse()) {
+        const r = await writePlan(x.program.id, x.before, Number(x.after.detail && x.after.detail.revision) || 0);
+        if (r.error) stuck.push(x.program.name);
+      }
+      return { error: why + " The playlist wasn't deleted." + (stuck.length ? " It also couldn't be put back on " + stuck.map((n) => "“" + n + "”").join(", ") + ": attach it there again." : "") };
+    };
     for (const x of who.programs) {
       const builder = plClearPlaylist(x.program.plan, p, dupNames);
       if (!builder) continue;
-      try {
-        const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: x.program.id, detail: { builder }, expectedRevision: x.program.revision }) });
-        const d = await plJson(res);
-        if (!res.ok || !d.plan) return { error: "Couldn't take it off “" + x.program.name + "”" + (res.status === 409 ? ", which changed somewhere else. Reload and try again." : ". Try again.") + " The playlist wasn't deleted." };
-        setPlans((st) => ({ ...st, list: (st.list || []).map((pl) => (pl.id === d.plan.id ? d.plan : pl)) }));
-      } catch (e) { return { error: "Couldn't take it off “" + x.program.name + "”. Check your connection and try again. The playlist wasn't deleted." }; }
+      const r = await writePlan(x.program.id, builder, x.program.revision);
+      if (r.error) return undo("Couldn't take it off “" + x.program.name + "”" + (r.conflict ? ", which changed somewhere else. Reload and try again." : ". Try again."));
+      done.push({ program: x.program, before: x.program.plan.detail.builder, after: r.plan });
     }
     try {
       const res = await fetch("/api/coach/soundtracks", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
       if (res.ok) { setRead((r) => ({ ...r, rows: r.rows.filter((x) => x.id !== p.id) })); return { ok: true }; }
       const d = await plJson(res);
-      return { error: d.error || "Couldn't delete. Try again." };
-    } catch (e) { return { error: "Couldn't delete. Check your connection and try again." }; }
+      return undo(d.error || "Couldn't delete. Try again.");
+    } catch (e) { return undo("Couldn't delete. Check your connection and try again."); }
   };
   // Send a playlist to every client, or one client (the `attached` entries members read).
   const toggleSent = async (given, target) => {
@@ -949,8 +977,8 @@ function AttachMatrix({ focus }) {
           </th>
         </tr>
         {prog.days.map((d) => {
-          const music = (d.playlists || []).some((x) => x.weeksWith >= d.weeks);
-          const most = (d.playlists || []).reduce((m, x) => Math.max(m, x.weeksWith), 0);
+          const most = plDayMusicWeeks(d);
+          const music = most >= d.weeks;
           const needs = !music && (prog.clients == null || prog.clients > 0);
           const lifted = focus && focus.programId === prog.id && focus.dayIndex === d.index;
           return (

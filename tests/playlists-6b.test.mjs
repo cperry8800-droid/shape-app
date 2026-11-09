@@ -485,7 +485,7 @@ test('Builder: without ShapeConfirm nothing is deleted; a failed delete keeps th
   await f.click(f.q('[data-pl-delete]'));
   assert.equal(f.reqs('DELETE', '/api/coach/soundtracks').length, 1);
   assert.equal(!!f.q('[data-pl-pick="st-1"]'), true);
-  assert.equal(f.text(f.q('[data-pl-save-msg]')), "Couldn't delete. Try again.");
+  assert.equal(f.text(f.q('[data-pl-save-msg]')), "Couldn't delete. Try again. The playlist wasn't deleted.");
 });
 
 // ── 8. The track list ────────────────────────────────────────────────────────
@@ -686,4 +686,62 @@ test('a playlist picked from the library keeps its track count in the save (P2)'
   assert.equal(post.length, 1);
   assert.equal(post[0].body.tracks, 31);
   assert.equal(post[0].body.name, 'Picked');
+});
+
+test('a day with one playlist some weeks and another the rest has music every week (P2)', async () => {
+  const ab = () => { const s = STRENGTH(); s.detail.builder.weeks[1].days[0].playlist = { name: 'Quiet', meta: '' }; return s; };
+  const days = P.plProgramDays(ab());
+  assert.deepEqual([days[0].weeks, days[0].withMusic], [2, 2]);
+  const cov = P.plMusicCoverage([{ id: 'p1', clients: 4, days }]);
+  assert.deepEqual([cov.total, cov.covered], [2, 1], 'Lower is covered; Upper is not');
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/plans': () => ok({ plans: [ab()] }) }) });
+  assert.equal(p.text(p.q('[data-pl-brief-text]')), '1 of 2 program days your clients are on have music.');
+  assert.equal(p.text(p.q('[data-pl-raised]')).includes('Upper has no music'), true);
+  await p.tab('matrix');
+  assert.equal(p.q('[data-pl-day="p1:0"]').getAttribute('data-needs'), '0');
+  assert.deepEqual([p.text(p.cell('p1:0:st-1')), p.text(p.cell('p1:0:st-2'))], ['✓ some weeks', '✓ some weeks'], 'each playlist says it has only some of the weeks');
+});
+
+test('a delete that fails partway puts back the programs it already changed (P2)', async () => {
+  window.ShapeConfirm = { open: async () => true };
+  const second = () => ({ ...STRENGTH(), id: 'p3', name: 'Second Block', detail: { ...STRENGTH().detail, revision: 7 } });
+  const base = trainerLive();
+  for (const failAt of ['program', 'delete']) {
+    const handlers = {
+      ...base,
+      'GET /api/coach/plans': () => ok({ plans: [STRENGTH(), second()] }),
+      'GET /api/coach/plans/usage': () => ok({ usage: { p1: { clients: 4 }, p3: { clients: 1 } }, capped: false }),
+      'PATCH /api/coach/plans': ({ body }) => (failAt === 'program' && body.id === 'p3' && body.detail.builder.weeks[0].days[0].playlist === null
+        ? { status: 500, body: {} }
+        : ok({ plan: { ...(body.id === 'p3' ? second() : STRENGTH()), detail: { ...body.detail, revision: body.expectedRevision + 1 } } })),
+      'DELETE /api/coach/soundtracks': () => (failAt === 'delete' ? { status: 500, body: {} } : ok({ ok: true })),
+    };
+    const p = await page({ handlers });
+    await p.tab('builder');
+    await p.click(p.q('[data-pl-more]'));
+    await p.click(p.q('[data-pl-delete]'));
+    const w = p.reqs('PATCH', '/api/coach/plans');
+    const legOf = (r) => r.body.detail.builder.weeks[0].days[0].playlist && r.body.detail.builder.weeks[0].days[0].playlist.name;
+    if (failAt === 'program') {
+      // p1 cleared, p3 failed, p1 put back at the revision its clear left.
+      assert.deepEqual(w.map((r) => [r.body.id, legOf(r) || null, r.body.expectedRevision]), [['p1', null, 3], ['p3', null, 7], ['p1', 'Leg Day', 4]]);
+      assert.equal(p.reqs('DELETE', '/api/coach/soundtracks').length, 0);
+    } else {
+      assert.deepEqual(w.map((r) => [r.body.id, legOf(r) || null, r.body.expectedRevision]), [['p1', null, 3], ['p3', null, 7], ['p3', 'Leg Day', 8], ['p1', 'Leg Day', 4]]);
+    }
+    assert.equal(p.text(p.q('[data-pl-save-msg]')).includes("The playlist wasn't deleted."), true);
+    assert.equal(p.text(p.q('[data-pl-save-msg]')).includes("couldn't be put back"), false);
+    assert.equal(!!p.q('[data-pl-pick="st-1"]'), true);
+    await p.close();
+  }
+  // A put-back that fails too is named.
+  const stuck = await page({ handlers: { ...base,
+    'GET /api/coach/plans': () => ok({ plans: [STRENGTH()] }),
+    'PATCH /api/coach/plans': ({ body }) => (body.expectedRevision === 3 ? ok({ plan: { ...STRENGTH(), detail: { ...body.detail, revision: 4 } } }) : { status: 409, body: {} }),
+    'DELETE /api/coach/soundtracks': () => ({ status: 500, body: {} }),
+  } });
+  await stuck.tab('builder');
+  await stuck.click(stuck.q('[data-pl-more]'));
+  await stuck.click(stuck.q('[data-pl-delete]'));
+  assert.equal(stuck.text(stuck.q('[data-pl-save-msg]')).includes("couldn't be put back on “Strength Block”"), true);
 });
