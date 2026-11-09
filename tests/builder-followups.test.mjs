@@ -203,7 +203,7 @@ async function mountWebsite(builder) {
   await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Strength', detail: { builder } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {} })));
   return writes;
 }
-const save = async (writes) => { await click(button('Save template')); return writes.at(-1).detail.builder; };
+const save = async (writes) => { await click(button('Save now')); return writes.at(-1).detail.builder; };
 const bar = () => document.querySelector('.dprog[aria-label="Progression"]');
 
 test('the bar\'s RPE group turns the climb on, caps it, names it, and turns it off with every RPE kept', async () => {
@@ -237,7 +237,9 @@ test('the bar\'s RPE group turns the climb on, caps it, names it, and turns it o
 
 test('an RPE picked in a later week\'s day editor is pinned, marked, said in the detail, and follows again', async () => {
   const writes = await mountWebsite(program(3, { progression: CLIMB }));
-  await click([...document.querySelectorAll('.wg button.c:not(.rest)')][2]); // week 2, Monday
+  // Step 6c: the program opens on its plan; week 2's Monday is peeked from its strip, then opened.
+  await click(buttons().find((x) => (x.getAttribute('aria-label') || '').startsWith('Monday, week 2:')));
+  await click(button('Open in builder'));
   const squatLine = () => [...document.querySelectorAll('.dr')].find((l) => l.querySelector('.nm').textContent === 'Back squat');
   await setValue(byAria('Back squat target RPE'), '9.5');
   let b = await save(writes);
@@ -245,7 +247,10 @@ test('an RPE picked in a later week\'s day editor is pinned, marked, said in the
   assert.equal(squat(b, 1).rpePinned, true);
   assert.equal('loadPinned' in squat(b, 1), false, 'picking an RPE pinned the load');
   assert.ok(squatLine().querySelector('.mk [title="This week’s RPE was picked by hand"]'), 'the line does not mark the hand-picked RPE');
+  // The bar is on the plan (step 6c); Done goes back to it with the session peeked.
+  await click(button('Done'));
   assert.match(bar().textContent, /1 RPE you picked by hand stays as picked\./);
+  await click(button('Open in builder'));
   await click(squatLine().querySelector('.nm'));
   assert.match(document.querySelector('aside.ddetail').textContent, /You picked this week’s RPE by hand\./);
   await click(byAria('Follow the progression for this RPE'));

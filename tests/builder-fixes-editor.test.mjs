@@ -82,7 +82,7 @@ const moves = () => [...document.querySelectorAll('.dr')];
 const openOf = () => moves().map((d) => d.classList.contains('on'));
 const move = (name) => moves().find((d) => d.querySelector('.nm').textContent === name);
 const detail = () => document.querySelector('aside.ddetail');
-const saved = async (writes) => { await click(button('Save template')); return writes.at(-1).detail.builder.weeks[0].days[0].blocks; };
+const saved = async (writes) => { await click(button('Save now')); return writes.at(-1).detail.builder.weeks[0].days[0].blocks; };
 
 // ── One line each, one selected at a time ───────────────────────────────────
 test('every move is one line, and one is open in the detail at a time', async () => {
@@ -100,15 +100,17 @@ test('every move is one line, and one is open in the detail at a time', async ()
   assert.deepEqual(openOf(), [false, false, true, false], 'and pressing it again keeps it open, since the detail is the only place it shows');
 });
 
-test('a move added from the picker is the one selected', async () => {
+// ⚠ THE LIBRARY STAYS OPEN BESIDE THE LIST NOW (step 6c), in place of the picker pop-up: a
+// block's + Exercise names the block it adds to and puts the keyboard in the library's search.
+test('a move added from the library is the one selected', async () => {
   await mount();
   await click(move('Back squat').querySelector('.nm'));
   await click(buttons().filter((b) => b.textContent === '+ Exercise')[1]);
-  const dialog = document.querySelector('[role="dialog"][aria-label="Add exercises"]');
-  await setValue(dialog.querySelector('input[aria-label="Search exercises"]'), 'Deadlift');
-  const deadlift = [...dialog.querySelectorAll('.pk-row')].find((r) => r.textContent.startsWith('Deadlift'));
-  await click(deadlift.querySelector('input[type="checkbox"]'));
-  await click(button('Add 1 exercise'));
+  const lib = document.querySelector('aside.dlib');
+  assert.equal(document.activeElement === lib.querySelector('input[aria-label="Search exercises"]'), true, '+ Exercise did not put the keyboard in the library');
+  await setValue(lib.querySelector('input[aria-label="Search exercises"]'), 'Deadlift');
+  const deadlift = [...lib.querySelectorAll('.lib-row')].find((r) => r.textContent.startsWith('Deadlift'));
+  await click(deadlift.querySelector('button.lib-add'));
   assert.equal(moves().length, 5);
   assert.equal(move('Deadlift').classList.contains('on'), true, 'the new move is not selected — the coach has to hunt for what they just added');
   assert.equal(move('Back squat').classList.contains('on'), false);

@@ -43,38 +43,23 @@ Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/
   { appendExports: 'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };' }));
 
 const SRC = fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx', import.meta.url));
-const mod = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, DbuExercisePicker, dbuClampPanel, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H };' });
-const { DbuExercisePicker, dbuClampPanel, DBU_PANEL_W, DBU_PANEL_GAP, DBU_PANEL_MIN_H } = mod;
+const mod = await loadRealModule(SRC, { appendExports: 'export { DbuBuilder, DbuLibrary };' });
+const { DbuLibrary } = mod;
 
 const buttons = () => [...document.querySelectorAll('button')];
 const byText = (re) => buttons().find((b) => re.test(b.textContent));
 
-// ── Where the floating panel may sit ────────────────────────────────────────
-// ⚠ THE SHIPPED CLAMP IS DRIVEN, NOT DESCRIBED. Measured on the pre-fix build at
-// 1440x940 in Sheet: the day panel's box ran y 496 → bottom 1296, i.e. 556px of it
-// below the fold, because `position:absolute` anchored it to the page while
-// `max-height:calc(100vh - 140px)` sized it against the screen. The day editor docks
-// under the canvas since step 3; the client preview is the panel that floats now, on
-// the same clamp.
-test('the floating panel can never be dropped outside the viewport', () => {
-  window.innerWidth = 1440; window.innerHeight = 940;
-  for (const [x, y] of [[-4000, 4000], [99999, -99999], [0, 0], [1440, 940], [-1, 941]]) {
-    const p = dbuClampPanel(x, y, DBU_PANEL_W);
-    assert.ok(p.x >= DBU_PANEL_GAP, `x ${p.x} ran off the left from ${x}`);
-    assert.ok(p.x + DBU_PANEL_W <= window.innerWidth - DBU_PANEL_GAP + 0.001, `x ${p.x} ran off the right from ${x}`);
-    assert.ok(p.y >= DBU_PANEL_GAP, `y ${p.y} ran off the top from ${y}`);
-    // The panel's height is whatever is left below its top, so keeping the top
-    // above this line is what keeps the whole box — and its grab handle — reachable.
-    assert.ok(p.y + DBU_PANEL_MIN_H <= window.innerHeight - DBU_PANEL_GAP + 0.001,
-      `y ${p.y} leaves less than the minimum on screen from ${y}`);
-  }
-});
-
-test('a window too small for the panel still yields a position on screen', () => {
-  window.innerWidth = 320; window.innerHeight = 200;
-  const p = dbuClampPanel(9999, 9999, DBU_PANEL_W);
-  assert.ok(p.x >= DBU_PANEL_GAP && p.y >= DBU_PANEL_GAP, 'clamped to the gutter rather than to a negative');
-  window.innerWidth = 1440; window.innerHeight = 940;
+// ── Nothing floats any more ─────────────────────────────────────────────────
+// ⚠ STEP 6c MADE CLIENT VIEW A TAB ON THE SHEET ("Client view is a tab on the sheet"), so the
+// floating client preview, its drag hook and its screen clamp are retired with it. What they
+// taught stays where it still applies: the pointer-capture dance is written once, for the one
+// gesture left that needs it (a row dragged by its handle).
+test('the capture dance is written once, and no panel floats', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { stripComments } = await import('./helpers/strip-comments.mjs');
+  const code = stripComments(readFileSync(SRC, 'utf8'));
+  assert.equal((code.match(/setPointerCapture/g) || []).length, 1, 'the capture dance is written once, not once per gesture');
+  assert.equal(/useDbuDrag|dbuClampPanel|\.dbu2 \.pop\{/.test(code), false, 'the floating preview is back beside the tab that replaced it');
 });
 
 // ── The coach's own moves ───────────────────────────────────────────────────
@@ -180,38 +165,44 @@ test('a food Shape already lists cannot be created again', () => {
   assert.equal(DashMeals.canCreateFood('Jollof rice', []), true);
 });
 
-// ── The picker actually offers it ───────────────────────────────────────────
-// ⚠ THE RULE BEING RIGHT SAYS NOTHING ABOUT THE SCREEN. This mounts the shipped
-// picker and types the case the old gate refused: a term with matches, for a move
-// that does not exist. The create control must be on screen anyway.
-test('the exercise picker offers to create a move even when the search found matches', async () => {
+// ── The library actually offers it ──────────────────────────────────────────
+// ⚠ THE RULE BEING RIGHT SAYS NOTHING ABOUT THE SCREEN. This mounts the shipped library panel
+// (step 6c: it replaced the picker pop-up) and types the case the old gate refused: a term with
+// matches, for a move that does not exist. The create control must be on screen anyway.
+const typeInLibrary = (input, v) => React.act(async () => {
+  Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, v);
+  input.dispatchEvent(new window.Event('input', { bubbles: true }));
+});
+test('the exercise library offers to create a move even when the search found matches', async () => {
   const root = createRoot(document.getElementById('root'));
-  await React.act(async () => root.render(React.createElement(DbuExercisePicker, { onPick() {}, onClose() {}, customMoves: [] })));
-  const input = document.querySelector('input[aria-label="Search exercises"]');
-  await React.act(async () => {
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, 'sled');
-    input.dispatchEvent(new window.Event('input', { bubbles: true }));
-  });
-  assert.ok(document.querySelectorAll('.pk-row').length > 0, 'the search did match listed moves');
+  await React.act(async () => root.render(React.createElement(DbuLibrary, { onAdd() {}, customMoves: [] })));
+  await typeInLibrary(document.querySelector('input[aria-label="Search exercises"]'), 'sled');
+  assert.ok(document.querySelectorAll('.lib-row').length > 0, 'the search did match listed moves');
   assert.ok(byText(/Add .*sled.* as a new exercise/), 'and the create control is offered beside them');
   await React.act(async () => root.unmount());
 });
 
-test('a ticked move stays on screen after the search moves on', async () => {
+test('the library lists the coach\'s own moves first, filters by region and equipment, and ticks what is in', async () => {
   const root = createRoot(document.getElementById('root'));
   const own = [{ id: 'own-sled drag', name: 'Sled drag', muscle: 'Conditioning', equipment: 'Sled', own: true }];
-  await React.act(async () => root.render(React.createElement(DbuExercisePicker, { onPick() {}, onClose() {}, customMoves: own })));
-  const input = document.querySelector('input[aria-label="Search exercises"]');
-  const type = async (v) => React.act(async () => {
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, v);
-    input.dispatchEvent(new window.Event('input', { bubbles: true }));
-  });
-  await type('sled drag');
-  const box = document.querySelector('.pk-row input[type="checkbox"]');
-  await React.act(async () => box.click());
-  await type('bench press');
-  assert.match(document.body.textContent, /Selected/, 'the selection has its own group');
-  assert.match(document.body.textContent, /Sled drag/, 'and what was ticked is still visible');
+  const added = [];
+  await React.act(async () => root.render(React.createElement(DbuLibrary, { onAdd: (ex) => added.push(ex.name), customMoves: own, inDay: new Set(['back squat']), target: 'Main' })));
+  const names = () => [...document.querySelectorAll('.lib-row b')].map((b) => b.textContent);
+  assert.equal(names()[0], 'Sled drag', 'the coach\'s own move is not first');
+  assert.equal(names().length, DashBuilder.EXERCISES.length + 1, 'the library is capped again');
+  const row = (n) => [...document.querySelectorAll('.lib-row')].find((r) => r.querySelector('b').textContent === n);
+  assert.equal(!!row('Back squat').querySelector('.lib-in'), true, 'a move already in carries no ✓');
+  assert.equal(!!row('Bench press').querySelector('.lib-in'), false);
+  await React.act(async () => [...document.querySelectorAll('.lib-seg button')].find((b) => b.textContent === 'Legs').click());
+  assert.equal(names().includes('Bench press'), false, 'Legs still lists an upper-body move');
+  assert.equal(names().includes('Back squat'), true);
+  const eq = document.querySelector('select[aria-label="Equipment"]');
+  await React.act(async () => { Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(eq, 'machine'); eq.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  assert.equal(names().includes('Back squat'), false, 'the equipment filter kept a barbell move');
+  assert.equal(names().includes('Leg press'), true);
+  await React.act(async () => row('Leg press').querySelector('button.lib-add').click());
+  assert.deepEqual(added, ['Leg press']);
+  assert.equal(row('Leg press').querySelector('button.lib-add').textContent, '＋ Main', 'the ＋ does not name the block it adds to');
   await React.act(async () => root.unmount());
 });
 
@@ -470,43 +461,31 @@ test("an excluded dish cannot be created, and the picker says which rule refused
 });
 
 // ── An IME's keystrokes belong to the IME ──────────────────────────────────
-// ⚠ ENTER CONFIRMS A CANDIDATE. Without the guard that same Enter also created a
-// move named after whatever was half-composed at the time. Escape is guarded with
-// it, deliberately: during composition Escape cancels the candidate, and letting
-// it through would ALSO close this dialog — throwing away every move ticked so
-// far, because `selected` lives in it and nowhere else.
+// ⚠ ENTER CONFIRMS A CANDIDATE. Without the guard that same Enter also created a move named
+// after whatever was half-composed at the time; and the Escape that cancels a candidate would
+// also clear the search.
 test('Enter while an IME is composing does not create a move', async () => {
   const root = createRoot(document.getElementById('root'));
-  let closed = 0;
-  await React.act(async () => root.render(React.createElement(DbuExercisePicker, {
-    onPick() {}, onClose: () => { closed += 1; }, customMoves: [],
-  })));
+  const added = [];
+  await React.act(async () => root.render(React.createElement(DbuLibrary, { onAdd: (ex) => added.push(ex.name), customMoves: [] })));
   const input = document.querySelector('input[aria-label="Search exercises"]');
   await typeInto(input, 'Zercher squat');
   assert.ok(byText(/Add .*Zercher squat/), 'the fixture depends on this being creatable');
-
   // keyCode 229 is Safari's form: WebKit ends the composition before the keydown for the
   // Enter that confirms it, so `isComposing` already reads false there (#2150's open item).
   const key = (k, isComposing, keyCode) => React.act(async () =>
     input.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true, isComposing, keyCode })));
-
   await key('Enter', true);
-  assert.ok(!/Selected/.test(document.body.textContent), 'the IME kept its Enter');
+  assert.equal(added.length, 0, 'the IME kept its Enter');
   await key('Escape', true);
-  // ⚠ AND THE HANDLER THAT MATTERS IS `DbuDialog`'s, NOT THE PICKER'S. This test found
-  // that: the picker's own Escape branch is a duplicate, and the Escape that actually
-  // closes the dialog is the listener it bubbles up to — which had no guard, so the
-  // fix was passing while the behaviour it claims was still wrong.
-  assert.equal(closed, 0, 'and its Escape — through every handler the key reaches');
+  assert.equal(input.value, 'Zercher squat', 'and its Escape');
   await key('Enter', false, 229);
-  assert.ok(!/Selected/.test(document.body.textContent), 'Safari\'s form of the Enter is the IME\'s too');
-  await key('Escape', false, 229);
-  assert.equal(closed, 0, 'and of the Escape, in the picker and in DbuDialog');
-
+  assert.equal(added.length, 0, 'Safari\'s form of the Enter is the IME\'s too');
   await key('Enter', false);
-  assert.match(document.body.textContent, /Selected/, 'and an ordinary Enter still creates the move');
+  assert.deepEqual(added, ['Zercher squat'], 'and an ordinary Enter still creates the move');
+  await typeInto(input, 'Something');
   await key('Escape', false);
-  assert.ok(closed > 0, 'and an ordinary Escape still closes the dialog');
+  assert.equal(input.value, '', 'and an ordinary Escape still clears the search');
   await React.act(async () => root.unmount());
 });
 
@@ -543,85 +522,6 @@ test('Enter while an IME is composing does not create a food either', async () =
   await React.act(async () => root.unmount());
 });
 
-// ── A drag cannot outlive the gesture that started it ───────────────────────
-const dbuLegacyDoc = () => {
-  const d = DashBuilder.newProgram('Lower');
-  d.weeks[0].days = [DashBuilder.newDay('Squat day'), DashBuilder.newDay('Pull day')];
-  d.weeks[0].days.forEach((day) => { day.blocks[0].rows = [DashBuilder.newRow({ name: 'Back squat', muscle: 'legs', equipment: 'barbell' })]; });
-  return d;
-};
-const dbuTemplate = () => ({ id: '11111111-2222-3333-4444-555555555555', name: 'Lower', published: false, detail: { revision: 1, builder: dbuLegacyDoc() } });
-const mountBuilder = async () => {
-  const root = createRoot(document.getElementById('root'));
-  await React.act(async () => root.render(React.createElement(mod.DbuBuilder, {
-    template: dbuTemplate(), clients: [], queue: [], live: false, ownerId: 'coach-a',
-    playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {},
-  })));
-  return root;
-};
-// ⚠ THESE DRIVE THE CLIENT PREVIEW SINCE STEP 3. They were written against the day
-// editor's popped-out panel, which is retired; the preview floats on the same
-// \`useDbuDrag\` hook, so every rule they pin (one pointer drives a drag, a lost capture
-// ends it, a close cannot strand it, the grip is the handle) is still that hook's.
-const togglePreview = async () => {
-  const tog = [...document.querySelectorAll('button.tog')].find((b) => /Preview as client/.test(b.textContent));
-  assert.ok(tog, 'no preview toggle — without one this test asserts nothing');
-  await React.act(async () => tog.click());
-};
-const mountWithPreview = async () => {
-  const root = await mountBuilder();
-  await togglePreview();
-  assert.ok(document.querySelector('.pop'), 'the preview did not open');
-  return root;
-};
-const grip = () => document.querySelector('.pop .ph2');
-const grabbing = () => !!(grip() && /grabbing/.test(grip().getAttribute('style') || ''));
-const ptr = (type, init) => React.act(async () => grip().dispatchEvent(new window.PointerEvent(type, { bubbles: true, ...init })));
-
-test('a second finger does not end the first finger\'s drag', async () => {
-  const root = await mountWithPreview();
-  assert.ok(grip(), 'the preview is open, so the panel floats and can be grabbed');
-  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
-  assert.ok(grabbing(), 'the grab took');
-  // ⚠ `onPanelMove` WAS POINTER-ID MATCHED AND `onPanelDrop` WAS NOT. A second finger
-  // landing on the header and lifting released the FIRST finger's capture, so the
-  // panel simply stopped following the hand still moving it.
-  await ptr('pointerup', { pointerId: 2, clientX: 500, clientY: 200 });
-  assert.ok(grabbing(), 'a foreign pointer lifting is not this drag ending');
-  await ptr('pointerup', { pointerId: 1, clientX: 600, clientY: 300 });
-  assert.ok(!grabbing(), 'and the pointer that started it does end it');
-  await React.act(async () => root.unmount());
-});
-
-// ⚠ CAPTURE CAN END WITHOUT A POINTERUP — the capturing element removed, the browser
-// taking the pointer back. `lostpointercapture` is the one event that fires however
-// the gesture ends.
-test('losing pointer capture ends the drag', async () => {
-  const root = await mountWithPreview();
-  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
-  assert.ok(grabbing());
-  await ptr('lostpointercapture', { pointerId: 1 });
-  assert.ok(!grabbing(), 'the grabbing cursor cannot outlive the capture');
-  await React.act(async () => root.unmount());
-});
-
-// ⚠ AND `dragging` LIVES IN THE HOOK, WHICH OUTLIVES THE PANEL. A drag interrupted
-// by the panel closing left the NEXT open stuck in `grabbing`, with its text
-// unselectable, until the page was reloaded.
-test('a drag interrupted by the panel closing does not follow it to the next open', async () => {
-  const root = await mountWithPreview();
-  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
-  assert.ok(grabbing(), 'mid-drag');
-  await togglePreview();
-  assert.ok(!document.querySelector('.pop'), 'the panel closed under the drag');
-  // ⚠ THE REOPEN IS ASSERTED, NOT ASSUMED: a guard that read `if (grip())` once skipped the
-  // one line that mattered every run, and a mutation that disabled the clearing survived.
-  await togglePreview();
-  assert.ok(grip(), 'the panel reopened');
-  assert.ok(!grabbing(), 'and it is not still holding the interrupted grab');
-  await React.act(async () => root.unmount());
-});
-
 // ⚠ THE RULE BEING RIGHT SAYS NOTHING ABOUT THE PAGE USING IT. Both memos hand-rolled
 // their own dedupe once, which is exactly where the ordering drifted; extracting it into
 // `ownFoodsFor` / `ownMovesFor` only helps while the component still CALLS it. A mutation
@@ -655,129 +555,4 @@ test('both builders resolve their own moves and foods through the shared rule', 
     assert.deepEqual(body.arguments.map((a) => a.name), ['doc', name === 'ownFoods' ? 'customFoods' : 'customMoves'],
       `${member} is not being handed the open document and the saved list`);
   }
-});
-
-// ── The grip is the handle, so the grip must start a drag ───────────────────
-// ⚠ IT DID NOT, AND THIS SHIPPED IN #2144. The header's own rule is "a press on a
-// control is that control's, never a drag" — and the grip is a `<button>`, so the
-// ONE element drawn to look like the handle was the one element excluded from
-// starting a drag. A coach who grabbed the dots got nothing; a coach who grabbed
-// the empty header beside them got the feature.
-test('the drag grip itself starts a drag', async () => {
-  const root = await mountWithPreview();
-  const gh = document.querySelector('.pop .ph2 .gh');
-  assert.ok(gh, 'no grip rendered — without one this test asserts nothing');
-  await React.act(async () => gh.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 7, clientX: 500, clientY: 200 })));
-  assert.ok(grabbing(), 'pressing the handle is a drag, not a dead button');
-  await ptr('pointerup', { pointerId: 7, clientX: 500, clientY: 200 });
-  // ⚠ AND THE EXCLUSION IT WAS CARVED OUT OF STILL HOLDS: a real control in the
-  // header is that control's. Without this the fix is "let anything start a drag",
-  // which takes Done and Duplicate away from the pointer.
-  const done = [...document.querySelectorAll('.pop .ph2 button')].find((b) => !b.classList.contains('gh'));
-  assert.ok(done, 'no ordinary control in the header — the control half is untested');
-  await React.act(async () => done.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, pointerId: 8, clientX: 500, clientY: 200 })));
-  assert.ok(!grabbing(), 'a press on a control is still that control’s');
-  await React.act(async () => root.unmount());
-});
-
-// ⚠ ONE POINTER DRIVES A DRAG. A second finger landing on the header mid-drag used to
-// REPLACE the drag, so the panel stopped following the hand moving it and waited on
-// the finger that was only resting there.
-const panelBox = () => {
-  const st = document.querySelector('.pop').getAttribute('style') || '';
-  const x = /left:\s*(-?[\d.]+)px/.exec(st), y = /top:\s*(-?[\d.]+)px/.exec(st);
-  return x && y ? [Number(x[1]), Number(y[1])] : null;
-};
-test('a second finger cannot take over a drag already under way', async () => {
-  const root = await mountWithPreview();
-  await ptr('pointerdown', { pointerId: 1, clientX: 500, clientY: 200 });
-  await ptr('pointermove', { pointerId: 1, clientX: 420, clientY: 260 });
-  const moved = panelBox();
-  assert.ok(moved, 'the first finger moved the panel — without this the rest proves nothing');
-  await ptr('pointerdown', { pointerId: 2, clientX: 700, clientY: 400 });
-  await ptr('pointermove', { pointerId: 2, clientX: 100, clientY: 100 });
-  assert.deepEqual(panelBox(), moved, 'the resting finger does not move the panel');
-  await ptr('pointermove', { pointerId: 1, clientX: 380, clientY: 300 });
-  assert.notDeepEqual(panelBox(), moved, 'the finger that started the drag still drives it');
-  await ptr('pointerup', { pointerId: 1, clientX: 380, clientY: 300 });
-  assert.ok(!grabbing(), 'and lifting it ends the drag');
-  await React.act(async () => root.unmount());
-});
-
-// ⚠ PLACED BEFORE THE FIRST PAINT. The panel mounts already open and its height budget
-// lives only in the inline style, so a PASSIVE placement effect showed one frame of
-// panel at the stylesheet's fallback corner with no height cap, then jumped — on
-// every builder open. jsdom has no paint to observe, so the invariant is pinned where
-// it lives: the effect that places the panel is a layout effect.
-test('the drag hook places its panel in the commit, before the browser paints', async () => {
-  const { readFileSync } = await import('node:fs');
-  const { parse } = await import('@babel/parser');
-  const ast = parse(readFileSync(SRC, 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
-  const hook = ast.program.body.find((n) => n.type === 'FunctionDeclaration' && n.id && n.id.name === 'useDbuDrag');
-  assert.ok(hook, 'useDbuDrag is gone — this guard is reading nothing');
-  const placing = [];
-  const walk = (n) => {
-    if (!n || typeof n !== 'object') return;
-    if (Array.isArray(n)) { n.forEach(walk); return; }
-    if (n.type === 'CallExpression' && n.callee && n.callee.type === 'MemberExpression' && /^use(Layout)?Effect$/.test(n.callee.property.name)) {
-      const body = JSON.stringify(n.arguments[0], (k, v) => (k === 'loc' || k === 'start' || k === 'end' ? undefined : v));
-      // the effect that computes a default position is the one that places the panel
-      if (body.includes('"defRef"')) placing.push(n.callee.property.name);
-    }
-    for (const k of Object.keys(n)) if (k !== 'loc' && !/Comments$/.test(k)) walk(n[k]);
-  };
-  walk(hook.body);
-  assert.deepEqual(placing, ['useLayoutEffect'], 'the placement effect runs after paint again — every open will flash the unplaced panel');
-});
-
-// ── The client preview moves too, on the owner's ruling ─────────────────────
-const openPreview = async () => {
-  const tog = [...document.querySelectorAll('button.tog')].find((b) => /Preview as client/.test(b.textContent));
-  assert.ok(tog, 'no preview toggle — without one this test asserts nothing');
-  await React.act(async () => tog.click());
-  const pop = document.querySelector('.pop');
-  assert.ok(pop, 'the preview did not open');
-  return pop;
-};
-
-test('the client preview can be dragged, and moving it releases the anchor it was pinned by', async () => {
-  const root = await mountBuilder();
-  const pop = await openPreview();
-  assert.ok(!pop.getAttribute('style'), 'at rest it carries no inline position — the stylesheet’s bottom-right anchor still holds, and survives a resize');
-  const head = pop.querySelector('.ph2.grab');
-  assert.ok(head, 'the preview header is not a drag surface');
-  const gh = head.querySelector('.gh');
-  assert.ok(gh, 'the preview has no grip');
-  const fire = (type, init) => React.act(async () => head.dispatchEvent(new window.PointerEvent(type, { bubbles: true, ...init })));
-  await fire('pointerdown', { pointerId: 3, clientX: 900, clientY: 600 });
-  await fire('pointermove', { pointerId: 3, clientX: 700, clientY: 300 });
-  const style = document.querySelector('.pop').getAttribute('style') || '';
-  assert.match(style, /left:/, 'a dragged preview is positioned by its own left');
-  assert.match(style, /top:/, 'and its own top');
-  // ⚠ THE RELEASED ANCHORS ARE THE LOAD-BEARING PART. `.pop` is anchored
-  // `right:20px;bottom:20px`, and a `height:auto` box given BOTH `top` and
-  // `bottom` is over-constrained: CSS stretches it to span them, so handing it a
-  // `top` alone would silently resize the panel as well as move it.
-  assert.match(style, /bottom:\s*auto/, 'the bottom anchor is released, or the box stretches instead of moving');
-  assert.match(style, /right:\s*auto/, 'and the right anchor with it');
-  await fire('pointerup', { pointerId: 3, clientX: 700, clientY: 300 });
-  await React.act(async () => root.unmount());
-});
-
-// ⚠ ONE HOOK — asserted structurally, because the alternative this repo already records
-// is three line-for-line copies of `useCoachDoc` that had drifted. Two panels floated
-// until step 3 docked the day editor; the client preview is the one left, and it must
-// still take its pointer handlers from `useDbuDrag`, with the pointer-capture dance
-// written exactly once in the file (the row drag shares it through `dbuCapture`).
-test('the floating panel takes its drag from the one shared rule', async () => {
-  const { readFileSync } = await import('node:fs');
-  const { stripComments } = await import('./helpers/strip-comments.mjs');
-  const code = stripComments(readFileSync(SRC, 'utf8'));
-  assert.equal((code.match(/= useDbuDrag\(\{/g) || []).length, 1, 'exactly one panel is draggable, and it goes through the hook');
-  assert.equal((code.match(/setPointerCapture/g) || []).length, 1, 'the capture dance is written once, not once per gesture');
-  assert.equal((code.match(/function useDbuDrag\b/g) || []).length, 1);
-  // The panel spreads the hook's own handler bundle rather than re-wiring five pointer
-  // props by hand — a hand-wiring is how a panel loses `onLostPointerCapture` and
-  // strands a grabbing cursor.
-  assert.equal((code.match(/\{\.\.\.previewPanel\.headerProps\}/g) || []).length, 1);
 });

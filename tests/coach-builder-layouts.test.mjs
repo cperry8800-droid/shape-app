@@ -34,6 +34,8 @@ const button=t=>[...document.querySelectorAll('button')].find(b=>b.textContent==
 const click=async t=>{assert.ok(button(t),'missing '+t);await React.act(async()=>button(t).click());};
 async function input(label,value){const el=document.querySelector('[aria-label="'+label+'"]') || [...document.querySelectorAll('label[for]')].find(el=>el.textContent===label)?.control;assert.ok(el,'missing '+label);await React.act(async()=>{Object.getOwnPropertyDescriptor(el.tagName==='SELECT'?window.HTMLSelectElement.prototype:window.HTMLInputElement.prototype,'value').set.call(el,value);el.dispatchEvent(new window.Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));});}
 async function mount(Component,template,extra={}){root=createRoot(document.getElementById('root'));await React.act(async()=>root.render(React.createElement(Component,{template,clients:[],queue:[],lifecycle:[],live:true,ownerId:'coach-a',playlists:[],clips:[{name:'Squat demo',url:'https://shape.test/squat.mp4'}],dayTemplates:[],onBack(){},onSaved(){},...extra})));}
+// Step 6c: a program opens on its plan; a session is peeked there and opened in the builder.
+async function openSession(i=0){const ses=[...document.querySelectorAll('.dpl button.ses:not(.empty)')][i];assert.ok(ses,'no session on the plan');await React.act(async()=>{ses.focus();ses.click();});await click('Open in builder');return ses;}
 function capture(){const writes=[];globalThis.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);writes.push({method:opts.method,...body});return {ok:true,json:async()=>({plan:{...body,detail:{...body.detail,revision:1}}})};};return writes;}
 
 // ⚠ THE WORKOUT BUILDER HAS ONE LAYOUT SINCE STEP 3 (owner, 2026-10-07): Grid ⇄ Sheet with
@@ -45,10 +47,11 @@ test('the workout editor edits the complete prescription and reuse saves a separ
   original.detail.builder.weeks[0].days[0].blocks[0].rows=[row];
   const baseline=structuredClone(original),writes=capture();
   await mount(DbuBuilder,coachTemplateCopy(original));
+  await openSession();
   for(const layout of ['Guided','Editor','Planner'])assert.ok(!button(layout),'the retired '+layout+' layout is back');
   await input('Squat Rest','105s');await input('Squat target RPE','8.5');
   await input('Choose demo for Squat','https://shape.test/squat.mp4');
-  await click('Save template');
+  await click('Save now');
   assert.equal(writes.length,1);assert.equal(writes[0].method,'POST');assert.notEqual(writes[0].id,original.id);
   assert.equal(writes[0].published,false);assert.equal(writes[0].expectedRevision,0);
   const saved=writes[0].detail.builder.weeks[0].days[0].blocks[0].rows[0];
@@ -147,28 +150,36 @@ test('a remembered retired layout opens on the default, and nothing asks for it'
   const writes=capture();
   await mount(DbuBuilder,{name:'Old prefs program',detail:{builder:DashBuilder.newProgram()}});
   assert.ok(!choices.some(c=>c.key==='workoutBuilderLayout'),'the retired layout is still read');
-  assert.ok(choices.some(c=>c.key==='builderView'&&c.fallback==='grid'&&c.allowed.join()==='grid,sheet'),'the view switch is the one choice left');
-  assert.ok(document.querySelector('.wg'),'no Grid — a blank builder');
-  assert.ok(document.querySelector('.drawer .dday'),'the day editor is not open under it');
+  assert.ok(choices.some(c=>c.key==='builderView'&&c.fallback==='plan'&&c.allowed.join()==='plan,sheet'),'the view switch is the one choice left');
+  // ⚠ A ONE-DAY DOCUMENT IS A SINGLE WORKOUT (step 6c): it opens on its day, with no plan.
+  assert.ok(document.querySelector('.dbu2[data-mode="workout"]'),'a single workout opened the program builder');
+  assert.ok(!document.querySelector('.dpl'),'a single workout drew a plan');
+  assert.ok(document.querySelector('.drawer .dday'),'the day editor is not open');
   for(const gone of ['Guided','Editor','Planner','Pop out editor','Arrange days & weeks','Continue →'])assert.ok(!button(gone),gone+' is back');
   assert.ok(!document.querySelector('.cb-choice,.cb-steps,.cb-foot,.cb-workspace,.cb-days,.is-sidepanel,.is-popped'),'a retired layout\'s chrome is back');
-  await input('Day name','Kept day');await click('Save template');
+  await input('Day name','Kept day');await click('Save now');
   assert.equal(writes.at(-1).detail.builder.weeks[0].days[0].name,'Kept day');
 });
 
-test('a day opened from the canvas takes the keyboard; Escape and Done close it and hand focus back',async()=>{
-  capture();await mount(DbuBuilder,{name:'Panel program',detail:{builder:DashBuilder.newProgram()}},{live:false});
-  const trigger=document.querySelector('.wg button.c:not(.rest)');
-  await React.act(async()=>{trigger.focus();trigger.click();});
+// ⚠ STEP 6c: A PROGRAM OPENS ON ITS PLAN. A session is peeked there, opened in the builder in
+// the plan's place, and Escape or Done goes back to the plan with that session peeked, the
+// keyboard on the peek.
+test('a day opened from the plan takes the keyboard; Escape and Done go back to it with the session peeked',async()=>{
+  capture();await mount(DbuBuilder,{name:'Panel program',detail:{buildType:'program',builder:DashBuilder.newProgram()}},{live:false});
+  assert.ok(!document.querySelector('.drawer'),'a program opened on a day, not its plan');
+  await openSession();
   const panel=document.querySelector('.drawer');
   assert.ok(panel);assert.ok(document.activeElement===panel,'opening a day did not move the keyboard into it');
+  assert.ok(!document.querySelector('.dpl'),'the plan stayed under the open day');
   await input('Day name','Retained day');
   await React.act(async()=>panel.dispatchEvent(new window.KeyboardEvent('keydown',{key:'Escape',bubbles:true})));
-  assert.ok(!document.querySelector('.drawer'));assert.ok(document.activeElement===trigger,'Escape left the keyboard nowhere');
-  await React.act(async()=>trigger.click());
+  const peek=()=>document.querySelector('.dpeek');
+  assert.ok(!document.querySelector('.drawer'));assert.ok(!!peek(),'Escape did not go back to the session on the plan');
+  assert.ok(document.activeElement===peek(),'Escape left the keyboard nowhere');
+  await click('Open in builder');
   assert.equal(document.querySelector('#dbu-day-name').value,'Retained day');
   await click('Done');assert.ok(!document.querySelector('.drawer'));
-  assert.ok(document.activeElement===trigger,'Done left the keyboard nowhere');
+  assert.ok(document.activeElement===peek(),'Done left the keyboard nowhere');
   await click('▤Sheet');
   assert.ok(!document.querySelector('.drawer'));
   const heading=document.querySelector('.sh button[title="Open Retained day"]');
@@ -178,7 +189,8 @@ test('a day opened from the canvas takes the keyboard; Escape and Done close it 
 
 test('program and day videos stay distinct, collapsed and saved',async()=>{
   const doc=DashBuilder.newProgram();doc.video='https://shape.test/program.mp4';doc.weeks[0].days[0].video='https://shape.test/day.mp4';
-  const writes=capture();await mount(DbuBuilder,{name:'Video program',detail:{builder:doc}});
+  const writes=capture();await mount(DbuBuilder,{name:'Video program',detail:{buildType:'program',builder:doc}});
+  await openSession();
   // ⚠ THE DAY'S WALKTHROUGH IS A HEADER CHIP NOW, NOT A SECOND FOLD (owner, 2026-10-07: the
   // day's settings in its header). Still distinct from the program's, still closed until
   // asked, and the chip says a video is attached the way the fold's summary did.
@@ -190,7 +202,7 @@ test('program and day videos stay distinct, collapsed and saved',async()=>{
   const panel=document.getElementById(chip.getAttribute('aria-controls'));
   assert.equal(panel.hidden,true);assert.match(panel.textContent,/this day's workout/);
   await React.act(async()=>chip.click());assert.equal(panel.hidden,false);assert.equal(chip.getAttribute('aria-expanded'),'true');
-  await input('Day name','With videos');await click('Save template');
+  await input('Day name','With videos');await click('Save now');
   assert.equal(writes.at(-1).detail.builder.video,doc.video);
   assert.equal(writes.at(-1).detail.builder.weeks[0].days[0].video,doc.weeks[0].days[0].video);
 });

@@ -1459,7 +1459,177 @@
     });
   }
 
+  // ── The builders (the owner's coach review, step 6c) ──────────────────────
+  // Every figure below is read off the document, or off EXERCISES' own muscle and equipment
+  // tags; nothing is estimated. What the document cannot say is left out, not guessed: a
+  // session's length is shown only where the day carries `plannedMinutes` (an outline import
+  // stamps it), because no rule for the time a set takes exists anywhere in Shape.
+
+  // The region a move trains, by its muscle tag: "lower", "upper", "core", "conditioning",
+  // "mobility", or "" when the move has none (a coach's own move with no muscle recorded).
+  function moveRegion(row) {
+    var m = rowKit(row).muscle;
+    return has(REGION_OF, m) ? REGION_OF[m] : "";
+  }
+  // The library panel's list: every built-in move (not 12), filtered by a search, a region
+  // ("lower" | "upper" | "core" | "") and an equipment tag (lower-case, or ""). The coach's
+  // own moves come first and pass the same filters; a move with no tag fails a set filter.
+  function libraryMoves(customMoves, q, region, equipment) {
+    var s = tagText(q).toLowerCase(), eq = tagText(equipment).toLowerCase();
+    var pass = function (e) {
+      if (s && String(e.name || "").toLowerCase().indexOf(s) < 0 && String(e.muscle || "").toLowerCase().indexOf(s) < 0 && String(e.equipment || "").toLowerCase().indexOf(s) < 0) return false;
+      if (region && moveRegion(e) !== region) return false;
+      if (eq && rowKit(e).equipment !== eq) return false;
+      return true;
+    };
+    return { mine: (Array.isArray(customMoves) ? customMoves : []).filter(pass), shape: EXERCISES.filter(pass) };
+  }
+  // The equipment the library carries, in its own words, sorted.
+  function libraryEquipment() {
+    var seen = Object.create(null), out = [];
+    EXERCISES.forEach(function (e) { var k = e.equipment.toLowerCase(); if (!seen[k]) { seen[k] = 1; out.push({ key: k, label: e.equipment }); } });
+    return out.sort(function (a, b) { return a.label.localeCompare(b.label); });
+  }
+  function wholeReps(v) { var t = tagText(v); return /^\d+$/.test(t) ? Number(t) : null; }
+  // What one session adds up to.
+  //   workingSets — every set outside the warm-up block
+  //   volume      — { lb, kg }: sets × reps × load, per set (a ladder counts set by set), only
+  //                 where the reps are a whole number and the load a weight; per cent of 1RM
+  //                 has no weight to multiply, and a rep range or "max" has no count
+  //   unweighed   — the working moves the volume could not count
+  //   muscles     — [{ label, sets }] working sets per muscle tag, most first; `untagged` the
+  //                 working sets of moves with no tag
+  //   regions     — the regions the working moves train, and `pairWith` the one sentence a
+  //                 lop-sided day earns
+  //   minutes     — the day's own planned minutes, or null
+  function sessionTotals(day) {
+    var out = { workingSets: 0, volume: { lb: 0, kg: 0 }, unweighed: 0, muscles: [], untagged: 0, regions: [], pairWith: "", minutes: null };
+    var by = Object.create(null), labels = Object.create(null), regions = Object.create(null);
+    var blocks = (day && Array.isArray(day.blocks)) ? day.blocks : [];
+    for (var b = 0; b < blocks.length; b++) {
+      if (!blocks[b] || blocks[b].kind === "warmup") continue;
+      var rows = Array.isArray(blocks[b].rows) ? blocks[b].rows : [];
+      for (var r = 0; r < rows.length; r++) {
+        var row = rows[r];
+        if (!row) continue;
+        var sets = wholeReps(row.sets) || 0;
+        out.workingSets += sets;
+        var kit = rowKit(row), lib = _EXERCISE_BY_NAME[tagText(row.name).toLowerCase()];
+        if (kit.muscle) {
+          by[kit.muscle] = (by[kit.muscle] || 0) + sets;
+          if (!labels[kit.muscle]) labels[kit.muscle] = lib && lib.muscle.toLowerCase() === kit.muscle ? lib.muscle : tagText(row.muscle) || kit.muscle;
+          if (has(REGION_OF, kit.muscle)) regions[REGION_OF[kit.muscle]] = true;
+        } else out.untagged += sets;
+        var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" ? "" : "kg";
+        var counted = 0;
+        for (var i = 0; unit && WorkoutDoc && i < Math.min(sets, WorkoutDoc.LADDER_MAX || 20); i++) {
+          var t = WorkoutDoc.setTarget(row, i);
+          var reps = wholeReps(t && t.reps), load = t && t.num != null ? Number(t.num) : NaN;
+          if (reps != null && Number.isFinite(load) && load > 0) { out.volume[unit] += reps * load; counted += 1; }
+        }
+        if (sets && !counted) out.unweighed += 1;
+      }
+    }
+    out.muscles = Object.keys(by).filter(function (k) { return by[k] > 0; }).map(function (k) { return { label: labels[k], sets: by[k] }; })
+      .sort(function (a, b2) { return b2.sets - a.sets || a.label.localeCompare(b2.label); });
+    out.regions = ["lower", "upper", "core", "conditioning", "mobility"].filter(function (k) { return regions[k]; });
+    var only = function (allowed) { return out.regions.every(function (k) { return allowed.indexOf(k) >= 0; }); };
+    if (regions.lower && !regions.upper && only(["lower", "core"])) out.pairWith = (regions.core ? "Legs and core only" : "Legs only") + ", so pair it with an upper day.";
+    else if (regions.upper && !regions.lower && only(["upper", "core"])) out.pairWith = (regions.core ? "Upper body and core only" : "Upper body only") + ", so pair it with a legs day.";
+    var pm = day && Number(day.plannedMinutes);
+    out.minutes = day && day.plannedMinutes != null && Number.isFinite(pm) && pm > 0 ? pm : null;
+    return out;
+  }
+  // A superset's bracket: its letter, the rounds (the fewest sets any of its moves has, so
+  // nobody is told to do a round a move does not have), its last move, and the rest after it.
+  function supersetBracket(day, letter) {
+    var g = tagText(letter).toUpperCase(), members = [];
+    (day && day.blocks || []).forEach(function (b) { (b.rows || []).forEach(function (r) { if (r && tagText(r.group).toUpperCase() === g) members.push(r); }); });
+    if (!g || members.length < 2) return null;
+    var rounds = members.reduce(function (n, r) { var s = wholeReps(r.sets); return s == null ? n : n == null ? s : Math.min(n, s); }, null);
+    var last = members[members.length - 1];
+    return { letter: g, rounds: rounds, size: members.length, last: g + members.length, rest: tagText(last.rest) };
+  }
+  // Which day of week `wi - 1` a day of week `wi` follows: the one on the same weekday, else the
+  // same place. The progression matches weeks the same way.
+  function priorDay(builder, wi, di) {
+    var weeks = (builder && builder.weeks) || [];
+    var day = weeks[wi] && weeks[wi].days[di], prev = weeks[wi - 1];
+    if (!day || !prev) return null;
+    var wd = Number.isInteger(day.weekday) ? day.weekday : null;
+    var at = wd != null ? (prev.days || []).findIndex(function (d) { return d && d.weekday === wd; }) : -1;
+    return at >= 0 ? prev.days[at] : (prev.days || [])[di] || null;
+  }
+  // A session card's lines: its main lifts (or its first moves, when it has no main block),
+  // each with this week's weight and the change from the same move on the same day last week.
+  //   [{ name, weight: "260 lb" | "", delta: 5 | -5 | 0 | null, unit }]
+  function sessionLoadLines(builder, wi, di, limit) {
+    var weeks = (builder && builder.weeks) || [];
+    var day = weeks[wi] && weeks[wi].days[di];
+    if (!day) return [];
+    var blocks = day.blocks || [];
+    var main = blocks.filter(function (b) { return b && b.kind === "main" && (b.rows || []).length; });
+    var rows = (main.length ? main : blocks).reduce(function (all, b) { return all.concat((b && b.rows) || []); }, []).filter(Boolean);
+    var prev = priorDay(builder, wi, di);
+    var prevRows = prev ? (prev.blocks || []).reduce(function (all, b) { return all.concat((b && b.rows) || []); }, []) : [];
+    return rows.slice(0, limit || 3).map(function (row) {
+      var weight = WorkoutDoc ? WorkoutDoc.weightLabel(row) : "";
+      var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" ? "%" : "kg";
+      var before = prevRows.filter(function (p) { return p && tagText(p.name).toLowerCase() === tagText(row.name).toLowerCase(); })[0];
+      var now = Number(row.load), was = before ? Number(before.load) : NaN;
+      var delta = before && before.loadType === row.loadType && Number.isFinite(now) && now > 0 && Number.isFinite(was) && was > 0 ? Math.round((now - was) * 100) / 100 : null;
+      return { name: tagText(row.name) || "New exercise", weight: weight, delta: delta, unit: unit };
+    });
+  }
+  // One move's load in every week, for the progression chart: the move named `name` on week 1's
+  // day `di`, found week by week on the same weekday. [{ week, load, deload }]; a week without
+  // the move, or without a weight for it, has load null.
+  function progressionSeries(builder, name, di) {
+    var weeks = (builder && builder.weeks) || [];
+    var first = weeks[0] && weeks[0].days[di || 0];
+    var wd = first && Number.isInteger(first.weekday) ? first.weekday : null;
+    var key = tagText(name).toLowerCase();
+    return weeks.map(function (w, wi) {
+      var days = (w && w.days) || [];
+      var at = wd != null ? days.findIndex(function (d) { return d && d.weekday === wd; }) : -1;
+      var d = at >= 0 ? days[at] : days[di || 0];
+      var hit = null;
+      ((d && d.blocks) || []).forEach(function (b) { ((b && b.rows) || []).forEach(function (r) { if (!hit && r && tagText(r.name).toLowerCase() === key) hit = r; }); });
+      var n = hit ? Number(hit.load) : NaN;
+      return { week: wi + 1, load: Number.isFinite(n) && n > 0 ? n : null, deload: !!(w && w.deload) };
+    });
+  }
+  // The program at `n` weeks. Longer: each week not written yet is a copy of the last one, its
+  // hand-typed loads released (and a deload's sets given back) so the progression sets it as
+  // it does any week. Shorter: the trailing weeks go, and `removed` says what went with them.
+  function resizeProgram(builder, n) {
+    var weeks = (builder && Array.isArray(builder.weeks)) ? builder.weeks : [];
+    var want = Math.max(1, Math.min(52, Math.floor(Number(n) || 0)));
+    if (!weeks.length || want === weeks.length) return { builder: builder, removed: null };
+    if (want < weeks.length) {
+      var gone = weeks.slice(want);
+      var sessions = gone.reduce(function (s, w) { return s + ((w && w.days) || []).length; }, 0);
+      var moves = gone.reduce(function (s, w) { return s + ((w && w.days) || []).reduce(function (t, d) { return t + ((d && d.blocks) || []).reduce(function (u, b) { return u + ((b && b.rows) || []).length; }, 0); }, 0); }, 0);
+      return { builder: Object.assign({}, builder, { weeks: weeks.slice(0, want) }), removed: { from: want + 1, to: weeks.length, sessions: sessions, moves: moves } };
+    }
+    var last = weeks[weeks.length - 1];
+    var base = WorkoutDoc && last.deload && !WorkoutDoc.legacyDeload(last) ? WorkoutDoc.undeloadWeek(last) : clone(last);
+    var added = [];
+    for (var i = weeks.length; i < want; i++) {
+      var copy = clone(base);
+      copy.deload = false; delete copy.deloadCut;
+      (copy.days || []).forEach(function (d) {
+        d.id = uid();
+        (d.blocks || []).forEach(function (b) { b.rows = (b.rows || []).map(function (r) { var u = WorkoutDoc ? WorkoutDoc.unpinned(r) : r; u.id = uid(); return u; }); });
+      });
+      added.push(copy);
+    }
+    return { builder: Object.assign({}, builder, { weeks: weeks.concat(added) }), removed: null };
+  }
+
   return {
+    moveRegion: moveRegion, libraryMoves: libraryMoves, libraryEquipment: libraryEquipment, sessionTotals: sessionTotals,
+    supersetBracket: supersetBracket, sessionLoadLines: sessionLoadLines, progressionSeries: progressionSeries, resizeProgram: resizeProgram,
     weekStartOf: weekStartOf, groupAssignmentWeeks: groupAssignmentWeeks,
     GOAL_TAGS: GOAL_TAGS,
     BLOCK_KINDS: BLOCK_KINDS,

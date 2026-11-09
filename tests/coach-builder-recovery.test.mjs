@@ -109,14 +109,18 @@ test('an exercise upload cannot move to a copied day and video playback remains 
   // Copied days deliberately retain exercise IDs, reproducing the React key reuse.
   t.detail.builder.weeks=[{days:[upper,{...structuredClone(upper),id:'lower',name:'Lower'}]}];
   const root=await mount(t);
+  // Step 6c: a program opens on its plan; its first session is peeked, then opened.
+  await React.act(async()=>document.querySelector('.dpl button.ses:not(.empty)').click());
+  await React.act(async()=>button('Open in builder').click());
   await React.act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='▷ Watch · Squat').click());
   const file=[...document.querySelectorAll('button')].find(b=>b.textContent==='Replace demo').parentElement.parentElement.querySelector('input[type="file"]');
   Object.defineProperty(file,'files',{value:[new window.File(['video'],'squat.mp4',{type:'video/mp4'})],configurable:true});
   await React.act(async()=>file.dispatchEvent(new window.Event('change',{bubbles:true})));
   assert.equal(document.querySelector('fieldset').disabled,true);
   assert.equal(document.querySelector('video').controls,true,'a video player is not disabled by the form lock');
-  const lower=[...document.querySelectorAll('button')].find(b=>/Lower/.test(b.textContent));
-  await React.act(async()=>lower.click());
+  // The plan is not on the page while a day is open, and the way back to it waits for the upload.
+  assert.equal(!!document.querySelector('.dpl'),false,'another day is reachable mid-upload');
+  assert.equal(button('Done').disabled,true,'the day can be closed mid-upload');
   assert.equal(document.querySelector('#dbu-day-name').value,'Upper');
   const outside=document.createElement('a');outside.href='#clients';document.body.appendChild(outside);
   const nav=new window.MouseEvent('click',{bubbles:true,cancelable:true});
@@ -153,21 +157,21 @@ test('a failed demo load clears raw parse errors while live failure gives an act
   await React.act(async()=>root.unmount());
 });
 
-test('the exercise picker is portaled and adds multiple checked exercises together',async()=>{
+// ⚠ STEP 6c: THE LIBRARY STAYS OPEN BESIDE THE LIST, in place of the 12-result pop-up. It lists
+// every move (not 12), stays on screen after each add, and adds in the order pressed.
+test('the exercise library stays open beside the list and adds one move per press, in order',async()=>{
   localStorage.clear();let posted;
   globalThis.fetch=async(_url,options)=>{posted=JSON.parse(options.body);return {ok:true,json:async()=>({plan:{...posted,detail:{...posted.detail,revision:3}}})};};
   const root=await mount(template());
-  await React.act(async()=>button('+ Exercise').click());
-  const dialog=document.querySelector('[role="dialog"][aria-label="Add exercises"]');
-  assert.ok(dialog);assert.ok(dialog.parentElement.parentElement===document.body,'the picker portals to the body');
-  assert.equal(document.getElementById('root').contains(dialog),false);
-  const inputs=[...dialog.querySelectorAll('input[type="checkbox"]')].slice(0,2);
-  const selectedNames=DashBuilder.searchExercises('').slice(0,2).map(e=>e.name);
-  await React.act(async()=>inputs[0].click());assert.equal(inputs[0].checked,true);
-  await React.act(async()=>inputs[1].click());assert.equal(inputs[1].checked,true);
-  assert.equal(button('Add 2 exercises').disabled,false);
-  await React.act(async()=>button('Add 2 exercises').click());
-  assert.ok(!document.querySelector('[role="dialog"]'),'adding the exercises closes the picker');
+  const lib=document.querySelector('aside.dlib');
+  assert.ok(lib);assert.equal(document.getElementById('root').contains(lib),true,'the library is a pop-up again');
+  assert.equal(lib.querySelectorAll('.lib-row').length,DashBuilder.EXERCISES.length,'the library does not list every move');
+  const adds=[...lib.querySelectorAll('button.lib-add')].slice(0,2);
+  const selectedNames=DashBuilder.EXERCISES.slice(0,2).map(e=>e.name);
+  await React.act(async()=>adds[0].click());
+  await React.act(async()=>adds[1].click());
+  assert.equal(!!document.querySelector('aside.dlib'),true,'adding a move closed the library');
+  assert.equal(document.querySelector('aside.dlib').querySelectorAll('.lib-in').length,2,'the moves already in carry no ✓');
   await saveNow();
   assert.deepEqual(posted.detail.builder.weeks[0].days[0].blocks[0].rows.map(r=>r.name),selectedNames);
   await React.act(async()=>root.unmount());

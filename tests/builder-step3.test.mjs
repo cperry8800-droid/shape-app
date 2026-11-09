@@ -305,9 +305,15 @@ async function mount(builder) {
   await React.act(async () => root.render(React.createElement(DbuBuilder, { template: { name: 'Strength', detail: { builder } }, clients: [], queue: [], live: true, ownerId: 'coach-a', playlists: [], clips: [], dayTemplates: [], onBack() {}, onSaved() {} })));
   return writes;
 }
-const save = async (writes) => { await click(button('Save template')); return writes.at(-1).detail.builder; };
+const save = async (writes) => { await click(button('Save now')); return writes.at(-1).detail.builder; };
 const bar = () => document.querySelector('.dprog[aria-label="Progression"]');
-const cells = () => [...document.querySelectorAll('.wg button.c:not(.rest)')];
+// ⚠ STEP 6c: A PROGRAM OPENS ON ITS PLAN, weeks across and training days down. A session is
+// found by its week's strip of letters ("Monday, week 2: Lower A"), peeked, and opened.
+const openDay = async (week, weekday) => {
+  const letter = buttons().find((b) => (b.getAttribute('aria-label') || '').startsWith(weekday + ', week ' + week + ':'));
+  await React.act(async () => { letter.focus(); letter.click(); });
+  await click(button('Open in builder'));
+};
 
 test('the bar sets one rule, and every later week of the saved program carries its loads', async () => {
   const writes = await mount(program(4));
@@ -364,7 +370,7 @@ test('a load typed over the rule in a later week is pinned, marked, and can foll
 
 test('in a later week\'s day editor too: a typed load is pinned, said in the detail, and released', async () => {
   const writes = await mount(program(3, { progression: RULE }));
-  await click(cells()[2]); // week 2, Monday
+  await openDay(2, 'Monday');
   assert.match(document.querySelector('.drawer .when').textContent, /^Week 2/);
   const squatLine = () => [...document.querySelectorAll('.dr')].find((l) => l.querySelector('.nm').textContent === 'Back squat');
   assert.ok(squatLine().querySelector('.mk [title="This week’s load is set by the program’s progression"]'), 'the line does not say the rule sets it');
@@ -410,6 +416,7 @@ test('a deload week saved before the cadence keeps its flag when the cadence lea
 
 test('Delete day asks first, inside the panel; Keep it and Escape change nothing', async () => {
   const writes = await mount(program(2));
+  await openDay(1, 'Monday');
   await click(button('Delete day'));
   const strip = document.querySelector('.drawer .dtool.warn');
   assert.ok(strip, 'no confirm');
@@ -426,22 +433,27 @@ test('Delete day asks first, inside the panel; Keep it and Escape change nothing
 
 test('Delete removes that week\'s day only, closes the editor, says so and hands focus back', async () => {
   const writes = await mount(program(2));
-  await React.act(async () => { cells()[3].focus(); cells()[3].click(); }); // week 2, Thursday
+  await openDay(2, 'Thursday');
   await click(button('Delete day'));
   await click(button('Delete Upper A'));
   const b = await save(writes);
   assert.deepEqual(b.weeks.map((w) => w.days.map((d) => d.name)), [['Lower A', 'Upper A'], ['Lower A']]);
   assert.ok(!document.querySelector('.drawer'), 'the editor stayed open on a day that is gone');
   assert.equal(document.querySelector('.dmsg[role="status"]').textContent, 'Upper A deleted from week 2.');
-  assert.ok(document.activeElement && document.activeElement.classList.contains('c'), 'focus was left nowhere');
-  assert.match(document.activeElement.textContent, /Add session/, 'focus is not on the cell the day left');
+  // The plan is back in the canvas's place; the session the coach opened it from is gone, so
+  // the keyboard lands on ＋ Add a day rather than nowhere.
+  assert.ok(document.activeElement && document.activeElement.textContent === '＋ Add a day', 'focus was left nowhere');
+  assert.equal(buttons().some((b) => b.getAttribute('aria-label') === 'Add a session on Thursday of week 2'), true, 'the strip does not show the day as free');
 });
 
 test('the only day in a program cannot be deleted, and a one-week program has nowhere to copy to', async () => {
   const one = program(1); one.weeks[0].days = [one.weeks[0].days[0]];
   await mount(one);
-  assert.equal(button('Delete day').disabled, true);
-  assert.equal(button('Copy to weeks').disabled, true);
+  // A one-week, one-day document is a single workout (step 6c): it has no day to delete and no
+  // week to copy to, so neither tool is drawn at all.
+  assert.equal(!!document.querySelector('.dbu2[data-mode="workout"]'), true);
+  assert.equal(!!button('Delete day'), false);
+  assert.equal(!!button('Copy to weeks'), false);
 });
 
 test('Copy to weeks names what lands where before it copies, and the copies climb in their weeks', async () => {
@@ -450,6 +462,7 @@ test('Copy to weeks names what lands where before it copies, and the copies clim
   d.weeks[2].days[0] = { id: 'empty', name: 'Day 1', weekday: 0, playlist: null, blocks: [{ kind: 'main', rows: [] }] };
   d.weeks[3].days[0] = { id: 'lb', name: 'Lower B', weekday: 0, playlist: null, blocks: [{ kind: 'main', rows: [row('Deadlift', 'dl'), row('Row', 'rw')] }] };
   const writes = await mount(d);
+  await openDay(1, 'Monday');
   await click(button('Copy to weeks'));
   const strip = document.querySelector('.drawer .dtool');
   assert.equal(strip.querySelector('p').textContent, 'Copy Lower A to the Monday of other weeks. A day already there is replaced.');
@@ -466,6 +479,7 @@ test('Copy to weeks names what lands where before it copies, and the copies clim
 
 test('a week ticked by hand is the only one copied to', async () => {
   const writes = await mount(program(3));
+  await openDay(1, 'Monday');
   await click(button('Copy to weeks'));
   const [w2] = [...document.querySelectorAll('.dtool .dwk input')];
   await click(w2);

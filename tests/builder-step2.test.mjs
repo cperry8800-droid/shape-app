@@ -96,7 +96,7 @@ const names = () => lines().map((l) => l.querySelector('.nm').textContent);
 const line = (name) => lines().find((l) => l.querySelector('.nm').textContent === name);
 const detailName = () => { const h = document.querySelector('aside.ddetail h3'); return h ? h.textContent : ''; };
 const said = () => document.querySelector('.dday [role="status"]').textContent;
-const savedDay = async (writes) => { await click(button('Save template')); return writes.at(-1).detail.builder.weeks[0].days[0]; };
+const savedDay = async (writes) => { await click(button('Save now')); return writes.at(-1).detail.builder.weeks[0].days[0]; };
 const shape = (day) => day.blocks.map((b) => b.kind + ':' + b.rows.map((r) => r.id).join(','));
 const activeLabel = () => (document.activeElement && document.activeElement.getAttribute('aria-label')) || '';
 
@@ -282,7 +282,8 @@ test('focus anywhere on a line selects it, and the detail follows', async () => 
   assert.equal(nm.getAttribute('aria-controls'), document.querySelector('aside.ddetail').id, 'the open line names the detail it controls');
   await click(line('Front squat').querySelector('.ix'));
   assert.equal(detailName(), 'Front squat', 'a click on the line itself, not a control, selects it');
-  assert.ok(line('Bench press').querySelector('.mk [title="Has a coaching cue"]'), 'the line marks a cue');
+  // ⚠ THE CUE IS ON THE LINE NOW (step 6c: "a row hides tempo and cues"), so it needs no mark.
+  assert.equal(byAria('Bench press Coach cue').value, 'Feet down', 'the line shows its cue in place');
   assert.ok(line('Bench press').querySelector('.mk [title="Has a demo video"]'), 'and a demo');
   assert.ok(!line('Back squat').querySelector('.mk'), 'and a move with neither carries no marks');
 });
@@ -315,8 +316,10 @@ test('the day\'s name is the heading and the field, under its date line', async 
   const writes = await mount();
   const name = document.querySelector('#dbu-day-name');
   assert.ok(name.closest('.dh'), 'the day name is not in the panel\'s heading');
-  assert.match(document.querySelector('.dh .when').textContent, /^Week 1( · \w{3} \d+ \w{3})?$/);
-  assert.equal(document.querySelectorAll('.drawer .dh b').length, 1, 'the name is shown a second time as a bold title (the date\'s <b> is the one expected)');
+  // A one-day document is a single workout (step 6c): it has no week, so the line above the
+  // name says what the name is for.
+  assert.equal(document.querySelector('.dh .when').textContent, 'Session title · what the client sees');
+  assert.equal(document.querySelectorAll('.drawer .dh b').length, 0, 'the name is shown a second time as a bold title (a single workout has no date to bold)');
   await setValue(name, 'Lower A');
   assert.equal((await savedDay(writes)).name, 'Lower A');
 });
@@ -336,9 +339,10 @@ test('the playlist chip shows the day\'s playlist even when the list has not loa
   const writes = await mount();
   const sel = byAria('Playlist on the client\'s card');
   const chip = sel.closest('.dchip');
-  assert.equal(sel.value, 'Heavy Day mix', 'a stored playlist missing from the list reads as "No playlist"');
+  // Options are keyed by id where a playlist has one (step 6c), by name where it has none.
+  assert.equal(sel.value, 'name:Heavy Day mix', 'a stored playlist missing from the list reads as "No playlist"');
   assert.equal(chip.textContent.startsWith('♫ Heavy Day mix'), true);
-  await setValue(sel, 'Easy flow');
+  await setValue(sel, 'name:Easy flow');
   assert.deepEqual((await savedDay(writes)).playlist, { name: 'Easy flow', meta: '8 tracks' });
   assert.equal(sel.closest('.dchip').textContent.startsWith('♫ Easy flow'), true);
   await setValue(sel, '');
@@ -435,8 +439,10 @@ test('type to add: Escape closes the list, and only an empty line lets it close 
   await key(add, 'Escape');
   assert.equal(add.value, '', 'a second Escape clears what was typed');
   assert.ok(document.querySelector('.dday'));
+  // ⚠ A SINGLE WORKOUT HAS NO PLAN BEHIND IT (step 6c), so the Escape that reaches the panel
+  // leaves it open; a program's goes back to its plan (coach-builder-layouts.test.mjs).
   await key(add, 'Escape');
-  assert.ok(!document.querySelector('.dday'), 'on an empty line Escape is the panel\'s again');
+  assert.ok(document.querySelector('.dday'), 'on an empty line Escape closed a single workout to nothing');
 });
 
 test('the picker stays one click away on every block, for ticking several', async () => {
@@ -567,7 +573,7 @@ test('duplicate copies a move under itself; remove selects its neighbour, and th
   }
   assert.equal(lines().length, 0);
   assert.equal(document.activeElement.getAttribute('role'), 'combobox', 'an emptied day left focus nowhere');
-  assert.match(document.querySelector('aside.ddetail').textContent, /Type an exercise/);
+  assert.match(document.querySelector('aside.ddetail').textContent, /type one in the last line/);
 });
 
 // ── The saved document is the one it always was ────────────────────────────
