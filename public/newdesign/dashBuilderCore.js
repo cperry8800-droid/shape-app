@@ -1512,7 +1512,9 @@
       for (var r = 0; r < rows.length; r++) {
         var row = rows[r];
         if (!row) continue;
-        var sets = wholeReps(row.sets) || 0;
+        // Counted as delivered: WorkoutDoc's setCount sends a row at most 50 sets, so every total here
+        // (sets, muscles, volume) stops there too (Codex on #2648: 60 sets read 60 but sent 50).
+        var sets = Math.min(wholeReps(row.sets) || 0, 50);
         out.workingSets += sets;
         var kit = rowKit(row), lib = _EXERCISE_BY_NAME[tagText(row.name).toLowerCase()];
         if (kit.muscle) {
@@ -1525,7 +1527,7 @@
         var counted = 0;
         // Every delivered set (a row takes up to 50, as WorkoutDoc's setCount does), not only the
         // ladder's first 20: a set past the ladder takes the row's own reps and load (Codex on #2648).
-        for (var i = 0; unit && WorkoutDoc && i < Math.min(sets, 50); i++) {
+        for (var i = 0; unit && WorkoutDoc && i < sets; i++) {
           var t = WorkoutDoc.setTarget(row, i);
           var reps = wholeReps(t && t.reps), load = t && t.num != null ? Number(t.num) : NaN;
           if (reps != null && Number.isFinite(load) && load > 0) { out.volume[unit] += reps * load; counted += 1; }

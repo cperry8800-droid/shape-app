@@ -150,6 +150,11 @@ test('the session adds itself up from its rows: working sets, volume per unit, m
   assert.deepEqual(effort.volume, { lb: 0, kg: 0 }, 'an RPE was counted as kilograms');
   // Every delivered set counts, past the ladder's 20 (Codex on #2648): 25 straight sets of 5 at 100 kg.
   assert.equal(DashBuilder.sessionTotals({ blocks: [{ kind: 'main', rows: [row('Back squat', 25, '5', 'kg', 100)] }] }).volume.kg, 25 * 5 * 100, 'sets past the 20th added no volume');
+  // …and no more than are delivered: WorkoutDoc sends a row 50 sets at most, so 60 reads 50 everywhere.
+  const sixty = DashBuilder.sessionTotals({ blocks: [{ kind: 'main', rows: [row('Back squat', 60, '5', 'kg', 100)] }] });
+  assert.equal(sixty.workingSets, 50, '60 sets were counted though the client gets 50');
+  assert.equal(sixty.volume.kg, 50 * 5 * 100);
+  assert.equal(sixty.muscles.reduce((n, m) => n + m.sets, 0) + sixty.untagged, 50, 'the muscle sets were not capped with the rest');
 });
 
 test('a card\'s change is on the same move in the same unit', () => {

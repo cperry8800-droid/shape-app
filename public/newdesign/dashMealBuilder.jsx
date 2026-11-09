@@ -563,7 +563,9 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
 
 // ── Client preview — the EXACT meals + ledger card the client dashboard
 // renders, playable: log meals, watch the ledger tick, swap alternates. ─────
-function DmbClientPreview({ doc, day, variant }) {
+// `targets` and `label` are the picked day's own (Codex on #2648): a rest day is measured against the
+// plan's rest-day target and called a rest day, whether or not it has a rest version of its meals.
+function DmbClientPreview({ doc, day, variant, targets, label }) {
   const meals = React.useMemo(() => DashMeals.resolveDay(day, variant).map((m, i) => ({
     id: m.id || "pv-" + i, slot: m.slot, time: null, title: m.name,
     kcal: m.kcal, p: m.p, c: m.c, f: m.f, alts: m.swaps || [],
@@ -580,13 +582,13 @@ function DmbClientPreview({ doc, day, variant }) {
       </div>
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-accent, #2ee0c4)", paddingLeft: 24 }}>
         <DashMealLedgerCard
-          meals={meals} targets={doc.targets} ledger={ledger} logged={logged}
+          meals={meals} targets={targets || doc.targets} ledger={ledger} logged={logged}
           onLog={(m) => {
             if (logged[m.id]) return;
             setLogged({ ...logged, [m.id]: true });
             setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
           }}
-          headerNote={variant === "training" ? "training day" : variant + " day"}
+          headerNote={label || (variant === "training" ? "training day" : variant + " day")}
         />
       </div>
     </div>
@@ -842,6 +844,9 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   const day = doc.days[sel];
   const col = cols[sel];
   const curVariant = day && variantOk(day, view) ? view : "training";
+  // What the picked day is, for its ring and the client preview: a rest day is a rest day (and
+  // measured against `target`, the rest-day one) even with no rest version of its meals.
+  const dayLabel = kind === "rest" ? "rest day" : curVariant === "training" ? "training day" : curVariant + " day";
   const brief = W.weekBrief(cols);
   const hasTravel = doc.days.some((d) => d.variants && d.variants.travel);
   const viewLabel = view === "rest" ? "rest day" : view === "travel" ? "travel day" : "training day";
@@ -1103,7 +1108,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
           {/* The picked day: its ring, and the one meal open (or the day's own settings). */}
           {day && (
             <div className="dmb-box dmb-peek" data-peek="">
-              <DmbDayRing name={day.name} status={col.status} target={target} kindLabel={curVariant === "training" ? "training day" : curVariant + " day"} />
+              <DmbDayRing name={day.name} status={col.status} target={target} kindLabel={dayLabel} />
               <div style={{ minWidth: 0 }}>
                 {(warnings || []).map((w, i) => <p key={i} className="dmb-quiet" style={{ color: DMB_RED }}>⚠ {w}</p>)}
                 <DmbDayEditor day={day} onChange={(next) => setDay(sel, next)} plan={doc} variant={curVariant} setVariant={setPreviewVariant} customFoods={ownFoods}
@@ -1116,7 +1121,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
 
           {preview && day && (
             <div className="dmb-box" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-              <DmbClientPreview doc={doc} day={day} variant={curVariant} />
+              <DmbClientPreview doc={doc} day={day} variant={curVariant} targets={target} label={dayLabel} />
             </div>
           )}
 

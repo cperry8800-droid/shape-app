@@ -418,6 +418,23 @@ test('rest days are measured against the plan\'s rest-day target, and say so whe
   assert.equal(lastSave()[2].detail.mealBuilder.restTargets.kcal, 1650);
 });
 
+test('the client preview of a rest day is measured against the rest-day target and called a rest day (Codex on #2648)', async () => {
+  stubFetch(); stubConfirm(true); stubKitchen({});
+  const seen = [];
+  const was = globalThis.DashMealLedgerCard;
+  globalThis.DashMealLedgerCard = (p) => { seen.push({ kcal: p.targets && p.targets.kcal, note: p.headerNote }); return null; };
+  try {
+    await mount(builder());
+    await click(buttons().find((b) => /^Rest days/.test(b.textContent)));
+    const box = [...document.querySelectorAll('label')].find((l) => /Client preview/.test(l.textContent)).querySelector('input');
+    await click(box);
+    const last = seen[seen.length - 1];
+    assert.ok(last, 'the client preview did not render');
+    assert.equal(last.kcal, 1700, 'a rest day was previewed against the training target');
+    assert.equal(last.note, 'rest day', 'a rest day with no rest version was called a training day');
+  } finally { globalThis.DashMealLedgerCard = was; }
+});
+
 test('Shape Kitchen sits beside the week: Kitchen 100 and Mine, search, its filters, and Rae\'s own Chickpea shakshuka', async () => {
   stubFetch(); stubConfirm(true); stubKitchen({});
   await mount(builder());
