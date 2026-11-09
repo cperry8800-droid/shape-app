@@ -13,6 +13,7 @@ const React=require('react');globalThis.React=React;globalThis.ReactDOM=require(
 const {createRoot}=require('react-dom/client');
 globalThis.DashBuilder=require('../public/newdesign/dashBuilderCore.js');
 globalThis.DashMeals=require('../public/newdesign/dashMealCore.js');
+globalThis.DashMealWeek=require('../public/newdesign/dashMealWeek.js');
 globalThis.ShapeWorkoutDocument=require('../public/newdesign/workoutDocument.js');
 globalThis.DashPill=({children})=>React.createElement('span',null,children);
 globalThis.DashWorkoutCard=globalThis.DashMealLedgerCard=()=>null;
@@ -61,28 +62,34 @@ test('the workout editor edits the complete prescription and reuse saves a separ
   assert.ok(!choices.some(c=>c.key==='workoutBuilderLayout'),'the workout builder still asks for a layout');
 });
 
-test('nutrition layouts preserve exclusions, swaps, variants and groceries while saving a new template',async()=>{
+// ⚠ THE MEAL BUILDER HAS ONE LAYOUT SINCE STEP 6c (the owner's coach review, 4 Nov 2026: "No Guided /
+// Editor / Planner switch, Publish vN or Save template: the plan saves and stamps a version"). What
+// this test was for survives the layouts: a copy saves as a separate template, whole.
+test('the meal builder edits a copy whole and saves it as a separate template, with no layout to choose',async()=>{
   const original=structuredClone(DashMeals.demoMealTemplates()[0]);original.id='original-meal';original.published=true;
   const baseline=structuredClone(original),writes=capture();
   await mount(DmbBuilder,coachTemplateCopy(original));
+  for(const gone of ['Guided','Editor','Planner','Continue →','Save template'])assert.ok(!button(gone),gone+' is back');
+  assert.ok(![...document.querySelectorAll('button')].some(b=>/^Publish v\d/.test(b.textContent)),'a Publish vN button is back');
   await input('Daily Protein g target','165');
-  await click('Continue →');const meal=original.detail.mealBuilder.days[0].slots[0];
+  const meal=original.detail.mealBuilder.days[0].slots[0];
+  const cell=[...document.querySelectorAll('.dmb-meal')].find(b=>b.querySelector('b').textContent===meal.name);
+  assert.ok(cell,'the meal is in the week');await React.act(async()=>cell.click());
   await input(meal.name+' Protein g','42');
-  for(const layout of ['Editor','Planner','Guided'])await click(layout);
-  await click('Save template');
+  await click('← Library');
   assert.equal(writes.length,1);assert.equal(writes[0].method,'POST');assert.notEqual(writes[0].id,original.id);
   assert.equal(writes[0].detail.mealBuilder.targets.p,165);
   assert.equal(writes[0].detail.mealBuilder.days[0].slots[0].p,42);
   assert.deepEqual(writes[0].detail.mealBuilder.constraints,baseline.detail.mealBuilder.constraints);
   assert.deepEqual(writes[0].detail.mealBuilder.days[0].slots[0].swaps,meal.swaps);
   assert.deepEqual(original,baseline);
-  assert.ok(choices.some(c=>c.key==='mealBuilderLayout'&&c.fallback==='guided'&&c.allowed.length===3));
+  assert.ok(!choices.some(c=>c.key==='mealBuilderLayout'),'the meal builder still asks for a layout');
 });
 
 test('a failed nutrition save retains the copy, never assigns, and retries the same record',async()=>{
   const template=coachTemplateCopy(DashMeals.demoMealTemplates()[0]);let fail=true;const writes=[];
   globalThis.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);writes.push(body);return {ok:!fail,json:async()=>fail?{error:'Offline'}:{plan:body}};};
-  await mount(DmbBuilder,template);await click('4Review');await click('Assign to clients →');
+  await mount(DmbBuilder,template);await click('Assign to clients →');
   assert.match(document.body.textContent,/Offline/);assert.equal(document.querySelector('[role="dialog"]')==null,true);
   fail=false;await click('Retry save');assert.equal(writes[0].id,writes[1].id);assert.equal(writes[1].name,template.name);
 });
