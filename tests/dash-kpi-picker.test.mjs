@@ -115,6 +115,18 @@ test('monthlyNet is MRR after the one named fee rate — not a second spelling o
   assert.equal(live.value, 4242);
 });
 
+test('Codex on #2639: a live session count the route couldn\'t read says so; only the preview is "live only"', () => {
+  // The dashboard routes send this week, upcoming and the total as null when the sessions read failed.
+  for (const [role, keys] of [['trainer', { week: 'sessionsThisWeek', upcoming: 'upcomingSessions', total: 'totalSessions' }], ['nutritionist', { week: 'consultsThisWeek', upcoming: 'upcomingConsults', total: 'totalConsults' }]]) {
+    const unread = ctx({ role, kpiKeys: keys, live: { kpis: { [keys.week]: null, [keys.upcoming]: null, [keys.total]: null, totalCapped: null } } });
+    for (const k of ['weekSessions', 'upcoming', 'totalSessions']) {
+      assert.deepEqual(S.dashKpiValue(k, unread), { value: null, unit: 'count', why: "couldn't be read" }, role + ' ' + k);
+    }
+    const zero = ctx({ role, kpiKeys: keys, live: { kpis: { [keys.week]: 0, [keys.upcoming]: 0, [keys.total]: 0, totalCapped: false } } });
+    assert.deepEqual(S.dashKpiValue('weekSessions', zero), { value: 0, unit: 'count' }, 'a measured zero is still a figure');
+  }
+});
+
 test('a live client count or net the dashboard couldn\'t read says so under its dash; a measured zero is still a figure', () => {
   // The dashboard routes send today's clients and net as null when the subscriptions couldn't be read
   // (the dashboards after #2395), never 0, and the strip says why rather than leaving the dash bare.

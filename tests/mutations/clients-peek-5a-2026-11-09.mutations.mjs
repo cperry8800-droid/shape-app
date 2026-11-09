@@ -11,7 +11,7 @@ const TROUTE = 'src/app/api/trainer/dashboard/route.ts';
 const NROUTE = 'src/app/api/nutritionist/dashboard/route.ts';
 
 export default {
-  test: 'node --test tests/clients-peek-5a.test.mjs tests/dash-today-board.test.mjs tests/dashboard-coaching-usability.test.mjs tests/coach-dashboard-routes.test.mjs',
+  test: 'node --test tests/clients-peek-5a.test.mjs tests/dash-today-board.test.mjs tests/dashboard-coaching-usability.test.mjs tests/coach-dashboard-routes.test.mjs tests/dash-kpi-picker.test.mjs',
   timeoutMs: 240_000,
   mutations: [
     // ── Codex on #2639: the client by id, a failed sessions read, a fresh panel per client
@@ -28,6 +28,12 @@ export default {
     { name: 'the nutritionist route hides a failed sessions read', file: NROUTE, find: '      sessionsRead = false;\n', replace: '' },
     { name: 'the trainer route drops today\'s client id', file: TROUTE, find: '        clientId: r.client_id,\n      }));', replace: '      }));' },
     { name: 'the nutritionist route drops today\'s client id', file: NROUTE, find: '        clientId: r.client_id,\n      }));', replace: '      }));' },
+    // ── Codex on #2639, round 2: every figure built from a failed sessions read is unread
+    { name: 'the trainer route sends a failed week as 0', file: TROUTE, find: '      sessionsThisWeek: sessionsRead ? sessionsThisWeek : null,', replace: '      sessionsThisWeek,' },
+    { name: 'the trainer route sends failed upcoming as 0', file: TROUTE, find: '      upcomingSessions: sessionsRead ? upcomingSessions : null,', replace: '      upcomingSessions,' },
+    { name: 'the nutritionist route sends a failed total as 0', file: NROUTE, find: '      totalConsults: sessionsRead ? totalConsults : null,', replace: '      totalConsults,' },
+    { name: 'the nutritionist route sends a failed pulse as empty', file: NROUTE, find: '    pulse: sessionsRead ? pulse : null,', replace: '    pulse,' },
+    { name: 'an unread session count says "live only"', file: 'public/newdesign/dashSignals.js', find: '    return live && live.kpis ? UNREAD : LIVE_ONLY;', replace: '    return LIVE_ONLY;' },
     { name: 'one panel serves every client', file: ROSTER,
       find: 'return <DashClientPanel key={p && p.id != null ? String(p.id) : "none"} {...props} />;', replace: 'return <DashClientPanel {...props} />;' },
     // ── the groups ──

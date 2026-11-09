@@ -2586,6 +2586,12 @@
   // #2395): the routes send today's clients and net as null, never 0, when the subscriptions couldn't
   // be read, and the strip says so under its dash rather than leaving it bare.
   var UNREAD = "couldn't be read";
+  // A session count the route sent as null: a failed sessions read on a live page (Codex on #2639), so
+  // "couldn't be read"; with no live feed at all, the preview, it is "live only" as before.
+  function kpiPayloadWhy(ctx) {
+    var live = kpiLive(ctx);
+    return live && live.kpis ? UNREAD : LIVE_ONLY;
+  }
 
   var DASH_KPI_METRICS = {
     activeClients: {
@@ -2619,21 +2625,21 @@
       trainer: "Sessions this week", nutritionist: "Consults this week",
       resolve: function (ctx) {
         var v = kpiPayload(ctx, "week");
-        return v == null ? { value: null, unit: "count", why: LIVE_ONLY } : { value: v, unit: "count" };
+        return v == null ? { value: null, unit: "count", why: kpiPayloadWhy(ctx) } : { value: v, unit: "count" };
       },
     },
     upcoming: {
       trainer: "Upcoming sessions", nutritionist: "Upcoming consults",
       resolve: function (ctx) {
         var v = kpiPayload(ctx, "upcoming");
-        return v == null ? { value: null, unit: "count", why: LIVE_ONLY } : { value: v, unit: "count" };
+        return v == null ? { value: null, unit: "count", why: kpiPayloadWhy(ctx) } : { value: v, unit: "count" };
       },
     },
     totalSessions: {
       trainer: "Sessions logged", nutritionist: "Consults logged",
       resolve: function (ctx) {
         var v = kpiPayload(ctx, "total");
-        if (v == null) return { value: null, unit: "count", why: LIVE_ONLY };
+        if (v == null) return { value: null, unit: "count", why: kpiPayloadWhy(ctx) };
         // ⚠ NOT LABELLED "ALL TIME". The route reads a capped window and reports whether
         // it bit (`totalCapped`), so past the cap this count is a FLOOR — which is why
         // the capped-read fix had to land before this metric could exist at all.

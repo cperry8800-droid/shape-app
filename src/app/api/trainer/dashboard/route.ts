@@ -298,12 +298,20 @@ export async function GET(request: Request) {
   return NextResponse.json({
     user: { firstName, fullName },
     isTrainer: providerId != null,
-    kpis: { activeClients, monthlyNetCents, sessionsThisWeek, upcomingSessions, totalSessions, totalCapped },
+    // ⚠ EVERY FIGURE BUILT FROM THE SESSIONS READ IS NULL WHEN IT FAILED (Codex on #2639), never a
+    // measured 0: this week, upcoming, the total and the pulse, as Today and the panel read sessionsRead.
+    kpis: {
+      activeClients, monthlyNetCents,
+      sessionsThisWeek: sessionsRead ? sessionsThisWeek : null,
+      upcomingSessions: sessionsRead ? upcomingSessions : null,
+      totalSessions: sessionsRead ? totalSessions : null,
+      totalCapped: sessionsRead ? totalCapped : null,
+    },
     today,
     sessionsRead,
     dayZone,
     calendar,
-    pulse,
+    pulse: sessionsRead ? pulse : null,
     growth,
     funnel,
   });

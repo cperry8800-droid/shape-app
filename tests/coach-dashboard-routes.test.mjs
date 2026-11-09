@@ -137,6 +137,10 @@ for (const role of ['trainer', 'nutritionist']) {
       const bad = await loadRoute(role, practice(role, 'America/New_York'), { fail: ['sessions'] });
       assert.equal(bad.status, 200);
       assert.deepEqual([bad.body.sessionsRead, bad.body.today, bad.body.calendar], [false, [], []]);
+      // Every figure built from that read is unread too, never a measured 0 (Codex on #2639, round 2).
+      const k = role === 'trainer' ? ['sessionsThisWeek', 'upcomingSessions', 'totalSessions'] : ['consultsThisWeek', 'upcomingConsults', 'totalConsults'];
+      assert.deepEqual(k.map((x) => bad.body.kpis[x]).concat([bad.body.kpis.totalCapped, bad.body.pulse]), [null, null, null, null, null]);
+      assert.deepEqual(k.map((x) => typeof ok.body.kpis[x]), ['number', 'number', 'number'], 'a read that worked still counts');
     } finally { console.warn = realWarn; }
   });
 
