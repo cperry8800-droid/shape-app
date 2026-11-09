@@ -163,13 +163,18 @@ function plProgramDays(plan) {
   // rest has music every week (Codex P2 on #2644); `playlists` says which, week by week.
   return [...rows.values()].map((r) => ({ index: r.index, key: r.key, id: r.id, name: r.name, weeks: r.weeks, withMusic: r.withMusic || 0, playlists: [...r.byKey.values()] }));
 }
-// The programs as the page reads them: { id, name, type, clients, revision, days, plan }.
+// The programs as the page reads them: { id, name, type, clients, clientsAtLeast, revision, days, plan }.
 // `clients` is the clients with the program on their calendar, null when that couldn't be read.
+// ⚠ A CAPPED USAGE ANSWER IS A LOWER BOUND FOR EVERY PROGRAM (Codex P2 on #2644): the route counts
+// only the sessions under its cap, so a listed count can be short too. Then `clients` is null (not
+// known) and `clientsAtLeast` keeps what was counted, said as "4+ clients".
 function plProgramsModel(plans, usage) {
   return (Array.isArray(plans) ? plans : []).filter((p) => p && p.kind !== "meal_plan").map((plan) => {
     const u = usage && usage.byId ? usage.byId[plan.id] : null;
-    const clients = !usage ? null : u && Number(u.clients) > 0 ? Math.floor(Number(u.clients)) : (usage.capped ? null : 0);
-    return { id: plan.id, name: plan.name || "Untitled program", type: plProgramType(plan), clients, revision: plan.detail && plan.detail.revision != null ? Number(plan.detail.revision) || 0 : 0, days: plProgramDays(plan), plan };
+    const counted = u && Number(u.clients) > 0 ? Math.floor(Number(u.clients)) : 0;
+    const clients = !usage || usage.capped ? null : counted;
+    const clientsAtLeast = usage && usage.capped && counted > 0 ? counted : null;
+    return { id: plan.id, name: plan.name || "Untitled program", type: plProgramType(plan), clients, clientsAtLeast, revision: plan.detail && plan.detail.revision != null ? Number(plan.detail.revision) || 0 : 0, days: plProgramDays(plan), plan };
   });
 }
 // The signed-out preview's programs, from the sample workouts: each sample program's workouts as
@@ -265,7 +270,8 @@ function plMusicCoverage(programs) {
   // The one raised: the missing day on the program most clients are on.
   // A day with music in only some weeks is partial, not silent: it says how many.
   missing.forEach((x) => { x.most = plDayMusicWeeks(x.day); });
-  missing.sort((a, b) => (Number(b.program.clients) || 0) - (Number(a.program.clients) || 0));
+  const known = (prog) => Number(prog.clients != null ? prog.clients : prog.clientsAtLeast) || 0;
+  missing.sort((a, b) => known(b.program) - known(a.program));
   return { usageRead, total: days.length, covered: days.length - missing.length, missing };
 }
 // Who hears a playlist: the clients on the programs whose days carry it, and who it was sent to.
@@ -276,7 +282,10 @@ function plWhoHears(p, programs, dupNames) {
   const programsUnknown = programs == null;
   const on = (Array.isArray(programs) ? programs : []).map((prog) => ({ program: prog, days: prog.days.filter((d) => plDayHas(d, p, dupNames)) })).filter((x) => x.days.length);
   const counts = on.map((x) => x.program.clients);
-  const programClients = counts.some((c) => c == null) ? null : counts.reduce((s, c) => s + c, 0);
+  // ⚠ NEVER A SUM ACROSS PROGRAMS (Codex P2 on #2644): the usage read counts each program's clients
+  // with no identities, so one client on two programs would count twice. One program: its count;
+  // more: the programs, not the clients.
+  const programClients = on.length === 1 ? counts[0] : null;
   const attached = Array.isArray(p.attached) ? p.attached : [];
   // ⚠ A SEND WITHOUT A LINK REACHES NOBODY (Codex P2 on #2644): get_my_coach_playlists leaves out
   // every row whose url is empty, so such a send is said as unseen, never as heard.
@@ -286,7 +295,13 @@ function plWhoHears(p, programs, dupNames) {
     clients: attached.filter((a) => a.kind === "client" && a.clientId).map((a) => a.clientId),
   };
 }
-// "Who hears it" in words, from plWhoHears. Program counts can overlap (a client on two programs).
+// A program's clients in words: "4 clients", "4+ clients" (a capped read), or null when unknown.
+function plProgramClientsText(prog) {
+  if (prog.clients != null) return prog.clients + (prog.clients === 1 ? " client" : " clients");
+  if (prog.clientsAtLeast != null) return prog.clientsAtLeast + "+ clients";
+  return null;
+}
+// "Who hears it" in words, from plWhoHears. With several programs it names how many, never a sum.
 const PL_NOT_PLAYING = "Not playing anywhere yet";
 function plWhoHearsText(w, role, programsState) {
   const parts = [];
@@ -296,7 +311,8 @@ function plWhoHearsText(w, role, programsState) {
   if (role !== "nutritionist" && w.programs.length) {
     const days = w.programs.reduce((s, x) => s + x.days.length, 0);
     const on = days + (days === 1 ? " program day" : " program days");
-    parts.push(w.programClients == null ? on : on + " · " + w.programClients + (w.programClients === 1 ? " client" : " clients"));
+    if (w.programs.length > 1) parts.push(on + " on " + w.programs.length + " programs");
+    else parts.push(w.programClients == null ? on : on + " · " + w.programClients + (w.programClients === 1 ? " client" : " clients"));
   }
   if (role !== "nutritionist" && w.programsUnknown) parts.push(programsState === "loading" ? "reading program days…" : "program days couldn't be read");
   return parts.length ? parts.join(" · ") : PL_NOT_PLAYING;
@@ -587,7 +603,7 @@ function plBriefModel(c) {
     const head = cov.covered + " of " + cov.total + " " + scope + " have music.";
     if (!cov.missing.length) return { text: head, action: null };
     const m = cov.missing[0];
-    const who = m.program.clients == null ? "" : " (" + m.program.clients + (m.program.clients === 1 ? " client" : " clients") + ")";
+    const who = plProgramClientsText(m.program) ? " (" + plProgramClientsText(m.program) + ")" : "";
     const what = m.most > 0 ? " has music in only " + m.most + " of " + m.day.weeks + " weeks" : " has no music";
     return { text: head, raised: m.program.name + " · " + m.day.name + what + who + ".", partial: m.most > 0, action: { label: "Attach", focus: { programId: m.program.id, dayIndex: m.day.index } } };
   }
@@ -707,7 +723,7 @@ function PlaylistDetail({ p, onClose }) {
           <div data-pl-plays-on style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18, fontSize: 13 }}>
             {who.all && <div>Every client · their {c.role === "nutritionist" ? "Eat" : "Train"} page</div>}
             {!who.all && who.clients.length > 0 && <div>Sent to {names(who.clients).filter(Boolean).join(", ") || who.clients.length + " clients"}{names(who.clients).some((n) => !n) && names(who.clients).some(Boolean) ? " and others" : ""}</div>}
-            {who.programs.map((x) => <div key={x.program.id}>{x.program.name} · {x.days.map((d) => d.name).join(", ")}{x.program.clients == null ? "" : " · " + x.program.clients + (x.program.clients === 1 ? " client" : " clients")}</div>)}
+            {who.programs.map((x) => <div key={x.program.id}>{x.program.name} · {x.days.map((d) => d.name).join(", ")}{plProgramClientsText(x.program) ? " · " + plProgramClientsText(x.program) : ""}</div>)}
             {c.role !== "nutritionist" && who.programsUnknown && <div data-pl-programs-unknown style={{ color: PL_INK2 }}>{c.programsState === "loading" ? "Reading program days…" : "Program days couldn't be read."}</div>}
             {!who.all && !who.clients.length && !who.programs.length && !(c.role !== "nutritionist" && who.programsUnknown) && <div style={{ color: PL_INK3 }}>{PL_NOT_PLAYING}.</div>}
           </div>
@@ -1008,7 +1024,7 @@ function AttachMatrix({ focus }) {
                 ? <span style={{ ...plChip, color: INK }}><span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: prog.type.color }} />{prog.type.label}</span>
                 : <span style={plChip}>No type</span>}
               <span style={{ fontSize: 14 }}>{prog.name}</span>
-              <span style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK2 }}>{prog.clients == null ? "clients couldn't be read" : prog.clients + (prog.clients === 1 ? " client" : " clients")}</span>
+              <span style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK2 }}>{plProgramClientsText(prog) || "clients couldn't be read"}</span>
             </span>
           </th>
         </tr>
@@ -1021,14 +1037,14 @@ function AttachMatrix({ focus }) {
             <tr key={d.index} data-pl-day={prog.id + ":" + d.index} data-needs={needs ? "1" : "0"} style={lifted ? { boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" } : undefined}>
               <td style={{ ...tdFirst, borderLeft: needs ? `3px solid ${PL_RUST}` : "3px solid transparent" }}>
                 <div style={{ fontSize: 13.5, fontWeight: 500 }}>{d.name}</div>
-                {needs && <div data-pl-no-music style={{ fontSize: 11, color: PL_RUST, fontFamily: PL_MONO, marginTop: 3 }}>{most > 0 ? "Music in " + most + " of " + d.weeks + " weeks" : "No music"}{prog.clients ? " · " + prog.clients + (prog.clients === 1 ? " client" : " clients") : ""}</div>}
+                {needs && <div data-pl-no-music style={{ fontSize: 11, color: PL_RUST, fontFamily: PL_MONO, marginTop: 3 }}>{most > 0 ? "Music in " + most + " of " + d.weeks + " weeks" : "No music"}{prog.clients !== 0 && plProgramClientsText(prog) ? " · " + plProgramClientsText(prog) : ""}</div>}
                 {d.weeks > 1 && !needs && <div style={{ fontSize: 10.5, color: PL_INK3, fontFamily: PL_MONO, marginTop: 2 }}>{d.weeks} weeks</div>}
               </td>
               {playlists.map((p) => {
                 const on = plDayHas(d, p, c.dupNames);
                 const key = prog.id + ":" + d.index + ":" + p.id;
                 const label = (on === true ? "Take " + p.name + " off " : "Put " + p.name + " on ") + prog.name + " · " + d.name;
-                return cell(key, ["prog:" + prog.id], on, label, prog.clients, needs, () => c.setDay(prog, d.index, on === true ? null : p), p.accent);
+                return cell(key, ["prog:" + prog.id], on, label, prog.clients != null ? prog.clients : prog.clientsAtLeast != null ? prog.clientsAtLeast + "+" : null, needs, () => c.setDay(prog, d.index, on === true ? null : p), p.accent);
               })}
             </tr>
           );

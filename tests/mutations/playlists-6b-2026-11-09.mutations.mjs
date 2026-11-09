@@ -25,11 +25,13 @@ export default {
 
     // ── Unread versus 0 clients
     { name: 'unread usage reads as 0 clients', file: PAGE,
-      find: 'const clients = !usage ? null :', replace: 'const clients = !usage ? 0 :' },
-    { name: 'a capped usage answer calls the unlisted 0', file: PAGE,
-      find: '(usage.capped ? null : 0)', replace: '0' },
-    { name: 'an unread program count adds up as 0', file: PAGE,
-      find: 'const programClients = counts.some((c) => c == null) ? null :', replace: 'const programClients = false ? null :' },
+      find: 'const clients = !usage || usage.capped ? null : counted;', replace: 'const clients = usage && usage.capped ? null : counted;' },
+    { name: 'a capped usage answer counts as exact', file: PAGE,
+      find: 'const clients = !usage || usage.capped ? null : counted;', replace: 'const clients = !usage ? null : counted;' },
+    { name: 'program clients are summed across programs', file: PAGE,
+      find: 'const programClients = on.length === 1 ? counts[0] : null;', replace: 'const programClients = counts.some((c) => c == null) ? null : counts.reduce((s, c) => s + c, 0);' },
+    { name: 'an unread program count reads as 0', file: PAGE,
+      find: '  if (prog.clients != null) return prog.clients + (prog.clients === 1 ? " client" : " clients");', replace: '  return (prog.clients || 0) + " clients";' },
     { name: 'a day on a program nobody is on is flagged', file: PAGE,
       find: 'const needs = !music && (prog.clients == null || prog.clients > 0);', replace: 'const needs = !music;' },
 

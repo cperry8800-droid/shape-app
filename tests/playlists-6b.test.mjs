@@ -556,11 +556,12 @@ test('plMusicCoverage counts the programs clients are on when that was read, eve
   assert.deepEqual([some.total, some.covered], [1, 0]);
 });
 
-test('plProgramsModel: unread usage is null, a capped answer is null for the unlisted, else 0', () => {
+test('plProgramsModel: unread usage is null, a capped answer is a lower bound, else exact', () => {
   const plans = [STRENGTH(), UNUSED(), { id: 'm', kind: 'meal_plan', name: 'Meals', detail: {} }];
   assert.deepEqual(P.plProgramsModel(plans, null).map((x) => x.clients), [null, null], 'meal plans are left out');
   assert.deepEqual(P.plProgramsModel(plans, { byId: { p1: { clients: 4 } }, capped: false }).map((x) => x.clients), [4, 0]);
-  assert.deepEqual(P.plProgramsModel(plans, { byId: { p1: { clients: 4 } }, capped: true }).map((x) => x.clients), [4, null]);
+  // Capped: every count is a lower bound, so none is exact (Codex P2 on #2644).
+  assert.deepEqual(P.plProgramsModel(plans, { byId: { p1: { clients: 4 } }, capped: true }).map((x) => [x.clients, x.clientsAtLeast]), [[null, 4], [null, null]]);
   assert.deepEqual(P.plProgramsModel(plans, null).map((x) => x.revision), [3, 1]);
   assert.deepEqual(P.plProgramsModel([STRENGTH()], null)[0].type, { label: 'Strength', color: '#c0533b' }, 'the type from the program\'s own tag');
 });
@@ -813,4 +814,25 @@ test('a playlist without a link can\'t be sent, and an old send of one is said a
   assert.deepEqual(p.reqs('PATCH', '/api/coach/soundtracks')[0].body.attached, []);
   assert.equal(cellOf('all:st-2').disabled, true, 'and not sent again');
   assert.equal(cellOf(id(1) + ':st-1').disabled, false, 'a linked playlist sends as before');
+});
+
+test('a capped usage read says "4+ clients", never an exact count (P2)', async () => {
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/plans/usage': () => ok({ usage: { p1: { clients: 4 } }, capped: true }) }) });
+  assert.equal(p.text(p.card('st-1').querySelector('[data-pl-who]')), '1 program day');
+  assert.equal(p.text(p.q('[data-pl-raised]')).includes('(4+ clients)'), true);
+  await p.tab('matrix');
+  assert.equal(p.text(p.q('[data-pl-program="p1"] th')).includes('4+ clients'), true);
+  assert.equal(p.text(p.q('[data-pl-program="p2"] th')).includes("clients couldn't be read"), true, 'an unlisted program is unknown, not 0');
+  assert.equal(p.text(p.cell('p1:0:st-1')), '✓ 4+');
+  assert.equal(/\b4 clients\b/.test(p.page()), false);
+});
+
+test('a playlist on two programs names the programs, never a sum of their clients (P2)', async () => {
+  const second = () => ({ ...STRENGTH(), id: 'p3', name: 'Second Block' });
+  const p = await page({ handlers: trainerLive({
+    'GET /api/coach/plans': () => ok({ plans: [STRENGTH(), second()] }),
+    'GET /api/coach/plans/usage': () => ok({ usage: { p1: { clients: 4 }, p3: { clients: 4 } }, capped: false }),
+  }) });
+  assert.equal(p.text(p.card('st-1').querySelector('[data-pl-who]')), '2 program days on 2 programs');
+  assert.equal(p.page().includes('8 clients'), false);
 });
