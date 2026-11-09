@@ -131,15 +131,13 @@
   .btn.g:hover { border-color: var(--acc); }
 
   /* ---- the hero ------------------------------------------------------- */
-  .hero { padding: 76px 0 40px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: end; }
+  /* One column: the four-figure "clock" that stood beside the copy (11 screens ·
+     $5 a month · 13 languages · 0 ads on Radio) came out (owner, 2026-11-09: "also
+     remove this on app page"), and its example label moved under the buttons. */
+  .hero { padding: 76px 0 40px; display: grid; grid-template-columns: 1fr; gap: 48px; align-items: end; }
   .hero h1 { font-size: 92px; margin-top: 14px; }
   .hero p { font-size: 18px; max-width: 46ch; margin-top: 16px; }
   .hero .cta-row { margin-top: 30px; }
-  .hero-side { padding-bottom: 10px; }
-  .clock { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .clock div { border: 1px solid var(--line); padding: 12px 12px 10px; }
-  .clock .num { font-size: 22px; color: var(--ink); display: block; font-weight: 900; font-variation-settings: 'ROND' 100; }
-  .clock .eb2 { margin-top: 6px; display: block; }
   .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
 
   /* ---- the timeline --------------------------------------------------- */
@@ -223,7 +221,6 @@
   @media (max-width: 900px) {
     .wrap { padding: 0 18px; }
     .hero { grid-template-columns: 1fr; gap: 20px; padding: 30px 0 18px; }
-    .clock { grid-template-columns: repeat(2, 1fr); }
     .beat { grid-template-columns: 1fr; gap: 18px; padding: 24px 0 28px; min-height: 0; }
     /* Sticky needs a taller-than-viewport beat to have any travel; stacked, each
        beat is about a screen, so both columns go static and simply read in order. */
@@ -294,15 +291,7 @@
           <a class="btn p" href="/newdesign/Landing.html">Get started &#8594;</a>
           <a class="btn g" href="#notify">Notify me when it ships</a>
         </div>
-      </div>
-      <div class="hero-side">
-        <div class="clock">
-          <div><span class="num">11</span><span class="eb2">screens</span></div>
-          <div><span class="num">$5</span><span class="eb2">a month</span></div>
-          <div><span class="num">13</span><span class="eb2">languages</span></div>
-          <div><span class="num">0</span><span class="eb2">ads on Radio</span></div>
-        </div>
-        <div style="margin-top:14px"><span class="exlabel">Example member &#183; captured from the app&rsquo;s signed-out preview</span></div>
+        <div style="margin-top:18px"><span class="exlabel">Example member &#183; captured from the app&rsquo;s signed-out preview</span></div>
       </div>
     </section>
 

@@ -19,6 +19,11 @@
 // recipe renders nothing rather than inventing a name.
 
 // ── Palette + type (page-local; the shell tokens stay the site's dark ones) ──
+// The shared header is a 55% near-black glass built for the site's dark pages; over
+// this page's cream paper it mixed into a faded grey-olive bar (owner, 2026-11-09: "nav
+// bar on kitchen page needs to not look like this", "looks faded"). The Kitchen pages
+// set it solid, the header's own colour, through the variable the header reads.
+const KITCHEN_HEADER_BG = "#0b0e0c";
 const KM_PAPER = "#f4eee2";
 const KM_PAPER2 = "#faf6ee";
 const KM_INK = "#1e2a26";
@@ -426,7 +431,7 @@ function RecipesPage() {
   };
 
   return (
-    <div className="km" style={{ background: KM_PAPER, color: KM_INK, fontFamily: kmSans, minHeight: "100vh" }}>
+    <div className="km" style={{ background: KM_PAPER, color: KM_INK, fontFamily: kmSans, minHeight: "100vh", "--sh-header-bg": KITCHEN_HEADER_BG }}>
       <Header active="Kitchen" />
 
       <div className="km-wrap">

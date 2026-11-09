@@ -13,6 +13,11 @@
 // (KM_*): tests/recipe-render.test.mjs evaluates both scripts in ONE scope, so a
 // shared `const` name would be a SyntaxError there before either page renders.
 
+// The shared header is a 55% near-black glass built for the site's dark pages; over
+// this page's cream paper it mixed into a faded grey-olive bar (owner, 2026-11-09: "nav
+// bar on kitchen page needs to not look like this", "looks faded"). The Kitchen pages
+// set it solid, the header's own colour, through the variable the header reads.
+const RD_HEADER_BG = "#0b0e0c";
 const RD_PAPER = "#f4eee2";
 const RD_PAPER2 = "#faf6ee";
 const RD_INK = "#1e2a26";
@@ -144,7 +149,7 @@ function RecipeDetailPage() {
 
   if (!recipe) {
     return (
-      <div className="rd" style={{ background: RD_PAPER, color: RD_INK, fontFamily: rdSans, minHeight: "100vh" }}>
+      <div className="rd" style={{ background: RD_PAPER, color: RD_INK, fontFamily: rdSans, minHeight: "100vh", "--sh-header-bg": RD_HEADER_BG }}>
         <Header active="Kitchen" />
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "80px 24px", textAlign: "center" }}>
           <div style={{ fontFamily: rdDisp, fontWeight: 500, fontVariationSettings: "'wdth' 104", fontSize: 40, letterSpacing: "-0.02em", marginBottom: 12 }}>Recipe not found</div>
@@ -242,7 +247,7 @@ function RecipeDetailPage() {
   })();
 
   return (
-    <div className="rd" style={{ background: RD_PAPER, color: RD_INK, fontFamily: rdSans, minHeight: "100vh" }}>
+    <div className="rd" style={{ background: RD_PAPER, color: RD_INK, fontFamily: rdSans, minHeight: "100vh", "--sh-header-bg": RD_HEADER_BG }}>
       <Header active="Kitchen" />
 
       <div className="rd-wrap">

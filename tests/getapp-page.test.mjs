@@ -17,7 +17,7 @@
 // Spec: docs/BUILD-2026-09-17-app-page-one-day.md.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
 
 const ND = new URL('../public/newdesign/', import.meta.url);
 const PUB = new URL('../public/', import.meta.url);
@@ -266,25 +266,16 @@ test('every beat states one figure, and the page claims no more than it shows', 
     'the page claims a live channel; the station is not broadcasting');
 });
 
-test('the hero clock states nothing it cannot back', () => {
-  const clock = /<div class="clock">([\s\S]*?)<\/div>\s*<\/div>/.exec(HTML);
-  assert.ok(clock, 'the hero clock is gone');
-  const figs = [...clock[1].matchAll(/<span class="num">([^<]+)<\/span><span class="eb2">([^<]+)<\/span>/g)]
-    .map((m) => [m[1], m[2]]);
-  assert.equal(figs.length, 4, 'the clock shows ' + figs.length + ' figures, not four');
-
-  const byLabel = Object.fromEntries(figs.map(([v, l]) => [l, v]));
-  // The screen count is the page's own, so the two cannot disagree.
-  assert.equal(byLabel.screens, String(SHOTS.length), 'the clock says ' + byLabel.screens + ' screens and the page shows ' + SHOTS.length);
-  // ⚠ THE LOCALE COUNT IS DERIVED FROM THE CATALOGS THAT SHIP. A number typed
-  // here goes stale the day a locale lands, on a page whose whole framing is that
-  // every figure is measured or labelled.
-  const locales = readdirSync(new URL('../mobile-app/src/i18n/catalogs/', import.meta.url), { withFileTypes: true })
-    .filter((d) => d.isDirectory()).length;
-  assert.ok(locales >= 5, 'found only ' + locales + ' catalogs — the sweep is looking in the wrong place');
-  assert.equal(byLabel.languages, String(locales), 'the clock says ' + byLabel.languages + ' languages; ' + locales + ' catalogs ship');
-  // The price the rest of the site states.
-  assert.equal(byLabel['a month'], '$5', 'the clock disagrees with the $5 membership');
+test('the hero has no figure row, and its example label stays', () => {
+  // The four-figure "clock" beside the hero (11 screens · $5 a month · 13 languages ·
+  // 0 ads on Radio) came out (owner, 2026-11-09: "also remove this on app page"). Its
+  // example label did not: it is what marks every screen below as sample data.
+  assert.doesNotMatch(HTML, /class="clock"|class="hero-side"/, 'the hero figure row is back');
+  assert.doesNotMatch(HTML, /<span class="eb2">(screens|languages|ads on Radio)<\/span>/, 'a hero figure is back');
+  const hero = /<section class="hero"[\s\S]*?<\/section>/.exec(HTML);
+  assert.ok(hero, 'the hero is gone');
+  assert.match(hero[0], /<span class="exlabel">Example member &#183; captured from the app&rsquo;s signed-out preview<\/span>/,
+    'the hero lost the label that marks the screens as an example');
 });
 
 test('the doors go somewhere, and the browser door is real', () => {

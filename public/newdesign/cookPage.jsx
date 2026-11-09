@@ -21,7 +21,7 @@ function KitchenCookPage() {
   if (params.get('r')) query.set('r', params.get('r'));
   if (params.get('mode') === 'together') query.set('mode', 'together');
   const src = '/m/?' + query.toString();
-  return <div className="ck">
+  return <div className="ck" style={{ "--sh-header-bg": "#0b0e0c" }}>
     <style>{`
 .ck { background: ${KC_PAPER}; color: ${KC_INK}; }
 /* <main> keeps zero side padding: pageShell's phone rule pads every main by 18px. */

@@ -40,7 +40,7 @@ window.HTMLElement.prototype.scrollIntoView = function () {};
 globalThis.ReactDOM = { createRoot: () => ({ render() {} }) };
 const SRC = read('marketplace.jsx');
 const mk = await loadRealModule(join(ND, 'marketplace.jsx'), {
-  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited });',
+  appendExports: 'Object.assign(exports, { Marketplace, CoachCard, MkQuickView, mapLiveCoach, mkPriceOf, mkCoachTier, mkRating10, mkRatingLabel, mkIsRated, mkKind, mkCanBook, mkIntroHref, mkProfileHref, mkGoalsOf, mkPass, MK_DEFAULTS, MK_GOALS, MK_COACH_LADDER, COACHES_FULL, mkTabFromHash, mkReadOpenTimes, mkEachLimited });',
 });
 const { createRoot } = require('react-dom/client');
 globalThis.ReactDOM = require('react-dom');
@@ -170,6 +170,44 @@ test('the page: listings without an account are not bookable and out of the coun
     assert.ok(!card.querySelector('[data-book-intro]'), 'a listing with no account offers Book a free intro');
   }
   assert.match(text(), /Example coaches/, 'the sample coaches are not labelled');
+  await m.unmount();
+});
+
+// Owner, 2026-11-09, of the matcher's Goal list: "make sure all goals are here and this actually
+// works". It offered the six fold goals, so most of what coaches on Shape list (Hyrox, running,
+// prenatal, gut health, plant-based…) could only be found as General fitness. Every one of the app
+// marketplace's categories, read from the app itself, now has a specific goal that finds it.
+test('every coach category in the app has a goal of its own, and the matcher lists every goal', async () => {
+  const app = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx'), 'utf8');
+  const block = /const BSM_MARKETPLACE_CATEGORIES = \{([\s\S]*?)\n\};/.exec(app);
+  assert.ok(block, "could not read the app's marketplace categories");
+  let n = 0;
+  for (const [, side, list] of block[1].matchAll(/(Trainer|Nutritionist): \[([^\]]*)\]/g)) {
+    for (const [, cat] of list.matchAll(/'([^']+)'/g)) {
+      if (cat === 'All Categories') continue;
+      n++;
+      const goals = [...mk.mkGoalsOf({ role: cat, category: cat, specialties: [], tag: side })];
+      const specific = goals.filter((g) => g !== 'general');
+      assert.ok(specific.length, `${side} category "${cat}" finds only General fitness (${goals.join(', ')})`);
+    }
+  }
+  assert.equal(n, 21, `read ${n} app categories, not 21 — the parse drifted`);
+  // The goals that belong to one side never match the other.
+  const nutri = mk.mkGoalsOf({ role: 'Gut Health & Functional Nutrition', category: 'Gut Health & Functional Nutrition', specialties: [], tag: 'Nutritionist' });
+  assert.ok(!nutri.has('functional'), "a nutritionist's Functional Nutrition matched the trainers' Functional & hybrid");
+  assert.ok(nutri.has('gut'));
+  const trainer = mk.mkGoalsOf({ role: 'Strength & Resistance', category: 'Strength & Resistance', specialties: [], tag: 'Trainer' });
+  assert.ok(!mk.MK_GOALS.filter((g) => g.nu).some((g) => trainer.has(g.id)), 'a trainer matched a nutrition-only goal');
+
+  // The fold keeps its six cards; the matcher's Goal list carries every goal.
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  assert.equal(document.querySelectorAll('.mk-goal').length, 6, 'the fold should keep its six goal cards');
+  const opts = [...document.querySelectorAll('.mk-matcher select option')].map((o) => o.value).filter(Boolean);
+  assert.deepEqual(opts.sort(), mk.MK_GOALS.map((g) => g.id).sort(), 'the matcher does not list every goal');
+  // And picking one from the list narrows the results: of the three rows, only James Okafor is weight management.
+  const sel = document.querySelector('.mk-matcher select');
+  await React.act(async () => { sel.value = 'weight'; sel.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  assert.match(text(), /and 1 listing not bookable yet\./, 'Weight management kept listings that are not weight-management coaches');
   await m.unmount();
 });
 
