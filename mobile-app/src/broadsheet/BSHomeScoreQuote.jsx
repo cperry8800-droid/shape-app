@@ -61,19 +61,22 @@ function rich(text, parts) {
 // The count up runs once a session, the first time the figure shows; a figure that changes after that
 // (a habit ticked, a check-in) is printed as it is. The element always holds the real figure: the count
 // writes React's own text node in place (never replacing it, so React's next update still lands) and
-// ends on the latest figure, so a screen reader, a test or reduced motion read the number.
+// ends on the latest figure, so a screen reader, a test or reduced motion read the number. It starts in a
+// layout effect, before the first paint, so the finished figure never shows and then jumps back to zero
+// (Codex P2 on #2649).
 let bsQuoteCounted = false;
 function useCountUp(ref, total, locale) {
   const latest = React.useRef(total);
   latest.current = total;
   const on = total > 0;
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const node = ref.current && ref.current.firstChild;
     if (!on || bsQuoteCounted || !node || node.nodeType !== 3) return undefined;
     bsQuoteCounted = true;
     let reduce = false;
     try { reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
     if (reduce || typeof requestAnimationFrame !== 'function') return undefined;
+    node.nodeValue = fmt(0, locale);
     let raf = 0;
     const t0 = performance.now();
     const step = (now) => {
