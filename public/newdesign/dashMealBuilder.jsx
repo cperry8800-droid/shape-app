@@ -814,14 +814,14 @@ function DmbTodoLine({ model, onAssignAll, onReview }) {
   if (t.intake.length) notes.push(dmbCount(t.intake.length, "client is", "clients are") + " waiting on their first check-in");
   if (!settling && !n && !t.pending && !t.unread) notes.push(t.total ? "Nobody needs a new plan this week." : "No clients on your roster yet.");
   const shown = t.rows.slice(0, 3);
-  const chips = n ? <>
-    {shown.map((r) => <span key={r.id} className="dash-lib-todo">
+  const chips = n ? <ul className="dash-lib-todos">
+    {shown.map((r) => <li key={r.id} className="dash-lib-todo">
       <DmbPerson p={r} />
       <span className="dash-lib-todo-plan">{r.suggestion ? "→ " + r.suggestion.name : "→ no plan in their phase yet"}</span>
       <span className="dash-lib-todo-why">{r.reasons.map((k) => DMB_REASONS[k] || k).join(" · ")}</span>
-    </span>)}
-    {n > shown.length && <span className="dash-lib-todo-more">+{n - shown.length} more</span>}
-  </> : null;
+    </li>)}
+    {n > shown.length && <li className="dash-lib-todo-more">{"+" + (n - shown.length) + " more in Review"}</li>}
+  </ul> : null;
   return <DashLibTopLine label={label} figure={settling ? "—" : n} line={(n === 1 && !settling ? "needs a new plan by " : "need a new plan by ") + by}
     chips={chips} note={notes.length ? notes.join(" · ") : null}
     actions={<>
@@ -1088,7 +1088,7 @@ function NutritionistPlansPage() {
                 return (
                   <DashLibCard key={t.id || t.name} name={t.name} onOpen={() => setView({ template: t })} openTitle={"Open " + t.name + " in the builder"}
                     cover={{ color: ph.c, tone: dashLibKind(b.goalPhase), kind: ph.label }}
-                    meta={dmbCount(b.days.length, "day", "days") + " rotation · " + b.targets.kcal + " kcal · " + b.targets.p + " g protein" + (variants ? " · " + dmbCount(variants, "variant", "variants") : "")}
+                    meta={b.days.length + "-day rotation · " + b.targets.kcal + " kcal · " + b.targets.p + " g protein" + (variants ? " · " + dmbCount(variants, "variant", "variants") : "")}
                     primary={<button type="button" onClick={() => { setWalk(null); setAssignFor({ template: t, clientId: targetClient ? forClient : null }); }} style={dmbBtn(true)}>Assign</button>}
                     menu={<DashLibMenu label={"More for " + t.name} items={[
                       { key: "edit", label: "Edit", onSelect: () => setView({ template: t }) },

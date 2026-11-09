@@ -536,7 +536,7 @@ test('Meal plans: one action per card, Edit and Use as template in the ⋯, Dele
   const lean = mealCard('Lean Week');
   assert.equal(lean.querySelector('.dash-lib-kind').textContent, 'Cut');
   assert.equal(lean.querySelector('.dash-lib-cover').style.getPropertyValue('--lib-cl'), ShapeClientColors.PROGRAM_TYPES.cut.light, 'Cut\'s own colour');
-  assert.match(lean.textContent, /1 day rotation · 1700 kcal · 160 g protein/);
+  assert.match(lean.textContent, /1-day rotation · 1700 kcal · 160 g protein/);
   assert.deepEqual(await openMenu(lean), ['Edit', 'Use as template', 'Delete']);
   await click(menuItem('Delete'));
   await settle();

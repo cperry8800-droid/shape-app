@@ -1048,8 +1048,8 @@ button.dash-chip:focus-visible { outline:none; box-shadow:inset 0 0 0 2px var(--
   color:var(--sh-ink2, #a09b94); background:var(--sh-rest, #221e19); border:1px solid var(--sh-line, #302c27); }
 .dash-lib-status[data-tone="ready"] { color:var(--sh-accent-ink, #2ee0c4); background:rgba(var(--sh-accent-rgb, 46,224,196),.1); border-color:rgba(var(--sh-accent-rgb, 46,224,196),.35); }
 .dash-lib-status[data-tone="need"] { color:var(--sh-ink, #f2ede4); background:rgba(var(--sh-rust-rgb, 224,100,75),.14); border-color:rgba(var(--sh-rust-rgb, 224,100,75),.5); }
-.dash-lib-todo { display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:2px 6px; font-size:13.5px; color:var(--sh-ink, #f2ede4); }
-.dash-lib-todo + .dash-lib-todo::before { content:"·"; color:var(--sh-ink3, #75706a); margin-right:4px; }
+.dash-lib-todos { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; flex-basis:100%; }
+.dash-lib-todo { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px; font-size:13.5px; color:var(--sh-ink, #f2ede4); }
 .dash-lib-todo-plan { font-weight:600; }
 .dash-lib-todo-why, .dash-lib-todo-more { font-size:12px; color:var(--sh-ink2, #a09b94); }
 .dash-lib-walk { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:-8px 0 18px; font-size:13.5px; color:var(--sh-ink, #f2ede4); }
@@ -1118,6 +1118,11 @@ html:is([data-paper="dark"],[data-paper="carbon"],[data-paper="night"],[data-pap
 .dash-lib-drawer-head h2 { margin:0; font-family:var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif); font-size:22px; font-weight:600; outline:none; }
 .dash-lib-drawer-x { min-height:36px; padding:0 12px; border-radius:8px; border:1px solid var(--sh-line2, #413d38); background:transparent; color:var(--sh-ink, #f2ede4); cursor:pointer; font:inherit; }
 .dash-lib-drawer-sub { margin:8px 0 10px; font-size:13px; line-height:1.5; color:var(--sh-ink2, #a09b94); }
+/* pageShell's narrow-screen rules scale every marketing h2/h3 and pad every section, !important;
+   a card's name, a drawer's title and the libraries' blocks keep their own size (as .dash-today-now h2). */
+.dash-lib-name, .dash-lib-drawer-head h2 { font-size:21px !important; line-height:1.15 !important; letter-spacing:normal !important; }
+.dash-lib-list-h { font-size:15px !important; line-height:1.3 !important; }
+section.dash-lib-top, section.dash-lib-list { padding-left:20px !important; padding-right:20px !important; }
 
 /* ── Responsive (dashboard-v2 step 10) ────────────────────────────────────── */
 .dash-roster-scroll { overflow-x: auto; }
