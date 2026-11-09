@@ -795,11 +795,12 @@ function MkToggle({ on, label, n, onClick }) {
 }
 // The city picker: Shape's own list in place of the browser's, whose open list always drew a scrollbar
 // (owner, 9 Nov: "remove the scroll toggle bar that appears when i click on location list"). The list
-// scrolls with no bar; the keys work as a select's do (↑ ↓, Home, End, Enter, Esc), and a click away closes it.
+// scrolls with no bar; the keys work as a select's do (↑ ↓, Home, End, Enter, Esc, and typing a city's first
+// letters jumps to it: Codex P2 on #2658), and a click away closes it.
 function MkCityPick({ value, cities, onPick, hero = false }) {
   const [open, setOpen] = useS(false);
   const [hi, setHi] = useS(0);
-  const box = useR(null), list = useR(null);
+  const box = useR(null), list = useR(null), typed = useR({ text: "", at: 0 });
   const all = ["Anywhere", ...cities];
   const id = hero ? "mk-city-hero" : "mk-city-rail";
   useE(() => {
@@ -815,8 +816,24 @@ function MkCityPick({ value, cities, onPick, hero = false }) {
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
   }, [open, hi]);
   const pick = (c) => { onPick(c); setOpen(false); };
+  // Type-ahead, as a select's: letters typed within 700ms build a prefix; one letter pressed again moves on to
+  // the next city with it. Open, it moves the highlight; closed, it picks, as a closed select does.
+  const typeAhead = (ch) => {
+    const now = Date.now(), t = typed.current;
+    t.text = now - t.at > 700 ? ch : t.text + ch;
+    t.at = now;
+    const q = t.text.toLowerCase();
+    const repeat = q.length > 1 && q.split("").every((c) => c === q[0]);
+    const prefix = repeat ? q[0] : q;
+    const from = open ? hi : Math.max(0, all.indexOf(value));
+    const order = all.map((_, i) => (from + (repeat || q.length === 1 ? 1 : 0) + i) % all.length);
+    const i = order.find((j) => all[j].toLowerCase().startsWith(prefix));
+    if (i == null) return;
+    if (open) setHi(i); else onPick(all[i]);
+  };
   const onKey = (e) => {
     const k = e.key;
+    if (k.length === 1 && k !== " " && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); typeAhead(k); return; }
     if (k === "ArrowDown" || k === "ArrowUp") {
       e.preventDefault();
       if (!open) { setOpen(true); return; }

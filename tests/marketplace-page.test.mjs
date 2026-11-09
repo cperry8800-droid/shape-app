@@ -365,3 +365,34 @@ test('the filters: city and open intro this week first, the city picked from a l
   assert.equal(box.querySelector('.v').textContent, 'Anywhere', 'Home and Enter pick Anywhere');
   await m.unmount();
 });
+
+// Codex P2 on #2658: the browser's select let a keyboard user type a city's first letter to jump to it; the
+// custom list keeps that, as a select does: closed, typing picks; open, it moves the highlight.
+test('the city picker keeps a select\'s type-ahead: a letter jumps, the same letter again moves on, letters typed fast match a prefix', async () => {
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  const box = document.querySelector('.mk-top [role="combobox"]');
+  const key = (k) => React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true })); });
+  await click(box);
+  const cities = [...document.getElementById(box.getAttribute('aria-controls')).querySelectorAll('[role="option"]')].map((o) => o.textContent.replace('✓', '')).slice(1);
+  await click(box);
+  // A letter two or more cities start with.
+  const letter = [...new Set(cities.map((c) => c[0]))].find((l) => cities.filter((c) => c[0] === l).length >= 2);
+  assert.ok(letter, 'the sample cities share a first letter');
+  const withIt = cities.filter((c) => c[0] === letter);
+  await key(letter.toLowerCase());
+  assert.equal(box.querySelector('.v').textContent, withIt[0], 'closed: the letter picks the first city with it');
+  assert.equal(box.getAttribute('aria-expanded'), 'false');
+  await new Promise((r) => setTimeout(r, 750));
+  await key(letter);
+  assert.equal(box.querySelector('.v').textContent, withIt[1], 'the same letter again moves on to the next');
+  // Open: a prefix typed fast moves the highlight to the city that starts with it, and Enter picks it.
+  await new Promise((r) => setTimeout(r, 750));
+  await key('ArrowDown');
+  const target = withIt[0];
+  for (const ch of target.slice(0, 3)) await key(ch);
+  const active = document.getElementById(box.getAttribute('aria-activedescendant'));
+  assert.equal(active ? active.textContent.replace('✓', '') : null, target, 'the highlight on the city the prefix names');
+  await key('Enter');
+  assert.equal(box.querySelector('.v').textContent, target);
+  await m.unmount();
+});
