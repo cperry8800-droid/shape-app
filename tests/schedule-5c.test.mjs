@@ -381,7 +381,11 @@ test('the settings are behind one tab on the edge, in a modal sheet: focus held,
 test('an editor inside the sheet still saves, and the save is read out over the inert page', async () => {
   const { page, srv } = await open();
   try {
+    // A word already on screen when the sheet opens (an answered request's) is still read out.
+    await page.click(page.buttonMatching(/^Accept$/, page.doc.querySelector('[aria-label="Requests to confirm"]')));
+    assert.match(page.toast(), /Accepted/);
     await page.click(page.doc.querySelector('[data-settings-tab]'));
+    assert.ok(!page.doc.querySelector('[data-toast]').closest('[aria-hidden="true"]'), 'a word on screen was hidden with the page');
     await page.click(page.doc.querySelector('[data-edit-hours]'));
     const sheet = page.doc.querySelector('[data-settings-sheet]');
     assert.ok(sheet.querySelector('[data-hours-editor]'), 'the hours editor did not open in the sheet');
@@ -546,6 +550,7 @@ test('a signed-in coach whose calendar could not be read is told so, never shown
   try {
     assert.ok(!page.doc.querySelector('[data-demo-band]'));
     assert.equal(page.doc.querySelectorAll('[data-dsc-block]').length, 0, 'sample bookings for a signed-in coach');
+    assert.ok(!page.doc.querySelector('[data-plans-row]'), 'the preview\'s plans for a signed-in coach');
     assert.ok(!page.doc.querySelector('[aria-label="Requests to confirm"]'));
     assert.doesNotMatch(page.text(), /Priya S\.|Deandre K\.|Sam R\./);
     const note = page.doc.querySelector('[data-calendar-note]');
@@ -571,5 +576,7 @@ test('while a signed-in coach\'s calendar loads, and before the page knows who i
     assert.ok(!unknown.page.doc.querySelector('[data-demo-band]'));
     assert.equal(unknown.page.doc.querySelectorAll('[data-dsc-block]').length, 0, 'the preview\'s week before the page knew it was the preview');
     assert.equal(unknown.page.doc.querySelectorAll('[data-open-band]').length, 0, 'the preview\'s hours before the page knew it was the preview');
+    assert.ok(!unknown.page.doc.querySelector('[data-time-off]'), 'the preview\'s time off before the page knew it was the preview');
+    assert.ok(!unknown.page.doc.querySelector('[data-plans-row]'), 'the preview\'s plans before the page knew it was the preview');
   } finally { await unknown.page.unmount(); }
 });
