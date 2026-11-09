@@ -1063,11 +1063,12 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   return (
     <div style={{ position: 'absolute', inset: 0, color: CREAM, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: WIRE_BG }}>
       <BSWireGround dim />
-      {/* ← Back where every page keeps it (owner, 2026-10-31): the back row's y and the gutter, though
-          this screen has no masthead row of its own (BS_BACK_SLOT_TOP_CSS). */}
+      {/* ← where every page keeps it, ahead of the logo in the masthead row (owner, 2026-11-09): the
+          masthead row's y and the gutter, though this screen has no masthead row of its own
+          (BS_BACK_SLOT_TOP_CSS), and the same small arrow. */}
       {onBack && window.BSBackButton ? (
         <div style={{ position: 'absolute', zIndex: 3, top: window.BS_BACK_SLOT_TOP_CSS, left: typeof t.padX === 'number' ? t.padX : 22 }}>
-          <window.BSBackButton onClick={onBack} ink={C70} />
+          <window.BSBackButton compact onClick={onBack} ink={C70} />
         </div>
       ) : null}
       <div className="bs-hide-scroll" style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `${onBack ? `calc(${window.BS_BACK_SLOT_TOP_CSS || '82px'} + 50px)` : 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px))'} 22px calc(20px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 5 }}>

@@ -3,11 +3,14 @@
 // have a back button" and "make sure it goes back to [the] page of where that person was on the
 // page").
 //
-// THE SLOT: the masthead row is always the corner's height (BS_MAST_ROW_H), and ← Back sits on its
-// own row directly under it (BSBackRow: BS_BACK_ROW_GAP down, BS_BACK_ROW_H tall), its ← on the page
-// gutter, the page's eyebrow on the right. Every page draws its Back through BSBackRow; the two
-// sign-in screens, which have no masthead row, place the same button at the same y
-// (BS_BACK_SLOT_TOP_CSS). Once the page scrolls, the pinned bar shows ← at its left.
+// THE SLOT (owner, 2026-11-09: "remove the back button everywhere to free up space on page. Put a small
+// back arrow to the left of logo in top left of screen"): the masthead row is always the corner's height
+// (BS_MAST_ROW_H), and a page's ← sits in it ahead of the logo, on the gutter, in a 44px target: every
+// masthead row keeps an empty slot there (BSMastBackSlot), and BSBackRow, at every call site, hands that
+// slot its Back. What a page put on the back row's right stays under the masthead row. A Back with no
+// masthead row above it keeps the old row (BS_BACK_ROW_GAP down, BS_BACK_ROW_H tall). The two sign-in
+// screens, which have no masthead row, place the same small ← at the masthead row's y
+// (BS_BACK_SLOT_TOP_CSS). Once the page scrolls, the pinned bar shows ← at its left, as the top does.
 //
 // THE PLACE: a page that leaves going forward is remembered with how far down it was, and a Back
 // brings it back there (services/scrollMemory.mjs; its rules in tests/scroll-memory.test.mjs). The
@@ -36,15 +39,55 @@ const lineOf = (src, i) => src.slice(0, i).split('\n').length;
 test('the slot has one geometry, owned by the chrome', () => {
   assert.match(CHROME, /const BS_MAST_ROW_H = 34;/, 'the masthead row is the corner\'s height');
   assert.match(CHROME, /const BS_BACK_ROW_GAP = 4;/);
-  assert.match(CHROME, /const BS_BACK_ROW_H = 44;/, 'the back row is a full tap target');
+  assert.match(CHROME, /const BS_BACK_ROW_H = 44;/, 'the old row, for a Back with no masthead above it, is a full tap target');
   assert.match(fnSrc(CHROME, 'BSMastRow'), /minHeight: BS_MAST_ROW_H/, 'a masthead row without a corner is as tall as one with it');
-  const row = fnSrc(CHROME, 'BSBackRow');
-  assert.match(row, /<div data-bs-back-row="" style=\{\{\n\s*display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,\n\s*minHeight: BS_BACK_ROW_H, marginTop: BS_BACK_ROW_GAP, \.\.\.style,\n\s*\}\}>/,
-    'the row is flush with the gutter: nothing but its height and its gap under the masthead row');
-  assert.match(row, /<BSBackButton /);
+  // The masthead's ←: the arrow alone, in a 44px target reaching past the 34px row, as the pinned bar's.
   const btn = fnSrc(CHROME, 'BSBackButton');
-  assert.match(btn, /minHeight: BS_BACK_ROW_H, padding: '0 12px 0 0'/, 'the ← sits on the gutter and the button fills the row');
+  assert.match(btn, /data-bs-back="" data-bs-back-compact=""/, 'the swipe finds the compact ←');
+  assert.match(btn, /width: 44, height: 44, margin: '-5px -6px -5px -14px'/, 'the ← sits on the gutter and keeps the row 34px tall');
+  assert.match(btn, /<span aria-hidden>←<\/span><\/button>/, 'the arrow alone, no word');
+  assert.match(btn, /minHeight: BS_BACK_ROW_H, padding: '0 12px 0 0'/, 'the worded Back fills the old row');
   assert.match(btn, /data-bs-back=""/, 'the swipe finds it');
+  // The slot draws the Back the row below hands it.
+  const slot = fnSrc(CHROME, 'BSMastBackSlot');
+  assert.match(slot, /<span ref=\{ref\} data-bs-mast-back-slot="" style=\{\{ display: 'contents' \}\}>/);
+  assert.match(slot, /<BSBackButton compact onClick=\{back\.onBack\}/);
+  // BSBackRow: hands the slot above it its Back, keeps its right-hand content under the row, and keeps the
+  // old row when there is no masthead above it.
+  const row = fnSrc(CHROME, 'BSBackRow');
+  assert.match(row, /const slot = bsMastBackSlotFor\(anchorRef\.current, owner\);/);
+  assert.match(row, /BS_BACK_SLOTS\.get\(slot\)\(\{ onBack, label, ink, disabled, buttonStyle \}\);/);
+  assert.match(row, /data-bs-back-row="" data-bs-back-in-mast=""/);
+  assert.match(row, /minHeight: BS_BACK_ROW_H, marginTop: BS_BACK_ROW_GAP, \.\.\.style,/, 'the old row, with no masthead above');
+  assert.match(fnSrc(CHROME, 'bsMastBackSlotFor'), /const BS_BACK_SLOT_DEPTH = 4;|BS_BACK_SLOT_DEPTH/);
+});
+
+test('every masthead row keeps the slot ahead of its logo; the pinned bars draw their own ←', () => {
+  assert.match(fnSrc(CHROME, 'BSMastRow'), /\{backSlot \? <BSMastBackSlot \/> : null\}\n\s*<BSLogo /);
+  assert.match(fnSrc(CHROME, 'BSMasthead'), /<BSMastBackSlot \/>\n\s*<BSLogo size=\{16\}/);
+  assert.match(fnSrc(CHROME, 'BSPageHeader'), /<BSMastBackSlot \/>\n\s*<BSLogo size=\{16\}/);
+  assert.match(fnSrc(CHROME, 'BSMastWordRow'), /\{backSlot \? <BSMastBackSlot \/> : null\}\n\s*<BSLogo /);
+  // The pinned bars (BSPage's and a takeover's) draw BSPinBackButton ahead of the row, so their row has none.
+  const page = fnSrc(CHROME, 'BSPage');
+  assert.equal((page.match(/<BSMastRow .*backSlot=\{false\} \/>/g) || []).length, 2, 'BSPage\'s pinned rows');
+  assert.match(page, /<BSMastWordRow .*backSlot=\{false\} \/>/, 'Home\'s pinned row');
+  assert.match(fnSrc(CHROME, 'BSPinnedBar'), /<BSMastRow trailing=\{trailing\} ink=\{ink\} backSlot=\{false\} \/>/);
+  // Every Back a page draws has a masthead row with the slot above it: BSMastRow (directly or through
+  // bsProMastRow / BSStShell), Home's row, or a hand-built row carrying BSMastBackSlot ahead of its logo.
+  const missing = [];
+  for (const f of readdirSync(DIR).filter((x) => x.endsWith('.jsx'))) {
+    const src = read(f);
+    const lines = src.split('\n');
+    for (const m of src.matchAll(/<(?:window\.|W\.)?BSBackRow\b/g)) {
+      const at = lineOf(src, m.index);
+      const above = lines.slice(Math.max(0, at - 46), at - 1).join('\n');
+      if (!/BSMastRow|bsProMastRow|BSStShell|BSMastBackSlot|BSMastWordRow/.test(above)) missing.push(`${f}:${at}`);
+    }
+  }
+  assert.deepEqual(missing, [], 'a Back with no masthead slot above it keeps its own row');
+  for (const f of ['BSTrainerProfile.jsx', 'BSMarketDirectory.jsx', 'BSNoraProfile.jsx', 'iosAppBroadsheetRadio.jsx']) {
+    assert.match(read(f), /\{window\.BSMastBackSlot \? <window\.BSMastBackSlot \/> : null\}\n\s*\{?(?:typeof BSLogo === 'function' && |W\.BSLogo \? |BSLogo \? |BSLogo && )?<(?:W\.)?BSLogo /, `${f}'s hand-built row`);
+  }
 });
 
 test('the three page headers draw their Back through the shared row', () => {
@@ -146,8 +189,12 @@ test('only the shared row draws the Back button, but for the two screens with no
     if (/<BSBackButton\b|<window\.BSBackButton\b|window\.BSBackButton\b/.test(src)) hits.push(f);
   }
   assert.deepEqual(hits.sort(), ['iosAppBroadsheetMain.jsx', 'iosAppBroadsheetProviderApply.jsx']);
-  for (const f of hits) assert.match(read(f), /BS_BACK_SLOT_TOP_CSS/, `${f} places its Back at the slot's y`);
-  assert.match(CHROME, /const BS_BACK_SLOT_TOP_CSS = `calc\(\$\{BS_MAST_TOP_CSS\} \+ \$\{BS_MAST_ROW_H \+ BS_BACK_ROW_GAP\}px\)`;/);
+  for (const f of hits) {
+    assert.match(read(f), /BS_BACK_SLOT_TOP_CSS/, `${f} places its Back at the slot's y`);
+    assert.match(read(f), /BackButton compact onClick=\{onBack\}/, `${f} draws the small ←`);
+  }
+  // The masthead row's y: where every page draws its ← ahead of the logo.
+  assert.match(CHROME, /const BS_BACK_SLOT_TOP_CSS = BS_MAST_TOP_CSS;/);
 });
 
 test('every way back marks itself, so the page it opens lands where it was', () => {
@@ -237,6 +284,16 @@ test('Back returns to the page where the reader was on it', async () => {
     await scrollTo(640);
     await tap(document.querySelector('[data-open]'));
     assert.ok(document.querySelector('[data-bs-back-row]'), 'the detail draws the shared back row');
+    // Its ← is in the masthead row, ahead of the logo, and no row of its own is left under it (owner,
+    // 2026-11-09); the row's right-hand words stay under the masthead row.
+    const mast = scroller().querySelector('[data-bs-mast-row]');
+    const arrow = mast && mast.querySelector('[data-bs-mast-back-slot] [data-bs-back][data-bs-back-compact]');
+    assert.ok(arrow, 'the ← is not in the masthead row');
+    assert.equal(arrow.textContent, '←', 'the arrow alone');
+    assert.ok(arrow.compareDocumentPosition(mast.querySelector('svg, img, canvas, [data-bs-logo]') || mast.lastChild) & 4, 'the ← is ahead of the logo');
+    assert.equal(document.querySelectorAll('[data-bs-back]').length, 1, 'one Back on the page');
+    assert.ok(!document.querySelector('[data-bs-back-row]:not([data-bs-back-in-mast])'), 'the old back row is still drawn');
+    assert.equal(document.querySelector('[data-bs-back-in-mast]').textContent, 'Lift', 'the row\'s right-hand words stay');
     assert.equal(scroller().scrollTop, 0, 'the detail opens at its top');
     await scrollTo(220);
     await tap(document.querySelector('[data-open-more]'));
@@ -247,6 +304,22 @@ test('Back returns to the page where the reader was on it', async () => {
     assert.ok(document.querySelector('[data-open]'), 'Back again: the list');
     assert.equal(scroller().scrollTop, 640, 'where the reader left it');
   } finally { await app.unmount(); }
+});
+
+test('a Back with no masthead row above it keeps its own row', async () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  let backs = 0;
+  await act(async () => { root.render(h(window.BSProvider, { paperMode: 'light', accentKey: 'teal' }, h(window.BSPage, null, h('p', null, 'No masthead'), h(window.BSBackRow, { onBack: () => { backs += 1; } })))); });
+  await flush();
+  try {
+    const row = document.querySelector('[data-bs-back-row]');
+    assert.ok(row && !row.hasAttribute('data-bs-back-in-mast'), 'the Back went looking for a masthead that is not there');
+    assert.match(row.textContent, /Back/, 'the worded Back, on its own row');
+    await tap(row.querySelector('[data-bs-back]'));
+    assert.equal(backs, 1);
+  } finally { await act(async () => root.unmount()); host.remove(); }
 });
 
 test('a page opened going forward starts at its top, even after a Back that opened nothing', async () => {

@@ -515,9 +515,11 @@ test('Make it yours → View live preview opens the coach\'s page with a draft o
     assert.ok(!$('[data-cust-live]'), 'Back to editing left the preview open');
     assert.equal($('[data-pin-title]').value, 'Three plates on the squat', 'Back to editing lost the draft');
     assert.ok($('[data-save-mine]'), 'the draft no longer reads as unsaved');
-    // The page's own ← (a swipe right takes it) comes back the same way.
+    // The page's own ← (a swipe right takes it) comes back the same way. It sits ahead of the logo in
+    // the masthead row (owner, 2026-11-09), not on a row of its own.
     await click($('[data-make-it-yours] [data-mine-live-open]'));
-    await click($('[data-cust-live] [data-bs-back-row] [data-bs-back]'));
+    assert.ok(!$('[data-cust-live] [data-bs-back-row]:not([data-bs-back-in-mast]) [data-bs-back]'), 'the preview\'s ← is on a row of its own again');
+    await click($('[data-cust-live] [data-bs-mast-back-slot] [data-bs-back]'));
     assert.ok(!$('[data-cust-live]'), 'the page\'s ← left the preview open');
     assert.equal($('[data-pin-title]').value, 'Three plates on the squat');
     assert.equal(world.saved, null);

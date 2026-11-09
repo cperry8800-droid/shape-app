@@ -96,9 +96,9 @@ or past 12 KB.
   modules, and `loadProsBundle` the whole client bundle first.
 - **Sheets** portal into `#bs-phone-surface`. No visible scrollbars (`index.html`).
 - **Pages** render in `BSPage`: a condensed masthead pins once the page's own scrolls away,
-  reading ← and the title past a `BSDetailHeader`'s (← alone on any page with a Back). A sticky
-  row takes `top: useBSPinnedMastTop()`. ⚠ **One place for Back:** `BSBackRow` directly under
-  the masthead row (`BSDetailHeader`, `BSMasthead`/`BSPageHeader` `onBack`), never hand-drawn
+  reading ← and the title past a `BSDetailHeader`'s. A sticky row takes `top: useBSPinnedMastTop()`.
+  ⚠ **One place for Back:** a ← ahead of the logo, in the row's `BSMastBackSlot`, which `BSBackRow`
+  fills (`BSDetailHeader`, `BSMasthead`/`BSPageHeader` `onBack`); never hand-drawn
   (`tests/back-placement.test.mjs`). A swipe right does what that ← does (`BS_SWIPE`), and a Back
   returns the page at the scroll it left (`services/scrollMemory.mjs`).
 - **Theme:** `useBS()` → `t`. Teal `t.isLight ? '#0a8f87' : '#34d6c5'`, nutritionists gold

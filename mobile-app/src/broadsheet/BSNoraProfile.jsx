@@ -90,6 +90,7 @@ export function BSNoraProfile({ onClose, onLeave = null, avatar, cover = null })
         <div aria-hidden style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.66) 42%, rgba(0,0,0,0.22) 72%, rgba(0,0,0,0.4) 100%), linear-gradient(120deg, ${hexA('#34d6c5', 0.2)} 0%, rgba(0,0,0,0) 55%)` }} />
         <div style={{ position: 'relative', padding: `${MAST_TOP} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
+            {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
             {BSLogo && <BSLogo size={16} color={WHITE} />}
           </span>
           {(() => {

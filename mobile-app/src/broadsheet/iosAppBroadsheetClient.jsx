@@ -17081,6 +17081,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)' }} />
               <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
+                  {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
                   {BSLogo && <BSLogo size={16} color={WHITE} />}
                 </span>
                 <BSMastToolPill ink={WHITE}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
@@ -18347,6 +18348,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
               {BSLogo && <BSLogo size={16} color={INK} />}
             </div>
             {isSelf
@@ -20199,6 +20201,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
       <div style={{ flexShrink: 0, position: 'relative', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 11px` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
             {BSLogo && <BSLogo size={16} color={t.INK} />}
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} /></BSMastToolPill>
@@ -27727,6 +27730,7 @@ function BSStepsHistory({ onClose }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
             {BSLogo && <BSLogo size={16} color={t.INK} />}
           </div>
           <BSMastToolPill><BSMeCorner /></BSMastToolPill>

@@ -1000,17 +1000,17 @@ function BSPage({ children, tabBarHeight = BS_TABBAR_H, backdrop = null, mast = 
         // ← Back has scrolled under the bar, so Back stays where it is on every page, scrolled or not.
         <div data-bs-pin-bar="" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
           {pinBackButton()}
-          <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} /></div>
+          <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} backSlot={false} /></div>
         </div>
       ) : mastWord ? (
         // Home's bar keeps SHAPE (owner, 2026-11-08): the flag's own row (BSMastWordRow), the mark and ✦ at
         // the left, the wordmark at the centre, ⌕ and ⚙ at the right, so the row the page scrolls away is
         // the row that pins.
         <div data-bs-pinned-word="">
-          <BSMastWordRow word={mastWord} tools={(MastCorner && !bareMast) ? <MastCorner nora={false} /> : null} />
+          <BSMastWordRow word={mastWord} tools={(MastCorner && !bareMast) ? <MastCorner nora={false} /> : null} backSlot={false} />
         </div>
       ) : (
-        <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} />
+        <BSMastRow trailing={(MastCorner && !bareMast) ? <MastCorner /> : null} backSlot={false} />
       )}
     </div>
   ) : null;
@@ -1218,10 +1218,12 @@ const BS_MAST_TOP = 44;
 // downstream corner clusters share.
 const BS_CORNER_GAP = 9;
 // THE BACK SLOT'S GEOMETRY (owner, 2026-10-31: "it needs to be in the same place on every screen if
-// that screen needs to have a back button"). The masthead row is always the corner's height, and the
-// back row sits BS_BACK_ROW_GAP under it, BS_BACK_ROW_H tall (a full tap target), its ← at the page
-// gutter. Every page header draws it through BSBackRow, so the ← lands at one x and one y on every
-// screen; tests/back-placement.test.mjs keeps hand-drawn Backs out.
+// that screen needs to have a back button"; 2026-11-09: "Put a small back arrow to the left of logo in
+// top left of screen"). The masthead row is always the corner's height, and a page's ← sits in it ahead
+// of the logo, at the gutter, in a 44px target (BSBackRow → BSMastBackSlot), so it lands at one x and one
+// y on every screen; tests/back-placement.test.mjs keeps hand-drawn Backs out. BS_BACK_ROW_GAP and
+// BS_BACK_ROW_H are the old row's, kept for a Back with no masthead row above it and for what a page
+// puts on the back row's right.
 const BS_MAST_ROW_H = 34;
 const BS_BACK_ROW_GAP = 4;
 const BS_BACK_ROW_H = 44;
@@ -1280,9 +1282,10 @@ const BS_BACK_ROW_H = 44;
 //   Use this for padding; use BS_MAST_TOP (the number) only for arithmetic, and
 //   never as a bare `${BS_MAST_TOP}px` inset on a live surface.
 const BS_MAST_TOP_CSS = `max(${BS_MAST_TOP}px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))`;
-// Where the back row's top edge falls, for a screen with no masthead row of its own that places its
-// Back absolutely (the sign-in and coach-application screens): the same y as on every app page.
-const BS_BACK_SLOT_TOP_CSS = `calc(${BS_MAST_TOP_CSS} + ${BS_MAST_ROW_H + BS_BACK_ROW_GAP}px)`;
+// Where the ← falls, for a screen with no masthead row of its own that places its Back absolutely (the
+// sign-in and coach-application screens): the masthead row's top, at the gutter, where every app page
+// draws its ← ahead of the logo (owner, 2026-11-09). They draw it compact, as the masthead does.
+const BS_BACK_SLOT_TOP_CSS = BS_MAST_TOP_CSS;
 
 // ⚠ THE MASTHEAD'S TOOLS RIDE IN ONE SLIM PILL ON EVERY PAGE (owner, 2026-11-04, of masthead B:
 // "leave the bubble just make it more condensed, not as thick. tighter around icons", then "make sure
@@ -1334,12 +1337,13 @@ function BSMastToolPill({ children, ink = null }) {
 // bar's MastCorner, and the side reserve (BS_MAST_SIDE) assumes a two-button pill: a third tool at the
 // right needs a wider reserve, or the wordmark runs under it.
 const BS_MAST_SIDE = 90; // the pill (78px) and the row's 12px gap
-function BSMastWordRow({ word, tools }) {
+function BSMastWordRow({ word, tools, backSlot = true }) {
   const t = useBS();
   const Nora = typeof window !== 'undefined' ? window.BSNoraCorner : null;
   return (
     <div data-bs-mast-word-row="" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        {backSlot ? <BSMastBackSlot /> : null}
         <BSLogo size={16} color={t.INK} />
         {Nora ? <Nora bare /> : null}
       </span>
@@ -1462,15 +1466,15 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
         </>
       )}
 
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, marginBottom: onBack ? 0 : (title ? (compact ? 4 : 10) : 6) }}>
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, marginBottom: title ? (compact ? 4 : 10) : 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <BSMastBackSlot />
           <BSLogo size={16} color={t.INK} />
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
 
-      {/* Universal back slot — ← BACK on its own row, flush left, directly
-          under the masthead row (never top-right; see BSBackButton's rule). */}
+      {/* ← Back: a small ← ahead of the logo in the row above (BSBackRow, owner 2026-11-09). */}
       {onBack && <BSBackRow onBack={onBack} style={{ position: 'relative', zIndex: 1, marginBottom: title ? 2 : 0 }} />}
 
       {title && (
@@ -1502,12 +1506,14 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 // screen"). A row with no corner was the logo's 16px, so the back under it sat 18px higher than on a
 // page with the 34px corner. minHeight is the corner's, so the back row lands at one y everywhere.
 // `ink` is for a dark ground of the page's own (a photo, the meal band); it defaults to the theme's.
-function BSMastRow({ trailing = null, size = 16, style = null, ink = null }) {
+// `backSlot={false}` on a pinned bar, which draws its own ← (BSPinBackButton) ahead of this row.
+function BSMastRow({ trailing = null, size = 16, style = null, ink = null, backSlot = true }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
   return (
     <div data-bs-mast-row="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {backSlot ? <BSMastBackSlot /> : null}
         <BSLogo size={size} color={ink || t.INK} />
       </div>
       <BSMastToolPill ink={ink}>{trailing}</BSMastToolPill>
@@ -1526,11 +1532,12 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
     <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 14px` }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <BSMastBackSlot />
           <BSLogo size={16} color={t.INK} />
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
-      {/* Universal back slot — own row, flush left, under the masthead row. */}
+      {/* ← Back: a small ← ahead of the logo in the row above (BSBackRow); `backTrailing` stays under it. */}
       {onBack && <BSBackRow onBack={onBack} trailing={backTrailing} />}
       {kicker && (
         <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.ACCENT, fontWeight: 600 }}>
@@ -2417,7 +2424,10 @@ function BSSettingsCorner({ size = 34, ink = null, onClick = null }) {
   );
 }
 
-function BSBackButton({ onClick, label = null, style, ink = null, disabled = false }) {
+// `compact` is the masthead's ← (BSBackRow puts it ahead of the logo): the arrow alone, 18px, in a 44px
+// target that reaches past the 34px row with negative margins, the same mark and place as the pinned
+// bar's ← (BSPinBackButton). Without it, "← BACK" in words, for a screen that places its own Back.
+function BSBackButton({ onClick, label = null, style, ink = null, disabled = false, compact = false }) {
   const t = useBS();
   const tr = useShapeTr();
   // Default label localizes to the shared common:action.back; a caller that
@@ -2429,6 +2439,16 @@ function BSBackButton({ onClick, label = null, style, ink = null, disabled = fal
   fnRef.current = disabled ? null : onClick;
   const elRef = useRefBS(null);
   useEffectBS(() => (pageBacks && pageBacks.add ? pageBacks.add({ fn: fnRef, el: elRef }) : undefined), [pageBacks]);
+  if (compact) {
+    return (
+      <button ref={elRef} type="button" data-bs-back="" data-bs-back-compact="" onClick={(e) => { bsMarkBack(); if (onClick) onClick(e); }} disabled={disabled} aria-label={lbl} style={{
+        width: 44, height: 44, margin: '-5px -6px -5px -14px', padding: 0, flexShrink: 0,
+        display: 'grid', placeItems: 'center', background: 'transparent', border: 0,
+        cursor: disabled ? 'default' : 'pointer', color: ink || t.INK, opacity: disabled ? 0.45 : 1,
+        fontSize: 18, lineHeight: 1, ...style,
+      }}><span aria-hidden>←</span></button>
+    );
+  }
   // The ← sits on the page gutter (no left padding) and the button fills the back row's height, so
   // the whole row is the tap target; the padding on the right widens it past the word.
   return (
@@ -2480,19 +2500,105 @@ function BSPinnedBar({ shown, run = null, trailing = null, ink = null, backgroun
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 34 }}>
         {run ? <BSPinBackButton run={run} ink={ink} /> : null}
-        <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={trailing} ink={ink} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}><BSMastRow trailing={trailing} ink={ink} backSlot={false} /></div>
       </div>
     </div>
   );
 }
 
-// THE back slot: the row directly under the masthead row, ← Back flush left at the gutter, the
-// page's eyebrow or status on the right (BS_BACK_ROW_* above). Every page that has a Back draws it
-// here — BSDetailHeader, BSMasthead and BSPageHeader's onBack, and the hand-built headers — so it is
-// in the same place on every screen. `ink` for a dark ground of the page's own (a photo, a band).
-function BSBackRow({ onBack, label = null, trailing = null, ink = null, disabled = false, style = null, buttonStyle = null }) {
+// ⚠ BACK IS A SMALL ← AHEAD OF THE LOGO, IN THE MASTHEAD ROW (owner, 2026-11-09: "remove the back button
+// everywhere to free up space on page. Put a small back arrow to the left of logo in top left of screen").
+// It was "← BACK" on a 44px row of its own under the masthead row; now the top of a page reads as its
+// pinned bar does (BSPinBackButton, then the mark), and the page gains that row's 48px.
+// Every masthead row keeps an empty slot ahead of its mark (BSMastBackSlot: BSMastRow, BSMasthead,
+// BSPageHeader, Home's row and the hand-built rows). BSBackRow keeps its place and its props at every
+// call site, finds the slot of the masthead row just above it (bsMastBackSlotFor) and hands it its Back;
+// the slot draws the ← (inside the page, so the swipe still finds it through BSPageBackCtx). What a page
+// put on the back row's right (`trailing`: an eyebrow, a status, the calendar's Month | Weeks) stays where
+// it was, right-aligned under the masthead row. A Back with no masthead row above it keeps the old row,
+// so no screen loses it.
+// The slots on screen, by their DOM node: each one's setter for the Back it draws.
+const BS_BACK_SLOTS = new WeakMap();
+function BSMastBackSlot() {
+  const [back, setBack] = useStateBS(null);
+  const ref = React.useCallback((el) => { if (el) BS_BACK_SLOTS.set(el, setBack); }, []);
   return (
-    <div data-bs-back-row="" style={{
+    <span ref={ref} data-bs-mast-back-slot="" style={{ display: 'contents' }}>
+      {back ? <BSBackButton compact onClick={back.onBack} label={back.label} ink={back.ink} disabled={back.disabled} style={back.buttonStyle} /> : null}
+    </span>
+  );
+}
+// The slot of the masthead row just above `anchor`: the last one before it in the page, looked for in its
+// parent, then the parent's parent, a few levels up and never past the page, a sheet or a scroller. A slot
+// holds one ←: one another Back already holds is passed over (BS_BACK_SLOT_OWNER), so two Backs under one
+// masthead never draw two arrows (the second keeps its own row).
+const BS_BACK_SLOT_DEPTH = 4;
+const BS_BACK_SLOT_OWNER = new WeakMap();
+function bsMastBackSlotFor(anchor, owner = null) {
+  if (!anchor || typeof anchor.compareDocumentPosition !== 'function') return null;
+  let node = anchor;
+  for (let depth = 0; node && depth < BS_BACK_SLOT_DEPTH; depth++) {
+    const parent = node.parentElement;
+    if (!parent) return null;
+    let best = null;
+    for (const slot of parent.querySelectorAll('[data-bs-mast-back-slot]')) {
+      // eslint-disable-next-line no-bitwise
+      if (!(slot.compareDocumentPosition(anchor) & 4)) continue; // 4: the anchor follows the slot
+      if (!BS_BACK_SLOTS.has(slot)) continue;
+      const held = BS_BACK_SLOT_OWNER.get(slot);
+      if (!held || held === owner) best = slot;
+    }
+    if (best) return best;
+    if (parent.matches('[data-bs-page], .bs-scroll, .bs-hide-scroll, [role="dialog"]')) return null;
+    node = parent;
+  }
+  return null;
+}
+function BSBackRow({ onBack, label = null, trailing = null, ink = null, disabled = false, style = null, buttonStyle = null }) {
+  const anchorRef = useRefBS(null);
+  const ownerRef = useRefBS(null);
+  if (!ownerRef.current) ownerRef.current = {};
+  const slotRef = useRefBS(null);
+  const [inMast, setInMast] = useStateBS(false);
+  // After every render, before the paint: find the slot (the masthead row above can remount, or draw its
+  // slot after this row) and hand it this Back as it is now. setInMast bails out when nothing changed.
+  React.useLayoutEffect(() => {
+    const owner = ownerRef.current;
+    const slot = bsMastBackSlotFor(anchorRef.current, owner);
+    const prev = slotRef.current;
+    if (prev && prev !== slot && BS_BACK_SLOT_OWNER.get(prev) === owner) {
+      BS_BACK_SLOT_OWNER.delete(prev);
+      const clear = BS_BACK_SLOTS.get(prev);
+      if (clear) clear(null);
+    }
+    slotRef.current = slot;
+    if (slot) {
+      BS_BACK_SLOT_OWNER.set(slot, owner);
+      BS_BACK_SLOTS.get(slot)({ onBack, label, ink, disabled, buttonStyle });
+    }
+    setInMast(!!slot);
+  });
+  // Let the slot go on unmount, so the masthead draws no ← for a Back that is gone.
+  React.useLayoutEffect(() => () => {
+    const slot = slotRef.current;
+    if (slot && BS_BACK_SLOT_OWNER.get(slot) === ownerRef.current) {
+      BS_BACK_SLOT_OWNER.delete(slot);
+      const clear = BS_BACK_SLOTS.get(slot);
+      if (clear) clear(null);
+    }
+  }, []);
+  if (inMast) {
+    return (
+      <div ref={anchorRef} data-bs-back-row="" data-bs-back-in-mast="" style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12,
+        ...(trailing ? { minHeight: 20, marginTop: BS_BACK_ROW_GAP } : null), ...style,
+      }}>
+        {trailing}
+      </div>
+    );
+  }
+  return (
+    <div ref={anchorRef} data-bs-back-row="" style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       minHeight: BS_BACK_ROW_H, marginTop: BS_BACK_ROW_GAP, ...style,
     }}>
@@ -2738,7 +2844,7 @@ function BSNavGestures() {
 }
 
 Object.assign(window, {
-  BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
+  BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSMastBackSlot, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
