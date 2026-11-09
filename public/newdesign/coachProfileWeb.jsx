@@ -581,7 +581,7 @@ function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork })
       <div className="cpw-dock-who">
         {avatar ? <img src={avatar} alt="" className="cpw-dock-av" /> : <span className="cpw-dock-av" style={{ display: "grid", placeItems: "center", fontWeight: 800, color: "#eef3f0" }}>{cpwInitials(name)}</span>}
         <span style={{ minWidth: 0 }}>
-          <span style={{ display: "block", fontWeight: 700, fontSize: 15.5, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+          <span className="cpw-dock-name" style={{ display: "block", fontWeight: 700, fontSize: 15.5, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
           {status ? <span className="cpw-dock-status" style={{ display: "block", fontSize: 13, color: ACC, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{status}</span> : null}
         </span>
       </div>
@@ -1341,7 +1341,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     }
     @media (max-width:760px){
       .cpw-dock{left:0;right:0;bottom:0;transform:none;width:100%;border-radius:0;border-left:0;border-right:0;border-bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));gap:12px}
-      .cpw-dock-cell,.cpw-dock-status{display:none !important}
+      .cpw-dock-cell,.cpw-dock-status,.cpw-dock-name{display:none !important}
       .cpw-dock-msg{padding:0 14px}
       ${docked ? "#shape-global-chat-button{bottom:calc(84px + env(safe-area-inset-bottom)) !important}" : ""}
     }
@@ -1512,7 +1512,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                 <div className="cpw-camp-head">
                   <div style={{ minWidth: 0 }}>
                     <span className="cpw-dtl cpw-camp-label" style={{ color: ACC }}>{c.label} · {c.spine}</span>
-                    <h2 id={`camp-h-${c.key}`} className="cpw-camp-title">{campTitle[c.key]}<span style={{ color: ACC }}>.</span></h2>
+                    <h2 id={`camp-h-${c.key}`} className="cpw-camp-title">{campTitle[c.key]}<span data-camp-stop="" style={{ color: DRAW }}>.</span></h2>
                     {campLead[c.key] ? <p className="cpw-camp-lead" style={{ color: ink(0.78) }}>{campLead[c.key]}</p> : null}
                   </div>
                   {c.key === "base" && postCount && camps.some((x) => x.key === "posts") ? (
