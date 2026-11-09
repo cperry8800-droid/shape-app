@@ -166,8 +166,9 @@ test('the cleaners: a song Spotify can play, a highlight with a headline, and a 
   assert.equal(pinned.metric.length, 24);
   assert.deepEqual(bsProfileHeroStats(['a', 'a', 7, 'b', 'c', 'd']), ['a', 'b', 'c']);
   assert.deepEqual(bsProfileHeroStats(['score', 'rating'], ['rating']), ['rating']);
-  assert.deepEqual(BS_COACH_STATS.trainer, ['rating', 'reviews', 'years', 'programs', 'workouts', 'replays', 'certs']);
-  assert.deepEqual(BS_COACH_STATS.nutritionist, ['rating', 'reviews', 'years', 'recipes', 'plates', 'certs']);
+  // Sessions coached and active clients (2026-11-09): figures Shape records, shown only when public.
+  assert.deepEqual(BS_COACH_STATS.trainer, ['rating', 'reviews', 'years', 'sessions', 'clients', 'programs', 'workouts', 'replays', 'certs']);
+  assert.deepEqual(BS_COACH_STATS.nutritionist, ['rating', 'reviews', 'years', 'sessions', 'clients', 'recipes', 'plates', 'certs']);
   const figs = bsCoachStatFigures({ reviews: { avg: 9.47, count: 12 }, years: 7, programs: 2, workouts: 0, replays: 3, recipes: 4, certs: null });
   assert.deepEqual(figs, { rating: 9.5, reviews: 12, years: 7, programs: 2, replays: 3, recipes: 4 }, 'a figure of none is absent, never 0');
   assert.deepEqual(bsCoachStatFigures({ reviews: { avg: 0, count: 0 } }), {}, 'no reviews: no rating and no count');
