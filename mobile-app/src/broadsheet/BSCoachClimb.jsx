@@ -25,8 +25,7 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // Nothing here is invented. The summit holds the rating only with reviews; a pin on the route is a
 // figure the page already has (years coaching, programs, recipes); a plate is a headline stat the
 // coach picked, or whether they are taking clients as their listing says; a wire item is a real
-// event (the next open time, a post, a program). Peaks are a drawing: one a week of the program's
-// own length, rising to its top.
+// event (the next open time, a post, a program). A program's card is its own photo, or a band in its colour.
 //
 // ⚠ WINDOW GLOBALS ARE READ AT CALL TIME (useBS, BSMastBackSlot, BS_TABBAR_CSS …): this module is a
 // static import of BSTrainerProfile.jsx, which is itself imported before the client module's body
@@ -111,37 +110,6 @@ const cut = (px = 12) => `polygon(0 0, calc(100% - ${px}px) 0, 100% ${px}px, 100
 export const CLIMB_PEAK_COLORS = ['#c0533b', '#d8a23a', '#8f6fe0', '#3fb98a', '#4f8fe0'];
 
 // ── Pure drawing helpers (tests/coach-climb.test.mjs) ───────────────────────────────────────────
-/**
- * One peak a week of a program's own length, rising to its top: [{ x, y }] for each peak (x and y in
- * 0..1, y down), the valleys between them lower than the peaks either side. `weeks` that isn't a
- * whole number from 1 to 52 draws nothing.
- */
-export function bsClimbPeaks(weeks) {
-  const n = weeks;
-  if (!Number.isInteger(n) || n < 1 || n > 52) return [];
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const rise = n === 1 ? 1 : i / (n - 1);
-    // A saw with a rise: each week higher than the last bar a small step back every other week.
-    const h = 0.34 + 0.56 * rise - (i % 2 && i < n - 1 ? 0.05 : 0);
-    out.push({ x: (i + 0.5) / n, y: 1 - Math.max(0.12, Math.min(0.94, h)) });
-  }
-  return out;
-}
-/** The polygon of a range of peaks over a w×h box: valleys between the peaks, closed along the floor. */
-export function bsClimbPeaksPath(peaks, w, h) {
-  if (!peaks.length) return '';
-  const pts = [[0, h]];
-  peaks.forEach((p, i) => {
-    const valleyY = i === 0 ? h * 0.92 : Math.max(p.y, peaks[i - 1].y) * h + (h - Math.max(p.y, peaks[i - 1].y) * h) * 0.55;
-    const step = w / peaks.length;
-    pts.push([i * step, valleyY]);
-    pts.push([p.x * w, p.y * h]);
-  });
-  pts.push([w, Math.min(h, peaks[peaks.length - 1].y * h + h * 0.08)]);
-  pts.push([w, h]);
-  return pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ') + ' Z';
-}
 /**
  * The climb by block: the program's weeks as up to three spans of its own length, the first opening
  * on week one (whose days the preview shows) and the rest locked until it is bought. [{ from, to }].
@@ -526,9 +494,10 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
         ].filter(Boolean).join(' · ');
         return (
           <article key={p.key} data-program="" data-climb-program={p.id} style={{ position: 'relative', background: CLIMB.PANEL, borderLeft: `3px solid ${color}`, clipPath: cut(14), overflow: 'hidden' }}>
-            <div style={{ position: 'relative', height: 132, background: p.poster ? '#000' : `linear-gradient(180deg, #17212a, ${CLIMB.PANEL})` }}>
-              {p.poster ? <img src={p.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.55) saturate(0.8)' }} /> : null}
-              <Peaks weeks={p.weeks} color={color} />
+            {/* The program's own photo, or a band in its colour; no drawing over it (owner, 9 Nov: "remove the graph
+                design part, looks stupid"). */}
+            <div data-climb-program-art={p.poster ? 'photo' : 'band'} style={{ position: 'relative', height: p.poster ? 132 : 64, background: p.poster ? '#000' : `linear-gradient(120deg, ${hexA(color, 0.34)}, rgba(10,14,17,0) 72%), ${CLIMB.PANEL}` }}>
+              {p.poster ? <img data-climb-program-photo="" src={p.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.78)' }} /> : null}
               {p.forSaid ? <span data-studio-for="" style={{ position: 'absolute', left: 10, top: 10, padding: '4px 8px', borderRadius: 5, background: 'rgba(10,14,17,0.8)', border: `1px solid ${hexA(color, 0.7)}`, ...mono(8.5, CLIMB.INK) }}>{p.forSaid}</span> : null}
               {p.weeks ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '5px 8px', background: 'rgba(10,14,17,0.8)', display: 'inline-flex', alignItems: 'baseline', gap: 5 }}><span style={numFace(16)}>{p.weeks}</span><span style={mono(8, CLIMB.MUTED)}>{tr('profile:climb.weeks', { defaultValue: 'Weeks' })}</span></span> : null}
             </div>
@@ -549,21 +518,6 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
         );
       })}
     </div>
-  );
-}
-function Peaks({ weeks, color, height = 132 }) {
-  const peaks = bsClimbPeaks(weeks);
-  if (!peaks.length) return null;
-  const w = 300, h = 100;
-  const d = bsClimbPeaksPath(peaks, w, h);
-  const top = peaks.map((p) => `${(p.x * w).toFixed(1)},${(p.y * h).toFixed(1)}`).join(' ');
-  const last = peaks[peaks.length - 1];
-  return (
-    <svg aria-hidden="true" data-climb-peaks={peaks.length} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: Math.round(height * 0.78) }}>
-      <path d={d} fill={color} fillOpacity="0.82" />
-      <polyline points={top} fill="none" stroke="#ffffff" strokeOpacity="0.9" strokeWidth="1.4" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
-      <circle cx={last.x * w} cy={last.y * h} r="3" fill="#ffffff" />
-    </svg>
   );
 }
 
@@ -595,9 +549,8 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
   const host = sheetHost();
   const el = (
     <div role="dialog" aria-label={pr.name} data-program-sheet="" data-climb-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: CLIMB.BG, color: CLIMB.INK, overflowY: 'auto', overflowX: 'hidden', fontFamily: CLIMB.BODY, WebkitFontSmoothing: 'antialiased' }}>
-      <div style={{ position: 'relative', height: 'calc(210px + env(safe-area-inset-top))', background: pr.poster ? '#000' : `linear-gradient(180deg, #17212a, ${CLIMB.BG})`, overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: pr.poster ? 'calc(210px + env(safe-area-inset-top))' : 'calc(96px + env(safe-area-inset-top))', background: pr.poster ? '#000' : `linear-gradient(120deg, ${hexA(tint, 0.34)}, rgba(10,14,17,0) 72%), ${CLIMB.BG}`, overflow: 'hidden' }}>
         {pr.poster ? <img src={pr.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.6) saturate(0.85)' }} /> : null}
-        <Peaks weeks={pr.weeks} color={tint} height={210} />
         <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ padding: '4px 8px', background: 'rgba(10,14,17,0.8)', border: `1px solid ${hexA(tint, 0.7)}`, ...mono(9, CLIMB.INK) }}>{[tr('profile:trainer.program', { defaultValue: 'Program' }), forSaid].filter(Boolean).join(' · ')}</span>
           <button type="button" onClick={onClose} aria-label={tr('profile:trainer.close', { defaultValue: 'Close' })} style={{ width: 44, height: 44, border: 0, borderRadius: 99, background: 'rgba(10,14,17,0.6)', color: CLIMB.INK, fontSize: 22, cursor: 'pointer' }}>×</button>

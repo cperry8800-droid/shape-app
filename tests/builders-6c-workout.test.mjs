@@ -54,8 +54,8 @@ const share = (mod) => {
 share(await loadRealModule(ND('dashData.jsx'), { registry: new Map([['/newdesign/unitText.mjs', U]]), appendExports: 'export { useSignedIn };' }));
 share(await loadRealModule(ND('dashToday.jsx'), { appendExports: 'export { DashClientGem, dashRecordTier, dashTierMark, dashRowKeyOpen, DashPill };' }));
 share(await loadRealModule(ND('dashFilterBar.jsx'), { appendExports: 'export { useDfbPopShift };' }));
-const B = await loadRealModule(ND('dashBuilder.jsx'), { appendExports: 'export { DbuBuilder, DbuDayChips, dbuPlaylistChoice, dbuIsSingle, dbuSavedWords };' });
-const { DbuBuilder, DbuDayChips, dbuPlaylistChoice, dbuIsSingle, dbuSavedWords } = B;
+const B = await loadRealModule(ND('dashBuilder.jsx'), { appendExports: 'export { DbuBuilder, DbuDayChips, dbuPlaylistChoice, dbuIsSingle, dbuSavedWords, dbuMediaWithCover, dbuCoverCheck };' });
+const { DbuBuilder, DbuDayChips, dbuPlaylistChoice, dbuIsSingle, dbuSavedWords, dbuMediaWithCover, dbuCoverCheck } = B;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 const uid = (n) => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
@@ -535,4 +535,73 @@ test('after Save as new copy, the chart\'s Now marks are the copy\'s (none), not
   await click(button('Save as new copy'));
   await settle(); await settle();
   assert.equal(document.querySelectorAll('.dpc-now').length, 0, 'the copy shows the source program\'s clients as on it');
+});
+
+
+// ── The program's cover photo (owner, 2026-11-09: "use programs own photo") ──────────────────
+// The builder had a place for an introduction video only, so no program had a photo for its card. The cover
+// is uploaded to coach-media and saved as detail.media's first image, which the public read keeps.
+test('a cover photo: only a JPEG, PNG or WebP under 10 MB; it leads detail.media and replaces only the old cover', () => {
+  const f = (name, type, size) => ({ name, type, size });
+  assert.deepEqual(dbuCoverCheck(f('a.JPEG', 'image/jpeg', 10)), { ext: 'jpg', contentType: 'image/jpeg' });
+  assert.deepEqual(dbuCoverCheck(f('a.webp', '', 10)), { ext: 'webp', contentType: 'image/webp' });
+  for (const [bad, why] of [[f('a.heic', 'image/heic', 10), 'HEIC'], [f('a.png', 'image/jpeg', 10), 'a type that is not the name'], [f('a.png', 'image/png', 10 * 1024 * 1024 + 1), 'over 10 MB'], [f('a.png', 'image/png', 0), 'empty'], [f('constructor', '', 10), 'a prototype key']]) {
+    assert.throws(() => dbuCoverCheck(bad), Error, why);
+  }
+  const VID = { type: 'video', url: 'https://x.test/v.mp4' }, IMG = { type: 'image', url: 'https://x.test/i.jpg' };
+  const OLD = { type: 'image', url: 'https://x.test/old.jpg', name: 'Cover', cover: true };
+  assert.deepEqual(dbuMediaWithCover([VID, OLD, IMG], 'https://x.test/new.jpg'), [{ type: 'image', url: 'https://x.test/new.jpg', name: 'Cover', cover: true }, VID, IMG]);
+  assert.deepEqual(dbuMediaWithCover([VID, OLD, IMG], ''), [VID, IMG], 'a removed cover leaves the rest');
+  assert.deepEqual(dbuMediaWithCover(null, 'http://x.test/plain.jpg'), [], 'https only');
+  assert.deepEqual(dbuMediaWithCover(undefined, undefined), []);
+});
+
+test('the builder: Add a cover photo uploads it, Publish saves it as the first image, Remove photo takes it out', async () => {
+  const uploads = [];
+  window.shapeDb = { client: {
+    auth: { getUser: async () => ({ data: { user: { id: 'coach-a' } }, error: null }) },
+    storage: { from: (bucket) => ({
+      upload: async (path, file, opts) => { uploads.push({ bucket, path, type: opts.contentType }); return { error: null }; },
+      getPublicUrl: (path) => ({ data: { publicUrl: 'https://cdn.test/' + path } }),
+    }) },
+  } };
+  try {
+    const VID = { type: 'video', url: 'https://x.test/intro.mp4', name: 'Intro' };
+    const t = program(2);
+    t.detail.media = [VID];
+    await mount(t);
+    const box = document.querySelector('[data-dbu-cover]');
+    assert.equal(!!box, true, 'the cover photo control is in Program details');
+    assert.match(document.querySelector('.cb-details summary').textContent, /cover photo/);
+    assert.doesNotMatch(box.textContent, /peak/i, 'no promise of peaks drawn over the photo (Codex, #2660)');
+    const input = box.querySelector('input[type="file"]');
+    const file = new window.File(['x'], 'peak.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await React.act(async () => { input.dispatchEvent(new window.Event('change', { bubbles: true })); });
+    await settle(); await settle();
+    assert.equal(uploads.length, 1);
+    assert.equal(uploads[0].bucket, 'coach-media');
+    assert.match(uploads[0].path, /^coach-a\/program\/[0-9a-f-]+\.png$/);
+    assert.equal(uploads[0].type, 'image/png');
+    const shown = box.querySelector('[data-dbu-cover-img]');
+    assert.equal(shown ? shown.getAttribute('src') : null, 'https://cdn.test/' + uploads[0].path);
+    await click(button('Publish'));
+    await settle(); await settle();
+    let saved = calls.filter((c) => c[0].includes('/api/coach/plans')).at(-1)[2].detail;
+    assert.equal(saved.builder.cover, 'https://cdn.test/' + uploads[0].path);
+    assert.deepEqual(saved.media, [{ type: 'image', url: 'https://cdn.test/' + uploads[0].path, name: 'Cover', cover: true }, VID], 'the cover first, the intro video kept');
+    await click(button('Remove photo'));
+    await click(button('Publish'));
+    await settle(); await settle();
+    saved = calls.filter((c) => c[0].includes('/api/coach/plans')).at(-1)[2].detail;
+    assert.equal(saved.builder.cover, '');
+    assert.deepEqual(saved.media, [VID], 'the cover gone from what is sent, so the stored one is replaced');
+  } finally { delete window.shapeDb; }
+});
+
+test('a program\'s cover survives the document\'s own cleaning, and only as an http(s) address', () => {
+  const keep = ShapeWorkoutDocument.normalizeWorkoutDetail({ builder: { weeks: [{ days: [] }], cover: ' https://cdn.test/a.png ' } });
+  assert.equal(keep.builder.cover, 'https://cdn.test/a.png');
+  const drop = ShapeWorkoutDocument.normalizeWorkoutDetail({ builder: { weeks: [{ days: [] }], cover: 'javascript:alert(1)' } });
+  assert.equal(drop.builder.cover, '');
 });

@@ -556,6 +556,8 @@
     }
     builder.schemaVersion = 1;
     if ('video' in builder) builder.video = videoUrl(builder.video);
+    // The program's cover photo (dashBuilder.jsx DbuCover): an http(s) address or none.
+    if ('cover' in builder) builder.cover = videoUrl(builder.cover);
     builder.version = Math.max(1, Number(builder.version) || 1);
     // The program's progression is kept only in the shape the builder writes; anything
     // else is no rule at all, rather than a half-read one moving loads.
