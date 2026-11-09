@@ -1,29 +1,37 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// SHAPE · the website's coach profile, in the app profile's design
+// SHAPE · the website's coach profile: the Climb
 // ───────────────────────────────────────────────────────────────────────────────────────────────
 // What a visitor sees at a trainer's or nutritionist's public page (MemberProfile.html?u=…, the
 // marketplace's links, a coach's referral link), and the coach's own Profile page on their web
-// dashboard. It is the app's coach profile (mobile-app/src/broadsheet/BSTrainerProfile.jsx, #2491 and
-// its follow-ups) laid out for a web page: the same sections in the same order, the same words, the
-// same type and the coach's own colours, on a wider page.
+// dashboard. One layout for every coach (owner, 2026-11-09: "complete full buildout of 'the climb'"),
+// the look of the Coaches page (marketplace.jsx): dark, Shape's contour lines, a route to a summit,
+// Doto readouts. A trainer is teal with the booking in rust; a nutritionist gold throughout.
 //
-//   The wall     the coach's wall photo with their round avatar over its edge, their name, what they
-//                do and where, their bio, the verified line, up to three headline stats,
-//                Message · Work with · Follow.
-//   Spotlight    under the head, before the tabs: the highlight the coach pinned and their intro film
-//                (owner, 2026-11-04: "Show them on coach pages", "this should apply to website as
-//                well"). Their song and their practice's card (its hours and where to find them) are on
-//                About me, and the reviews they pinned (their wins wall) lead What clients say. Each
-//                shows only when set, all set in the app's Make it yours, read from the same doc.
-//   The tabs     {Name}'s day · About me · The studio · Replays · Activity (a nutritionist: … {Name}'s
-//                kitchen · Plate notes · Activity). A visitor sees a tab only when there is something in
-//                it; the coach sees them all. Activity is last and is the coach's own posts.
-//   What clients say  the newest reviews (pinned ones first), All reviews, and the review form.
-//   Work with    the storefront. On a phone it is the sheet the app opens; on a desktop it stands in a
-//                column of its own beside the page, so Subscribe is never more than a glance away.
-//
-// The website stays a web page: the site's own header and footer, no phone frame, a two-column page
-// from 1000px and one column below it. Dialogs stand in for the app's sheets.
+//   The bar      ← Coaches · discipline · city, whether they take new clients, their followers,
+//                Follow and Share.
+//   The stage    their wall photo, darkened, under a terrain whose route climbs to the summit plate
+//                (their rating from the reviews, and how many), with milestones only from figures
+//                there are (years coaching, programs); the portrait in the prism frame (base camp,
+//                their years); the name huge with the full stop, the chips (Verified by Shape, tier,
+//                how they coach, pronouns), their line as the quote, and the plates: the headline
+//                stats they picked (else the other figures the page has) and the open times this week.
+//   The wire     a ticker of real events: the next open time, their newest posts, their programs.
+//   The camps    today's tabs on a spine, every one on the page: Base · Start here (the intro film,
+//                the pinned highlight, an answer in their words, the newest posts with a photo),
+//                {Name}'s day (the week's open times), the range (each program a card of peaks, one a
+//                week, then the Studio's workouts and coaching; a nutritionist's meal plans, then
+//                their kitchen and plate notes), Replays, Proof (the reviews the coach pinned, their
+//                Wins wall, in clients' own words: members only, as all review words), Words (the
+//                rating, and the other words for members), About, Find me (the practice, the socials,
+//                where they coach), Posts, and the Summit: the storefront. The app's camps, in its
+//                order. A visitor sees a camp only when there is something in it (or a read failed,
+//                said so with Try again); the coach sees them all, saying what to add.
+//   The accent   the coach's own (Make it yours → look.accent, else the old customizer's hex) tints the
+//                drawing alone: the route, the contours, the summit's ring, the pins, the spine and its
+//                diamonds, the name's full stop. Text and buttons keep the role's colours.
+//   The dock     the booking console at the foot of the window: who, the free intro's length, the
+//                next open time, Message and Book a free intro (the booking page at that time, or the
+//                waiting list when they are full).
 //
 // What it shares rather than copies: the storefront's state and actions (useLvCoachCommerce,
 // useLvWinsWall, lvBuyPlan and the code box, livingShared.jsx), so Subscribe, the code before the
@@ -39,12 +47,17 @@
 // Globals read at call time (Babel scripts): React, ReactDOM, useLvCoachCommerce, useLvWinsWall,
 // lvBuyPlan, LvCodeBox, lvAccountHref, lvScreeningHref, lvFeedVisible, lvComposePost, lvTierFor,
 // Header / Footer (pageShell.jsx), ProfileCustomizer (livingDesktop.jsx), BookingSlots
-// (bookingSlots.js), ShapeListingLib (listingMedia.mjs).
+// (bookingSlots.js), ShapeListingLib (listingMedia.mjs), ShapeZone (shapeZone.mjs).
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-const CPW_DISPLAY = "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif";
-const CPW_BODY = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+// The Climb's three faces (the Coaches page's, marketplace.jsx): Anybody for display (pageShell.jsx loads
+// it with its width axis on every page), Schibsted Grotesk for the body, and Doto for every measured
+// figure (the rating, the stats, prices, times), loaded by this page (cpwLoadDoto). JetBrains Mono stays
+// for the small labels.
+const CPW_DISPLAY = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
+const CPW_BODY = "'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif";
 const CPW_MONO = "'JetBrains Mono', ui-monospace, monospace";
+const CPW_DOTO = "'Doto', 'Courier New', ui-monospace, monospace";
 const CPW_FOCUS = { top: "center 22%", center: "center 50%", bottom: "center 80%" };
 const CPW_LINK_NAMES = { instagram: "Instagram", x: "X", tiktok: "TikTok", youtube: "YouTube", substack: "Substack", website: "Website" };
 // A headline stat's words, by key (the app's BS_STAT_WORDS, BSMakeItYours.jsx).
@@ -243,6 +256,359 @@ function CpwStill({ url, ACC }) {
 }
 const cpwPlay = (ACC) => <span aria-hidden="true" style={{ position: "absolute", left: "50%", top: "50%", width: 52, height: 52, margin: "-26px 0 0 -26px", borderRadius: 99, background: "rgba(0,0,0,0.55)", border: `2px solid ${ACC}`, display: "grid", placeItems: "center", color: "#fff", fontSize: 18, paddingLeft: 3, boxSizing: "border-box" }}>▶</span>;
 
+// ── The Climb ────────────────────────────────────────────────────────────────────────────────
+// The page's look, shared with the Coaches page (marketplace.jsx, "the Climb"): dark throughout, Shape's
+// contour lines and a route climbing to a summit plate that holds the rating, the portrait in a prism
+// frame, Doto figures on chamfered instrument plates. A trainer is teal with the booking in rust, a
+// nutritionist gold throughout. Every figure on it is the coach's own, read by this page; a drawing
+// (the terrain, a program's peaks) is a drawing, never a figure.
+const CPW_BG = "#06090f";
+function cpwClimbPalette(K, nutri) {
+  const ACCENT = nutri ? "#d8a23a" : "#34d6c5";
+  return {
+    isLight: false, PAPER: "#0a0f17", PAPER2: "#0f1722", PAPER3: "#152030", PAPER_BG: CPW_BG, INK: "#eef3f0", inkRGB: "238,243,240",
+    ACCENT, ON_ACCENT: K.bsOnColor(ACCENT),
+    // The booking colour, and its lighter step for text on the dark page (4.5:1 and over).
+    CTA: nutri ? "#d8a23a" : "#c0533b", ON_CTA: nutri ? "#16110a" : "#ffffff", CTA_TEXT: nutri ? "#e6c373" : "#ec8a70",
+    RUST: "#ec8a70", GREEN: "#5fb16e",
+  };
+}
+// The coach's accent for the drawing (PARITY §2): their look's accent as the kit paints it on a dark
+// stock (a black one turns white there; the role's own default is no pick), else the old customizer's
+// `custom.accent` when it is a #rrggbb that shows on the page; else the role's own. Only the drawing takes it: the route and its
+// glow, the contours, the summit's ring, the milestone pins, the camp spine and diamonds, and the name's
+// full stop. Text and controls keep the role's colours, so their contrast never rests on the pick.
+const CPW_HEX = /^#[0-9a-f]{6}$/i;
+// The digits are extracted, never sliced: a paper token (var(--…, #hex)) parses to its hex.
+const cpwLum = (hex) => {
+  const m = /#([0-9a-f]{6})(?![0-9a-f])/i.exec(String(hex || ""));
+  if (!m) return 0;
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+function cpwDrawAccent(K, look, custom, role, fallback) {
+  const shows = (hex) => CPW_HEX.test(hex) && (cpwLum(hex) + 0.05) / (cpwLum(CPW_BG) + 0.05) >= 1.6;
+  // The role's own key (teal for a trainer, amber for a nutritionist: what the editor seeds, and the
+  // samples carry) is no pick: the page keeps the Climb's teal or gold.
+  const own = role === "nutritionist" ? "amber" : "teal";
+  if (look && look.accent && look.accent !== own && K.BS_COACH_ACCENTS && K.BS_COACH_ACCENTS[look.accent] && typeof K.bsCoachPalette === "function") {
+    const a = K.bsCoachPalette({ paper: "dark", accent: look.accent }, role).ACCENT;
+    if (shows(a)) return a.toLowerCase();
+  }
+  const old = custom && typeof custom.accent === "string" ? custom.accent.trim() : "";
+  return shows(old) ? old.toLowerCase() : fallback;
+}
+// Doto, for the measured figures: requested once, from the page (the host pages load Anybody and
+// Schibsted Grotesk through pageShell.jsx, not Doto).
+function cpwLoadDoto() {
+  try {
+    if (typeof document === "undefined" || document.getElementById("cpw-doto")) return;
+    const l = document.createElement("link");
+    l.id = "cpw-doto"; l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Doto:ROND,wght@0..100,100..900&display=swap";
+    document.head.appendChild(l);
+  } catch (e) { /* the figures fall back to a monospace face */ }
+}
+// The longest word of a name, in letters: the huge name is sized so that word fits on its line.
+const cpwLongestWord = (name) => Math.max(4, ...String(name || "").split(/\s+/).map((w) => [...w].length));
+// The name less its last word, and that word, so the full stop never wraps onto a line of its own.
+const cpwNameTail = (name) => { const w = String(name || "").trim().split(/\s+/); return w[w.length - 1] || ""; };
+const cpwNameHead = (name) => { const w = String(name || "").trim().split(/\s+/); return w.length > 1 ? w.slice(0, -1).join(" ") + " " : ""; };
+const cpwReducedMotion = () => { try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { return false; } };
+// A plan's weeks: the program's own, the plan's detail, else a "12 weeks" in its line.
+const cpwWeeksOf = (pl) => {
+  const n = Number(pl && (pl.weeks || (pl.detail && pl.detail.weeks)));
+  if (Number.isInteger(n) && n > 0 && n <= 52) return n;
+  const m = /(\d{1,2})\s*weeks?/i.exec(String((pl && pl.meta) || ""));
+  return m && Number(m[1]) > 0 && Number(m[1]) <= 52 ? Number(m[1]) : null;
+};
+
+// The terrain's generator: the Coaches page's (marketplace.jsx mkRng … mkRoute), seeded by the coach.
+function cpwRng(seed) {
+  let a = seed >>> 0;
+  return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function cpwHash(s) { let h = 2166136261; const str = String(s || ""); for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+const cpwF1 = (n) => Math.round(n * 10) / 10;
+function cpwRidge(W, step, base, waves, bump) {
+  const pts = [];
+  for (let x = -step; x <= W + step; x += step) {
+    let y = base;
+    for (const [a, per, ph] of waves) y += a * Math.sin((2 * Math.PI * x) / per + ph);
+    if (bump) y -= bump.h * Math.exp(-(((x - bump.x) / bump.w) ** 2));
+    pts.push([x, y]);
+  }
+  return pts;
+}
+function cpwYAt(pts, x) {
+  for (let i = 1; i < pts.length; i++) if (pts[i][0] >= x) { const [x0, y0] = pts[i - 1], [x1, y1] = pts[i]; return y0 + (y1 - y0) * ((x - x0) / (x1 - x0)); }
+  return pts[pts.length - 1][1];
+}
+const cpwThrough = (pts, x, y) => { const d = y - cpwYAt(pts, x); return pts.map(([a, b]) => [a, b + d]); };
+const cpwPathD = (pts) => "M" + pts.map(([x, y]) => cpwF1(x) + " " + cpwF1(y)).join("L");
+const cpwFillD = (pts, H) => cpwPathD(pts) + "L" + cpwF1(pts[pts.length - 1][0]) + " " + (H + 4) + "L" + cpwF1(pts[0][0]) + " " + (H + 4) + "Z";
+function cpwRoute(x0, y0, x1, y1, step, jag, seed) {
+  const r = cpwRng(seed); const pts = [];
+  const n = Math.max(2, Math.round((x1 - x0) / step));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n; const e = t * t * (3 - 2 * t) * 0.55 + t * 0.45;
+    let y = y0 + (y1 - y0) * e;
+    if (i > 0 && i < n) y += (r() - 0.5) * jag * 2 + Math.sin(t * 9 + seed) * jag * 0.6;
+    pts.push([x0 + (x1 - x0) * t, y]);
+  }
+  return pts;
+}
+const CPW_TERRAIN_CACHE = new Map();
+function cpwTerrain(W, H, sxp, syp, seed) {
+  const key = [W, H, sxp, syp, seed].join(":");
+  if (CPW_TERRAIN_CACHE.has(key)) return CPW_TERRAIN_CACHE.get(key);
+  const SX = W * sxp, SY = H * syp; const r = cpwRng(seed); const ph = r() * 6;
+  const back = [];
+  for (let k = 0; k < 8; k++) back.push({ d: cpwPathD(cpwRidge(W, 14, SY + H * 0.06 + k * H * 0.05, [[H * 0.022, W * 0.42, 1.3 + k * 0.32 + ph], [H * 0.01, W * 0.16, 0.4 + k * 0.6], [3, W * 0.07, k]], { x: SX, w: W * 0.2 - k * 8, h: H * 0.16 - k * H * 0.012 })), o: (0.07 + k * 0.022).toFixed(3) });
+  const main = cpwThrough(cpwRidge(W, 12, H * 0.62, [[H * 0.025, W * 0.42, 0.7 + ph], [H * 0.012, W * 0.17, 2.1], [3, W * 0.06, 0.3]], { x: SX, w: W * 0.16, h: H * 0.2 }), SX, SY);
+  const strata = [];
+  for (let k = 1; k < 11; k++) strata.push({ d: cpwPathD(main.map(([x, y]) => [x, y + k * H * 0.042 + Math.sin(x / (W * 0.08 + k * 9) + k) * (2 + k * 0.8)])), o: Math.max(0.06, 0.42 - k * 0.032).toFixed(3) });
+  const routePts = cpwRoute(W * 0.02, H * 0.985, SX, SY, W / 46, H * 0.02, seed % 97);
+  const out = { back, main: cpwPathD(main), mainFill: cpwFillD(main, H), strata, route: cpwPathD(routePts), routePts, SX, SY };
+  CPW_TERRAIN_CACHE.set(key, out);
+  return out;
+}
+// The stage's terrain over the coach's photo: contours, the route to the summit, and its milestones,
+// each a figure the page has (their years coaching, the programs they publish), never an invented one.
+function CpwTerrain({ ACC, seed, sx, sy, pins = [] }) {
+  const W = 1400, H = 640;
+  const t = cpwTerrain(W, H, sx, sy, seed);
+  const gid = "cpw-tg-" + seed;
+  const at = (f) => t.routePts[Math.max(1, Math.min(t.routePts.length - 2, Math.round(f * (t.routePts.length - 1))))];
+  const pinAt = pins.slice(0, 2).map((p, i) => ({ label: p, pt: at(pins.length === 1 ? 0.5 : [0.47, 0.58][i]) }));
+  return (
+    <div aria-hidden="true" className="cpw-terrain" data-terrain="">
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#0b1622" stopOpacity=".2" /><stop offset="1" stopColor="#070b11" stopOpacity=".9" /></linearGradient>
+        </defs>
+        {t.back.map((l, i) => <path key={"b" + i} d={l.d} fill="none" stroke={ACC} strokeOpacity={l.o} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+        <path d={t.mainFill} fill={`url(#${gid})`} />
+        <path d={t.main} fill="none" stroke={ACC} strokeOpacity=".7" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+        {t.strata.map((l, i) => <path key={"s" + i} d={l.d} fill="none" stroke={ACC} strokeOpacity={l.o} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+        <line x1={t.SX} y1={t.SY} x2={t.SX} y2={H} stroke={ACC} strokeOpacity=".22" strokeWidth="14" vectorEffect="non-scaling-stroke" />
+        <line x1={t.SX} y1={t.SY} x2={t.SX} y2={H} stroke={ACC} strokeOpacity=".55" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+        <path d={t.route} fill="none" stroke={ACC} strokeOpacity=".35" strokeWidth="6" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        <path d={t.route} fill="none" stroke="#effffc" strokeWidth="2" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <span className="cpw-peak" style={{ left: `${(t.SX / W) * 100}%`, top: `${(t.SY / H) * 100}%`, borderColor: ACC, boxShadow: `0 0 0 6px ${cpwA(ACC, 0.18)}, 0 0 22px ${cpwA(ACC, 0.7)}` }} />
+      {pinAt.map((p, i) => (
+        <span key={i} className="cpw-pin" data-milestone="" style={{ left: `${(p.pt[0] / W) * 100}%`, top: `${(p.pt[1] / H) * 100}%` }}>
+          <i style={{ borderColor: ACC }} /><span className="cpw-dtl">{p.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+function CpwCheck({ color }) {
+  return <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="8" fill={color} /><path d="M4.5 8.2l2.3 2.3 4.7-4.9" fill="none" stroke="#06090f" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+// The portrait in the prism frame: cut corners, the role's colour along its edge, base camp on it.
+function CpwPrism({ T, src, onError, initials, eyebrow, line }) {
+  const { ACC, CTA } = T;
+  return (
+    <figure className="cpw-prism" data-prism="">
+      <div className="cpw-prism-edge" style={{ background: `linear-gradient(160deg, ${ACC}, ${cpwA(ACC, 0.2)} 45%, ${CTA})` }}>
+        <div className="cpw-prism-in">
+          {src ? <img src={src} alt="" onError={onError} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 25%" }} />
+            : <span data-initials="" style={{ fontFamily: CPW_DISPLAY, fontSize: 64, fontWeight: 800, color: "#eef3f0" }}>{initials}</span>}
+          <figcaption className="cpw-prism-cap">
+            {eyebrow ? <span className="cpw-dtl" style={{ color: ACC }}>{eyebrow}</span> : null}
+            {line ? <span style={{ display: "block", marginTop: 4, fontSize: 15.5, fontWeight: 600, color: "#fff" }}>{line}</span> : null}
+          </figcaption>
+        </div>
+      </div>
+    </figure>
+  );
+}
+// The wire: a ticker of what really happened. It runs twice over for the loop, the second copy hidden
+// from readers; with reduced motion it stands still and scrolls by hand.
+function CpwWire({ items, T }) {
+  const { ACC, ink } = T;
+  if (!items.length) return null;
+  const run = (dup) => items.map((it) => (
+    <span key={(dup ? "d" : "") + it.key} className={dup ? "cpw-wire-it cpw-wire-dup" : "cpw-wire-it"} aria-hidden={dup ? "true" : undefined} data-wire-item={dup ? undefined : ""}>
+      <b style={{ color: "#fff", fontWeight: 650 }}>{it.strong}</b> <span style={{ color: ink(0.78) }}>{it.text}</span>
+    </span>
+  ));
+  return (
+    <div className="cpw-wire" data-wire="" role="region" aria-label="The wire">
+      <span className="cpw-dtl" style={{ color: ACC, flex: "none" }}>The wire</span>
+      <div className="cpw-wire-track"><div className="cpw-wire-run">{run(false)}{run(true)}</div></div>
+    </div>
+  );
+}
+
+// ── Base · Start here ────────────────────────────────────────────────────────────────────────
+// The coach's intro film, large; beside it the highlight they pinned and, in their words, the first of
+// their About me answers; under them the newest posts with a photo. Each only when set.
+function CpwBase({ T, K, film, highlight, tip, shots, onShot }) {
+  const { ACC, INK, ink, first, isSelf } = T;
+  const side = highlight || tip;
+  if (!film && !side && !shots.length) return isSelf ? <CpwHint ink={ink}>Nothing pinned yet.</CpwHint> : null;
+  return (
+    <div data-base="">
+      {film || side ? (
+        <div data-coach-spotlight="" className={film && side ? "cpw-base-grid" : "cpw-base-one"}>
+          {film ? (
+            <figure data-coach-film="" className="cpw-card" style={{ margin: 0, overflow: "hidden", padding: 0 }}>
+              <div style={{ background: "#000" }}>
+                <video src={`${film.url}#t=0.1`} controls playsInline preload="metadata" aria-label="Intro film" style={{ display: "block", width: "100%", aspectRatio: "16 / 9", objectFit: "cover", background: "#000" }} />
+              </div>
+              <figcaption style={{ padding: "14px 18px 16px" }}>
+                <span className="cpw-dtl" style={{ color: ACC }}>Intro film</span>
+                {film.caption ? <span style={{ display: "block", marginTop: 6, fontFamily: CPW_DISPLAY, fontSize: 22, fontWeight: 800, fontStretch: "115%", lineHeight: 1.15, color: "#fff", overflowWrap: "anywhere" }}>{film.caption}</span> : null}
+              </figcaption>
+            </figure>
+          ) : null}
+          {side ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+              {highlight ? (
+                <div data-coach-highlight="" className="cpw-card">
+                  <span className="cpw-dtl" style={{ color: T.pal.CTA_TEXT }}>Pinned · {K.bsPinKindLabel(highlight.kind) || "Highlight"}</span>
+                  <p style={{ margin: "12px 0 0", fontFamily: CPW_DISPLAY, fontSize: 21, fontWeight: 800, fontStretch: "112%", lineHeight: 1.2, color: "#fff", overflowWrap: "anywhere" }}>{highlight.title}</p>
+                  {highlight.metric ? <span data-coach-highlight-metric="" className="cpw-doto" style={{ display: "block", marginTop: 12, fontSize: 40, color: "#fff", overflowWrap: "anywhere" }}>{highlight.metric}</span> : null}
+                  {highlight.note ? <p style={{ margin: "10px 0 0", fontSize: 15, lineHeight: 1.45, color: ink(0.8), overflowWrap: "anywhere" }}>{highlight.note}</p> : null}
+                </div>
+              ) : null}
+              {tip ? (
+                <div data-tip="" className="cpw-card">
+                  <span className="cpw-dtl" style={{ color: ACC }}>In {first}'s words · {K.bsPromptLabel(tip.q)}</span>
+                  <p style={{ margin: "10px 0 0", fontSize: 16, lineHeight: 1.5, color: INK, whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{tip.a}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {shots.length ? (
+        <div data-highlights="" className="cpw-shots" style={{ marginTop: film || side ? 22 : 0 }}>
+          {shots.map((c) => (
+            <button key={c.key} type="button" data-highlight-post="" onClick={() => onShot(c)} className="cpw-shot">
+              <span className="cpw-shot-img" style={{ borderColor: cpwA(ACC, 0.7) }}><img src={c.photo} alt="" loading="lazy" /></span>
+              <span style={{ display: "block", marginTop: 8, fontSize: 14, fontWeight: 600, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.title}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Camp · The range ─────────────────────────────────────────────────────────────────────────
+// Each program (a nutritionist's meal plans) as a card with its photo and a range of peaks drawn over
+// it, one peak per week of its real length, in the card's colour: a drawing of a rise, not data. Start
+// opens the program's sheet (its weeks, Ask, and Buy with the code box: today's path); a meal plan's
+// opens the storefront where it is bought.
+const CPW_PEAKS = ["#c0533b", "#d8a23a", "#a78bfa", "#5fb16e", "#5b8df9"];
+function cpwPeaks(weeks, seed) {
+  const W = 300, H = 150, r = cpwRng(seed);
+  const pts = [[0, H]];
+  for (let w = 0; w < weeks; w++) {
+    const x0 = (w / weeks) * W, x1 = ((w + 0.5) / weeks) * W;
+    const rise = (w + 1) / weeks;
+    pts.push([x0, H - (10 + 52 * rise) + r() * 6]);
+    pts.push([x1, H - (34 + 92 * rise) - r() * 8]);
+  }
+  pts.push([W, H - 20 - 60]); pts.push([W, H]);
+  return pts;
+}
+function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, sample = false, startLabel = "Start" }) {
+  const { ACC, INK, ink, first, isSelf, nutri, ON_CTA, CTA } = T;
+  return (
+    <div data-range="">
+      {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="work" what={failedWhat || (isSelf ? "Couldn't read your plans just now." : `Couldn't read ${first}'s plans just now.`)} onRetry={onRetry} /> : null}
+      {items.length ? (
+        <div className="cpw-range">
+          {items.map((p, i) => {
+            const col = CPW_PEAKS[i % CPW_PEAKS.length];
+            const pts = p.weeks ? cpwPeaks(Math.min(p.weeks, 24), cpwHash(p.key || p.name)) : null;
+            const facts = [p.weeks ? `${p.weeks} ${p.weeks === 1 ? "week" : "weeks"}` : null, p.perWeek ? `${p.perWeek} ${p.perWeek === 1 ? "day" : "days"} a week` : null].filter(Boolean).join(" · ");
+            const forSaid = cpwForWho(p.forWho);
+            return (
+              <article key={p.key} data-program="" data-lead={i === 0 ? "" : undefined} className="cpw-range-card" style={{ borderLeftColor: col }}>
+                <div className="cpw-range-art" aria-hidden="true">
+                  {p.poster ? <img src={p.poster} alt="" loading="lazy" /> : null}
+                  {pts ? (
+                    <svg viewBox="0 0 300 150" preserveAspectRatio="none">
+                      <polygon points={pts.map((q) => q.join(",")).join(" ")} fill={col} fillOpacity=".62" />
+                      <polyline points={pts.slice(1, -2).map((q) => q.join(",")).join(" ")} fill="none" stroke="#fff" strokeWidth="1.6" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+                    </svg>
+                  ) : null}
+                  <span className="cpw-range-tag cpw-dtl" style={{ color: "#fff", borderColor: cpwA(col, 0.9) }}>{p.tag || (nutri ? "Meal plan" : "Program")}</span>
+                  {p.weeks ? <span className="cpw-range-weeks"><span className="cpw-doto" style={{ fontSize: 20 }}>{p.weeks}</span> <span className="cpw-dtl" style={{ color: "rgba(238,243,240,.82)" }}>{p.weeks === 1 ? "week" : "weeks"}</span></span> : null}
+                </div>
+                <div className="cpw-range-body">
+                  <h3 className="cpw-range-name">{p.name}</h3>
+                  {facts ? <span style={{ display: "block", marginTop: 4, fontSize: 14, color: ink(0.78) }}>{facts}</span> : null}
+                  {p.desc ? <span data-studio-desc="" style={{ display: "-webkit-box", marginTop: 8, fontSize: 14, lineHeight: "20px", color: INK, WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.desc}</span> : null}
+                  {forSaid ? <span data-studio-for="" style={{ display: "flex", gap: 7, alignItems: "baseline", marginTop: 6, fontSize: 13.5, fontWeight: 600, color: INK }}><span className="cpw-dtl" style={{ color: ink(0.7) }}>For</span>{forSaid}</span> : null}
+                  <div className="cpw-range-foot">
+                    {p.price ? (
+                      <span className="cpw-plate" style={{ padding: "8px 12px", display: "inline-flex", alignItems: "baseline", gap: 6 }}>
+                        <span className="cpw-doto" style={{ fontSize: 22 }}>{p.price}</span>{p.paid ? <span style={{ fontSize: 12.5, color: ink(0.75) }}>one-off</span> : null}
+                      </span>
+                    ) : <span />}
+                    <button type="button" data-program-open="" onClick={() => onOpen(p.pr)} className="cpw-cta" style={{ minHeight: 44, padding: "0 18px", background: CTA, color: ON_CTA }}>
+                      {isSelf || sample || !p.paid ? "Open" : startLabel}
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : isSelf && !failed ? <CpwHint ink={ink}>{nutri ? "Publish a meal plan and it shows here as a range, one peak a week." : "Publish a program and it shows here with its preview video, for members to buy."}</CpwHint> : null}
+    </div>
+  );
+}
+
+// ── The booking console ──────────────────────────────────────────────────────────────────────
+// Docked at the foot of the window: who, whether they take clients, the free intro's length and the next
+// open time (Doto), Message, and Book a free intro (trainer rust, nutritionist gold). Book is today's
+// path: the booking page at that time, or the booking page, or the waiting list when they are full. A
+// sample books nothing: Message and Work with.
+function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork }) {
+  const { ACC, ink, name, first, words, CTA, ON_CTA } = T;
+  return (
+    <div className="cpw-dock" data-dock="" role="region" aria-label={`Book ${first}`}>
+      <div className="cpw-dock-who">
+        {avatar ? <img src={avatar} alt="" className="cpw-dock-av" /> : <span className="cpw-dock-av" style={{ display: "grid", placeItems: "center", fontWeight: 800, color: "#eef3f0" }}>{cpwInitials(name)}</span>}
+        <span style={{ minWidth: 0 }}>
+          <span className="cpw-dock-name" style={{ display: "block", fontWeight: 700, fontSize: 15.5, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
+          {status ? <span className="cpw-dock-status" style={{ display: "block", fontSize: 13, color: ACC, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{status}</span> : null}
+        </span>
+      </div>
+      {introMin ? (
+        <div className="cpw-dock-cell">
+          <span className="cpw-dtl" style={{ color: ink(0.7) }}>Free intro</span>
+          <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>{introMin} min</span>
+        </div>
+      ) : null}
+      {next ? (
+        <div className="cpw-dock-cell" data-dock-next="">
+          <span className="cpw-dtl" style={{ color: ink(0.7) }}>Next open</span>
+          <span className="cpw-doto" style={{ fontSize: 17, fontWeight: 700 }}>{next}</span>
+        </div>
+      ) : null}
+      <div className="cpw-dock-acts">
+        <button type="button" data-message="" onClick={onMessage} className="cpw-cta cpw-cta-line cpw-dock-msg" style={{ color: "#eef3f0", minHeight: 46 }}>Message</button>
+        {book ? (book.kind === "link"
+          ? <a href={book.href} data-dock-book="" className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{book.label}</a>
+          : <button type="button" data-dock-book="" onClick={book.onClick} className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{book.label}</button>)
+          : onWork ? <button type="button" data-work-with="" onClick={onWork} className="cpw-cta" style={{ background: CTA, color: ON_CTA, minHeight: 46 }}>{words.work}</button> : null}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Data ─────────────────────────────────────────────────────────────────────────────────────
 // The coach's listing, found by their account, and only while it is on the marketplace (the app's
 // ShapeCoachListing.publicByOwner): an unfinished or suspended listing offers no times, photos or
@@ -409,13 +775,15 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const avatarShown = avatar && avatar !== brokenAvatar ? avatar : null;
   const bio = isPrivate ? "" : String((live ? (row && (row.goal || row.bio)) : (sample && sample.live && sample.live.goal)) || "").trim();
 
-  // ── Their colours: the look they set in Make it yours, else the web customizer's accent ──
+  // ── The Climb's colours: one dark page for every coach (it is one layout, not a picker), Shape's teal
+  //    for a trainer and gold for a nutritionist, and the booking colour (trainer rust, nutritionist
+  //    gold). The wall photo they set in Make it yours is the stage's photo. ──
   const look = K.bsProfileLook(custom && custom.look) || {};
-  const pal0 = K.bsCoachPalette(look, role);
-  const webAccent = !look.accent && custom && /^#[0-9a-f]{6}$/i.test(String(custom.accent || "")) ? custom.accent : null;
-  const pal = webAccent ? { ...pal0, ACCENT: webAccent, ON_ACCENT: K.bsOnColor(webAccent) } : pal0;
+  const pal = cpwClimbPalette(K, nutri);
   const ACC = pal.ACCENT, ON_ACC = pal.ON_ACCENT, INK = pal.INK;
+  const CTA = pal.CTA, ON_CTA = pal.ON_CTA;
   const ink = (a) => `rgba(${pal.inkRGB},${a})`;
+  const DRAW = cpwDrawAccent(K, look, custom, role, ACC);
 
   // ── Their listing ──
   const [listingEpoch, setListingEpoch] = React.useState(0);
@@ -513,10 +881,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       return { list, avg, count, locked: !!cm.revLocked, unread, failed: unread && !!cm.revErr };
     })();
   const revLocked = !!(reviews.locked && reviews.count > 0 && !reviews.list.length);
-  // The coach's pinned reviews first (their Wins wall), then the newest.
+  // Proof: the reviews the coach pinned (their Wins wall), in clients' own words. Review words are for
+  // members: the route answers a locked reader with none, and a locked read draws none here either.
+  const proof = sample || reviews.locked ? [] : wins.filter((r) => r && String(r.text || "").trim());
+  // Words: the newest of the rest (the pinned ones are in Proof).
   const quotes = (() => {
-    const seen = new Set(), out = [];
-    for (const r of [...(sample ? [] : wins.map((w) => ({ ...w, pinned: true }))), ...reviews.list]) {
+    const seen = new Set(proof.map((r) => r.id || r.text)), out = [];
+    for (const r of reviews.list) {
       if (!r || !String(r.text || "").trim()) continue;
       const k = r.id || r.text;
       if (seen.has(k)) continue;
@@ -570,45 +941,156 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     replays: replays.length, recipes: kitchen && kitchen.recipes ? kitchen.recipes.length : 0, plates: plateDays.length, certs: credList.length,
   });
   const headline = isPrivate ? [] : K.bsCoachHeadline(custom && custom.heroStats, role, statFigures);
-  // The listing's photos sit at About me's foot for a trainer, where the floor plan's tab had them.
-  const hasAbout = !!(aboutDoc || aboutPrompts.length || aboutLinks || credList.length || biz || songEmbed || (!nutri && !isPrivate && gallery.length));
-  const aboutTab = isSelf || hasAbout ? [["about", "About me"]] : [];
-  const tabs = nutri ? [
-    ["day", words.day], ...aboutTab,
-    ...(isSelf || kitchen || gallery.length ? [["kitchen", words.kitchen]] : []),
-    ...(isSelf || plateDays.length || postsFailed ? [["plates", "Plate notes"]] : []),
-    ...(isSelf || activity.length || postsFailed ? [["activity", "Activity"]] : []),
-  ] : [
-    ["day", words.day], ...aboutTab,
-    ...(isSelf || hasStudioWork || workFailed ? [["studio", "Studio"]] : []),
-    ...(isSelf || replays.length || postsFailed ? [["replays", "Replays"]] : []),
-    ...(isSelf || activity.length || postsFailed ? [["activity", "Activity"]] : []),
+  // ── The camps on the spine: today's tabs, each a camp of the climb, every one on the page at once.
+  //    A visitor sees a camp only when there is something in it (or a read failed, said so with Try
+  //    again); the coach sees them all, empty ones saying what to add. Base and Summit bracket them. ──
+  const tip = aboutPrompts.length ? aboutPrompts[0] : null;
+  const shots = cards.filter((c) => c && c.photo).slice(0, 6);
+  const postCount = live ? (posts.state === "ready" ? cards.length : null) : cards.length;
+  const hasBase = !!(film || highlight || tip || shots.length);
+  const hasAbout = !!((aboutDoc && (aboutDoc.story || aboutDoc.years || aboutDoc.how || aboutDoc.where || aboutDoc.languages || (aboutDoc.accolades && aboutDoc.accolades.length) || (aboutDoc.education && aboutDoc.education.length)))
+    || aboutPrompts.length > (tip ? 1 : 0) || credList.length || songEmbed);
+  const aboutGallery = nutri || isPrivate ? [] : gallery;
+  const hasFind = !!(biz || (aboutLinks && K.BS_PROFILE_LINK_KEYS.some((k) => aboutLinks[k] && K.bsProfileLinkHref(k, aboutLinks[k]))) || aboutGallery.length);
+  const mealPlans = nutri ? plansForSale.filter(Boolean) : [];
+  const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (hasStudioWork || workFailed);
+  const hasWords = !!(quotes.length || revLocked || reviews.failed || reviews.count > 0);
+  // The camps, the app's list in its order (PARITY §1): [key, kind, the name on the tab and the spine].
+  const campList = isPrivate ? [["words", "Words", "Reviews"]] : [
+    ...(isSelf || hasBase ? [["base", "Base", "Base"]] : []),
+    ["day", "Camp", "Book"],
+    ...(nutri ? [
+      ...(isSelf || hasRange ? [["range", "Camp", "Meal plans"]] : []),
+      ...(isSelf || kitchen || gallery.length ? [["kitchen", "Camp", "Kitchen"]] : []),
+      ...(isSelf || plateDays.length || postsFailed ? [["plates", "Camp", "Plate notes"]] : []),
+    ] : [
+      ...(isSelf || hasRange ? [["range", "Camp", "Programs"]] : []),
+      ...(isSelf || replays.length || postsFailed ? [["replays", "Camp", "Replays"]] : []),
+    ]),
+    ...(isSelf || (proof.length && !reviews.locked) ? [["proof", "Camp", "Proof"]] : []),
+    ...(isSelf || hasWords ? [["words", "Camp", "Words"]] : []),
+    ...(isSelf || hasAbout ? [["about", "Camp", "About"]] : []),
+    ...(isSelf || hasFind ? [["find", "Camp", "Find me"]] : []),
+    ...(isSelf || activity.length || postsFailed ? [["posts", "Camp", "Posts"]] : []),
+    ["summit", "Summit", "Summit"],
   ];
-  const [tab, setTab] = React.useState("day");
-  const tabNow = tabs.some(([k]) => k === tab) ? tab : "day";
+  // "Camp 1", "Camp 2" … between the base and the summit, as the route reads.
+  let campN = 0;
+  // The tab row names each camp as the app's does (Base, Book, Programs … Summit); the spine reads its
+  // number and name ("Base · Start here", "Camp 1 · Book", "Summit · Work with …").
+  const spineName = { base: "Start here", summit: words.work };
+  const camps = campList.map(([k, kind, name]) => ({ key: k, name, spine: spineName[k] || name, label: kind === "Camp" ? `Camp ${++campN}` : kind }));
+  const campRefs = React.useRef({});
+  const [campOn, setCampOn] = React.useState(camps[0] ? camps[0].key : null);
+  const campKeys = camps.map((c) => c.key).join(",");
+  // The camp on: the last one whose head has come up under the header (and, on a phone, the camp row).
+  // Read on scroll, once a frame: an observer of the camps entering a band lit the one before, whose
+  // foot was still in it, while the next camp's head sat under the row.
+  React.useEffect(() => {
+    if (typeof window === "undefined" || !window.addEventListener) return undefined;
+    const keys = campKeys.split(",");
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      const line = headH + (wide ? 0 : 51) + 40;
+      let on = keys[0] || null;
+      for (const k of keys) { const el = campRefs.current[k]; if (el && el.getBoundingClientRect().top <= line) on = k; }
+      // At the foot of the page the last camps never reach the line: the summit is on there.
+      try { const d = document.documentElement; if (window.innerHeight + window.scrollY >= d.scrollHeight - 4) on = keys[keys.length - 1]; } catch (e) {}
+      if (on) setCampOn(on);
+    };
+    const onScroll = () => { if (!raf) raf = (window.requestAnimationFrame || setTimeout)(read); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (raf && window.cancelAnimationFrame) window.cancelAnimationFrame(raf); };
+  }, [campKeys, headH, wide]);
+  // On a phone the row keeps the camp that is on in view, scrolled sideways (never the page).
+  const campNavRef = React.useRef(null);
+  React.useEffect(() => {
+    const nav = campNavRef.current;
+    if (!nav || !campOn) return;
+    const btn = nav.querySelector(`[data-camp-link="${campOn}"]`);
+    if (!btn) return;
+    const left = btn.offsetLeft - 12, right = btn.offsetLeft + btn.offsetWidth + 12;
+    if (left < nav.scrollLeft || right > nav.scrollLeft + nav.clientWidth) {
+      try { nav.scrollTo({ left: Math.max(0, left), behavior: cpwReducedMotion() ? "auto" : "smooth" }); } catch (e) { nav.scrollLeft = Math.max(0, left); }
+    }
+  }, [campOn]);
+  const toCamp = (k) => { const el = campRefs.current[k]; setCampOn(k); if (el && el.scrollIntoView) { try { el.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {} } };
+
+  // ── The first screen's readouts, each only from what was read ──
+  // The open times in the next seven days (the plate) and the first of them (the dock, the wire): none
+  // while the week is read or when the coach is full; null is unread, 0 is a week read with none open.
+  const Zn = (() => { try { const z = window.ShapeZone; return z && typeof z.partsInZone === "function" ? z : null; } catch (e) { return null; } })();
+  const vzone = Zn ? Zn.viewerZone() : null;
+  const weekReady = avail.kind === "ready" && avail.hasHours && avail.zoneOk;
+  const nowMs = Date.now();
+  const upcoming = weekReady && !introClosed ? avail.open.filter((x) => x && x.ms > nowMs).sort((a, b) => a.ms - b.ms) : [];
+  const openThisWeek = weekReady ? (introClosed ? 0 : upcoming.filter((x) => x.ms < nowMs + 7 * 864e5).length) : null;
+  const nextOpen = upcoming[0] || null;
+  const whenSaid = (ms) => { try { return new Date(ms).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit", ...(vzone ? { timeZone: vzone } : {}) }); } catch (e) { return ""; } };
+  const ratingShown = reviews.count > 0 ? (Math.round(reviews.avg * 10) / 10).toFixed(1) : null;
+  // The plates: the stats the coach picked (Make it yours → Spotlight), then, while there is room, the
+  // other figures this page has, never the rating (the summit holds it); and the open times this week.
+  const plateStats = (() => {
+    if (isPrivate) return [];
+    const picked = headline.filter((s) => s.key !== "rating");
+    const order = K.BS_COACH_STATS[nutri ? "nutritionist" : "trainer"].filter((k) => k !== "rating");
+    const more = order.filter((k) => statFigures[k] != null && !picked.some((s) => s.key === k)).map((k) => ({ key: k, value: statFigures[k] }));
+    return [...picked, ...more].slice(0, 3);
+  })();
+  const years = aboutDoc && aboutDoc.years ? aboutDoc.years : null;
+  const howSaid = !aboutDoc || !aboutDoc.how ? "" : aboutDoc.how === "online" ? "Remote" : aboutDoc.how === "in_person" ? "In person" : "In person + remote";
+  const pronounsSaid = !isPrivate && live && row && typeof row.pronouns === "string" && row.pronouns.trim().length <= 24 ? row.pronouns.trim() : "";
+  const discipline = focusWords.length ? focusWords.join(" · ") : (specialty || (nutri ? "Nutritionist" : "Coach"));
+  // Milestones on the route, only from figures there are: their years coaching, the programs they
+  // publish (or a nutritionist's recipes), the reviews they have. No "first client", no session count.
+  const milestones = isPrivate ? [] : [
+    years ? `${years} ${years === 1 ? "year" : "years"} coaching` : null,
+    nutri ? (kitchen && kitchen.recipes && kitchen.recipes.length ? `${kitchen.recipes.length} ${kitchen.recipes.length === 1 ? "recipe" : "recipes"}` : null)
+      : (studioModel && studioModel.programs.length ? `${studioModel.programs.length} ${studioModel.programs.length === 1 ? "program" : "programs"}` : null),
+  ].filter(Boolean);
+  // The wire: what really happened, newest first. Their next open time, their newest posts, the programs
+  // or plans they publish. Nothing for a section that is unread.
+  const wire = isPrivate ? [] : [
+    ...(nextOpen ? [{ key: "next", strong: "Next open", text: whenSaid(nextOpen.ms) }] : []),
+    ...cards.slice(0, 3).map((c) => ({ key: c.key, strong: "New:", text: [c.title, c.ago ? `${c.ago} ago` : ""].filter(Boolean).join(" · ") })),
+    ...(studioModel ? studioModel.programs.slice(0, 2).map((p) => ({ key: p.key, strong: p.name, text: cpwProgramMeta(p) || "Program" })) : []),
+    ...mealPlans.slice(0, 2).map((pl, i) => ({ key: "mp" + (pl.id || i), strong: pl.name, text: pl.meta || "Meal plan" })),
+  ];
+  const statusSaid = !live || isPrivate ? "" : atCapacity ? "Full · waiting list" : listed && weekReady && wide ? (openThisWeek ? `Taking new clients · ${openThisWeek} open ${openThisWeek === 1 ? "time" : "times"} this week` : "Taking new clients") : listed ? "Taking new clients" : "";
 
   // ── Overlays ──
   const [sheet, setSheet] = React.useState(null); // { kind: 'work'|'reviews'|'piece'|'program'|'replay'|'plateDay'|'recipe', … }
   const [editing, setEditing] = React.useState(false);
+  const [shared, setShared] = React.useState("");
   const railRef = React.useRef(null);
-  const tabsRef = React.useRef(null);
-  // Work with: the sheet on a phone; on a desktop, the column beside the page, brought into view.
+  // Work with: the sheet on a phone; on a desktop, the storefront at the summit, brought into view.
   const openWork = () => {
     if (wide && railRef.current) {
-      try { railRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (e) {}
+      try { railRef.current.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {}
       try { const h = railRef.current.querySelector("h2"); if (h && h.focus) h.focus({ preventScroll: true }); } catch (e) {}
       return;
     }
     setSheet({ kind: "work" });
   };
   // ⚠ A COACH'S REFERRAL LINK OPENS ON THE STOREFRONT (owner, 2026-10-18): the person it brings came
-  // to hire this coach. On a phone that is the Work-with sheet; on a desktop it is already beside the page.
+  // to hire this coach. On a phone that is the Work-with sheet; on a desktop it is the summit.
+  // On a desktop the summit's storefront may draw after the first render, so the scroll waits for it
+  // (Codex P2 on #2652: a referral link left a desktop visitor at the top).
+  const refPending = React.useRef(false);
   React.useEffect(() => {
     let ref = null;
     try { ref = new URLSearchParams(window.location.search).get("ref"); } catch (e) {}
-    if (ref && !isSelf && !isPrivate && !wide) setSheet({ kind: "work" });
+    if (!ref || isSelf || isPrivate) return;
+    if (wide) refPending.current = true;
+    else setSheet({ kind: "work" });
   }, []);
-  const toDay = () => { setSheet(null); setTab("day"); setTimeout(() => { try { if (tabsRef.current) tabsRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }, 40); };
+  React.useEffect(() => {
+    if (!refPending.current || !railRef.current) return;
+    refPending.current = false;
+    openWork();
+  });
+  const toDay = () => { setSheet(null); setTimeout(() => toCamp("day"), 40); };
   const message = () => { if (cm.provId) cm.openChat(); else onMessage(); };
   const canEdit = isSelf && typeof ProfileCustomizer !== "undefined";
   const hoursHref = nutri ? "/newdesign/NutritionistSchedule.html" : "/newdesign/TrainerSchedule.html";
@@ -616,8 +1098,29 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const followOn = !!(follow && (follow.isFollowing || follow.isPending));
   const canFollow = live && !isSelf && !!(follow && follow.canFollow !== false);
   const bookHref = (iso) => "/newdesign/consultation.html?type=" + role + "&id=" + encodeURIComponent(providerId) + "&name=" + encodeURIComponent(name) + "&at=" + encodeURIComponent(iso);
-  const T = { pal, ACC, ON_ACC, INK, ink, first, name, words, nutri, isSelf, wide };
-
+  // Share: the public page (a coach's own Profile page on their dashboard shares the page members see).
+  const shareUrl = (() => {
+    try { return live ? new URL(`/newdesign/MemberProfile.html?u=${encodeURIComponent(uid)}&role=${role}`, window.location.href).href : window.location.href; } catch (e) { return ""; }
+  })();
+  const share = async () => {
+    try { if (navigator.share) { await navigator.share({ title: `${name} on Shape`, url: shareUrl }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(shareUrl); setShared("Link copied"); } catch (e) { setShared("Couldn't copy the link"); }
+    setTimeout(() => setShared(""), 2400);
+  };
+  // The dock's Book: the first open time on the booking page, else the booking page itself (today's
+  // "Book intro · Free"), else the waiting list when the coach is full. A sample books nothing.
+  const dockBook = sample || isSelf || isPrivate ? null
+    : introClosed ? { kind: "wait", label: "Join the waiting list", onClick: openWork }
+      : nextOpen && providerId ? { kind: "link", label: "Book a free intro", href: bookHref(nextOpen.iso) }
+        : cm.introHref && listed && weekReady ? { kind: "link", label: "Book a free intro", href: cm.introHref } : null;
+  const T = { pal, ACC, ON_ACC, INK, ink, first, name, words, nutri, isSelf, wide, CTA, ON_CTA };
+  const seed = cpwHash(uid || sampleKey || name);
+  const cssA = (x) => cpwA(ACC, x);
+  const drawA = (x) => cpwA(DRAW, x);
+  React.useEffect(() => { cpwLoadDoto(); }, []);
+  // Docked for every visitor. A private profile's console is Message alone, as today's page kept
+  // Message on a private profile: no times, no Book, no storefront.
+  const docked = !isSelf;
 
   const workWith = (
     <CpwWorkWith T={T} cm={cm} sells={sells} monthly={monthly} listed={listed} sample={!!sample} providerId={providerId}
@@ -626,60 +1129,254 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       listingState={live ? listing.state : "ready"} onRetryListing={() => setListingEpoch((n) => n + 1)}
       onPickIntro={providerId && !avail.sample ? toDay : null} onMessage={message} />
   );
+  const campBody = (k) => {
+    if (k === "base") return (
+      <CpwBase T={T} K={K} film={film} highlight={highlight} tip={tip} shots={shots} postCount={postCount}
+        onShot={(c) => setSheet({ kind: "replay", r: c, i: 0 })} onAll={() => toCamp("posts")} hasActivity={camps.some((c) => c.key === "posts")} />
+    );
+    if (k === "day") return (
+      <CpwDayTab T={T} K={K} avail={avail} listingState={live ? listing.state : (sample ? "ready" : "none")} introClosed={introClosed} hoursHref={hoursHref}
+        onRetry={() => (listing.state === "error" ? setListingEpoch : setWeekEpoch)((n) => n + 1)} bookHref={providerId ? bookHref : null} onWork={openWork} />
+    );
+    if (k === "range" && nutri) return (
+      <CpwRange T={T} items={mealPlans.map((pl, i) => ({ key: "mp:" + (pl.id || i), name: pl.name, tag: String(pl.category || "Meal plan").replace(/_/g, " "), weeks: cpwWeeksOf(pl), perWeek: null, price: K.bsWorkPrice(pl.price) || "", paid: K.bsWorkPaid(pl.price), desc: pl.description || pl.blurb || "", poster: null, pr: null }))}
+        failed={live && salePlans.state === "error"} onRetry={salePlans.retry} onOpen={openWork} sample={!!sample} startLabel="Start" />
+    );
+    if (k === "range") return (
+      <React.Fragment>
+        <CpwRange T={T} items={studioModel ? studioModel.programs.map((p) => ({ ...p, tag: String((p.pr && p.pr.plan && p.pr.plan.category) || "Program").replace(/_/g, " "), poster: p.pr ? p.pr.poster : null })) : []}
+          failed={workFailed} failedWhat={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={retryWork}
+          onOpen={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} sample={!!sample} sells={listed} />
+        {studioModel && (studioModel.workouts.length || studioModel.coaching || isSelf) ? (
+          <CpwStudioTab T={T} model={studioModel} heat={cpwStudioHeat(pal, look.accent, ACC)} stickyTop={headH + (wide ? 0 : 51)} failed={false} onRetry={retryWork} parts={["workouts", "coaching"]}
+            onProgram={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} onVideo={(v) => { if (v) setSheet({ kind: "replay", r: v, i: 0 }); }}
+            onWork={openWork} onMessage={isPrivate || isSelf ? null : message} />
+        ) : null}
+      </React.Fragment>
+    );
+    if (k === "kitchen") return <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
+    if (k === "plates") return <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />;
+    if (k === "replays") return <CpwReplaysTab T={T} replays={replays} failed={postsFailed} onRetry={posts.retry} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />;
+    if (k === "proof") return <CpwProof T={T} items={proof} />;
+    if (k === "words") return (
+      <CpwReviewsStrip T={T} quotes={quotes} revLocked={revLocked} ratingBit={ratingBit} rating={ratingShown} count={reviews.count} failed={!!reviews.failed} onRetry={cm.retryReviews} onAll={() => setSheet({ kind: "reviews" })} />
+    );
+    if (k === "about") return (
+      <CpwAboutTab T={T} K={K} part="about" about={aboutDoc} prompts={tip ? aboutPrompts.slice(1) : aboutPrompts} links={aboutLinks} certs={credList} gallery={[]} onEdit={canEdit ? () => setEditing(true) : null}
+        biz={null} song={songEmbed ? { label: song.label, embed: songEmbed } : null} />
+    );
+    if (k === "find") return (
+      <CpwAboutTab T={T} K={K} part="find" about={null} prompts={[]} links={aboutLinks} certs={[]} gallery={aboutGallery} onEdit={canEdit ? () => setEditing(true) : null} biz={biz} song={null} />
+    );
+    if (k === "posts") return <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />;
+    if (k === "summit") return (
+      <div data-summit-camp="">
+        {wide && !isPrivate ? (
+          <div ref={railRef} data-work-rail="" className="cpw-summit-store" style={{ scrollMarginTop: headH + 16 }}>{workWith}</div>
+        ) : !isPrivate ? (
+          <button type="button" data-summit-work="" onClick={openWork} className="cpw-cta" style={{ background: CTA, color: ON_CTA, width: "100%", maxWidth: 420 }}>{words.work} →</button>
+        ) : null}
+        <footer data-credential="" style={{ padding: "22px 0 0", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.62) }}>
+          {[L && L.credential, verified ? "Checked by Shape" : null].filter(Boolean).join(" · ")}
+        </footer>
+      </div>
+    );
+    return null;
+  };
+  const campLead = {
+    base: isSelf && !hasBase ? "Pin a highlight and add your intro film in the Shape app (Make it yours → Spotlight), and they lead your page." : `${[film ? "The intro film" : null, highlight ? `${first}'s pin` : null, tip ? `in ${first}'s words` : null].filter(Boolean).join(", ") || `${first}'s latest`}${shots.length ? ", and the newest posts" : ""}.`,
+    day: avail.sample ? "Sample times, shown and never taken." : "The week's open times. Take one for a free intro call.",
+    range: nutri ? "Each peak is a week, climbing to the top." : "Each peak is a week of the program, climbing to the top.",
+    kitchen: `What ${first} cooks and teaches.`,
+    plates: "",
+    replays: "",
+    proof: proof.length ? `From clients' own words, pinned by ${first}.` : "",
+    words: proof.length ? `The rating, and the rest of the reviews.` : `From the people ${first} coached.`,
+    about: `Who ${first} is and how ${first} coaches.`,
+    posts: `What ${first} posted lately.`,
+    find: `Where ${first} coaches, and where to follow along.`,
+    summit: sells ? "Monthly coaching, the free intro and the plans, in one place." : "Start with a free intro call. Everything runs in the Shape app.",
+  };
+  const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
 
   return (
-    <div className="cpw" data-coach-profile="" data-role={role} data-mode={live ? "live" : "sample"} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased" }}>
+    <div className="cpw" data-coach-profile="" data-climb="" data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
       <style>{`
-    /* clip, not hidden: hidden makes a box a scroller, and the tabs, the Studio's filter and the rail never pin.
+    /* clip, not hidden: hidden makes a box a scroller, and the camp row and its marks never pin.
        pageShell's html, body { overflow-x: hidden } does that to <body> on every page, and a coach dashboard's
        <main> (livingProfilePage wrapShell) to itself; while a coach page is shown, they clip instead (a
-       browser without clip keeps hidden). The rail's column runs the page's height, so Work with has room
-       to stay beside it. */
+       browser without clip keeps hidden). */
     html:root, html > body{overflow-x:clip}
     .dash-app main{overflow-x:clip !important}
     .cpw{overflow-x:hidden;overflow-x:clip}
-    .cpw-wrap{max-width:1180px;margin:0 auto;padding:0 32px}
-    .cpw-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:56px;align-items:start}
-    .cpw-rail{align-self:stretch}
-    .cpw-wall{height:300px}
-    .cpw-av{width:132px;height:132px;top:-66px}
-    .cpw-who-name{margin-left:154px;min-height:72px}
-    .cpw-cards2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 20px}
-    .cpw-quotes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .cpw-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-    .cpw-gallery img{height:150px}
+    .cpw *,.cpw *::before,.cpw *::after{box-sizing:border-box}
+    .cpw-wrap{max-width:1440px;margin:0 auto;padding:0 32px}
+    .cpw-dtl{font-family:${CPW_DOTO};font-weight:700;font-variation-settings:'ROND' 30;letter-spacing:.09em;text-transform:uppercase;font-size:11.5px;line-height:1.3}
+    .cpw-doto{font-family:${CPW_DOTO};font-weight:800;font-variation-settings:'ROND' 100;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+    .cpw-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;flex-wrap:wrap;padding:18px 0 16px}
+    .cpw-pill{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid rgba(238,243,240,.2);border-radius:10px;background:rgba(238,243,240,.03);font-family:${CPW_BODY};font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
+    .cpw-pill.cpw-dtl{font-family:${CPW_DOTO};font-size:11.5px;min-height:40px}
+    .cpw-stage{position:relative;border-radius:22px;overflow:hidden;background:#070b11;border:1px solid rgba(238,243,240,.08);min-height:640px;isolation:isolate}
+    .cpw-stage-photo{position:absolute;inset:0;z-index:0;filter:grayscale(.5) brightness(.5)}
+    .cpw-stage-art{position:absolute;inset:0}
+    .cpw-stage-shade{position:absolute;inset:0;z-index:1;pointer-events:none;background:linear-gradient(90deg,rgba(7,11,17,.9) 0%,rgba(7,11,17,.5) 36%,rgba(7,11,17,.12) 70%,rgba(7,11,17,.3) 100%),linear-gradient(0deg,rgba(7,11,17,.96) 0%,rgba(7,11,17,0) 46%)}
+    .cpw-terrain{position:absolute;inset:0;z-index:1;pointer-events:none}
+    .cpw-terrain svg{position:absolute;inset:0;width:100%;height:100%}
+    .cpw-peak{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid;background:#effffc}
+    .cpw-pin{position:absolute;display:flex;align-items:center;gap:8px;white-space:nowrap;transform:translate(-8px,-8px)}
+    .cpw-pin i{width:16px;height:16px;border-radius:50%;border:2px solid;background:#070b11;flex:none}
+    .cpw-pin .cpw-dtl{padding:3px 8px;background:rgba(6,9,15,.84);border-radius:4px;color:#eef3f0;font-size:10.5px}
+    .cpw-summit{position:absolute;z-index:3;transform:translate(-50%,calc(-100% - 20px));display:flex;flex-direction:column;align-items:center;gap:8px;border:0;background:transparent;padding:0;cursor:pointer;color:inherit;font:inherit}
+    .cpw-summit-plate{display:inline-flex;align-items:baseline;padding:14px 18px 12px;border:1px solid}
+    .cpw-summit-cap{padding:4px 9px;background:rgba(6,9,15,.86);border-radius:4px}
+    .cpw-plate{background:linear-gradient(180deg,#0c131d,#060a10);border:1px solid rgba(238,243,240,.12);clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+    .cpw-stage-grid{position:relative;z-index:2;display:grid;grid-template-columns:330px minmax(0,1fr);gap:56px;padding:40px 40px 34px;min-height:640px}
+    .cpw-stage-text{min-width:0;display:flex;flex-direction:column;padding-top:18px}
+    .cpw-stage-text > :not(.cpw-plates){max-width:660px}
+    .cpw-prism{margin:0;align-self:start}
+    .cpw-prism-edge{padding:2px;clip-path:polygon(0 0,calc(100% - 46px) 0,100% 46px,100% 100%,46px 100%,0 calc(100% - 46px))}
+    .cpw-prism-in{position:relative;aspect-ratio:330/440;background:#0c131d;display:grid;place-items:center;overflow:hidden;clip-path:polygon(0 0,calc(100% - 45px) 0,100% 45px,100% 100%,45px 100%,0 calc(100% - 45px))}
+    .cpw-prism-in img{position:absolute;inset:0}
+    .cpw-prism-cap{position:absolute;left:0;right:0;bottom:0;padding:44px 22px 22px;background:linear-gradient(0deg,rgba(6,9,15,.97) 0%,rgba(6,9,15,.86) 55%,rgba(6,9,15,0) 100%)}
+    .cpw .cpw-h1{margin-top:12px !important;font-size:max(44px,min(clamp(58px,7.4vw,118px),calc((0.79 * (min(100vw,1440px) - 64px) - 520px) / (var(--cpw-l,8) * 0.76)))) !important;line-height:.86 !important;font-weight:850;font-stretch:125%;letter-spacing:-0.025em !important}
+    .cpw-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:24px}
+    .cpw-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;border:1px solid rgba(238,243,240,.2);border-radius:8px;background:rgba(6,9,15,.86);font-size:14.5px;font-weight:600;color:#eef3f0}
+    .cpw-quote{margin:20px 0 0;font-size:18.5px;line-height:1.5;color:#eef3f0;white-space:pre-line;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(6,9,15,.95),0 0 16px rgba(6,9,15,.9)}
+    .cpw-sample-note{margin:14px 0 0;padding:9px 12px;border-left:2px solid;background:rgba(6,9,15,.78);font-size:13.5px;line-height:1.45;color:rgba(238,243,240,.85)}
+    .cpw-stage-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin-top:10px}
+    .cpw-cta{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 20px;border:0;border-radius:10px;font-family:${CPW_BODY};font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 10px 22px -12px rgba(0,0,0,.8)}
+    .cpw-cta-line{background:rgba(6,9,15,.5);border:1px solid rgba(238,243,240,.28);box-shadow:none}
+    .cpw-textlink{min-height:44px;padding:0;border:0;background:transparent;font-family:${CPW_BODY};font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none;white-space:nowrap}
+    .cpw-plates{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:auto;padding-top:34px}
+    .cpw-stat{padding:16px 16px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+    .cpw-stat-n{font-size:40px}
+    .cpw-stat-l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cpw-stat::after{content:"";display:block;height:6px;background:repeating-linear-gradient(90deg,${cssA(0.55)} 0 2px,transparent 2px 5px)}
+    .cpw-wire{display:flex;align-items:center;gap:22px;margin-top:10px;padding:0 0 0 22px;min-height:52px;border:1px solid rgba(238,243,240,.08);border-radius:14px;background:#070b11;overflow:hidden}
+    .cpw-wire-track{flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 94%,transparent)}
+    .cpw-wire-run{display:inline-flex;gap:46px;padding-right:46px;white-space:nowrap;animation:cpw-wire 46s linear infinite}
+    .cpw-wire:hover .cpw-wire-run,.cpw-wire:focus-within .cpw-wire-run{animation-play-state:paused}
+    .cpw-wire-it{font-size:15px}
+    @keyframes cpw-wire{to{transform:translateX(-50%)}}
+    .cpw-campnav{position:sticky;z-index:20;display:flex;overflow-x:auto;gap:2px;margin-top:18px;padding:0 12px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
+    .cpw-campnav button{flex:none;min-height:46px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-family:${CPW_DOTO};font-weight:700;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-variation-settings:'ROND' 30}
+    .cpw-camps{position:relative;padding:36px 0 24px}
+    .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${drawA(0.1)},${DRAW} 60px,${DRAW} calc(100% - 60px),${drawA(0.1)});box-shadow:0 0 12px ${drawA(0.35)}}
+    .cpw-camp{position:relative;display:grid;grid-template-columns:210px minmax(0,1fr);padding:30px 0 40px}
+    .cpw-camp-mark{position:sticky;top:${headH + 28}px;align-self:start;display:grid;grid-template-columns:50px minmax(0,1fr);column-gap:10px;row-gap:3px;align-items:center}
+    .cpw-diamond{grid-row:1 / 3;justify-self:center;width:22px;height:22px;transform:rotate(45deg);border:2px solid;box-shadow:0 0 14px ${drawA(0.45)}}
+    .cpw-camp-name{font-weight:650;font-size:15.5px;color:#eef3f0}
+    .cpw-camp-label{display:none}
+    .cpw-camp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding-bottom:16px;margin-bottom:24px;border-bottom:1px solid ${cssA(0.32)}}
+    .cpw .cpw-camp-title{margin:0 !important;font-family:${CPW_DISPLAY};font-weight:850;font-stretch:125%;font-size:clamp(34px,4.2vw,58px) !important;line-height:.95 !important;letter-spacing:-0.01em !important;color:#fff}
+    .cpw-camp-lead{margin:10px 0 0;font-size:16px;line-height:1.45}
+    .cpw-card{padding:20px 22px;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+    .cpw-base-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:20px;align-items:start}
+    .cpw-base-one{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;max-width:880px}
+    .cpw-shots{display:flex;gap:14px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+    .cpw-shots::-webkit-scrollbar{display:none}
+    .cpw-shot{flex:0 0 132px;padding:0;border:0;background:transparent;text-align:left;cursor:pointer;font-family:${CPW_BODY}}
+    .cpw-shot-img{display:block;position:relative;height:150px;border:2px solid;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%);overflow:hidden;background:#0c131d}
+    .cpw-shot-img img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .cpw-range{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+    .cpw-range-card{display:flex;flex-direction:column;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-left:3px solid;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%);min-width:0}
+    .cpw-range-art{position:relative;height:168px;overflow:hidden;background:linear-gradient(180deg,#152030,#0a0f17)}
+    .cpw-range-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(.4) brightness(.55)}
+    .cpw-range-art svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:78%}
+    .cpw-range-tag{position:absolute;left:12px;top:12px;padding:4px 8px;border:1px solid;border-radius:5px;background:rgba(6,9,15,.78);font-size:10.5px}
+    .cpw-range-weeks{position:absolute;right:12px;top:10px;padding:4px 9px;border-radius:5px;background:rgba(6,9,15,.78);display:inline-flex;align-items:baseline;gap:5px}
+    .cpw-range-body{display:flex;flex-direction:column;flex:1;padding:16px 18px 18px}
+    .cpw .cpw-range-name{margin:0 !important;font-family:${CPW_DISPLAY};font-size:22px !important;line-height:1.1 !important;font-weight:850;font-stretch:118%;color:#fff;letter-spacing:normal !important}
+    .cpw-range-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:auto;padding-top:18px}
+    .cpw-summit-store [data-work-with-panel] > h2{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    .cpw-summit-store{max-width:640px;padding:22px 24px 26px;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-top:3px solid ${ACC};border-radius:14px}
+    .cpw-dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:900;display:flex;align-items:center;gap:18px;padding:10px 10px 10px 12px;width:min(860px,calc(100vw - 32px));background:rgba(10,15,23,.95);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid ${cssA(0.38)};border-radius:16px;box-shadow:0 20px 50px -18px rgba(0,0,0,.95)}
+    .cpw-dock-who{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
+    .cpw-dock-av{width:44px;height:44px;flex:none;object-fit:cover;background:#152030;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px))}
+    .cpw-dock-cell{display:flex;flex-direction:column;gap:4px;padding-left:18px;border-left:1px solid rgba(238,243,240,.12);white-space:nowrap}
+    .cpw-dock-acts{display:flex;gap:8px;flex:none}
+    /* The floating chat button (globalChatButton.js) keeps its corner above the dock while there is one. */
+    ${docked ? "#shape-global-chat-button{bottom:96px !important}" : ""}
+    /* Today's parts, kept: the grids the camps' bodies draw. */
     .cpw-grab{display:none}
+    .cpw-cards2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 20px}
+    .cpw-quotes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    .cpw-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .cpw-gallery img{height:170px}
     .cpw-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
     .cpw-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
     .cpw-one{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
     /* The site's phone CSS (pageShell.jsx) sizes every h1-h3 and pads every main, section and
        footer with !important; on this page each keeps its own. */
-    .cpw .cpw-h1{font-size:38px !important;line-height:1.05 !important;letter-spacing:normal !important}
     .cpw h2,.cpw-sheet h2,.cpw h3{letter-spacing:normal !important}
     .cpw h2.cpw-s22,.cpw-sheet h2.cpw-s22{font-size:22px !important;line-height:1.15 !important}
     .cpw h2.cpw-s21,.cpw-sheet h2.cpw-s21{font-size:21px !important;line-height:1.15 !important}
-    .cpw-sheet h2.cpw-s26{font-size:26px !important;line-height:1.1 !important}
+    .cpw-sheet h2.cpw-s26{font-size:28px !important;line-height:1.1 !important}
     .cpw h3.cpw-s10{font-size:10px !important;line-height:1.4 !important;letter-spacing:0.14em !important}
     .cpw-wrap main,.cpw-wrap section,.cpw-wrap footer{padding-left:0 !important;padding-right:0 !important}
+    .cpw-camps > section.cpw-camp{padding-top:30px !important;padding-bottom:40px !important}
     .cpw-tabs::-webkit-scrollbar,.cpw-sheet::-webkit-scrollbar,.cpw-quotes::-webkit-scrollbar{display:none;width:0;height:0}
     .cpw-tabs,.cpw-sheet,.cpw-quotes{scrollbar-width:none}
     .cpw button:focus-visible,.cpw a:focus-visible,.cpw-sheet button:focus-visible,.cpw-sheet a:focus-visible{outline:2px solid ${ACC};outline-offset:2px}
+    @media (prefers-reduced-motion: reduce){
+      .cpw-wire-run{animation:none}
+      .cpw-wire-dup{display:none}
+      .cpw-wire-track{overflow-x:auto;-webkit-mask-image:none;mask-image:none;scrollbar-width:none}
+    }
     @media (max-width:999px){
-      .cpw-grid{grid-template-columns:minmax(0,1fr);gap:0}
-      .cpw-rail{display:none}
+      .cpw-stage{min-height:0}
+      .cpw-stage-art{bottom:auto;height:calc(min(0.58 * (100vw - 72px), 250px) * 1.3334 + 34px)}
+      .cpw-stage-shade{background:linear-gradient(0deg,#070b11 0%,rgba(7,11,17,.4) 30%,rgba(7,11,17,.15) 70%,rgba(7,11,17,.4) 100%)}
+      .cpw-bar{gap:8px}
+      .cpw-bar .cpw-pill{padding:0 12px}
+      .cpw-pill.cpw-dtl{white-space:normal;min-height:36px;padding:6px 12px;font-size:10.5px}
+      .cpw-summit-cap{white-space:nowrap;font-size:10px}
+      .cpw-prism-cap{padding:30px 14px 26px 20px}
+      .cpw-prism-cap span{font-size:14px !important}
+      .cpw-prism-cap .cpw-dtl{font-size:10px}
+      .cpw-stage-grid{grid-template-columns:minmax(0,1fr);gap:20px;padding:22px 20px 22px;min-height:0}
+      .cpw-prism{width:min(58%,250px)}
+      .cpw-stage-text{padding-top:0}
+      .cpw-plates{grid-template-columns:repeat(2,minmax(0,1fr));padding-top:24px}
+      .cpw-camps::before{left:7px}
+      .cpw-camp{grid-template-columns:minmax(0,1fr);padding-left:34px}
+      .cpw-camps > section.cpw-camp{padding-top:24px !important;padding-bottom:30px !important;padding-left:34px !important}
+      .cpw-camp-mark{position:absolute;left:0;top:30px;display:block}
+      .cpw-camp-mark .cpw-dtl,.cpw-camp-name{display:none}
+      .cpw-diamond{display:block;width:16px;height:16px}
+      .cpw-camp-label{display:block;margin-bottom:8px}
+      .cpw-camp-head{flex-direction:column;align-items:flex-start;gap:6px}
+      .cpw-base-grid{grid-template-columns:minmax(0,1fr)}
+      .cpw-quotes{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media (max-width:760px){
+      .cpw-dock{left:0;right:0;bottom:0;transform:none;width:100%;border-radius:0;border-left:0;border-right:0;border-bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));gap:12px}
+      .cpw-dock-cell,.cpw-dock-status,.cpw-dock-name{display:none !important}
+      .cpw-dock-msg{padding:0 14px}
+      ${docked ? "#shape-global-chat-button{bottom:calc(84px + env(safe-area-inset-bottom)) !important}" : ""}
+    }
+    @media (max-width:374px){
+      .cpw-dock-who{display:none}
+      .cpw-dock-acts{flex:1;min-width:0}
+      .cpw-dock-acts .cpw-cta{padding:0 12px;white-space:normal;text-align:center;line-height:1.15}
+      .cpw-dock-acts .cpw-cta:last-child{flex:1;min-width:0}
     }
     @media (max-width:640px){
-      .cpw-wrap{padding:0 20px}
-      .cpw-wall{height:200px}
-      .cpw-av{width:104px;height:104px;top:-52px}
-      .cpw-who-name{margin-left:118px;min-height:56px}
-      .cpw .cpw-h1{font-size:26px !important}
+      .cpw-wrap{padding:0 16px}
+      .cpw-crumb-more,.cpw-counts{display:none !important}
+      .cpw-stage{border-radius:18px}
+      .cpw .cpw-h1{font-size:max(30px,min(clamp(44px,14vw,66px),calc((100vw - 72px) / (var(--cpw-l,8) * 0.7)))) !important;font-stretch:118%}
+      .cpw-quote{font-size:16.5px}
+      .cpw-stat{padding:12px 12px 10px}
+      .cpw-stat-n{font-size:30px}
+      .cpw-summit-plate{padding:10px 12px 9px}
+      .cpw-pin .cpw-dtl{display:none}
       .cpw-days{gap:4px}
-      .cpw-cta-row button{font-size:14px !important;padding:0 6px !important}
       .cpw-cards2{grid-template-columns:minmax(0,1fr)}
-      .cpw-quotes{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:20px;margin:0 -20px;padding:0 20px 4px}
+      .cpw-quotes{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scroll-padding-left:16px;margin:0 -16px;padding:0 16px 4px}
       .cpw-quotes > figure{flex:0 0 82%;scroll-snap-align:start}
       .cpw-gallery img{height:96px}
+      .cpw-range{grid-template-columns:minmax(0,1fr)}
       .cpw-scrim{align-items:flex-end !important}
       .cpw-sheet{width:100% !important;max-height:88vh !important;border-radius:22px 22px 0 0}
       .cpw-grab{display:block}
@@ -687,47 +1384,86 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   `}</style>
       {chrome && typeof Header !== "undefined" ? <Header /> : null}
 
-      {/* The wall: their photo, or their colour until they add one */}
-      <div className="cpw-wall" data-wall="" style={{ position: "relative", overflow: "hidden", background: wall ? "#111" : `linear-gradient(135deg, ${cpwA(ACC, 0.42)}, ${pal.PAPER2} 70%)` }}>
-        {wall ? <img src={wall} alt={`${first}'s wall photo`} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: CPW_FOCUS[look.focus] || CPW_FOCUS.center }} /> : null}
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)" }} />
-        {isSelf && !wall && canEdit ? (
-          <div className="cpw-wrap" style={{ position: "relative", height: "100%" }}>
-            <button type="button" onClick={() => setEditing(true)} style={{ position: "absolute", right: 32, bottom: 16, minHeight: 38, padding: "0 14px", border: "1px solid rgba(255,255,255,0.6)", background: "rgba(0,0,0,0.3)", color: "#fff", fontFamily: CPW_DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>＋ Add a wall photo</button>
-          </div>
-        ) : null}
-      </div>
-
       <div className="cpw-wrap">
-        <div className="cpw-grid">
-          <main style={{ minWidth: 0 }}>
-            {/* The avatar over the wall's edge, and who they are */}
-            <section data-who="" style={{ position: "relative" }}>
-              <div className="cpw-av" style={{ position: "absolute", left: 0 }}>
-                <div style={{ width: "100%", height: "100%", borderRadius: 99, border: `4px solid ${pal.PAPER}`, background: pal.PAPER2, overflow: "hidden", display: "grid", placeItems: "center" }}>
-                  {avatarShown ? <img src={avatarShown} alt="" onError={() => setBrokenAvatar(avatarShown)} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 25%" }} /> : <span data-initials="" style={{ fontFamily: CPW_DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{cpwInitials(name)}</span>}
-                </div>
-              </div>
-              <div className="cpw-who-name" style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
-                <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 600, lineHeight: 1.05, color: INK, overflowWrap: "anywhere" }}>{name}<span style={{ color: ACC }}>.</span></h1>
-                <span style={{ fontSize: 14, color: ink(0.74) }}>{roleLine}</span>
-                {where ? <span style={{ fontSize: 13, color: ink(0.64) }}>{where}</span> : null}
-              </div>
+        {/* ← Coaches · discipline · city, whether they take new clients, Follow and Share */}
+        <div className="cpw-bar" data-crumbs="">
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", minWidth: 0 }}>
+            {chrome ? (
+              <a href="/newdesign/Coaches.html" data-crumb="" className="cpw-pill" style={{ color: INK }}>
+                <span aria-hidden="true">←</span>&nbsp;<b style={{ fontWeight: 600 }}>Coaches</b>
+                <span className="cpw-crumb-more" style={{ color: ink(0.7), fontSize: 12.5 }}>&nbsp;· {[discipline, where].filter(Boolean).join(" · ")}</span>
+              </a>
+            ) : null}
+            {statusSaid ? <span data-status="" className="cpw-pill cpw-dtl" style={{ color: atCapacity ? pal.RUST : ACC, borderColor: cpwA(atCapacity ? pal.RUST : ACC, 0.45) }}>{statusSaid}</span> : null}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {live && follow ? (
+              <span data-follow-counts="" className="cpw-dtl cpw-counts" style={{ display: "inline-flex", alignItems: "center", color: ink(0.72) }}>
+                {[["followers", follow.followers, "followers"], ["following", follow.following, "following"]].map(([k, n, label]) => (
+                  <button key={k} type="button" onClick={() => follow.openList && follow.openList(k)} style={{ minHeight: 44, padding: "0 6px", border: 0, background: "transparent", color: "inherit", font: "inherit", letterSpacing: "inherit", textTransform: "inherit", cursor: "pointer" }}>
+                    <span style={{ color: INK }}>{Number(n) || 0}</span> {label}
+                  </button>
+                ))}
+                {isSelf && follow.requests > 0 ? <button type="button" onClick={() => follow.openRequests && follow.openRequests()} style={{ minHeight: 44, padding: "0 10px", border: 0, background: ACC, color: ON_ACC, font: "inherit", letterSpacing: "inherit", cursor: "pointer" }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button> : null}
+              </span>
+            ) : null}
+            {canFollow ? (
+              <button type="button" data-follow="" onClick={onFollow} aria-pressed={followOn} className="cpw-pill" style={{ color: followOn ? ACC : INK, borderColor: followOn ? ACC : ink(0.2) }}>
+                <span aria-hidden="true">{follow.isFollowing ? "✓" : follow.isPending ? "…" : "♡"}</span>&nbsp;{follow.isFollowing ? "Following" : follow.isPending ? "Requested" : "Follow"}
+              </button>
+            ) : null}
+            {!isPrivate && shareUrl ? <button type="button" data-share="" onClick={share} className="cpw-pill" style={{ color: INK }}><span aria-hidden="true">↗</span>&nbsp;Share</button> : null}
+            <span role="status" aria-live="polite" className="cpw-dtl" style={{ color: ACC }}>{shared}</span>
+          </div>
+        </div>
+
+        {/* ── The first screen: the stage ── */}
+        <section className="cpw-stage" data-who="" aria-label={name}>
+          {/* The art: their photo, darkened, under the terrain. The whole stage on a desktop; on a phone the
+              top of it, where the portrait and the summit are (the name and plates run on below it). */}
+          <div className="cpw-stage-art">
+          <div aria-hidden="true" className="cpw-stage-photo">
+            {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: CPW_FOCUS[look.focus] || CPW_FOCUS.center }} /> : null}
+          </div>
+          <div aria-hidden="true" className="cpw-stage-shade" />
+          <CpwTerrain ACC={DRAW} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />
+          {/* The summit: the rating, from the reviews, and how many. None while unread or on a failed read. */}
+          {!isPrivate && (reviews.count > 0 || (!reviews.unread && !reviews.failed)) ? (
+            <button type="button" data-summit="" className="cpw-summit" onClick={() => setSheet({ kind: "reviews" })}
+              aria-label={ratingShown ? `Rated ${ratingShown} out of 10 from ${reviews.count} ${reviews.count === 1 ? "review" : "reviews"}` : "New on Shape: no reviews yet"}
+              style={{ left: `${(wide ? 0.79 : 0.8) * 100}%`, top: `${(wide ? 0.44 : 0.42) * 100}%` }}>
+              <span className="cpw-plate cpw-summit-plate" data-summit-ring="" style={{ borderColor: cpwA(DRAW, 0.55) }}>
+                {ratingShown ? <React.Fragment><span className="cpw-doto" style={{ fontSize: wide ? 46 : 36 }}>{ratingShown}</span><span style={{ fontSize: 14, color: ink(0.8), marginLeft: 4 }}>/10</span></React.Fragment>
+                  : <span className="cpw-doto" style={{ fontSize: wide ? 30 : 24 }}>New</span>}
+              </span>
+              <span className="cpw-dtl cpw-summit-cap" style={{ color: ACC }}>{ratingShown ? `Rating · ${reviews.count.toLocaleString()} ${reviews.count === 1 ? "review" : "reviews"}` : "No reviews yet"}</span>
+            </button>
+          ) : null}
+          </div>
+
+          <div className="cpw-stage-grid">
+            <CpwPrism T={T} src={avatarShown} onError={() => setBrokenAvatar(avatarShown)} initials={cpwInitials(name)}
+              eyebrow={["Base camp", where || null].filter(Boolean).join(" · ")} line={years ? `Coaching for ${years} ${years === 1 ? "year" : "years"}` : (tier ? `${tier} coach` : roleLine)} />
+            <div className="cpw-stage-text">
+              <span className="cpw-dtl cpw-eyebrow" style={{ color: ACC }}>{[roleLine, where].filter(Boolean).join(" · ")}</span>
+              <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "#fff", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span data-name-stop="" style={{ color: DRAW }}>.</span></span></h1>
               {isPrivate ? (
-                <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.74) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
+                <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
               ) : (
                 <React.Fragment>
-                  {bio ? <p data-bio="" style={{ margin: "16px 0 0", fontSize: 16, lineHeight: 1.55, color: INK, maxWidth: 680, whiteSpace: "pre-line" }}>{bio}</p>
-                    : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.6) }}>Add a line about how you coach in Settings → Edit profile.</p> : null}
-                  <button type="button" data-verified-line="" onClick={() => setSheet({ kind: "reviews" })} style={{ display: "block", margin: "9px 0 0", padding: 0, border: 0, background: "transparent", textAlign: "left", fontFamily: CPW_BODY, fontSize: 13, color: ink(0.64), cursor: "pointer" }}>
-                    {verified ? <span style={{ color: ACC }}>✓ </span> : null}
-                    {[verified ? `Verified ${tier} coach` : tier, ratingBit].filter(Boolean).join(" · ")}
-                  </button>
+                  <div data-chips="" className="cpw-chips">
+                    {verified ? <span data-chip="verified" className="cpw-chip" style={{ color: ACC, borderColor: cpwA(ACC, 0.55), background: cpwA(ACC, 0.1) }}><CpwCheck color={ACC} />Verified by Shape</span> : null}
+                    {tier ? <span data-chip="tier" className="cpw-chip"><svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M5 0L10 5L5 10L0 5Z" fill="#d8a23a" /></svg>{tier}</span> : null}
+                    {howSaid ? <span data-chip="how" className="cpw-chip">{howSaid}</span> : null}
+                    {pronounsSaid ? <span data-chip="pronouns" className="cpw-chip">{pronounsSaid}</span> : null}
+                  </div>
+                  {bio ? <p data-bio="" className="cpw-quote">“{bio}”</p>
+                    : isSelf ? <p style={{ margin: "16px 0 0", fontSize: 14, color: ink(0.7) }}>Add a line about how you coach in Settings → Edit profile.</p> : null}
                   {headSocials.length ? (
-                    <div data-head-socials="" role="group" aria-label={`Find ${first} online`} style={{ display: "flex", flexWrap: "wrap", margin: "4px 0 0 -12px" }}>
+                    <div data-head-socials="" role="group" aria-label={`Find ${first} online`} style={{ display: "flex", flexWrap: "wrap", margin: "6px 0 0 -12px" }}>
                       {headSocials.map(([k, href]) => (
                         <a key={k} data-head-social={k} href={href} target="_blank" rel="noopener noreferrer" aria-label={`${CPW_LINK_NAMES[k] || k} ${K.bsProfileLinkText(k, aboutLinks[k])}`}
-                          style={{ width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", color: ink(0.78) }}>
+                          style={{ width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", color: ink(0.82) }}>
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             {K.BS_PROFILE_LINK_GLYPHS[k].map((d, i) => <path key={i} d={d} />)}
                           </svg>
@@ -735,146 +1471,88 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                       ))}
                     </div>
                   ) : null}
-                  {/* The headline stats the coach picked (Make it yours → Spotlight): up to three of the
-                      figures this page already has, ruled as one row, each only when there is a figure. Its
-                      columns are auto columns, not a template: the site's phone CSS (pageShell.jsx) turns
-                      every inline "repeat(n" template into one column. */}
-                  {headline.length ? (
-                    <div data-coach-stats="" role="list" aria-label="Headline stats" style={{ margin: "14px 0 0", maxWidth: 560, display: "grid", gridAutoFlow: "column", gridAutoColumns: "minmax(0, 1fr)", borderTop: `1px solid ${ink(0.14)}`, borderBottom: `1px solid ${ink(0.14)}` }}>
-                      {headline.map((s, i) => (
-                        <div key={s.key} role="listitem" data-coach-stat={s.key} style={{ minWidth: 0, padding: `10px 10px 11px ${i ? 14 : 0}px`, borderLeft: i ? `1px solid ${ink(0.14)}` : 0 }}>
-                          <div style={{ fontFamily: CPW_DISPLAY, fontSize: 24, fontWeight: 600, lineHeight: 1.05, color: INK, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                            {s.key === "rating" ? Number(s.value).toFixed(1) : Number(s.value).toLocaleString()}{s.key === "rating" ? <span style={{ fontFamily: CPW_MONO, fontSize: 11.5, fontWeight: 500, color: ink(0.55) }}>/10</span> : null}
-                          </div>
-                          <div style={{ marginTop: 4, fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.62), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{CPW_STAT_WORDS[s.key]}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  {sample && !demo ? <p data-sample-note="" style={{ margin: "12px 0 0", padding: "9px 12px", borderLeft: `2px solid ${ACC}`, background: pal.PAPER2, fontSize: 13, lineHeight: 1.45, color: ink(0.74), maxWidth: 680 }}>{nutri
+                  {sample && !demo ? <p data-sample-note="" className="cpw-sample-note" style={{ borderLeftColor: ACC }}>{nutri
                     ? `${first} hasn't set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.`
                     : `${first} hasn't set up a Shape account yet, so the studio, replays, reviews and times here are samples.`}</p> : null}
-                  {isSelf && points != null ? <a href={scoreHref} style={{ display: "inline-block", marginTop: 4, minHeight: 32, lineHeight: "32px", fontFamily: CPW_MONO, fontSize: 11, letterSpacing: "0.06em", color: ink(0.7), textDecoration: "none" }}>Shape Score {points.toLocaleString()} ›</a> : null}
+                  {isSelf ? (
+                    <div className="cpw-stage-actions">
+                      {canEdit ? <button type="button" data-edit-profile="" onClick={() => setEditing(true)} className="cpw-cta" style={{ background: ACC, color: ON_ACC }}>Edit profile</button> : null}
+                      <a href={hoursHref} className="cpw-cta cpw-cta-line" style={{ color: INK }}>Your hours</a>
+                      {points != null ? <a href={scoreHref} className="cpw-dtl" style={{ alignSelf: "center", color: ink(0.78), textDecoration: "none", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Shape Score {points.toLocaleString()} ›</a> : null}
+                    </div>
+                  ) : null}
+                  {isSelf ? <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.45, color: ink(0.7), maxWidth: 560 }}>Your wall photo, spotlight, studio or kitchen and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
                 </React.Fragment>
               )}
-              {/* Followers and following stay public, even on a private profile; each opens its list. */}
-              {live && follow ? (
-                <div data-follow-counts="" style={{ marginTop: 8, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", fontFamily: CPW_MONO, fontSize: 11, letterSpacing: "0.06em", color: ink(0.6) }}>
-                  {[["followers", follow.followers, "followers"], ["following", follow.following, "following"]].map(([k, n, label]) => (
-                    <button key={k} type="button" onClick={() => follow.openList && follow.openList(k)} style={{ minHeight: 32, padding: 0, border: 0, background: "transparent", color: "inherit", fontFamily: "inherit", fontSize: "inherit", letterSpacing: "inherit", cursor: "pointer" }}>
-                      <span style={{ color: INK, fontWeight: 600 }}>{Number(n) || 0}</span> {label}
-                    </button>
+              {!isPrivate && (plateStats.length || openThisWeek != null) ? (
+                <div data-coach-stats="" role="list" aria-label="Headline stats" className="cpw-plates">
+                  {plateStats.map((s) => (
+                    <div key={s.key} role="listitem" data-coach-stat={s.key} className="cpw-plate cpw-stat">
+                      <span className="cpw-doto cpw-stat-n">{s.key === "rating" ? Number(s.value).toFixed(1) : Number(s.value).toLocaleString()}</span>
+                      <span className="cpw-dtl cpw-stat-l" style={{ color: ink(0.72) }}>{CPW_STAT_WORDS[s.key]}</span>
+                    </div>
                   ))}
-                  {isSelf && follow.requests > 0 ? <button type="button" onClick={() => follow.openRequests && follow.openRequests()} style={{ minHeight: 30, padding: "0 10px", border: 0, background: ACC, color: ON_ACC, fontFamily: CPW_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{follow.requests} request{follow.requests === 1 ? "" : "s"}</button> : null}
+                  {openThisWeek != null && !isPrivate ? (
+                    <div role="listitem" data-coach-stat="open" className="cpw-plate cpw-stat" style={{ borderColor: cpwA(ACC, 0.6) }}>
+                      <span className="cpw-doto cpw-stat-n" style={{ color: introClosed ? pal.RUST : ACC }}>{introClosed ? "Full" : openThisWeek}</span>
+                      <span className="cpw-dtl cpw-stat-l" style={{ color: ink(0.72) }}>{introClosed ? "Waiting list open" : avail.sample ? "Sample times" : "Open this week"}</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
-              <div className="cpw-cta-row" style={{ marginTop: 16, display: "flex", gap: 8, maxWidth: 560 }}>
-                {isSelf ? (
-                  <React.Fragment>
-                    {canEdit ? <button type="button" data-edit-profile="" onClick={() => setEditing(true)} style={{ flex: 1.2, minHeight: 48, border: 0, background: ACC, color: ON_ACC, fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Edit profile</button> : null}
-                    <a href={hoursHref} style={{ flex: 1, minHeight: 48, border: `1px solid ${ink(0.22)}`, color: INK, fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, display: "grid", placeItems: "center", textDecoration: "none" }}>Your hours</a>
-                  </React.Fragment>
-                ) : (
-                  <React.Fragment>
-                    <button type="button" data-message="" onClick={message} style={{ flex: 1.2, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 48, border: 0, background: ACC, color: ON_ACC, fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Message {first}</button>
-                    {!isPrivate ? <button type="button" data-work-with="" onClick={openWork} style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 48, border: `1px solid ${ink(0.22)}`, background: "transparent", color: INK, fontFamily: CPW_DISPLAY, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>{words.work}</button> : null}
-                    {canFollow ? (
-                      <button type="button" data-follow="" onClick={onFollow} aria-pressed={followOn} aria-label={follow.isFollowing ? "Following" : follow.isPending ? "Requested" : "Follow"} title={follow.isFollowing ? "Following" : follow.isPending ? "Requested" : "Follow"}
-                        style={{ width: 48, minHeight: 48, border: `1px solid ${followOn ? ACC : ink(0.22)}`, background: follow.isFollowing ? cpwA(ACC, 0.16) : "transparent", color: followOn ? ACC : INK, fontSize: 18, cursor: "pointer" }}>{follow.isFollowing ? "✓" : follow.isPending ? "…" : "＋"}</button>
-                    ) : null}
-                  </React.Fragment>
-                )}
-              </div>
-              {isSelf ? <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.45, color: ink(0.58), maxWidth: 560 }}>Your colours, wall photo, studio or kitchen, spotlight and About me are set in the Shape app, in Make it yours. Members see them here.</p> : null}
-            </section>
+            </div>
+          </div>
+        </section>
+        <CpwWire items={wire} T={T} />
+      </div>
 
-            {/* The spotlight (Make it yours → Spotlight): the highlight the coach pinned, set as About me's
-                answers are, then their intro film. */}
-            {highlight || film ? (
-              <div data-coach-spotlight="" style={{ marginTop: 24, maxWidth: 720 }}>
-                {highlight ? (
-                  <div data-coach-highlight="" style={{ padding: "13px 16px 14px", background: pal.PAPER2, borderLeft: `3px solid ${ACC}` }}>
-                    <div style={{ fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: ink(0.66) }}>
-                      <span aria-hidden="true" style={{ color: ACC }}>★ </span>Pinned · {K.bsPinKindLabel(highlight.kind) || "Highlight"}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginTop: 6 }}>
-                      <p style={{ flex: 1, minWidth: 0, margin: 0, fontFamily: CPW_DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.25, color: INK, overflowWrap: "anywhere" }}>{highlight.title}</p>
-                      {highlight.metric ? <span data-coach-highlight-metric="" style={{ flex: "none", maxWidth: "45%", fontFamily: CPW_DISPLAY, fontSize: 20, fontWeight: 600, lineHeight: 1.25, color: ACC, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere", textAlign: "right" }}>{highlight.metric}</span> : null}
-                    </div>
-                    {highlight.note ? <p style={{ margin: "5px 0 0", fontSize: 15, lineHeight: 1.45, color: ink(0.74), overflowWrap: "anywhere" }}>{highlight.note}</p> : null}
+      {/* ── The spine: the camps, one after another; on a phone their names pin as a row ── */}
+      {!wide && camps.length > 1 ? (
+        <nav ref={campNavRef} aria-label="Profile sections" className="cpw-tabs cpw-campnav" data-camp-nav="" style={{ top: headH }}>
+          {camps.map((c) => (
+            <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => toCamp(c.key)}
+              style={{ color: campOn === c.key ? ACC : ink(0.72), boxShadow: campOn === c.key ? `inset 0 -2px 0 ${ACC}` : "none" }}>{c.name}</button>
+          ))}
+        </nav>
+      ) : null}
+      <div className="cpw-wrap">
+        <main className="cpw-camps" style={{ minWidth: 0 }}>
+          {camps.map((c) => (
+            <section key={c.key} ref={(el) => { campRefs.current[c.key] = el; }} data-camp={c.key} id={`camp-${c.key}`} aria-labelledby={`camp-h-${c.key}`} className="cpw-camp" style={{ scrollMarginTop: headH + (wide ? 16 : 60) }}>
+              <div className="cpw-camp-mark" aria-hidden="true">
+                <span className="cpw-diamond" style={{ borderColor: campOn === c.key ? DRAW : cpwA(DRAW, 0.7), background: campOn === c.key ? cpwA(DRAW, 0.25) : pal.PAPER_BG }} />
+                <span className="cpw-dtl" style={{ color: ACC }}>{c.label}</span>
+                <span className="cpw-camp-name">{c.spine}</span>
+              </div>
+              <div className="cpw-camp-body">
+                <div className="cpw-camp-head">
+                  <div style={{ minWidth: 0 }}>
+                    <span className="cpw-dtl cpw-camp-label" style={{ color: ACC }}>{c.label} · {c.spine}</span>
+                    <h2 id={`camp-h-${c.key}`} className="cpw-camp-title">{campTitle[c.key]}<span data-camp-stop="" style={{ color: DRAW }}>.</span></h2>
+                    {campLead[c.key] ? <p className="cpw-camp-lead" style={{ color: ink(0.78) }}>{campLead[c.key]}</p> : null}
                   </div>
-                ) : null}
-                {film ? (
-                  <figure data-coach-film="" style={{ margin: highlight ? "20px 0 0" : 0 }}>
-                    <span style={cpwEyebrow(ink)}>Intro film</span>
-                    <div style={{ marginTop: 8, background: "#000", overflow: "hidden" }}>
-                      <video src={`${film.url}#t=0.1`} controls playsInline preload="metadata" aria-label="Intro film" style={{ display: "block", width: "100%", maxHeight: 460, background: "#000" }} />
-                    </div>
-                    {film.caption ? <figcaption style={{ marginTop: 8, fontSize: 14, lineHeight: 1.4, color: ink(0.74), overflowWrap: "anywhere" }}>{film.caption}</figcaption> : null}
-                  </figure>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* Tabs */}
-            {!isPrivate ? (
-              <React.Fragment>
-                <nav ref={tabsRef} aria-label="Profile sections" className="cpw-tabs" style={{ position: "sticky", top: headH, zIndex: 20, marginTop: 24, background: pal.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: "flex", overflowX: "auto", scrollMarginTop: headH }}>
-                  {tabs.map(([k, label]) => {
-                    const on = k === tabNow;
-                    return (
-                      <button key={k} type="button" aria-pressed={on} data-profile-tab={k} title={label} onClick={(e) => { setTab(k); try { e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" }); } catch (err) {} }}
-                        style={{ flex: wide ? "0 0 auto" : "1 0 auto", minHeight: 50, padding: wide ? "0 18px" : (tabs.length > 3 ? "0 6px" : "0 10px"), border: 0, borderBottom: `2px solid ${on ? ACC : "transparent"}`, marginBottom: -1, background: "transparent", color: on ? INK : ink(0.55), fontFamily: CPW_DISPLAY, fontWeight: on ? 600 : 400, fontSize: wide ? 15.5 : (tabs.length > 3 ? 13.5 : 15), whiteSpace: "nowrap", cursor: "pointer" }}>{label}</button>
-                    );
-                  })}
-                </nav>
-                <div data-tab-body={tabNow} style={{ paddingBottom: 30 }}>
-                  {tabNow === "day" ? (
-                    <CpwDayTab T={T} K={K} avail={avail} listingState={live ? listing.state : (sample ? "ready" : "none")} introClosed={introClosed} hoursHref={hoursHref}
-                      onRetry={() => (listing.state === "error" ? setListingEpoch : setWeekEpoch)((n) => n + 1)} bookHref={providerId ? bookHref : null} onWork={openWork} />
-                  ) : tabNow === "about" ? (
-                    <CpwAboutTab T={T} K={K} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={credList} gallery={nutri || isPrivate ? [] : gallery} onEdit={canEdit ? () => setEditing(true) : null}
-                      biz={biz} song={songEmbed ? { label: song.label, embed: songEmbed } : null} />
-                  ) : tabNow === "studio" ? (
-                    <CpwStudioTab T={T} model={studioModel} heat={cpwStudioHeat(pal, look.accent, ACC)} stickyTop={headH + 51} failed={workFailed} onRetry={retryWork}
-                      onProgram={(pr) => { if (pr) setSheet({ kind: "program", pr }); }} onVideo={(v) => { if (v) setSheet({ kind: "replay", r: v, i: 0 }); }}
-                      onWork={openWork} onMessage={isPrivate || isSelf ? null : message} />
-                  ) : tabNow === "kitchen" ? (
-                    <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />
-                  ) : tabNow === "plates" ? (
-                    <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />
-                  ) : tabNow === "replays" ? (
-                    <CpwReplaysTab T={T} replays={replays} failed={postsFailed} onRetry={posts.retry} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />
-                  ) : (
-                    <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />
-                  )}
+                  {c.key === "base" && postCount && camps.some((x) => x.key === "posts") ? (
+                    <button type="button" data-all-posts="" onClick={() => toCamp("posts")} className="cpw-textlink" style={{ color: pal.CTA_TEXT }}>
+                      All {postCount >= 40 ? "40+" : postCount} {postCount === 1 ? "post" : "posts"} →
+                    </button>
+                  ) : null}
                 </div>
-              </React.Fragment>
-            ) : null}
-
-            {/* What clients say: the reviews on the page itself, shown on a private profile too (they
-                are the readers', not the coach's to hide). A reader who isn't a member gets the rating
-                and the way in. At the foot of the page, after the tabs (owner, 2026-10-30). */}
-            <CpwReviewsStrip T={T} quotes={quotes} revLocked={revLocked} ratingBit={ratingBit} failed={!!reviews.failed} onRetry={cm.retryReviews} onAll={() => setSheet({ kind: "reviews" })} />
-
-            <footer data-credential="" style={{ padding: "10px 0 40px", fontFamily: CPW_MONO, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: ink(0.5) }}>
-              {[L && L.credential, verified ? "Checked by Shape" : null].filter(Boolean).join(" · ")}
-            </footer>
-          </main>
-
-          {/* Work with, beside the page on a desktop */}
-          {wide && !isPrivate ? (
-            <aside className="cpw-rail" aria-label={words.work}>
-              <div ref={railRef} data-work-rail="" style={{ position: "sticky", top: headH + 20, marginTop: 28, padding: "18px 22px 24px", background: pal.PAPER2, borderTop: `3px solid ${ACC}`, maxHeight: `calc(100vh - ${headH + 40}px)`, overflowY: "auto", scrollbarWidth: "none" }}>
-                {workWith}
+                {campBody(c.key)}
               </div>
-            </aside>
-          ) : null}
-        </div>
+            </section>
+          ))}
+        </main>
       </div>
 
       {belowContent}
       {chrome && typeof Footer !== "undefined" ? <Footer /> : null}
+
+      {/* ── The booking console, docked at the foot of the window ── */}
+      {docked ? (
+        <CpwDock T={T} avatar={avatarShown} status={isPrivate ? "" : atCapacity ? "Full · waiting list" : (listed && !sample ? "Taking new clients" : sample ? "Sample profile" : "")}
+          introMin={weekReady && !sample && !isPrivate ? avail.introMin : null} next={nextOpen && !isPrivate ? whenSaid(nextOpen.ms) : null}
+          book={dockBook} onMessage={message} onWork={isPrivate ? null : openWork} />
+      ) : null}
 
       {/* ── Sheets ── */}
       {sheet && sheet.kind === "work" ? (
@@ -886,7 +1564,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
         <CpwReviewsSheet T={T} reviews={reviews} revLocked={revLocked} ratingBit={ratingBit} cm={cm} canReview={live && !isSelf} onClose={() => setSheet(null)} />
       ) : null}
       {sheet && sheet.kind === "program" ? (
-        <CpwProgramSheet T={T} pr={sheet.pr} sells={listed} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }}
+        <CpwProgramSheet T={T} pr={sheet.pr} sells={listed} onClose={() => setSheet(null)} onWork={() => { setSheet(null); openWork(); }} onAsk={isSelf ? null : () => { setSheet(null); message(); }}
           item={studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null}
           days={studioModel ? studioModel.workouts.filter((w) => w.kind === "day" && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, "en", { numeric: true })) : []}
           onBuy={() => { const pl = sheet.pr.plan || {}; lvBuyPlan({ name: pl.name, price: sheet.pr.price, planId: pl.id, providerId: pl.provider_id || pl.providerId || providerId, providerRole: pl.provider_role || pl.providerRole || role }); }} />
@@ -917,7 +1595,7 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
   const perks = offer && Array.isArray(offer.includes) ? offer.includes.filter((x) => typeof x === "string" && x.trim()).slice(0, 3) : [];
   const blurb = offer && typeof offer.blurb === "string" && offer.blurb.trim() ? offer.blurb.trim() : "";
   const cta = { minHeight: 46, border: 0, cursor: "pointer", fontFamily: CPW_MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", display: "grid", placeItems: "center", textDecoration: "none", boxSizing: "border-box" };
-  const ctaInk = { ...cta, background: INK, color: pal.PAPER };
+  const ctaInk = { ...cta, background: T.CTA || INK, color: T.ON_CTA || pal.PAPER };
   const ctaLine = { ...cta, border: `1px solid ${INK}`, background: "transparent", color: INK };
   const block = { marginTop: 20, paddingTop: 12, borderTop: `3px solid ${INK}` };
   const Kick = ({ children, col }) => <span style={{ fontFamily: CPW_MONO, fontSize: 9.5, letterSpacing: "0.18em", textTransform: "uppercase", color: col || ink(0.5), fontWeight: 600 }}>{children}</span>;
@@ -1253,7 +1931,11 @@ function CpwDayTab({ T, K, avail, listingState, introClosed, hoursHref, onRetry,
 // ── About me ─────────────────────────────────────────────────────────────────────────────────
 // `biz`: the practice's card (bsProfileBizCard), after the facts. `song`: { label, embed }, the profile
 // song's player after the coach's answers. As the app's About me draws them.
-function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit, biz = null, song = null }) {
+// `part`: "about" (who they are: story, facts, answers, credentials, lists, song) or "find" (Find me:
+// the practice, the socials and where they coach), the Climb's two camps; all of it without one.
+function CpwAboutTab({ T, K, about, prompts, links: linksIn, certs, gallery = [], onEdit, biz: bizIn = null, song = null, part = null }) {
+  const links = part === "about" ? null : linksIn;
+  const biz = part === "about" ? null : bizIn;
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const how = !about || !about.how ? null : about.how === "online" ? "Coaches online" : about.how === "in_person" ? "Coaches in person" : "Coaches online and in person";
   const facts = about ? [
@@ -1362,8 +2044,10 @@ function CpwAboutTab({ T, K, about, prompts, links, certs, gallery = [], onEdit,
       ) : null}
       {isSelf ? (
         <React.Fragment>
-          {!sections.length ? <CpwHint ink={ink}>Tell members who you are: your story, how you coach, and where to find you. Write About me in the Shape app, in Make it yours.</CpwHint> : null}
-          {onEdit ? <button type="button" onClick={onEdit} style={{ ...cpwLink(ACC), marginTop: 16 }}>Edit your questions and links →</button> : null}
+          {!sections.length && !gallery.length ? <CpwHint ink={ink}>{part === "find"
+            ? "Tell members where to find you: your practice's card and your socials, in the Shape app (Make it yours → About me)."
+            : "Tell members who you are: your story, how you coach, your credentials. Write About me in the Shape app, in Make it yours."}</CpwHint> : null}
+          {onEdit ? <button type="button" onClick={onEdit} style={{ ...cpwLink(ACC), marginTop: 16 }}>{part === "find" ? "Edit your links →" : "Edit your story and questions →"}</button> : null}
         </React.Fragment>
       ) : null}
     </section>
@@ -1445,7 +2129,9 @@ function CpwGallery({ gallery, top = 20 }) {
     </div>
   );
 }
-function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, onProgram, onVideo, onWork, onMessage }) {
+// `parts`: the sections drawn. In the Climb the programs are the range's cards (CpwRange), so the camp
+// draws the workouts and the coaching under them, without the jump line.
+function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, onProgram, onVideo, onWork, onMessage, parts = ["programs", "workouts", "coaching"] }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const ON_INK = pal.isLight ? "#f6f0e3" : "#13110d";
   const glass = cpwStudioGlass(pal);
@@ -1478,12 +2164,12 @@ function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, 
   );
   return (
     <section data-studio-work="" style={{ position: "relative", padding: "16px 0 10px", isolation: "isolate" }}>
-      <CpwStudioMesh pal={pal} heat={heat} />
+      {parts.length === 3 ? <CpwStudioMesh pal={pal} heat={heat} /> : null}
       <div style={{ position: "relative", zIndex: 1 }}>
         {failed ? <CpwReadFailed ink={ink} ACC={ACC} tag="work" what={isSelf ? "Couldn't read all of your work just now." : `Couldn't read all of ${first}'s work just now.`} onRetry={onRetry} /> : null}
         {isSelf ? <CpwHint ink={ink}>Write a line about each program, workout and your coaching, say who each program is for, and pick two workouts to start members on, in the Shape app (Make it yours → Programs and About me).</CpwHint> : null}
 
-        <div data-studio-jump="" style={{ ...glass, marginTop: 12, padding: "8px 12px" }}>
+        {parts.length === 3 ? <div data-studio-jump="" style={{ ...glass, marginTop: 12, padding: "8px 12px" }}>
           <CpwGlassEdge pal={pal} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
             {counts.map(([k, n, label], i) => (
@@ -1494,9 +2180,9 @@ function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, 
               </button>
             ))}
           </div>
-        </div>
+        </div> : null}
 
-        {progs.length || isSelf ? (
+        {parts.includes("programs") && (progs.length || isSelf) ? (
           <div data-studio-programs="">
             {head("programs", "Programs", progs.length, "Plans that run for weeks. Buy once, yours to keep.")}
             {progs.length ? (
@@ -1534,7 +2220,7 @@ function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, 
           </div>
         ) : null}
 
-        {works.length || isSelf ? (
+        {parts.includes("workouts") && (works.length || isSelf) ? (
           <div data-studio-workouts="">
             {head("workouts", "Workouts", works.length, `One session each: program days and ${first}'s videos.`)}
             {model.foci.length > 1 || (model.foci.length === 1 && model.foci[0][1] < works.length) ? (
@@ -1607,7 +2293,7 @@ function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, 
           </div>
         ) : null}
 
-        {coaching || isSelf ? (
+        {parts.includes("coaching") && (coaching || isSelf) ? (
           <div data-studio-coaching="">
             {head("coaching", "Coaching", coaching ? 1 : 0, "Written for you, changed as you go. Paid monthly.")}
             {coaching ? (
@@ -1629,7 +2315,7 @@ function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, 
                 ) : null}
                 {!isSelf ? (
                   <div style={{ display: "grid", gridTemplateColumns: onMessage ? "1fr 1fr" : "1fr", gap: 8, marginTop: 16 }}>
-                    <button type="button" data-coaching-apply="" onClick={onWork} style={{ minHeight: 46, borderRadius: 6, border: 0, background: INK, color: ON_INK, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Apply</button>
+                    <button type="button" data-coaching-apply="" onClick={onWork} style={{ minHeight: 46, borderRadius: 6, border: 0, background: T.CTA || INK, color: T.ON_CTA || ON_INK, fontSize: 14.5, fontWeight: 700, cursor: "pointer" }}>Apply</button>
                     {onMessage ? <button type="button" data-coaching-message="" onClick={onMessage} style={{ minHeight: 46, borderRadius: 6, border: `1px solid ${INK}`, background: "transparent", color: INK, fontSize: 14.5, fontWeight: 600, cursor: "pointer" }}>Message {first}</button> : null}
                   </div>
                 ) : null}
@@ -1648,7 +2334,7 @@ function CpwStudioTab({ T, model, heat, stickyTop = 0, failed = false, onRetry, 
 const CPW_VEG = "#5fb16e", CPW_CARB = "#e3a544";
 function cpwPlateColors(ACC, ink) {
   const same = (x) => String(ACC).toLowerCase() === x;
-  return { veg: same(CPW_VEG) ? ink(0.4) : CPW_VEG, protein: ACC, carbs: same(CPW_CARB) || same("#c8881a") ? ink(0.4) : CPW_CARB };
+  return { veg: same(CPW_VEG) ? ink(0.4) : CPW_VEG, protein: ACC, carbs: same(CPW_CARB) || same("#c8881a") || same("#d8a23a") ? ink(0.4) : CPW_CARB };
 }
 const cpwRecipeMeta = (r) => [Number.isFinite(r.min) ? `${r.min} min` : null, Number.isFinite(r.kcal) ? `${r.kcal} kcal` : null, Number.isFinite(r.p) ? `${r.p} g protein` : null].filter(Boolean).join(" · ");
 function CpwSwatch({ r, T, size = 76 }) {
@@ -1894,8 +2580,11 @@ function CpwReplaysTab({ T, replays, failed = false, onRetry, onOpen }) {
 // The program's sheet, as the app's (BSTrainerProfile ProgramSheet): the coach's line about it (else its
 // note) and who it is for, then its first week's days, each opening to its moves and their muscles with
 // the coach's line for that day (the Studio model's), then the unlock line and Buy.
-function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy, onWork }) {
-  const { pal, ACC, ON_ACC, first, isSelf } = T;
+function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy, onWork, onAsk = null }) {
+  const { pal, ACC, first, isSelf } = T;
+  const CTA = T.CTA || ACC, ON_CTA = T.ON_CTA || T.ON_ACC;
+  const peaks = pr.weeks ? cpwPeaks(Math.min(pr.weeks, 24), cpwHash(String(pr.id || pr.name))) : null;
+  const plates = [[pr.weeks, pr.weeks === 1 ? "Week" : "Weeks"], [pr.perWeek, pr.perWeek === 1 ? "Day a week" : "Days a week"]].filter(([n]) => n);
   const muted = "rgba(232,235,239,0.6)";
   const p = pr.preview || { units: [], kind: null };
   const units = Array.isArray(p.units) ? p.units.filter((u) => u && !u.locked && !u.rest) : [];
@@ -1909,6 +2598,22 @@ function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy,
       <CpwSheetHead eyebrow={`Program${pr.price ? " · " + pr.price : ""}`} ACC={muted} color="#e8ebef" onClose={onClose} />
       <h2 className="cpw-s26" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 300, fontSize: 26, lineHeight: 1.1 }}>{pr.name}<span style={{ color: ACC }}>.</span></h2>
       {meta ? <p style={{ margin: "4px 0 0", fontSize: 13.5, color: muted }}>{meta}</p> : null}
+      {peaks ? (
+        <svg aria-hidden="true" data-program-peaks="" viewBox="0 0 300 150" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: 92, marginTop: 12 }}>
+          <polygon points={peaks.map((q) => q.join(",")).join(" ")} fill={CTA} fillOpacity=".6" />
+          <polyline points={peaks.slice(1, -2).map((q) => q.join(",")).join(" ")} fill="none" stroke="#fff" strokeWidth="1.6" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+        </svg>
+      ) : null}
+      {plates.length ? (
+        <div data-program-plates="" style={{ display: "flex", gap: 10, marginTop: 12 }}>
+          {plates.map(([n, l]) => (
+            <span key={l} className="cpw-plate" style={{ flex: 1, padding: "12px 14px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <span className="cpw-doto" style={{ fontSize: 30 }}>{n}</span>
+              <span className="cpw-dtl" style={{ color: muted }}>{l}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
       {pr.video ? <div data-program-video="" style={{ marginTop: 12 }}><CpwVideo url={pr.video.url} title={pr.name} /></div>
         : pr.poster ? <div style={{ marginTop: 12, aspectRatio: "16 / 9", overflow: "hidden", background: "#000" }}><img src={pr.poster} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div> : null}
       {desc || p.note ? <p data-program-desc="" style={{ margin: "12px 0 0", paddingLeft: 10, borderLeft: `3px solid ${ACC}`, fontSize: 14.5, lineHeight: 1.5 }}>{desc || p.note}</p> : null}
@@ -1961,8 +2666,12 @@ function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy,
       <div style={{ marginTop: 20 }}>
         {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>This is what members see before they buy.</p>
           : pr.sample ? <button type="button" onClick={onWork} style={line}>Work with {first}</button>
-            : pr.paid && sells ? <button type="button" data-program-buy="" onClick={onBuy} style={{ ...line, border: 0, background: ACC, color: ON_ACC, fontWeight: 700 }}>Buy · {pr.price} →</button>
-              : <button type="button" onClick={onWork} style={line}>Work with {first}</button>}
+            : pr.paid && sells ? (
+              <div style={{ display: "grid", gridTemplateColumns: onAsk ? "1fr 1.4fr" : "1fr", gap: 8 }}>
+                {onAsk ? <button type="button" data-program-ask="" onClick={onAsk} style={line}>Ask {first}</button> : null}
+                <button type="button" data-program-buy="" onClick={onBuy} style={{ ...line, border: 0, background: CTA, color: ON_CTA, fontWeight: 700 }}>Start · {pr.price}</button>
+              </div>
+            ) : <button type="button" onClick={onWork} style={line}>Work with {first}</button>}
         {!isSelf && !pr.sample && pr.paid && sells ? <div style={{ marginTop: 8 }}><LvCodeBox ink="#e8ebef" /></div> : null}
       </div>
     </CpwSheet>
@@ -2041,17 +2750,51 @@ function CpwActivityTab({ T, cards, failed = false, onRetry }) {
   );
 }
 
+// ── Proof ──────────────────────────────────────────────────────────────────────────────────────
+// The reviews the coach pinned (their Wins wall, useLvWinsWall: only members' reviews of this coach,
+// read by id, and none for a reader who may not read review words), in clients' own words. A visitor
+// sees the camp only with one; the coach sees where to pin them.
+function CpwProof({ T, items }) {
+  const { ACC, INK, ink } = T;
+  if (!items.length) return <CpwHint ink={ink}>Pin up to three of your members' reviews in Make it yours (Spotlight → Wins wall), and they show here, in their words.</CpwHint>;
+  return (
+    <section data-proof="" aria-label="Proof">
+      <div className="cpw-quotes">
+        {items.map((r) => (
+          <figure key={r.id || r.text} data-proof-card="" className="cpw-card" style={{ margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <span className="cpw-dtl" style={{ color: ACC }}>{Math.round(Number(r.rating) || 0)}/10 · Pinned</span>
+            <blockquote style={{ margin: 0, fontSize: 16.5, lineHeight: 1.5, color: INK }}>{r.text}</blockquote>
+            <figcaption style={{ fontSize: 13, color: ink(0.72) }}>{r.authorId ? <a href={"MemberProfile.html?u=" + encodeURIComponent(r.authorId)} style={{ color: "inherit" }}>{r.author || "Member"}</a> : (r.author || "Member")}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ── What clients say ─────────────────────────────────────────────────────────────────────────
-function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, failed = false, onRetry, onAll }) {
+// The Words camp: the rating on a plate and how many reviews, then the newest words (the coach's pinned
+// reviews are in Proof, not here). Review words are for members (owner, 2026-10-28): anyone else sees
+// the rating and the way in, "Join Shape to read all N". A read that failed says so, never an empty camp.
+function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, rating = null, count = 0, failed = false, onRetry, onAll }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
+  const summary = rating ? (
+    <div data-reviews-summary="" style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+      <span className="cpw-plate" style={{ padding: "12px 16px 10px", display: "inline-flex", alignItems: "baseline", gap: 4 }}>
+        <span className="cpw-doto" style={{ fontSize: 40 }}>{rating}</span><span style={{ fontSize: 14, color: ink(0.8) }}>/10</span>
+      </span>
+      <span className="cpw-dtl" style={{ color: ACC }}>Rating · {Number(count).toLocaleString()} {count === 1 ? "review" : "reviews"}</span>
+    </div>
+  ) : null;
   if (revLocked) {
     return (
-      <section data-reviews-strip="" data-reviews-locked="" aria-label="Reviews" style={{ margin: "8px 0 20px" }}>
-        <span style={cpwEyebrow(ink)}>What clients say</span>
-        <div style={{ marginTop: 8, padding: "13px 15px", background: pal.PAPER2, borderTop: `2px solid ${ACC}`, display: "flex", flexDirection: "column", gap: 6, maxWidth: 560 }}>
-          <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ACC }}>★ {ratingBit}</span>
-          <span style={{ fontSize: 15, lineHeight: 1.45 }}>Members read the reviews.</span>
-          <button type="button" data-reviews-join="" onClick={() => { if (window.ShapeMembership && window.ShapeMembership.start) window.ShapeMembership.start(); else window.location.href = "/newdesign/Pricing.html"; }} style={{ alignSelf: "flex-start", minHeight: 40, padding: 0, border: 0, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Join to read them →</button>
+      <section data-reviews-strip="" data-reviews-locked="" aria-label="Reviews">
+        {summary}
+        <div className="cpw-card" style={{ marginTop: 16, maxWidth: 560, display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 15.5, lineHeight: 1.45 }}>Members read the reviews.</span>
+          <button type="button" data-reviews-join="" onClick={() => { if (window.ShapeMembership && window.ShapeMembership.start) window.ShapeMembership.start(); else window.location.href = "/newdesign/Pricing.html"; }} className="cpw-textlink" style={{ alignSelf: "flex-start", color: ACC }}>
+            Join Shape to read all {Number(count).toLocaleString()} →
+          </button>
         </div>
       </section>
     );
@@ -2059,25 +2802,31 @@ function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, failed = false, onRe
   // A reviews read that failed says so with Try again, never an empty strip (Codex P2 on 26f4346).
   if (failed && !quotes.length) {
     return (
-      <section data-reviews-strip="" aria-label="Reviews" style={{ margin: "8px 0 20px" }}>
-        <span style={cpwEyebrow(ink)}>What clients say</span>
+      <section data-reviews-strip="" aria-label="Reviews">
         <CpwReadFailed ink={ink} ACC={ACC} tag="reviews" what={isSelf ? "Couldn't read your reviews just now." : `Couldn't read ${first}'s reviews just now.`} onRetry={onRetry} />
       </section>
     );
   }
-  if (!quotes.length) return <div style={{ height: 8 }} />;
+  if (!quotes.length) {
+    return (
+      <section data-reviews-strip="" aria-label="Reviews">
+        {summary}
+        {isSelf && !rating ? <CpwHint ink={ink}>No reviews yet. Members you coach can leave one from your page.</CpwHint> : null}
+      </section>
+    );
+  }
   return (
-    <section data-reviews-strip="" aria-label="Reviews" style={{ margin: "8px 0 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-        <span style={cpwEyebrow(ink)}>What clients say</span>
-        <button type="button" data-all-reviews="" onClick={onAll} style={{ minHeight: 36, padding: 0, border: 0, background: "transparent", color: ACC, fontFamily: CPW_DISPLAY, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>All reviews →</button>
+    <section data-reviews-strip="" aria-label="Reviews">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        {summary || <span />}
+        <button type="button" data-all-reviews="" onClick={onAll} className="cpw-textlink" style={{ color: ACC }}>All reviews →</button>
       </div>
-      <div className="cpw-quotes" style={{ marginTop: 8 }}>
+      <div className="cpw-quotes" style={{ marginTop: 16 }}>
         {quotes.map((r) => (
-          <figure key={r.id || r.text} data-review-card="" style={{ margin: 0, boxSizing: "border-box", padding: "13px 15px", background: pal.PAPER2, borderTop: `2px solid ${ACC}`, display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontFamily: CPW_MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10{r.pinned ? " · Pinned" : ""}</span>
-            <blockquote style={{ margin: 0, fontSize: 15, lineHeight: 1.45, color: INK, display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.text}</blockquote>
-            <figcaption style={{ fontSize: 12.5, color: ink(0.64) }}>{r.authorId ? <a href={"MemberProfile.html?u=" + encodeURIComponent(r.authorId)} style={{ color: "inherit" }}>{r.author || "Member"}</a> : (r.author || "Member")}</figcaption>
+          <figure key={r.id || r.text} data-review-card="" className="cpw-card" style={{ margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <span className="cpw-dtl" style={{ color: ACC }}>{Math.round(Number(r.rating) || 0)}/10{r.pinned ? " · Pinned" : ""}</span>
+            <blockquote style={{ margin: 0, fontSize: 15.5, lineHeight: 1.5, color: INK, display: "-webkit-box", WebkitLineClamp: 5, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.text}</blockquote>
+            <figcaption style={{ fontSize: 13, color: ink(0.72) }}>{r.authorId ? <a href={"MemberProfile.html?u=" + encodeURIComponent(r.authorId)} style={{ color: "inherit" }}>{r.author || "Member"}</a> : (r.author || "Member")}</figcaption>
           </figure>
         ))}
       </div>
