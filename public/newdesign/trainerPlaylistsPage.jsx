@@ -1,21 +1,70 @@
-// Trainer/Nutritionist Playlists page — three workflows in one page, as tabs.
-// Library: browse & create. Matrix: bulk-assign. Builder: deep-edit one playlist.
-// Driven by a `ctx` prop so it works for both roles.
+// Trainer/Nutritionist Playlists page: three tool views in one fixed layout (coach review step
+// 6b, 2026-11-09). Library: every playlist the coach saved, as album cards. Attach: where each one
+// plays. Builder: edit one playlist. Driven by a `ctx` prop so it works for both roles.
+//
+// ⚠ WHAT IS REAL, AND WHERE IT IS READ. Nothing on this page is guessed:
+//   · the playlists are the coach's own saved soundtracks (/api/coach/soundtracks, the
+//     coach_soundtracks rows the app's Soundtracks page shares). Tracks, length and tempo are the
+//     row's own `tracks`, `duration` and `bpm`; a row says only what it holds.
+//   · a TRAINER's playlist plays on a program day: the builder's day chip writes
+//     `day.playlist = { name, meta }` into the program (coach_plans.detail.builder), and assigning
+//     the program copies it onto each client's session. The Attach view reads the programs
+//     (/api/coach/plans?kind=program) and writes the same field back (PATCH /api/coach/plans, held
+//     to the revision it read). A session already on a client's calendar keeps the playlist it was
+//     sent with: the page says so.
+//   · how many clients a program day reaches is the clients with that PROGRAM on their calendar
+//     (/api/coach/plans/usage). Nothing records who is on one day, so a cell counts the program's.
+//   · a playlist SENT TO CLIENTS is an entry in the row's `attached` ({ kind: 'all_clients' } or
+//     { kind: 'client', clientId }); that is what the member's Train page (trainer) or Eat page
+//     (nutritionist) reads (get_my_coach_playlists). Meal plans carry no playlist, so a
+//     nutritionist's playlists reach clients this way only.
+//   · there are no energy tags and no track-by-track list for a saved playlist: the full list is
+//     in Spotify or Apple Music, and the page links there. Shape never plays music, so there is no
+//     ▶ anywhere here and no listen count.
+// ⚠ SAMPLE DATA ONLY IN THE SIGNED-OUT PREVIEW, under the demo band. A signed-in coach whose read
+// failed is told it couldn't be read, never shown the sample playlists. `null` is unread, `0` is
+// measured.
 
 const PlaylistCtx = React.createContext(null);
 
-// Map a coach_soundtracks row (shared with the mobile app) into the shape this
-// page renders, with sensible defaults for fields the API doesn't carry.
+const PL_RUST = "#c0533b";
+// The rust at the strengths the page draws it (an edge, a chip's outline, a dashed ＋), as fixed rgba.
+const PL_RUST_EDGE = "rgba(192,83,59,0.53)";
+const PL_RUST_SOFT = "rgba(192,83,59,0.4)";
+const PL_RUST_DASH = "rgba(192,83,59,0.67)";
+const PL_MONO = "'JetBrains Mono', monospace";
+const PL_INK2 = "var(--sh-ink2, #a09b94)";
+const PL_INK3 = "var(--sh-ink3, #75706a)";
+const PL_LINE = "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
+// ⚠ THE MATRIX SCROLLS IN ITS OWN BOX, SO ITS HEADER CAN PIN. A wide table needs overflow-x, and
+// an overflow box is the scroll container a sticky header pins to: with the page scrolling past it,
+// `top` under the app bar would never engage. The box is capped below the app bar (pageShell's fixed
+// .shape-header) and scrolls both ways; the header pins at its top, the day names at its left.
+const PL_MATRIX_MAX_H = "calc(100vh - 150px)";
+const plProviderName = (provider) => (provider === "apple" ? "Apple Music" : "Spotify");
+// A provider's kind colour: always said in words beside it (plProviderName).
+const plProviderAccent = (provider) => (provider === "apple" ? "#c4566a" : "#3f8f5f");
+
+// Map a coach_soundtracks row (shared with the mobile app) into the shape this page renders. A
+// field the row doesn't hold stays empty (null), never a made-up default.
 function soundtrackToWeb(row) {
-  const accent = row.provider === "apple" ? "#b9a13e" : "#4a6fb0";
+  const accent = plProviderAccent(row.provider);
+  const n = Number(row.tracks);
   return {
-    id: row.id, name: row.name, provider: row.provider,
-    cover: `linear-gradient(150deg, ${accent}, ${ssAlpha(accent, 0.4)})`, accent,
-    bpm: row.bpm || "—", trackCount: row.tracks || 0, duration: row.duration || "—",
-    note: row.tag || "Imported playlist", listens: 0, updated: "synced",
-    attachedTo: Array.isArray(row.attached) ? row.attached.map(a => a && a.id).filter(Boolean) : [],
-    sampleTracks: [], shared: false, synced: true,
+    id: row.id, name: row.name || "Untitled playlist", provider: row.provider === "apple" ? "apple" : "spotify",
+    cover: `linear-gradient(150deg, ${accent}, ${typeof ssAlpha === "function" ? ssAlpha(accent, 0.35) : accent})`, accent,
+    bpm: row.bpm && row.bpm !== "—" ? String(row.bpm) : null,
+    trackCount: Number.isFinite(n) && n > 0 ? n : null,
+    duration: row.duration && row.duration !== "—" ? String(row.duration) : null,
+    note: row.tag || "", url: row.url || "",
+    attached: Array.isArray(row.attached) ? row.attached.filter((a) => a && typeof a === "object") : [],
+    sampleTracks: [], synced: true,
   };
+}
+// A sample playlist (trainerPlaylists.jsx / nutritionistPlaylists.jsx) in the same shape, for the
+// signed-out preview only.
+function plSampleToWeb(p) {
+  return { ...p, bpm: p.bpm || null, trackCount: p.trackCount || null, duration: p.duration || null, note: p.note || "", url: p.url || "", attached: Array.isArray(p.attached) ? p.attached : [], sampleTracks: p.sampleTracks || [], synced: false };
 }
 
 // Load Apple MusicKit v3 once (injects the CDN script, resolves on 'musickitloaded').
@@ -35,72 +84,334 @@ function loadMusicKit() {
   });
 }
 
+// ────────────────────────────────────────────────────────────
+// The model: programs, their days, and who hears what
+// ────────────────────────────────────────────────────────────
+// A program's type, from its own tags (the builder's tag picker, DashBuilder.tagInfo): the first
+// tag's label and colour, or null when it has none. The colour is always said in words beside it.
+function plProgramType(plan) {
+  try {
+    const DB = typeof window !== "undefined" ? window.DashBuilder : null;
+    if (!DB || typeof DB.programTags !== "function" || typeof DB.tagInfo !== "function") return null;
+    const tags = DB.programTags(plan);
+    if (!tags.length) return null;
+    const info = DB.tagInfo(tags[0]);
+    return info && info.label ? { label: info.label, color: info.c } : null;
+  } catch (e) { return null; }
+}
+// A program's days as the Attach view lists them: one row per day of the week, named from the
+// first week that has it. A program repeats its days across weeks, so a row's playlist is the
+// one its day carries in EVERY week (`weeksWith` of `weeks`); a day set in only some weeks says so.
+function plProgramDays(plan) {
+  const builder = plan && plan.detail && plan.detail.builder;
+  const weeks = builder && Array.isArray(builder.weeks) ? builder.weeks : [];
+  const rows = [];
+  weeks.forEach((week) => (week && Array.isArray(week.days) ? week.days : []).forEach((day, di) => {
+    if (!rows[di]) rows[di] = { index: di, id: (day && day.id) || "day-" + di, name: (day && day.name) || "Day " + (di + 1), weeks: 0, byName: Object.create(null) };
+    const row = rows[di];
+    row.weeks += 1;
+    const name = day && day.playlist && typeof day.playlist.name === "string" ? day.playlist.name : "";
+    if (name) row.byName[name] = (row.byName[name] || 0) + 1;
+  }));
+  return rows.filter(Boolean).map((r) => {
+    const names = Object.keys(r.byName);
+    return { index: r.index, id: r.id, name: r.name, weeks: r.weeks, playlists: names.map((n) => ({ name: n, weeksWith: r.byName[n] })) };
+  });
+}
+// The programs as the page reads them: { id, name, type, clients, revision, days, plan }.
+// `clients` is the clients with the program on their calendar, null when that couldn't be read.
+function plProgramsModel(plans, usage) {
+  return (Array.isArray(plans) ? plans : []).filter((p) => p && p.kind !== "meal_plan").map((plan) => {
+    const u = usage && usage.byId ? usage.byId[plan.id] : null;
+    const clients = !usage ? null : u && Number(u.clients) > 0 ? Math.floor(Number(u.clients)) : (usage.capped ? null : 0);
+    return { id: plan.id, name: plan.name || "Untitled program", type: plProgramType(plan), clients, revision: plan.detail && plan.detail.revision != null ? Number(plan.detail.revision) || 0 : 0, days: plProgramDays(plan), plan };
+  });
+}
+// The signed-out preview's programs, from the sample workouts: each sample program's workouts as
+// its days, a sample playlist on a day the sample attaches it to.
+function plDemoPrograms(targets, playlists) {
+  const groups = new Map();
+  (targets || []).forEach((w) => {
+    if (!groups.has(w.program)) groups.set(w.program, { id: "demo-" + w.program, name: w.program, type: null, clients: 0, revision: 0, days: [], plan: null });
+    const g = groups.get(w.program);
+    const on = (playlists || []).filter((p) => (p.attachedTo || []).includes(w.id));
+    g.days.push({ index: g.days.length, id: w.id, name: w.name, weeks: 1, playlists: on.slice(0, 1).map((p) => ({ name: p.name, weeksWith: 1 })) });
+    g.clients = Math.max(g.clients, Number(w.clientsDoing) || 0);
+  });
+  return [...groups.values()];
+}
+// Does this day play this playlist in every week (true), in some ('some'), or not at all (false)?
+function plDayHas(day, name) {
+  const hit = (day.playlists || []).find((x) => x.name === name);
+  if (!hit) return false;
+  return hit.weeksWith >= day.weeks ? true : "some";
+}
+// The program with one day's playlist set (or cleared) in every week. A day plays one playlist,
+// so setting one replaces the one it had. Returns the new builder, or null when nothing changes.
+function plSetDayPlaylist(plan, dayIndex, playlist) {
+  const builder = plan && plan.detail && plan.detail.builder;
+  if (!builder || !Array.isArray(builder.weeks)) return null;
+  let changed = false;
+  const weeks = builder.weeks.map((week) => {
+    const days = week && Array.isArray(week.days) ? week.days : [];
+    if (!days[dayIndex]) return week;
+    const day = days[dayIndex];
+    const had = day.playlist && day.playlist.name ? day.playlist.name : "";
+    const next = playlist ? { name: playlist.name, meta: playlist.meta || "" } : null;
+    if ((next ? next.name : "") === had) return week;
+    changed = true;
+    return { ...week, days: days.map((d, i) => (i === dayIndex ? { ...d, playlist: next } : d)) };
+  });
+  return changed ? { ...builder, weeks } : null;
+}
+// What a day's picker stores beside the name (dashBuilder's dbuPlaylistChoice): "28 tracks", or "".
+function plPlaylistMeta(p) {
+  const n = Number(p && p.trackCount);
+  return Number.isFinite(n) && n > 0 ? n + (n === 1 ? " track" : " tracks") : "";
+}
+// The days that need music: on a program clients are on (or, when that couldn't be read, on any
+// program), with no playlist in every week. `total` and `covered` count the same days.
+function plMusicCoverage(programs) {
+  const list = Array.isArray(programs) ? programs : [];
+  const usageRead = list.every((p) => p.clients != null);
+  const inUse = list.filter((p) => (usageRead ? p.clients > 0 : true));
+  const days = [];
+  inUse.forEach((p) => p.days.forEach((d) => days.push({ program: p, day: d, music: (d.playlists || []).some((x) => x.weeksWith >= d.weeks) })));
+  const missing = days.filter((x) => !x.music);
+  // The one raised: the missing day on the program most clients are on.
+  missing.sort((a, b) => (Number(b.program.clients) || 0) - (Number(a.program.clients) || 0));
+  return { usageRead, total: days.length, covered: days.length - missing.length, missing };
+}
+// Who hears a playlist: the clients on the programs whose days carry it, and who it was sent to.
+// { programs: [{ program, days }], programClients: number|null, all: boolean, clients: [ids] }.
+function plWhoHears(p, programs) {
+  const on = (Array.isArray(programs) ? programs : []).map((prog) => ({ program: prog, days: prog.days.filter((d) => plDayHas(d, p.name)) })).filter((x) => x.days.length);
+  const counts = on.map((x) => x.program.clients);
+  const programClients = counts.some((c) => c == null) ? null : counts.reduce((s, c) => s + c, 0);
+  const attached = Array.isArray(p.attached) ? p.attached : [];
+  return {
+    programs: on, programClients,
+    all: attached.some((a) => a.kind === "all_clients"),
+    clients: attached.filter((a) => a.kind === "client" && a.clientId).map((a) => a.clientId),
+  };
+}
+// "Who hears it" in words, from plWhoHears. Program counts can overlap (a client on two programs).
+function plWhoHearsText(w, role) {
+  const parts = [];
+  if (w.all) parts.push("Every client");
+  else if (w.clients.length) parts.push("Sent to " + w.clients.length + (w.clients.length === 1 ? " client" : " clients"));
+  if (role !== "nutritionist" && w.programs.length) {
+    const days = w.programs.reduce((s, x) => s + x.days.length, 0);
+    const on = days + (days === 1 ? " program day" : " program days");
+    parts.push(w.programClients == null ? on : on + " · " + w.programClients + (w.programClients === 1 ? " client" : " clients"));
+  }
+  return parts.length ? parts.join(" · ") : "Not playing anywhere yet";
+}
+// A client's entry in a playlist's `attached`, as the app writes it (iosAppBroadsheetPros).
+const plAllClientsEntry = () => ({ id: "all_clients", kind: "all_clients", name: "All my clients" });
+const plClientEntry = (c) => ({ id: "client:" + c.id, kind: "client", clientId: c.id, name: c.name });
+function plIsSentTo(p, target) {
+  const list = Array.isArray(p.attached) ? p.attached : [];
+  return target === "all" ? list.some((a) => a.kind === "all_clients") : list.some((a) => a.kind === "client" && a.clientId === target);
+}
+function plToggleSent(p, target) {
+  const list = Array.isArray(p.attached) ? p.attached : [];
+  if (target.id === "all") return plIsSentTo(p, "all") ? list.filter((a) => a.kind !== "all_clients") : [...list, plAllClientsEntry()];
+  return plIsSentTo(p, target.id) ? list.filter((a) => !(a.kind === "client" && a.clientId === target.id)) : [...list, plClientEntry(target)];
+}
+
+// The roster for "sent to clients": the coach's real clients when useDashboard read them live,
+// the sample clients only in the signed-out preview, else null (couldn't be read).
+function plRosterFrom(dash, demo) {
+  if (!dash || dash.loading) return { state: "loading", clients: null };
+  if (dash.source === "live" || (demo && dash.source === "demo")) {
+    const recs = Array.isArray(dash.clients) ? dash.clients : [];
+    const clients = recs.map((r) => ({ id: r && r.profile ? r.profile.id : null, name: (r && r.profile && r.profile.name) || "Client", points: typeof dashRecordTier === "function" ? dashRecordTier(r) : null })).filter((c) => c.id);
+    return { state: "ready", clients };
+  }
+  return { state: "unread", clients: null };
+}
+
+async function plJson(res) { try { return await res.json(); } catch (e) { return {}; } }
+
+// ────────────────────────────────────────────────────────────
+// The page
+// ────────────────────────────────────────────────────────────
 function PlaylistPage({ ctx }) {
   const { useState, useEffect } = React;
+  const role = ctx.role === "nutritionist" ? "nutritionist" : "trainer";
   const storageKey = `shape.${ctx.role}.playlists.view`;
   const [view, setView] = useState(() => {
-    try { return localStorage.getItem(storageKey) || "library"; } catch { return "library"; }
+    try { const v = localStorage.getItem(storageKey); return v === "matrix" || v === "builder" ? v : "library"; } catch (e) { return "library"; }
   });
-  const [query, setQuery] = useState("");
-  const [serverPlaylists, setServerPlaylists] = useState([]);
-  // null = checking · true = signed-in coach · false = signed-out preview.
-  const [authed, setAuthed] = useState(null);
+  // The read: 'loading' · 'live' (a signed-in coach's own rows) · 'demo' (signed out: 401) ·
+  // 'unread' (signed in, the read failed).
+  const [read, setRead] = useState({ state: "loading", rows: [] });
+  const [readTick, setReadTick] = useState(0);
+  const [plans, setPlans] = useState({ state: "loading", list: null });
+  const [usage, setUsage] = useState(undefined); // undefined = reading · null = couldn't be read
+  const [demoPlaylists, setDemoPlaylists] = useState(() => (ctx.playlists || []).map(plSampleToWeb));
+  const [demoPrograms, setDemoPrograms] = useState(() => (role === "trainer" ? plDemoPrograms(ctx.attachTargets, ctx.playlists) : []));
+  const [adding, setAdding] = useState(false);
+  const [focus, setFocus] = useState(null); // { playlistId } or { programId, dayIndex } the Attach view lifts
+  const [selectedId, setSelectedId] = useState(null);
+  const [note, setNote] = useState("");
 
-  // Pull the coach's saved soundtracks (synced with the mobile app). A 200 means
-  // we're signed in as a coach, so we hide the demo seed and show real data only.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/coach/soundtracks", { credentials: "same-origin" })
-      .then(r => { if (cancelled) return null; setAuthed(r.ok); return r.ok ? r.json() : null; })
-      .then(d => { if (!cancelled && d && Array.isArray(d.soundtracks)) setServerPlaylists(d.soundtracks.map(soundtrackToWeb)); })
-      .catch(() => { if (!cancelled) setAuthed(false); });
+    setRead((r) => ({ state: r.state === "live" ? "live" : "loading", rows: r.rows }));
+    fetch("/api/coach/soundtracks", { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => {
+        if (cancelled) return;
+        if (r.status === 401) { setRead({ state: "demo", rows: [] }); return; }
+        if (!r.ok) { setRead({ state: "unread", rows: [] }); return; }
+        const d = await plJson(r);
+        if (cancelled) return;
+        if (!Array.isArray(d.soundtracks)) { setRead({ state: "unread", rows: [] }); return; }
+        setRead({ state: "live", rows: d.soundtracks.map(soundtrackToWeb) });
+      })
+      .catch(() => { if (!cancelled) setRead({ state: "unread", rows: [] }); });
     return () => { cancelled = true; };
-  }, []);
+  }, [readTick]);
 
-  const importSoundtrack = async ({ name, url, note, provider }) => {
+  // A trainer's programs and who is on them, once the coach is known to be signed in.
+  useEffect(() => {
+    if (role !== "trainer" || read.state !== "live") return undefined;
+    let cancelled = false;
+    fetch("/api/coach/plans?kind=program", { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => { const d = await plJson(r); if (cancelled) return; setPlans(r.ok && Array.isArray(d.plans) ? { state: "ready", list: d.plans } : { state: "unread", list: null }); })
+      .catch(() => { if (!cancelled) setPlans({ state: "unread", list: null }); });
+    const t = new Date();
+    const today = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+    fetch("/api/coach/plans/usage?today=" + today, { credentials: "same-origin", cache: "no-store" })
+      .then(async (r) => { const d = await plJson(r); if (cancelled) return; setUsage(r.ok && d.usage && typeof d.usage === "object" ? { byId: d.usage, capped: !!d.capped } : null); })
+      .catch(() => { if (!cancelled) setUsage(null); });
+    return () => { cancelled = true; };
+  }, [role, read.state, readTick]);
+
+  const demo = read.state === "demo";
+  const live = read.state === "live";
+  // The rows as they are NOW, for a write that starts after another one landed (the render's copy
+  // of a row can be one write behind).
+  const rowsRef = React.useRef([]);
+  rowsRef.current = demo ? demoPlaylists : read.rows;
+  const useRoster = typeof useDashboard === "function" ? useDashboard : () => null;
+  const dash = useRoster(role);
+  const roster = plRosterFrom(dash, demo);
+
+  const playlists = demo ? demoPlaylists : live ? read.rows : [];
+  // The programs are ready once both reads answered: the programs, and who is on them (or that
+  // that couldn't be read, when every count says so instead of 0).
+  const programsState = role !== "trainer" ? "none" : demo ? "ready" : plans.state === "ready" && usage === undefined ? "loading" : plans.state;
+  const programs = role !== "trainer" ? [] : demo ? demoPrograms : programsState === "ready" ? plProgramsModel(plans.list, usage) : null;
+  const coverage = programs && programs.length ? plMusicCoverage(programs) : null;
+
+  const setViewPersist = (v) => { setView(v); try { localStorage.setItem(storageKey, v); } catch (e) {} };
+  const openAttach = (f) => { setFocus(f || null); setViewPersist("matrix"); };
+  const openBuilder = (id) => { setSelectedId(id); setViewPersist("builder"); };
+
+  // ── Writes ──
+  const replaceRow = (row) => setRead((r) => ({ ...r, rows: r.rows.map((x) => (x.id === row.id ? row : x)) }));
+  const importSoundtrack = async ({ name, url, note: tag, provider }) => {
     const prov = provider || (/music\.apple|apple\s*music/i.test(url || "") ? "apple" : "spotify");
+    if (demo) return { error: "Sign in as a coach to save playlists." };
     try {
       const res = await fetch("/api/coach/soundtracks", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider: prov, url: url || "", tag: (note || "").trim() }),
+        body: JSON.stringify({ name: (name || "").trim() || "New playlist", provider: prov, url: url || "", tag: (tag || "").trim(), role }),
       });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok && d.soundtrack) setServerPlaylists(list => [soundtrackToWeb(d.soundtrack), ...list]);
-      else alert(d.error || "Sign in as a coach to save soundtracks.");
-    } catch (e) { alert("Could not import right now."); }
+      const d = await plJson(res);
+      if (res.ok && d.soundtrack) { setRead((r) => ({ ...r, rows: [soundtrackToWeb(d.soundtrack), ...r.rows] })); return { ok: true }; }
+      return { error: d.error || "Couldn't save the playlist. Try again." };
+    } catch (e) { return { error: "Couldn't save the playlist. Check your connection and try again." }; }
+  };
+  const savePlaylist = async (p, patch) => {
+    if (demo) { setDemoPlaylists((list) => list.map((x) => (x.id === p.id ? { ...x, ...patch } : x))); return { ok: true }; }
+    try {
+      const res = await fetch("/api/coach/soundtracks", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, ...patch, role }) });
+      const d = await plJson(res);
+      if (res.ok && d.soundtrack) { replaceRow(soundtrackToWeb(d.soundtrack)); return { ok: true }; }
+      return { error: d.error || "Couldn't save. Try again." };
+    } catch (e) { return { error: "Couldn't save. Check your connection and try again." }; }
+  };
+  const deletePlaylist = async (p) => {
+    const ok = window.ShapeConfirm && window.ShapeConfirm.open
+      ? await window.ShapeConfirm.open({ title: "Delete this playlist?", name: p.name, message: "It comes off your Shape library and stops showing to the clients it was sent to. Sessions already sent keep their link. The playlist itself stays in " + plProviderName(p.provider) + ".", confirmLabel: "Delete playlist" })
+      : false;
+    if (!ok) return { cancelled: true };
+    if (demo) { setDemoPlaylists((list) => list.filter((x) => x.id !== p.id)); return { ok: true }; }
+    try {
+      const res = await fetch("/api/coach/soundtracks", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) });
+      if (res.ok) { setRead((r) => ({ ...r, rows: r.rows.filter((x) => x.id !== p.id) })); return { ok: true }; }
+      const d = await plJson(res);
+      return { error: d.error || "Couldn't delete. Try again." };
+    } catch (e) { return { error: "Couldn't delete. Check your connection and try again." }; }
+  };
+  // Send a playlist to every client, or one client (the `attached` entries members read).
+  const toggleSent = async (given, target) => {
+    const p = rowsRef.current.find((x) => x.id === given.id) || given;
+    const next = plToggleSent(p, target);
+    if (demo) { setDemoPlaylists((list) => list.map((x) => (x.id === p.id ? { ...x, attached: next } : x))); return { ok: true }; }
+    const was = p;
+    replaceRow({ ...p, attached: next });
+    const r = await savePlaylist(p, { attached: next });
+    if (r.error) { replaceRow(was); setNote(r.error); }
+    return r;
+  };
+  // Set a program day's playlist (or clear it), every week of that program.
+  const setDay = async (program, dayIndex, playlist) => {
+    if (demo) {
+      setDemoPrograms((list) => list.map((g) => (g.id !== program.id ? g : { ...g, days: g.days.map((d) => (d.index !== dayIndex ? d : { ...d, playlists: playlist ? [{ name: playlist.name, weeksWith: d.weeks }] : [] })) })));
+      return { ok: true };
+    }
+    const builder = plSetDayPlaylist(program.plan, dayIndex, playlist ? { name: playlist.name, meta: plPlaylistMeta(playlist) } : null);
+    if (!builder) return { ok: true };
+    try {
+      const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: program.id, detail: { builder }, expectedRevision: program.revision }) });
+      const d = await plJson(res);
+      if (res.ok && d.plan) { setPlans((s) => ({ ...s, list: (s.list || []).map((x) => (x.id === d.plan.id ? d.plan : x)) })); return { ok: true }; }
+      const msg = res.status === 409 ? "“" + program.name + "” changed somewhere else. Reload the page to see it, then try again." : d.error || "Couldn't save the program. Try again.";
+      setNote(msg);
+      return { error: msg };
+    } catch (e) { const msg = "Couldn't save the program. Check your connection and try again."; setNote(msg); return { error: msg }; }
   };
 
-  const setViewPersist = (v) => {
-    setView(v);
-    try { localStorage.setItem(storageKey, v); } catch {}
-  };
-
-  // Signed-in coach → only their own saved playlists (zeroed when they have none);
-  // the demo seed is a preview for signed-out visitors only.
-  const playlists = authed === false ? [...serverPlaylists, ...ctx.playlists] : serverPlaylists;
-  const mctx = { ...ctx, playlists, importSoundtrack };
-  const filtered = playlists.filter(p => !query || p.name.toLowerCase().includes(query.toLowerCase()));
-  const totalAttached = playlists.reduce((s, p) => s + p.attachedTo.length, 0);
-  const totalListens = playlists.reduce((s, p) => s + p.listens, 0);
+  const mctx = { ...ctx, role, demo, live, playlists, programs, programsState, coverage, roster, importSoundtrack, savePlaylist, deletePlaylist, toggleSent, setDay, openAttach, openBuilder, setAdding };
+  const attachFlag = coverage ? coverage.missing.length : 0;
+  const eyebrow = read.state === "loading" ? "PLAYLISTS" : read.state === "unread" ? "PLAYLISTS · COULDN'T BE READ" : `${playlists.length} ${playlists.length === 1 ? "PLAYLIST" : "PLAYLISTS"}`;
 
   return (
     <PlaylistCtx.Provider value={mctx}>
       <DashPage
         navItems={ctx.navItems("playlists")}
         payoutCard={ctx.payoutCard}
-        eyebrow={`${playlists.length} PLAYLISTS · ${totalAttached} ${ctx.attachmentUnitPlural.toUpperCase()} ATTACHMENTS · ${totalListens.toLocaleString()} CLIENT LISTENS`}
+        eyebrow={eyebrow}
         title="Playlists"
-        subtitle={ctx.subtitle}
-        actions={<>
-          <button style={pillGhost}>Shared with me</button>
-          <button style={pillPrimary}>+ New playlist</button>
-        </>}
+        subtitle={role === "nutritionist"
+          ? "Save the Spotify or Apple Music playlists you cook to, and send them to your clients. They open in the client's own app."
+          : "Save the Spotify or Apple Music playlists you train to, and put them on program days. They open in the client's own app."}
+        actions={(live || demo) ? <button type="button" onClick={() => setAdding(true)} style={pillPrimary}>＋ New playlist</button> : null}
       >
-        <PlaylistTabs value={view} onChange={setViewPersist} ctx={mctx} />
-
-        {view === "library" && <LibraryGrid query={query} setQuery={setQuery} items={filtered} />}
-        {view === "matrix"  && <AttachMatrix />}
-        {view === "builder" && <BuilderDrawer query={query} setQuery={setQuery} items={filtered} />}
+        {demo && typeof DashDemoBand === "function" && <DashDemoBand />}
+        {read.state === "loading" && <div data-pl-state="loading" style={plQuiet}>Reading your playlists…</div>}
+        {read.state === "unread" && (
+          <Card style={{ padding: 22 }}>
+            <div data-pl-state="unread" style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>Your playlists couldn't be read.</div>
+            <div style={{ fontSize: 13, color: PL_INK2, marginBottom: 14 }}>Nothing is shown in their place. Try again in a moment.</div>
+            <button type="button" onClick={() => setReadTick((n) => n + 1)} style={pillGhost}>Try again</button>
+          </Card>
+        )}
+        {(live || demo) && (
+          <React.Fragment>
+            <PlBrief />
+            {note && <div role="status" data-pl-note style={{ margin: "0 0 14px", padding: "10px 14px", borderRadius: 8, border: `1px solid ${PL_RUST_SOFT}`, fontSize: 13, display: "flex", gap: 12, alignItems: "center" }}><span style={{ flex: 1 }}>{note}</span><button type="button" onClick={() => setNote("")} style={plLinkBtn}>Dismiss</button></div>}
+            <PlaylistTabs value={view} onChange={setViewPersist} flag={attachFlag} />
+            {view === "library" && <LibraryGrid />}
+            {view === "matrix" && <AttachMatrix focus={focus} />}
+            {view === "builder" && <BuilderDrawer selectedId={selectedId} setSelectedId={setSelectedId} />}
+          </React.Fragment>
+        )}
+        {adding && <NewPlaylistDialog onClose={() => setAdding(false)} />}
       </DashPage>
     </PlaylistCtx.Provider>
   );
@@ -108,72 +419,201 @@ function PlaylistPage({ ctx }) {
 
 const pillGhost = { background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" };
 const pillPrimary = { background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" };
+const plQuiet = { padding: "28px 4px", fontSize: 13, color: PL_INK2 };
+const plLinkBtn = { all: "unset", cursor: "pointer", fontFamily: PL_MONO, fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)" };
+const plChip = { display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 9px", borderRadius: 999, fontFamily: PL_MONO, fontSize: 10, letterSpacing: "0.06em", border: `1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.16)`, color: PL_INK2, whiteSpace: "nowrap" };
+
+// ── The brief: one sentence and one action at the top ──
+function plBriefModel(c) {
+  if (c.role === "trainer") {
+    if (c.programsState === "loading") return { text: "Reading your programs…", action: null };
+    if (c.programsState === "unread") return { text: "Your programs couldn't be read, so this page can't say which days have music.", action: null };
+    const cov = c.coverage;
+    if (!cov || !cov.total) return { text: c.playlists.length ? "Put a playlist on a program day, and every client you assign that program to gets it." : "Save a playlist, then put it on a program day.", action: c.playlists.length ? { label: "Attach", focus: null } : { label: "＋ New playlist", add: true } };
+    const scope = cov.usageRead ? "program days your clients are on" : "program days";
+    const head = cov.covered + " of " + cov.total + " " + scope + " have music.";
+    if (!cov.missing.length) return { text: head, action: null };
+    const m = cov.missing[0];
+    const who = m.program.clients == null ? "" : " (" + m.program.clients + (m.program.clients === 1 ? " client" : " clients") + ")";
+    return { text: head, raised: m.program.name + " · " + m.day.name + " has no music" + who + ".", action: { label: "Attach", focus: { programId: m.program.id, dayIndex: m.day.index } } };
+  }
+  // A nutritionist's playlists reach clients only as sends.
+  if (c.roster.state === "loading") return { text: "Reading your clients…", action: null };
+  const sentAll = c.playlists.some((p) => plIsSentTo(p, "all"));
+  if (!c.playlists.length) return { text: "Save a playlist you cook to, then send it to your clients.", action: { label: "＋ New playlist", add: true } };
+  if (sentAll) return { text: "Every client gets a cooking playlist on their Eat page.", action: null };
+  if (c.roster.state !== "ready") return { text: "Your clients couldn't be read, so this page can't say who gets a playlist.", action: { label: "Attach", focus: null } };
+  const total = c.roster.clients.length;
+  const reached = c.roster.clients.filter((cl) => c.playlists.some((p) => plIsSentTo(p, cl.id))).length;
+  return { text: reached + " of " + total + (total === 1 ? " client gets" : " clients get") + " a cooking playlist.", action: reached < total ? { label: "Send to clients", focus: null } : null };
+}
+function PlBrief() {
+  const c = React.useContext(PlaylistCtx);
+  const m = plBriefModel(c);
+  return (
+    <div data-pl-brief style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "14px 18px", marginBottom: 18, borderRadius: 12, border: `1px solid ${m.raised ? PL_RUST_EDGE : PL_LINE}`, borderLeft: m.raised ? `3px solid ${PL_RUST}` : undefined, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", boxShadow: m.raised ? "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" : "none" }}>
+      <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+        <div data-pl-brief-text style={{ fontSize: 15, fontWeight: 500 }}>{m.text}</div>
+        {m.raised && <div data-pl-raised style={{ fontSize: 13, color: PL_INK2, marginTop: 4 }}><span style={{ ...plChip, borderColor: PL_RUST_EDGE, color: PL_RUST, marginRight: 8 }}>No music</span>{m.raised}</div>}
+      </div>
+      {m.action && <button type="button" data-pl-brief-action onClick={() => (m.action.add ? c.setAdding(true) : c.openAttach(m.action.focus))} style={pillPrimary}>{m.action.label}</button>}
+    </div>
+  );
+}
 
 // ────────────────────────────────────────────────────────────
-// A · Library grid
+// A · Library: album cards
 // ────────────────────────────────────────────────────────────
-function LibraryGrid({ query, setQuery, items }) {
-  const [selected, setSelected] = React.useState(null);
+function LibraryGrid() {
+  const c = React.useContext(PlaylistCtx);
+  const [query, setQuery] = React.useState("");
+  const [peek, setPeek] = React.useState(null);
+  const items = c.playlists.filter((p) => !query || p.name.toLowerCase().includes(query.toLowerCase()));
+  const peeked = peek ? c.playlists.find((p) => p.id === peek) : null;
   return (
     <React.Fragment>
-      <SearchBar query={query} setQuery={setQuery} placeholder="Search playlists…" />
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 32 }}>
-        <NewPlaylistCard />
-        {items.map(p => <PlaylistCard key={p.id} p={p} onOpen={() => setSelected(p)} />)}
-      </div>
-
-      <Card>
-        <SectionTitle right="ALL ATTACHMENTS">Attachments across your programs</SectionTitle>
-        <AttachmentTable />
-      </Card>
-
-      {selected && <PlaylistDetail p={selected} onClose={() => setSelected(null)} />}
+      {c.playlists.length > 6 && <SearchBar query={query} setQuery={setQuery} placeholder="Search playlists…" />}
+      {!c.playlists.length ? (
+        <Card style={{ padding: 22 }}>
+          <div data-pl-empty style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>No playlists yet.</div>
+          <div style={{ fontSize: 13, color: PL_INK2, marginBottom: 14 }}>Pick one from your Spotify or Apple Music, or paste a link.</div>
+          <button type="button" onClick={() => c.setAdding(true)} style={pillPrimary}>＋ New playlist</button>
+        </Card>
+      ) : (
+        <div data-pl-grid style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
+          {items.map((p) => <PlaylistCard key={p.id} p={p} onPeek={() => setPeek(p.id)} />)}
+        </div>
+      )}
+      {peeked && <PlaylistDetail p={peeked} onClose={() => setPeek(null)} />}
     </React.Fragment>
   );
 }
 
-function PlaylistCard({ p, onOpen }) {
-  const ctx = React.useContext(PlaylistCtx);
+// The facts a playlist row holds, in one line: "28 tracks · 2h 14m · 75–95 BPM". Only what's there.
+function plFacts(p) {
+  const out = [];
+  if (p.trackCount != null) out.push(p.trackCount + (p.trackCount === 1 ? " track" : " tracks"));
+  if (p.duration) out.push(p.duration);
+  if (p.bpm) out.push(p.bpm + " BPM");
+  return out.join(" · ");
+}
+
+function PlaylistCard({ p, onPeek }) {
+  const c = React.useContext(PlaylistCtx);
+  const who = plWhoHears(p, c.programs);
+  const heard = plWhoHearsText(who, c.role);
+  const quiet = heard === "Not playing anywhere yet";
+  const facts = plFacts(p);
   return (
-    <Card style={{ padding: 0, overflow: "hidden", cursor: "pointer" }}>
-      <div onClick={onOpen}
-        style={{ height: 168, background: p.cover, padding: 18, display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", padding: "6px 10px", borderRadius: 999, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", color: "#f2ede4" }}>
-            <ProviderMark kind={p.provider} size={12} />
-            {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
-          </div>
-          {p.shared && <div style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>SHARED</div>}
-        </div>
-        <div>
-          <div style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.015em", lineHeight: 1.05, marginBottom: 6 }}>{p.name}</div>
-          <div style={{ fontSize: 11.5, fontFamily: "'JetBrains Mono', monospace", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", letterSpacing: "0.06em" }}>
-            {p.bpm} BPM · {p.trackCount} tracks · {p.duration}
-          </div>
-        </div>
-        <div style={{ position: "absolute", right: 18, bottom: 18, width: 44, height: 44, borderRadius: 999, background: p.accent, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 28px rgba(0,0,0,0.4)" }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="#1a1612"><path d="M4 2.5v11l10-5.5z"/></svg>
+    <div data-pl-card={p.id} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}><Card style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1 }}>
+      <div aria-hidden="true" style={{ height: 86, background: p.cover, position: "relative" }}>
+        <div style={{ position: "absolute", left: 12, bottom: 10, display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.45)", padding: "4px 9px", borderRadius: 999, fontSize: 9.5, fontFamily: PL_MONO, letterSpacing: "0.1em", color: "#f2ede4" }}>
+          <ProviderMark kind={p.provider} size={11} />{p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
         </div>
       </div>
-      <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", lineHeight: 1.5, minHeight: 40 }}>{p.note}</div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", fontSize: 11.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>
-          <span>{p.attachedTo.length} {ctx.attachmentUnit}{p.attachedTo.length !== 1 && "s"}</span>
-          <span>{p.listens.toLocaleString()} listens</span>
-          <span>{p.updated}</span>
-        </div>
+      <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+        <button type="button" data-pl-peek onClick={onPeek} style={{ all: "unset", cursor: "pointer", fontFamily: serif, fontSize: 19, lineHeight: 1.15, letterSpacing: "-0.01em" }}>{p.name}</button>
+        <div data-pl-facts style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK2, letterSpacing: "0.04em", minHeight: 14 }}>{facts || "Open it to add tracks, length and tempo"}</div>
+        <div style={{ fontSize: 12, color: PL_INK2 }}>On {plProviderName(p.provider)}</div>
+        <div data-pl-who style={{ fontSize: 12, color: quiet ? PL_INK3 : INK }}>{heard}</div>
+        <div style={{ flex: 1 }} />
+        <button type="button" data-pl-attach onClick={() => c.openAttach({ playlistId: p.id })} style={{ ...pillGhost, padding: "7px 14px", fontSize: 12, alignSelf: "flex-start", marginTop: 4 }}>Attach</button>
       </div>
-    </Card>
+    </Card></div>
   );
 }
 
-function NewPlaylistCard() {
+function PlaylistDetail({ p, onClose }) {
+  const c = React.useContext(PlaylistCtx);
+  const who = plWhoHears(p, c.programs);
+  const facts = plFacts(p);
+  React.useEffect(() => {
+    const key = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [onClose]);
+  const names = (ids) => ids.map((id) => { const cl = c.roster.clients && c.roster.clients.find((x) => x.id === id); return cl ? cl.name : null; });
+  return (
+    <div onClick={onClose} style={modalOverlay}>
+      <div role="dialog" aria-modal="true" aria-label={p.name} data-pl-detail onClick={(e) => e.stopPropagation()} style={{ ...modalCard, maxWidth: 560, padding: 0 }}>
+        <div style={{ height: 120, background: p.cover, padding: 20, display: "flex", alignItems: "flex-end", position: "relative" }}>
+          <button type="button" aria-label="Close" onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "rgba(0,0,0,0.4)", border: 0, color: "#f2ede4", width: 32, height: 32, borderRadius: 999, cursor: "pointer", fontSize: 16 }}>×</button>
+          <div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 9px", borderRadius: 999, fontSize: 10, fontFamily: PL_MONO, letterSpacing: "0.1em", color: "#f2ede4", marginBottom: 8 }}>
+              <ProviderMark kind={p.provider} size={11} />{p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
+            </div>
+            <h3 style={{ fontFamily: serif, fontSize: 28, fontWeight: 400, margin: 0, letterSpacing: "-0.02em", color: "#f2ede4" }}>{p.name}</h3>
+          </div>
+        </div>
+        <div style={{ padding: 22 }}>
+          {facts && <div style={{ fontFamily: PL_MONO, fontSize: 11, color: PL_INK2, marginBottom: 12 }}>{facts}</div>}
+          {p.note && <div style={{ fontSize: 14, lineHeight: 1.55, marginBottom: 16, fontStyle: "italic" }}>"{p.note}"</div>}
+          <div style={{ ...plLabel, marginBottom: 8 }}>PLAYS ON</div>
+          <div data-pl-plays-on style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 18, fontSize: 13 }}>
+            {who.all && <div>Every client · their {c.role === "nutritionist" ? "Eat" : "Train"} page</div>}
+            {!who.all && who.clients.length > 0 && <div>Sent to {names(who.clients).filter(Boolean).join(", ") || who.clients.length + " clients"}{names(who.clients).some((n) => !n) && names(who.clients).some(Boolean) ? " and others" : ""}</div>}
+            {who.programs.map((x) => <div key={x.program.id}>{x.program.name} · {x.days.map((d) => d.name).join(", ")}{x.program.clients == null ? "" : " · " + x.program.clients + (x.program.clients === 1 ? " client" : " clients")}</div>)}
+            {!who.all && !who.clients.length && !who.programs.length && <div style={{ color: PL_INK3 }}>Not playing anywhere yet.</div>}
+          </div>
+          <PlTrackList p={p} />
+          <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => { onClose(); c.openAttach({ playlistId: p.id }); }} style={{ ...pillPrimary, flex: 1 }}>Attach</button>
+            <button type="button" onClick={() => { onClose(); c.openBuilder(p.id); }} style={pillGhost}>Edit</button>
+            {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ ...pillGhost, textDecoration: "none" }}>Open in {plProviderName(p.provider)} ↗</a>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// What the track list says beside the tracks it shows (2026-11-05): the builder repeated a
+// playlist's few sample tracks until the list was as long as its count, so a 28-track playlist
+// showed five tracks over and over. It shows the tracks it has, once each, and this line says how
+// many the playlist really holds and where the rest are. Null when every track is shown.
+function plTrackListNote(shown, total, provider) {
+  const n = Number(total) || 0;
+  if (shown >= n) return null;
+  const where = provider === "apple" ? "Apple Music" : "Spotify";
+  return (shown ? shown + " of " + n + " tracks shown." : n + (n === 1 ? " track" : " tracks") + " in this playlist.") + " The full list is in " + where + ".";
+}
+
+// The tracks a playlist has here, once each. A saved playlist holds no track list (only its count),
+// so it shows the note alone; the sample playlists in the preview show their few sample tracks.
+function PlTrackList({ p }) {
+  // The tracks it has, once each, never more than the playlist holds; the count is the playlist's own.
+  const trackTotal = Number(p.trackCount) || 0;
+  const sample = Array.isArray(p.sampleTracks) ? p.sampleTracks : [];
+  const tracks = trackTotal > 0 ? sample.slice(0, trackTotal) : sample;
+  const trackNote = plTrackListNote(tracks.length, trackTotal, p.provider);
+  if (!tracks.length && !trackNote) return null;
+  return (
+    <div data-pl-tracks>
+      <div style={{ ...plLabel, marginBottom: 8 }}>TRACKS</div>
+      <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", borderRadius: 8, overflow: "hidden" }}>
+        {tracks.map(([artist, title, dur], i) => (
+          <div key={i} data-pl-track style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", gap: 10, padding: "9px 14px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
+            <div style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK3 }}>{String(i + 1).padStart(2, "0")}</div>
+            <div>
+              <div style={{ fontSize: 12.5, marginBottom: 2 }}>{title}</div>
+              <div style={{ fontSize: 10.5, color: PL_INK2 }}>{artist}</div>
+            </div>
+            <div style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK3 }}>{dur}</div>
+          </div>
+        ))}
+        {trackNote && <div data-track-note style={{ padding: "11px 14px", borderTop: tracks.length ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none", fontSize: 11.5, lineHeight: 1.5, color: PL_INK2 }}>{trackNote}</div>}
+      </div>
+    </div>
+  );
+}
+
+function NewPlaylistDialog({ onClose }) {
   const ctx = React.useContext(PlaylistCtx);
-  const [open, setOpen] = React.useState(false);
   const [url, setUrl] = React.useState("");
   const [name, setName] = React.useState("");
   const [note, setNote] = React.useState("");
+  const [err, setErr] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
   const [pickProvider, setPickProvider] = React.useState(null);
   // Two library sources — Spotify (server OAuth) and Apple Music (in-page MusicKit).
   // Both degrade gracefully to the paste-a-link path, which works for everyone.
@@ -186,8 +626,18 @@ function NewPlaylistCard() {
   const [appleBusy, setAppleBusy] = React.useState(false);
   const [appleErr, setAppleErr] = React.useState("");
   const [appleConnected, setAppleConnected] = React.useState(null);
-  const reset = () => { setOpen(false); setUrl(""); setName(""); setNote(""); setMode("form"); setPickProvider(null); setSpotItems(null); setSpotErr(""); setAppleItems(null); setAppleErr(""); };
-  const doImport = () => { if (ctx.importSoundtrack) ctx.importSoundtrack({ name, url, note, provider: pickProvider }); reset(); };
+  React.useEffect(() => {
+    const key = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [onClose]);
+  const doImport = async () => {
+    if (!url.trim() && !name.trim()) { setErr("Paste a playlist link or give it a name."); return; }
+    setBusy(true); setErr("");
+    const r = await ctx.importSoundtrack({ name, url, note, provider: pickProvider });
+    setBusy(false);
+    if (r && r.ok) onClose(); else setErr((r && r.error) || "Couldn't save the playlist. Try again.");
+  };
   const loadSpotify = async () => {
     setSpotBusy(true); setSpotErr("");
     try {
@@ -244,7 +694,7 @@ function NewPlaylistCard() {
     } finally { setAppleBusy(false); }
   };
   const pick = (pl, prov) => { setUrl(pl.url || ""); setName(pl.name || ""); setPickProvider(prov || null); setMode("form"); };
-  const connectHref = "/api/integrations/spotify/authorize?return=" + encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search) : "/newdesign/TrainerPlaylists.html");
+  const connectHref = "/api/integrations/spotify/authorize?return=" + encodeURIComponent(typeof window !== "undefined" ? (window.location.pathname + window.location.search + window.location.hash) : "/newdesign/TrainerApp.html#playlists");
   const greenDot = { width: 8, height: 8, borderRadius: 999, background: "#1DB954", display: "inline-block" };
   const redDot = { width: 8, height: 8, borderRadius: 999, background: "#fa243c", display: "inline-block" };
   // The picker sub-view (mode !== 'form') is shared by both providers.
@@ -256,385 +706,372 @@ function NewPlaylistCard() {
   const pName = isApple ? "Apple Music" : "Spotify";
   const pAccent = isApple ? "#fb5c74" : TEAL_BRIGHT;
   return (
-    <React.Fragment>
-      <button onClick={() => setOpen(true)}
-        style={{ all: "unset", cursor: "pointer", border: "1.5px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.2)", borderRadius: 12, padding: 18, height: 344, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, fontFamily: sans, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)", transition: "all 0.2s" }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = TEAL; e.currentTarget.style.background = "rgba(var(--sh-accent2-rgb, 10,197,168),0.04)"; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"; e.currentTarget.style.background = "rgba(var(--sh-ink-rgb, 242,237,228),0.02)"; }}>
-        <div style={{ width: 56, height: 56, borderRadius: 999, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>New playlist</div>
-          <div style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", lineHeight: 1.5 }}>Pick from Spotify or Apple Music<br/>or paste a link</div>
-        </div>
-      </button>
-
-      {open && (
-        <div onClick={reset} style={modalOverlay}>
-          <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 520 }}>
-            {mode !== "form" ? (
+    <div onClick={onClose} style={modalOverlay}>
+      <div role="dialog" aria-modal="true" aria-label="Add a playlist" data-pl-new onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 520 }}>
+        {mode !== "form" ? (
+          <React.Fragment>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontFamily: PL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: pAccent }}>FROM YOUR {pLabel}</div>
+              <button type="button" onClick={() => setMode("form")} style={{ all: "unset", cursor: "pointer", fontFamily: PL_MONO, fontSize: 10, letterSpacing: "0.12em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>← BACK</button>
+            </div>
+            {pConnected === false ? (
               <React.Fragment>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: pAccent }}>FROM YOUR {pLabel}</div>
-                  <button onClick={() => setMode("form")} style={{ all: "unset", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.12em", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>← BACK</button>
-                </div>
-                {pConnected === false ? (
-                  <React.Fragment>
-                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Connect {pName}</h3>
-                    <p style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", lineHeight: 1.55, margin: "10px 0 18px" }}>Connect your {pName} to pick a playlist from your library. You can always paste a link instead.</p>
-                    {isApple
-                      ? <button onClick={loadApple} disabled={appleBusy} style={{ ...pillPrimary, opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? "Connecting…" : "Connect Apple Music →"}</button>
-                      : <a href={connectHref} style={{ ...pillPrimary, display: "inline-block", textDecoration: "none", textAlign: "center" }}>Connect Spotify →</a>}
-                  </React.Fragment>
-                ) : pErr ? (
-                  <React.Fragment>
-                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
-                    <p style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", lineHeight: 1.55, margin: "10px 0 18px", fontStyle: "italic" }}>{pErr}</p>
-                    <button onClick={() => setMode("form")} style={{ ...pillGhost, width: "100%" }}>Paste a link instead</button>
-                  </React.Fragment>
-                ) : (
-                  <React.Fragment>
-                    <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
-                    <p style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)", margin: "8px 0 14px" }}>{(pItems || []).length} playlist{(pItems || []).length === 1 ? "" : "s"} · pick one to import</p>
-                    <div style={{ maxHeight: 320, overflowY: "auto", margin: "0 -4px" }}>
-                      {(pItems || []).length === 0 ? (
-                        <div style={{ fontSize: 13.5, color: "var(--sh-ink2, #a09b94)", fontStyle: "italic", padding: "8px 4px" }}>No playlists found in your {pName} library.</div>
-                      ) : (pItems.map(pl => (
-                        <button key={pl.id} onClick={() => pick(pl, isApple ? "apple" : "spotify")} style={{ all: "unset", cursor: "pointer", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-                          <div style={{ width: 44, height: 44, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>{pl.image ? <img src={pl.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}</div>
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 14.5, fontWeight: 500, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pl.name}</div>
-                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: "var(--sh-ink2, #a09b94)", marginTop: 2 }}>{pl.tracks !== "" && pl.tracks != null ? pl.tracks + " tracks" : "playlist"}{pl.owner ? " · " + pl.owner : ""}</div>
-                          </div>
-                          <span style={{ color: pAccent, fontSize: 18 }}>+</span>
-                        </button>
-                      )))}
-                    </div>
-                  </React.Fragment>
-                )}
+                <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Connect {pName}</h3>
+                <p style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", lineHeight: 1.55, margin: "10px 0 18px" }}>Connect your {pName} to pick a playlist from your library. You can always paste a link instead.</p>
+                {isApple
+                  ? <button type="button" onClick={loadApple} disabled={appleBusy} style={{ ...pillPrimary, opacity: appleBusy ? 0.6 : 1 }}>{appleBusy ? "Connecting…" : "Connect Apple Music →"}</button>
+                  : <a href={connectHref} style={{ ...pillPrimary, display: "inline-block", textDecoration: "none", textAlign: "center" }}>Connect Spotify →</a>}
+              </React.Fragment>
+            ) : pErr ? (
+              <React.Fragment>
+                <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
+                <p style={{ fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", lineHeight: 1.55, margin: "10px 0 18px", fontStyle: "italic" }}>{pErr}</p>
+                <button type="button" onClick={() => setMode("form")} style={{ ...pillGhost, width: "100%" }}>Paste a link instead</button>
               </React.Fragment>
             ) : (
               <React.Fragment>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>NEW PLAYLIST</div>
-                <h3 style={{ fontFamily: serif, fontSize: 28, margin: 0, fontWeight: 400 }}>Add a playlist</h3>
-                <button onClick={loadSpotify} disabled={spotBusy}
-                  style={{ all: "unset", cursor: spotBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.4)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 10, opacity: spotBusy ? 0.6 : 1 }}>
-                  <span style={greenDot} />
-                  <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{spotBusy ? "Loading…" : "Pick from your Spotify"}</span>
-                  <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
-                </button>
-                <button onClick={loadApple} disabled={appleBusy}
-                  style={{ all: "unset", cursor: appleBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 8, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(250,36,60,0.4)", background: "rgba(250,36,60,0.06)", display: "flex", alignItems: "center", gap: 10, opacity: appleBusy ? 0.6 : 1 }}>
-                  <span style={redDot} />
-                  <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{appleBusy ? "Loading…" : "Pick from your Apple Music"}</span>
-                  <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", color: "var(--sh-ink2, #a09b94)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
-                </button>
-                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", color: "var(--sh-ink3, #75706a)", textAlign: "center", margin: "12px 0" }}>OR PASTE A LINK</div>
-                <label style={lbl}>Playlist URL</label>
-                <input value={url} onChange={e => { setUrl(e.target.value); setPickProvider(null); }} placeholder="Spotify or Apple Music playlist link" style={input} />
-                <label style={lbl}>Name (optional override)</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={input} />
-                <label style={lbl}>Note for client</label>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows="2" placeholder="What's the vibe? Any cues?" style={{ ...input, resize: "vertical", fontFamily: sans }} />
-                <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-                  <button onClick={doImport} style={{ ...pillPrimary, flex: 1 }}>Import playlist</button>
-                  <button onClick={reset} style={pillGhost}>Cancel</button>
+                <h3 style={{ fontFamily: serif, fontSize: 26, margin: "2px 0 0", fontWeight: 400 }}>Your playlists</h3>
+                <p style={{ fontSize: 12, color: PL_INK2, margin: "8px 0 14px" }}>{(pItems || []).length} playlist{(pItems || []).length === 1 ? "" : "s"} · pick one to import</p>
+                <div style={{ maxHeight: 320, overflowY: "auto", margin: "0 -4px" }}>
+                  {(pItems || []).length === 0 ? (
+                    <div style={{ fontSize: 13.5, color: PL_INK2, fontStyle: "italic", padding: "8px 4px" }}>No playlists found in your {pName} library.</div>
+                  ) : (pItems.map(pl => (
+                    <button type="button" key={pl.id} onClick={() => pick(pl, isApple ? "apple" : "spotify")} style={{ all: "unset", cursor: "pointer", width: "100%", boxSizing: "border-box", display: "flex", alignItems: "center", gap: 12, padding: "9px 4px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>{pl.image ? <img src={pl.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}</div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 14.5, fontWeight: 500, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pl.name}</div>
+                        <div style={{ fontFamily: PL_MONO, fontSize: 10, color: PL_INK2, marginTop: 2 }}>{pl.tracks !== "" && pl.tracks != null ? pl.tracks + " tracks" : "playlist"}{pl.owner ? " · " + pl.owner : ""}</div>
+                      </div>
+                      <span aria-hidden="true" style={{ color: pAccent, fontSize: 18 }}>＋</span>
+                    </button>
+                  )))}
                 </div>
               </React.Fragment>
             )}
-          </div>
-        </div>
-      )}
-    </React.Fragment>
-  );
-}
-
-function PlaylistDetail({ p, onClose }) {
-  const ctx = React.useContext(PlaylistCtx);
-  return (
-    <div onClick={onClose} style={modalOverlay}>
-      <div onClick={e => e.stopPropagation()} style={{ ...modalCard, maxWidth: 640, padding: 0 }}>
-        <div style={{ height: 180, background: p.cover, padding: 24, display: "flex", alignItems: "flex-end", position: "relative" }}>
-          <button onClick={onClose} style={{ position: "absolute", top: 16, right: 16, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", border: 0, color: "#f2ede4", width: 32, height: 32, borderRadius: 999, cursor: "pointer", fontSize: 16 }}>×</button>
-          <div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "5px 10px", borderRadius: 999, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 10 }}>
-              <ProviderMark kind={p.provider} size={11} />
-              {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
+          </React.Fragment>
+        ) : (
+          <React.Fragment>
+            <div style={{ fontFamily: PL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 8 }}>NEW PLAYLIST</div>
+            <h3 style={{ fontFamily: serif, fontSize: 28, margin: 0, fontWeight: 400 }}>Add a playlist</h3>
+            {ctx.demo && <p data-pl-demo-note style={{ fontSize: 12.5, color: PL_INK2, margin: "8px 0 0" }}>This is the preview. Sign in as a coach to save playlists.</p>}
+            <button type="button" onClick={loadSpotify} disabled={spotBusy}
+              style={{ all: "unset", cursor: spotBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 14, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.4)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 10, opacity: spotBusy ? 0.6 : 1 }}>
+              <span style={greenDot} />
+              <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{spotBusy ? "Loading…" : "Pick from your Spotify"}</span>
+              <span style={{ marginLeft: "auto", fontFamily: PL_MONO, fontSize: 9, letterSpacing: "0.1em", color: PL_INK2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
+            </button>
+            <button type="button" onClick={loadApple} disabled={appleBusy}
+              style={{ all: "unset", cursor: appleBusy ? "default" : "pointer", boxSizing: "border-box", width: "100%", marginTop: 8, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(250,36,60,0.4)", background: "rgba(250,36,60,0.06)", display: "flex", alignItems: "center", gap: 10, opacity: appleBusy ? 0.6 : 1 }}>
+              <span style={redDot} />
+              <span style={{ fontSize: 13.5, fontWeight: 500, color: INK }}>{appleBusy ? "Loading…" : "Pick from your Apple Music"}</span>
+              <span style={{ marginLeft: "auto", fontFamily: PL_MONO, fontSize: 9, letterSpacing: "0.1em", color: PL_INK2, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 999, padding: "2px 7px" }}>BETA</span>
+            </button>
+            <div style={{ fontFamily: PL_MONO, fontSize: 9.5, letterSpacing: "0.12em", color: PL_INK3, textAlign: "center", margin: "12px 0" }}>OR PASTE A LINK</div>
+            <label style={lbl}>Playlist URL<input value={url} onChange={e => { setUrl(e.target.value); setPickProvider(null); }} placeholder="Spotify or Apple Music playlist link" style={{ ...input, marginTop: 6 }} /></label>
+            <label style={lbl}>Name (optional override)<input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Heavy Squat Day" style={{ ...input, marginTop: 6 }} /></label>
+            <label style={lbl}>Note for clients<input value={note} maxLength={60} onChange={e => setNote(e.target.value)} placeholder="What's the vibe? Any cues?" style={{ ...input, marginTop: 6, fontFamily: sans }} /></label>
+            {err && <div role="alert" data-pl-error style={{ marginTop: 12, fontSize: 13, color: PL_RUST }}>{err}</div>}
+            <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+              <button type="button" onClick={doImport} disabled={busy} style={{ ...pillPrimary, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? "Saving…" : "Save playlist"}</button>
+              <button type="button" onClick={onClose} style={pillGhost}>Cancel</button>
             </div>
-            <h3 style={{ fontFamily: serif, fontSize: 32, fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>{p.name}</h3>
-            <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", letterSpacing: "0.06em", marginTop: 6 }}>
-              {p.bpm} BPM · {p.trackCount} tracks · {p.duration}
-            </div>
-          </div>
-        </div>
-        <div style={{ padding: 24 }}>
-          <div style={{ fontSize: 14, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)", lineHeight: 1.55, marginBottom: 20, fontStyle: "italic" }}>"{p.note}"</div>
-
-          <div style={{ marginBottom: 22 }}>
-            <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>ATTACHED TO</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {p.attachedTo.map(tid => {
-                const w = ctx.attachTargets.find(x => x.id === tid);
-                return <span key={tid} style={{ background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.1)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: "var(--sh-accent-ink, #2ee0c4)" }}>{w?.name}</span>;
-              })}
-              <span style={{ border: "1px dashed rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "6px 12px", borderRadius: 999, fontSize: 12, fontFamily: sans, color: "var(--sh-ink2, #a09b94)", cursor: "pointer" }}>+ Attach {ctx.attachmentUnit}</span>
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>PREVIEW · FIRST 5 TRACKS</div>
-            <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", borderRadius: 8, overflow: "hidden" }}>
-              {p.sampleTracks.map(([artist, title, dur], i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "30px 1fr auto", gap: 12, padding: "12px 14px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>{String(i + 1).padStart(2, "0")}</div>
-                  <div>
-                    <div style={{ fontSize: 13.5, marginBottom: 2 }}>{title}</div>
-                    <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)" }}>{artist}</div>
-                  </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>{dur}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 8, marginTop: 22 }}>
-            <button style={{ ...pillPrimary, flex: 1 }}>Attach to {ctx.attachmentUnit}</button>
-            <button style={pillGhost}>Share with team</button>
-            <button style={pillGhost}>Open in {p.provider === "apple" ? "Apple" : "Spotify"}</button>
-          </div>
-        </div>
+          </React.Fragment>
+        )}
       </div>
     </div>
   );
 }
 
 // ────────────────────────────────────────────────────────────
-// B · Attach matrix
+// B · Attach: a matrix, grouped by program, with days that need music flagged
 // ────────────────────────────────────────────────────────────
-function AttachMatrix() {
-  const ctx = React.useContext(PlaylistCtx);
-  const playlists = ctx.playlists;
-  const targets = ctx.attachTargets;
-  const [state, setState] = React.useState(() => {
-    const m = {};
-    playlists.forEach(p => p.attachedTo.forEach(w => { m[`${w}::${p.id}`] = true; }));
-    return m;
-  });
-  const toggle = (w, p) => setState(s => ({ ...s, [`${w}::${p}`]: !s[`${w}::${p}`] }));
-
-  return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.14em", color: TEAL_BRIGHT, marginBottom: 6 }}>ATTACH MATRIX</div>
-          <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 400 }}>{ctx.attachmentUnitPlural[0].toUpperCase() + ctx.attachmentUnitPlural.slice(1)} × Playlists</div>
-          <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>Click a cell to attach or detach. Every client with that {ctx.attachmentUnit} sees the playlist.</div>
-        </div>
-        <button style={pillPrimary}>+ New playlist</button>
-      </div>
-
-      <div style={{ overflow: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-          <thead>
-            <tr>
-              <th style={thFirst}>{ctx.attachmentUnitPlural.toUpperCase()}</th>
-              {playlists.map(p => (
-                <th key={p.id} style={{ ...th, minWidth: 120 }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 6, background: p.cover }} />
-                    <div style={{ fontSize: 11, fontFamily: sans, fontWeight: 500, color: INK, textAlign: "center", lineHeight: 1.25, whiteSpace: "normal", textTransform: "none", letterSpacing: 0 }}>{p.name}</div>
-                    <div style={{ fontSize: 10, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace" }}>{p.bpm}</div>
-                  </div>
-                </th>
-              ))}
+function AttachMatrix({ focus }) {
+  const c = React.useContext(PlaylistCtx);
+  const wrap = React.useRef(null);
+  // ⚠ ONE WRITE AT A TIME PER PROGRAM AND PER PLAYLIST. A program day's write is held to the
+  // revision the page read, and a send replaces the playlist's whole `attached`: a second click
+  // while the first is in flight would send a stale revision (refused) or drop the first change.
+  const [busy, setBusy] = React.useState([]);
+  const playlists = c.playlists;
+  const cols = playlists.length;
+  React.useEffect(() => {
+    if (!focus || !wrap.current) return;
+    const sel = focus.playlistId ? `[data-pl-col="${focus.playlistId}"]` : `[data-pl-day="${focus.programId}:${focus.dayIndex}"]`;
+    const el = wrap.current.querySelector(sel);
+    if (el && el.scrollIntoView) { try { el.scrollIntoView({ block: "center", inline: "center" }); } catch (e) {} }
+  }, [focus]);
+  if (!cols) return <Card style={{ padding: 22 }}><div data-pl-empty style={{ fontSize: 14 }}>Save a playlist first, then attach it here.</div></Card>;
+  const run = async (locks, fn) => {
+    if (locks.some((l) => busy.includes(l))) return;
+    setBusy((b) => [...b, ...locks]);
+    try { await fn(); } finally { setBusy((b) => b.filter((l) => !locks.includes(l))); }
+  };
+  const held = (locks) => locks.some((l) => busy.includes(l));
+  const colOn = (p) => focus && focus.playlistId === p.id;
+  const header = (
+    <thead>
+      <tr>
+        <th style={{ ...thFirst, top: 0, position: "sticky", zIndex: 3 }}>{c.role === "nutritionist" ? "CLIENTS" : "PROGRAM DAYS"}</th>
+        {playlists.map((p) => (
+          <th key={p.id} data-pl-col={p.id} style={{ ...th, top: 0, position: "sticky", zIndex: 2, minWidth: 112, boxShadow: colOn(p) ? `inset 0 -2px 0 ${p.accent}` : undefined }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+              <div aria-hidden="true" style={{ width: 28, height: 28, borderRadius: 6, background: p.cover }} />
+              <div style={{ fontSize: 11, fontFamily: sans, fontWeight: 500, color: INK, textAlign: "center", lineHeight: 1.25, whiteSpace: "normal", textTransform: "none", letterSpacing: 0 }}>{p.name}</div>
+              <div style={{ fontSize: 9.5, color: PL_INK3, fontFamily: PL_MONO, letterSpacing: "0.06em", textTransform: "none" }}>{plProviderName(p.provider)}</div>
+            </div>
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+  // A cell: filled reads "✓ N" in the playlist's colour; empty is ＋ (dashed where the day needs music).
+  const cell = (key, locks, on, label, count, needs, onClick, accent) => (
+    <td key={key} style={td}>
+      <button type="button" aria-pressed={on === true} aria-label={label} disabled={held(locks)} onClick={() => run(locks, onClick)} data-pl-cell={key} data-on={on === true ? "1" : on === "some" ? "some" : "0"}
+        style={{ minWidth: 56, height: 32, padding: "0 10px", borderRadius: 8, cursor: held(locks) ? "default" : "pointer", fontFamily: PL_MONO, fontSize: 11, fontWeight: 600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          border: on ? `1.5px solid ${accent}` : needs ? `1.5px dashed ${PL_RUST_DASH}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
+          background: on === true ? accent : "transparent", color: on === true ? "#fff" : on === "some" ? INK : needs ? PL_RUST : PL_INK3, opacity: held(locks) ? 0.5 : 1 }}>
+        {on === true ? "✓" + (count == null ? "" : " " + count) : on === "some" ? "✓ some wks" : "＋"}
+      </button>
+    </td>
+  );
+  const programSection = c.role === "trainer" && (
+    c.programsState === "loading" ? <tbody><tr><td colSpan={cols + 1} style={{ ...tdFirst, color: PL_INK2 }}>Reading your programs…</td></tr></tbody>
+    : c.programsState === "unread" ? <tbody><tr><td colSpan={cols + 1} data-pl-programs-unread style={{ ...tdFirst, color: PL_INK2 }}>Your programs couldn't be read. Reload to try again.</td></tr></tbody>
+    : !c.programs.length ? <tbody><tr><td colSpan={cols + 1} style={{ ...tdFirst, color: PL_INK2 }}>No programs yet. Build one in Programs, then put playlists on its days here.</td></tr></tbody>
+    : c.programs.map((prog) => (
+      <tbody key={prog.id} data-pl-program={prog.id}>
+        <tr>
+          <th scope="rowgroup" colSpan={cols + 1} style={{ ...tdFirst, position: "sticky", left: 0, textAlign: "left", fontWeight: 500, background: "var(--sh-ground, #1a1612)", paddingTop: 18 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {prog.type
+                ? <span style={{ ...plChip, color: INK }}><span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: prog.type.color }} />{prog.type.label}</span>
+                : <span style={plChip}>No type</span>}
+              <span style={{ fontSize: 14 }}>{prog.name}</span>
+              <span style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK2 }}>{prog.clients == null ? "clients couldn't be read" : prog.clients + (prog.clients === 1 ? " client" : " clients")}</span>
+            </span>
+          </th>
+        </tr>
+        {prog.days.map((d) => {
+          const music = (d.playlists || []).some((x) => x.weeksWith >= d.weeks);
+          const needs = !music && (prog.clients == null || prog.clients > 0);
+          const lifted = focus && focus.programId === prog.id && focus.dayIndex === d.index;
+          return (
+            <tr key={d.index} data-pl-day={prog.id + ":" + d.index} data-needs={needs ? "1" : "0"} style={lifted ? { boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" } : undefined}>
+              <td style={{ ...tdFirst, borderLeft: needs ? `3px solid ${PL_RUST}` : "3px solid transparent" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500 }}>{d.name}</div>
+                {needs && <div data-pl-no-music style={{ fontSize: 11, color: PL_RUST, fontFamily: PL_MONO, marginTop: 3 }}>No music{prog.clients ? " · " + prog.clients + (prog.clients === 1 ? " client" : " clients") : ""}</div>}
+                {d.weeks > 1 && <div style={{ fontSize: 10.5, color: PL_INK3, fontFamily: PL_MONO, marginTop: 2 }}>every week · {d.weeks} weeks</div>}
+              </td>
+              {playlists.map((p) => {
+                const on = plDayHas(d, p.name);
+                const key = prog.id + ":" + d.index + ":" + p.id;
+                const label = (on === true ? "Take " + p.name + " off " : "Put " + p.name + " on ") + prog.name + " · " + d.name;
+                return cell(key, ["prog:" + prog.id], on, label, prog.clients, needs, () => c.setDay(prog, d.index, on === true ? null : p), p.accent);
+              })}
             </tr>
-          </thead>
-          <tbody>
-            {targets.map(w => (
-              <tr key={w.id}>
-                <td style={tdFirst}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 3 }}>{w.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{w.program} · {w.clientsDoing} clients</div>
-                </td>
-                {playlists.map(p => {
-                  const on = state[`${w.id}::${p.id}`];
-                  return (
-                    <td key={p.id} style={td}>
-                      <button onClick={() => toggle(w.id, p.id)}
-                        style={{ width: 36, height: 36, borderRadius: 10, border: on ? `1.5px solid ${p.accent}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", background: on ? p.accent : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto", transition: "all 0.15s" }}>
-                        {on && <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#1a1612" strokeWidth="2.5"><path d="M3 8.5l3 3 7-7"/></svg>}
-                      </button>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
+          );
+        })}
+      </tbody>
+    ))
+  );
+  const roster = c.roster;
+  const clientRows = roster.state === "ready" ? roster.clients : [];
+  const sendSection = (
+    <tbody data-pl-sends>
+      <tr>
+        <th scope="rowgroup" colSpan={cols + 1} style={{ ...tdFirst, textAlign: "left", fontWeight: 500, paddingTop: 18 }}>
+          <span style={{ fontSize: 14 }}>Sent to clients</span>
+          <span style={{ fontSize: 12, color: PL_INK2, marginLeft: 10, fontWeight: 400 }}>on their {c.role === "nutritionist" ? "Eat" : "Train"} page</span>
+        </th>
+      </tr>
+      <tr data-pl-send="all">
+        <td style={tdFirst}><div style={{ fontSize: 13.5, fontWeight: 500 }}>Every client</div></td>
+        {playlists.map((p) => { const on = plIsSentTo(p, "all"); const key = "all:" + p.id; return cell(key, ["pl:" + p.id], on, (on ? "Stop sending " : "Send ") + p.name + " to every client", null, false, () => c.toggleSent(p, { id: "all" }), p.accent); })}
+      </tr>
+      {roster.state === "loading" && <tr><td colSpan={cols + 1} style={{ ...tdFirst, color: PL_INK2 }}>Reading your clients…</td></tr>}
+      {roster.state === "unread" && <tr><td colSpan={cols + 1} data-pl-roster-unread style={{ ...tdFirst, color: PL_INK2 }}>Your clients couldn't be read, so one-by-one sends aren't shown.</td></tr>}
+      {clientRows.map((cl) => (
+        <tr key={cl.id} data-pl-send={cl.id}>
+          <td style={tdFirst}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13.5 }}>
+              {typeof DashClientGem === "function" && <DashClientGem points={cl.points} title={cl.name} />}{cl.name}
+            </span>
+          </td>
+          {playlists.map((p) => { const on = plIsSentTo(p, cl.id); const key = cl.id + ":" + p.id; return cell(key, ["pl:" + p.id], on, (on ? "Stop sending " : "Send ") + p.name + " to " + cl.name, null, false, () => c.toggleSent(p, cl), p.accent); })}
+        </tr>
+      ))}
+    </tbody>
+  );
+  return (
+    <Card style={{ padding: 0 }}>
+      <div style={{ padding: "16px 22px", borderBottom: `1px solid ${PL_LINE}` }}>
+        <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 400 }}>{c.role === "nutritionist" ? "Clients × playlists" : "Program days × playlists"}</div>
+        <div style={{ fontSize: 12.5, color: PL_INK2, marginTop: 4, lineHeight: 1.5 }}>
+          {c.role === "nutritionist"
+            ? "A playlist you send shows on the client's Eat page and opens in their own Spotify or Apple Music. Meal plans don't carry a playlist."
+            : "A day plays one playlist, every week of its program. The client sees its name on that day's session from the next time you assign the program; a session already on a calendar keeps what it was sent with. ✓ N is the clients on that program. To have it open in their own app, send it to them below."}
+        </div>
+      </div>
+      <div ref={wrap} data-pl-matrix style={{ overflow: "auto", maxHeight: PL_MATRIX_MAX_H, overscrollBehavior: "contain" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12.5 }}>
+          {header}
+          {programSection}
+          {sendSection}
         </table>
       </div>
     </Card>
   );
 }
 
-const th = { padding: "16px 10px", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", verticalAlign: "bottom" };
-const thFirst = { ...th, textAlign: "left", minWidth: 240, paddingLeft: 24, position: "sticky", left: 0, background: "var(--sh-ground, #1a1612)", zIndex: 1 };
-const td = { padding: "10px 8px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", textAlign: "center" };
-const tdFirst = { padding: "14px 24px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", position: "sticky", left: 0, background: "var(--sh-ground, #1a1612)", zIndex: 1, minWidth: 240 };
+const th = { padding: "14px 10px", textAlign: "center", fontFamily: PL_MONO, fontSize: 10.5, letterSpacing: "0.12em", color: PL_INK2, borderBottom: `1px solid ${PL_LINE}`, verticalAlign: "bottom", background: "var(--sh-ground, #1a1612)" };
+const thFirst = { ...th, textAlign: "left", minWidth: 220, paddingLeft: 22, left: 0 };
+const td = { padding: "8px 8px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", textAlign: "center" };
+const tdFirst = { padding: "12px 22px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", position: "sticky", left: 0, background: "var(--sh-ground, #1a1612)", zIndex: 1, minWidth: 220 };
+const plLabel = { fontSize: 10.5, fontFamily: PL_MONO, letterSpacing: "0.12em", color: PL_INK2 };
 
 // ────────────────────────────────────────────────────────────
-// C · Builder drawer
+// C · Builder: edit one playlist
 // ────────────────────────────────────────────────────────────
-function BuilderDrawer({ query, setQuery, items }) {
-  const [active, setActive] = React.useState(items[0]);
-  React.useEffect(() => { if (!items.find(x => x.id === active?.id)) setActive(items[0]); }, [items]);
-
+function BuilderDrawer({ selectedId, setSelectedId }) {
+  const c = React.useContext(PlaylistCtx);
+  const items = c.playlists;
+  const active = items.find((x) => x.id === selectedId) || items[0] || null;
+  if (!items.length) return <Card style={{ padding: 22 }}><div data-pl-empty style={{ fontSize: 14, marginBottom: 12 }}>No playlists yet.</div><button type="button" onClick={() => c.setAdding(true)} style={pillPrimary}>＋ New playlist</button></Card>;
   return (
-    <React.Fragment>
-      <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16 }}>
-        <div>
-          <SearchBar query={query} setQuery={setQuery} placeholder="Search your playlists…" compact />
-          <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", borderRadius: 10, overflow: "hidden" }}>
-            <button style={{ all: "unset", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", width: "100%", boxSizing: "border-box", cursor: "pointer", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.05)", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-              <div style={{ width: 30, height: 30, borderRadius: 999, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={TEAL_BRIGHT} strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+    <div className="pl-builder" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 300px) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+      <div role="listbox" aria-label="Your playlists" style={{ border: `1px solid ${PL_LINE}`, borderRadius: 10, overflow: "hidden" }}>
+        {items.map((p) => {
+          const on = active && active.id === p.id;
+          return (
+            <button type="button" role="option" aria-selected={on} key={p.id} data-pl-pick={p.id} onClick={() => setSelectedId(p.id)}
+              style={{ all: "unset", display: "grid", gridTemplateColumns: "36px 1fr", gap: 12, padding: "11px 14px", width: "100%", boxSizing: "border-box", cursor: "pointer", background: on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "transparent", borderBottom: `1px solid ${PL_LINE}`, alignItems: "center" }}>
+              <div aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 6, background: p.cover }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                <div style={{ fontSize: 10.5, color: PL_INK2, fontFamily: PL_MONO }}>{plProviderName(p.provider)}{p.trackCount != null ? " · " + p.trackCount + " tracks" : ""}</div>
               </div>
-              <span style={{ fontSize: 13.5, color: TEAL_BRIGHT, fontWeight: 500 }}>New playlist</span>
             </button>
-            {items.map(p => (
-              <button key={p.id} onClick={() => setActive(p)}
-                style={{ all: "unset", display: "grid", gridTemplateColumns: "42px 1fr auto", gap: 12, padding: "12px 16px", width: "100%", boxSizing: "border-box", cursor: "pointer", background: active?.id === p.id ? "rgba(var(--sh-ink-rgb, 242,237,228),0.06)" : "transparent", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", alignItems: "center" }}>
-                <div style={{ width: 42, height: 42, borderRadius: 6, background: p.cover }} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{p.attachedTo.length} · {p.bpm}</div>
-                </div>
-                <ProviderMark kind={p.provider} size={13} />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {active && <BuilderDetailPane p={active} />}
+          );
+        })}
       </div>
-    </React.Fragment>
+      {active && <BuilderDetailPane key={active.id} p={active} />}
+    </div>
   );
 }
 
-// What the track list says beside the tracks it shows (2026-11-05): the builder repeated a
-// playlist's few sample tracks until the list was as long as its count, so a 28-track playlist
-// showed five tracks over and over. It shows the tracks it has, once each, and this line says how
-// many the playlist really holds and where the rest are. Null when every track is shown.
-function plTrackListNote(shown, total, provider) {
-  const n = Number(total) || 0;
-  if (shown >= n) return null;
-  const where = provider === "apple" ? "Apple Music" : "Spotify";
-  return (shown ? shown + " of " + n + " tracks shown." : n + (n === 1 ? " track" : " tracks") + " in this playlist.") + " The full list is in " + where + ".";
-}
-
 function BuilderDetailPane({ p }) {
-  const ctx = React.useContext(PlaylistCtx);
-  const targets = ctx.attachTargets;
-  // The tracks it has, once each, never more than the playlist holds; the count is the playlist's own.
-  const trackTotal = Number(p.trackCount) || 0;
-  const tracks = trackTotal > 0 ? p.sampleTracks.slice(0, trackTotal) : p.sampleTracks;
-  const trackNote = plTrackListNote(tracks.length, trackTotal, p.provider);
+  const c = React.useContext(PlaylistCtx);
+  const [draft, setDraft] = React.useState({ name: p.name, bpm: p.bpm || "", duration: p.duration || "", note: p.note || "", url: p.url || "" });
+  const [state, setState] = React.useState({ busy: false, msg: "", error: false });
+  const [menu, setMenu] = React.useState(false);
+  const menuRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!menu) return undefined;
+    const down = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenu(false); };
+    const key = (e) => { if (e.key === "Escape") setMenu(false); };
+    document.addEventListener("mousedown", down); document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", down); document.removeEventListener("keydown", key); };
+  }, [menu]);
+  const dirty = draft.name.trim() !== p.name || draft.bpm.trim() !== (p.bpm || "") || draft.duration.trim() !== (p.duration || "") || draft.note.trim() !== (p.note || "") || draft.url.trim() !== (p.url || "");
+  const who = plWhoHears(p, c.programs);
+  // A program day names its playlist (day.playlist.name): renaming here doesn't rename it there.
+  const dayCount = who.programs.reduce((s, x) => s + x.days.length, 0);
+  const renamed = draft.name.trim() && draft.name.trim() !== p.name && dayCount > 0;
+  const save = async () => {
+    if (!draft.name.trim()) { setState({ busy: false, msg: "A playlist needs a name.", error: true }); return; }
+    setState({ busy: true, msg: "", error: false });
+    const r = await c.savePlaylist(p, { name: draft.name.trim(), bpm: draft.bpm.trim(), duration: draft.duration.trim(), tag: draft.note.trim(), url: draft.url.trim() });
+    setState(r.ok ? { busy: false, msg: c.demo ? "Changed in the preview only. Sign in to save." : "Saved.", error: false } : { busy: false, msg: r.error, error: true });
+  };
+  const remove = async () => {
+    setMenu(false);
+    const r = await c.deletePlaylist(p);
+    if (r && r.error) setState({ busy: false, msg: r.error, error: true });
+  };
+  const field = (label, k, props) => (
+    <label style={{ ...lbl, marginTop: 0 }}>{label}
+      <input value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} style={{ ...input, marginTop: 6 }} {...(props || {})} />
+    </label>
+  );
   return (
-    <Card style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ height: 120, background: p.cover, padding: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "5px 10px", borderRadius: 999, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.1em", marginBottom: 8 }}>
-            <ProviderMark kind={p.provider} size={11} />
-            {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
+    <div data-pl-builder={p.id} style={{ minWidth: 0 }}><Card style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 96, background: p.cover, padding: "16px 20px", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.4)", padding: "4px 9px", borderRadius: 999, fontSize: 10, fontFamily: PL_MONO, letterSpacing: "0.1em", color: "#f2ede4", marginBottom: 6 }}>
+            <ProviderMark kind={p.provider} size={11} />{p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
           </div>
-          <div style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, letterSpacing: "-0.02em" }}>{p.name}</div>
+          <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.02em", color: "#f2ede4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
         </div>
-        <button style={{ background: p.accent, color: "#1a1612", border: 0, padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>▶ Preview</button>
+        {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: "#f2ede4", fontSize: 12.5, textDecoration: "none", background: "rgba(0,0,0,0.4)", padding: "7px 12px", borderRadius: 999, whiteSpace: "nowrap" }}>Open in {plProviderName(p.provider)} ↗</a>}
       </div>
 
-      <div style={{ padding: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, marginBottom: 22, fontSize: 11.5, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", color: "var(--sh-ink2, #a09b94)" }}>
-          <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 22, marginBottom: 4 }}>{p.trackCount}</div>TRACKS</div>
-          <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 22, marginBottom: 4 }}>{p.bpm}</div>BPM RANGE</div>
-          <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 22, marginBottom: 4 }}>{p.duration}</div>RUNTIME</div>
-          <div><div style={{ color: INK, fontFamily: "Fraunces", fontSize: 22, marginBottom: 4 }}>{p.listens.toLocaleString()}</div>CLIENT LISTENS</div>
+      <div style={{ padding: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 14, marginBottom: 20, fontSize: 10.5, fontFamily: PL_MONO, letterSpacing: "0.08em", color: PL_INK2 }}>
+          <div><div data-pl-stat="tracks" style={{ color: INK, fontFamily: serif, fontSize: 22, marginBottom: 2 }}>{p.trackCount != null ? p.trackCount : "—"}</div>TRACKS</div>
+          <div><div data-pl-stat="length" style={{ color: INK, fontFamily: serif, fontSize: 22, marginBottom: 2 }}>{p.duration || "—"}</div>LENGTH</div>
+          <div><div data-pl-stat="tempo" style={{ color: INK, fontFamily: serif, fontSize: 22, marginBottom: 2 }}>{p.bpm || "—"}</div>TEMPO (BPM)</div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          <div>
-            <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>NOTE FOR CLIENT</div>
-            <div style={{ border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: "12px 14px", fontSize: 13.5, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", lineHeight: 1.55, fontStyle: "italic", marginBottom: 22 }}>"{p.note}"</div>
-
-            <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>ATTACHED {ctx.attachmentUnitPlural.toUpperCase()} ({p.attachedTo.length})</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 20 }}>
-              {targets.map(w => {
-                const on = p.attachedTo.includes(w.id);
-                return (
-                  <label key={w.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.3)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"}`, background: on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)" : "transparent", borderRadius: 8, cursor: "pointer" }}>
-                    <div style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${on ? p.accent : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, background: on ? p.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                      {on && <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#1a1612" strokeWidth="3"><path d="M3 8.5l3 3 7-7"/></svg>}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{w.name}</div>
-                      <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{w.program} · {w.clientsDoing} clients</div>
-                    </div>
-                  </label>
-                );
-              })}
+        <div className="pl-builder-cols" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 22 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {field("Name", "name", { maxLength: 160 })}
+            {renamed && <div data-pl-rename-note style={{ fontSize: 12, color: PL_INK2, marginTop: -4 }}>{dayCount === 1 ? "1 program day shows" : dayCount + " program days show"} it as “{p.name}” and keep{dayCount === 1 ? "s" : ""} that name until you attach it again.</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {field("Tempo (BPM)", "bpm", { maxLength: 24, placeholder: "e.g. 120–140" })}
+              {field("Length", "duration", { maxLength: 24, placeholder: "e.g. 58m" })}
             </div>
+            {field("Note for clients", "note", { maxLength: 60, placeholder: "What's the vibe? Any cues?" })}
+            {field(plProviderName(p.provider) + " link", "url", { maxLength: 500, placeholder: "https://…" })}
           </div>
-
           <div>
-            <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 10 }}>TRACKS</div>
-            <div style={{ background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", borderRadius: 8, overflow: "hidden", maxHeight: 420, overflowY: "auto" }}>
-              {tracks.map(([artist, title, dur], i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "28px 1fr auto", gap: 10, padding: "10px 14px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>{String(i + 1).padStart(2, "0")}</div>
-                  <div>
-                    <div style={{ fontSize: 12.5, marginBottom: 2 }}>{title}</div>
-                    <div style={{ fontSize: 10.5, color: "var(--sh-ink2, #a09b94)" }}>{artist}</div>
-                  </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10.5, color: "var(--sh-ink3, #75706a)" }}>{dur}</div>
-                </div>
-              ))}
-              {trackNote && <div data-track-note style={{ padding: "12px 14px", borderTop: tracks.length ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" : "none", fontSize: 11.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>{trackNote}</div>}
+            <div style={{ ...plLabel, marginBottom: 8 }}>PLAYS ON</div>
+            <div data-pl-plays-on style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 10 }}>
+              {plWhoHearsText(who, c.role)}
+              {who.programs.map((x) => <div key={x.program.id} style={{ color: PL_INK2, fontSize: 12.5 }}>{x.program.name} · {x.days.map((d) => d.name).join(", ")}</div>)}
             </div>
+            <button type="button" onClick={() => c.openAttach({ playlistId: p.id })} style={{ ...plLinkBtn, marginBottom: 18 }}>Change where it plays →</button>
+            <PlTrackList p={p} />
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-          <button style={pillPrimary}>Save changes</button>
-          <button style={pillGhost}>Share with team</button>
-          <button style={pillGhost}>Replace source link</button>
+        <div style={{ display: "flex", gap: 10, marginTop: 22, paddingTop: 18, borderTop: `1px solid ${PL_LINE}`, alignItems: "center", flexWrap: "wrap" }}>
+          <button type="button" data-pl-save onClick={save} disabled={!dirty || state.busy} style={{ ...pillPrimary, opacity: !dirty || state.busy ? 0.5 : 1, cursor: !dirty || state.busy ? "default" : "pointer" }}>{state.busy ? "Saving…" : "Save"}</button>
+          {state.msg && <span role="status" data-pl-save-msg style={{ fontSize: 12.5, color: state.error ? PL_RUST : PL_INK2 }}>{state.msg}</span>}
           <div style={{ flex: 1 }} />
-          <button style={{ ...pillGhost, color: "rgba(255,150,150,0.9)", borderColor: "rgba(255,150,150,0.2)" }}>Delete</button>
+          <div ref={menuRef} style={{ position: "relative" }}>
+            <button type="button" aria-label="More for this playlist" aria-haspopup="menu" aria-expanded={menu} data-pl-more onClick={() => setMenu(!menu)} style={{ ...pillGhost, padding: "8px 14px" }}>⋯</button>
+            {menu && (
+              <div role="menu" style={{ position: "absolute", right: 0, bottom: "calc(100% + 6px)", minWidth: 180, background: "var(--sh-ground, #1a1612)", border: `1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)`, borderRadius: 10, boxShadow: "0 14px 34px rgba(0,0,0,0.35)", padding: 6, zIndex: 5 }}>
+                <button type="button" role="menuitem" data-pl-delete onClick={remove} style={{ all: "unset", cursor: "pointer", display: "block", width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 6, fontSize: 13, color: PL_RUST }}>Delete playlist…</button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </Card>
+    </Card></div>
   );
 }
 
 // ────────────────────────────────────────────────────────────
 // Shared bits
 // ────────────────────────────────────────────────────────────
-function PlaylistTabs({ value, onChange, ctx }) {
+function PlaylistTabs({ value, onChange, flag }) {
+  const c = React.useContext(PlaylistCtx);
   const tabs = [
-    { id: "library", label: "Library",          sub: "Browse & create",       icon: "grid" },
-    { id: "matrix",  label: "Attach matrix",    sub: `Bulk-assign to ${ctx.attachmentUnitPlural}`, icon: "matrix" },
-    { id: "builder", label: "Builder",          sub: "Deep-edit tracks & notes", icon: "edit" },
+    { id: "library", label: "Library" },
+    { id: "matrix", label: "Attach" },
+    { id: "builder", label: "Builder" },
   ];
   return (
-    <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", paddingBottom: 2 }}>
-      {tabs.map(t => {
+    <div role="tablist" aria-label="Playlists views" style={{ display: "flex", gap: 4, marginBottom: 18, borderBottom: `1px solid ${PL_LINE}` }}>
+      {tabs.map((t) => {
         const on = value === t.id;
         return (
-          <button key={t.id} onClick={() => onChange(t.id)}
-            style={{ all: "unset", cursor: "pointer", padding: "14px 18px", display: "inline-flex", alignItems: "center", gap: 12, borderBottom: `2px solid ${on ? TEAL_BRIGHT : "transparent"}`, marginBottom: -1, fontFamily: sans }}>
-            <TabIcon kind={t.icon} on={on} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.75)" }}>{t.label}</div>
-              <div style={{ fontSize: 11, color: "var(--sh-ink3, #75706a)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.06em", marginTop: 2 }}>{t.sub}</div>
-            </div>
+          <button type="button" role="tab" aria-selected={on} key={t.id} data-pl-tab={t.id} onClick={() => onChange(t.id)}
+            style={{ all: "unset", cursor: "pointer", padding: "11px 16px", display: "inline-flex", alignItems: "center", gap: 8, borderBottom: `2px solid ${on ? TEAL_BRIGHT : "transparent"}`, marginBottom: -1, fontFamily: sans, fontSize: 14, fontWeight: 500, color: on ? INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>
+            {t.label}
+            {t.id === "matrix" && flag > 0 && c.role === "trainer" && <span data-pl-tab-flag style={{ ...plChip, padding: "1px 7px", borderColor: PL_RUST_EDGE, color: PL_RUST }}>{flag} no music</span>}
           </button>
         );
       })}
@@ -642,75 +1079,22 @@ function PlaylistTabs({ value, onChange, ctx }) {
   );
 }
 
-function TabIcon({ kind, on }) {
-  const c = on ? TEAL_BRIGHT : "rgba(var(--sh-ink-rgb, 242,237,228),0.45)";
-  if (kind === "grid") return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8">
-      <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
-      <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
-    </svg>
-  );
-  if (kind === "matrix") return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8">
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-      <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
-    </svg>
-  );
+function SearchBar({ query, setQuery, placeholder }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z" fill={on ? "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" : "transparent"}/>
-    </svg>
-  );
-}
-
-function SearchBar({ query, setQuery, placeholder, compact }) {
-  return (
-    <div style={{ position: "relative", marginBottom: compact ? 14 : 20 }}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.4)" strokeWidth="2" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
+    <div style={{ position: "relative", marginBottom: 16 }}>
+      <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.4)" strokeWidth="2" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }}>
         <circle cx="11" cy="11" r="7" />
         <path d="m21 21-4.3-4.3" />
       </svg>
-      <input value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
-        style={{ width: "100%", boxSizing: "border-box", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 10, padding: "12px 14px 12px 72px", fontFamily: sans, fontSize: 13.5, color: INK, outline: "none" }} />
-    </div>
-  );
-}
-
-function AttachmentTable() {
-  const ctx = React.useContext(PlaylistCtx);
-  const rows = [];
-  ctx.playlists.forEach(p => {
-    p.attachedTo.forEach(tid => {
-      const w = ctx.attachTargets.find(x => x.id === tid);
-      if (w) rows.push({ p, w });
-    });
-  });
-  return (
-    <div>
-      {rows.map((r, i) => (
-        <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 2fr 2fr 1fr 1fr 80px", gap: 14, padding: "12px 4px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", alignItems: "center" }}>
-          <div style={{ width: 36, height: 36, borderRadius: 6, background: r.p.cover }} />
-          <div>
-            <div style={{ fontSize: 13.5, fontWeight: 500 }}>{r.p.name}</div>
-            <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{r.p.bpm} BPM · {r.p.trackCount} tracks</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 13, color: TEAL_BRIGHT }}>→ {r.w.name}</div>
-            <div style={{ fontSize: 11, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace" }}>{r.w.program}</div>
-          </div>
-          <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "var(--sh-ink2, #a09b94)" }}>{r.w.clientsDoing} clients</div>
-          <div style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: "var(--sh-ink2, #a09b94)" }}>{r.p.listens} listens</div>
-          <button style={{ background: "transparent", color: "var(--sh-ink2, #a09b94)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15)", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontFamily: sans, cursor: "pointer" }}>Detach</button>
-        </div>
-      ))}
+      <input aria-label={placeholder} value={query} onChange={e => setQuery(e.target.value)} placeholder={placeholder}
+        style={{ width: "100%", boxSizing: "border-box", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 10, padding: "11px 14px 11px 40px", fontFamily: sans, fontSize: 13.5, color: INK, outline: "none" }} />
     </div>
   );
 }
 
 const modalOverlay = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 };
 const modalCard = { background: "var(--sh-ground, #1a1612)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 14, width: "100%", padding: 28, maxHeight: "90vh", overflow: "auto", boxShadow: "0 40px 80px rgba(0,0,0,0.5)" };
-const lbl = { display: "block", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.12em", color: "var(--sh-ink2, #a09b94)", marginBottom: 6, marginTop: 14 };
-const input = { width: "100%", boxSizing: "border-box", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: "10px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: INK, outline: "none" };
+const lbl = { display: "block", fontSize: 11, fontFamily: PL_MONO, letterSpacing: "0.12em", color: PL_INK2, marginBottom: 0, marginTop: 14 };
+const input = { width: "100%", boxSizing: "border-box", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", borderRadius: 8, padding: "10px 14px", fontFamily: PL_MONO, fontSize: 13, color: INK, outline: "none", letterSpacing: 0 };
 
 Object.assign(window, { PlaylistPage });
