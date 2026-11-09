@@ -299,8 +299,11 @@ test('an adherence goal names the clients pulling it down, from real reads only'
   const n = C.cgsNudgeModel({ role: 'nutritionist', roster: { source: 'demo', triage: mockFeed('nutritionist') }, sample: true });
   assert.deepEqual(n.clients.map((c) => c.name), ['Priya S.'], 'a nutritionist\'s protein adherence');
   assert.equal(typeof n.clients[0].draft === 'string' && /Protein/.test(n.clients[0].draft), true, 'with the member\'s own draft');
-  // ⚠ A signed-in coach whose roster fell back to the demo is unread: never the sample's people.
+  // ⚠ A signed-in coach beside a demo roster (not this role) is unread: never the sample's people.
   assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'demo', triage: mockFeed('trainer') }, sample: false }).state, 'unread');
+  // A roster that couldn't be read (useDashboard's "unread") names nobody, for the sample's goals too.
+  assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'unread', triage: [] }, sample: false }).state, 'unread');
+  assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'unread', triage: [] }, sample: true }).state, 'unread');
   assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: mockFeed('trainer') }, sample: true }).state, 'unread');
   assert.equal(C.cgsNudgeModel({ role: 'trainer', roster: undefined, sample: false }).state, 'loading');
   // A client whose progress is still loading, or couldn't be read, or who is off plan, is not named.
