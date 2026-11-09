@@ -489,8 +489,9 @@ function CgsField({ label, value, onChange, type }) {
 const CGS_PILL = { background: "transparent", color: INK, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", padding: "10px 20px", borderRadius: 999, fontFamily: sans, fontSize: 13, cursor: "pointer" };
 const CGS_PILL_ON = { background: INK, color: PAPER, border: 0, padding: "10px 22px", borderRadius: 999, fontFamily: sans, fontSize: 13, fontWeight: 500, cursor: "pointer" };
 
-// `startFig`: what this save starts the goal's pace from ("90%"), or null when it keeps the start it has
-// (`kept`) or the figure couldn't be read.
+// The add and edit modal. Under the due date it says where the goal's pace runs from: the start it keeps
+// (`kept`, cgsKeepsStart), or today's figure, which the save stamps (cgsStampGoal). A due date not after
+// that start can't be saved.
 function CgsGoalModal({ goal, role, today, live, sample, onClose, onSave, onDelete }) {
   const METRICS = typeof goalMetricsFor === "function" ? goalMetricsFor(role) : [["", "Type it in"]];
   const [g, setG] = React.useState(() => (goal ? { ...goal, due: goal.due || "" } : { t: "", cur: 0, tgt: 100, sub: "", money: false, pct: false, due: cgsDayKey(cgsQuarterEnd(today)) }));
