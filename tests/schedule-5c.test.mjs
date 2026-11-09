@@ -310,10 +310,10 @@ test('⋯ offers another time or the booking; Esc closes it back to ⋯; the nam
     const menu = card.querySelector('[role="menu"]');
     assert.ok(menu);
     assert.deepEqual([...menu.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent), ['Offer another time', 'Open the booking']);
-    assert.equal(page.doc.activeElement, menu.querySelector('[role="menuitem"]'), 'focus did not go into the menu');
+    assert.ok(page.doc.activeElement === menu.querySelector('[role="menuitem"]'), 'focus did not go into the menu');
     await keyOn(page, 'Escape');
     assert.ok(!card.querySelector('[role="menu"]'), 'Esc left the menu open');
-    assert.equal(page.doc.activeElement, more, 'focus did not come back to ⋯');
+    assert.ok(page.doc.activeElement === more, 'focus did not come back to ⋯');
     await page.click(more);
     await page.click(page.buttonMatching(/^Offer another time$/, card));
     assert.match(page.doc.querySelector('[role=dialog]').textContent, /Offer another time/);
@@ -361,10 +361,10 @@ test('the settings are behind one tab on the edge, in a modal sheet: focus held,
     const focusable = [...sheet.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled])')];
     focusable.at(-1).focus();
     await keyOn(page, 'Tab');
-    assert.equal(page.doc.activeElement, focusable[0], 'Tab escaped the sheet');
+    assert.ok(page.doc.activeElement === focusable[0], 'Tab escaped the sheet');
     focusable[0].focus();
     await keyOn(page, 'Tab', { shiftKey: true });
-    assert.equal(page.doc.activeElement, focusable.at(-1), 'Shift-Tab escaped the sheet');
+    assert.ok(page.doc.activeElement === focusable.at(-1), 'Shift-Tab escaped the sheet');
     await page.act(async () => page.doc.querySelector('[data-schedule-plate] button').focus());
     await page.settle();
     assert.ok(sheet.contains(page.doc.activeElement), 'focus left the sheet');
@@ -374,7 +374,7 @@ test('the settings are behind one tab on the edge, in a modal sheet: focus held,
     assert.equal(root.getAttribute('aria-hidden'), null);
     assert.notEqual(root.inert, true);
     assert.equal(page.doc.body.style.overflow, '');
-    assert.equal(page.doc.activeElement, page.doc.querySelector('[data-settings-tab]'), 'focus did not return to the tab');
+    assert.ok(page.doc.activeElement === page.doc.querySelector('[data-settings-tab]'), 'focus did not return to the tab');
   } finally { await page.unmount(); }
 });
 
@@ -422,7 +422,7 @@ test('closing over an unsaved edit asks first: Keep editing keeps it, Leave with
     assert.ok(ask, 'Esc dropped an unsaved edit without asking');
     assert.equal(ask.getAttribute('role'), 'alertdialog');
     assert.match(ask.textContent, /Your changes to your open hours aren't saved\./);
-    assert.equal(page.doc.activeElement, ask.querySelector('[data-keep-editing]'));
+    assert.ok(page.doc.activeElement === ask.querySelector('[data-keep-editing]'), 'focus is not on Keep editing');
     // Esc again keeps editing; so does Keep editing.
     await keyOn(page, 'Escape');
     assert.ok(!page.doc.querySelector('[data-settings-unsaved]'));
