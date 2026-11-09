@@ -465,6 +465,7 @@ test('the joint note shows only for a shared client, and says so when the thread
   ({ m } = await drawer(sam, { joint }));
   try {
     assert.equal(!!document.querySelector('[data-peek-joint]'), false, 'a client who is not shared got the joint note');
+    assert.equal(/Joint note/i.test(panelText()), false, 'a client who is not shared got an empty joint note section');
     assert.equal(!!document.querySelector('[data-peek-status] [data-dash-shared]'), false);
   } finally { await m.unmount(); }
   // A host that holds no joint list draws no joint section rather than guessing.
