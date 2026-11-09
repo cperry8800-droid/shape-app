@@ -32,7 +32,7 @@ globalThis.trainerPayoutCard = {}; globalThis.nutriPayoutCard = {};
 globalThis.dashMoney = (c) => '$' + c; globalThis.dashQueueDone = () => false; globalThis.dashMessageClient = () => {};
 const nd = (f) => fileURLToPath(new URL('../public/newdesign/' + f, import.meta.url));
 Object.assign(globalThis, await loadRealModule(nd('dashFilterBar.jsx'),
-  { appendExports: 'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };' }));
+  { appendExports: 'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift, DashLibSort, DashLibStatus, DashLibMenu, DashLibTopLine, DashLibDrawer, DashLibPeople, DashLibCard, DASH_LIB_ROSTER_UNREAD, dashLibRosterState, dashLibWeekEnd, dashLibKind };' }));
 const { TrainerProgramsPage, DbuTagPicker } = await loadRealModule(nd('dashBuilder.jsx'), { appendExports: 'export { TrainerProgramsPage, DbuTagPicker };' });
 const { NutritionistPlansPage } = await loadRealModule(nd('dashMealBuilder.jsx'), { appendExports: 'export { NutritionistPlansPage };' });
 
@@ -60,6 +60,10 @@ async function typeInto(input, value) {
 const option = (label) => [...document.querySelectorAll('.dash-facet-opt')].find((l) => l.querySelector('.dash-facet-l')?.textContent === label);
 const count = () => document.querySelector('.dash-filter-count')?.textContent;
 const chip = (label) => [...document.querySelectorAll('.dash-chiprow .dash-chip')].find((b) => b.firstChild?.textContent === label);
+// Step 6a: a card's other actions are in its ⋯ (DashLibMenu), and the tags and the meal type are filter menus.
+async function cardAction(card, label) { await click(card.querySelector('.dash-lib-more-btn')); await click([...document.querySelectorAll('[role="menuitem"]')].find((b) => b.textContent === label)); }
+const firstCard = () => document.querySelector('[data-lib-card]');
+async function pick(menu, label) { if (!document.querySelector('.dash-facet-pop')) await click(button(menu + '▾')); await click(option(label).querySelector('input')); }
 
 // ── The bar and the chip row ────────────────────────────────────────────────
 const ITEMS = [
@@ -230,7 +234,8 @@ test('Programs: additional filters stay applied and visible in the count when co
   dashboard('live'); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
   assert.ok(button('Type▾'));
-  assert.ok(button('Focus▾'));
+  assert.ok(button('Tags▾'), 'the tags are a filter in the one row (step 6a)');
+  assert.ok(!button('Focus▾'));
   assert.ok(!button('In use▾'));
   const more = buttonStarting('More filters');
   assert.equal(more.getAttribute('aria-expanded'), 'false');
@@ -256,9 +261,10 @@ test('Programs: the tag row offers Shape\'s goals and this coach\'s own tags, an
   dashboard('live'); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
   assert.equal(count(), '3 programs');
-  assert.ok(chip('Postnatal'), 'the coach\'s own tag is in the row');
-  assert.equal(chip('Cut').querySelector('.dash-chip-n').textContent, '1', 'goalTag "cut" on Quick Mobility is not a tag anyone chose');
-  await click(chip('Postnatal'));
+  await click(button('Tags▾'));
+  assert.ok(option('Postnatal'), 'the coach\'s own tag is in the filter');
+  assert.equal(option('Cut').querySelector('.dash-facet-n').textContent, '1', 'goalTag "cut" on Quick Mobility is not a tag anyone chose');
+  await click(option('Postnatal').querySelector('input'));
   assert.deepEqual([...document.querySelectorAll('.dash-plate h2')].map((h) => h.textContent), ['Glute Builder']);
   assert.equal(count(), '1 of 3 programs');
   assert.doesNotMatch(text(), /Tag a program under its name/, 'the hint is for a library with no tags at all');
@@ -268,8 +274,8 @@ test('Programs: who is on each program narrows the library and badges the card',
   dashboard('live'); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
   assert.ok(calls.some((u) => /\/api\/coach\/plans\/usage\?today=\d{4}-\d{2}-\d{2}$/.test(u)), 'asked with the coach\'s own day');
-  assert.match(cardOf('Glute Builder').textContent, /In use · 2 clients/);
-  assert.doesNotMatch(cardOf('Home Sweat').textContent, /In use/);
+  assert.match(cardOf('Glute Builder').querySelector('.dash-lib-who').textContent, /^On it2 clients$/, 'who is on it, from the usage read');
+  assert.match(cardOf('Home Sweat').querySelector('.dash-lib-who').textContent, /No clients yet/);
   await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   assert.equal(option('Yes').querySelector('.dash-facet-n').textContent, '1');
@@ -282,7 +288,7 @@ test('Programs: who is on each program narrows the library and badges the card',
 test('Programs: a capped read may say "in use" and never "not in use"', async () => {
   dashboard('live'); stubFetch({ usage: { usage: { p1: { clients: 5 } }, capped: true } });
   await mount(React.createElement(TrainerProgramsPage));
-  assert.match(cardOf('Glute Builder').textContent, /In use · 5\+ clients/);
+  assert.match(cardOf('Glute Builder').querySelector('.dash-lib-who').textContent, /5\+ clients/);
   await click(buttonStarting('More filters'));
   await click(button('In use▾'));
   assert.ok(option('Yes'));
@@ -323,7 +329,9 @@ test('Programs: an unread calendar says why, and Retry reads it again', async ()
 test('Programs: in the preview nobody is on anything, and it says so', async () => {
   dashboard('demo'); stubFetch({ libraryOk: false });
   await mount(React.createElement(TrainerProgramsPage));
-  assert.ok(chip('Strength'), 'the preview\'s programs carry their tags');
+  await click(button('Tags▾'));
+  assert.ok(option('Strength'), 'the preview\'s programs carry their tags');
+  await React.act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
   assert.ok(!calls.some((u) => u.includes('/usage')), 'no account, no read');
   await click(buttonStarting('More filters'));
   await click(button('In use▾'));
@@ -360,7 +368,7 @@ test('Programs: filters that match nothing say so and offer to clear them', asyn
 test('Programs: another account is another library — its filters do not carry over', async () => {
   dashboard('live'); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
-  await click(chip('Postnatal'));
+  await pick('Tags', 'Postnatal');
   assert.equal(count(), '1 of 3 programs');
   stubFetch({ owner: 'coach-b', plans: LIB.slice(0, 2) });
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
@@ -397,7 +405,7 @@ test('Programs: a program started while the library loads survives the first ans
 test('Programs: signing in closes an example program the preview had open', async () => {
   dashboard('demo'); stubFetch({ libraryOk: false });
   await mount(React.createElement(TrainerProgramsPage));
-  await click(buttonStarting('Edit template'));
+  await cardAction(firstCard(), 'Edit');
   assert.ok(button('← Library'));
   stubFetch();
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
@@ -560,14 +568,15 @@ test('Meal plans: phase chips and the Diet filter narrow the library; the card s
   dashboardN('live'); stubMeals();
   await mount(React.createElement(NutritionistPlansPage));
   assert.equal(count(), '2 plans');
-  await click(chip('Build'));
+  await pick('Type', 'Build');
   assert.equal(count(), '1 of 2 plans');
   assert.match(text(), /Bulk Base/);
-  await click(chip('All'));
+  await click(option('Build').querySelector('input'));
+  await click(buttonStarting('More filters'));
   await click(button('Diet▾'));
   await click(option('No fish').querySelector('input'));
   assert.equal(count(), '1 of 2 plans');
-  assert.doesNotMatch([...document.querySelectorAll('.dash-plate')].map((c) => c.textContent).join('|'), /Lean Week/);
+  assert.doesNotMatch([...document.querySelectorAll('[data-lib-card]')].map((c) => c.textContent).join('|'), /Lean Week/);
   assert.match(text(), /Contains nuts · Longest meal 20 min/);
 });
 
@@ -608,7 +617,7 @@ test('Meal plans: the preview and another account both close an open plan', asyn
   // Preview → signed in (a session started in another tab) → the example plan closes.
   dashboardN('demo'); stubMeals({ ok: false });
   await mount(React.createElement(NutritionistPlansPage));
-  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit template'));
+  await cardAction(firstCard(), 'Edit');
   assert.ok(button('← Library'));
   stubMeals();
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
@@ -616,7 +625,7 @@ test('Meal plans: the preview and another account both close an open plan', asyn
   assert.ok(!button('← Library'), 'the open plan closed');
   assert.match(text(), /Lean Week/);
   // Account A → account B.
-  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit template'));
+  await cardAction(firstCard(), 'Edit');
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ ownerId: 'nutri-b', plans: [MEALS[1]] }) });
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
   await settle();
@@ -631,7 +640,7 @@ test('Meal plans: the preview and another account both close an open plan', asyn
 test('Meal plans: signed in from the start, another account still closes an open plan', async () => {
   dashboardN('live'); stubMeals();
   await mount(React.createElement(NutritionistPlansPage));
-  await click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Edit template'));
+  await cardAction(firstCard(), 'Edit');
   assert.ok(button('← Library'));
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ ownerId: 'nutri-b', plans: [MEALS[1]] }) });
   await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
@@ -640,11 +649,12 @@ test('Meal plans: signed in from the start, another account still closes an open
   assert.doesNotMatch(text(), /Lean Week/);
 });
 
-test('Meal plans: "Write plan" on an empty library opens a new plan, not nothing', async () => {
+test('Meal plans: a client due a plan, on an empty library, starts a new plan in their phase, not nothing', async () => {
   const client = { profile: { id: 'c1', name: 'Jordan M.' }, goal: { target: 80, now: 81 }, goalPhase: 'build', checkIn: { lastWeekOf: '2026-09-15' } };
   dashboardN('live', [client]); stubMeals({ plans: [] });
   await mount(React.createElement(NutritionistPlansPage));
-  await click(buttonStarting('Write plan'));
+  await click(button('Review'));
+  await click(button('Start a plan'));
   assert.ok(button('← Library'), 'the builder opened');
   assert.equal(document.querySelector('select').value, 'build', 'in the client\'s phase');
 });

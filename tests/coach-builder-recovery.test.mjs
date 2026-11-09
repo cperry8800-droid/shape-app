@@ -18,7 +18,7 @@ globalThis.ShapeWorkoutDocument=require('../public/newdesign/workoutDocument.js'
 globalThis.DashPill=({children})=>React.createElement('span',null,children);
 // The library's filter bar is its own module (dashFilterBar.jsx), read as globals at
 // render exactly as the hosts load it — the real module, not a stand-in.
-Object.assign(globalThis,await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashFilterBar.jsx',import.meta.url)),{appendExports:'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift };'}));
+Object.assign(globalThis,await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashFilterBar.jsx',import.meta.url)),{appendExports:'export { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift, DashLibSort, DashLibStatus, DashLibMenu, DashLibTopLine, DashLibDrawer, DashLibPeople, DashLibCard, DASH_LIB_ROSTER_UNREAD, dashLibRosterState, dashLibWeekEnd, dashLibKind };'}));
 // The builder remembers which view a coach last had open through `dashData.jsx`'s
 // remembered-choice store, which this file does not load; the hook has its own suite
 // (tests/dashboard-remembered-choices.test.mjs). Stubbed as plain React state so recovery
@@ -28,6 +28,8 @@ globalThis.useRememberedChoice=(_store,_key,_allowed,fallback)=>React.useState(f
 const {DbuBuilder,dbuRecoveredTemplate,TrainerProgramsPage,DbuFutureUpdates}=await loadRealModule(fileURLToPath(new URL('../public/newdesign/dashBuilder.jsx',import.meta.url)),{appendExports:'export { DbuBuilder, dbuRecoveredTemplate, TrainerProgramsPage, DbuFutureUpdates };'});
 const template=()=>({id:'0a7d7e48-46b1-4b23-b2f4-af4d3ef88004',name:'Lower',published:false,detail:{revision:2,builder:DashBuilder.newProgram('Lower')}});
 const button=label=>[...document.querySelectorAll('button')].find(b=>b.textContent===label);
+// Step 6a: Edit is in each library card's ⋯ menu.
+const editFirstCard=async()=>{await React.act(async()=>document.querySelector('[data-lib-card] .dash-lib-more-btn').click());await React.act(async()=>[...document.querySelectorAll('[role="menuitem"]')].find(b=>b.textContent==='Edit').click());};
 // ⚠ RE-ANCHORED: these cases used to flush by clicking `Save draft`, a control the builder
 // redesign retires (F6 — three save verbs collapse into autosave + Publish). They wait for
 // the autosave now, which is not a workaround but a STRONGER test: it exercises the path
@@ -141,7 +143,7 @@ test('a failed demo load clears raw parse errors while live failure gives an act
   globalThis.fetch=async()=>({ok:false,json:async()=>{throw new SyntaxError('Unexpected token N, Not found is not valid JSON');}});
   let root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(TrainerProgramsPage)));
-  assert.ok(button('Edit template'));
+  assert.ok(document.querySelector('[data-lib-card]'),'the preview\'s programs');
   assert.doesNotMatch(document.body.textContent,/Unexpected token|Not found is not valid JSON|Could not load your workouts/);
   await React.act(async()=>root.unmount());
   libraryChrome('live');root=createRoot(document.getElementById('root'));
@@ -176,7 +178,7 @@ test('a library account change closes the old account editor without moving its 
   globalThis.fetch=async(url)=>({ok:true,json:async()=>url.includes('soundtracks')?{soundtracks:[]}:{ownerId:owner,plans:[{...template(),kind:'program',name:owner+' workout'}]}});
   const root=createRoot(document.getElementById('root'));
   await React.act(async()=>root.render(React.createElement(TrainerProgramsPage)));
-  await React.act(async()=>button('Edit template').click());
+  await editFirstCard();
   await changeName('Private A draft');
   owner='coach-b';await React.act(async()=>window.dispatchEvent(new window.Event('focus')));
   assert.ok(!document.querySelector('[aria-label="Workout or program name"]'),'the builder is gone once the account changes');

@@ -56,7 +56,8 @@ test('counts distinct CLIENTS per program, from this coach\'s published sessions
   ];
   const { route, calls } = await api([{ data: [{ id: 't1' }, { id: 't2' }], error: null }, { data: rows, error: null, count: rows.length }]);
   const body = await (await route.GET(get())).json();
-  assert.deepEqual(body, { usage: { p1: { clients: 2 }, p2: { clients: 1 } }, capped: false });
+  // Who, as well as how many (step 6a: each library card's "who's on it"): each client once, sorted.
+  assert.deepEqual(body, { usage: { p1: { clients: 2, clientIds: ['c1', 'c2'] }, p2: { clients: 1, clientIds: ['c3'] } }, capped: false });
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'owner_id' && c[2] === 'coach-a'), 'the trainer rows are the caller\'s own');
   assert.ok(calls.some((c) => c[0] === 'in' && c[1] === 'trainer_id' && c[2].join() === 't1,t2'));
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'status' && c[2] === 'published'), 'a draft is on nobody\'s calendar');
@@ -66,7 +67,7 @@ test('counts distinct CLIENTS per program, from this coach\'s published sessions
 
 test('a read past the cap says so, because it can only under-count', async () => {
   const { route } = await api([{ data: [{ id: 't1' }], error: null }, { data: [{ client_id: 'c1', template_id: 'p1' }], error: null, count: 9000 }]);
-  assert.deepEqual(await (await route.GET(get())).json(), { usage: { p1: { clients: 1 } }, capped: true });
+  assert.deepEqual(await (await route.GET(get())).json(), { usage: { p1: { clients: 1, clientIds: ['c1'] } }, capped: true });
   const unknown = await api([{ data: [{ id: 't1' }], error: null }, { data: [], error: null, count: null }]);
   assert.equal((await (await unknown.route.GET(get())).json()).capped, true, 'an unknown count is not a complete one');
 });
@@ -95,7 +96,7 @@ test('a template id is only ever an own key of the map', async () => {
   const { route } = await api([{ data: [{ id: 't1' }], error: null }, { data: rows, error: null, count: 2 }]);
   const body = await (await route.GET(get())).json();
   assert.deepEqual(Object.keys(body.usage).sort(), ['__proto__', 'constructor']);
-  assert.deepEqual(body.usage.constructor, { clients: 1 });
+  assert.deepEqual(body.usage.constructor, { clients: 1, clientIds: ['c1'] });
 });
 
 test('the route is registered on the War Room board', async () => {

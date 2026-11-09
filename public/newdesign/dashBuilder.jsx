@@ -3116,11 +3116,12 @@ function DbuWho({ entry, usage, roster, clients, preview }) {
   else if (usage.state !== "ready") body = <span className="dash-lib-quiet">{usage.state === "error" ? "Couldn’t read who’s on it" : "Checking who’s on it…"}</span>;
   else {
     const who = DashBuilder.programWho(entry, clients);
-    const plus = usage.capped ? "+" : "";
+    // ⚠ A CAPPED READ CAN ONLY UNDER-COUNT: "5+ clients", and never "No clients yet".
+    const many = who.count + (usage.capped ? "+ clients" : who.count === 1 ? " client" : " clients");
     if (!who.count) body = <span className="dash-lib-quiet">{usage.capped ? "None found on the calendars read" : "No clients yet"}</span>;
-    else if (roster !== "live" && roster !== "demo") body = <span className="dash-lib-quiet">{dbuCount(who.count, "client", "clients")}{plus} · {roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"}</span>;
-    else if (!who.people) body = <span>On {dbuCount(who.count, "client", "clients")}{plus}</span>;
-    else body = <><DashLibPeople people={who.people} extra={who.count - who.people.length} />{plus && <span className="dash-lib-quiet">· not every calendar was read</span>}</>;
+    else if (roster !== "live" && roster !== "demo") body = <span className="dash-lib-quiet">{many} · {roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"}</span>;
+    else if (!who.people) body = <span>{many}</span>;
+    else body = <><DashLibPeople people={who.people} extra={who.count - who.people.length} />{usage.capped && <span className="dash-lib-quiet">· not every calendar was read</span>}</>;
   }
   return <div className="dash-lib-who"><span className="dash-lib-who-label">On it</span>{body}</div>;
 }

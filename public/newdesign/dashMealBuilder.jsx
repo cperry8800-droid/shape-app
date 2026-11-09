@@ -829,7 +829,10 @@ function DmbTodoLine({ model, onAssignAll, onReview }) {
       <button type="button" onClick={onReview} disabled={!n && !t.intake.length} style={dmbBtn(false)}>Review</button>
     </>} />;
 }
-function DmbTodoDrawer({ todo, onAssign, onPick, onClose }) {
+// A client with no plan named: "Choose a plan" from the library, or, on a library with none yet,
+// "Start a plan" in the builder in their own phase (a button that does nothing on an empty
+// library is a dead one).
+function DmbTodoDrawer({ todo, hasPlans, onAssign, onPick, onNew, onClose }) {
   return <DashLibDrawer title="Plans due this week" onClose={onClose}
     sub="Each client once, with every reason they have. A plan is named where your library holds one in their phase; the assign sheet still asks for the start day, training days and portions.">
     <ul className="dash-lib-rows">
@@ -842,7 +845,9 @@ function DmbTodoDrawer({ todo, onAssign, onPick, onClose }) {
           {r.reasons.map((k) => <DashLibStatus key={k} tone="need">{DMB_REASONS[k] || k}</DashLibStatus>)}
           {r.suggestion
             ? <button type="button" style={dmbBtn(false)} onClick={() => onAssign(r)}>Assign</button>
-            : <button type="button" style={dmbBtn(false)} onClick={() => onPick(r.id)}>Choose a plan</button>}
+            : hasPlans
+              ? <button type="button" style={dmbBtn(false)} onClick={() => onPick(r.id)}>Choose a plan</button>
+              : <button type="button" style={dmbBtn(false)} onClick={() => onNew(r)}>Start a plan</button>}
         </div>
       </li>)}
       {todo.intake.map((r) => <li key={r.id} className="dash-lib-row">
@@ -1099,7 +1104,8 @@ function NutritionistPlansPage() {
         )}
       </DashPage>
       {reviewing && todoModel.todo && (
-        <DmbTodoDrawer todo={todoModel.todo} onClose={() => setReviewing(false)}
+        <DmbTodoDrawer todo={todoModel.todo} hasPlans={!!(templates && templates.length)} onClose={() => setReviewing(false)}
+          onNew={(r) => { setReviewing(false); setPickFor(r.id); setView({ template: newPlan(r.phase) }); }}
           onAssign={(r) => { setReviewing(false); setWalk(null); setAssignFor({ template: r.suggestion.template, clientId: r.id }); }}
           onPick={(id) => { setReviewing(false); setPickFor(id); }} />
       )}
