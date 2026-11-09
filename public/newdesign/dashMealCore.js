@@ -558,6 +558,51 @@
     });
     return { intake: intake, phaseChange: phase, expiring: expiring };
   }
+  // ── The library's to-do (the owner's coach review, step 6a) ───────────────
+  // The lifecycle as ONE list: each client once, however many reasons they have (the block it
+  // replaces listed 9 of 10 clients for a phase change and 8 of them again as expiring). Each row
+  // keeps its reasons, and names a plan only where one fits: a library plan in the client's own
+  // phase (their recorded phase, client_programs' nutrition phase, read by name). No phase, or no
+  // plan in it, names none — the coach picks. Intake pending stays its own list: those clients
+  // cannot take a plan until they have checked in once.
+  function phaseKeyOf(v) {
+    var s = mealText(v);
+    if (!s) return null;
+    var g = GOAL_PHASES.find(function (x) { return x.key === s || x.label.toLowerCase() === s; });
+    return g ? g.key : null;
+  }
+  // A client whose overview is still loading (`progressRead`) or could not be read has no
+  // check-in to judge by: counted as such, never as a client who needs nothing.
+  function todoReadState(c) {
+    var r = c && c.progressRead;
+    if (!r || typeof r !== "object") return "ready";
+    return r.state === "ready" ? "ready" : r.state === "loading" ? "loading" : "unread";
+  }
+  function planTodo(clients, queue, templates) {
+    var all = (Array.isArray(clients) ? clients : []).filter(function (c) { return c && c.profile; });
+    var read = all.filter(function (c) { return todoReadState(c) === "ready"; });
+    var pending = all.filter(function (c) { return todoReadState(c) === "loading"; }).length;
+    var unread = all.length - read.length - pending;
+    var readIds = Object.create(null);
+    read.forEach(function (c) { readIds[String(c.profile.id)] = true; });
+    var lc = buildPlanLifecycle(read, (queue || []).filter(function (q) { return q && q.client && q.client.profile && readIds[String(q.client.profile.id)]; }));
+    var rows = [], at = Object.create(null);
+    var add = function (c, reason) {
+      var id = c && c.profile ? String(c.profile.id) : "";
+      if (!id) return;
+      if (at[id] == null) {
+        var phase = phaseKeyOf(c.goalPhase);
+        var tpl = phase ? (templates || []).find(function (t) { return t && t.detail && t.detail.mealBuilder && t.detail.mealBuilder.goalPhase === phase; }) : null;
+        at[id] = rows.length;
+        rows.push({ id: c.profile.id, name: String(c.profile.name || "A client"), rankPoints: c.rankPoints, client: c, phase: phase, reasons: [], suggestion: tpl ? { id: tpl.id, name: tpl.name, template: tpl } : null });
+      }
+      if (rows[at[id]].reasons.indexOf(reason) < 0) rows[at[id]].reasons.push(reason);
+    };
+    lc.expiring.forEach(function (c) { add(c, "checked-in"); });
+    lc.phaseChange.forEach(function (c) { add(c, "phase"); });
+    var intake = lc.intake.filter(function (c) { return c && c.profile; }).map(function (c) { return { id: c.profile.id, name: String(c.profile.name || "A client"), rankPoints: c.rankPoints, client: c }; });
+    return { rows: rows, intake: intake, assignable: rows.filter(function (r) { return !!r.suggestion; }).length, total: all.length, pending: pending, unread: unread };
+  }
 
   // ── The library's filters ───────────────────────────────────────────────────
   // ⚠ THE BUILDER'S EXCLUSION LIST AND THE LIBRARY'S DIET FILTER ARE ONE LIST, so a
@@ -633,8 +678,18 @@
     return out;
   }
   // An empty plan has nothing checked, so it is never offered as free of anything.
+  // ⚠ TWO QUESTIONS, TWO READINGS (the owner's coach review, step 6a). The Diet FILTER asks
+  // "is this plan free of X", which has to hold for every meal a client can be served,
+  // approved alternates included (planDiet). The card's allergen LINE says what the plan's
+  // own meals contain (planOwnDiet): an alternate is one the client may pick, not what the
+  // plan serves, and "Summer Cut contains shellfish" for one swap read as the plan's.
+  function planOwnDiet(plan) {
+    return dietOf(planServed(plan).filter(function (x) { return !x.swap; }));
+  }
   function planDiet(plan) {
-    var served = planServed(plan);
+    return dietOf(planServed(plan));
+  }
+  function dietOf(served) {
     var known = served.length > 0, contains = Object.create(null);
     for (var i = 0; i < served.length; i++) {
       var d = mealDiet(served[i].meal, served[i].swap);
@@ -668,7 +723,11 @@
     var phase = GOAL_PHASES.find(function (g) { return g.key === plan.goalPhase; });
     var kcal = Number(plan.targets && plan.targets.kcal);
     var diet = planDiet(plan);
+    var ownDiet = planOwnDiet(plan);
     var prep = planPrep(plan);
+    // The search finds a recipe inside a plan too: every meal it can serve, alternates included.
+    var dishes = [], seenDish = Object.create(null);
+    planServed(plan).forEach(function (x) { var n = mealText(x.meal && x.meal.name); if (n && !seenDish[n]) { seenDish[n] = true; dishes.push(n); } });
     var prepKeys = [];
     if (prep.known && prep.max <= 15) prepKeys.push("quick");
     if (prep.known && prep.max > 15 && prep.max <= 30) prepKeys.push("standard");
@@ -678,7 +737,7 @@
       return days.some(function (d) { return d && d.variants && typeof d.variants === "object" && d.variants[k]; });
     });
     return {
-      search: mealText(t.name),
+      search: [mealText(t.name)].concat(dishes).join(" · "),
       keys: {
         phase: phase ? [phase.key] : [],
         kcal: isFinite(kcal) && kcal > 0 ? [kcalBucket(kcal)] : [],
@@ -686,7 +745,7 @@
         prep: prepKeys,
         days: dayTypes,
       },
-      info: { diet: diet, prep: prep, dayTypes: dayTypes },
+      info: { diet: diet, ownDiet: ownDiet, prep: prep, dayTypes: dayTypes },
     };
   }
   var MEAL_FACETS = [
@@ -750,7 +809,8 @@
     resolveDay: resolveDay, editBaseMeal: editBaseMeal, hasVariantFollowers: hasVariantFollowers,
     mealsTotals: mealsTotals, scaleMeal: scaleMeal, phaseShift: phaseShift,
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,
-    buildMealAssignment: buildMealAssignment, buildPlanLifecycle: buildPlanLifecycle,
+    buildMealAssignment: buildMealAssignment, buildPlanLifecycle: buildPlanLifecycle, planTodo: planTodo, phaseKeyOf: phaseKeyOf,
+    planOwnDiet: planOwnDiet,
     demoMealTemplates: demoMealTemplates,
     ALLERGENS: ALLERGENS, mealDiet: mealDiet, planServed: planServed, planDiet: planDiet, planPrep: planPrep,
     mealPlanFacts: mealPlanFacts, MEAL_FACETS: MEAL_FACETS, mealPhaseFacet: mealPhaseFacet,

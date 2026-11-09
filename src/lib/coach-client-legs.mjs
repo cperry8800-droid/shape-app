@@ -178,7 +178,9 @@ export function bsWorkoutProgramLeg(rows, now = Date.now(), today = null) {
     .filter((r) => r !== pick && r.start > pick.start)
     .reduce((a, b) => (!a || b.start < a.start ? b : a), null);
   return {
-    name: pick.name, week, weeks: pick.weeks, status: isStarted ? 'active' : 'assigned',
+    // The template the run was assigned from, so the library can tell which program a client's
+    // current week belongs to (the owner's coach review, step 6a) without matching names.
+    name: pick.name, templateId: pick.id, week, weeks: pick.weeks, status: isStarted ? 'active' : 'assigned',
     estimatedEndAt: new Date(end).toISOString(),
     overdue: todayMs >= end,
     nextAssigned: next ? next.name : null,

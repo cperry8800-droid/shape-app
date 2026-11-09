@@ -1,5 +1,5 @@
 // Which of this coach's programs a client has on their calendar — the workout library's
-// "In use" filter. Read-only and owner-scoped: the sessions counted are the ones THIS
+// "In use" filter and each card's "who's on it". Read-only and owner-scoped: the sessions counted are the ones THIS
 // coach's trainer rows published, read with the coach's own client under RLS.
 
 import { NextResponse } from 'next/server';
@@ -49,6 +49,8 @@ export async function GET(request: Request) {
     byTemplate.set(templateId, clients);
   }
   // fromEntries defines OWN properties, so a template id can never reach a prototype.
-  const usage = Object.fromEntries([...byTemplate].map(([id, clients]) => [id, { clients: clients.size }]));
+  // `clientIds` say WHO (the library's "who's on it", matched to the coach's own roster by id):
+  // the ids this read already holds, the coach's own clients under RLS.
+  const usage = Object.fromEntries([...byTemplate].map(([id, clients]) => [id, { clients: clients.size, clientIds: [...clients].sort() }]));
   return NextResponse.json({ usage, capped: count == null || count > list.length });
 }

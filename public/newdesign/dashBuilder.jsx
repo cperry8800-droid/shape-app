@@ -9,7 +9,8 @@
 //
 // Load order: pageShell → trainerDashboard → coachNav → dashSignals →
 // dashData → dashToday → dashClient (DashWorkoutCard) → dashBuilderCore →
-// dashFilterBar (the library's filters) → this file.
+// dashFilterBar (the library's filters and shared pieces) → this file. The tier gems
+// (DashClientGem) are dashToday's, read at render.
 
 // ⚠ THE BUILDER IS THE CONCEPT BOARD'S LIGHT PAPER, NOT THE DASHBOARD'S DARK BROADSHEET.
 // The round-one concepts kept the dark newspaper chrome and the tree-beside-editor layout
@@ -3020,10 +3021,135 @@ function dbuCardFacts(info) {
   return [...focus.map((k) => dbuFacetLabel("focus", k)), ...kit.map((k) => dbuFacetLabel("equipment", k))].join(" · ");
 }
 
+// ── The library (the owner's coach review, step 6a: "the calmer library") ────
+// "15 buttons for 5 programs, and the week's job not on the page." The week's job leads, in one
+// line at Lift 2 (DbuWeekLine); every card is the same size, a cover in its goal's colour with
+// the goal in words, who is on it as tier marks, one Assign and a ⋯; one row of filters; and the
+// programs on one client's calendar as a plain list. Each block reads only what a read stores:
+// the roster's program leg per client (DashBuilder.programWeekAhead), the usage read's ids
+// (programWho), and both together (oneClientPrograms).
+// ⚠ NO "SEND N READY". Assigning publishes every week of a program at once, so a ready week is
+// already on the client's calendar: the store holds no unsent week, and nothing here sends one.
+const DBU_SORTS = [
+  { key: "newest", label: "Newest" },
+  { key: "used", label: "Most used" },
+  { key: "name", label: "Name A–Z" },
+];
+const dbuCount = (n, one, many) => n + " " + (n === 1 ? one : many);
+// A leg's end is a calendar day stored at UTC midnight: "Nov 5", read as the day it is.
+function dbuLegDay(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m ? DBU_MON[Number(m[2]) - 1] + " " + Number(m[3]) : null;
+}
+// One client's next week in words: { tone, label, detail }.
+function dbuNextWeekWords(n) {
+  if (!n) return { tone: "quiet", label: "Not their current program", detail: "" };
+  if (n.state === "ready") {
+    if (n.why === "starts") return { tone: "ready", label: "Ready", detail: "Not started yet" + (n.weeks ? " · " + dbuCount(n.weeks, "week", "weeks") + " on their calendar" : "") };
+    if (n.why === "next-program") return { tone: "ready", label: "Ready", detail: n.next + " is assigned after it" };
+    return { tone: "ready", label: "Ready", detail: "Week " + n.nextWeek + " of " + n.weeks + " is on their calendar" };
+  }
+  if (n.state === "need") {
+    const day = dbuLegDay(n.endsAt);
+    return { tone: "need", label: "Needs you", detail: (n.why === "ended" ? "Ended" + (day ? " " + day : "") : "Final week") + " · nothing assigned after it" };
+  }
+  if (n.state === "paused") return { tone: "quiet", label: "Paused", detail: "" };
+  return { tone: "quiet", label: "Length not recorded", detail: "" };
+}
+function dbuWeekOf(row) {
+  return row.week != null && row.weeks != null ? "Week " + row.week + " of " + row.weeks : row.next && row.next.why === "starts" ? "Not started" : "";
+}
+// A person with their tier's gem (hollow when unknown) and their name.
+function DbuPerson({ p }) {
+  return <span className="dash-lib-person">{typeof DashClientGem === "function" && <DashClientGem points={p.rankPoints} title={p.name} />}<b>{p.name}</b></span>;
+}
+
+// The week's job: who is on a program next week, how many are ready and how many need the coach.
+function dbuWeekModel(roster, clients) {
+  if (roster === "loading" || roster === "unread") return { roster, ahead: null };
+  return { roster, ahead: DashBuilder.programWeekAhead(clients) };
+}
+function DbuWeekLine({ model, onReview }) {
+  const label = "Due next week";
+  if (!model.ahead) return <DashLibTopLine label={label} figure="—" line="clients on a program" note={model.roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"} />;
+  const a = model.ahead;
+  const on = a.ready + a.need + a.unknown;
+  const settling = a.pending > 0 && !a.rows.length;
+  const notes = [];
+  if (a.pending) notes.push(dbuCount(a.pending, "client is", "clients are") + " still loading");
+  if (a.unread) notes.push(dbuCount(a.unread, "client’s program", "clients’ programs") + " couldn’t be read");
+  if (!settling && !on && !a.paused && !a.pending && !a.unread) notes.push(a.total ? "None of your clients is on one of your programs." : "No clients on your roster yet.");
+  const chips = settling ? null : <>
+    {a.ready > 0 && <DashLibStatus tone="ready" title="Their next week is already on their calendar">{a.ready} ready</DashLibStatus>}
+    {a.need > 0 && <DashLibStatus tone="need" title="Their program ends with nothing assigned after it">{a.need} need you</DashLibStatus>}
+    {a.unknown > 0 && <DashLibStatus>{dbuCount(a.unknown, "length", "lengths")} not recorded</DashLibStatus>}
+    {a.paused > 0 && <DashLibStatus>{a.paused} paused</DashLibStatus>}
+  </>;
+  return <DashLibTopLine label={label} figure={settling ? "—" : on} line={on === 1 && !settling ? "client on a program" : "clients on a program"}
+    chips={chips} note={notes.length ? notes.join(" · ") : null}
+    actions={<button type="button" style={dbuLibBtn(false)} disabled={!a.rows.length} onClick={onReview}>Review</button>} />;
+}
+function DbuWeekDrawer({ ahead, onPick, onClose }) {
+  return <DashLibDrawer title="Due next week" onClose={onClose}
+    sub="Each client’s current program from your calendar. Ready means their next week is already on it: assigning publishes every week at once.">
+    <ul className="dash-lib-rows">{ahead.rows.map((r) => {
+      const w = dbuNextWeekWords(r.next);
+      return <li key={r.id} className="dash-lib-row" data-next={r.next.state}>
+        <div className="dash-lib-row-main">
+          <DbuPerson p={r} />
+          <span className="dash-lib-row-what">{r.program}{dbuWeekOf(r) ? " · " + dbuWeekOf(r) : ""}</span>
+        </div>
+        <div className="dash-lib-row-side">
+          <DashLibStatus tone={w.tone}>{w.label}</DashLibStatus>
+          {w.detail && <span className="dash-lib-row-detail">{w.detail}</span>}
+          {r.next.state === "need" && <button type="button" style={dbuLibBtn(false)} onClick={() => onPick(r.id)}>Choose a program</button>}
+        </div>
+      </li>;
+    })}</ul>
+  </DashLibDrawer>;
+}
+
+// Who is on one program, on its card. `usage` is the usage read; `roster` the roster's state.
+function DbuWho({ entry, usage, roster, clients, preview }) {
+  let body;
+  if (preview) body = <span className="dash-lib-quiet">Preview · no client calendars to read</span>;
+  else if (usage.state !== "ready") body = <span className="dash-lib-quiet">{usage.state === "error" ? "Couldn’t read who’s on it" : "Checking who’s on it…"}</span>;
+  else {
+    const who = DashBuilder.programWho(entry, clients);
+    const plus = usage.capped ? "+" : "";
+    if (!who.count) body = <span className="dash-lib-quiet">{usage.capped ? "None found on the calendars read" : "No clients yet"}</span>;
+    else if (roster !== "live" && roster !== "demo") body = <span className="dash-lib-quiet">{dbuCount(who.count, "client", "clients")}{plus} · {roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"}</span>;
+    else if (!who.people) body = <span>On {dbuCount(who.count, "client", "clients")}{plus}</span>;
+    else body = <><DashLibPeople people={who.people} extra={who.elsewhere} />{plus && <span className="dash-lib-quiet"> and more</span>}</>;
+  }
+  return <div className="dash-lib-who"><span className="dash-lib-who-label">On it</span>{body}</div>;
+}
+
+// The programs on exactly one client's calendar: a plain list, the ones not ready first.
+function DbuOneClient({ rows, roster, onOpen }) {
+  if (!rows || !rows.length) return null;
+  return <section className="dash-lib-list" aria-label="On one client only">
+    <h3 className="dash-lib-list-h">On one client only</h3>
+    <p className="dash-lib-list-sub">Programs on exactly one client’s calendar, the ones that need you first.</p>
+    {roster === "unread" ? <p className="dash-lib-quiet" role="status">{DASH_LIB_ROSTER_UNREAD}</p> : <ul className="dash-lib-rows">{rows.map((r) => {
+      const w = dbuNextWeekWords(r.next);
+      return <li key={r.template.id} className="dash-lib-row">
+        <div className="dash-lib-row-main">
+          <button type="button" className="dash-lib-row-name" onClick={() => onOpen(r.template)}>{r.template.name}</button>
+          <span className="dash-lib-row-what">{r.person ? <DbuPerson p={r.person} /> : "A client not on your roster"}{r.week != null ? " · Week " + r.week + " of " + r.weeks : ""}</span>
+        </div>
+        <div className="dash-lib-row-side"><DashLibStatus tone={w.tone}>{w.label}</DashLibStatus>{w.detail && <span className="dash-lib-row-detail">{w.detail}</span>}</div>
+      </li>;
+    })}</ul>}
+  </section>;
+}
+
 function TrainerProgramsPage() {
   const {clients,queue,today:live,source}=useDashboard('trainer');
-  const forClient = typeof dashRouteParam === 'function' ? dashRouteParam('client') : null;
-  const targetClient = clients.find(c => c.profile.id === forClient);
+  // The client a program is being chosen for: the link's (?client=, from Today or a client's
+  // file), or the one the week's drawer picked on this page.
+  const [pickFor,setPickFor]=React.useState(null);
+  const forClient = pickFor || (typeof dashRouteParam === 'function' ? dashRouteParam('client') : null);
   const [templates,setTemplates]=React.useState(null),[view,setView]=React.useState(null);
   const [filters,setFilters]=React.useState(DFB_EMPTY),[error,setError]=React.useState('');
   const [ownerId,setOwnerId]=React.useState(null),[refresh,setRefresh]=React.useState(0);
@@ -3102,6 +3228,40 @@ function TrainerProgramsPage() {
   // the cap narrowing the library to nothing, with no chip left on screen to undo it.
   const barFacets=DashBuilder.PROGRAM_FACETS.map(f=>f.key==='use'&&usage.state==='ready'&&usage.capped?{...f,help:f.help+' There were too many upcoming sessions to read them all, so this can only answer Yes — a program without it may still be on someone’s calendar.',options:f.options.filter(o=>o.key!=='idle')}:f);
   const run=dfbRun(items,[...barFacets,tagFacet],filters);
+  // ⚠ THE PREVIEW IS THE SIGNED-OUT LIBRARY, NOTHING ELSE. Until the library has answered, the
+  // page cannot tell a visitor from a coach whose roster read failed, so neither the band nor
+  // a sample person shows; once it has, a signed-in library never shows the sample cast.
+  const roster=source==='demo'&&!resolved.current?'loading':dashLibRosterState(source,isLive);
+  const preview=roster==='demo';
+  // The people the page may name: the coach's roster, or the preview's cast under the band.
+  const people=roster==='live'||roster==='demo'?clients:[];
+  const targetPerson=people.find(c=>c.profile.id===forClient)||null;
+  const [sort,setSort]=React.useState('newest');
+  const usedOf=t=>usage.state==='ready'&&Object.prototype.hasOwnProperty.call(usage.map,t.id)?Number(usage.map[t.id].clients)||0:0;
+  const shown=sort==='name'?[...run.shown].sort((a,b)=>String(a.t.name).localeCompare(String(b.t.name)))
+    :sort==='used'&&usage.state==='ready'?[...run.shown].sort((a,b)=>usedOf(b.t)-usedOf(a.t)):run.shown;
+  const most=usage.state==='ready'?DashBuilder.mostUsedProgram(usage.map,usage.capped):null;
+  const week=dbuWeekModel(roster,people);
+  const [reviewing,setReviewing]=React.useState(false);
+  const oneRows=usage.state==='ready'&&(roster==='live'||roster==='unread')?DashBuilder.oneClientPrograms(templates||[],usage.map,usage.capped,people):null;
+  const [notice,setNotice]=React.useState('');
+  // Delete: the plans route's own DELETE (the app's coach Plans uses it), behind ShapeConfirm. A
+  // program is a template; what clients were assigned is a snapshot on their calendar, and stays.
+  const canDelete=isLive&&typeof window!=='undefined'&&!!(window.ShapeConfirm&&window.ShapeConfirm.open);
+  const remove=async t=>{
+    const n=usedOf(t);
+    const ok=await window.ShapeConfirm.open({title:'Delete this program?',name:t.name,confirmLabel:'Delete program',
+      message:'It leaves your library for good.'+(n?' The '+dbuCount(n,'client','clients')+' on it keep every session already on their calendar.':' Sessions already on a client’s calendar stay there.')});
+    if(!ok)return;
+    setNotice('');
+    try{
+      const res=await fetch('/api/coach/plans',{method:'DELETE',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:t.id})});
+      const data=await res.json().catch(()=>null);
+      if(!res.ok)throw new Error((data&&data.error)||'Couldn’t delete that program. Retry.');
+      setTemplates(prev=>(prev||[]).filter(x=>x.id!==t.id));
+      setNotice(t.name+' is deleted.');
+    }catch(e){setNotice(e.message||'Couldn’t delete that program. Retry.');}
+  };
   const days=(templates||[]).flatMap(t=>t.detail.builder.weeks.flatMap(w=>w.days.map(day=>({name:t.name+' · '+day.name,day}))));
   // Every move this coach has written that Shape does not list — derived from
   // their own saved programs, so the picker can offer it back with no store.
@@ -3116,11 +3276,11 @@ function TrainerProgramsPage() {
   const create=type=>{const builder=DashBuilder.newProgram();builder.weeks[0].days[0].name='Day 1';setView({name:type==='workout'?'New workout':'New program',published:false,detail:{buildType:type,builder}});};
   const saved=({plan})=>{setTemplates(prev=>[plan,...(prev||[]).filter(t=>t.id!==plan.id)]);setRecoveries(Object.entries(dbuReadDrafts(ownerId)));};
   return <React.Fragment>
-    {source==='demo'&&<DashDemoBand/>}
+    {preview&&<DashDemoBand/>}
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
-      {targetClient && <p role="status">Choose a program for {targetClient.profile.name}. The assignment will have this client selected.</p>}
-      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetClient ? forClient : null} clients={clients} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {targetPerson && <p role="status">Choose a program for {targetPerson.profile.name}. The assignment will have this client selected.{pickFor&&<> <button type="button" style={dbuLibBtn(false)} onClick={()=>setPickFor(null)}>Not now</button></>}</p>}
+      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
         <div className="dbu-library-actions">
           <button type="button" style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button>
           <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
@@ -3129,55 +3289,52 @@ function TrainerProgramsPage() {
         {!!recoveries.length&&<div role="status" style={{padding:14,border:'1px solid var(--sh-gold, #d8a23a)',marginBottom:16}}><strong>Recover your work</strong>{recoveries.map(([id,draft])=><div key={id} style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginTop:8}}><span>{draft.name} · draft on this device</span><button style={dbuLibBtn(false)} onClick={()=>setView(dbuRecoveredTemplate(id,draft,templates))}>Resume draft</button></div>)}</div>}
         {error&&<p role="alert">{error} <button style={dbuLibBtn(false)} onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
         {planMissing&&<p role="status">That program isn’t in your library yet. If you just saved it from Nora, refresh in a moment.</p>}
+        {/* The week's job, the page's highest block (Lift 2). */}
+        <DbuWeekLine model={week} onReview={()=>setReviewing(true)}/>
         {templates===null&&!error&&<p role="status">Loading workouts…</p>}
         {templates?.length===0&&<div><p>No workouts yet. Create a single day or program to start your library.</p>{window.ShapeAskNoraLink&&<window.ShapeAskNoraLink label="Ask Nora to draft one" draft="Draft a workout for me: "/>}</div>}
+        {notice&&<p role="status" className="dash-lib-quiet">{notice}</p>}
         {!!templates?.length&&<div className="dbu-library-filters">
-          {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
-              two filters narrow each other, and the count beside Clear is the result. */}
-          <DashFilterBar facets={barFacets} primaryFacetKeys={['type','focus']} run={run} state={filters} setState={setFilters} one="program" many="programs" placeholder="Find a program…" notes={{use:useNote}}/>
-          <DashTagChips facet={tagFacet} run={run} onToggle={k=>setFilters(s=>dfbToggle(s,'tags',k))} onClear={()=>setFilters(s=>dfbClearFacet(s,'tags'))}/>
+          {/* ⚠ ONE ROW: search, type, goal and sort, the rest behind More filters. EVERY
+              FILTER SAYS WHAT IT WOULD LEAVE: options inside one filter widen it, two
+              filters narrow each other, and the count beside Clear is the result. */}
+          <DashFilterBar facets={[...barFacets,tagFacet]} primaryFacetKeys={['type','tags']} run={run} state={filters} setState={setFilters} one="program" many="programs" placeholder="Find a program…" notes={{use:useNote}}
+            extra={<DashLibSort value={sort} onChange={setSort} options={DBU_SORTS.map(o=>o.key==='used'&&usage.state!=='ready'?{...o,disabled:true}:o)}/>}/>
           {!customTags.length&&!items.some(x=>x.keys.tags.length)&&<p style={{...dbuLibMeta,fontSize:9,color:DBU_INK2,margin:'10px 0 0'}}>Tag a program under its name in the builder to file it here.</p>}
         </div>}
         {!!templates?.length&&!run.shown.length&&<p role="status" style={{fontSize:14,color:DBU_INK2}}>No programs match these filters. <button type="button" style={dbuLibBtn(false)} onClick={()=>setFilters(DFB_EMPTY)}>Clear filters</button></p>}
-        {/* ⚠ ONE HIERARCHY PER CARD, AND ONE ACTION ROW. The four buttons were all the
-            same weight and ran 119 / 79 / 266 / 98px wide, so on a 359px card they
-            dealt themselves into two or three ragged rows of white pills — which is
-            most of what reads as clutter. "Update future assignments" is the one that
-            blows the row out AND the rarest thing a coach does here, so it drops to a
-            quiet line of its own and the three everyday actions sit in one even row. */}
-          {/* auto-FILL, not auto-fit: a filter that leaves one program would otherwise
-              stretch its card across the whole library. */}
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(290px,100%),1fr))',gap:14}}>{run.shown.map(({t,info})=>{
-            const facts=dbuCardFacts(info);
-            const inUse=info.clients!=null&&info.clients>0;
-            return <div key={t.id} className="dash-plate" style={{'--dac':DBU_RUST,display:'flex',flexDirection:'column',gap:0}}>
-              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:9}}>
-                <span style={{...dbuLibMeta,color:DBU_INK2}}>{t.detail.buildType==='workout'?'Single day':'Program'}</span>
-                {inUse&&<span style={{marginLeft:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',color:DBU_TEAL}}>In use · {info.clients}{usage.capped?'+':''} {info.clients===1&&!usage.capped?'client':'clients'}</span>}
-                <span style={{marginLeft:inUse?0:'auto',...dbuLibMeta,fontSize:9,letterSpacing:'0.12em',padding:'3px 8px',borderRadius:99,
-                  ...(t.published
-                    ? {color:"var(--sh-accent-ink, #2ee0c4)",background:'rgba(var(--sh-accent-rgb, 46,224,196),0.12)',border:'1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)'}
-                    : {color:DBU_INK2,background:DBU_REST,border:'1px solid '+DBU_LINE})}}>{t.published?'Published':'Draft'}</span>
-              </div>
-              <h2 style={{fontFamily:"var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)",fontSize:23,fontWeight:600,lineHeight:1.15,margin:'0 0 6px',color:'var(--sh-ink, #f2ede4)'}}>{t.name}</h2>
-              {/* It read "1 weeks · 1 days" on every single-week workout. */}
-              <p style={{...dbuLibMeta,fontSize:10,color:DBU_INK2,margin:'0 0 10px'}}>{t.detail.buildType==='workout'
-                ? info.moves+' '+(info.moves===1?'move':'moves')
-                : info.weeks+' '+(info.weeks===1?'week':'weeks')+' · '+info.perWeek+' '+(info.perWeek===1?'day':'days')+' a week'}</p>
-              {!!info.tags.length&&<div style={{display:'flex',gap:6,flexWrap:'wrap',margin:'0 0 10px'}}>{info.tags.map(tag=><span key={tag.key} className="dash-chip dash-chip--sm" style={{'--c':tag.c,cursor:'default'}}>{tag.label}</span>)}</div>}
-              {facts&&<p style={{...dbuLibMeta,fontSize:9,lineHeight:1.6,color:DBU_INK2,margin:'0 0 14px'}}>{facts}</p>}
-              <div style={{display:'flex',gap:7,flexWrap:'wrap',marginTop:'auto'}}>
-                <button style={dbuLibBtn(true)} onClick={()=>setView(coachTemplateCopy(t))}>Use as template</button>
-                <button style={dbuLibBtn(false)} onClick={()=>setView(t)}>Edit template</button>
-                <button style={dbuLibBtn(false)} onClick={()=>setAssignFor(t)}>Assign</button>
-
-              </div>
-              {isLive&&<button onClick={()=>setUpdateFor(t)} style={{marginTop:10,padding:'6px 0',minHeight:24,background:'transparent',border:0,cursor:'pointer',textAlign:'left',fontFamily:DBU_BODY,fontSize:12.5,fontWeight:600,color:DBU_TEAL}}>Update future assignments →</button>}
-            </div>;})}</div>
+        {/* ⚠ EVERY CARD THE SAME SIZE, ONE PRIMARY. Use as template, Edit and Update future
+            assignments were three more buttons on every card ("15 buttons for 5 programs");
+            they live in the ⋯ now, and a click on the card opens the builder. The most-used
+            program gets a chip, not a bigger card. auto-FILL, not auto-fit: a filter that
+            leaves one program would otherwise stretch its card across the library. */}
+        <div className="dash-lib-grid">{shown.map(({t,info})=>{
+          const entry=usage.state==='ready'&&Object.prototype.hasOwnProperty.call(usage.map,t.id)?usage.map[t.id]:null;
+          const single=t.detail.buildType==='workout';
+          const tag=info.tags[0]||null;
+          const facts=[...info.tags.slice(1).map(x=>x.label),dbuCardFacts(info)].filter(Boolean).join(' · ');
+          return <DashLibCard key={t.id} name={t.name} onOpen={()=>setView(t)} openTitle={'Open '+t.name+' in the builder'}
+            cover={{color:tag?tag.c:DBU_INK3,kind:tag?tag.label:(single?'Single day':'Program'),badges:<>
+              {most&&most.id===t.id&&<span className="dash-lib-badge" data-most="">Most used · {dbuCount(most.clients,'client','clients')}</span>}
+              {!t.published&&<span className="dash-lib-badge">Draft</span>}
+            </>}}
+            meta={single?'Single day · '+dbuCount(info.moves,'move','moves'):'Program · '+dbuCount(info.weeks,'week','weeks')+' · '+dbuCount(info.perWeek,'day','days')+' a week'}
+            primary={<button type="button" style={dbuLibBtn(true)} onClick={()=>setAssignFor(t)}>Assign</button>}
+            menu={<DashLibMenu label={'More for '+t.name} items={[
+              {key:'edit',label:'Edit',onSelect:()=>setView(t)},
+              {key:'copy',label:'Use as template',onSelect:()=>setView(coachTemplateCopy(t))},
+              isLive&&{key:'future',label:'Update future assignments',onSelect:()=>setUpdateFor(t)},
+              canDelete&&{key:'delete',label:'Delete',danger:true,onSelect:()=>remove(t)},
+            ]}/>}>
+            {facts&&<p className="dash-lib-facts">{facts}</p>}
+            <DbuWho entry={entry} usage={usage} roster={roster} clients={people} preview={preview}/>
+          </DashLibCard>;})}</div>
+        <DbuOneClient rows={oneRows} roster={roster} onOpen={t=>setView(t)}/>
       </>}
     </DashPage>
-    {updateFor&&<DbuFutureUpdates template={updateFor} clients={clients} onClose={()=>setUpdateFor(null)}/>}
-    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={clients} queue={queue} live={isLive} preselectId={targetClient ? forClient : null} onClose={()=>setAssignFor(null)}/>}
+    {reviewing&&week.ahead&&<DbuWeekDrawer ahead={week.ahead} onClose={()=>setReviewing(false)} onPick={id=>{setPickFor(id);setReviewing(false);}}/>}
+    {updateFor&&<DbuFutureUpdates template={updateFor} clients={people} onClose={()=>setUpdateFor(null)}/>}
+    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={people} queue={queue} live={isLive} preselectId={targetPerson ? forClient : null} onClose={()=>setAssignFor(null)}/>}
   </React.Fragment>;
 }
 
