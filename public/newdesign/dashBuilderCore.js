@@ -1563,6 +1563,18 @@
     var at = wd != null ? (prev.days || []).findIndex(function (d) { return d && d.weekday === wd; }) : -1;
     return at >= 0 ? prev.days[at] : (prev.days || [])[di] || null;
   }
+  // The heaviest load a row prescribes across the sets it delivers (up to 50, as setCount does),
+  // read through WorkoutDoc.setTarget so a per-set ladder (100/110/120 kg) counts, not only the
+  // row's base load (Codex on #2648). NaN when no set carries a weight.
+  function topLoad(row) {
+    if (!row || !WorkoutDoc || row.loadType === "rpe") return NaN;
+    var n = wholeReps(row.sets) || 0, top = NaN;
+    for (var i = 0; i < Math.min(n, 50); i++) {
+      var t = WorkoutDoc.setTarget(row, i), v = t && t.num != null ? Number(t.num) : NaN;
+      if (Number.isFinite(v) && v > 0 && !(v <= top)) top = v;
+    }
+    return top;
+  }
   // A session card's lines: its main lifts (or its first moves, when it has no main block),
   // each with this week's weight and the change from the same move on the same day last week.
   //   [{ name, weight: "260 lb" | "", delta: 5 | -5 | 0 | null, unit }]
@@ -1576,10 +1588,12 @@
     var prev = priorDay(builder, wi, di);
     var prevRows = prev ? (prev.blocks || []).reduce(function (all, b) { return all.concat((b && b.rows) || []); }, []) : [];
     return rows.slice(0, limit || 3).map(function (row) {
-      var weight = WorkoutDoc ? WorkoutDoc.weightLabel(row) : "";
+      // A ladder reads as the coach wrote it ("100/110/120 kg"); straight sets as their one weight.
+      var lad = WorkoutDoc && WorkoutDoc.ladder ? WorkoutDoc.ladder(row) : null;
+      var weight = WorkoutDoc ? (lad && lad.weight ? lad.weight : WorkoutDoc.weightLabel(row)) : "";
       var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" ? "%" : "kg";
       var before = prevRows.filter(function (p) { return p && tagText(p.name).toLowerCase() === tagText(row.name).toLowerCase(); })[0];
-      var now = Number(row.load), was = before ? Number(before.load) : NaN;
+      var now = topLoad(row), was = before ? topLoad(before) : NaN;
       var delta = before && before.loadType === row.loadType && Number.isFinite(now) && now > 0 && Number.isFinite(was) && was > 0 ? Math.round((now - was) * 100) / 100 : null;
       return { name: tagText(row.name) || "New exercise", weight: weight, delta: delta, unit: unit };
     });
@@ -1598,7 +1612,7 @@
       var d = at >= 0 ? days[at] : days[di || 0];
       var hit = null;
       ((d && d.blocks) || []).forEach(function (b) { ((b && b.rows) || []).forEach(function (r) { if (!hit && r && tagText(r.name).toLowerCase() === key) hit = r; }); });
-      var n = hit ? Number(hit.load) : NaN;
+      var n = hit ? topLoad(hit) : NaN;
       return { week: wi + 1, load: Number.isFinite(n) && n > 0 ? n : null, deload: !!(w && w.deload) };
     });
   }

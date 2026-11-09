@@ -186,6 +186,18 @@ test('a card\'s loads change on last week\'s same day, and the series follows on
   assert.deepEqual(DashBuilder.progressionSeries(doc, 'Back squat', 0).map((p) => [p.load, p.deload]), [[255, false], [260, false], [265, false], [265, true]]);
 });
 
+test('a ladder\'s loads are the card\'s and the chart\'s, not the row\'s base load (Codex on #2648)', () => {
+  const ladderDay = (loads, base) => ({ id: 'd' + (++rid), name: 'Lower A', weekday: 0, playlist: null, blocks: [{ kind: 'main', rows: [
+    row('Back squat', 3, '5', 'kg', base, { perSet: loads.map((l) => ({ reps: '5', load: l })) }),
+  ] }] });
+  const doc = { weeks: [{ days: [ladderDay([100, 110, 120], '')] }, { days: [ladderDay([105, 115, 125], 100)] }] };
+  const [w1] = DashBuilder.sessionLoadLines(doc, 0, 0), [w2] = DashBuilder.sessionLoadLines(doc, 1, 0);
+  assert.match(w1.weight, /^100\/110\/120 ?kg$/, 'a ladder with no base load drew no weight');
+  assert.match(w2.weight, /^105\/115\/125 ?kg$/, 'a ladder read as its base load');
+  assert.equal(w2.delta, 5, 'the change ignored the ladder (its top set went 120 → 125)');
+  assert.deepEqual(DashBuilder.progressionSeries(doc, 'Back squat', 0).map((p) => p.load), [120, 125]);
+});
+
 test('a longer program copies its last week, released to the progression; a shorter one says what goes', () => {
   const base = program(2).detail.builder;
   base.weeks[1].days[0].blocks[1].rows[0].loadPinned = true;
