@@ -188,6 +188,34 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     }
   });
 
+  // The member's six tabs (owner, 2026-11-09: Coaches, 'market', between Eat and Chat): each its icon, in
+  // the nav's order, the capsule's ends in to 4px so a 320px phone keeps every tab a 44px target.
+  test(`six tabs: Coaches between Eat and Chat, a whistle filled when lit, 44px each on a 320px phone (${paperMode})`, async () => {
+    const SIX = [
+      { key: 'home', label: 'Home' }, { key: 'train', label: 'Train' }, { key: 'eat', label: 'Eat' },
+      { key: 'market', label: 'Coaches' }, { key: 'chat', label: 'Chat' }, { key: 'me', label: 'Me' },
+    ];
+    for (const active of ['market', 'eat']) {
+      const { host, unmount } = await mount(React.createElement(window.BSTabBar, { tabs: SIX, active, onChange() {} }), paperMode);
+      const bar = host.querySelector('[data-bs-tabbar]');
+      const btns = [...bar.querySelectorAll('button[data-tour]')];
+      assert.deepEqual(btns.map((b) => b.getAttribute('aria-label')), ['Home', 'Train', 'Eat', 'Coaches', 'Chat 3', 'Me']);
+      const coaches = bar.querySelector('button[data-tour="tab-market"]');
+      assert.ok(coaches.querySelector('svg'), 'Coaches has its own icon, not a number');
+      assert.equal(coaches.getAttribute('aria-current'), active === 'market' ? 'page' : null);
+      assert.equal(coaches.querySelectorAll('svg [fill="currentColor"]').length > 0, active === 'market', 'filled only when lit');
+      assert.equal(bar.style.gridTemplateColumns, 'repeat(6, 1fr)');
+      assert.equal(bar.style.padding, '0px 4px', 'the capsule\'s ends come in for six');
+      // (jsdom lays nothing out: the arithmetic the style gives, on a 320px phone.)
+      assert.ok((320 - 2 * parseFloat(host.querySelector('[data-bs-tabbar-dock]').style.paddingLeft) - 2 * 4) / 6 >= 44);
+      await unmount();
+    }
+    // Five tabs (the coach apps) keep their 9px.
+    const { host, unmount } = await mount(React.createElement(window.BSTabBar, { tabs: TABS, active: 'home', onChange() {} }), paperMode);
+    assert.equal(host.querySelector('[data-bs-tabbar]').style.padding, '0px 9px');
+    await unmount();
+  });
+
   test(`the capsule is frosted and keeps its height over a home indicator (${paperMode})`, () => {
     // jsdom drops backdrop-filter and env(), so these are read from the component's source.
     const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');

@@ -98,5 +98,10 @@
   "age.h": "{n} h",
   "age.d": "{n} d",
   "age.w": "{n} sem",
-  "age.now": "ahora"
+  "age.now": "ahora",
+  "nav.coaches": "Coaches",
+  "findCoach.trainer": "Encuentra un entrenador",
+  "findCoach.nutritionist": "Encuentra un nutricionista",
+  "findCoach.vettedCoaches": "Coaches verificados",
+  "findCoach.vettedRDs": "Dietistas verificados"
 }

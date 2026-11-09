@@ -624,5 +624,17 @@
   "notifyPrefs.prepHour": "Horário do lembrete",
   "notifyPrefs.prepHourSub": "Na noite anterior, no seu horário",
   "notifyPrefs.prepHourQuiet": "No seu horário de silêncio: no app, sem push",
-  "notifyPrefs.prepHourFailed": "O horário do lembrete não foi salvo. Tente de novo."
+  "notifyPrefs.prepHourFailed": "O horário do lembrete não foi salvo. Tente de novo.",
+  "coachApply.title": "Coach na Shape",
+  "coachApply.sub": "Candidate-se como treinador ou nutricionista",
+  "coachApply.inReview": "Em análise",
+  "coachApply.backgroundCheck": "Verificação de antecedentes",
+  "coachApply.approved": "Aprovada",
+  "coachApply.notApproved": "Não aprovada",
+  "coachApply.trainerApp": "Candidatura de treinador",
+  "coachApply.nutritionistApp": "Candidatura de nutricionista",
+  "coachApply.sent": "enviada em {date}",
+  "coachApply.usually": "em geral 2–3 dias úteis",
+  "coachApply.submitted": "Enviada",
+  "coachApply.unavailable": "Não foi possível verificar sua inscrição · tente mais tarde"
 }

@@ -64,7 +64,7 @@ import { bsDeriveCycle, bsCycleRead } from '../services/cyclePhase.mjs';
 import { BS_STARTER_SESSIONS, BS_STARTER_PROGRAMS, bsStarterProgram } from '../services/starterTemplates.mjs';
 import { bsProgramFits, bsProgramRowCount, bsSlotWeek, BS_BUILDER_CAP } from '../services/trainingBuilder.mjs';
 import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
-import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
+import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide, BS_MEMBER_TABS } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
 import { BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate, bsSetTeal, bsSetTealInk } from './BSSettingsRoot.jsx';
@@ -693,7 +693,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const tr = useShapeTr(); // i18n — re-renders the shell (tab bar labels) on locale change
   const [tab, setTab] = useStateBSC(initialTab);
   // Nora is told the tab they asked from (the Ask Nora plan, step 4).
-  const noraTabLabel = { home: tr('common:nav.home', { defaultValue: 'Home' }), train: tr('common:nav.train', { defaultValue: 'Train' }), eat: tr('common:nav.eat', { defaultValue: 'Eat' }), chat: tr('common:nav.chat', { defaultValue: 'Chat' }), me: tr('common:nav.me', { defaultValue: 'Me' }) }[tab];
+  const noraTabLabel = { home: tr('common:nav.home', { defaultValue: 'Home' }), train: tr('common:nav.train', { defaultValue: 'Train' }), eat: tr('common:nav.eat', { defaultValue: 'Eat' }), market: tr('common:nav.coaches', { defaultValue: 'Coaches' }), chat: tr('common:nav.chat', { defaultValue: 'Chat' }), me: tr('common:nav.me', { defaultValue: 'Me' }) }[tab];
   const noraOwner = React.useRef({});
   React.useEffect(() => bsNoraOpen({ page: bsNoraPage(tab), label: noraTabLabel }, noraOwner.current), [tab, noraTabLabel]);
   const [showSettings, setShowSettings] = useStateBSC(false);
@@ -776,7 +776,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   // and dispatches shape:navGesture; THIS shell decides what an intent means.
   // 'back' = the stack, else close the top takeover (mirrors the smart-backs).
   // Tab swipes step the ROOT order only — never while a takeover is open, and
-  // never from jump-destination screens (radio/market/store aren't tab stops).
+  // never from jump-destination screens (radio/store aren't tab stops). Coaches
+  // ('market') is a root tab since 2026-11-09, between Eat and Chat.
   const [navSlideCls, navSlide] = useBSNavSlide(tab);
   const onNavGesture = (intent) => {
     if (intent === 'back') {
@@ -788,7 +789,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
       return;
     }
     if (showSettings || showCalendar || showSearch || showCycle) return;
-    const next = bsNavStepTab(['home', 'train', 'eat', 'chat', 'me'], tab, intent);
+    const next = bsNavStepTab(BS_MEMBER_TABS, tab, intent);
     if (!next) return;
     navSlide(intent === 'next-tab' ? 'l' : 'r');
     setTab(next);
@@ -1337,7 +1338,9 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
     radio:   <BSRadioScreen    onBack={() => { if (!navBack()) setTab('home'); }} />,
-    market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onBack={() => { if (!navBack()) setTab('home'); }} onProfile={goSettings} goChat={goChat} />,
+    // Coaches, a root tab (owner, 2026-11-09): no ← Back of its own, as Home, Train and Eat have none;
+    // the phone's back and a swipe still walk the history a jump to it pushed.
+    market:  <BSMarketplaceScreen initialRole={marketRole} initialCoach={marketCoach} onCoachConsumed={() => setMarketCoach(null)} onProfile={goSettings} goChat={goChat} />,
     store:   storeView === 'score'
       // Back from the Score goes where the reader came from (owner, 2026-10-31: back "goes back to [the]
       // page … where that person was"): Home when Home opened it, the Store when the Store did. It
@@ -1363,16 +1366,20 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
         bottom: (window.BS_TABBAR_CSS || window.BS_TABBAR_H || 64),
         zIndex: 60, pointerEvents: 'none',
       }} />
+      {/* Six tabs since Coaches joined (owner, 2026-11-09: "place-1", between Eat and Chat), in
+          BS_MEMBER_TABS' order, the swipe's. Tapping Coaches opens it on Both: a role a jump picked
+          (Train's "Find a trainer") is that jump's, not the tab's. */}
       <BSTabBar
         active={tab}
-        onChange={setTab}
-        tabs={[
-          { key: 'home',  label: tr('common:nav.home',  { defaultValue: 'Home' }),  emoji: '🏠' },
-          { key: 'train', label: tr('common:nav.train', { defaultValue: 'Train' }), emoji: '🏋️' },
-          { key: 'eat',   label: tr('common:nav.eat',   { defaultValue: 'Eat' }),   emoji: '🍎' },
-          { key: 'chat',  label: tr('common:nav.chat',  { defaultValue: 'Chat' }),  emoji: '💬' },
-          { key: 'me',    label: tr('common:nav.me',    { defaultValue: 'Me' }),    emoji: '👤' },
-        ]}
+        onChange={(k) => { if (k === 'market' && tab !== 'market') { setMarketRole(null); setMarketCoach(null); } setTab(k); }}
+        tabs={BS_MEMBER_TABS.map((key) => ({
+          home:   { key: 'home',   label: tr('common:nav.home',    { defaultValue: 'Home' }) },
+          train:  { key: 'train',  label: tr('common:nav.train',   { defaultValue: 'Train' }) },
+          eat:    { key: 'eat',    label: tr('common:nav.eat',     { defaultValue: 'Eat' }) },
+          market: { key: 'market', label: tr('common:nav.coaches', { defaultValue: 'Coaches' }) },
+          chat:   { key: 'chat',   label: tr('common:nav.chat',    { defaultValue: 'Chat' }) },
+          me:     { key: 'me',     label: tr('common:nav.me',      { defaultValue: 'Me' }) },
+        }[key]))}
       />
       <BSRadioPrompt />
       {settingsOverlay}
@@ -4279,6 +4286,7 @@ function bsBuildTrainProgram(workouts, t, tr) {
 // was previously duplicated verbatim in the Build-door branch and the deck).
 function BSFindCoachBar({ role, onOpen }) {
   const t = useBS();
+  const tr = useShapeTr();
   const trainer = role === 'trainer';
   const c = trainer ? '#c0533b' : '#a07a2e';
   const glyphC = trainer ? '#c0533b' : '#b8923f';
@@ -4289,8 +4297,8 @@ function BSFindCoachBar({ role, onOpen }) {
           ? <path d="M4 9v6M7 7.5v9M17 7.5v9M20 9v6M7 12h10" />
           : <><path d="M12 8c-1-2-4-2.4-5.6-.9C4 8.8 4.6 13 7 16.4c1 1.4 1.9 1.9 2.7 1.5.8-.4 1.8-.4 2.6 0 .8.4 1.7-.1 2.7-1.5 2.4-3.4 3-7.6.6-9.3C16 5.6 13 6 12 8Z" /><path d="M12 8c0-1.8 1-3.2 3-3.7" /></>}
       </svg>
-      <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{trainer ? 'Find a trainer' : 'Find a nutritionist'}</span>
-      <span style={{ fontFamily: t.MONO, fontSize: 7.5, color: glyphC, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, whiteSpace: 'nowrap' }}>{trainer ? 'Vetted coaches' : 'Vetted RDs'}</span>
+      <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 13.5, color: t.INK, whiteSpace: 'nowrap' }}>{trainer ? tr('common:findCoach.trainer', { defaultValue: 'Find a trainer' }) : tr('common:findCoach.nutritionist', { defaultValue: 'Find a nutritionist' })}</span>
+      <span style={{ fontFamily: t.MONO, fontSize: 7.5, color: glyphC, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, whiteSpace: 'nowrap' }}>{trainer ? tr('common:findCoach.vettedCoaches', { defaultValue: 'Vetted coaches' }) : tr('common:findCoach.vettedRDs', { defaultValue: 'Vetted RDs' })}</span>
       <span aria-hidden style={{ flex: 1, borderBottom: `1.5px dotted ${bsTHexA(t.INK, 0.22)}`, transform: 'translateY(-2px)', minWidth: 12 }} />
       <span style={{ color: glyphC, fontSize: 14, flexShrink: 0, fontWeight: 700 }}>→</span>
     </button>
@@ -23772,7 +23780,7 @@ function bsNoraOpen(patch, owner) {
     });
   };
 }
-const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
+const BS_NORA_PAGES = { home: 'Home', train: 'Train', eat: 'Eat', market: 'Coaches', chat: 'Chat', me: 'Me', today: 'Today', clients: 'Clients', plans: 'Plans', programs: 'Plans' };
 function bsNoraPage(tab) { return BS_NORA_PAGES[tab] || String(tab || '').replace(/[-_]+/g, ' ').replace(/^\w/, (c) => c.toUpperCase()); }
 // The screen a tap lands on, for the click counts (services/analytics.js): Nora's English page name.
 function bsScreenName() { return _bsNoraOpen.page ? String(_bsNoraOpen.page) : ''; }
@@ -32283,6 +32291,49 @@ function BSLanguageSetting({ t }) {
   );
 }
 
+// ── COACH ON SHAPE ── Settings' Also row for a member (owner, 2026-11-09): the door into applying as a
+// trainer or nutritionist (the same application screen the Coaches tab's "Apply →" opens, full screen),
+// or, once they have applied, where it stands (`app`, /api/me/application through
+// window.ShapeApplications.myStatus, by its stage): Submitted, In review or Background check, amber;
+// Approved, teal; Not approved, unlit; with the application, the day it was sent and, while it waits,
+// "usually 2–3 business days". A withdrawn application, or none at all, is the door. ⚠ A read that
+// failed ({ unavailable }) says so, and never offers to apply over an application it could not see.
+function bsCoachApplyRow(app, { tr, amber = '#d8a23a', teal = '#34d6c5', unlit = '#777777', locale } = {}) {
+  const title = tr('settings:coachApply.title', { defaultValue: 'Coach on Shape' });
+  if (app && app.unavailable) return { title, summary: tr('settings:coachApply.unavailable', { defaultValue: 'Couldn’t check your application · try again later' }), detail: 'coachapply', wrap: true };
+  const st = app && app.stage !== 'withdrawn' ? app.stage : null;
+  const tag = st === 'submitted' ? { text: tr('settings:coachApply.submitted', { defaultValue: 'Submitted' }), color: amber }
+    : st === 'in_review' ? { text: tr('settings:coachApply.inReview', { defaultValue: 'In review' }), color: amber }
+      : st === 'background_check' ? { text: tr('settings:coachApply.backgroundCheck', { defaultValue: 'Background check' }), color: amber }
+        : st === 'approved' ? { text: tr('settings:coachApply.approved', { defaultValue: 'Approved' }), color: teal }
+          : st === 'not_approved' ? { text: tr('settings:coachApply.notApproved', { defaultValue: 'Not approved' }), color: unlit, lit: false } : null;
+  if (!tag) return { title, summary: tr('settings:coachApply.sub', { defaultValue: 'Apply as a trainer or nutritionist' }), detail: 'coachapply' };
+  const sent = app.submittedAt ? new Date(app.submittedAt) : null;
+  const date = sent && !isNaN(sent.getTime()) ? sent.toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : '';
+  const summary = [
+    app.role === 'nutritionist' ? tr('settings:coachApply.nutritionistApp', { defaultValue: 'Nutritionist application' }) : tr('settings:coachApply.trainerApp', { defaultValue: 'Trainer application' }),
+    date ? tr('settings:coachApply.sent', { defaultValue: 'sent {date}', date }) : null,
+    st === 'submitted' || st === 'in_review' || st === 'background_check' ? tr('settings:coachApply.usually', { defaultValue: 'usually 2–3 business days' }) : null,
+  ].filter(Boolean).join(' · ');
+  return { title, summary, detail: 'coachapply', tag, wrap: true };
+}
+
+// The accounts a person made, for Settings' Profile mode: their roles as the apps they open, each once,
+// in the order the profile lists them. ⚠ AN APPROVED DIETITIAN IS THE NUTRITION COACH APP (Main routes
+// 'dietitian' to BSNutritionistApp): the switcher used to keep only client, trainer and nutritionist, so
+// a member approved as a dietitian was never offered their coach app. 'dietitian' (in roles[], or as the
+// profile's role) is offered as itself, unless 'nutritionist' already offers that same app.
+function bsAccountRoles(profile) {
+  const p = profile && typeof profile === 'object' ? profile : null;
+  const raw = [...(p && Array.isArray(p.roles) ? p.roles : []), ...(p && String(p.role || '').toLowerCase() === 'dietitian' ? ['dietitian'] : [])];
+  const norm = raw
+    .map((x) => String(x || '').toLowerCase())
+    .map((x) => (x === 'nutrition' ? 'nutritionist' : x))
+    .filter((x) => x === 'client' || x === 'trainer' || x === 'nutritionist' || x === 'dietitian');
+  const out = Array.from(new Set(norm));
+  return out.includes('nutritionist') ? out.filter((x) => x !== 'dietitian') : out;
+}
+
 function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initialPage = '' }) {
   const t = useBS();
   const tr = useShapeTr();
@@ -32418,6 +32469,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showHours, setShowHours] = useStateBSC(false);
   const [listingSheet, setListingSheet] = useStateBSC(null);
   const [showGoals, setShowGoals] = useStateBSC(false);
+  // Also → Coach on Shape: the application screen, full screen over Settings (and so over the nav).
+  const [showApply, setShowApply] = useStateBSC(false);
   const [showLibrary, setShowLibrary] = useStateBSC(false);
   const [showHabits, setShowHabits] = useStateBSC(initialPage === 'habits');
   const [showCheckin, setShowCheckin] = useStateBSC(false);
@@ -33023,16 +33076,26 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   };
   // Accounts/roles this person actually created — the Profile-mode switcher only
   // shows for people with more than one, and only lists the ones they made.
-  const accountRoles = (() => {
-    const p = window.ShapeAuth?.getCachedState?.()?.profile;
-    const raw = p && Array.isArray(p.roles) ? p.roles : [];
-    const norm = raw
-      .map(x => String(x || '').toLowerCase())
-      .map(x => (x === 'nutrition' ? 'nutritionist' : x))
-      .filter(x => x === 'client' || x === 'trainer' || x === 'nutritionist');
-    return Array.from(new Set(norm));
-  })();
+  const accountRoles = bsAccountRoles(window.ShapeAuth?.getCachedState?.()?.profile);
   const hasMultipleAccounts = accountRoles.length > 1;
+  // The member's own coach application (Also → Coach on Shape): null until read and when there is none
+  // (the plain Apply row), { unavailable } when the read failed (/api/me/application). Read again when
+  // the application screen closes, since they may have just sent one. A coach is never asked.
+  const accountIsCoach = (() => {
+    const r = String(window.ShapeAuth?.getCachedState?.()?.profile?.role || '').toLowerCase();
+    return r === 'trainer' || r === 'nutritionist' || r === 'dietitian';
+  })();
+  const [coachApp, setCoachApp] = useStateBSC(null);
+  const [coachAppReads, setCoachAppReads] = useStateBSC(0);
+  React.useEffect(() => {
+    if (isCoachRole || accountIsCoach || !window.ShapeApplications?.myStatus) return undefined;
+    let live = true;
+    Promise.resolve(window.ShapeApplications.myStatus()).then(
+      (a) => { if (live) setCoachApp(a && (a.unavailable || (a.role && a.stage)) ? a : null); },
+      () => { if (live) setCoachApp({ unavailable: true }); },
+    );
+    return () => { live = false; };
+  }, [isCoachRole, accountIsCoach, coachAppReads]);
   // Refresh the cached profile when Settings opens so a role granted since sign-in
   // (e.g. an approved trainer/nutritionist application) shows up in the Profile-mode
   // switcher without needing a re-login. The tick just forces a re-render so the
@@ -33603,6 +33666,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       onBack={() => setShowRates(false)} onSaved={setMyListing}
       onPhotos={() => { setShowRates(false); setListingSheet('photos'); }} onPayouts={startPayoutSetup} />;
   }
+  if (showApply && window.BSProviderApplicationScreen) {
+    const Apply = window.BSProviderApplicationScreen;
+    return <Apply initialRole={coachApp && coachApp.role === 'nutritionist' ? 'nutritionist' : 'trainer'} onBack={() => { setShowApply(false); setCoachAppReads((n) => n + 1); }} />;
+  }
   if (showPublicProfile) {
     const role = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().profile && window.ShapeAuth.getCachedState().profile.role) || 'client';
     const uid = (window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState().user && window.ShapeAuth.getCachedState().user.id) || null;
@@ -34012,8 +34079,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // ── ALSO ── the three doors that are not settings: the Shape pages, the legal and
   // support shelf (carrying the app's ONE real version claim), and the irreversible
   // account actions, which keep their rust.
+  // ── COACH ON SHAPE ── (bsCoachApplyRow): a member's door into applying as a coach, or where their
+  // application stands. A coach never sees it.
+  const coachAppRow = (isCoachRole || accountIsCoach) ? null
+    : bsCoachApplyRow(coachApp, { tr, amber: t.AMBER || '#d8a23a', teal: sTeal, unlit: t.INK70, locale: window.ShapeI18n?.current?.() || undefined });
   const alsoRows = [
     { title: tr('settings:section.more', { defaultValue: 'More' }), summary: isCoachRole ? tr('settings:card.moreSummaryCoach', { defaultValue: 'Public profile · Score · Store · Radio' }) : tr('settings:card.moreSummaryClient', { defaultValue: 'Goals · Habits · Library · Score · Store' }), detail: 'more' },
+    ...(coachAppRow ? [coachAppRow] : []),
     { title: tr('settings:section.about', { defaultValue: 'About' }), summary: cardAboutSummary, value: bsBuildLabel(), detail: 'about' },
     ...(staffLevel ? [{ title: tr('settings:section.admin', { defaultValue: 'Shape admin' }), summary: tr('settings:card.adminSummary', { defaultValue: 'The admin console · opens in your browser' }), detail: 'admin' }] : []),
     { title: tr('settings:section.accountActions', { defaultValue: 'Account actions' }), summary: cardAccountActionsSummary, detail: 'accountactions' },
@@ -34084,8 +34156,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // PREVIEW AS: signed-out demo only, to browse each account type's demo data without an account.
   // PROFILE MODE: only for people with more than one account, listing just the roles they created so
   // they can switch between them. Both choose through setTweak('role').
-  const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }) };
-  const rootActiveRole = accountRoles.includes(tweaks.role) ? tweaks.role : accountRoles[0];
+  // An approved dietitian's coach app is the nutrition one, named for what they are (bsAccountRoles).
+  const ROLE_LABELS = { client: tr('settings:preview.roleClient', { defaultValue: 'Client' }), trainer: tr('settings:preview.roleTrainer', { defaultValue: 'Trainer' }), nutritionist: tr('settings:preview.roleNutrition', { defaultValue: 'Nutrition' }), dietitian: tr('coach:role.dietitian', { defaultValue: 'Dietitian' }) };
+  const rootActiveRole = accountRoles.includes(tweaks.role) ? tweaks.role
+    : (tweaks.role === 'dietitian' && accountRoles.includes('nutritionist')) ? 'nutritionist' : accountRoles[0];
   const rootModes = [
     ...(!signedIn ? [{
       key: 'preview',
@@ -34481,7 +34555,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           onPickRole={(key) => setTweak('role', key)}
           tiles={passportTiles}
           also={alsoRows}
-          onOpen={(d) => setDetail(d)}
+          onOpen={(d) => { if (d === 'coachapply') { setShowApply(true); return; } setDetail(d); }}
           onLogout={onLogout}
         />
       )}

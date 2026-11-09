@@ -624,5 +624,17 @@
   "notifyPrefs.prepHour": "Uhrzeit der Erinnerung",
   "notifyPrefs.prepHourSub": "Am Vorabend, deine Uhrzeit",
   "notifyPrefs.prepHourQuiet": "In deinen Ruhezeiten: in der App, ohne Push",
-  "notifyPrefs.prepHourFailed": "Die Uhrzeit wurde nicht gespeichert. Versuch es noch einmal."
+  "notifyPrefs.prepHourFailed": "Die Uhrzeit wurde nicht gespeichert. Versuch es noch einmal.",
+  "coachApply.title": "Coach auf Shape",
+  "coachApply.sub": "Als Trainer oder Ernährungsberater bewerben",
+  "coachApply.inReview": "In Prüfung",
+  "coachApply.backgroundCheck": "Hintergrundprüfung",
+  "coachApply.approved": "Angenommen",
+  "coachApply.notApproved": "Nicht angenommen",
+  "coachApply.trainerApp": "Trainer-Bewerbung",
+  "coachApply.nutritionistApp": "Bewerbung als Ernährungsberater",
+  "coachApply.sent": "gesendet am {date}",
+  "coachApply.usually": "meist 2–3 Werktage",
+  "coachApply.submitted": "Eingereicht",
+  "coachApply.unavailable": "Status gerade nicht abrufbar · später erneut versuchen"
 }

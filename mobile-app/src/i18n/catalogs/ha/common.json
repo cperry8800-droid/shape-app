@@ -98,5 +98,10 @@
   "age.h": "awa {n}",
   "age.d": "kwana {n}",
   "age.w": "mako {n}",
-  "age.now": "yanzu"
+  "age.now": "yanzu",
+  "nav.coaches": "Kociyoyi",
+  "findCoach.trainer": "Nemi mai horo",
+  "findCoach.nutritionist": "Nemi masanin abinci",
+  "findCoach.vettedCoaches": "Kociyoyin da aka tantance",
+  "findCoach.vettedRDs": "Masana abinci da aka tantance"
 }

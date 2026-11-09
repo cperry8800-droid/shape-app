@@ -35,6 +35,8 @@ test('the one to show: the caller\'s own only, an open one before a decided one,
   ];
   const got = pickApplication(rows, { userId: 'u1', email: 'maya@x.com' });
   assert.deepEqual(got, { role: 'nutritionist', stage: 'in_review', status: 'in_review', submittedAt: '2026-11-08T00:00:00Z', decidedAt: null });
+  // A reviewer's stamp on an open one is not a decision.
+  assert.equal(pickApplication([row({ status: 'in_review', reviewed_at: '2026-11-09T12:00:00Z' })], { userId: 'u1' }).decidedAt, null);
   const decided = pickApplication([rows[0]], { userId: 'u1' });
   assert.equal(decided.stage, 'not_approved');
   assert.equal(decided.decidedAt, '2026-11-11T00:00:00Z');

@@ -665,7 +665,7 @@ test('wiring: every website page counts taps, and the app does, both behind the 
 test('wiring: a control whose name is a person’s is counted by a fixed label', () => {
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /onClick=\{\(\) => open\(p\)\} data-track="Open profile" aria-label=\{tr\('common:search\.openProfileAria'/);
   assert.match(read('public/newdesign/dashRoster.jsx'), /aria-label=\{"Open " \+ rec\.profile\.name \+ " drilldown" \+ \(tier \? ", " \+ tier\.title : ""\)\}\n\s+data-track="Open client drilldown"/);
-  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx'), /data-track="Remove file" aria-label=\{`Remove \$\{file\.name\}`\}/);
+  assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetProviderApply.jsx'), /data-track="Remove file" aria-label=\{tr\('onboarding:apply\.docs\.remove', \{ defaultValue: 'Remove \{name\}', name: file\.name \}\)\}/);
 });
 
 test('wiring: the banner and the privacy policy say the website counts taps too', () => {

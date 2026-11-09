@@ -5186,8 +5186,34 @@ window.ShapeClientProfiles = {
   saveClientProfileData,
 };
 
+// The member's own coach application, for Settings' Coach on Shape row: GET /api/me/application with
+// the live Bearer token (the installed app sends no cookie). Answers { role, stage, submittedAt,
+// decidedAt } (stage: submitted | in_review | background_check | approved | not_approved | withdrawn,
+// src/lib/application-status.mjs), null when there is none or the reader is signed out, and
+// { unavailable: true } when the read failed. ⚠ A FAILED READ IS NOT "NO APPLICATION": the row would
+// offer to apply again over one in review.
+const APPLICATION_STAGES = ['submitted', 'in_review', 'background_check', 'approved', 'not_approved', 'withdrawn'];
+async function getMyApplicationStatus() {
+  if (!state.user?.id) return null;
+  try {
+    const res = await shapeApiFetch('/api/me/application');
+    if (!res.ok) return { unavailable: true };
+    const json = await res.json().catch(() => null);
+    if (!json || typeof json !== 'object' || !('application' in json)) return { unavailable: true };
+    const a = json.application;
+    if (!a || typeof a !== 'object') return null;
+    const role = a.role === 'nutritionist' ? 'nutritionist' : a.role === 'trainer' ? 'trainer' : null;
+    const stage = APPLICATION_STAGES.includes(a.stage) ? a.stage : null;
+    if (!role || !stage) return { unavailable: true };
+    return { role, stage, submittedAt: typeof a.submittedAt === 'string' ? a.submittedAt : null, decidedAt: typeof a.decidedAt === 'string' ? a.decidedAt : null };
+  } catch (e) {
+    return { unavailable: true };
+  }
+}
+
 window.ShapeApplications = {
   submitProviderApplication,
+  myStatus: getMyApplicationStatus,
 };
 
 // ─── Sessions API (confirm/decline/join via /api/sessions/manage) ────────────

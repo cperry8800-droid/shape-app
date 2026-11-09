@@ -98,5 +98,10 @@
   "age.h": "{n} ч",
   "age.d": "{n} дн.",
   "age.w": "{n} нед.",
-  "age.now": "сейчас"
+  "age.now": "сейчас",
+  "nav.coaches": "Тренеры",
+  "findCoach.trainer": "Найти тренера",
+  "findCoach.nutritionist": "Найти нутрициолога",
+  "findCoach.vettedCoaches": "Проверенные тренеры",
+  "findCoach.vettedRDs": "Проверенные диетологи"
 }

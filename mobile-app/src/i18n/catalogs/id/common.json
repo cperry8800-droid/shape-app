@@ -98,5 +98,10 @@
   "age.h": "{n} j",
   "age.d": "{n} hr",
   "age.w": "{n} mgg",
-  "age.now": "sekarang"
+  "age.now": "sekarang",
+  "nav.coaches": "Pelatih",
+  "findCoach.trainer": "Cari pelatih",
+  "findCoach.nutritionist": "Cari ahli gizi",
+  "findCoach.vettedCoaches": "Pelatih terverifikasi",
+  "findCoach.vettedRDs": "Dietisien terverifikasi"
 }

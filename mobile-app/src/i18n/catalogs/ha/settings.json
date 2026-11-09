@@ -624,5 +624,17 @@
   "notifyPrefs.prepHour": "Lokacin tunatarwa",
   "notifyPrefs.prepHourSub": "Maraicen da ya gabata, a lokacinka",
   "notifyPrefs.prepHourQuiet": "A cikin lokacin shiru: a cikin manhaja, ba tare da push ba",
-  "notifyPrefs.prepHourFailed": "Ba a adana lokacin tunatarwa ba. Sake gwadawa."
+  "notifyPrefs.prepHourFailed": "Ba a adana lokacin tunatarwa ba. Sake gwadawa.",
+  "coachApply.title": "Koci a Shape",
+  "coachApply.sub": "Nemi a matsayin mai horo ko masanin abinci",
+  "coachApply.inReview": "Ana dubawa",
+  "coachApply.backgroundCheck": "Binciken tarihi",
+  "coachApply.approved": "An amince",
+  "coachApply.notApproved": "Ba a amince ba",
+  "coachApply.trainerApp": "Neman zama mai horo",
+  "coachApply.nutritionistApp": "Neman zama masanin abinci",
+  "coachApply.sent": "an aika {date}",
+  "coachApply.usually": "yawanci kwanakin aiki 2–3",
+  "coachApply.submitted": "An aika",
+  "coachApply.unavailable": "Ba a iya duba neman ka yanzu ba · sake gwadawa daga baya"
 }

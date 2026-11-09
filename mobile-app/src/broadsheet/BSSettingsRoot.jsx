@@ -103,7 +103,7 @@ export function BSSettingsHead({ title, onBack }) {
 // identity: { name, sub, initial, photo, ring (the avatar's tier colour), tierColor, tierLine, statusLine }
 // switches: [{ k, label, on, value, onToggle }]
 // modes:    [{ key, title, meta, label, opts: [[role, label]], value, hint }]  (Preview as, Profile mode)
-// tiles:    [{ detail, title, summary }]   also: [{ detail, title, summary, value }]
+// tiles:    [{ detail, title, summary }]   also: [{ detail, title, summary, value, tag: { text, color, lit }, wrap }]
 export function BSSettingsRoot({ onBack, identity = {}, onEdit, onPublicProfile, switches = [], modes = [], onPickRole, tiles = [], also = [], onOpen, onLogout }) {
   const t = window.useBS();
   const tr = useShapeTr();
@@ -205,8 +205,14 @@ export function BSSettingsRoot({ onBack, identity = {}, onEdit, onPublicProfile,
           {also.map((c, i) => (
             <button key={c.detail} type="button" data-settings-door={c.detail} onClick={() => open(c.detail)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, minHeight: 50, padding: '8px 14px', border: 0, borderTop: i ? `1px solid ${t.HAIR}` : 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK, boxSizing: 'border-box' }}>
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500 }}>{c.title}</span>
-                {c.summary ? <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, ...ell }}>{c.summary}</span> : null}
+                {/* A state in its lit slot (an application In review, amber) beside the name, so the line under
+                    it keeps the row's width; `lit: false` is unlit. */}
+                <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500 }}>{c.title}</span>
+                  {c.tag ? <span data-settings-tag="" style={{ ...led(c.tag.color, c.tag.lit !== false), flexShrink: 0 }}>{lamp(c.tag.color, c.tag.lit !== false)}{c.tag.text}</span> : null}
+                </span>
+                {/* A long summary (Coach on Shape's application line) takes two lines. */}
+                {c.summary ? <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50, ...(c.wrap ? { lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : ell) }}>{c.summary}</span> : null}
               </span>
               {c.value ? <span style={led(t.INK70, false)}>{c.value}</span> : null}
               <span aria-hidden="true" style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1 }}>→</span>

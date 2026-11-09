@@ -98,5 +98,10 @@
   "age.h": "{n} sa",
   "age.d": "{n} g",
   "age.w": "{n} hf",
-  "age.now": "şimdi"
+  "age.now": "şimdi",
+  "nav.coaches": "Koçlar",
+  "findCoach.trainer": "Antrenör bul",
+  "findCoach.nutritionist": "Diyetisyen bul",
+  "findCoach.vettedCoaches": "Doğrulanmış koçlar",
+  "findCoach.vettedRDs": "Doğrulanmış diyetisyenler"
 }

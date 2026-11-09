@@ -90,7 +90,7 @@ test('the four views with their counts, Needs you first, and the list straight u
     assert.deepEqual(labels, ['Needsyou1', 'Ontrack2', 'Past2', 'All3']);
     assert.equal(tabs(m.host)[0].getAttribute('aria-selected'), 'true');
     // Nothing is said twice: no card repeats the Needs you count or the faces of the rows under it.
-    assert.equal(m.host.querySelector('[data-pc-summary]'), null, 'no summary card');
+    assert.ok(!m.host.querySelector('[data-pc-summary]'), 'no summary card');
     assert.equal(m.host.querySelectorAll('[data-facet="Ben Tal"]').length, 1, 'their face once, on their row');
     // The group head, and over the figures' column what they measure, said once.
     assert.match(m.host.querySelector('[data-roster-group="red"] h2').textContent, /^Reach out today\s*1\s*Adherence$/);

@@ -624,5 +624,17 @@
   "notifyPrefs.prepHour": "Час нагадування",
   "notifyPrefs.prepHourSub": "Напередодні ввечері, за вашим часом",
   "notifyPrefs.prepHourQuiet": "У тихі години: у застосунку, без пуша",
-  "notifyPrefs.prepHourFailed": "Час нагадування не збережено. Спробуйте ще раз."
+  "notifyPrefs.prepHourFailed": "Час нагадування не збережено. Спробуйте ще раз.",
+  "coachApply.title": "Тренер на Shape",
+  "coachApply.sub": "Подати заявку як тренер або нутриціолог",
+  "coachApply.inReview": "На розгляді",
+  "coachApply.backgroundCheck": "Перевірка даних",
+  "coachApply.approved": "Схвалено",
+  "coachApply.notApproved": "Не схвалено",
+  "coachApply.trainerApp": "Заявка тренера",
+  "coachApply.nutritionistApp": "Заявка нутриціолога",
+  "coachApply.sent": "надіслано {date}",
+  "coachApply.usually": "зазвичай 2–3 робочі дні",
+  "coachApply.submitted": "Надіслано",
+  "coachApply.unavailable": "Не вдалося перевірити заявку · спробуйте пізніше"
 }

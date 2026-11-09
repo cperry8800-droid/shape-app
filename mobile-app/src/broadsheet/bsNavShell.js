@@ -89,8 +89,13 @@ export function useBSNavHistory({ navLoc, navResolve }) {
 // listener, and the one-shot slide state are identical — so they live here
 // (the same reasoning that extracted useBSNavHistory in PR B).
 
+// The member app's root tabs, in the nav's order and the swipe's (owner, 2026-11-09: Coaches, the
+// marketplace's tab 'market', between Eat and Chat). The client shell's tab bar and its swipes read
+// this one list, so the two cannot disagree.
+export const BS_MEMBER_TABS = Object.freeze(['home', 'train', 'eat', 'market', 'chat', 'me']);
+
 // Step the given root-tab order, clamped at the ends. null = no move
-// (unknown tab — e.g. a jump-destination screen like radio/market — or
+// (unknown tab — e.g. a jump-destination screen like radio/store — or
 // already at the boundary).
 export function bsNavStepTab(tabs, tab, intent) {
   const i = tabs.indexOf(tab);

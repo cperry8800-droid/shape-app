@@ -624,5 +624,17 @@
   "notifyPrefs.prepHour": "Hora del recordatorio",
   "notifyPrefs.prepHourSub": "La noche antes, a tu hora",
   "notifyPrefs.prepHourQuiet": "En tus horas de silencio: en la app, sin push",
-  "notifyPrefs.prepHourFailed": "No se guardó la hora del recordatorio. Inténtalo de nuevo."
+  "notifyPrefs.prepHourFailed": "No se guardó la hora del recordatorio. Inténtalo de nuevo.",
+  "coachApply.title": "Coach en Shape",
+  "coachApply.sub": "Postúlate como entrenador o nutricionista",
+  "coachApply.inReview": "En revisión",
+  "coachApply.backgroundCheck": "Verificación de antecedentes",
+  "coachApply.approved": "Aprobada",
+  "coachApply.notApproved": "No aprobada",
+  "coachApply.trainerApp": "Solicitud de entrenador",
+  "coachApply.nutritionistApp": "Solicitud de nutricionista",
+  "coachApply.sent": "enviada el {date}",
+  "coachApply.usually": "suele tardar 2–3 días hábiles",
+  "coachApply.submitted": "Enviada",
+  "coachApply.unavailable": "No se pudo comprobar tu solicitud · inténtalo más tarde"
 }
