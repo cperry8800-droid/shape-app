@@ -356,7 +356,7 @@ test('the filters: city and open intro this week first, the city picked from a l
   const city = opts[1];
   const name = city.textContent;
   await click(city);
-  assert.equal(document.getElementById(box.getAttribute('aria-controls')), null, 'a pick closes it');
+  assert.ok(!document.getElementById(box.getAttribute('aria-controls')), 'a pick closes it');
   assert.equal(box.querySelector('.v').textContent, name, 'the pick shows');
   await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
   assert.equal(box.getAttribute('aria-expanded'), 'true', '↓ opens it');
