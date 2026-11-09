@@ -1881,9 +1881,10 @@ function DscRequestRow({ ev, lead, busy, failed, lookOf, todayIso, onAccept, onD
     <div data-request={ev.sessionId || ev.id} data-request-state={busy ? "busy" : failed ? "failed" : "waiting"}
       style={{ display: "flex", alignItems: "center", gap: lead ? 14 : 10, flexWrap: "wrap", padding: lead ? 0 : "10px 0 0", borderTop: lead ? 0 : "1px solid " + DSC_HAIR, marginTop: lead ? 0 : 10 }}>
       <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-        <div data-request-line="" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontFamily: lead ? serif : "inherit", fontSize: lead ? 21 : 13.5, letterSpacing: lead ? "-0.01em" : 0, lineHeight: 1.25 }}>
-          {lk.client && <DscTierMark points={lk.points} size={lead ? 10 : 8} name={ev.with} />}
-          <span>{name} wants {dscWantsWhen(ev, todayIso)}</span>
+        {/* The mark is held to the name (as DashClientName holds its dot), so a narrow card wraps the
+            sentence but never strands the mark on a line of its own. */}
+        <div data-request-line="" style={{ fontFamily: lead ? serif : "inherit", fontSize: lead ? 21 : 13.5, letterSpacing: lead ? "-0.01em" : 0, lineHeight: 1.25 }}>
+          <span style={{ whiteSpace: "nowrap" }}>{lk.client && <span style={{ display: "inline-block", marginRight: 8, verticalAlign: "0.08em" }}><DscTierMark points={lk.points} size={lead ? 10 : 8} name={ev.with} /></span>}{name}</span> wants {dscWantsWhen(ev, todayIso)}
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginTop: 4, fontSize: 11.5, color: DSC_INK50 }}>
           <span data-kind-word="" style={{ fontFamily: DSC_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: lk.kind.text }}>{lk.kind.label}</span>
