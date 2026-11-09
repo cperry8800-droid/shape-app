@@ -1431,13 +1431,16 @@ test('a click (no drag) on a booking opens its sheet; Escape mid-drag drops noth
   } finally { await page.unmount(); }
 });
 
-test('requests wait in a strip — upcoming only — and Accept, Decline and Other time answer them', async () => {
+// ⚠ RESTATED 2026-11-09 FOR STEP 5C: the strip is the page's highest card now, the first waiting
+// request as a sentence with Accept, Decline and ⋯ (Offer another time, Open the booking), the rest
+// folded under it. Claim for claim: upcoming only, and each answer does what it did.
+test('requests wait in the request card — upcoming only — and Accept, Decline and ⋯ Offer another time answer them', async () => {
   const { page, posts } = await open();
   try {
     const strip = page.doc.querySelector('[aria-label="Requests to confirm"]');
     assert.ok(strip);
-    assert.match(strip.textContent, /^1 to confirm/, 'a request in the past is still asking');
-    assert.match(strip.textContent, /Jordan M\..*2:00 PM/);
+    assert.equal(strip.getAttribute('data-requests'), '1', 'a request in the past is still asking');
+    assert.match(strip.textContent, /Jordan M\. wants Fri 2:00 PM/);
     await page.click(page.buttonMatching(/^Accept$/, strip));
     assert.deepEqual(posts, [{ action: 'confirm', sessionId: 's-req' }]);
     assert.ok(!page.doc.querySelector('[aria-label="Requests to confirm"]'), 'the accepted request is still in the strip');
@@ -1446,7 +1449,8 @@ test('requests wait in a strip — upcoming only — and Accept, Decline and Oth
   const second = await open();
   try {
     const strip = second.page.doc.querySelector('[aria-label="Requests to confirm"]');
-    await second.page.click(second.page.buttonMatching(/^Other time$/, strip));
+    await second.page.click(strip.querySelector('[data-request-more]'));
+    await second.page.click(second.page.buttonMatching(/^Offer another time$/, strip));
     assert.match(second.page.doc.querySelector('[role=dialog]').textContent, /Offer another time/);
     await second.page.click(second.page.button('Close'));
     await second.page.click(second.page.buttonMatching(/^Decline$/, second.page.doc.querySelector('[aria-label="Requests to confirm"]')));
@@ -1818,7 +1822,9 @@ test('a coach\'s own booking with another coach shows read-only: not in the stri
   const own = ev('s-own', '2026-10-08', '11:00', { status: 'requested', asClient: true, with: 'Coach', clientId: 'coach-1', title: 'Coaching session' });
   const { page, posts } = await open({ events: [...WEEK(), own] });
   try {
-    assert.match(page.doc.querySelector('[aria-label="Requests to confirm"]').textContent, /^1 to confirm/, 'the coach is asked to answer their own request');
+    const strip = page.doc.querySelector('[aria-label="Requests to confirm"]');
+    assert.equal(strip.getAttribute('data-requests'), '1', 'the coach is asked to answer their own request');
+    assert.doesNotMatch(strip.textContent, /Coach wants/, 'the coach is asked to answer their own request');
     const el = page.doc.querySelector('[data-dsc-block="session:s-own"]');
     assert.ok(el, 'the coach\'s own booking is not on their calendar');
     assert.match(el.textContent, /your booking/);

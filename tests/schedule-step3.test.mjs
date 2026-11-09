@@ -234,17 +234,30 @@ async function setValue(page, el, value) {
   await page.settle();
 }
 const cell = (page, col, row) => page.doc.querySelector('[data-hcell="' + col + ':' + row + '"]');
+// ⚠ SINCE STEP 5C (2026-11-09) the hours, the time off and the booking rules are in the Hours &
+// rules slide-over, behind one tab on the page's edge, not in a rail beside the week.
+async function openSettings(page) {
+  await page.click(page.doc.querySelector('[data-settings-tab]'));
+  assert.ok(page.doc.querySelector('[data-settings-sheet]'), 'the Hours & rules sheet did not open');
+}
+async function closeSettings(page) {
+  await page.click(page.doc.querySelector('[data-settings-sheet] button[aria-label="Close"]'));
+  assert.ok(!page.doc.querySelector('[data-settings-sheet]'), 'the Hours & rules sheet did not close');
+}
 const pressed = (page, col, row) => cell(page, col, row).getAttribute('aria-pressed') === 'true';
 
 test('hours are edited on the grid in half hours: paint a rectangle, copy a day, close a cell, and save the week in one write', async () => {
   const { page, sent } = await open();
   try {
+    await openSettings(page);
     const summary = () => page.doc.querySelector('[data-hours-summary]').textContent;
     assert.match(summary(), /Mon8:00 AM–12:00 PM/);
     assert.match(summary(), /SatClosed/);
     await page.click(page.doc.querySelector('[data-edit-hours]'));
     assert.ok(!!page.doc.querySelector('[data-hours-editor]'), 'the editor did not open');
-    assert.ok(!page.doc.querySelector('[data-dsc-cols]'), 'the bookings grid is still under the editor');
+    // Since step 5c the editor is in the modal sheet, and the bookings grid behind it is inert.
+    assert.ok(page.doc.querySelector('[data-settings-sheet]').contains(page.doc.querySelector('[data-hours-editor]')), 'the editor is not in the Hours & rules sheet');
+    assert.equal(page.doc.getElementById('root').getAttribute('aria-hidden'), 'true', 'the bookings grid is not inert under the editor');
     const save = () => page.doc.querySelector('[data-save-hours]');
     assert.equal(save().disabled, true, 'nothing changed, nothing to save');
     // Mon 8:00 (col 0, row 16) is open; Sat (col 5) is closed; the rows run 5 AM (10) to 10 PM.
@@ -293,6 +306,7 @@ test('the hours editor opens only on hours that have arrived (Codex, the review 
   const page = await mountSchedule({ fetch: async (u, init) => (u.pathname === '/api/my-availability' && (!init || !init.method) ? (await held, json(200, { slots: HOURS, timezone: NY })) : srv.handler(u, init)) });
   try {
     const edit = () => page.doc.querySelector('[data-edit-hours]');
+    await openSettings(page);
     assert.equal(edit().disabled, true, 'the editor can open before the hours arrive');
     assert.match(edit().textContent, /Loading your hours/);
     release();
@@ -303,6 +317,7 @@ test('the hours editor opens only on hours that have arrived (Codex, the review 
   } finally { await page.unmount(); }
   const failed = await mountSchedule({ fetch: async (u, init) => (u.pathname === '/api/my-availability' ? json(503, { error: 'x' }) : server().handler(u, init)) });
   try {
+    await openSettings(failed);
     assert.equal(failed.doc.querySelector('[data-edit-hours]').disabled, true, 'an unread week can be overwritten');
     assert.match(failed.text(), /Your hours couldn't load/);
   } finally { await failed.unmount(); }
@@ -311,6 +326,7 @@ test('the hours editor opens only on hours that have arrived (Codex, the review 
 test('a refused hours save keeps the editor open and says why; Cancel discards the edit', async () => {
   const { page } = await open({ answers: { hours: json(400, { error: 'timezone_required', detail: 'We need your timezone before saving them.' }) } });
   try {
+    await openSettings(page);
     await page.click(page.doc.querySelector('[data-edit-hours]'));
     page.doc.elementFromPoint = (x, y) => cell(page, x, y);
     await page.drag(cell(page, 5, 20), [[5, 20]]);
@@ -326,7 +342,9 @@ test('a refused hours save keeps the editor open and says why; Cancel discards t
 test('time off is listed, hatched on its day in the grid, and a move into it asks first', async () => {
   const { page } = await open();
   try {
+    await openSettings(page);
     assert.match(page.doc.querySelector('[data-time-off-list]').textContent, /Thu, Oct 8 · 1:00 PM–6:00 PM · Dentist/);
+    await closeSettings(page);
     const hatch = [...page.doc.querySelectorAll('[data-time-off]')];
     assert.equal(hatch.length, 1);
     assert.equal(hatch[0].closest('[data-col-date]').getAttribute('data-col-date'), '2026-10-08');
@@ -345,6 +363,7 @@ test('time off is listed, hatched on its day in the grid, and a move into it ask
 test('time off is added as whole days in the coach\'s days, and removed', async () => {
   const { page, sent } = await open();
   try {
+    await openSettings(page);
     await page.click(page.doc.querySelector('[data-add-time-off]'));
     const form = page.doc.querySelector('[data-time-off-form]');
     await setValue(page, form.querySelector('input[aria-label="From date"]'), '2026-10-12');
@@ -370,6 +389,7 @@ test('time off is added as whole days in the coach\'s days, and removed', async 
 test('part of a day is sent as two instants on the coach\'s clock', async () => {
   const { page, sent } = await open({ timeOff: [] });
   try {
+    await openSettings(page);
     await page.click(page.doc.querySelector('[data-add-time-off]'));
     const form = page.doc.querySelector('[data-time-off-form]');
     const whole = form.querySelector('input[type="checkbox"]');
@@ -390,6 +410,7 @@ test('part of a day is sent as two instants on the coach\'s clock', async () => 
 test('the booking rules load, save only when changed, and say they bind members', async () => {
   const { page, sent } = await open();
   try {
+    await openSettings(page);
     const plate = page.doc.querySelector('[data-rules-plate]');
     const buffer = plate.querySelector('select[aria-label="Buffer between sessions"]');
     assert.equal(buffer.value, '15');
@@ -425,6 +446,7 @@ test('the booking rules load, save only when changed, and say they bind members'
 test('the demo shows example time off and saves nothing', async () => {
   const { page, sent } = await open({ live: false });
   try {
+    await openSettings(page);
     assert.match(page.doc.querySelector('[data-time-off-list]').textContent, /Dentist/);
     await page.click(page.doc.querySelector('[data-edit-hours]'));
     await page.drag(cell(page, 6, 20), [[6, 20]]);

@@ -39,6 +39,13 @@ export async function mountSchedule({
   live = true,
   narrow = false,
   drawer = null,
+  // useDashboard's joint list, its role feed's extra fields (`calendar`), and its `source` when a
+  // test needs one other than live/demo (null: still loading).
+  joint = [],
+  today = null,
+  source = undefined,
+  // Globals a host page sets before the page runs (window.ShapeClientColors, window.dashPeekSessions…).
+  globals = {},
 } = {}) {
   const { JSDOM } = require('jsdom');
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'https://shape.test/newdesign/TrainerApp.html#schedule' });
@@ -49,6 +56,7 @@ export async function mountSchedule({
   dom.window.ShapeBookingRules = await import(BOOKING_RULES_URL);
   dom.window.matchMedia = (q) => ({ matches: narrow && /max-width/.test(q), media: q, addEventListener() {}, removeEventListener() {} });
   if (drawer) dom.window.DashClientDrawer = drawer;
+  Object.assign(dom.window, globals);
   const React = require('react');
   const { createRoot } = require('react-dom/client');
   const act = React.act;
@@ -64,13 +72,16 @@ export async function mountSchedule({
   // test can fire it (`returnToTab`) without a minute of waiting.
   const focus = { fn: null, enabled: false };
   const Plain = ({ children }) => React.createElement('div', null, children);
+  // ReactDOM is the page's global in the browser (the UMD build): the Hours & rules sheet, the toast
+  // and the client panel portal into the body through it, as they do there.
+  const ReactDOM = require('react-dom');
   const { CoachSchedulePage } = new Function(
-    'React', 'window', 'useDashboard', 'useRememberedChoices', 'useRememberedChoice', 'dashRouteParam', 'DashDemoBand', 'DashPage',
+    'React', 'ReactDOM', 'window', 'useDashboard', 'useRememberedChoices', 'useRememberedChoice', 'dashRouteParam', 'DashDemoBand', 'DashPage',
     'dashTabHref', 'trainerNavItems', 'nutriNavItems', 'trainerPayoutCard', 'nutriPayoutCard', 'serif', 'DashClientDrawer', 'useDashFocusRefresh',
     code + '\nreturn { CoachSchedulePage };',
   )(
-    React, dom.window,
-    () => ({ triage, today: live ? { user: { firstName: 'Coach' } } : null, source: live ? 'live' : 'demo' }),
+    React, ReactDOM, dom.window,
+    () => ({ triage, joint, today: live ? { user: { firstName: 'Coach' }, ...(today || {}) } : null, source: source !== undefined ? source : (live ? 'live' : 'demo') }),
     () => ({}),
     (_prefs, key, allowed, def) => {
       const [v, set] = React.useState(def);

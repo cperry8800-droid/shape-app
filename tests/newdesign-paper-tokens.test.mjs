@@ -499,9 +499,10 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
 
 // The hex-alpha append census, DERIVED from the tree rather than typed: every site
 // where a colour reaches a `c + "1c"` or `${INK}40` append, counted per file.
-// 10 files, 3 concatenation + 31 template = 34 sinks (the coach setup cards' status pill left the
-// census on 2026-10-18: its border is a literal rgba from PX_TONES, no longer `${badge[1]}55`). (This read "21 files, 56 sinks"
-// after #2142 and had drifted from the table below; the count is the table's.)
+// 8 files, 1 concatenation + 21 template = 22 sinks (the coach setup cards' status pill left the
+// census on 2026-10-18: its border is a literal rgba from PX_TONES, no longer `${badge[1]}55`;
+// dashSchedule.jsx left it on 2026-11-09, below). (This read "21 files, 56 sinks" after #2142 and
+// "10 files, 34 sinks" later, both drifted from the table below; the count is the table's.)
 // ⚠ dashClient.jsx's membership pill and coachClientDetail.jsx's CKTrend + cycle strip
 // LEFT the census on purpose: their colours follow the paper now, so their alphas
 // compose through ssAlpha, which keeps a token as rgba(var(--x-rgb, …), a).
@@ -511,9 +512,9 @@ test('every hex-parsing helper in newdesign accepts a paper token', () => {
 const SINK_CENSUS = {
   'client.jsx': { concat: 0, template: 2 },
   'clientPlaylist.jsx': { concat: 0, template: 1 },
-  // 2 since 2026-10-07: DscChip's tint, and the week grid's booking block (`color + "29"`),
-  // both fed only by the literal per-client palette (DSC_PALETTE).
-  'dashSchedule.jsx': { concat: 2, template: 0 },
+  // dashSchedule.jsx left the census 2026-11-09 (coach dashboard step 5c): the per-client palette
+  // (DSC_PALETTE) is retired, and a block's tint is its kind's, written as rgba(var(--x-rgb, …), a)
+  // or as color-mix() over clientColors.mjs's kind colour, never a hex-alpha append.
   'landing.jsx': { concat: 0, template: 2 },
   // marketplace.jsx left the census 2026-11-05: the Coaches page rebuild draws no hex-alpha append.
   'memberProfile.jsx': { concat: 0, template: 4 },
