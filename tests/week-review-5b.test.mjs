@@ -214,6 +214,11 @@ test('the heatmap: labelled bands with the number printed, a missing rating that
   assert.deepEqual([1, 4, 5, 6, 7, 10].map(W.dwkBand), ['low', 'low', 'mid', 'mid', 'good', 'good']);
   assert.deepEqual([0, 11, null, undefined, '', 'x', true, NaN].map(W.dwkBand), [null, null, null, null, null, null, null, null], 'off the scale is not a rating');
   assert.equal(W.dwkBand('8'), 'good');
+  // "No check-in" is a claim: a week older than the four check-ins the overview fetched is not read.
+  const four = rec(9, 'Fay', { checkins: [0, 1, 2, 3].map((n) => ck(W.dwkAddDays(MON, -7 * n), { sleep: 7 })) });
+  assert.equal(W.dwkCheckinOf(four, W.dwkAddDays(MON, -28), MON, true).state, 'beyond');
+  assert.equal(W.dwkCheckinOf({ ...four, checkins: four.checkins.slice(0, 3) }, W.dwkAddDays(MON, -28), MON, true).state, 'none', 'fewer than four fetched: all of them, so an absence is real');
+  assert.equal(W.dwkCheckinOf(four, W.dwkAddDays(MON, -14), MON, true).state, 'in');
   const p = await page({ rows: cast(), db: makeDb({ doc: reviewedDoc() }) });
   // Ada: 8 · 5 · 4 · 7 · 2 · (hunger not rated).
   assert.deepEqual(p.bands(1), ['good', 'mid', 'low', 'good', 'low', 'none']);
@@ -254,6 +259,8 @@ test('what stands out: the weakest rating on the real scale, the questions waiti
   // ⚠ The scale is not inverted: high calm is good, so a calm roster with poor sleep is a sleep week.
   const sleep = W.dwkPatterns([entry(1, { stress: 9, sleep: 2 }), entry(2, { stress: 10, sleep: 3 }), entry(3, { stress: 8, sleep: 8 })], true);
   assert.deepEqual(sleep.map((l) => l.text), ["Sleep is the week's weak spot: 2 of 3 rated it 4/10 or under"]);
+  // Out of the clients who answered that question, not everyone who checked in.
+  assert.equal(W.dwkPatterns([entry(1, { stress: 2 }), entry(2, { stress: 3 }), entry(3, { sleep: 8 })], true)[0].text, "Calm is the week's weak spot: 2 of 2 rated it 4/10 or under (10 = calm)");
   // One client's low is their own row's, not a pattern.
   assert.deepEqual(W.dwkPatterns([entry(1, { energy: 2 }), entry(2, { energy: 8 })], true), []);
   // A tie goes to the lower average.
