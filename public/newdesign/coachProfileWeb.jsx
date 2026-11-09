@@ -5,7 +5,7 @@
 // marketplace's links, a coach's referral link), and the coach's own Profile page on their web
 // dashboard. One layout for every coach (owner, 2026-11-09: "complete full buildout of 'the climb'"),
 // the look of the Coaches page (marketplace.jsx): dark, Shape's contour lines, a route to a summit,
-// Doto readouts. A trainer is teal with the booking in rust; a nutritionist gold throughout.
+// Saira readouts. A trainer is teal with the booking in rust; a nutritionist gold throughout.
 //
 //   The bar      ← Coaches · discipline · city, whether they take new clients, their followers,
 //                Follow and Share.
@@ -51,13 +51,14 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 // The Climb's three faces (the Coaches page's, marketplace.jsx): Anybody for display (pageShell.jsx loads
-// it with its width axis on every page), Schibsted Grotesk for the body, and Doto for every measured
-// figure (the rating, the stats, prices, times), loaded by this page (cpwLoadDoto). JetBrains Mono stays
-// for the small labels.
+// it with its width axis on every page), Schibsted Grotesk for the body, and Saira for every measured
+// figure (the rating, the stats, prices, times), as the chat feed sets its figures (owner, 9 Nov: "make
+// it the attached from chat feed page"; every page that shows this one loads Saira). JetBrains Mono for
+// the small labels.
 const CPW_DISPLAY = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
 const CPW_BODY = "'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif";
 const CPW_MONO = "'JetBrains Mono', ui-monospace, monospace";
-const CPW_DOTO = "'Doto', 'Courier New', ui-monospace, monospace";
+const CPW_FIG = "'Saira', 'Schibsted Grotesk', system-ui, sans-serif";
 const CPW_FOCUS = { top: "center 22%", center: "center 50%", bottom: "center 80%" };
 const CPW_LINK_NAMES = { instagram: "Instagram", x: "X", tiktok: "TikTok", youtube: "YouTube", substack: "Substack", website: "Website" };
 // A headline stat's words, by key (the app's BS_STAT_WORDS, BSMakeItYours.jsx).
@@ -259,7 +260,7 @@ const cpwPlay = (ACC) => <span aria-hidden="true" style={{ position: "absolute",
 // ── The Climb ────────────────────────────────────────────────────────────────────────────────
 // The page's look, shared with the Coaches page (marketplace.jsx, "the Climb"): dark throughout, Shape's
 // contour lines and a route climbing to a summit plate that holds the rating, the portrait in a prism
-// frame, Doto figures on chamfered instrument plates. A trainer is teal with the booking in rust, a
+// frame, Saira figures on chamfered instrument plates. A trainer is teal with the booking in rust, a
 // nutritionist gold throughout. Every figure on it is the coach's own, read by this page; a drawing
 // (the terrain, a program's peaks) is a drawing, never a figure.
 const CPW_BG = "#06090f";
@@ -298,17 +299,6 @@ function cpwDrawAccent(K, look, custom, role, fallback) {
   }
   const old = custom && typeof custom.accent === "string" ? custom.accent.trim() : "";
   return shows(old) ? old.toLowerCase() : fallback;
-}
-// Doto, for the measured figures: requested once, from the page (the host pages load Anybody and
-// Schibsted Grotesk through pageShell.jsx, not Doto).
-function cpwLoadDoto() {
-  try {
-    if (typeof document === "undefined" || document.getElementById("cpw-doto")) return;
-    const l = document.createElement("link");
-    l.id = "cpw-doto"; l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Doto:ROND,wght@0..100,100..900&display=swap";
-    document.head.appendChild(l);
-  } catch (e) { /* the figures fall back to a monospace face */ }
 }
 // The longest word of a name, in letters: the huge name is sized so that word fits on its line.
 const cpwLongestWord = (name) => Math.max(4, ...String(name || "").split(/\s+/).map((w) => [...w].length));
@@ -473,7 +463,7 @@ function CpwBase({ T, K, film, highlight, tip, shots, onShot }) {
                 <div data-coach-highlight="" className="cpw-card">
                   <span className="cpw-dtl" style={{ color: T.pal.CTA_TEXT }}>Pinned · {K.bsPinKindLabel(highlight.kind) || "Highlight"}</span>
                   <p style={{ margin: "12px 0 0", fontFamily: CPW_DISPLAY, fontSize: 21, fontWeight: 800, fontStretch: "112%", lineHeight: 1.2, color: "#fff", overflowWrap: "anywhere" }}>{highlight.title}</p>
-                  {highlight.metric ? <span data-coach-highlight-metric="" className="cpw-doto" style={{ display: "block", marginTop: 12, fontSize: 40, color: "#fff", overflowWrap: "anywhere" }}>{highlight.metric}</span> : null}
+                  {highlight.metric ? <span data-coach-highlight-metric="" className="cpw-fig" style={{ display: "block", marginTop: 12, fontSize: 40, color: "#fff", overflowWrap: "anywhere" }}>{highlight.metric}</span> : null}
                   {highlight.note ? <p style={{ margin: "10px 0 0", fontSize: 15, lineHeight: 1.45, color: ink(0.8), overflowWrap: "anywhere" }}>{highlight.note}</p> : null}
                 </div>
               ) : null}
@@ -542,7 +532,7 @@ function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, 
                     </svg>
                   ) : null}
                   <span className="cpw-range-tag cpw-dtl" style={{ color: "#fff", borderColor: cpwA(col, 0.9) }}>{p.tag || (nutri ? "Meal plan" : "Program")}</span>
-                  {p.weeks ? <span className="cpw-range-weeks"><span className="cpw-doto" style={{ fontSize: 20 }}>{p.weeks}</span> <span className="cpw-dtl" style={{ color: "rgba(238,243,240,.82)" }}>{p.weeks === 1 ? "week" : "weeks"}</span></span> : null}
+                  {p.weeks ? <span className="cpw-range-weeks"><span className="cpw-fig" style={{ fontSize: 20 }}>{p.weeks}</span> <span className="cpw-dtl" style={{ color: "rgba(238,243,240,.82)" }}>{p.weeks === 1 ? "week" : "weeks"}</span></span> : null}
                 </div>
                 <div className="cpw-range-body">
                   <h3 className="cpw-range-name">{p.name}</h3>
@@ -552,7 +542,7 @@ function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, 
                   <div className="cpw-range-foot">
                     {p.price ? (
                       <span className="cpw-plate" style={{ padding: "8px 12px", display: "inline-flex", alignItems: "baseline", gap: 6 }}>
-                        <span className="cpw-doto" style={{ fontSize: 22 }}>{p.price}</span>{p.paid ? <span style={{ fontSize: 12.5, color: ink(0.75) }}>one-off</span> : null}
+                        <span className="cpw-fig" style={{ fontSize: 22 }}>{p.price}</span>{p.paid ? <span style={{ fontSize: 12.5, color: ink(0.75) }}>one-off</span> : null}
                       </span>
                     ) : <span />}
                     <button type="button" data-program-open="" onClick={() => onOpen(p.pr)} className="cpw-cta" style={{ minHeight: 44, padding: "0 18px", background: CTA, color: ON_CTA }}>
@@ -571,7 +561,7 @@ function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, 
 
 // ── The booking console ──────────────────────────────────────────────────────────────────────
 // Docked at the foot of the window: who, whether they take clients, the free intro's length and the next
-// open time (Doto), Message, and Book a free intro (trainer rust, nutritionist gold). Book is today's
+// open time (Saira), Message, and Book a free intro (trainer rust, nutritionist gold). Book is today's
 // path: the booking page at that time, or the booking page, or the waiting list when they are full. A
 // sample books nothing: Message and Work with.
 function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork }) {
@@ -594,7 +584,7 @@ function CpwDock({ T, avatar, status, introMin, next, book, onMessage, onWork })
       {next ? (
         <div className="cpw-dock-cell" data-dock-next="">
           <span className="cpw-dtl" style={{ color: ink(0.7) }}>Next open</span>
-          <span className="cpw-doto" style={{ fontSize: 17, fontWeight: 700 }}>{next}</span>
+          <span className="cpw-fig" style={{ fontSize: 17, fontWeight: 700 }}>{next}</span>
         </div>
       ) : null}
       <div className="cpw-dock-acts">
@@ -1117,7 +1107,6 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const seed = cpwHash(uid || sampleKey || name);
   const cssA = (x) => cpwA(ACC, x);
   const drawA = (x) => cpwA(DRAW, x);
-  React.useEffect(() => { cpwLoadDoto(); }, []);
   // Docked for every visitor. A private profile's console is Message alone, as today's page kept
   // Message on a private profile: no times, no Book, no storefront.
   const docked = !isSelf;
@@ -1211,11 +1200,11 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw{overflow-x:hidden;overflow-x:clip}
     .cpw *,.cpw *::before,.cpw *::after{box-sizing:border-box}
     .cpw-wrap{max-width:1440px;margin:0 auto;padding:0 32px}
-    .cpw-dtl{font-family:${CPW_DOTO};font-weight:700;font-variation-settings:'ROND' 30;letter-spacing:.09em;text-transform:uppercase;font-size:11.5px;line-height:1.3}
-    .cpw-doto{font-family:${CPW_DOTO};font-weight:800;font-variation-settings:'ROND' 100;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+    .cpw-dtl{font-family:${CPW_MONO};font-weight:600;letter-spacing:.09em;text-transform:uppercase;font-size:11.5px;line-height:1.3}
+    .cpw-fig{font-family:${CPW_FIG};font-weight:700;letter-spacing:-.035em;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
     .cpw-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 12px;flex-wrap:wrap;padding:18px 0 16px}
     .cpw-pill{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border:1px solid rgba(238,243,240,.2);border-radius:10px;background:rgba(238,243,240,.03);font-family:${CPW_BODY};font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
-    .cpw-pill.cpw-dtl{font-family:${CPW_DOTO};font-size:11.5px;min-height:40px}
+    .cpw-pill.cpw-dtl{font-family:${CPW_MONO};font-size:11.5px;min-height:40px}
     .cpw-stage{position:relative;border-radius:22px;overflow:hidden;background:#070b11;border:1px solid rgba(238,243,240,.08);min-height:640px;isolation:isolate}
     .cpw-stage-photo{position:absolute;inset:0;z-index:0;filter:grayscale(.5) brightness(.5)}
     .cpw-stage-art{position:absolute;inset:0}
@@ -1259,7 +1248,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-wire-it{font-size:15px}
     @keyframes cpw-wire{to{transform:translateX(-50%)}}
     .cpw-campnav{position:sticky;z-index:20;display:flex;overflow-x:auto;gap:2px;margin-top:18px;padding:0 12px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
-    .cpw-campnav button{flex:none;min-height:46px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-family:${CPW_DOTO};font-weight:700;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-variation-settings:'ROND' 30}
+    .cpw-campnav button{flex:none;min-height:46px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
     .cpw-camps{position:relative;padding:36px 0 24px}
     .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${drawA(0.1)},${DRAW} 60px,${DRAW} calc(100% - 60px),${drawA(0.1)});box-shadow:0 0 12px ${drawA(0.35)}}
     .cpw-camp{position:relative;display:grid;grid-template-columns:210px minmax(0,1fr);padding:30px 0 40px}
@@ -1433,8 +1422,8 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               aria-label={ratingShown ? `Rated ${ratingShown} out of 10 from ${reviews.count} ${reviews.count === 1 ? "review" : "reviews"}` : "New on Shape: no reviews yet"}
               style={{ left: `${(wide ? 0.79 : 0.8) * 100}%`, top: `${(wide ? 0.44 : 0.42) * 100}%` }}>
               <span className="cpw-plate cpw-summit-plate" data-summit-ring="" style={{ borderColor: cpwA(DRAW, 0.55) }}>
-                {ratingShown ? <React.Fragment><span className="cpw-doto" style={{ fontSize: wide ? 46 : 36 }}>{ratingShown}</span><span style={{ fontSize: 14, color: ink(0.8), marginLeft: 4 }}>/10</span></React.Fragment>
-                  : <span className="cpw-doto" style={{ fontSize: wide ? 30 : 24 }}>New</span>}
+                {ratingShown ? <React.Fragment><span className="cpw-fig" style={{ fontSize: wide ? 46 : 36 }}>{ratingShown}</span><span style={{ fontSize: 14, color: ink(0.8), marginLeft: 4 }}>/10</span></React.Fragment>
+                  : <span className="cpw-fig" style={{ fontSize: wide ? 30 : 24 }}>New</span>}
               </span>
               <span className="cpw-dtl cpw-summit-cap" style={{ color: ACC }}>{ratingShown ? `Rating · ${reviews.count.toLocaleString()} ${reviews.count === 1 ? "review" : "reviews"}` : "No reviews yet"}</span>
             </button>
@@ -1488,13 +1477,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
                 <div data-coach-stats="" role="list" aria-label="Headline stats" className="cpw-plates">
                   {plateStats.map((s) => (
                     <div key={s.key} role="listitem" data-coach-stat={s.key} className="cpw-plate cpw-stat">
-                      <span className="cpw-doto cpw-stat-n">{s.key === "rating" ? Number(s.value).toFixed(1) : Number(s.value).toLocaleString()}</span>
+                      <span className="cpw-fig cpw-stat-n">{s.key === "rating" ? Number(s.value).toFixed(1) : Number(s.value).toLocaleString()}</span>
                       <span className="cpw-dtl cpw-stat-l" style={{ color: ink(0.72) }}>{CPW_STAT_WORDS[s.key]}</span>
                     </div>
                   ))}
                   {openThisWeek != null && !isPrivate ? (
                     <div role="listitem" data-coach-stat="open" className="cpw-plate cpw-stat" style={{ borderColor: cpwA(ACC, 0.6) }}>
-                      <span className="cpw-doto cpw-stat-n" style={{ color: introClosed ? pal.RUST : ACC }}>{introClosed ? "Full" : openThisWeek}</span>
+                      <span className="cpw-fig cpw-stat-n" style={{ color: introClosed ? pal.RUST : ACC }}>{introClosed ? "Full" : openThisWeek}</span>
                       <span className="cpw-dtl cpw-stat-l" style={{ color: ink(0.72) }}>{introClosed ? "Waiting list open" : avail.sample ? "Sample times" : "Open this week"}</span>
                     </div>
                   ) : null}
@@ -2608,7 +2597,7 @@ function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy,
         <div data-program-plates="" style={{ display: "flex", gap: 10, marginTop: 12 }}>
           {plates.map(([n, l]) => (
             <span key={l} className="cpw-plate" style={{ flex: 1, padding: "12px 14px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
-              <span className="cpw-doto" style={{ fontSize: 30 }}>{n}</span>
+              <span className="cpw-fig" style={{ fontSize: 30 }}>{n}</span>
               <span className="cpw-dtl" style={{ color: muted }}>{l}</span>
             </span>
           ))}
@@ -2781,7 +2770,7 @@ function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, rating = null, count
   const summary = rating ? (
     <div data-reviews-summary="" style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
       <span className="cpw-plate" style={{ padding: "12px 16px 10px", display: "inline-flex", alignItems: "baseline", gap: 4 }}>
-        <span className="cpw-doto" style={{ fontSize: 40 }}>{rating}</span><span style={{ fontSize: 14, color: ink(0.8) }}>/10</span>
+        <span className="cpw-fig" style={{ fontSize: 40 }}>{rating}</span><span style={{ fontSize: 14, color: ink(0.8) }}>/10</span>
       </span>
       <span className="cpw-dtl" style={{ color: ACC }}>Rating · {Number(count).toLocaleString()} {count === 1 ? "review" : "reviews"}</span>
     </div>

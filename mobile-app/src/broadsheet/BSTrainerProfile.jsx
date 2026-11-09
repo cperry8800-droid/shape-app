@@ -35,7 +35,7 @@ const BS_OWN_PROFILE_KINDS = ['profile_custom'];
 //   Hero        the coach's wall photo darkened under the terrain, the route to the summit (their
 //               rating, only with reviews), pins for figures the page has, the prism portrait, the name,
 //               chips (verified, tier, how they coach, pronouns), their bio, the Shape Score row, the
-//               headline stats they picked as Doto plates and whether they take clients, Message · Work
+//               headline stats they picked as Saira plates and whether they take clients, Message · Work
 //               with · Follow, and the wire (the next open time, the newest post, the programs).
 //   Camps       the old tabs, one page now, in a row pinned under the condensed masthead, in the
 //               website's order (coachProfileWeb.jsx: one camp list on both surfaces, owner 9 Nov):
@@ -996,7 +996,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
                 <span style={{ fontSize: 11.5, color: CLIMB.MUTED }}>Shape Score</span>
                 {tierWords ? <>{' '}<span style={{ fontSize: 15, fontWeight: 700 }}>{tierWords}</span></> : null}
               </span>
-              <span style={{ marginTop: 1, ...{ fontFamily: CLIMB.DOTO, fontVariationSettings: "'ROND' 100", fontWeight: 700 }, fontSize: 12.5, lineHeight: 1.3, color: CLIMB.MUTED, fontVariantNumeric: 'tabular-nums' }}>{ptsWords}</span>
+              <span style={{ marginTop: 1, ...{ fontFamily: CLIMB.FIG, fontWeight: 600 }, fontSize: 12.5, lineHeight: 1.3, color: CLIMB.MUTED, fontVariantNumeric: 'tabular-nums' }}>{ptsWords}</span>
             </span>
             {isSelf ? <span aria-hidden style={{ flex: 'none', color: CLIMB.DIM }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
           </>
