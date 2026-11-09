@@ -929,7 +929,9 @@ test("Edit opens step 1 with the morning's answers, Back reaches every answer, a
     assert.match(document.querySelector('[aria-live="polite"]').textContent, /^7h$/, "the stepper did not start at today's own hours");
     assert.match(m.text(), /30 min under your usual/);
     assert.deepEqual(m.pressed(), ['OK'], "today's Rested was not shown");
-    assert.equal(m.button(/Back/).style.visibility, 'hidden', 'step 1 offered a Back to nowhere');
+    // Step 1 has nowhere to go back to: no ← at all (it sits ahead of the logo in the masthead, owner
+    // 2026-11-09, and a hidden one would push the logo along; Codex on #2637).
+    assert.ok(!m.button(/Back/), 'step 1 offered a Back to nowhere');
     await m.click(/^Next/);
     assert.deepEqual(calls.log, [], 'walking through an unchanged night wrote it again');
     assert.match(m.text(), /Step 2 of 2 · This morning/);

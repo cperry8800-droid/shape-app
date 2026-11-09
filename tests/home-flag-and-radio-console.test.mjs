@@ -62,7 +62,7 @@ test('the flag keeps the wordmark\'s letters and draws its tools in the shared p
   // At the row's true centre, up to 116px, leaving each side its reserve.
   assert.match(row, /position: 'absolute', left: '50%', top: '50%', transform: 'translate\(-50%, -50%\)', width: `min\(116px, calc\(100% - \$\{2 \* BS_MAST_SIDE\}px\)\)`/);
   // The mark and ✦ at the left; the tools ride in the shared slim pill at the right.
-  assert.match(row, /<BSLogo size=\{16\} color=\{t\.INK\} \/>\s*\{Nora \? <Nora bare \/> : null\}/);
+  assert.match(row, /\{backSlot \? <BSMastBackSlot \/> : null\}\s*<BSLogo size=\{BS_MAST_LOGO\} color=\{t\.INK\} \/>\s*\{Nora \? <Nora bare \/> : null\}/);
   assert.match(row, /\{tools \? <BSMastToolPill>\{tools\}<\/BSMastToolPill> : null\}/);
   // No second wordmark row under it: the hairlines frame the dateline, centred, the clock folded in.
   assert.equal((flag.match(/<BSMastWordRow /g) || []).length, 1);
@@ -141,4 +141,24 @@ test('the slim tool pill is on every page\'s top row and the pinned bar, the pro
   const files = ['iosAppBroadsheetClient.jsx', 'iosAppBroadsheetPros.jsx', 'BSTrainerProfile.jsx', 'BSNoraProfile.jsx', 'iosAppBroadsheetMarketplace.jsx'];
   const wordmarks = files.reduce((n, f) => n + (read(f).match(/shape-wordmark\.svg/g) || []).length, 0);
   assert.equal(wordmarks, 2, 'the Shape wordmark shows beyond member Home and coach Today');
+});
+
+// Owner, 2026-11-09, of Home's masthead: "remove the time and cut w45 from masthead", and "make sure the icons
+// including shape triangle logos in top left of masthead match the size of icons on the top right".
+test('the dateline is the day alone, and the masthead\'s icons are one size', () => {
+  const callers = (src) => [...src.matchAll(/<BSMasthead\b[\s\S]*?\n\s*\/>/g)].map((m) => m[0]).filter((m) => /layout="flag"/.test(m));
+  for (const m of [CLIENT, PROS].flatMap(callers)) {
+    const dl = /dateline=\{\{([\s\S]*?)\}\}/.exec(m);
+    assert.ok(dl, 'a flag page lost its dateline');
+    assert.match(dl[1], /^\s*date: /, 'the day');
+    assert.doesNotMatch(dl[1], /\b(?:clock|extra):/, 'the time or the phase and week are back in the masthead');
+  }
+  // The mark at BS_MAST_LOGO in every masthead row: the chrome's and the modules' hand-built ones.
+  assert.match(CHROME, /const BS_MAST_LOGO = 26;/, 'the mark paints the tools\' 17px width');
+  assert.match(body(CHROME, 'function BSMastRow('), /size = BS_MAST_LOGO/);
+  for (const f of ['iosAppBroadsheet.jsx', 'iosAppBroadsheetClient.jsx', 'iosAppBroadsheetPros.jsx', 'iosAppBroadsheetRadio.jsx', 'BSGoals.jsx', 'BSMarketDirectory.jsx', 'BSNoraProfile.jsx', 'BSTrainerProfile.jsx']) {
+    assert.doesNotMatch(read(f), /BSLogo size=\{16\}/, `${f} draws a masthead mark at the old 16`);
+  }
+  // ⌕ cropped to its glyph and thinned by the same 18/24, so it paints ⚙'s 17px at ⚙'s weight.
+  assert.match(CLIENT, /<svg width=\{g\} height=\{g\} viewBox="3\.3 3\.3 18 18" fill="none" stroke="currentColor" strokeWidth=\{1\.5\} strokeLinecap="round"><circle cx="10\.5" cy="10\.5" r="6\.2" \/>/);
 });

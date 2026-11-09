@@ -414,11 +414,12 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   // The app's own face, Saira, where this took a serif (owner, 2026-10-24: one font across the app).
   const headStyle = { fontFamily: "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif", fontWeight: 300, fontSize: 34, lineHeight: 1.04, letterSpacing: '-0.03em', color: AP_CREAM, marginTop: 4 };
   const eyebrow = { fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.28em', textTransform: 'uppercase', color: AP_TEAL2, fontWeight: 700 };
-  // ← Back where every page keeps it (owner, 2026-10-31): at the back row's y under the masthead
-  // row's height, on the gutter, even though this screen draws no masthead (BS_BACK_SLOT_TOP_CSS).
+  // ← where every page keeps it, ahead of the logo in the masthead row (owner, 2026-11-09): at the
+  // masthead row's y, on the gutter, even though this screen draws no masthead (BS_BACK_SLOT_TOP_CSS),
+  // and the same small arrow.
   const BackButton = window.BSBackButton || null;
-  const backSlot = { position: 'absolute', zIndex: 3, top: window.BS_BACK_SLOT_TOP_CSS || 'calc(max(44px, calc(env(safe-area-inset-top, 0px) + 12px)) + 38px)', left: (t && typeof t.padX === 'number') ? t.padX : 22 };
-  const backEl = BackButton ? <div style={backSlot}><BackButton onClick={onBack} ink={AP_C70} /></div> : null;
+  const backSlot = { position: 'absolute', zIndex: 3, top: window.BS_BACK_SLOT_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px))', left: (t && typeof t.padX === 'number') ? t.padX : 22 };
+  const backEl = BackButton ? <div style={backSlot}><BackButton compact onClick={onBack} ink={AP_C70} /></div> : null;
   const scroller = { position: 'relative', zIndex: 1, flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: `${BackButton ? `calc(${backSlot.top} + 50px)` : 'max(52px, calc(env(safe-area-inset-top, 0px) + 40px))'} 22px calc(24px + env(safe-area-inset-bottom, 0px))`, display: 'flex', flexDirection: 'column', gap: 12 };
 
   const body = (() => {

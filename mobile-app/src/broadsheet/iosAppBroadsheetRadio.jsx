@@ -2699,7 +2699,8 @@ function BSRadioScreen({ onBack }) {
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0`, position: 'relative', zIndex: 3 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: window.BS_MAST_ROW_H || 34 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <BSLogo size={16} color={CREAM} />
+            {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
+            <BSLogo size={window.BS_MAST_LOGO || 26} color={CREAM} />
           </div>
           {bsRadioCorner(CREAM)}
         </div>
@@ -3203,7 +3204,8 @@ function BSShapeSetsScreen({ onBack }) {
           <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: window.BS_MAST_ROW_H || 34 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {typeof BSLogo === 'function' && <BSLogo size={16} color={CREAM} />}
+                {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
+                {typeof BSLogo === 'function' && <BSLogo size={window.BS_MAST_LOGO || 26} color={CREAM} />}
               </div>
               {/* Canonical trailing corners — CREAM `ink` variant, this page is
                   fixed-dark on the venue ground (owner ruling 2026-08-01). Same
