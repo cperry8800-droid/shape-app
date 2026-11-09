@@ -352,6 +352,30 @@ test('Today with the roster and the day feed both unread: each says so, and the 
     assert.match(cardText(m.div, 'kpis'), /Active clients—couldn't be read/);
     assert.doesNotMatch(cardText(m.div, 'kpis'), /live only/);
   } finally { await m.unmount(); }
+  // A figure the missing feed would have sent is unread there too: "live only" is the preview's word.
+  const keys = { week: 'sessionsThisWeek', upcoming: 'upcomingSessions', total: 'totalSessions' };
+  const cells = globalThis.dashGlanceCells('trainer', { live: null, clients: [], triage: [], queue: [], role: 'trainer', kpiKeys: keys, rosterUnread: true }, ['weekSessions', 'upcoming', 'activeClients']);
+  assert.deepEqual(cells.map((c) => c.k + ' ' + c.sub), ["— couldn't be read", "— couldn't be read", "— couldn't be read"]);
+  const preview = globalThis.dashGlanceCells('trainer', { live: null, clients: [], triage: [], queue: [], role: 'trainer', kpiKeys: keys }, ['weekSessions']);
+  assert.equal(preview[0].sub, 'live only', 'the preview keeps its word');
+});
+
+test('Today before its first read lands: neither the sample nor a failure, each card is loading', async () => {
+  signedIn();
+  Object.assign(globalThis, { useDashboard: () => ({ ...unreadFeed(null), loading: true, source: null }) });
+  globalThis.fetch = window.fetch = ownReads('trainer');
+  const m = await mount(React.createElement(T.CoachDashboardPage, { role: 'trainer' }));
+  await settle(6);
+  try {
+    const t = m.text();
+    assert.doesNotMatch(t, BAND);
+    assert.doesNotMatch(t, SAMPLE, 'the sample flashed before the page knew who is looking');
+    assert.equal(m.div.querySelector('[data-card="upnext"] [data-dash-upnext]').getAttribute('data-dash-upnext'), 'loading');
+    assert.equal(m.div.querySelector('[data-card="timeline"] [data-dash-timeline]').getAttribute('data-dash-timeline'), 'loading');
+    assert.equal(cardText(m.div, 'glance'), 'Programs due—loadingCheck-ins reviewed—loadingRoster logging—loading');
+    assert.match(cardText(m.div, 'money'), /^Recurring revenue—loading/);
+    assert.doesNotMatch(cardText(m.div, 'upnext') + cardText(m.div, 'timeline') + cardText(m.div, 'glance'), /couldn't be read/, 'a page still reading said its reads failed');
+  } finally { await m.unmount(); }
 });
 
 test('Today\'s preview still draws its sample under the band (the contrast)', async () => {
@@ -401,6 +425,10 @@ test('Clients, both roles, with the roster unread: no band, every count "—", a
       assert.match(t, /EXPORT OFF/, role + ': an export of a roster nobody read');
     } finally { await m.unmount(); }
   }
+  // The client panel's schedule is the day feed's, read as on a live page (dashRoster.jsx dashPeekSessions).
+  const feedSessions = globalThis.dashPeekSessions(dayFeed('trainer'), 'unread', 'trainer');
+  assert.deepEqual([feedSessions.state, feedSessions.rows.map((r) => r.who)], ['read', ['Avery Stone']]);
+  assert.equal(globalThis.dashPeekSessions(null, 'unread', 'trainer').state, 'unread', 'no feed is unread, never the sample\'s calendar');
 });
 
 // ── Business ──────────────────────────────────────────────────────────────────
@@ -461,6 +489,8 @@ test('Business with the roster unread: no band and no sample; the clients cards 
   const m = await businessPage('overview', () => new Promise(() => {}));
   try {
     assert.match(cardText(m.div, 'clients'), /Your clients couldn't be read just now/);
+    // The payout is asked as soon as the roster said it is unread: not the preview, so its own read.
+    assert.match(cardText(m.div, 'payout'), /\$483\.12/);
     assert.doesNotMatch(m.text(), BAND);
     assert.doesNotMatch(m.text(), SAMPLE);
   } finally { await m.unmount(); }
@@ -577,6 +607,14 @@ test('Schedule with the roster unread and no day feed: the coach\'s own calendar
     assert.ok(empty, 'the book sheet');
     assert.equal(empty.getAttribute('data-book-roster'), 'unread');
     assert.equal(empty.textContent, UNREAD);
+    // The hours are the coach's own read: ready to edit, never waiting on a roster.
+    const tab = page.doc.querySelector('[data-settings-tab]');
+    assert.ok(tab, 'the Hours & rules tab');
+    await page.click(tab);
+    const edit = page.doc.querySelector('[data-edit-hours]');
+    assert.ok(edit, 'the hours plate');
+    assert.equal(edit.disabled, false, 'the hours can\'t be edited: ' + edit.textContent);
+    assert.equal(page.doc.querySelector('[data-hours-summary]').getAttribute('aria-busy'), 'false');
   } finally { await page.unmount(); }
   // The calendar failed too: the page says so and offers the Retry, as a live page's does.
   const down = scheduleServer({ calendar: 'fail' });
