@@ -9,7 +9,7 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // layout from the 5 Nov review): one layout for every coach, trainer and nutritionist, dark
 // throughout, in the look of the Coaches page. The coach's practice is drawn as a climb over their
 // own wall photo: a route up to the summit, which holds their rating; the prism portrait; the name
-// set huge; their headline stats as Doto plates; the wire of what is new; and the booking console
+// set huge; their headline stats as Saira plates; the wire of what is new; and the booking console
 // docked above the tab capsule. Under the hero the page's sections are the route's camps, a spine
 // down the left with a diamond at each, and the camps pin under the condensed masthead as a tab row
 // that fills as you climb. A program opens as a dark sheet: its peaks (one a week), its plates, the
@@ -65,7 +65,9 @@ export const CLIMB = Object.freeze({
   DISPLAY: "'Anybody', 'Saira', system-ui, sans-serif",
   BODY: "'Schibsted Grotesk', -apple-system, system-ui, sans-serif",
   MONO: "'JetBrains Mono', ui-monospace, monospace",
-  DOTO: "'Doto', 'JetBrains Mono', ui-monospace, monospace",
+  // The measured figures (rating, stats, prices, times), as the chat feed sets its figures: Saira 700,
+  // tight, even-width numerals (owner, 9 Nov: "make it the attached from chat feed page").
+  FIG: "'Saira', 'Space Grotesk', -apple-system, system-ui, sans-serif",
 });
 // The coach's accent (Make it yours → Colours, profile_custom.look.accent, a key bsProfileLook let
 // through) as the Climb draws with it: the dark row of coachProfileKit.mjs's BS_COACH_ACCENTS (the
@@ -100,8 +102,7 @@ export function bsClimbAccent(key, role = 'trainer') {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
   return bsClimbContrast(hex, '#0a0e11') >= 1.6 ? hex : null;
 }
-// Doto draws its dots only with ROND at 100; at the default it is unreadable (fonts.css).
-const doto = (size, color = CLIMB.INK) => ({ fontFamily: CLIMB.DOTO, fontVariationSettings: "'ROND' 100", fontWeight: 800, fontSize: size, lineHeight: 1, color, fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' });
+const numFace = (size, color = CLIMB.INK) => ({ fontFamily: CLIMB.FIG, fontWeight: 700, fontSize: size, lineHeight: 1, color, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.035em' });
 const mono = (size = 10, color = CLIMB.DIM) => ({ fontFamily: CLIMB.MONO, fontSize: size, letterSpacing: '0.14em', textTransform: 'uppercase', color });
 const display = (size, weight = 800) => ({ fontFamily: CLIMB.DISPLAY, fontWeight: weight, fontSize: size, fontVariationSettings: "'wdth' 118", letterSpacing: '-0.01em' });
 // The cut corner every plate and card has (top right), as on the Coaches page.
@@ -296,7 +297,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
             <button type="button" data-climb-summit="" onClick={onRating || undefined} aria-label={tr('profile:climb.ratingAria', { defaultValue: 'Rated {rating} out of 10 from {count, plural, one {# review} other {# reviews}}', rating: ratingFig, count: rating.count })}
               style={{ position: 'absolute', right: gutter - 4, top: SUMMIT[1] * 6 - 112, minWidth: 44, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: CLIMB.INK, cursor: onRating ? 'pointer' : 'default', textAlign: 'right', pointerEvents: 'auto' }}>
               <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, padding: '12px 14px 10px', background: 'rgba(10,14,17,0.78)', border: `1px solid ${hexA(DRAW, 0.55)}`, clipPath: cut(10), boxShadow: `0 0 24px ${hexA(DRAW, 0.25)}` }} data-climb-summit-ring="">
-                <span data-climb-rating="" style={doto(40)}>{ratingFig}</span>
+                <span data-climb-rating="" style={numFace(40)}>{ratingFig}</span>
                 <span style={{ ...mono(12, CLIMB.MUTED), letterSpacing: 0 }}>/10</span>
               </span>
               <span style={{ display: 'block', marginTop: 6, ...mono(9, ACC) }}>{tr('profile:climb.rating', { defaultValue: 'Rating' })} · {tr('profile:climb.reviewCount', { defaultValue: '{count, plural, one {# review} other {# reviews}}', count: rating.count })}</span>
@@ -337,14 +338,14 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
           {privateNote}
           {!isPrivate && who.quote ? <p data-climb-quote="" style={{ margin: '14px 0 0', fontSize: 16.5, lineHeight: 1.5, color: CLIMB.INK, overflowWrap: 'anywhere' }}>“{who.quote}”</p> : null}
           {lead}
-          {/* The plates: the coach's headline stats in Doto, then whether they take clients */}
+          {/* The plates: the coach's headline stats in Saira, then whether they take clients */}
           {!isPrivate && (plates.length || status || platesEmpty) ? (
             <div data-climb-plates="" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
               {plates.length ? (
                 <div data-coach-stats="" role="list" aria-label={tr('profile:mine.statsTitle', { defaultValue: 'Headline stats' })} style={{ display: 'contents' }}>
                   {plates.map((s) => (
                     <div key={s.key} role="listitem" data-coach-stat={s.key} style={plateBox()}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}><span style={doto(30)}>{s.value}</span>{s.unit ? <span style={{ ...mono(10, CLIMB.MUTED), letterSpacing: 0 }}>{s.unit}</span> : null}</div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}><span style={numFace(30)}>{s.value}</span>{s.unit ? <span style={{ ...mono(10, CLIMB.MUTED), letterSpacing: 0 }}>{s.unit}</span> : null}</div>
                       <div style={{ marginTop: 8, ...mono(9, CLIMB.MUTED), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
                       <Ticks c={CLIMB.LINE2} />
                     </div>
@@ -354,7 +355,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
               {/* Whether they take clients, as their listing says: a plate of its own, not a stat they picked. */}
               {status ? (
                 <div data-climb-open={status.open ? 'open' : 'full'} style={{ ...plateBox(), border: `1px solid ${status.open ? hexA(ACC, 0.6) : CLIMB.LINE}` }}>
-                  <div aria-hidden="true" style={doto(30, status.open ? ACC : CLIMB.MUTED)}>{status.open ? '✓' : '×'}</div>
+                  <div aria-hidden="true" style={numFace(30, status.open ? ACC : CLIMB.MUTED)}>{status.open ? '✓' : '×'}</div>
                   <div style={{ marginTop: 8, ...mono(9, status.open ? ACC : CLIMB.MUTED), whiteSpace: 'normal', lineHeight: 1.35 }}>{status.open ? tr('profile:climb.taking', { defaultValue: 'Taking new clients' }) : tr('profile:climb.full', { defaultValue: 'Full · waiting list' })}</div>
                   <Ticks c={status.open ? hexA(ACC, 0.5) : CLIMB.LINE2} />
                 </div>
@@ -499,7 +500,7 @@ function Console({ dock, who, ACC, nutri, tr, tabbar }) {
               <span style={{ fontSize: 15, fontWeight: 700, color: CLIMB.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('profile:climb.freeIntro', { defaultValue: 'Free intro · {minutes} min', minutes: dock.introMin || 15 })}</span>
               {dock.nextOpen ? (
                 <span data-climb-next="" style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, fontSize: 12.5, color: ACC, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                  <span>{tr('profile:climb.nextOpen', { defaultValue: 'Next open' })}</span><span style={{ ...doto(13.5, CLIMB.INK), fontWeight: 700 }}>{dock.nextOpen}</span>
+                  <span>{tr('profile:climb.nextOpen', { defaultValue: 'Next open' })}</span><span style={{ ...numFace(13.5, CLIMB.INK), fontWeight: 700 }}>{dock.nextOpen}</span>
                 </span>
               ) : dock.note ? <span style={{ fontSize: 12.5, color: CLIMB.MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dock.note}</span> : null}
             </span>
@@ -529,7 +530,7 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
               {p.poster ? <img src={p.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.55) saturate(0.8)' }} /> : null}
               <Peaks weeks={p.weeks} color={color} />
               {p.forSaid ? <span data-studio-for="" style={{ position: 'absolute', left: 10, top: 10, padding: '4px 8px', borderRadius: 5, background: 'rgba(10,14,17,0.8)', border: `1px solid ${hexA(color, 0.7)}`, ...mono(8.5, CLIMB.INK) }}>{p.forSaid}</span> : null}
-              {p.weeks ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '5px 8px', background: 'rgba(10,14,17,0.8)', display: 'inline-flex', alignItems: 'baseline', gap: 5 }}><span style={doto(16)}>{p.weeks}</span><span style={mono(8, CLIMB.MUTED)}>{tr('profile:climb.weeks', { defaultValue: 'Weeks' })}</span></span> : null}
+              {p.weeks ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '5px 8px', background: 'rgba(10,14,17,0.8)', display: 'inline-flex', alignItems: 'baseline', gap: 5 }}><span style={numFace(16)}>{p.weeks}</span><span style={mono(8, CLIMB.MUTED)}>{tr('profile:climb.weeks', { defaultValue: 'Weeks' })}</span></span> : null}
             </div>
             <div style={{ padding: '12px 14px 14px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', columnGap: 12, alignItems: 'end' }}>
               <span style={{ minWidth: 0 }}>
@@ -537,7 +538,7 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
                 {facts ? <span style={{ display: 'block', marginTop: 4, fontSize: 13, color: CLIMB.MUTED }}>{facts}</span> : null}
                 {p.desc ? <span data-studio-desc="" style={{ display: '-webkit-box', marginTop: 6, fontSize: 13.5, lineHeight: 1.4, color: CLIMB.INK, WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.desc}</span> : null}
               </span>
-              {p.price ? <span data-climb-price="" style={{ padding: '6px 8px', background: 'rgba(0,0,0,0.35)', ...doto(17) }}>{p.price}</span> : <span />}
+              {p.price ? <span data-climb-price="" style={{ padding: '6px 8px', background: 'rgba(0,0,0,0.35)', ...numFace(17) }}>{p.price}</span> : <span />}
             </div>
             {/* The card opens the program; Start sits beside it, never inside the same button. */}
             <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
@@ -611,7 +612,7 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
           <div data-climb-sheet-plates="" style={{ marginTop: 16, display: 'grid', gridTemplateColumns: `repeat(${plates.length}, minmax(0, 1fr))`, gap: 8 }}>
             {plates.map(([k, v, label], i) => (
               <div key={k} data-climb-sheet-plate={k} style={{ ...plateBox(), border: `1px solid ${i === plates.length - 1 ? hexA(ACC, 0.55) : CLIMB.LINE}` }}>
-                <div style={doto(26, i === plates.length - 1 ? ACC : CLIMB.INK)}>{v}</div>
+                <div style={numFace(26, i === plates.length - 1 ? ACC : CLIMB.INK)}>{v}</div>
                 <div style={{ marginTop: 8, ...mono(8.5, CLIMB.MUTED), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
                 <Ticks c={CLIMB.LINE2} />
               </div>
@@ -680,7 +681,7 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
       <div style={{ position: 'sticky', bottom: 0, marginTop: 20, padding: '12px 18px calc(16px + env(safe-area-inset-bottom))', background: `linear-gradient(180deg, ${hexA(CLIMB.BG, 0)}, ${CLIMB.BG} 22%)` }}>
         {pr.price && pr.paid && !isSelf ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <span style={{ padding: '7px 9px', background: CLIMB.PANEL, border: `1px solid ${CLIMB.LINE}`, ...doto(20) }}>{pr.price}</span>
+            <span style={{ padding: '7px 9px', background: CLIMB.PANEL, border: `1px solid ${CLIMB.LINE}`, ...numFace(20) }}>{pr.price}</span>
             <span style={{ fontSize: 12.5, lineHeight: 1.35, color: CLIMB.MUTED }}>{tr('profile:climb.oneOff', { defaultValue: 'One-off · runs in the Shape app' })}</span>
           </div>
         ) : null}
@@ -721,7 +722,7 @@ export function BSClimbStart({ highlight = null, film = null, videos = [], photo
           <div style={mono(9, ACC)}>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {kindLabel || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}</div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginTop: 8 }}>
             <p style={{ flex: 1, minWidth: 0, margin: 0, ...display(18, 750), lineHeight: 1.25, color: CLIMB.INK, overflowWrap: 'anywhere' }}>{highlight.title}</p>
-            {highlight.metric ? <span data-coach-highlight-metric="" style={{ flex: 'none', maxWidth: '48%', ...doto(26, ACC), lineHeight: 1.1, textAlign: 'right', overflowWrap: 'anywhere' }}>{highlight.metric}</span> : null}
+            {highlight.metric ? <span data-coach-highlight-metric="" style={{ flex: 'none', maxWidth: '48%', ...numFace(26, ACC), lineHeight: 1.1, textAlign: 'right', overflowWrap: 'anywhere' }}>{highlight.metric}</span> : null}
           </div>
           {highlight.note ? <p style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.45, color: CLIMB.MUTED, overflowWrap: 'anywhere' }}>{highlight.note}</p> : null}
         </div>
@@ -779,7 +780,7 @@ export function BSClimbProof({ wins, nutri = false, empty = null }) {
       {wins.map((r) => (
         <figure key={r.id || r.text} data-climb-win="" data-review-pinned="" style={{ margin: 0, padding: '14px 14px 14px 16px', background: `linear-gradient(135deg, ${hexA(ACC, 0.1)}, ${CLIMB.PANEL} 55%)`, borderLeft: `2px solid ${ACC}`, clipPath: cut(12) }}>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={doto(24, ACC)}>{Math.round(Number(r.rating) || 0)}</span><span style={{ ...mono(9, CLIMB.MUTED), letterSpacing: 0 }}>/10</span>
+            <span style={numFace(24, ACC)}>{Math.round(Number(r.rating) || 0)}</span><span style={{ ...mono(9, CLIMB.MUTED), letterSpacing: 0 }}>/10</span>
             <span style={{ marginLeft: 'auto', ...mono(8.5, CLIMB.DIM) }}>{tr('profile:climb.win', { defaultValue: 'Client win' })}</span>
           </span>
           <blockquote style={{ margin: '8px 0 0', fontSize: 15, lineHeight: 1.5, color: CLIMB.INK }}>{r.text}</blockquote>
@@ -808,7 +809,7 @@ export function BSClimbWords({ rating = null, list = [], spread = [], locked = f
       {rating ? (
         <div style={{ display: 'grid', gridTemplateColumns: spread.length ? 'auto minmax(0, 1fr)' : '1fr', gap: 16, alignItems: 'center', padding: '14px', background: CLIMB.PANEL, border: `1px solid ${CLIMB.LINE}`, clipPath: cut(12) }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}><span style={doto(40)}>{fig}</span><span style={{ ...mono(11, CLIMB.MUTED), letterSpacing: 0 }}>/10</span></div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}><span style={numFace(40)}>{fig}</span><span style={{ ...mono(11, CLIMB.MUTED), letterSpacing: 0 }}>/10</span></div>
             <div style={{ marginTop: 6, ...mono(9, ACC) }}>{tr('profile:climb.reviewCount', { defaultValue: '{count, plural, one {# review} other {# reviews}}', count: rating.count })}</div>
           </div>
           {spread.length ? (

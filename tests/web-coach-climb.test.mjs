@@ -271,12 +271,15 @@ test('on a phone the camps pin as a row, and each scrolls to its camp', async ()
   WIDE = true;
 });
 
-test('the house rules: no coloured emoji, no ● in a pill, the wire still for reduced motion, Doto for figures', () => {
+test('the house rules: no coloured emoji, no ● in a pill, the wire still for reduced motion, Saira for figures', () => {
   const src = read('public/newdesign/coachProfileWeb.jsx');
   assert.doesNotMatch(src, /[\u{1F300}-\u{1FAFF}\u{FE0F}]/u, 'no coloured emoji (typographic ✓ ♡ ★ ⚠ stay)');
   assert.doesNotMatch(src, /●/, 'no dot glyphs');
   assert.match(src, /@media \(prefers-reduced-motion: reduce\)\{\n\s+\.cpw-wire-run\{animation:none\}/);
-  assert.match(src, /family=Doto:ROND,wght@0\.\.100,100\.\.900/);
+  // The figures as the chat feed sets them (owner, 9 Nov): Saira 700, tight, even-width numerals; no Doto left.
+  assert.match(src, /const CPW_FIG = "'Saira', /);
+  assert.match(src, /\.cpw-fig\{font-family:\$\{CPW_FIG\};font-weight:700;letter-spacing:-\.035em;[^}]*font-variant-numeric:tabular-nums\}/);
+  assert.doesNotMatch(src, /Doto|ROND/, 'no Doto on the coach profile');
   assert.doesNotMatch(src, /\bconfirm\(/, 'destructive steps go through ShapeConfirm');
 });
 

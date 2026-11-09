@@ -376,7 +376,11 @@ test('the module stands alone: its own useShapeTr, globals read at call time, sh
   assert.match(src, /document\.getElementById\('bs-phone-surface'\)/);
   assert.match(src, /W\.useBSPinnedMastTop \? W\.useBSPinnedMastTop\(\) : 0/, 'the camps stick under the pinned masthead');
   assert.doesNotMatch(src, /^const \{[^}]*\} = window;/m, 'a global read when the module loads');
-  assert.match(src, /fontVariationSettings: "'ROND' 100"/, 'Doto only with its dots');
+  // The figures as the chat feed sets them (owner, 9 Nov): Saira 700, tight, even-width numerals; no Doto left.
+  assert.match(src, /FIG: "'Saira', /);
+  assert.match(src, /const numFace = \(size, color = CLIMB\.INK\) => \(\{ fontFamily: CLIMB\.FIG, fontWeight: 700, [^}]*fontVariantNumeric: 'tabular-nums', letterSpacing: '-0\.035em' \}\);/);
+  assert.doesNotMatch(src, /Doto|DOTO|ROND/, 'no Doto on the coach profile');
+  assert.doesNotMatch(readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8'), /Doto|DOTO|ROND/, 'nor on the page that feeds it');
   assert.doesNotMatch(src, /\bconfirm\(/);
   const profile = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
   assert.match(profile, /from '\.\/BSCoachClimb\.jsx';/);
