@@ -527,8 +527,9 @@ function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, 
                   {p.poster ? <img src={p.poster} alt="" loading="lazy" /> : null}
                   {pts ? (
                     <svg viewBox="0 0 300 150" preserveAspectRatio="none">
-                      <polygon points={pts.map((q) => q.join(",")).join(" ")} fill={col} fillOpacity=".62" />
-                      <polyline points={pts.slice(1, -2).map((q) => q.join(",")).join(" ")} fill="none" stroke="#fff" strokeWidth="1.6" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+                      {/* Over the program's own photo the peaks are a line on a light wash, so the photo shows (owner, 9 Nov). */}
+                      <polygon points={pts.map((q) => q.join(",")).join(" ")} fill={col} fillOpacity={p.poster ? ".26" : ".62"} />
+                      <polyline points={pts.slice(1, -2).map((q) => q.join(",")).join(" ")} fill="none" stroke="#fff" strokeWidth={p.poster ? "2" : "1.6"} strokeDasharray={p.poster ? undefined : "4 3"} vectorEffect="non-scaling-stroke" />
                     </svg>
                   ) : null}
                   <span className="cpw-range-tag cpw-dtl" style={{ color: "#fff", borderColor: cpwA(col, 0.9) }}>{p.tag || (nutri ? "Meal plan" : "Program")}</span>
@@ -1270,7 +1271,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-range{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
     .cpw-range-card{display:flex;flex-direction:column;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-left:3px solid;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%);min-width:0}
     .cpw-range-art{position:relative;height:168px;overflow:hidden;background:linear-gradient(180deg,#152030,#0a0f17)}
-    .cpw-range-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(.4) brightness(.55)}
+    .cpw-range-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.78)}
     .cpw-range-art svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:78%}
     .cpw-range-tag{position:absolute;left:12px;top:12px;padding:4px 8px;border:1px solid;border-radius:5px;background:rgba(6,9,15,.78);font-size:10.5px}
     .cpw-range-weeks{position:absolute;right:12px;top:10px;padding:4px 9px;border-radius:5px;background:rgba(6,9,15,.78);display:inline-flex;align-items:baseline;gap:5px}

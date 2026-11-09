@@ -527,8 +527,8 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
         return (
           <article key={p.key} data-program="" data-climb-program={p.id} style={{ position: 'relative', background: CLIMB.PANEL, borderLeft: `3px solid ${color}`, clipPath: cut(14), overflow: 'hidden' }}>
             <div style={{ position: 'relative', height: 132, background: p.poster ? '#000' : `linear-gradient(180deg, #17212a, ${CLIMB.PANEL})` }}>
-              {p.poster ? <img src={p.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.55) saturate(0.8)' }} /> : null}
-              <Peaks weeks={p.weeks} color={color} />
+              {p.poster ? <img data-climb-program-photo="" src={p.poster} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.78)' }} /> : null}
+              <Peaks weeks={p.weeks} color={color} onPhoto={!!p.poster} />
               {p.forSaid ? <span data-studio-for="" style={{ position: 'absolute', left: 10, top: 10, padding: '4px 8px', borderRadius: 5, background: 'rgba(10,14,17,0.8)', border: `1px solid ${hexA(color, 0.7)}`, ...mono(8.5, CLIMB.INK) }}>{p.forSaid}</span> : null}
               {p.weeks ? <span style={{ position: 'absolute', right: 10, top: 10, padding: '5px 8px', background: 'rgba(10,14,17,0.8)', display: 'inline-flex', alignItems: 'baseline', gap: 5 }}><span style={numFace(16)}>{p.weeks}</span><span style={mono(8, CLIMB.MUTED)}>{tr('profile:climb.weeks', { defaultValue: 'Weeks' })}</span></span> : null}
             </div>
@@ -551,7 +551,9 @@ export function BSClimbRange({ programs, nutri = false, onOpen, onStart = null, 
     </div>
   );
 }
-function Peaks({ weeks, color, height = 132 }) {
+// Over the program's own photo the peaks are a solid line on a light wash, so the photo shows (owner, 9 Nov:
+// "use programs own photo"); with none, the filled range.
+function Peaks({ weeks, color, height = 132, onPhoto = false }) {
   const peaks = bsClimbPeaks(weeks);
   if (!peaks.length) return null;
   const w = 300, h = 100;
@@ -560,8 +562,8 @@ function Peaks({ weeks, color, height = 132 }) {
   const last = peaks[peaks.length - 1];
   return (
     <svg aria-hidden="true" data-climb-peaks={peaks.length} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, width: '100%', height: Math.round(height * 0.78) }}>
-      <path d={d} fill={color} fillOpacity="0.82" />
-      <polyline points={top} fill="none" stroke="#ffffff" strokeOpacity="0.9" strokeWidth="1.4" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+      <path d={d} fill={color} fillOpacity={onPhoto ? '0.26' : '0.82'} />
+      <polyline points={top} fill="none" stroke="#ffffff" strokeOpacity="0.9" strokeWidth={onPhoto ? '2' : '1.4'} strokeDasharray={onPhoto ? undefined : '3 3'} vectorEffect="non-scaling-stroke" />
       <circle cx={last.x * w} cy={last.y * h} r="3" fill="#ffffff" />
     </svg>
   );

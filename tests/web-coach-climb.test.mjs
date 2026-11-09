@@ -400,3 +400,23 @@ test('under 375px the dock drops the avatar and lets the booking action shrink a
   assert.match(m[1], /\.cpw-dock-acts \.cpw-cta\{[^}]*white-space:normal/);
   assert.match(m[1], /\.cpw-dock-acts \.cpw-cta:last-child\{flex:1;min-width:0\}/);
 });
+
+// Owner, 9 Nov: "use programs own photo". A program with a photo shows it, bright, its weeks a solid line on a
+// light wash; one with none keeps the filled range.
+test('a program card shows the program\'s own photo with its peaks as a line; without one, the filled range', async () => {
+  WIDE = true;
+  const WITH = { ...PLAN, id: 'p1', name: 'Strength Block 3', detail: { ...PLAN.detail, media: [{ type: 'video', url: 'https://cdn.test/intro.mp4' }, { type: 'image', url: 'https://cdn.test/cover.jpg' }] } };
+  const WITHOUT = { ...PLAN, id: 'p2', name: 'Barbell basics', detail: { ...PLAN.detail, weeks: 6, media: [] } };
+  backend({ plans: [WITH, WITHOUT] });
+  const p = await mount(LIVE);
+  const [a, b] = $$('[data-camp="range"] [data-program]');
+  const img = a.querySelector('.cpw-range-art img');
+  assert.equal(img ? img.getAttribute('src') : null, 'https://cdn.test/cover.jpg', 'the program\'s own photo');
+  assert.equal(a.querySelector('polygon').getAttribute('fill-opacity'), '.26', 'a light wash over the photo');
+  assert.equal(a.querySelector('polyline').hasAttribute('stroke-dasharray'), false, 'a solid line');
+  assert.equal(!!b.querySelector('.cpw-range-art img'), false);
+  assert.equal(b.querySelector('polygon').getAttribute('fill-opacity'), '.62', 'no photo: the filled range');
+  assert.equal(b.querySelector('polyline').getAttribute('stroke-dasharray'), '4 3');
+  assert.match(read('public/newdesign/coachProfileWeb.jsx'), /\.cpw-range-art img\{[^}]*filter:brightness\(\.78\)\}/, 'the photo shows, not greyed to half');
+  await p.unmount();
+});

@@ -536,6 +536,66 @@ function dbuRecoveredTemplate(id, draft, templates) {
     published:draft.published ?? saved.published ?? false,
     detail:{...(saved.detail || {}),...(draft.detail || {}),builder:draft.doc,revision:draft.revision || 0}, recovered:draft };
 }
+// A program's cover photo (owner, 2026-11-09, of the program cards on the Climb: "use programs own photo"):
+// a JPEG, PNG or WebP under 10 MB, into the coach's own folder of coach-media, which takes images
+// (2026-06-09-coach-media.sql). The builder had a place for an introduction video only.
+const DBU_COVER_TYPES = { jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp" };
+const DBU_COVER_MAX = 10 * 1024 * 1024;
+function dbuCoverCheck(file) {
+  if (!file || !file.size) throw new Error("Choose a photo that is not empty.");
+  const ext = String(file.name || "").split(".").pop().toLowerCase();
+  const type = Object.prototype.hasOwnProperty.call(DBU_COVER_TYPES, ext) ? DBU_COVER_TYPES[ext] : null;
+  if (!type || (file.type && file.type.toLowerCase() !== type)) throw new Error("Choose a JPEG, PNG or WebP photo.");
+  if (file.size > DBU_COVER_MAX) throw new Error("Keep the photo under 10 MB.");
+  return { ext: ext === "jpeg" ? "jpg" : ext, contentType: type };
+}
+async function dbuUploadCover(file) {
+  const {ext, contentType} = dbuCoverCheck(file);
+  const client = window.shapeDb && window.shapeDb.client;
+  if (!client) throw new Error("Sign in to add a cover photo.");
+  const {data, error:authError} = await client.auth.getUser();
+  if (authError || !data?.user) throw new Error("Sign in to add a cover photo.");
+  const path = data.user.id + "/program/" + crypto.randomUUID() + "." + ext;
+  const {error} = await client.storage.from("coach-media").upload(path,file,{upsert:false,contentType});
+  if (error) throw error;
+  const {data:media} = client.storage.from("coach-media").getPublicUrl(path);
+  if (!media?.publicUrl) throw new Error("Upload did not return a link. Retry.");
+  return media.publicUrl;
+}
+// ⚠ THE COVER RIDES IN detail.media, NOT ONLY IN THE BUILDER. The public read of a coach's programs
+// (get_coach_sale_plans, 2026-10-29-program-preview-names.sql) drops `builder` and keeps a program's images
+// from detail.media, in order; the profile's card shows the first. So the cover is written there as the first
+// image, marked `cover`, and a removed cover leaves the coach's other media as they were.
+function dbuMediaWithCover(media, cover) {
+  const rest = (Array.isArray(media) ? media : []).filter((m) => !(m && typeof m === "object" && m.cover === true));
+  const url = typeof cover === "string" && /^https:\/\//i.test(cover.trim()) ? cover.trim() : "";
+  return url ? [{ type: "image", url, name: "Cover", cover: true }, ...rest] : rest;
+}
+function DbuCover({ value, onChange, onBusy }) {
+  const input = React.useRef(null), alive = React.useRef(true);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState("");
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const pick = async (file) => {
+    if (!file || busy) return;
+    setError(""); setBusy(true); onBusy(1);
+    try { const url = await dbuUploadCover(file); if (alive.current) onChange(url); }
+    catch (e) { if (alive.current) setError((e && e.message) || "Upload failed. Try again."); }
+    finally { if (alive.current) setBusy(false); onBusy(-1); }
+  };
+  const has = typeof value === "string" && /^https:\/\//i.test(value);
+  return <div className="cb-cover" data-dbu-cover="">
+    <p><strong>Cover photo · Optional.</strong> The picture on this program's card on your profile, its weeks drawn over it as peaks.</p>
+    <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden onChange={(e) => { const f = e.target.files[0]; e.target.value = ""; pick(f); }} />
+    <div className="drow">
+      {has ? <img data-dbu-cover-img="" src={value} alt="" style={{ width: 120, height: 68, objectFit: "cover", borderRadius: 6 }} /> : null}
+      <button type="button" className="dbtn" disabled={busy} onClick={() => input.current && input.current.click()}>{busy ? "Uploading…" : has ? "Replace photo" : "Add a cover photo"}</button>
+      {has ? <button type="button" className="dbtn" disabled={busy} onClick={() => onChange("")}>Remove photo</button> : null}
+    </div>
+    {busy ? <progress aria-label="Uploading the cover photo" style={{ width: "100%", marginTop: 8 }} /> : null}
+    {error ? <p role="alert" style={{ fontSize: 13, color: "var(--sh-rust, #e0644b)" }}>{error}</p> : null}
+  </div>;
+}
 async function dbuUploadVideo(file) {
   const client = window.shapeDb && window.shapeDb.client;
   if (!client) throw new Error("Sign in to upload a demonstration.");
@@ -2644,7 +2704,10 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
     setError('');setSaveConflict(false);setSaveState('saving');
     flight.current=(async()=>{
       try{
-        let plan={id:idRef.current,name:value.name,detail:{...(template.detail||{}),builder:value.doc,revision:revision.current}};
+        const media=dbuMediaWithCover(template.detail && template.detail.media, value.doc.cover);
+        // Always sent: the server lays this detail over the stored one, so a cover removed here must replace
+        // the stored list, not leave the old cover in it.
+        let plan={id:idRef.current,name:value.name,detail:{...(template.detail||{}),builder:value.doc,media,revision:revision.current}};
         if(live){
           if(!ownerRef.current)throw new Error('Sign in before saving this draft.');
           const res=await fetch('/api/coach/plans',{method:persisted.current?'PATCH':'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:idRef.current,kind:'program',name:value.name,meta:value.doc.weeks.length+' weeks',published:publish?true:published.current,expectedOwnerId:ownerRef.current,expectedRevision:revision.current,detail:plan.detail})});
@@ -3310,7 +3373,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         </div>
 
         <details className="cb-details">
-          <summary>{single ? "Details" : "Program details"} <small>{single ? "Tags" : "Tags, start date & introduction video"}{doc.video ? " · Video added" : ""}</small></summary>
+          <summary>{single ? "Details" : "Program details"} <small>{single ? "Tags" : "Tags, start date, cover photo & introduction video"}{doc.cover ? " · Cover photo" : ""}{doc.video ? " · Video added" : ""}</small></summary>
           <div className="meta">
               <DbuTagPicker tags={doc.tags} customTags={customTags} onChange={(tags) => setDoc({ ...doc, tags })} />
               {!single && <span className="chip">
@@ -3320,6 +3383,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
               </span>}
           </div>
           {!single && <p>The reference date sets the dates shown here. Each client's own start is chosen at assign.</p>}
+          {!single && <DbuCover value={doc.cover} onChange={(cover) => setDoc({ ...doc, cover })} onBusy={uploadCount} />}
           {!single && <p><strong>Program introduction video · Optional.</strong> Explain the entire program, its goals, structure and what to expect.</p>}
           {!single && <ShapeVideoAttachment value={doc.video} title="Program introduction" onChange={video=>setDoc({...doc,video})} upload={dbuUploadVideo} onBusy={uploadCount} clips={clips}/>}
         </details>

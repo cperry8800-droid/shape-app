@@ -550,3 +550,24 @@ test('a photo post with no title still names its Base tile (review, 9 Nov)', asy
   assert.match(named.textContent, /Morning lift/);
   await m.unmount();
 });
+
+// Owner, 9 Nov: "use programs own photo". A program with a photo shows it, bright, its weeks a solid line on a
+// light wash; one with none keeps the filled range.
+test('a program card shows the program\'s own photo with its peaks as a line; without one, the filled range', async () => {
+  const COVER = 'https://x.supabase.co/storage/v1/object/public/coach-media/u-maya/program/cover.jpg';
+  const m = await mount(React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
+    React.createElement(climbMod.BSClimbRange, { programs: [
+      { key: 'a', id: 'a', name: 'Strength Block 3', weeks: 4, perWeek: 3, poster: COVER },
+      { key: 'b', id: 'b', name: 'Barbell basics', weeks: 6, perWeek: 2, poster: null },
+    ] })));
+  const [a, b] = $$('[data-climb-program]');
+  const img = a.querySelector('[data-climb-program-photo]');
+  assert.equal(img ? img.getAttribute('src') : null, COVER, 'the program\'s own photo');
+  assert.equal(img.style.filter, 'brightness(0.78)', 'bright enough to see');
+  assert.equal(a.querySelector('[data-climb-peaks] path').getAttribute('fill-opacity'), '0.26', 'a light wash over the photo');
+  assert.equal(a.querySelector('[data-climb-peaks] polyline').hasAttribute('stroke-dasharray'), false, 'a solid line');
+  assert.equal(!!b.querySelector('[data-climb-program-photo]'), false);
+  assert.equal(b.querySelector('[data-climb-peaks] path').getAttribute('fill-opacity'), '0.82', 'no photo: the filled range');
+  assert.equal(b.querySelector('[data-climb-peaks] polyline').getAttribute('stroke-dasharray'), '3 3');
+  await m.unmount();
+});
