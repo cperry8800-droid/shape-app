@@ -980,6 +980,8 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   }[signupRole] || tr('settings:preview.roleClient');
   const shortRole = signupRole === 'dietitian' ? tr('coach:role.dietitian') : roleLabel;
   const stepped = isCreate && !isPhone; // the email create dispatch runs the 2-step split
+  // A coach picked on the create step goes to the application (see the primary action).
+  const coachCreate = isCreate && !!onApply && (role === 'trainer' || role === 'nutritionist' || role === 'dietitian');
   // The wire-form grammar: mono label column + a dot-leader entry line per field.
   // ⚠ THE LABEL COLUMN WAS SIZED TO ENGLISH, which is the i18n anti-pattern in one
   // magic number. JetBrains Mono advances 0.6em, so at 8.5px + 0.18em tracking a
@@ -1204,14 +1206,18 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           <div ref={captchaRef} style={{ display: 'flex', justifyContent: 'center' }} />
         )}
 
-        {/* Primary action — TRANSMIT, the launch's flat solid-teal CTA */}
+        {/* Primary action — TRANSMIT, the launch's flat solid-teal CTA. ⚠ JOINING AS A COACH IS APPLYING:
+            a trainer or nutritionist picked on the create step used to make an ordinary member account (the
+            profile's role is elevated by review only), with no application, which then met the paywall.
+            Now that pick goes to the application, as Sign in's Apply does. */}
         <button
-          onClick={isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : (stepped && createStep === 1 ? advanceIdentity : submitAuth)}
+          onClick={coachCreate ? () => { setAuthError(''); onApply(signupRole); } : isPhone ? (otpSent ? verifyPhoneCode : sendPhoneCode) : (stepped && createStep === 1 ? advanceIdentity : submitAuth)}
           disabled={busy}
           className="bs-wire-enter"
           style={{ width: '100%', marginTop: 6, borderRadius: 4, padding: '13px 14px', background: '#34d6c5', color: '#05080c', border: 0, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
           {busy
             ? tr(isCreate ? 'login.transmitting' : 'login.signingIn')
+            : coachCreate ? tr('login.applyAs', { role: roleLabel })
             : isPhone
               ? (otpSent ? tr(isCreate ? 'login.ctaVerifyJoin' : 'login.ctaVerifySignIn') : tr('login.ctaTextCode'))
               : stepped
@@ -1250,6 +1256,22 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
           <button onClick={() => { setMode(isCreate ? 'signin' : 'create'); setAuthError(''); }} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{tr(isCreate ? 'login.haveAccount' : 'login.newHere')}</button>
           {isPhone && <button onClick={() => switchMethod('email')} style={{ ...linkBtn, fontSize: 11, fontWeight: 800 }}>{tr('login.useEmail')}</button>}
         </div>
+
+        {/* The coach's door (owner, 2026-11-09, of the application's doors: "all of these"): a card of its
+            own under everything else, there whichever role is picked, so a coach without an account finds
+            the application without first choosing Trainer in a picker that starts on Client. */}
+        {onApply && (
+          <div data-login-coach-door="" style={{ marginTop: 18, border: `1px solid ${LINE}`, borderRadius: 12, padding: '14px 14px 12px', background: 'rgba(255,255,255,0.03)' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 600, color: CREAM }}>{tr('login.coachCardTitle')}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.45, color: C70 }}>{tr('login.coachCardBody')}</div>
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[['trainer', tr('login.applyTrainer')], ['nutritionist', tr('login.applyNutritionist')]].map(([k, label]) => (
+                <button key={k} type="button" data-login-apply={k} onClick={() => { setAuthError(''); onApply(k); }}
+                  style={{ minWidth: 0, minHeight: 44, padding: '0 8px', borderRadius: 999, border: `1px solid ${LINE2}`, background: 'transparent', color: CREAM, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 600, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
