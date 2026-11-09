@@ -66,9 +66,10 @@ test('each component opens by naming the window globals it uses, at call time', 
     const names = m[1].split(',').map((s) => s.trim());
     assert.ok(names.includes('useBS'), `${n} must take the theme hook from window at call time`);
   }
-  // BSIntegrationsPage renders the client module's own BSDetailHeader, which is
-  // exactly the name a top-level read would have captured as undefined.
-  assert.match(page, /^export function BSIntegrationsPage\([^)]*\) \{\n  const \{ [^}]*\bBSDetailHeader\b[^}]* \} = window;/m);
+  // BSIntegrationsPage renders BSPage and BSFooter, the names a top-level read would have captured as
+  // undefined; its head is the Settings head (BSSettingsHead), an import from the Settings parts module.
+  assert.match(page, /^export function BSIntegrationsPage\([^)]*\) \{\n  const \{ [^}]*\bBSPage\b[^}]* \} = window;/m);
+  assert.doesNotMatch(page, /\bBSDetailHeader\b/, 'a page Settings opens draws the old header with its kicker (owner, 2026-11-09: "everywhere in settings")');
 });
 
 test('the module carries its own translator, bound the way the i18n ratchet recognises', () => {
@@ -83,9 +84,13 @@ test('the module carries its own translator, bound the way the i18n ratchet reco
   assert.equal((page.match(/window\.ShapeI18n/g) || []).length, 1, 'window.ShapeI18n must be read only inside useShapeTr()');
 });
 
-test('the module imports nothing from the client module (no import cycle) and only react', () => {
+test('the module imports nothing from the client module (no import cycle): react and the Settings parts', () => {
   const imports = [...page.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['react'], `unexpected imports: ${imports.join(', ')}`);
+  // BSSettingsRoot.jsx is the Settings look's own parts (owner, 2026-11-09), which imports only react and
+  // BSMemberBento.jsx: never the client module, so no cycle.
+  assert.deepEqual(imports, ['react', './BSSettingsRoot.jsx'], `unexpected imports: ${imports.join(', ')}`);
+  const parts = fs.readFileSync('mobile-app/src/broadsheet/BSSettingsRoot.jsx', 'utf8');
+  assert.deepEqual([...parts.matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]).sort(), ['./BSMemberBento.jsx', 'react']);
 });
 
 test('the client module imports both and keeps BSReconcile on window for the coach module', () => {
@@ -121,9 +126,10 @@ test('the page renders through the client module, with its window globals resolv
   const d = drive(BSIntegrationsPage, { onBack() {} });
   const nodes = d.nodes();
   assert.ok(nodes.every((n) => n.type !== undefined), 'an element with an undefined type rendered — a window global was read before the client module published it');
-  assert.ok(nodes.some((n) => n.type === globalThis.window.BSDetailHeader), 'the page header is not the client module\'s own BSDetailHeader');
-  assert.ok(nodes.some((n) => n.type === globalThis.window.BSSection && n.props.title === 'WHOOP'), 'the WHOOP section did not render');
-  assert.ok(nodes.some((n) => n.type === globalThis.window.BSSection && n.props.title === 'Strava'), 'the Strava section did not render');
+  assert.ok(nodes.some((n) => typeof n.type === 'function' && n.type.name === 'BSSettingsHead'), 'the page header is not the Settings head');
+  const section = (title) => nodes.some((n) => typeof n.type === 'function' && n.type.name === 'BSSection' && n.props.title === title);
+  assert.ok(section('WHOOP'), 'the WHOOP section did not render');
+  assert.ok(section('Strava'), 'the Strava section did not render');
   // The intro copy is a CHILD of the page (drive walks children, not props like
   // `trailing`), and it reaches the tree only through the module's own tr() fallback.
   assert.match(d.text, /Connect health, activity, and music platforms/, 'the intro did not render through the translator fallback');
@@ -134,5 +140,5 @@ test('the page renders through the client module, with its window globals resolv
   const rec = drive(BSReconcile, { onBack() {}, clientId: 'c1' });
   const recNodes = rec.nodes();
   assert.ok(recNodes.every((n) => n.type !== undefined), 'BSReconcile rendered an element with an undefined type — a window global was read before the client module published it');
-  assert.ok(recNodes.some((n) => n.type === globalThis.window.BSDetailHeader), "the reconcile sheet's header is not the client module's own BSDetailHeader");
+  assert.ok(recNodes.some((n) => typeof n.type === 'function' && n.type.name === 'BSSettingsHead'), "the reconcile sheet's header is not the Settings head");
 });

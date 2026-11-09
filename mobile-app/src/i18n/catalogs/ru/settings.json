@@ -402,7 +402,6 @@
   "integrations.importedWorkouts": "Импортировано {imported, plural, one {# приватная тренировка} few {# приватные тренировки} many {# приватных тренировок} other {# приватной тренировки}} · {errors, plural, one {# ошибка} few {# ошибки} many {# ошибок} other {# ошибки}}",
   "integrations.importing": "Импортируем",
   "integrations.intro": "Подключите платформы здоровья, активности и музыки. Тренировки из WHOOP по умолчанию приватны, а вы уже сами выбираете, что увидят тренеры или лента сообщества.",
-  "integrations.kicker": "Настройки · Интеграции",
   "integrations.live": "В эфире",
   "integrations.loadError": "Не удалось загрузить интеграции.",
   "integrations.notConnected": "Не подключено",

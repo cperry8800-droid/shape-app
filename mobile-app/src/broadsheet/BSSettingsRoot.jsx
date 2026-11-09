@@ -74,6 +74,7 @@ export function BSSetLabel({ t, children, meta = null }) {
 // The head of the root and of every pane: the masthead row and ← as every page has them, then the title
 // over a teal hairline. No kicker over the title (owner, 2026-11-09, of "02 · SETTINGS" over a pane's
 // title: "remove this", "everywhere in settings").
+function bsSetNoBar() { return null; }
 export function BSSettingsHead({ title, onBack }) {
   const t = window.useBS();
   const tr = useShapeTr();
@@ -82,6 +83,9 @@ export function BSSettingsHead({ title, onBack }) {
   const MeCorner = window.BSMeCorner;
   const mastTop = window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
   const teal = bsSetTeal(t);
+  // Inside a BSPage the head scrolls away and the page's pinned bar takes ← and the title in one line
+  // once the title has gone under it, as a BSDetailHeader's does (useBSDetailBar, the chrome's).
+  const titleRef = (window.useBSDetailBar || bsSetNoBar)(title, onBack);
   return (
     <>
       <div style={{ padding: `${mastTop} ${t.padX}px 2px` }}>
@@ -89,7 +93,7 @@ export function BSSettingsHead({ title, onBack }) {
         {BackRow && <BackRow onBack={onBack} label={tr('settings:head.back', { defaultValue: 'Back' })} />}
       </div>
       <div data-settings-head="" style={{ padding: `6px ${t.padX}px 0` }}>
-        <div role="heading" aria-level={1} style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.05, color: t.INK, overflowWrap: 'anywhere' }}>{title}</div>
+        <div ref={titleRef || undefined} role="heading" aria-level={1} style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.05, color: t.INK, overflowWrap: 'anywhere' }}>{title}</div>
         <div aria-hidden="true" style={{ marginTop: 10, height: 1, background: `linear-gradient(90deg, ${teal}, ${hexA(teal, 0.25)} 45%, transparent)`, boxShadow: t.isLight ? 'none' : `0 0 8px ${hexA(teal, 0.6)}` }} />
       </div>
     </>

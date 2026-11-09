@@ -1478,7 +1478,6 @@
   "hours.loading": "Lecture de vos horaires…",
   "hours.error": "Impossible de lire vos horaires pour l’instant. Rien n’est perdu.",
   "hours.notCoach": "Vos horaires s’ouvrent une fois votre candidature de coach approuvée.",
-  "hours.kicker": "Votre activité",
   "hours.title": "Vos horaires.",
   "hours.blurb": "Quand les membres peuvent vous réserver. Vos horaires se répètent chaque semaine ; vos absences et vos règles ferment des créneaux à l’intérieur.",
   "hours.preview": "Un aperçu avec des horaires d’exemple. Connectez-vous en tant que coach pour définir les vôtres.",

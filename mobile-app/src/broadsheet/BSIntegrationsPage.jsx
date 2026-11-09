@@ -1,4 +1,5 @@
 import React from 'react';
+import { BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate, bsSetTeal, bsSetTealInk } from './BSSettingsRoot.jsx';
 // ─── INTEGRATIONS (Settings → Integrations) + source reconciliation ──────────
 // Moved out of iosAppBroadsheetClient.jsx (2026-09-30) as the first real ES
 // import carved from that module: BSIntegrationsPage (the settings door for
@@ -41,7 +42,9 @@ const _bsSourceName = (s) => _BS_SOURCE_NAMES[s] || String(s || '').replace(/_/g
 export function BSReconcile({ onBack, clientId }) {
   const { useBS } = window;
   const t = useBS();
-  const { BSPage, BSDetailHeader } = window;
+  const { BSPage } = window;
+  const teal = bsSetTeal(t);
+  const tealInk = bsSetTealInk(t);
   const [items, setItems] = useState(null);
   const [busy, setBusy] = useState('');
   const load = React.useCallback(() => {
@@ -66,39 +69,39 @@ export function BSReconcile({ onBack, clientId }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Reconcile" title={<>Which source<br/>do you trust?</>} />
-      <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>When two connected devices report a metric differently, pick the one to trust. Your choice becomes the authoritative source going forward.</div>
+      <BSSettingsHead title="Which source do you trust?" onBack={onBack} />
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, fontWeight: 500, color: t.INK70 }}>When two connected devices report a metric differently, pick the one to trust. Your choice becomes the authoritative source going forward.</div>
       </div>
-      {items === null && <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Checking sources…</div>}
+      {items === null && <div style={{ padding: `16px ${t.padX}px 20px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Checking sources…</div>}
       {items !== null && items.length === 0 && (
-        <div style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>Your sources agree.</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>Nothing to reconcile right now. This only appears when two connected devices disagree on the same metric.</div>
+        <div style={{ padding: `16px ${t.padX}px 18px` }}>
+          <div data-settings-plate="" style={{ ...bsSetPlate(t, 18, true), padding: '16px 14px' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>Your sources agree.</div>
+            <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>Nothing to reconcile right now. This only appears when two connected devices disagree on the same metric.</div>
           </div>
         </div>
       )}
       {items !== null && items.length > 0 && (
-        <div style={{ padding: `12px ${t.padX}px 30px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: `16px ${t.padX}px 30px`, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {items.map((it) => (
-            <div key={it.metric} style={{ border: `1px solid ${t.RULE}`, borderRadius: 12, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 13px', borderBottom: `1px solid ${t.HAIR}`, background: t.PAPER2 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{it.label}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>Disagree</div>
+            <div key={it.metric} data-settings-plate="" style={{ ...bsSetPlate(t), overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '11px 14px', borderBottom: `1px solid ${t.HAIR}` }}>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 600, color: t.INK, letterSpacing: '-0.02em' }}>{it.label}</div>
+                <span style={bsSetLed(t, t.RUST)}>Disagree</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(it.sources.length, 2)}, 1fr)`, gap: 0 }}>
                 {it.sources.map((s, i) => (
-                  <div key={s.source} style={{ padding: '12px 13px', borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, background: s.isAuthoritative ? `${t.ACCENT}14` : 'transparent' }}>
+                  <div key={s.source} style={{ padding: '12px 13px', borderLeft: i % 2 ? `1px solid ${t.HAIR}` : 0, borderTop: i >= 2 ? `1px solid ${t.HAIR}` : 0, background: s.isAuthoritative ? `${teal}14` : 'transparent' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.isAuthoritative ? t.ACCENT : t.INK50 }}>{_bsSourceName(s.source)}</div>
-                      {s.isAuthoritative && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.ACCENT }}>✓ Trusted</span>}
+                      <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.isAuthoritative ? tealInk : t.INK50 }}>{_bsSourceName(s.source)}</div>
+                      {s.isAuthoritative && <span style={{ ...bsSetLed(t, tealInk), fontSize: 7.5, padding: '2px 6px' }}>✓ Trusted</span>}
                     </div>
                     <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 700, color: t.INK, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{fmt(s.value, it.unit)}</div>
                     {s.isAuthoritative ? (
                       <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>Your source</div>
                     ) : (
-                      <button onClick={() => pick(it.metric, s.source)} disabled={busy === `${it.metric}:${s.source}`} style={{ marginTop: 8, width: '100%', padding: '7px', borderRadius: 8, border: `1px solid ${t.ACCENT}`, background: 'transparent', color: t.ACCENT, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                      <button type="button" onClick={() => pick(it.metric, s.source)} disabled={busy === `${it.metric}:${s.source}`} style={{ ...bsSetLed(t, tealInk), marginTop: 8, width: '100%', minHeight: 34, justifyContent: 'center', borderRadius: 8, cursor: 'pointer', whiteSpace: 'normal' }}>
                         {busy === `${it.metric}:${s.source}` ? 'Saving…' : 'Make this my source'}
                       </button>
                     )}
@@ -113,9 +116,17 @@ export function BSReconcile({ onBack, clientId }) {
   );
 }
 export function BSIntegrationsPage({ onBack }) {
-  const { BSDetailHeader, BSEyebrow, BSFooter, BSPage, BSSection, useBS } = window;
+  const { BSFooter, BSPage, useBS } = window;
   const t = useBS();
   const tr = useShapeTr();
+  const teal = bsSetTeal(t);
+  const tealInk = bsSetTealInk(t);
+  // A provider's group: the Settings lit-dot label, its status in a slot on the right.
+  const BSSection = ({ title, meta }) => (
+    <div style={{ padding: `22px ${t.padX}px 0` }}>
+      <BSSetLabel t={t} meta={meta ? <span style={bsSetLed(t, meta === connectedLabel ? tealInk : t.INK70, meta === connectedLabel)}>{meta}</span> : null}>{title}</BSSetLabel>
+    </div>
+  );
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -219,14 +230,17 @@ export function BSIntegrationsPage({ onBack }) {
 
   const Button = ({ children, onClick, active = false, disabled = false }) => (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled || Boolean(busy)}
       style={{
-        borderRadius: t.RADIUS_SM,
-        padding: '12px 10px',
-        border: `1px solid ${active ? t.INK : t.RULE}`,
-        background: active ? t.INK : 'transparent',
-        color: active ? t.PAPER : t.INK,
+        borderRadius: 10,
+        minHeight: 44,
+        padding: '11px 10px',
+        border: `1px solid ${active ? tealInk : t.RULE}`,
+        background: active ? tealInk : 'transparent',
+        color: active ? (t.isLight ? '#ffffff' : '#04201d') : t.INK,
+        boxShadow: active && !t.isLight ? `0 0 14px ${teal}55` : 'none',
         fontFamily: t.MONO,
         fontSize: 9.5,
         fontWeight: 800,
@@ -241,38 +255,22 @@ export function BSIntegrationsPage({ onBack }) {
   );
 
   const IntegrationCard = ({ eyebrow, name, note, status, children, muted = false }) => (
-    <div style={{
-      padding: `16px ${t.padX}px 18px`,
-      borderTop: `2px solid ${t.INK}`,
-      borderBottom: `1px solid ${t.RULE}`,
-      background: muted ? 'transparent' : t.PAPER2,
-    }}>
+    <div style={{ padding: `0 ${t.padX}px` }}>
+     <div data-settings-plate="" style={{ ...bsSetPlate(t), padding: '14px 14px 15px', opacity: muted ? 0.85 : 1 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
-        <div>
-          <BSEyebrow color={status === connectedLabel ? t.ACCENT : t.INK50}>{eyebrow}</BSEyebrow>
-          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: status === connectedLabel ? tealInk : t.INK50 }}>{eyebrow}</div>
+          <div style={{ marginTop: 6, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 600, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.05 }}>
             {name}
           </div>
-          <div style={{ marginTop: 7, maxWidth: 310, fontFamily: t.DISPLAY, fontSize: 13.5, lineHeight: 1.35, fontWeight: 500, color: t.INK70 }}>
+          <div style={{ marginTop: 7, maxWidth: 310, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>
             {note}
           </div>
         </div>
-        <div style={{
-          borderRadius: t.RADIUS_SM,
-          padding: '7px 9px',
-          border: `1px solid ${status === connectedLabel ? t.ACCENT : t.RULE}`,
-          color: status === connectedLabel ? t.ACCENT : t.INK50,
-          fontFamily: t.MONO,
-          fontSize: 9,
-          fontWeight: 800,
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          whiteSpace: 'nowrap',
-        }}>
-          {status}
-        </div>
+        <span style={{ ...bsSetLed(t, tealInk, status === connectedLabel), flexShrink: 0 }}><BSSetLamp t={t} c={teal} on={status === connectedLabel} />{status}</span>
       </div>
       {children}
+     </div>
     </div>
   );
 
@@ -283,38 +281,35 @@ export function BSIntegrationsPage({ onBack }) {
   ] : null;
 
   if (showReconcile) return <BSReconcile onBack={() => setShowReconcile(false)} />;
+  const live = providers.filter(p => p.connected).length;
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker={tr('settings:integrations.kicker', { defaultValue: 'Settings · Integrations' })}
-        title={<>{tr('settings:integrations.titleA', { defaultValue: 'Connected' })}<br/>{tr('settings:integrations.titleB', { defaultValue: 'apps.' })}</>}
-        trailing={<div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 36, lineHeight: 0.9, fontWeight: 700, color: t.INK, letterSpacing: '-0.05em' }}>
-            {providers.filter(p => p.connected).length}
-          </div>
-          <BSEyebrow>{tr('settings:integrations.live', { defaultValue: 'Live' })}</BSEyebrow>
-        </div>}
-      />
+      {/* The Settings look (owner, 2026-11-09: "make sure every other screen in settings is being looked
+          at"): the Settings head with no kicker, the live count in a lit slot, each provider a lit-dot
+          label over its own glass plate, the step to take a filled lit button. */}
+      <BSSettingsHead title={`${tr('settings:integrations.titleA', { defaultValue: 'Connected' })} ${tr('settings:integrations.titleB', { defaultValue: 'apps.' })}`} onBack={onBack} />
 
-      <div style={{ padding: `14px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.4, fontWeight: 500, color: t.INK70 }}>
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <span data-integrations-live="" style={bsSetLed(t, tealInk, live > 0)}><BSSetLamp t={t} c={teal} on={live > 0} />{live} {tr('settings:integrations.live', { defaultValue: 'Live' })}</span>
+        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14.5, lineHeight: 1.45, fontWeight: 500, color: t.INK70 }}>
           {tr('settings:integrations.intro', { defaultValue: 'Connect health, activity, and music platforms. WHOOP imports default to private, then you choose what gets shared with coaches or the community feed.' })}
         </div>
       </div>
 
       {/* On-demand data-quality check — only surfaces when sources disagree. */}
-      <button onClick={() => setShowReconcile(true)} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, borderBottom: `1px solid ${t.RULE}`, padding: `14px ${t.padX}px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.02em' }}>{tr('settings:integrations.reconcile', { defaultValue: 'Reconcile sources' })}</div>
-          <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:integrations.reconcileMeta', { defaultValue: 'When two devices disagree — pick which to trust' })}</div>
-        </div>
-        <span style={{ fontFamily: t.MONO, fontSize: 13, color: t.ACCENT }}>→</span>
-      </button>
+      <div style={{ padding: `14px ${t.padX}px 0` }}>
+        <button type="button" onClick={() => setShowReconcile(true)} style={{ ...bsSetPlate(t), width: '100%', minHeight: 56, textAlign: 'left', cursor: 'pointer', padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, color: t.INK }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{tr('settings:integrations.reconcile', { defaultValue: 'Reconcile sources' })}</div>
+            <div style={{ marginTop: 3, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{tr('settings:integrations.reconcileMeta', { defaultValue: 'When two devices disagree — pick which to trust' })}</div>
+          </div>
+          <span aria-hidden="true" style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50 }}>→</span>
+        </button>
+      </div>
 
       {error && (
-        <div style={{ padding: `12px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, color: t.RUST, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>
+        <div role="alert" style={{ padding: `12px ${t.padX}px 0`, color: t.RUST, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 600 }}>
           {error}
         </div>
       )}
@@ -341,9 +336,9 @@ export function BSIntegrationsPage({ onBack }) {
           </Button>
         </div>
         {statCards && (
-          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderTop: `2px solid ${t.INK}`, borderBottom: `1px solid ${t.RULE}` }}>
+          <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderRadius: 10, overflow: 'hidden', border: `1px solid ${t.HAIR}`, background: t.isLight ? 'rgba(15,14,12,0.03)' : 'rgba(0,0,0,0.3)' }}>
             {statCards.map(([label, value], i) => (
-              <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.RULE}` : 0 }}>
+              <div key={label} style={{ padding: '10px 8px', borderLeft: i ? `1px solid ${t.HAIR}` : 0 }}>
                 <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{label}</div>
                 <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.04em', color: t.INK }}>{value}</div>
               </div>

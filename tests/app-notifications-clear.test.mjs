@@ -243,7 +243,9 @@ test('the screen speaks the member\'s language', async () => {
   catalog = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs/de/common.json'), 'utf8'));
   fakeService();
   const v = await mount(inChrome(React.createElement(BSNotifications, { onBack: () => {} })));
-  assert.match(v.text(), /Benachrichtigungen/);
+  // The Settings head, the title alone (no "Benachrichtigungen" kicker over it, owner 2026-11-09).
+  assert.match(v.text(), /Deine Neuigkeiten\./);
+  assert.doesNotMatch(v.text(), /Benachrichtigungen/);
   assert.ok(button(v.host, /^Alle entfernen$/));
   assert.ok(button(v.host, /^Alle als gelesen markieren$/));
   await v.unmount();

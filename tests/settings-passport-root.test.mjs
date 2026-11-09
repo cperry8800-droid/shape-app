@@ -233,7 +233,7 @@ test('Settings\' panes are the lit panel the root is, from its own parts (owner,
   const settings = clean.slice(start, clean.indexOf('\nfunction ', start + 10));
   assert.ok(!/BS_CHAMFER|clipPath/.test(settings), 'a chamfered box is back in Settings');
   // The parts are the root's, imported, never copied.
-  assert.match(src, /import \{ BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate \} from '\.\/BSSettingsRoot\.jsx';/);
+  assert.match(src, /import \{ BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate, bsSetTeal, bsSetTealInk \} from '\.\/BSSettingsRoot\.jsx';/);
   assert.match(settings, /const led = \(c, on = true\) => bsSetLed\(t, c, on\);/);
   assert.match(settings, /const plate = \(radius = 16, grid = false\) => bsSetPlate\(t, radius, grid\);/);
   // The one colour is the theme's teal, whatever accent the member chose.
@@ -291,7 +291,7 @@ test('the root is the lit panel, in its own module (owner, 2026-11-04: "option C
     for (const k of Object.keys(n)) if (k !== 'loc') blank(n[k]);
   })(parsed.program);
   assert.doesNotMatch(stripComments(outside), /window\.(BS|useBS)/, 'a window global is read at module top');
-  assert.match(src, /import \{ BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate \} from '\.\/BSSettingsRoot\.jsx';/);
+  assert.match(src, /import \{ BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate, bsSetTeal, bsSetTealInk \} from '\.\/BSSettingsRoot\.jsx';/);
   // One teal, the theme's, whatever accent the member chose; never the accent itself.
   assert.match(root, /export const bsSetTeal = \(t\) => \(t && t\.isLight \? '#0a8f87' : '#34d6c5'\);/);
   assert.match(root, /export const bsSetTealInk = \(t\) => \(t && t\.isLight \? '#0a7a72' : '#34d6c5'\);/);

@@ -1478,7 +1478,6 @@
   "hours.loading": "Reading your hours…",
   "hours.error": "Couldn't read your hours just now. Nothing is lost.",
   "hours.notCoach": "Your hours open once your coach application is approved.",
-  "hours.kicker": "Your practice",
   "hours.title": "Your hours.",
   "hours.blurb": "When members can book you. Your hours repeat every week; time off and your rules close times inside them.",
   "hours.preview": "A preview with sample hours. Sign in as a coach to set yours.",

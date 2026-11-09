@@ -402,7 +402,6 @@
   "integrations.importedWorkouts": "{imported, plural, other {# latihan privat}} diimpor · {errors, plural, other {# kesalahan}}",
   "integrations.importing": "Mengimpor",
   "integrations.intro": "Hubungkan platform kesehatan, aktivitas, dan musik. Data dari WHOOP bersifat privat secara bawaan, lalu Anda memilih apa yang dibagikan ke coach atau ke feed komunitas.",
-  "integrations.kicker": "Pengaturan · Integrasi",
   "integrations.live": "Aktif",
   "integrations.loadError": "Integrasi tidak bisa dimuat.",
   "integrations.notConnected": "Belum terhubung",

@@ -402,7 +402,6 @@
   "integrations.importedWorkouts": "Don import {imported, plural, one {# private workout} other {# private workouts}} · {errors, plural, one {# error} other {# errors}}",
   "integrations.importing": "Dey import",
   "integrations.intro": "Connect health, activity, and music platforms. Workout wey WHOOP import dey private first, den you go choose wetin coaches or di community feed go see.",
-  "integrations.kicker": "Settings · Integrations",
   "integrations.live": "Live",
   "integrations.loadError": "We no fit load di integrations.",
   "integrations.notConnected": "E never connect",

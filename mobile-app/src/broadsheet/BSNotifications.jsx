@@ -1,5 +1,6 @@
 import React from 'react';
 import { noticeText } from '../services/noticeCopy.mjs';
+import { BSSettingsHead, bsSetLed, bsSetPlate, bsSetTealInk } from './BSSettingsRoot.jsx';
 // ─── NOTIFICATIONS (the bell's list) ─────────────────────────────────────────
 // The in-app feed behind /api/notifications. Tapping a notification marks it read and, when it
 // carries a route, opens it (onRoute). Moved out of iosAppBroadsheetClient.jsx when Clear all was
@@ -71,7 +72,7 @@ export function bsNoticeRow(n, tr) {
 }
 
 export function BSNotifications({ onBack, onRoute = () => {} }) {
-  const { useBS, BSPage, BSDetailHeader, BSFooter } = window;
+  const { useBS, BSPage, BSFooter } = window;
   const t = useBS();
   const tr = useShapeTr();
   const [items, setItems] = React.useState(null);
@@ -150,17 +151,17 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
 
   const list = items || [];
   const unread = list.filter((n) => !n.read).length;
-  const action = (on) => ({ padding: '8px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${on ? t.INK : t.RULE}`, background: 'transparent', color: on ? t.INK : t.INK70, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 });
+  // The Settings look (owner, 2026-11-09: "make sure every other screen in settings is being looked at"):
+  // the actions as lit slots, the list on one glass plate.
+  const action = (on) => ({ ...bsSetLed(t, on ? bsSetTealInk(t) : t.INK70, on), minHeight: 34, padding: '0 12px', borderRadius: 8, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 });
+  const emptyPlate = { ...bsSetPlate(t, 18, true), padding: '16px 14px' };
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker={tr('common:notifications.kicker', { defaultValue: 'Notifications' })}
-        title={<>{tr('common:notifications.titleTop', { defaultValue: 'Your' })}<br/>{tr('common:notifications.titleBottom', { defaultValue: 'updates.' })}</>}
-      />
+      <BSSettingsHead title={`${tr('common:notifications.titleTop', { defaultValue: 'Your' })} ${tr('common:notifications.titleBottom', { defaultValue: 'updates.' })}`} onBack={onBack} />
+      <div style={{ height: 16 }} />
       {list.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: `0 ${t.padX}px 4px` }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: `0 ${t.padX}px 10px` }}>
           {confirming ? (
             <>
               <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70 }}>{tr('common:notifications.clearConfirm', { defaultValue: 'Clear all?' })}</span>
@@ -179,40 +180,41 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
         <div role="status" style={{ padding: `6px ${t.padX}px 4px`, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 500, color: t.INK70 }}>{tr('common:notifications.clearFailed', { defaultValue: 'Couldn’t clear your notifications. Try again.' })}</div>
       )}
       {items === null && !loadFailed && (
-        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('common:notifications.loading', { defaultValue: 'Loading…' })}</div>
+        <div style={{ padding: `4px ${t.padX}px 20px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('common:notifications.loading', { defaultValue: 'Loading…' })}</div>
       )}
       {loadFailed && list.length === 0 && (
         <div role="status" style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>{tr('common:notifications.loadFailedTitle', { defaultValue: 'Couldn’t load your notifications.' })}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{tr('common:notifications.loadFailedBody', { defaultValue: 'Check your connection, then try again.' })}</div>
+          <div data-settings-plate="" style={emptyPlate}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>{tr('common:notifications.loadFailedTitle', { defaultValue: 'Couldn’t load your notifications.' })}</div>
+            <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{tr('common:notifications.loadFailedBody', { defaultValue: 'Check your connection, then try again.' })}</div>
             <button onClick={retry} style={{ ...action(true), marginTop: 14, minHeight: 44, padding: '0 18px', fontSize: 10 }}>{tr('common:notifications.retry', { defaultValue: 'Try again' })}</button>
           </div>
         </div>
       )}
       {items !== null && list.length === 0 && !loadFailed && (
         <div style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>{tr('common:notifications.emptyTitle', { defaultValue: 'You’re all caught up.' })}</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>{tr('common:notifications.emptyBody', { defaultValue: 'Booking requests, confirmations and other updates will show up here.' })}</div>
+          <div data-settings-plate="" style={emptyPlate}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>{tr('common:notifications.emptyTitle', { defaultValue: 'You’re all caught up.' })}</div>
+            <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{tr('common:notifications.emptyBody', { defaultValue: 'Booking requests, confirmations and other updates will show up here.' })}</div>
           </div>
         </div>
       )}
       {list.length > 0 && (
-        <div style={{ padding: `12px ${t.padX}px 4px` }}>
-          {list.map((n) => {
+        <div style={{ padding: `0 ${t.padX}px 16px` }}>
+         <div data-settings-plate="" style={{ ...bsSetPlate(t), overflow: 'hidden' }}>
+          {list.map((n, i) => {
             const accent = bsNotifStyle(n.type, t);
             const said = bsNoticeRow(n, tr);
             return (
-              <button key={n.id} onClick={() => open(n)} style={{
+              <button key={n.id} type="button" onClick={() => open(n)} style={{
                 width: '100%', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: 11,
-                padding: '12px 13px', marginBottom: 9, borderRadius: 13, cursor: n.route ? 'pointer' : 'default',
-                border: `1px solid ${n.read ? t.RULE : accent}`, borderLeft: `3px solid ${accent}`,
-                background: n.read ? 'transparent' : `${accent}14`,
+                padding: '12px 14px 13px', cursor: n.route ? 'pointer' : 'default', color: t.INK,
+                border: 0, borderTop: i ? `1px solid ${t.HAIR}` : 0, boxShadow: `inset 3px 0 0 ${n.read ? 'transparent' : accent}`,
+                background: n.read ? 'transparent' : `${accent}12`,
               }}>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0 }} />}
+                    {!n.read && <span style={{ width: 6, height: 6, borderRadius: 99, background: accent, flexShrink: 0, boxShadow: t.isLight ? 'none' : `0 0 6px ${accent}` }} />}
                     <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: n.read ? 600 : 700, color: t.INK, letterSpacing: '-0.015em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{said.title}</span>
                   </span>
                   {said.body ? <span style={{ display: 'block', marginTop: 3, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.35 }}>{said.body}</span> : null}
@@ -222,6 +224,7 @@ export function BSNotifications({ onBack, onRoute = () => {} }) {
               </button>
             );
           })}
+         </div>
         </div>
       )}
       <BSFooter right={tr('common:notifications.footer', { defaultValue: 'Activity' })} />

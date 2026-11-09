@@ -402,7 +402,6 @@
   "integrations.importedWorkouts": "An shigo da {imported, plural, one {# motsa jiki na sirri} other {# motsa jiki na sirri}} · {errors, plural, one {# kuskure} other {# kurakurai}}",
   "integrations.importing": "Ana shigowa",
   "integrations.intro": "Haɗa dandamalin lafiya, ayyuka, da waƙa. Motsa jikin da aka shigo daga WHOOP na sirri ne da farko, sannan kai ka zaɓi abin da za a raba da koci-koci ko jerin al'umma.",
-  "integrations.kicker": "Saituna · Haɗin gwiwa",
   "integrations.live": "Kai tsaye",
   "integrations.loadError": "An kasa loda haɗin gwiwa.",
   "integrations.notConnected": "Ba a haɗa ba",

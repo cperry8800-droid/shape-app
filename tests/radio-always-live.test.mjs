@@ -143,11 +143,14 @@ test('the Radio page and Settings offer no off', () => {
   assert.doesNotMatch(screen, /radio:screen\.stop|>■</, 'the Radio page has a Stop again');
   assert.doesNotMatch(code, /radio:prompt\.changeAnytime/, 'the prompt points at a Settings switch that does not exist');
 
-  const at = CLIENT.indexOf('{/* SHAPE RADIO');
-  const end = CLIENT.indexOf('{/* LIGHT EFFECTS', at);
-  assert.ok(at > 0 && end > at, 'the Settings radio row moved — this guard no longer names it');
-  const row = stripComments(CLIENT.slice(at, end));
+  // The radio's row sits on Customize's Light effects plate since 2026-11-09 (the effects run while it
+  // plays): its name and its reading, the reading worked out above the plate's markup.
+  const at = CLIENT.indexOf("{tr('settings:radio.title'");
+  assert.ok(at > 0, 'the Settings radio row moved — this guard no longer names it');
+  const row = stripComments(CLIENT.slice(CLIENT.lastIndexOf('<div', at), CLIENT.indexOf('</div>', at)));
+  assert.match(row, /data-settings-radio-state=\{radioOn \? 'playing' : 'paused'\}/, 'this is not the radio row');
   assert.doesNotMatch(row, /<Toggle|onClick/, 'Settings → Shape Radio has a switch again');
-  assert.match(row, /r\.playingSince != null/, 'the row reports what was asked for instead of what is playing');
+  const reading = CLIENT.slice(CLIENT.lastIndexOf('const radioOn = ', at), at);
+  assert.match(reading, /^const radioOn = r\.playingSince != null;/, 'the row reports what was asked for instead of what is playing');
   assert.doesNotMatch(CLIENT, /settings:quick\.radio/, 'the Radio quick switch is back');
 });
