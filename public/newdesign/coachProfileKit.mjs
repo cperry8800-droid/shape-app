@@ -29,6 +29,11 @@ export {
 } from './profileCustom.mjs';
 // The coach's spotlight (owner, 2026-11-04): the intro film, the pinned highlight, the profile song.
 export { bsProfileFilm, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel } from './profileCustom.mjs';
+// The coach's public stats (owner, 2026-11-09): what they chose to show, and the read for it. The page
+// calls bsCoachPublicStatsRead(<its Supabase client>, ownerId); the app's ShapeCoachPublicStats.forOwner
+// is the same read on the app's client.
+export { BS_PUBLIC_STATS, bsProfilePublicStats } from './profileCustom.mjs';
+export { bsCoachPublicStatsRead, bsCoachPublicStatsFromRow } from './coachPublicStats.mjs';
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 

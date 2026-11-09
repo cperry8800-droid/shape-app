@@ -699,23 +699,28 @@ export function energySplit(m) {
 // Shape Score and tier are not among them: the page's own Score row shows those. A member's stat keys
 // (streak, member since, a top lift) are not a coach's, so a doc an older editor wrote with them (the
 // old editors saved Score, tier and streak when nothing was picked) shows none of them here.
+// Sessions coached and active clients (owner, 2026-11-09) are figures Shape records, public only when
+// the coach made them so (profile_custom.publicStats, read by get_coach_public_stats): a pick of one
+// the coach keeps private has no figure, so it shows nothing.
 export const BS_COACH_STATS = Object.freeze({
-  trainer: Object.freeze(['rating', 'reviews', 'years', 'programs', 'workouts', 'replays', 'certs']),
-  nutritionist: Object.freeze(['rating', 'reviews', 'years', 'recipes', 'plates', 'certs']),
+  trainer: Object.freeze(['rating', 'reviews', 'years', 'sessions', 'clients', 'programs', 'workouts', 'replays', 'certs']),
+  nutritionist: Object.freeze(['rating', 'reviews', 'years', 'sessions', 'clients', 'recipes', 'plates', 'certs']),
 });
 const statCount = (v) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n > 0 ? Math.round(n) : null; };
 /**
  * The coach's figures by stat key, each only when there is one: { rating (out of 10, one decimal),
- * reviews, years, programs, workouts, replays, recipes, plates, certs }, whole numbers but the rating.
- * A figure of none (no reviews yet, nothing posted) is absent, never 0.
+ * reviews, years, sessions, clients, programs, workouts, replays, recipes, plates, certs }, whole
+ * numbers but the rating. A figure of none (no reviews yet, nothing posted, no session coached) is
+ * absent, never 0. `sessions` and `clients` are the public figures (ShapeCoachPublicStats.forOwner's
+ * `sessions` and `clients`): null while unread or kept private, so absent.
  */
-export function bsCoachStatFigures({ reviews = null, years = null, programs = 0, workouts = 0, replays = 0, recipes = 0, plates = 0, certs = 0 } = {}) {
+export function bsCoachStatFigures({ reviews = null, years = null, sessions = null, clients = null, programs = 0, workouts = 0, replays = 0, recipes = 0, plates = 0, certs = 0 } = {}) {
   const out = {};
   const count = isObj(reviews) ? statCount(reviews.count) : null;
   const avg = isObj(reviews) ? Number(reviews.avg) : NaN;
   if (count && Number.isFinite(avg) && avg > 0) out.rating = Math.round(Math.min(10, avg) * 10) / 10;
   if (count) out.reviews = count;
-  for (const [k, v] of [['years', years], ['programs', programs], ['workouts', workouts], ['replays', replays], ['recipes', recipes], ['plates', plates], ['certs', certs]]) {
+  for (const [k, v] of [['years', years], ['sessions', sessions], ['clients', clients], ['programs', programs], ['workouts', workouts], ['replays', replays], ['recipes', recipes], ['plates', plates], ['certs', certs]]) {
     const n = statCount(v);
     if (n) out[k] = n;
   }

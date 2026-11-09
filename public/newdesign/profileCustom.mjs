@@ -395,6 +395,19 @@ export function bsProfileHeroStats(v, allowed = null) {
   return out;
 }
 
+// What a coach made public of the figures Shape records for them (owner, 2026-11-09: "coaches should
+// be able to decide what they want public"): sessions coached, active clients, the year they started
+// coaching on Shape, and how many clients are on each of their programs. get_coach_public_stats
+// (supabase-migrations/2026-11-09-coach-public-stats.sql) reads this same list from the doc and returns
+// only these figures, so a key not here is never public. Kept in this order, each once; none (the
+// default) is an empty list, and the doc drops the key.
+export const BS_PUBLIC_STATS = Object.freeze(['sessions', 'clients', 'since', 'programClients']);
+export function bsProfilePublicStats(v) {
+  if (!Array.isArray(v)) return [];
+  const seen = v.slice(0, BS_PUBLIC_STATS.length * 4);
+  return BS_PUBLIC_STATS.filter((k) => seen.includes(k));
+}
+
 // ── The coach profile redesign (owner, 2026-10-27) ────────────────────────────
 // `look`: the coach's own colours, chosen from Shape's papers and accents (the app's
 // makePalette keys, so the profile paints with the same values the app does), and what stays
@@ -763,6 +776,8 @@ export function bsNormalizeProfileCustom(doc, ownerUid, opts) {
   if ('picks' in base) { const picks = bsProfilePicks(base.picks); if (picks.length) base.picks = picks; else delete base.picks; }
   if ('descriptions' in base) { const d = bsProfileDescriptions(base.descriptions); if (d) base.descriptions = d; else delete base.descriptions; }
   if ('programFor' in base) { const f = bsProfileProgramFor(base.programFor); if (f) base.programFor = f; else delete base.programFor; }
+  // What the coach made public: only the four keys, in order; none drops the key (nothing public).
+  if ('publicStats' in base) { const p = bsProfilePublicStats(base.publicStats); if (p.length) base.publicStats = p; else delete base.publicStats; }
   const filmBucket = (opts && typeof opts.filmBucket === 'string') ? opts.filmBucket : null;
   const filmKey = (opts && typeof opts.filmKey === 'string') ? opts.filmKey : 'film';
   if (filmBucket) {

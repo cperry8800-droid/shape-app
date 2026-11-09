@@ -35,6 +35,7 @@ import { bsGroceryFromMetadata } from './groceryShare.mjs';
 import { bsReplyFromMetadata } from './chatReply.mjs';
 import { createThreadSignalStore, bsTypingFromPayload, bsSeenFromRpc } from './chatSignals.mjs';
 import { BS_VOICE, bsVoicePath, bsVoiceFromMetadata } from './voiceNote.mjs';
+import { bsCoachPublicStatsRead } from './coachPublicStats.mjs';
 // The SHARED nora_memory doc normalizer (pure ESM, cross-root import — the
 // dashSignals.js precedent): one implementation of the {rev, notes} semantics
 // for the server tools AND this Settings mirror, so they can't drift.
@@ -8276,6 +8277,13 @@ window.ShapeCoachReviews = {
   forOwner: (ownerId) => coachReviewsGet(`?owner=${encodeURIComponent(ownerId)}`),
   byIds: (ids) => coachReviewsGet(`?ids=${encodeURIComponent(ids)}`),
   post: postCoachReview,
+};
+// A coach's public stats (get_coach_public_stats, coachPublicStats.mjs): only the figures the coach made
+// public, each null when private or unread and 0 when measured. Public reads, signed out too: the
+// function decides what this viewer may see, so it goes through this session's own client.
+window.ShapeCoachPublicStats = {
+  // { state: 'ready'|'error', sessions, clients, since, programClients }
+  forOwner: (ownerId) => bsCoachPublicStatsRead(supabase, ownerId),
 };
 
 // Follower / following graph (public profiles). stats → counts + my state;
