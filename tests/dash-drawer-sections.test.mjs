@@ -54,8 +54,11 @@ test('hiding everything is allowed, and the drawer says so', () => {
   assert.equal(r.hiddenCount, 3);
   // ⚠ A control whose effect cannot be reversed from where you see it is the dead-control
   // class from the other direction, so the empty drawer names the way back.
-  assert.match(SRC, /secs\.shown\.length === 0 &&/);
-  assert.match(SRC, /Every section is hidden\. Open ⚙ above to bring one back\./);
+  // Since #2639 the empty state counts THIS client's list (`shown`, the coach's list less a joint note
+  // a client who isn't shared has no use for), and says which case it is.
+  assert.match(SRC, /\{shown\.length === 0 && \(/);
+  assert.match(SRC, /secs\.shown\.length === 0 \? "Every section is hidden\. Open ⚙ above to bring one back\."/);
+  assert.match(SRC, /"The only section you show is the joint note, which is for shared clients\. Open ⚙ above to show more\."/);
 });
 
 test('a malformed view yields nothing rather than throwing', () => {
