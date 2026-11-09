@@ -167,9 +167,12 @@ test('a goal\'s pace runs from its start to its target on the due date, and each
   assert.equal(paceOf(goal({ start: 10, tgt: 4, cur: 4 }), today).status, 'done');
   assert.equal(paceOf(goal({ start: 10, tgt: 4, cur: 7 }), today).status, 'ontrack', 'down 3 of 6 at half the span');
   assert.equal(paceOf(goal({ start: 10, tgt: 4, cur: 8 }), today).status, 'behind', 'down 2 of 6: reaches 67%');
-  // The due date passed short of the target: behind, and says so.
-  const late = paceOf(goal({ cur: 90 }), S0 + 120);
+  // The due date passed short of the target: behind, and says so. On the due date there is still the day.
+  const late = paceOf(goal({ cur: 90 }), S0 + 121);
   assert.deepEqual([late.status, late.overdue], ['behind', true]);
+  const dueDay = paceOf(goal({ cur: 90 }), S0 + 120);
+  assert.deepEqual([dueDay.status, !!dueDay.overdue, dueDay.daysLeft, dueDay.needPerWeek], ['atrisk', false, 0, null]);
+  assert.equal(C.cgsGoalSentence(goal({ cur: 90 }), dueDay, S0 + 120, null), 'Due today, at 90 of 100.');
   // Set under a week ago: too early to read a pace.
   assert.equal(paceOf(goal({ cur: 0 }), S0 + 3).status, 'early');
   assert.equal(paceOf(goal({ cur: 0 }), S0 + 8).status, 'behind', 'a week in, the pace reads');
@@ -614,6 +617,10 @@ test('fastest way up: each term\'s sum and where it lands, fewest steps first, a
   const close = C.cgsWayUp(C.cgsScoreModel(routeScore('nutritionist', 25, 72, 0), 'nutritionist'), 'nutritionist'); // 1,250 + 720 = 1,970: 30 to Elite
   assert.deepEqual(close.steps.map(C.cgsStepText), ['1 new client: 1 × 50 = +50, lands on 2,020 · Elite', 'Completion 72% → 75%: 3 × 10 = +30, lands on 2,000 · Elite']);
   assert.equal(close.capped, null);
+  // Room that exactly reaches the tier is a way up: 1,970 at 97%, and 3 points land on 2,000.
+  const exact = C.cgsWayUp(C.cgsScoreModel(routeScore('nutritionist', 20, 97, 0), 'nutritionist'), 'nutritionist');
+  assert.deepEqual([exact.steps.map((s) => s.term), exact.capped], [['clients', 'completion'], null]);
+  assert.equal(C.cgsStepText(exact.steps[1]), 'Completion 97% → 100%: 3 × 10 = +30, lands on 2,000 · Elite');
   // At 100% there is no room at all.
   assert.deepEqual(C.cgsWayUp(C.cgsScoreModel(routeScore('nutritionist', 2, 100, 0), 'nutritionist'), 'nutritionist').capped, { room: 0, n: 0, from: 100, lands: 1100 });
   // Each step's landing is the route's own tier for that total.

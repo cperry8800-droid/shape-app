@@ -104,7 +104,8 @@ function cgsGoalPace(g, reading, today) {
   if (start == null || startDay == null || dueDay == null || dueDay <= startDay) return { ...out, status: "nodue" };
   const total = dueDay - startDay;
   const daysLeft = dueDay - today;
-  if (daysLeft <= 0) return { ...out, status: "behind", overdue: true, daysLeft: 0, elapsed: total, f: 1, expected: tgt, reach: progress };
+  // Past the due date short of the target: behind. On the due date itself there is still the day.
+  if (daysLeft < 0) return { ...out, status: "behind", overdue: true, daysLeft: 0, elapsed: total, f: 1, expected: tgt, reach: progress };
   const elapsed = Math.max(0, Math.min(total, today - startDay));
   const f = elapsed / total;
   const expected = start + (tgt - start) * f;
@@ -117,7 +118,7 @@ function cgsGoalPace(g, reading, today) {
     // Where today's pace lands on the due date, and the pace made and needed, a week at a time.
     projected: elapsed > 0 ? start + (cur - start) * (total / elapsed) : null,
     madePerWeek: elapsed > 0 ? (cur - start) / (elapsed / 7) : null,
-    needPerWeek: (tgt - cur) / (daysLeft / 7),
+    needPerWeek: daysLeft > 0 ? (tgt - cur) / (daysLeft / 7) : null,
   };
 }
 
@@ -172,6 +173,7 @@ function cgsGoalSentence(g, pace, today, metricLabel) {
     case "atrisk":
     case "behind": {
       if (pace.overdue) return due + " has passed at " + cgsFig(g, pace.cur) + " of " + cgsFig(g, pace.tgt) + ".";
+      if (!pace.daysLeft) return "Due today, at " + cgsFig(g, pace.cur) + " of " + cgsFig(g, pace.tgt) + ".";
       const gain = pace.madePerWeek != null && (pace.down ? pace.madePerWeek < 0 : pace.madePerWeek > 0);
       return (gain ? cgsRate(g, pace.madePerWeek) + " a week so far" : "No gain since " + cgsDayLabel(pace.startDay, today))
         + "; " + cgsFig(g, pace.tgt) + " by " + due + " needs " + cgsRate(g, pace.needPerWeek) + " a week.";
@@ -945,7 +947,7 @@ function CgsWayUpCard({ model, role }) {
     <DbzCard label={label} lift={2} right={<span style={DBZ_LBL}>{cgsPts(way.need)} to {way.next}</span>}>
       <div data-cgs-way="ready">
         {way.steps.map((s, i) => (
-          <div key={s.term} data-cgs-step={s.term} style={{ padding: "8px 0", borderTop: i ? DBZ_RULE : "none", fontSize: i ? 13 : 14.5, lineHeight: 1.45, color: i ? DBZ_INK50 : DBZ_INK, fontWeight: i ? 400 : 600, fontVariantNumeric: "tabular-nums" }}>{cgsStepText(s)}</div>
+          <div key={s.term} data-cgs-step={s.term} style={{ padding: "8px 0", borderTop: i ? DBZ_RULE : "none", fontSize: i ? 13 : 14.5, lineHeight: 1.45, color: i ? DBZ_INK50 : DBZ_INK, fontWeight: i ? 400 : 600 }}>{cgsStepText(s)}</div>
         ))}
         {way.capped && (
           <div data-cgs-capped="" style={{ ...DBZ_NOTE, fontSize: 12.5, marginTop: 8, paddingTop: 8, borderTop: DBZ_RULE }}>
@@ -980,7 +982,7 @@ function CgsPartsCard({ model, role }) {
             <span style={{ fontFamily: DBZ_MONO, fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{cgsPts(p.points)}</span>
           </div>
         ))}
-        <div data-cgs-sum="" style={{ ...DBZ_NOTE, marginTop: 8, paddingTop: 8, borderTop: DBZ_RULE, fontVariantNumeric: "tabular-nums" }}>
+        <div data-cgs-sum="" style={{ ...DBZ_NOTE, marginTop: 8, paddingTop: 8, borderTop: DBZ_RULE }}>
           {model.parts.map((p) => cgsPts(p.points)).join(" + ") + " = " + cgsPts(model.sum)}
         </div>
       </div>
