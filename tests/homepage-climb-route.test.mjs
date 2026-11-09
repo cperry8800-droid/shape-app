@@ -1,14 +1,11 @@
 // tests/homepage-climb-route.test.mjs
 //
 // The homepage fold draws a route climbing to a summit it FINDS on the front
-// ridge, and its trailhead was `H*0.86` — 0.14H above the canvas floor — while
-// `.camps` sits at `bottom:78px` with ~41px of label, i.e. the camps own
-// 78..119px of that same floor. 0.14H lands INSIDE that band for every canvas
-// height from 558 to 850px, which is every ordinary desktop window, so the route
-// was drawn starting on top of the stats and climbed out through "0 ads · Shape
-// Radio, included". Measured in Chromium before the fix at 1657/1440/1280/1024/
-// 860: 83/12/52/83/6 sampled columns of route inside that camp's box, clearances
-// of -12/-1/-15/-20/-1px.
+// ridge. Its trailhead was once measured against three stats that sat along the
+// bottom of the fold (`.camps`: "$5/mo", "0 ads", "1 app"), because the route had
+// been drawn starting on top of them. The owner took the stats out (2026-11-09),
+// so the trailhead is a fixed fraction of the canvas again, and what it must
+// clear is the wire, the ticker along the fold's floor.
 //
 // ⚠ THE ROUTE'S SPAN AND SHAPE ARE DELIBERATELY UNTOUCHED, AND THAT IS AN OWNER
 // RULING RATHER THAN A LIMIT OF THE FIX. A first cut also derived the start from
@@ -19,10 +16,8 @@
 // the last test here pins the span as independent of the rise, which is what
 // stops a later session deriving it again.
 //
-// These drive the SHIPPED functions lifted out of the page and pin invariants
-// rather than the numbers that currently satisfy them. The sweep carries a
-// positive control, because a guard that cannot fail on the old code is not
-// reporting on this one.
+// These read the SHIPPED page and pin invariants rather than the numbers that
+// currently satisfy them.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -67,92 +62,58 @@ function expr(re, label) {
   return m[1];
 }
 
-const CAMP_CLEAR = Number(expr(/var CAMP_CLEAR=(\d+)/, 'CAMP_CLEAR'));
 // x0 lives inside draw()'s combined `var` declaration, where it has always been —
 // anchored between its own name and the trailhead that follows it.
 const X0_SRC = expr(/\bx0=([^,;]+),\s*y0=/, 'x0');
+const BASE_U = Number(expr(/var BASE_U=([\d.]+)/, 'BASE_U'));
+const WIRE_CLEAR = Number(expr(/WIRE_CLEAR=(\d+)/, 'WIRE_CLEAR'));
+// The wire as the stylesheet sizes it on a desktop fold, read rather than retyped.
+const WIRE_H = Number(expr(/\.wire\{[^}]*?height:(\d+)px/, '.wire height'));
+// The route is stroked 7px wide: ~4px of it sits under its centre line.
+const HALO = 4;
 
-/* The camps as the stylesheet actually places them: absolute, bottom:78px, and
-   ~41px of label. Read from the CSS rather than retyped, so a restyle that moves
-   them fails here instead of silently moving the route back onto them. */
-const CAMPS_BOTTOM = Number(expr(/\.camps\{[^}]*?bottom:(\d+)px/, '.camps bottom'));
-const CAMP_H = 41;
+/** The shipped trailhead() for a canvas H tall. */
+const trailheadAt = (H) => Function('H', 'BASE_U', 'WIRE_CLEAR', `${grab('trailhead')}; return trailhead();`)(H, BASE_U, WIRE_CLEAR);
 
-/** Drive the shipped measureBase() against a stubbed canvas and camps box. */
-function baseFor({ W, H, campsTop, campsH = CAMP_H, hasCamps = true }) {
-  const rect = (top, height) => ({ top, height, bottom: top + height });
-  const cv = { getBoundingClientRect: () => rect(0, H) };
-  const el = { getBoundingClientRect: () => rect(campsTop, campsH) };
-  const doc = { querySelector: (s) => (hasCamps && s === '.camps' ? el : null) };
-  const fn = Function('document', 'cv', 'W', 'H', 'CAMP_CLEAR', `${grab('measureBase')}; return measureBase;`)(doc, cv, W, H, CAMP_CLEAR);
-  return fn();
-}
-
-test('the trailhead clears the camps at every fold shape — and the old constant did not', () => {
-  // ⚠ A FLOOR ON THE CLEARANCE ITSELF, because the sweep below reads CAMP_CLEAR
-  // out of the page: set it to 0 and every assertion about clearing the camps is
-  // satisfied by a trailhead drawn exactly on their top edge. Mutation-proven —
-  // `CAMP_CLEAR=0` was the one mutant that survived the first round. The route is
-  // stroked 7px wide, so ~4px of halo sits above its centre line; anything under
-  // that lays the glow across the labels' ascenders even with the line itself
-  // technically outside the box.
-  assert.ok(CAMP_CLEAR >= 12, `a clearance of ${CAMP_CLEAR}px puts the route's halo on the stats`);
-
-  let oldWouldCollide = 0;
-  for (let H = 520; H <= 1000; H += 1) {
-    const campsTop = H - CAMPS_BOTTOM - CAMP_H;           // where the stylesheet puts them
-    const base = baseFor({ W: 1440, H, campsTop });
-
-    // the route only ever rises, so clearing the camps at the trailhead clears
-    // them for the whole climb — the monotonicity is pinned separately below.
-    assert.ok(base <= campsTop - CAMP_CLEAR + 0.001,
-      `H=${H}: trailhead at ${base.toFixed(1)} is only ${(campsTop - base).toFixed(1)}px above the camps' top ${campsTop}`);
-
-    if (H * 0.86 >= campsTop && H * 0.86 <= campsTop + CAMP_H) oldWouldCollide++;
-  }
-  // POSITIVE CONTROL: without this the sweep above would pass just as happily on
-  // a fold whose camps the route never came near, proving nothing.
-  assert.ok(oldWouldCollide > 250,
-    `the fixture never reaches the hazard: the retired H*0.86 rule collided in only ${oldWouldCollide} of the swept heights`);
-});
-
-test('the camps constrain the route only where they actually overlap the terrain', () => {
-  const H = 300;   // below 760px the canvas is its own band and the camps sit under it
-  assert.equal(baseFor({ W: 390, H, campsTop: H + 40 }), H * 0.86);
-  assert.equal(baseFor({ W: 760, H, campsTop: H + 12 }), H * 0.86);
-  // no camps on the page at all, and a collapsed camps box, are the same case
-  assert.equal(baseFor({ W: 1440, H: 800, campsTop: 600, hasCamps: false }), 800 * 0.86);
-  assert.equal(baseFor({ W: 1440, H: 800, campsTop: 600, campsH: 0 }), 800 * 0.86);
-});
-
-test('no clamp may move the trailhead back toward the camps', () => {
-  // ⚠ THE INVARIANT, NOT THE BOUNDS. A first cut floored the trailhead at H*0.55
-  // with `Math.max`, which on a y axis picks the point LOWER on the screen — a
-  // floor that could push the route back down through its own clearance into the
-  // labels. Bounds are a means; this is the end, and it holds at every camps
-  // position rather than at the two the old test happened to name.
-  const H = 800;
-  for (let campsTop = -40; campsTop <= H + 40; campsTop += 7) {
-    const base = baseFor({ W: 1440, H, campsTop });
-    assert.ok(base <= Math.max(0, campsTop - CAMP_CLEAR) + 1e-9,
-      `camps at ${campsTop}: trailhead ${base.toFixed(1)} is nearer them than the clearance allows`);
-    assert.ok(base >= 0, `camps at ${campsTop}: trailhead ${base.toFixed(1)} is off the top of the canvas`);
-    assert.ok(base <= H * 0.92 + 1e-9, `camps at ${campsTop}: trailhead ${base.toFixed(1)} is down in the wire`);
-  }
-});
-
-test('the trailhead has ONE source, and it is the measurement', () => {
+test('the fold carries no stats, and nothing measures them', () => {
+  // Owner, 2026-11-09, on a screenshot of the three stats: "remove these from
+  // home page on website". Gone with them: the eyebrow over the headline, and the
+  // script that placed the trailhead against the stats' box.
   const code = stripComments(SRC);
-  assert.match(code, /\by0=baseY\b/, 'draw() must take the trailhead from the measured base');
-  // Nothing but the measurement may compute the trailhead. The declaration's own
-  // `= 0` is a placeholder, not a rule — it is the only other right-hand side
-  // allowed, and a third one is a second opinion about where the route starts.
-  const writes = [...code.matchAll(/baseY\s*=\s*([^,;]+)/g)].map((m) => m[1].trim());
-  assert.ok(writes.length >= 2, 'baseY is never written — the trailhead is not being measured at all');
-  for (const rhs of writes) {
-    assert.ok(rhs === '0' || rhs === 'measureBase()', `the trailhead is written as \`${rhs}\` — only measureBase() may decide it`);
+  assert.doesNotMatch(code, /class="camps?"|\.camps?\{|querySelector\('\.camps'\)/, 'the stats strip is back on the fold');
+  assert.doesNotMatch(code, /one platform fee<\/span>|Shape Radio, included/, 'a removed stat is back on the fold');
+  assert.doesNotMatch(code, /class="eyb"|Your climb · Shape Score/, 'the fold eyebrow is back');
+  assert.doesNotMatch(code, /measureBase|CAMP_CLEAR/, 'the trailhead is still being measured against stats that are gone');
+});
+
+test('the trailhead clears the wire, stroke included, on every fold', () => {
+  assert.ok(BASE_U > 0.5 && BASE_U < 1, `a trailhead at ${BASE_U}H is off the mountain`);
+  let fractionAloneFails = 0;
+  for (let H = 200; H <= 1400; H += 1) {
+    const base = trailheadAt(H);
+    assert.ok(H - base >= WIRE_H + HALO - 1e-9,
+      `H=${H}: the trailhead is ${(H - base).toFixed(1)}px above the floor, and the wire plus the stroke need ${WIRE_H + HALO}`);
+    assert.ok(base > 0, `H=${H}: the trailhead is off the top of the canvas`);
+    if (H - H * BASE_U < WIRE_H + HALO) fractionAloneFails++;
   }
-  assert.ok(writes.includes('measureBase()'), 'and the measurement must actually be the one that runs');
+  // POSITIVE CONTROL: the bare fraction did draw the stroke into the wire on
+  // short folds (Codex on #2659, 800x402), so the sweep reaches the hazard.
+  assert.ok(fractionAloneFails > 100, `the sweep never reaches a fold where 0.14H is too little (${fractionAloneFails})`);
+  // And on an ordinary window the fraction, not the floor, decides.
+  assert.equal(trailheadAt(828), 828 * BASE_U, 'the floor binds on a 1440x900 fold, moving the route for no reason');
+});
+
+test('the trailhead has ONE source', () => {
+  const code = stripComments(SRC);
+  assert.match(code, /\by0=baseY\b/, 'draw() must take the trailhead from baseY');
+  // The declaration's own `= 0` is a placeholder, not a rule — it is the only
+  // other right-hand side allowed, and a third one is a second opinion about
+  // where the route starts.
+  const writes = [...code.matchAll(/baseY\s*=\s*([^,;]+)/g)].map((m) => m[1].trim());
+  assert.ok(writes.includes('trailhead()'), 'baseY is never set from trailhead() — the route is stuck at the canvas top');
+  for (const rhs of writes) {
+    assert.ok(rhs === '0' || rhs === 'trailhead()', `the trailhead is written as \`${rhs}\` — only trailhead() may decide it`);
+  }
 });
 
 test("the route's span is independent of its rise — the owner's ruling, pinned", () => {

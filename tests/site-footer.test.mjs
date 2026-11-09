@@ -154,12 +154,14 @@ test('every footer target exists, and every anchor it names is real', () => {
   }
 });
 
-// ⚠ THESE FOUR HAVE NO OTHER LINK. Measured when the nav's dropdowns were
-// retired: nothing else in public/newdesign points at them, so the footer is the
-// only thing standing between them and being reachable by typed URL alone.
+// ⚠ THESE HAD NO OTHER LINK. Measured when the nav's dropdowns were retired:
+// nothing else in public/newdesign pointed at them, so the footer was the only
+// thing standing between them and being reachable by typed URL alone. (A fourth,
+// Client.html, is retired: owner, 2026-11-09, "remove the members page from
+// website".)
 test('the footer still carries the pages nothing else links', () => {
   const linked = new Set(SHARED.flatMap(([, items]) => items.map(([, h]) => target(h))));
-  for (const orphan of ['Coach.html', 'Nutritionist.html', 'Client.html', 'Recipes.html']) {
+  for (const orphan of ['Coach.html', 'Nutritionist.html', 'Recipes.html']) {
     assert.ok(linked.has(orphan), orphan + ' left the footer, and nothing else on the site links it');
   }
 });
@@ -177,27 +179,22 @@ test('the footer still carries the pages nothing else links', () => {
 // ⚠ AND THE TWO CHECKS ABOVE THE ASSERTIONS CATCH DIFFERENT FAILURES — neither
 // is belt-and-braces, which was measured rather than assumed. A nav parser that
 // stops matching ENTIRELY reports every page as absent and passes both
-// assertions vacuously; the pages that ARE in the nav are the controls that
-// catch it. A parser that still works but sees only PART of the table passes
-// those controls — Client.html is the second entry — while the pages it never
+// assertions vacuously; the page that IS in the nav is the control that catches
+// it. A parser that still works but sees only PART of the table passes that
+// control — Recipes.html is the second quoted target — while the pages it never
 // reaches read as absent for the wrong reason; only the size floor catches that.
-// Proven by mutation both ways: truncate the match list to three and the floor
-// alone fails; remove the floor as well and it goes green on a parse reading a
-// fifth of the nav.
-//
-// ⚠ AND THE SECOND CONTROL STRICTLY STRENGTHENS IT RATHER THAN DUPLICATING THE
-// FIRST. Recipes.html is the FOURTH quoted target, so a parse that reaches it has
-// read twice as much of the table as one that only reaches Client.html — the two
-// controls bracket the truncation the floor is aimed at instead of sitting on top
-// of each other.
+// The floor is every quoted target the table holds (GetApp, Recipes, Community,
+// Pricing; Coaches and Rewards are named constants), so a parse that stops one
+// short fails it. It was five, and the first control Client.html, until the
+// members page was retired (owner, 2026-11-09).
 test('the pages the footer comment calls footer-only are really not in the nav', () => {
   const i = SHELL.indexOf('const SHAPE_NAV_GROUPS');
   assert.ok(i > 0, 'SHAPE_NAV_GROUPS not found — this guard is reading nothing');
   const table = SHELL.slice(i, SHELL.indexOf('\n];', i));
   const navTargets = new Set([...table.matchAll(/href:\s*"([^"]+)"/g)].map((m) => target(m[1])));
-  assert.ok(navTargets.size >= 5, 'parsed only ' + navTargets.size + ' nav targets — the parser stopped matching');
+  assert.ok(navTargets.size >= 4, 'parsed only ' + navTargets.size + ' nav targets — the parser stopped matching');
 
-  for (const [page, tab] of [['Client.html', 'Members'], ['Recipes.html', 'Kitchen']]) {
+  for (const [page, tab] of [['Recipes.html', 'Kitchen']]) {
     assert.ok(navTargets.has(page),
       page + ' is the ' + tab + ' tab and must parse as present — if it does not, this guard cannot see a nav link at all');
   }

@@ -232,19 +232,17 @@
   .ndrawer{display:none}
 
   /* ── the fold ────────────────────────────────────────────── */
-  /* ⚠ THE BOTTOM PADDING IS WHAT KEEPS THE CTAs OFF THE CAMPS, and without it they
-     collide. .camps is position:absolute (bottom:78px) so it takes part in no
-     layout at all, while .hcopy is vertically CENTRED in the fold — so on a short
-     laptop window the copy grows down into a strip nothing told it was occupied
-     and "Get started" is drawn straight over "$5/mo one platform fee". Nothing
-     reports it: both boxes are exactly where their own rules put them.
-     `align-items:center` centres inside the CONTENT box, so reserving the strip as
-     padding moves the copy up by the whole strip rather than by half of it, and
-     min-height still grows the fold if the copy will not fit. 78px to the camps,
-     ~44px of camp, ~26px of air. Below 760px .hero becomes a grid with its own
-     `padding:44px 0 0` and the camps are a real row, so this does not apply. */
+  /* ⚠ THE BOTTOM PADDING IS WHAT KEEPS THE CTAs OFF THE WIRE. .wire is
+     position:absolute (bottom:0, 46px) so it takes part in no layout, while .hcopy
+     is vertically CENTRED in the fold — so on a short laptop window the copy would
+     grow down into a strip nothing told it was occupied. `align-items:center`
+     centres inside the CONTENT box, so the strip is reserved as padding, and
+     min-height still grows the fold if the copy will not fit: 46px of wire, ~26px
+     of air. (It was 148px while the three stats sat above the wire; the owner took
+     them out on 2026-11-09.) Below 760px .hero becomes a grid with its own
+     `padding:44px 0 0` and the wire is a real row, so this does not apply. */
   .hero{position:relative;min-height:calc(100vh - 72px);display:flex;align-items:center;overflow:hidden;
-        isolation:isolate;padding-bottom:148px}
+        isolation:isolate;padding-bottom:72px}
   #terrain{position:absolute;inset:0;width:100%;height:100%;z-index:0;display:block}
   /* The painted fallback: reduced-motion and no-JS both land here, so the fold is
      never an empty black box. Four bands echo the canvas's four ridges. */
@@ -259,7 +257,6 @@
   .hero h1 .w{display:inline-block;font-variation-settings:'wdth' var(--hw,var(--w));will-change:font-variation-settings}
   .hero .sub{margin-top:22px;max-width:52ch;font-size:17px;color:var(--fg-2)}
   .hero .ctas{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
-  .hero .eyb{margin-bottom:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 
   /* the summit: the flag is the mark, the score is labelled an example */
   /* ⚠ Starts INVISIBLE. Measured with JavaScript off: the block rendered the
@@ -278,18 +275,6 @@
               box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.4),0 12px 28px -8px rgba(0,0,0,.75),0 0 34px -6px rgba(var(--teal-rgb),.4)}
   .summit .lb{font-family:var(--num);font-weight:700;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
               color:var(--teal);margin-top:5px;font-variation-settings:'ROND' 30}
-
-  /* camps along the bottom of the fold */
-  .camps{position:absolute;z-index:3;left:0;right:0;bottom:78px;display:flex;gap:36px;flex-wrap:wrap;
-         max-width:var(--maxw);margin:0 auto;padding:0 32px}
-  /* --fg-2, not --fg-3: these labels sit ON the terrain, and at .55 alpha over
-     the front ridge's lightest band they compute to 3.92:1 — under AA for 12px.
-     At .72 it is 5.53:1. Everything on the flat page background stays --fg-3,
-     which is 5.71:1 there. */
-  .camp{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--fg-2);letter-spacing:.02em}
-  .camp b{font-family:var(--num);font-weight:900;font-size:24px;color:var(--fg);line-height:1;
-          font-variation-settings:'ROND' 100}
-  .camp b i{font-style:normal;font-size:12px;color:var(--fg-2);font-weight:700;font-variation-settings:'ROND' 60}
 
   /* the wire: real endpoints only */
   .wire{position:absolute;z-index:3;left:0;right:0;bottom:0;display:flex;align-items:center;gap:16px;
@@ -687,31 +672,30 @@
                font-size:22px;padding:14px 0;border-bottom:1px solid var(--line-2)}
   }
   @media (max-width:760px){
-    .wrap,.hero .hcopy,.camps,.jpin{padding:0 20px}
+    .wrap,.hero .hcopy,.jpin{padding:0 20px}
     .s{padding:60px 0}
     .rd{padding:28px 20px}
     /* ⚠ On a phone the terrain is its own BAND under the copy, not a backdrop
        behind it: at this width a ridge behind 100px type is noise, and the
        summit score lands on the word it is meant to sit above.
-       ⚠ AND THE HERO MUST STOP BEING A FLEX ROW FIRST. Setting the camps and
-       the wire to `position:static` inside a flex row turns them into COLUMNS
-       beside the headline — measured at 390px, the three camps stacked in a
-       ~60px gutter on the right and the wire went with them. Explicit grid rows
-       are what actually stacks them. The canvas and its painted fallback share
-       one cell so they still overlay. */
-    .hero{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 300px auto auto;
+       ⚠ AND THE HERO MUST STOP BEING A FLEX ROW FIRST. Setting the wire to
+       `position:static` inside a flex row turns it into a COLUMN beside the
+       headline — measured at 390px, when the fold still had its three stats, they
+       stacked in a ~60px gutter on the right and the wire went with them.
+       Explicit grid rows are what actually stacks them. The canvas and its
+       painted fallback share one cell so they still overlay. */
+    .hero{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 300px auto;
           align-items:start;min-height:auto;padding:44px 0 0}
     .hero .hcopy{grid-row:1;grid-column:1;padding-bottom:8px}
     .hero h1{max-width:none}
     #terrain,.hero .paint{grid-row:2;grid-column:1;position:relative;inset:auto;width:100%;height:300px}
     .summit{transform:translate(-50%,-100%) scale(.8)}
-    .camps{grid-row:3;grid-column:1;position:static;margin-top:26px;gap:22px;max-width:none}
-    .wire{grid-row:4;grid-column:1;position:static;margin-top:22px;height:42px}
+    .wire{grid-row:3;grid-column:1;position:static;margin-top:22px;height:42px}
     .mo-grid,.co-grid{grid-template-columns:1fr}
     .ftg{grid-template-columns:1fr 1fr}
     .jtrack{height:280vh}
   }
-  @media (max-width:420px){ .wrap,.hero .hcopy,.camps,.jpin{padding:0 16px} .ftg{grid-template-columns:1fr} }
+  @media (max-width:420px){ .wrap,.hero .hcopy,.jpin{padding:0 16px} .ftg{grid-template-columns:1fr} }
 
   /* No script: nothing advances the rail, so four of the five stages would sit
      as permanently collapsed headings. Open them all instead. */
@@ -989,7 +973,6 @@
     </script>
     <div class="nlinks">
       <a href="/newdesign/Coaches.html">Coaches</a>
-      <a href="/newdesign/Client.html" data-signed-out-only>Members</a>
       <a href="/newdesign/GetApp.html">App</a>
       <a href="/newdesign/Recipes.html">Kitchen</a>
       <a href="/newdesign/Community.html">Community</a>
@@ -1008,7 +991,6 @@
 </nav>
 <div class="ndrawer" id="ndrawer">
   <a href="/newdesign/Coaches.html">Coaches</a>
-  <a href="/newdesign/Client.html" data-signed-out-only>Members</a>
   <a href="/newdesign/GetApp.html">App</a>
   <a href="/newdesign/Recipes.html">Kitchen</a>
   <a href="/newdesign/Community.html">Community</a>
@@ -1043,9 +1025,6 @@
   <canvas id="terrain" aria-hidden="true"></canvas>
 
   <div class="hcopy">
-    <div class="eyb">
-      <span class="eb">Your climb · Shape Score</span>
-    </div>
     <h1><span class="w">Different</span> <span class="w">goals.</span><br><span class="w">One</span> <span class="w"><em>community.</em></span></h1>
     <p class="sub">Vetted trainers and nutritionists, one app for the whole loop, and a score that climbs as you do.</p>
     <div class="ctas">
@@ -1063,14 +1042,6 @@
     <svg class="flag" viewBox="8 8 79 98"><polygon points="14,47 14,100 51,73" fill="#34d6c5"/><polygon points="81,14 81,65 44,39" fill="#eef3f0"/></svg>
     <div class="sc" id="summit-score">0</div>
     <div class="lb">Shape Score · example</div>
-  </div>
-
-  <!-- camps: published facts, no invented counts. The marketplace number lives
-       once, in the section it describes (H7: say each thing once). -->
-  <div class="camps">
-    <span class="camp"><b>$5<i>/mo</i></b>one platform fee</span>
-    <span class="camp"><b>0<i> ads</i></b>Shape Radio, included</span>
-    <span class="camp"><b>1<i> app</i></b>training, food, habits, community</span>
   </div>
 
   <!-- ⚠ THE WIRE CARRIES REAL STATEMENTS ONLY. No now-playing (the station is
@@ -1357,7 +1328,6 @@
 <a href="/newdesign/Store.html">Shape Store</a>
 <a href="/newdesign/Radio.html">Radio</a>
 <a href="/newdesign/Recipes.html">Shape Kitchen</a>
-<a href="/newdesign/Client.html">For members</a>
 </div>
 <div><h5>For coaches</h5>
 <a href="/newdesign/ForCoaches.html">For coaches</a>
@@ -1409,52 +1379,19 @@
 
   function size(){ W=cv.clientWidth; H=cv.clientHeight;
     cv.width=Math.max(1,Math.round(W*DPR)); cv.height=Math.max(1,Math.round(H*DPR));
-    ctx.setTransform(DPR,0,0,DPR,0,0); baseY=measureBase(); }
+    ctx.setTransform(DPR,0,0,DPR,0,0); baseY=trailhead(); }
 
-  /* ⚠ THE TRAILHEAD IS PLACED AGAINST THE CAMPS' OWN BOX, NOT A FRACTION OF THE
-     FOLD — and the difference is a collision, not a nicety. It was H*0.86, i.e.
-     0.14H above the canvas floor, while .camps sits at bottom:78px with ~41px of
-     label, so the camps own 78..119px of that same floor. 0.14H lands INSIDE that
-     band for every canvas height from 558 to 850px — which is every ordinary
-     desktop window — so the route was drawn starting on top of the stats and
-     climbed out through "0 ads · Shape Radio, included". Measured before the fix
-     at 1657/1440/1280/1024/860: 83/12/52/83/6 sampled columns of the route inside
-     that camp's box, clearances of -12/-1/-15/-20/-1px, and 1..15px left over the
-     camp beside it. Because it is structural, a nudge fixes one window and breaks
-     the next: reading the camps' own top edge is what makes the clearance true at
-     every window, and it survives a reworded stat, a fourth camp or a font swap.
-     ⚠ THE CONSTRAINT IS "DO THE CAMPS OVERLAP THE CANVAS", NOT A WIDTH. Below
-     760px the terrain is its own band and the camps are a real grid row UNDER it,
-     so there is nothing over the canvas to clear — and the first cut asked `W<560`
-     instead, which is the script's summit-band threshold, not the CSS's. Measured
-     in the 560..760 gap between them (600x700, 760x900) that read as a desktop
-     fold, took the DOM path, computed a base past the canvas floor and was saved
-     only by the 0.92H clamp — the right answer for the wrong reason, which stops
-     being the right answer the day either number moves. Asking the two boxes
-     whether they actually overlap needs no threshold at all and cannot drift from
-     the stylesheet. No camps on the page is the same case — no camps, no
-     constraint — so the fallback is the fraction that shipped rather than a second
-     copy of the CSS's 78 and 148. */
-  /* ⚠ THE TWO BOUNDS ARE NOT SYMMETRIC, AND THE FIRST CUT'S LOWER ONE WAS A
-     GUARD THAT COULD CAUSE THE THING IT GUARDED. It read `Math.max(H*0.55, …)`,
-     and on a y axis `max` picks the point LOWER on the screen — so a camps box
-     tall enough to push the cleared trailhead above 0.55H would have been dragged
-     back DOWN, through the clearance, into the labels. Unreachable today (the
-     three stats measure ~523px against a ≥696px content box at every width where
-     they sit over the canvas at all, so they never wrap) — but it reads as the
-     floor that keeps the route on the mountain while being the one thing that can
-     undo the clearance, and this file has paid for guards that could not fire
-     before. The floor is the canvas top now: it can only ever move the trailhead
-     AWAY from the camps. The ceiling needs no such care — a camps box low enough
-     for 0.92H to bind is one the trailhead was already clearing by more than it
-     needed, so capping it moves the route up, not down. */
-  var CAMP_CLEAR=22, baseY=0;
-  function measureBase(){
-    var el=document.querySelector('.camps');
-    var cr=el?cv.getBoundingClientRect():null, er=el?el.getBoundingClientRect():null;
-    /* the camps constrain the route only where they are actually over the terrain */
-    var over=!!(er&&cr.height&&er.height&&er.top<cr.bottom&&er.bottom>cr.top);
-    return over?Math.min(H*0.92,Math.max(0,er.top-cr.top-CAMP_CLEAR)):H*0.86; }
+  /* THE TRAILHEAD: 0.14H above the canvas floor, and never nearer the floor than
+     WIRE_CLEAR — the wire's 46px plus ~4px of the route's 7px stroke. Until
+     2026-11-09 it was measured against the three stats along the bottom of the
+     fold, which the route had been drawn across ("0 ads · Shape Radio,
+     included"); the owner took the stats out, and the wire is all that is left
+     to clear. ⚠ THE FRACTION ALONE IS NOT ENOUGH ON A SHORT WINDOW: at 800x402
+     the canvas is 340px, 0.14H is 47.6px, and half the stroke was drawn inside
+     the wire (Codex on #2659). The floor binds only under ~357px of canvas.
+     Below 760px the terrain is its own band and nothing sits over it at all. */
+  var BASE_U=0.86, WIRE_CLEAR=50, baseY=0;
+  function trailhead(){ return Math.min(H*BASE_U,H-WIRE_CLEAR); }
 
   /* deterministic: no Math.random anywhere, so the ridge is the same mountain on
      every load and between two visitors looking at the same page */
@@ -1542,7 +1479,7 @@
        an oversight. A first cut also set the start back from the summit by the run a
        declared pitch needed, which cleared the stats a second way and roughly doubled
        the angle — and cost the route half its width, because the only rise available
-       is whatever the mountain leaves between the camps and the summit. Owner, on
+       is whatever the mountain leaves between the stats (since removed) and the summit. Owner, on
        that: "It just needs to be moved up a little so it's not overlapping the stats
        at bottom." So the route is the length and the shape it always was; the ONE
        thing that changed is where it starts vertically. */
@@ -2080,7 +2017,7 @@
       if(login)login.remove();
       if(cta)cta.remove();
       /* The LINKS row swaps too, not just the auth cluster. Signed in, the row is
-         the site's tabs minus the two sign-up pages, Members and Pricing (owner,
+         the site's tabs minus the sign-up page, Pricing (owner,
          2026-09-23: "need to add more nav tabs on main nav bar when signed into
          account" → "Site tabs minus sign-up pages"). This mirrors PORTAL_NAV in
          pageShell.jsx, which derives the same row as SHAPE_NAV_GROUPS minus

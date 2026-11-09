@@ -310,11 +310,13 @@ const DASHBOARD_TABS = ['Workouts', 'Nutrition', 'Progress', 'Schedule', 'Client
 // on nav bar when logged into an account", so it sits right after Rewards here.
 // Owner, 2026-10-12: "remove the about page from app and website" — About left the
 // row, so Store ends it.
-test('the signed-in row is the site\'s tabs minus the two sign-up pages, and none of the dashboard\'s', () => {
+test('the signed-in row is the site\'s tabs minus the sign-up page, and none of the dashboard\'s', () => {
   const labels = NAV_TABLES.PORTAL_NAV.map((g) => g.label);
   assert.deepEqual(labels, ['Coaches', 'App', 'Kitchen', 'Community', 'Rewards', 'Store'],
     'the signed-in row is not the owner\'s pick: ' + labels.join(' · '));
-  assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Members', 'Pricing'],
+  // Owner, 2026-11-09: "remove the members page from website" — Members, the
+  // other sign-up page, left both rows with it.
+  assert.deepEqual(NAV_TABLES.SIGNED_OUT_ONLY, ['Pricing'],
     'the sign-up pages kept off the signed-in row changed: ' + NAV_TABLES.SIGNED_OUT_ONLY.join(' · '));
   for (const tab of DASHBOARD_TABS) {
     assert.ok(!labels.includes(tab), tab + ' is on the nav AND is a tab of the dashboard — the duplication the owner asked to remove');
@@ -1272,7 +1274,8 @@ test('removing the nav dropdowns did not orphan the pages they pointed at', () =
   // ⚠ Measured when the three dropdowns were retired: nothing else on the site
   // linked Coach.html, Nutritionist.html, Client.html or Recipes.html, so the
   // nav change alone would have left four real pages reachable only by typing a
-  // URL. They moved to the footers; this keeps them there.
+  // URL. They moved to the footers; this keeps them there. (Client.html is
+  // retired since: tests/members-page-retired.test.mjs.)
   //
   // ⚠ EACH FOOTER IS CHECKED SEPARATELY, and the mutation round is why. The first
   // cut asked whether EITHER footer linked the page — so deleting it from the
@@ -1280,7 +1283,7 @@ test('removing the nav dropdowns did not orphan the pages they pointed at', () =
   // the homepage's own footer happened to keep it. "Reachable from somewhere" is
   // not the invariant; "reachable from the page you are on" is.
   for (const [where, src] of [['the shared footer', SHELL], ['the homepage footer', INDEX]]) {
-    for (const page of ['Coach.html', 'Nutritionist.html', 'Client.html', 'Recipes.html']) {
+    for (const page of ['Coach.html', 'Nutritionist.html', 'Recipes.html']) {
       const linked = new RegExp('["\'/]' + page.replace('.', '\\.')).test(src);
       assert.ok(linked, page + ' is not linked from ' + where + ' — the nav dropped it and nothing picked it up');
     }
