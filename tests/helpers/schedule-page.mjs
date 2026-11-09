@@ -88,7 +88,7 @@ export async function mountSchedule({
       return [v, (x) => { remembered.push([key, x, allowed]); set(x); }];
     },
     (k) => (k in params ? params[k] : null),
-    () => null, Plain, () => '#', () => [], () => [], null, null, 'serif', drawer || undefined,
+    () => React.createElement('div', { 'data-demo-band': '' }), Plain, () => '#', () => [], () => [], null, null, 'serif', drawer || undefined,
     (fn, enabled) => { focus.fn = fn; focus.enabled = !!enabled; },
   );
   const root = createRoot(dom.window.document.getElementById('root'));

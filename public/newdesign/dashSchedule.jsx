@@ -1854,7 +1854,8 @@ function DscMore({ label, items, disabled }) {
   return (
     <span ref={boxRef} style={{ position: "relative", display: "inline-flex" }}>
       <button ref={btnRef} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={label} title={label} disabled={disabled} data-request-more=""
-        onClick={() => setOpen((v) => !v)} style={{ ...dscBtn(), padding: "6px 10px", minWidth: 34, letterSpacing: 0 }}>⋯</button>
+        // The body face, not the mono: JetBrains Mono draws ⋯ as a short rule.
+        onClick={() => setOpen((v) => !v)} style={{ ...dscBtn(), fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 16, lineHeight: 1, padding: "5px 10px 7px", minWidth: 36, letterSpacing: 0 }}>⋯</button>
       {open && (
         <span role="menu" aria-label={label} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 30, display: "grid", minWidth: 190, padding: 4, background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, boxShadow: "var(--lift-3, 0 12px 32px rgba(0,0,0,0.18))" }}>
           {items.map(([text, fn]) => (
