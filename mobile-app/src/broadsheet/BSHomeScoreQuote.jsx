@@ -30,19 +30,33 @@ function useShapeTr() {
 
 const mono = (size, extra) => ({ fontFamily: BS_DECK_MONO, fontSize: size, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, ...extra });
 const tierColor = (name) => (typeof window !== 'undefined' && typeof window.bsTierColor === 'function' ? window.bsTierColor(name) : '#d8a23a');
-// A tier's colour as it reads on the paper: on a light paper a pale one (Peak's and Master's ice) is
-// mixed toward the ink until it holds up as text and as the ring.
-export function bsQuoteInk(hex, isLight) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
-  if (!m || !isLight) return hex;
+// A tier's colour as it reads on the paper: mixed toward the ink (toward the cream on a dark paper) only as
+// far as it takes to hold 4.5:1 against the paper, the contrast small text needs (Codex P2 on #2649: Raw's
+// green and Tempo's gold were about 2.8:1 and 2.3:1 on the light paper). A colour that already holds is
+// left as it is.
+const rgbOfHex = (hex) => {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
   const n = parseInt(m[1], 16);
-  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+const lumOf = (c) => {
   const lin = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; };
-  const L = 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
-  if (L <= 0.45) return hex;
-  const ink = [26, 24, 20];
-  const mix = c.map((v, i) => Math.round(v * 0.45 + ink[i] * 0.55));
-  return `#${mix.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  return 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+};
+export const bsQuoteContrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+export const BS_QUOTE_MIN_CONTRAST = 4.5;
+export function bsQuoteInk(hex, isLight, paper) {
+  const c = rgbOfHex(hex);
+  if (!c) return hex;
+  const bg = rgbOfHex(paper) || (isLight ? [245, 240, 230] : [15, 14, 12]);
+  const toward = isLight ? [26, 24, 20] : [244, 237, 224];
+  for (let k = 0; k <= 20; k++) {
+    const w = k / 20;
+    const mix = c.map((v, i) => Math.round(v * (1 - w) + toward[i] * w));
+    if (bsQuoteContrast(mix, bg) >= BS_QUOTE_MIN_CONTRAST) return k ? `#${mix.map((v) => v.toString(16).padStart(2, '0')).join('')}` : hex;
+  }
+  return `#${toward.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 }
 const fmt = (n, locale) => { try { return Number(n).toLocaleString(locale || undefined); } catch (e) { return String(n); } };
 
@@ -98,10 +112,12 @@ export function BSHomeScoreQuote({ score, tiers, signedIn, onOpen, locale }) {
   useCountUp(numRef, q ? q.total : 0, locale);
   if (!q) return null;
   const rgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
-  const ink50 = `rgba(${rgb},0.56)`;
-  const green = t.isLight ? '#2f8a3a' : '#a3e09a';
-  const rust = t.isLight ? '#b4452f' : '#e98a73';
-  const color = bsQuoteInk(tierColor(q.tier), t.isLight);
+  // The quiet words at 0.62 of the ink, and the week's green and rust held to 4.5:1 as the tier is: all of
+  // this line is small text.
+  const ink50 = `rgba(${rgb},0.62)`;
+  const green = bsQuoteInk(t.isLight ? '#2f8a3a' : '#a3e09a', t.isLight, t.PAPER);
+  const rust = bsQuoteInk(t.isLight ? '#b4452f' : '#e98a73', t.isLight, t.PAPER);
+  const color = bsQuoteInk(tierColor(q.tier), t.isLight, t.PAPER);
   const { st } = q;
   // The ring: three quarters of a circle, open at the bottom, filled to the score's place in its tier.
   const R = 8.7;

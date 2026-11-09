@@ -12,7 +12,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { drive, SHIM, ROOT } from './helpers/broadsheet-mount.mjs';
+import { drive, SHIM, ROOT, THEME } from './helpers/broadsheet-mount.mjs';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { IntlMessageFormat } from 'intl-messageformat';
 import { bsScoreQuote, bsScoreQuoteShown } from '../mobile-app/src/services/scoreStanding.mjs';
@@ -76,7 +76,7 @@ test('the line: ring, score, the week, the tier and the next rung, and one tap t
   const [lit] = arc.props.strokeDasharray.split(' ').map(Number);
   const full = 2 * Math.PI * 8.7 * 0.75;
   assert.ok(Math.abs(lit / full - 0.4272) < 0.001, `the arc is ${lit / full} of the ring`);
-  assert.equal(arc.props.stroke, '#d8a23a', 'the ring is not in the tier\'s colour');
+  assert.equal(arc.props.stroke, Q.bsQuoteInk('#d8a23a', THEME.isLight, THEME.PAPER), 'the ring is not in the tier\'s colour');
   // NO BOX (owner: "i dont love the box", "B1"): a transparent line on the page's paper, a 20px ring and a
   // 16px figure, in the page's gutter; still a 44px tap.
   const btn = d.nodes().filter((n) => n.type === 'button');
@@ -106,14 +106,32 @@ test('a loss, no gain, the top tier and the coach ladder', () => {
   assert.match(coach, /^Score2,340Elite · 2,660 to Master →$/);
 });
 
-test('a pale tier colour holds up on a light paper; dark paper keeps it as it is', () => {
-  // Peak's and Master's ice and the top rung's teal mix toward the ink on light paper; the rest stay.
-  for (const pale of ['#8fe3e6', '#34d6c5']) {
-    const ink = Q.bsQuoteInk(pale, true);
-    assert.notEqual(ink, pale);
-    assert.equal(Q.bsQuoteInk(pale, false), pale, 'dark paper changed the tier colour');
+// Codex P2 on #2649: the tier's colour is 8.5px text, so it holds 4.5:1 against the paper, on either paper.
+test('every tier colour holds 4.5:1 against the paper, mixed only as far as it takes', () => {
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const TIER_COLOURS = ['#5fa96e', '#d8a23a', '#e0463c', '#8fe3e6', '#34d6c5'];
+  for (const [isLight, paper] of [[true, '#f5f0e6'], [false, '#0f0e0c']]) {
+    for (const c of TIER_COLOURS) {
+      const out = Q.bsQuoteInk(c, isLight, paper);
+      assert.ok(Q.bsQuoteContrast(hex(out), hex(paper)) >= 4.5, `${c} on ${paper} reads at ${Q.bsQuoteContrast(hex(out), hex(paper)).toFixed(2)}:1`);
+      // A colour that already holds is left as it is.
+      if (Q.bsQuoteContrast(hex(c), hex(paper)) >= 4.5) assert.equal(out, c);
+    }
   }
-  for (const deep of ['#5fa96e', '#d8a23a', '#e0463c']) assert.equal(Q.bsQuoteInk(deep, true), deep);
+  // The early tiers the light paper used to print faint: Raw's green and Tempo's gold now change.
+  assert.notEqual(Q.bsQuoteInk('#5fa96e', true, '#f5f0e6'), '#5fa96e');
+  assert.notEqual(Q.bsQuoteInk('#d8a23a', true, '#f5f0e6'), '#d8a23a');
+  // The dark paper keeps every tier's own colour.
+  for (const c of TIER_COLOURS) assert.equal(Q.bsQuoteInk(c, false, '#0f0e0c'), c);
+  // The rest of the line is small text too: the week's green and rust go through the same mix, and the quiet
+  // words sit at 0.62 of the ink, which holds 4.5:1 on the light paper (0.56 read 4.4:1).
+  const SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSHomeScoreQuote.jsx'), 'utf8');
+  assert.match(SRC, /const green = bsQuoteInk\(t\.isLight \? '#2f8a3a' : '#a3e09a', t\.isLight, t\.PAPER\);/);
+  assert.match(SRC, /const rust = bsQuoteInk\(t\.isLight \? '#b4452f' : '#e98a73', t\.isLight, t\.PAPER\);/);
+  assert.match(SRC, /const ink50 = `rgba\(\$\{rgb\},0\.62\)`;/);
+  const quiet = hex('#f5f0e6').map((p, i) => Math.round(p * 0.38 + hex('#0f0e0c')[i] * 0.62));
+  assert.ok(Q.bsQuoteContrast(quiet, hex('#f5f0e6')) >= 4.5, 'the quiet words are faint on the light paper');
+  for (const c of ['#2f8a3a', '#b4452f']) assert.ok(Q.bsQuoteContrast(hex(Q.bsQuoteInk(c, true, '#f5f0e6')), hex('#f5f0e6')) >= 4.5, `${c} is faint`);
 });
 
 test('member Home and coach Today draw it under the masthead, where the ticker was', () => {
