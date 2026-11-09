@@ -3997,8 +3997,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           (its dateline prop, above). */}
 
       {/* PROTOTYPE: ideas for this band (BSHomeTopIdeas.jsx); the ticker unless one is switched on. */}
-      {bsHomeTopIdea() ? (bsHomeTopIdea() === 'none' ? null : <BSHomeTopIdea idea={bsHomeTopIdea()} score={homeScore} tk={ticker || {}} name={bsMyName()}
-        hab={(() => { if (!_homeHabitsDec.length) return null; const d = new Date(); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; return { done: _homeHabitsDec.filter(h => (h.history || []).includes(k)).length, total: _homeHabitsDec.length }; })()} />) :
+      {bsHomeTopIdea() ? (bsHomeTopIdea() === 'none' ? null : <BSHomeTopIdea idea={bsHomeTopIdea()} score={homeScore} tiers={SHAPE_SCORE_TIERS} />) :
       <BSTicker items={(() => {
         const tk = ticker || {};
         const fmtSleep = (h) => {
