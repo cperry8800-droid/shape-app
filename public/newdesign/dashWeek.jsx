@@ -874,7 +874,13 @@ function CoachWeekPage({ role }) {
   selRef.current = selId;
   const alive = React.useRef(true);
   React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  React.useEffect(() => { setNotice(null); }, [weekOf]);
+  // ⚠ A REPLY'S SAVE ANSWERS INTO THE PAGE IT STARTED ON, OR NOT AT ALL (Codex on #2640). Every
+  // reply, every pick of a client and every change of week starts a new turn; a save that lands
+  // after its turn ended (the coach moved on to another week or client) publishes no notice and
+  // steps nowhere. The review itself is still written for its own week and client, and a failed one
+  // still shows in the store line and the row.
+  const turnRef = React.useRef(0);
+  React.useEffect(() => { turnRef.current += 1; setNotice(null); }, [weekOf]);
   const tableRef = React.useRef(null);
   const panelRef = React.useRef(null);
   const sel = selId != null ? entries.find((e) => String(e.id) === String(selId)) || null : null;
@@ -889,7 +895,7 @@ function CoachWeekPage({ role }) {
   // the row's focus and the panel's own re-render (measured at 900px: it stopped a screen short).
   const revealNext = React.useRef(false);
   React.useEffect(() => { if (revealNext.current) { revealNext.current = false; reveal(); } });
-  const select = (id, how) => { setSelId(id); setNotice(null); revealNext.current = how !== "key"; };
+  const select = (id, how) => { turnRef.current += 1; setSelId(id); setNotice(null); revealNext.current = how !== "key"; };
   const focusRow = (id) => {
     try {
       const el = tableRef.current ? Array.from(tableRef.current.querySelectorAll("[data-dwk-row]")).find((x) => x.getAttribute("data-dwk-row") === String(id)) : null;
@@ -919,13 +925,15 @@ function CoachWeekPage({ role }) {
     if (!dwkOpenReply(e.row.client, role, draft)) { setNotice({ id: e.id, name, kind: "noopen" }); return; }
     const next = dwkNextWaiting(shown, e.id);
     const wasPersisting = persisting;
+    const turn = ++turnRef.current;
     setNotice({ id: e.id, name, kind: "saving" });
     let ok = false;
     try { ok = await markReviewed(e, true); } catch (err) { ok = false; }
-    if (!alive.current) return;
+    // Unmounted, or the coach went on to another week or client while the save ran: they stay
+    // where they went, and this save's word is not put on a page it wasn't made on.
+    if (!alive.current || turn !== turnRef.current) return;
     if (wasPersisting && !ok) { setNotice({ id: e.id, name, kind: "failed" }); return; }
     setNotice({ id: e.id, name, kind: ok ? "saved" : "local", last: !next });
-    // A coach who opened another client while the save ran stays where they went.
     if (next && String(selRef.current) === String(e.id)) { setSelId(next.id); focusRow(next.id); }
   };
 

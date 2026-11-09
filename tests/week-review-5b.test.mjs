@@ -515,3 +515,29 @@ test('with the reviews unread, a question is not "to answer" and the panel calls
   assert.equal(/Waiting/.test(p.panelText()), false, 'the row\'s rule: nothing is waiting while the reviews are unread');
   await p.close();
 });
+
+// Codex on #2640: a reply's save that lands after the coach changed week (or client) answers nowhere.
+test('a reply\'s save that lands after the week changed publishes no notice and steps nowhere', async () => {
+  window.open = () => ({ focus() {} });
+  const ED_CK = ck(MON, { sleep: 7 }, { question: 'Can we swap Friday?' });
+  const rows = [...cast(), row(rec(5, 'Ed R.', { checkins: [ED_CK] }))];
+  const db = makeDb({ doc: reviewedDoc() });
+  let release;
+  const held = new Promise((r) => { release = r; });
+  const save = db.saveUserGoals;
+  db.saveUserGoals = async (...args) => { await held; return save(...args); };
+  const p = await page({ rows, db });
+  await p.click(p.q('[data-dwk-start]'));
+  assert.equal(p.panelId(), id(1));
+  await p.click(p.q('[data-dwk-reply]'));
+  assert.equal(p.q('[data-dwk-notice]').getAttribute('data-dwk-notice'), 'saving');
+  // The coach goes back a week while the save is in flight; Ada stays selected there.
+  await p.click(p.all('button').find((b) => b.getAttribute('aria-label') === 'Previous week'));
+  release();
+  await settle();
+  assert.equal(db.state.saves.length, 1, 'the review is still written');
+  assert.equal(typeof db.state.saves[0].doc[MON][id(1)].reviewedAt, 'string', 'for its own week');
+  assert.ok(!p.q('[data-dwk-notice]'), 'no notice from this week\'s reply on last week');
+  assert.equal(p.panelId(), id(1), 'the panel does not step to a client from the week it left');
+  await p.close();
+});
