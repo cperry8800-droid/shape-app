@@ -415,6 +415,10 @@ test('Programs: the preview shows its sample under the band; a signed-in coach n
   assert.equal(topText(), 'Next week — programs due ' + UNREAD);
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), 'a sample person on a signed-in page: ' + n);
   assert.ok(!cardOf('Strength Block 3'), 'no sample program');
+  // The roster useDashboard handed over is the sample cast: the assign sheet must not list it.
+  await click(button('Assign', cardOf('Glute Builder')));
+  assert.match(text(), /No clients loaded\./, 'the assign sheet names nobody from the sample cast');
+  for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), 'a sample person in the assign sheet: ' + n);
   // And "unread" itself: no band, no sample.
   dashboard('unread', DashSignals.buildMockClients(NOW)); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
