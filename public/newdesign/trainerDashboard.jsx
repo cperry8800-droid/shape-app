@@ -321,14 +321,15 @@ function DashPage({ navItems, payoutCard, eyebrow, title, subtitle, actions, chi
 
 // Small helpers available to every inner page
 function Card({ children, style }) {
-  // The builder's card: white, one hairline, a 12px radius, no glass and no
-  // 48px shadow — on the light paper a blurred cream gradient reads as a smudge.
+  // The builder's card: white, one hairline, a 12px radius, no glass. Its lift is the paper's
+  // resting one (dash.css "Depth", --lift-1), not a blurred cream gradient, which on the
+  // light paper reads as a smudge.
   return <div style={{
     background: "var(--sh-card, #25211d)",
     border: "1px solid var(--sh-line, #302c27)",
     borderRadius: 12,
     padding: 20,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+    boxShadow: "var(--lift-1, 0 1px 2px rgba(0,0,0,0.04))",
     ...style
   }}>{children}</div>;
 }
