@@ -1128,13 +1128,16 @@ function DashClientPanel({ row, role, onClose, prefs, dismiss, docked = false, j
       {shown.map(([key, title, Body]) => (
         <DashDrawerSection key={key} title={title}><Body rec={rec} role={role} ctx={ctx} /></DashDrawerSection>
       ))}
-      {secs.shown.length === 0 && (
+      {shown.length === 0 && (
         /* ⚠ AN EMPTY DRAWER SAYS WHY IT IS EMPTY AND HOW TO UNDO IT. A coach who hides
            every section gets what they asked for — but a name and two buttons reads as
            broken, and a control whose effect cannot be reversed from where you see it is
-           the dead-control class from the other direction. */
-        <div style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5, marginBottom: 22 }}>
-          Every section is hidden. Open ⚙ above to bring one back.
+           the dead-control class from the other direction. It reads THIS client's list
+           (Codex on #2639): with only the joint note shown, a client who isn't shared has
+           nothing in it either. */
+        <div data-peek-empty="" style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5, marginBottom: 22 }}>
+          {secs.shown.length === 0 ? "Every section is hidden. Open ⚙ above to bring one back."
+            : "The only section you show is the joint note, which is for shared clients. Open ⚙ above to show more."}
         </div>
       )}
       <div style={{ position: "sticky", bottom: docked ? 0 : -40, background: ground, padding: "16px 0", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>

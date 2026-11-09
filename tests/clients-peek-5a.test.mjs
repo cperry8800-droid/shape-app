@@ -740,3 +740,25 @@ test('Codex on #2639: each client gets a fresh panel, so one client\'s failure n
     div.remove();
   }
 });
+
+test('Codex on #2639: with only the joint note shown, a client who isn\'t shared gets the empty panel\'s words', async () => {
+  const cast = asLive(CAST());
+  const joint = DashSignals.findJointAttention(cast, NOW, null, 'trainer');
+  const feed = DashSignals.getTriageFeed('trainer', cast, NOW);
+  const sam = feed.find((r) => r.client.profile.name === 'Sam R.');
+  const marcus = feed.find((r) => r.client.profile.name === 'Marcus T.');
+  const others = R.DASH_DRAWER_VIEWS.trainer.sections.map((x) => x[0]).filter((k) => k !== 'joint');
+  const keep = globalThis.useRememberedSet;
+  globalThis.useRememberedSet = () => [others, () => {}];
+  try {
+    let { m } = await drawer(sam, { joint });
+    try {
+      assert.match(panelText(), /The only section you show is the joint note, which is for shared clients\./);
+    } finally { await m.unmount(); }
+    ({ m } = await drawer(marcus, { joint }));
+    try {
+      assert.equal(!!document.querySelector('[data-peek-joint]'), true);
+      assert.equal(!!document.querySelector('[data-peek-empty]'), false, 'a shared client has the joint note to show');
+    } finally { await m.unmount(); }
+  } finally { globalThis.useRememberedSet = keep; }
+});
