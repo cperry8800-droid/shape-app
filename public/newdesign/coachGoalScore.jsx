@@ -188,8 +188,9 @@ function cgsGoalSentence(g, pace, today, metricLabel) {
 // adherence (ruleProteinUnder).
 const CGS_ADHERENCE_FLAG = { trainer: "missed_sessions", nutritionist: "protein_under" };
 // ⚠ ONLY REAL READS ARE NAMED. `roster` is useDashboard's { source, triage }: the signed-out sample's
-// people only for the sample, and a coach's own only once the roster read live (a roster that fell back
-// to the demo is unread, never someone else's clients). A client whose progress is still loading or
+// people only for the sample, and a coach's own only once the roster read live (a roster that couldn't
+// be read, source "unread", or a demo roster beside a signed-in coach's goals, is unread, never someone
+// else's clients, and names nobody). A client whose progress is still loading or
 // couldn't be read is not named, and neither is one whose plan the roster couldn't read (onPlan null:
 // neither on a plan nor off one, as Business · Retention rules it, #2636).
 function cgsNudgeModel({ role, roster, sample }) {

@@ -1636,7 +1636,9 @@ const DSC_LENGTH_MIN = 5;
 const DSC_LENGTH_MAX = 240;
 const dscLengthOk = (v) => { const n = Number(v); return String(v).trim() !== "" && Number.isInteger(n) && n >= DSC_LENGTH_MIN && n <= DSC_LENGTH_MAX; };
 const DSC_TYPES = [["video", "Video"], ["inperson", "In person"], ["phone", "Phone"]];
-function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone, initialClientId }) {
+// `rosterUnread`: the roster couldn't be read (useDashboard's "unread"): an empty pick list says so,
+// never "No clients on your roster yet".
+function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone, initialClientId, rosterUnread = false }) {
   const [date, setDate] = React.useState(slot.date);
   const [minute, setMinute] = React.useState(slot.minute);
   const [clientId, setClientId] = React.useState(initialClientId || (roster.length === 1 ? roster[0].client.profile.id : ""));
@@ -1703,7 +1705,7 @@ function DscBookSheet({ slot, roster, role, verdictFor, onBook, onClose, onDone,
               <option value="">Pick a client…</option>
               {roster.map((r) => <option key={r.client.profile.id} value={r.client.profile.id}>{r.client.profile.name}{r.paidOnly ? " · paid session" : ""}</option>)}
             </select>
-          ) : <span style={{ fontSize: 12.5, color: DSC_INK50 }}>No clients on your roster yet — a member who subscribes shows up here.</span>}
+          ) : <span data-book-roster={rosterUnread ? "unread" : "none"} style={{ fontSize: 12.5, color: DSC_INK50 }}>{rosterUnread ? "Your roster couldn't be read just now · reload to try again" : "No clients on your roster yet — a member who subscribes shows up here."}</span>}
         </label>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input type="date" aria-label="Date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} style={dscInput} />
@@ -2036,8 +2038,10 @@ function CoachSchedulePage({ role }) {
   // ⚠ SAMPLE DATA ONLY IN THE SIGNED-OUT PREVIEW, UNDER THE BAND (#2628 to #2639). The demo's
   // bookings, hours, time off and plans show only when useDashboard says this is the preview; a
   // signed-in coach whose calendar is still loading sees no bookings yet, and one whose read failed
-  // is told it couldn't be read, never shown someone else's week.
+  // is told it couldn't be read, never shown someone else's week. A roster that couldn't be read
+  // (source "unread") is not the preview either: the calendar is this page's own read.
   const preview = source === "demo";
+  const rosterUnread = source === "unread";
   // What /api/calendar has answered so far: { zone, months: Set<"YYYY-MM">, events }, or null
   // until the first answer. See dscMergeRange.
   const [cal, setCal] = React.useState(null);
@@ -2050,7 +2054,7 @@ function CoachSchedulePage({ role }) {
   // Day, week or month, remembered: a coach who works the week grid should not have to
   // choose it again on every visit to their own calendar. The week is the default — it is
   // where the working day happens now.
-  const prefs = useRememberedChoices(source === "live");
+  const prefs = useRememberedChoices(source === "live" || rosterUnread);
   const [view, setView] = useRememberedChoice(prefs, "scheduleView", DSC_VIEWS, "week");
   // The plans row: what a trainer's clients' programs put on each day (step 4), shown unless
   // the coach turns it off. A nutritionist's plans are meal plans, with no training days.
@@ -2096,7 +2100,16 @@ function CoachSchedulePage({ role }) {
   const [dragId, setDragId] = React.useState(null);
   // The zone the coach's stored hours are expressed in (null until first saved).
   const [availZone, setAvailZone] = React.useState(null);
-  const isLive = !!live;
+  // ⚠ LIVE IS "NOT THE PREVIEW", NOT "THE DAY FEED ANSWERED". `isLive` was `!!live`, the feed's
+  // answer, and it decides every read and write on this page that isn't the calendar's (paid sessions
+  // to schedule, time off, the return-to-tab re-read, the hours' zone check) and whether a move, an
+  // answer, a booking, the hours, time off and the rules go to the server or stay the preview's
+  // ("Demo · would move…"). A coach whose roster read failed (source "unread"), or whose feed failed
+  // while the roster read (source "live"), is signed in all the same, and their calendar, which this
+  // page reads itself whatever the feed did, is theirs to work: so a viewer the hook did not resolve
+  // as the preview is live here. A write for a viewer who turns out to be signed out is answered 401
+  // by its route, and said, never kept as the preview's.
+  const isLive = !!live || source === "live" || rosterUnread;
   const loadToSchedule = React.useCallback(() => {
     if (!isLive) return;
     fetch("/api/coach/to-schedule?role=" + encodeURIComponent(role), { credentials: "same-origin" })
@@ -2228,7 +2241,7 @@ function CoachSchedulePage({ role }) {
   // save one painted cell over every hour the coach had. A live coach waits for their own hours
   // (and cannot edit when the read failed); the demo waits until the page knows it is the demo,
   // so example hours are never what a coach about to be signed in saves.
-  const hoursState = source === "live" ? (avail != null ? "ready" : availRead ? "failed" : "loading") : source === "demo" ? "ready" : "loading";
+  const hoursState = isLive ? (avail != null ? "ready" : availRead ? "failed" : "loading") : source === "demo" ? "ready" : "loading";
   // Only the coach's own bookings (sessions/consults) + manual events belong
   // on the planning calendar — the client-facing pushed workouts/meals are a
   // client surface, shown read-only if present.
@@ -2830,7 +2843,7 @@ function CoachSchedulePage({ role }) {
           onClose={() => setBooking(null)} />
       )}
       {bookOpen && slot && (
-        <DscBookSheet key={bookFor || "any"} slot={slot} roster={bookRoster} initialClientId={bookFor} role={role} verdictFor={verdictFor} onBook={bookSession} onClose={() => { setBookOpen(false); setBookFor(null); }} onDone={() => { setBookOpen(false); setSlot(null); setBookFor(null); }} />
+        <DscBookSheet key={bookFor || "any"} slot={slot} roster={bookRoster} initialClientId={bookFor} role={role} verdictFor={verdictFor} onBook={bookSession} rosterUnread={rosterUnread} onClose={() => { setBookOpen(false); setBookFor(null); }} onDone={() => { setBookOpen(false); setSlot(null); setBookFor(null); }} />
       )}
       {confirmMove && (
         <DscConfirmMove move={confirmMove} onNo={() => setConfirmMove(null)}
