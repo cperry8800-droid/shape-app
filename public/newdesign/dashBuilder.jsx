@@ -2016,7 +2016,7 @@ function DbuPlan({ doc, dates, peek, onPeek, setWeeks, uploads, onWeek, onAddAt,
                   <span className="m">{moves} {moves === 1 ? "move" : "moves"}{day.playlist ? " · ♪" : ""}</span>
                   {lines.filter((l) => l.weight).map((l, k) => (
                     <span className="ln" key={k}><span className="n">{l.name}</span>
-                      <span className="v">{l.weight.replace(/ (kg|lb)$/, "")}{dbuDelta(l) && <> <i aria-hidden="true">{dbuDelta(l)}</i><span className="sr">{", " + (l.delta > 0 ? "up " : "down ") + Math.abs(l.delta) + " on last week"}</span></>}</span>
+                      <span className="v">{l.weight.replace(/ (kg|lb)$/, "")}{dbuDelta(l) && <> <i aria-hidden="true">{dbuDelta(l)}</i><span className="sr">{", " + (l.delta > 0 ? "up " : "down ") + Math.abs(l.delta) + (l.unit === "%" ? "%" : " " + l.unit) + " on last week"}</span></>}</span>
                     </span>
                   ))}
                 </button>
@@ -2957,8 +2957,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dmsg{margin:0 0 12px;font-size:13.5px;font-weight:600;color:${DBU_TEAL}}
 .dbu2 .sh .cell .pg{position:absolute;top:3px;right:6px;font-size:11px;line-height:1;color:${DBU_TEAL};background:transparent;border:0;padding:0}
 .dbu2 .sh .cell button.pg.pin{top:0;right:0;min-width:24px;min-height:24px;padding:3px 6px;display:flex;justify-content:flex-end;align-items:flex-start;color:${DBU_GOLD};cursor:pointer}
-/* The day editor docks under the canvas at the builder's full width (step 3). It used to
-   float in three positions; now only the client preview floats. */
+/* The day editor sits at the builder's full width: under the canvas since step 3, in the plan's
+   place since step 6c. It used to float in three positions; nothing floats now. */
 .dbu2 .drawer{background:${DBU_WH};border:1px solid ${DBU_LINE};border-radius:14px;padding:20px 22px 18px;margin-top:16px;scroll-margin-top:16px}
 .dbu2 .drawer:focus{outline:none}
 .dbu2 .drawer:focus-visible{outline:2px solid ${DBU_TEAL};outline-offset:2px}
@@ -3047,7 +3047,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 /* A line, two rows of it where the list is narrow: the move on top, its four numbers
    under it in fixed columns, which the list's header names once. (A caption on every
    cell was tried first and ran a phone row to three lines.) */
-.dbu2 .dhd{display:grid;grid-template-columns:16px 84px 96px 38px 60px minmax(0,1fr);column-gap:6px;padding:7px 8px 4px 4px;font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${DBU_INK3}}
+.dbu2 .dhd{display:grid;grid-template-columns:16px 84px 96px 38px 72px minmax(0,1fr);column-gap:6px;padding:7px 8px 4px 4px;font-family:${DBU_MONO};font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${DBU_INK3}}
 .dbu2 .dhd span:nth-child(-n+3){display:none}
 .dbu2 .dhd span:nth-child(4){grid-column:2}
 .dbu2 .dhd span:nth-child(n+4){padding-left:5px;white-space:nowrap}
@@ -3066,7 +3066,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dr .nm{flex:0 1 auto;min-width:0;height:var(--dbu-cell);padding:0 4px;border:0;border-radius:5px;background:transparent;color:${DBU_INK};font-size:14px;font-weight:600;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .dbu2 .dr .mk{flex:0 0 auto;display:inline-flex;gap:6px;color:${DBU_INK3};font-size:12.5px;line-height:1}
 .dbu2 .dr .mk b{font-weight:600;cursor:default}
-.dbu2 .dr .dcells{grid-column:2/-1;display:grid;grid-template-columns:84px 96px 38px 60px minmax(0,1fr);column-gap:6px;align-items:center}
+.dbu2 .dr .dcells{grid-column:2/-1;display:grid;grid-template-columns:84px 96px 38px 72px minmax(0,1fr);column-gap:6px;align-items:center}
 .dbu2 .dr .c{display:flex;align-items:center;gap:1px;min-width:0}
 .dbu2 .dr .tm{flex:0 0 auto;color:${DBU_INK3};font-size:12px}
 .dbu2 .dr .ci{box-sizing:border-box;height:var(--dbu-cell);min-width:0;padding:0 5px;border:1px solid transparent;border-radius:6px;background:transparent;color:${DBU_INK};font-size:14px;font-variant-numeric:tabular-nums;outline:none}
@@ -3083,10 +3083,10 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .dr .rp .ci{width:100%;text-align:center}
 .dbu2 .dr .rs .ci{width:100%}
 @container dlist (min-width:500px){
- .dbu2 .dhd{grid-template-columns:16px 26px minmax(0,1fr) 96px 104px 38px 64px 52px;column-gap:4px;padding:8px 8px 5px 4px}
+ .dbu2 .dhd{grid-template-columns:16px 26px minmax(0,1fr) 96px 104px 38px 74px 52px;column-gap:4px;padding:8px 8px 5px 4px}
  .dbu2 .dhd span:nth-child(-n+3){display:block}
  .dbu2 .dhd span:nth-child(4){grid-column:auto}
- .dbu2 .dr{grid-template-columns:16px 26px minmax(0,1fr) 96px 104px 38px 64px 52px;column-gap:4px;padding:3px 8px 3px 4px}
+ .dbu2 .dr{grid-template-columns:16px 26px minmax(0,1fr) 96px 104px 38px 74px 52px;column-gap:4px;padding:3px 8px 3px 4px}
  .dbu2 .dr .dcells{display:contents}
 }
 .dbu2 .dline{position:absolute;left:8px;right:8px;height:2px;margin-top:-1px;border-radius:2px;background:${DBU_TEAL};pointer-events:none;z-index:4}
@@ -3254,7 +3254,9 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
 .dbu2 .lib-seg button[aria-pressed="true"]{background:${DBU_TEALBG};color:${DBU_INK}}
 .dbu2 .lib-f select{flex:1 1 110px;min-width:0;height:32px;padding:0 6px;border:1px solid ${DBU_LINE2};border-radius:8px;background:${DBU_WH};font-size:12.5px}
 .dbu2 .lib-new{display:flex;align-items:center;gap:6px;min-height:34px;padding:0 10px;border:1px dashed ${DBU_TEAL};border-radius:8px;background:${DBU_TEALBG};color:${DBU_TEAL};font-size:13px;font-weight:600;text-align:left;cursor:pointer}
-.dbu2 .lib-list{list-style:none;margin:0;padding:0 2px 0 0;max-height:520px;overflow-y:auto}
+/* Positioned, so a visually hidden label inside a row is clipped with the list rather than
+   stretching the page below it. */
+.dbu2 .lib-list{position:relative;list-style:none;margin:0;padding:0 2px 0 0;max-height:520px;overflow-y:auto}
 .dbu2 .lib-g{padding:8px 4px 3px;font-family:${DBU_MONO};font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${DBU_INK3}}
 .dbu2 .lib-row{display:flex;align-items:center;gap:6px;min-height:40px;padding:3px 4px;border-radius:7px;cursor:grab}
 .dbu2 .lib-row:hover{background:${DBU_WH}}
