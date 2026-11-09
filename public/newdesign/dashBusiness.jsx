@@ -2964,7 +2964,7 @@ function CoachBusinessPage({ role }) {
   // ⚠ THE PREVIEW IS ONLY FOR A DEMO VIEWER, AND AN OUTAGE IS NOT ONE (Codex, #2394). Live was "a
   // feed has landed", so while the reads were pending a signed-in coach was shown the preview's
   // renewals, payouts and waiting list as their own, with no band. Then it was "the dashboard
-  // resolved a demo", but useDashboard falls back to the demo whenever the roster read fails,
+  // resolved a demo", but useDashboard fell back to the demo whenever the roster read failed,
   // signed out and outage alike: a coach whose roster, dashboard and analytics reads all failed
   // was shown the preview's payouts, renewals, trajectory and plan as their own. useDashboard now
   // tells the two apart itself (its "unread" for a failed roster read), and the analytics answer
