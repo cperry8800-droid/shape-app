@@ -942,6 +942,41 @@
     catch (e) { return false; }
   }
 
+  // ⚠ THE DOCK RESERVES ITS CORNER (the depth review, 2026-11-04: Ask Nora and Chat sat
+  // over the Privacy link on Login and the footer's last links). While the dock shows,
+  // an empty block at the end of <body> keeps the page's last 80px clear of it, so a
+  // visitor scrolled to the bottom can reach everything; and --shape-dock-space on <html>
+  // tells a page's own fixed bottom-right control (the Store's Cart) how far to lift.
+  // A spacer, not body padding: an app shell sized to 100vh would lose 80px to padding.
+  // The dock's top edge is 59px up (38px tall, 20px off the edge; 44 and 16 on a phone).
+  var SPACER_ID = "shape-global-chat-spacer";
+  function syncDockSpace(button) {
+    if (!button || !document.body) return;
+    var shown = false;
+    try {
+      var cs = window.getComputedStyle(button);
+      shown = cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) !== 0
+        || button.classList.contains(HIDDEN_CLASS); // a panel is open: keep the space, no jump
+    } catch (e) {}
+    var spacer = document.getElementById(SPACER_ID);
+    if (!shown) {
+      if (spacer) spacer.remove();
+      document.documentElement.style.removeProperty("--shape-dock-space");
+      return;
+    }
+    if (!spacer) {
+      spacer = document.createElement("div");
+      spacer.id = SPACER_ID;
+      spacer.setAttribute("aria-hidden", "true");
+      spacer.style.cssText = "display:block;flex:none;width:100%;height:calc(80px + env(safe-area-inset-bottom, 0px));pointer-events:none";
+    }
+    // Last in <body>, ahead of the dock itself, so it follows the page's own content.
+    if (spacer.nextSibling !== button || spacer.parentNode !== document.body) {
+      document.body.insertBefore(spacer, button.parentNode === document.body ? button : null);
+    }
+    document.documentElement.style.setProperty("--shape-dock-space", "calc(80px + env(safe-area-inset-bottom, 0px))");
+  }
+
   function mount() {
     if (document.getElementById(ID)) return;
     // ⚠ PHONES GET NORA. This used to return here below 760 px, so a visitor on a
@@ -992,9 +1027,19 @@
 
     document.body.appendChild(button);
     syncVisibility(button);
+    syncDockSpace(button);
+
+    // A page that hides the dock with a class (the homepage intro, an open drawer)
+    // changes only an attribute, which the childList observer below never sees.
+    new MutationObserver(function () { syncDockSpace(button); })
+      .observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
+    new MutationObserver(function () { syncDockSpace(button); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("resize", function () { syncDockSpace(button); });
 
     var observer = new MutationObserver(function () {
       syncVisibility(button);
+      syncDockSpace(button);
       // clientChatTabs arrives when the app mounts (async) — keep the badge
       // honest as threads load/read-states change.
       syncUnreadBadge(button);

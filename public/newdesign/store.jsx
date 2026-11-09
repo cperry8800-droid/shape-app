@@ -467,8 +467,9 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           )}
         </div>
       </section>
+      {/* Above the Ask Nora / Chat dock, which reserves --shape-dock-space while it shows. */}
       {cartCount > 0 && (
-        <button onClick={() => { setNotice(""); setCheckoutOpen(true); }} style={{ position: "fixed", bottom: 24, right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
+        <button onClick={() => { setNotice(""); setCheckoutOpen(true); }} style={{ position: "fixed", bottom: "var(--shape-dock-space, 24px)", right: 24, zIndex: 120, display: "inline-flex", alignItems: "center", gap: 14, padding: "14px 22px", borderRadius: 999, border: 0, background: TEAL, color: "#04201d", fontFamily: sans, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 8px 28px rgba(0,0,0,0.35)" }}>
           <span>Cart · {cartCount} item{cartCount !== 1 ? "s" : ""}</span>
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{cartTotal.toLocaleString()} pts · Review →</span>
         </button>
