@@ -624,6 +624,18 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach pages: a signed-in coach\'s failed roster read is unread, never the sample (#2642). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09, of #2641\'s note that useDashboard showed a signed-in coach the sample when the roster read failed: "fix this", once, as its own PR', status: 'done' },
+        { label: '#2642 useDashboard\'s source is "demo" (the preview) only when the roster route answered 401 or said the viewer is not a coach of this role; any other failure is "unread": no clients, no band, no sample person, and the day feed as it answered. The client role keeps its demo', status: 'done' },
+        { label: '#2642 every coach page honours it: Today (each roster card, the brief, Needs you and the roster figures say the roster couldn\'t be read; the day feed, payout, replies, capacity and notes still show), Clients (every count "—"), Business, Goal, Week (its session workaround retired) and Schedule (live is "not the preview", so a coach\'s moves and bookings go to the server)', status: 'done' },
+        { label: '#2642 review: before the first read lands, the brief and Needs you say they\'re reading, not "nobody"; Codex P2 (an auth outage answered the preview\'s 401) fixed: the roster route answers 503 when the sign-in check didn\'t finish, as the analytics, payout and score routes do. Mutation round 49/49', status: 'done' },
+        { label: 'Left by #2642: newWorkout.jsx (TrainerNewWorkout.html) reads the roster itself and falls back to its sample WORKOUT_CLIENTS on any failure; the page is due to be retired in step 6c', status: 'pending' },
+        { label: 'Left by #2642: Today\'s Week ahead card with no day feed draws an empty week, and its catalogue reason is the stale-module one (the day feed\'s gap, not the roster\'s)', status: 'pending' },
+        { label: 'OWNER: on the deployed site, signed in, open coach Today and Clients: your own clients show, and no demo band appears', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach dashboard step 5, the client peek, Clients, Week and Schedule as tool pages (#2639, #2640, #2641). No migration',
       items: [
         { label: 'Owner, 2026-11-09: "add war room entries after step 5 is fully complete"; of the test and mutation rounds, "you can run them before PRs", "stop running multiple at different times", "be smart about it": one round per PR, before it opens, and a review fix runs only its own tests (the working notes\' line replaced)', status: 'done' },
@@ -638,7 +650,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Left by #2640: the client file\'s latest check-in (coachClientDetail.jsx) and the app\'s coach view (iosAppBroadsheetPros.jsx) label the stored calm value "Stress" and hunger control "Hunger", so "Stress 3" there reads as calm when it means stressed', status: 'pending' },
         { label: 'Left by #2640: Reply & mark reviewed opens Messages in one reused tab on purpose (navigating would leave the Week before the review saved); the review store\'s write relies on its first read\'s session bridge; on Night the good and middling tiles are close (the band words tell them apart)', status: 'pending' },
         { label: 'Left by #2641: the nutritionist preview reuses the trainer\'s example week ("Session" blocks); the ForCoaches tour\'s screenshots show the old layout; the Hours & rules edge tab can sit over Sunday\'s column between 760 and 880px; at 390px "8:30 AM" can wrap; the more menu has no arrow keys', status: 'pending' },
-        { label: 'Left by #2641: useDashboard falls back to the sample whenever the roster read fails, so a signed-in coach whose dashboard read fails sees sample people under the band on every coach page but Week. Owner, 2026-11-09: "fix this", in one place (dashData.jsx), as its own PR next', status: 'pending' },
+        { label: 'Left by #2641: useDashboard falls back to the sample whenever the roster read fails, so a signed-in coach whose dashboard read fails sees sample people under the band on every coach page but Week. Owner, 2026-11-09: "fix this", in one place (dashData.jsx), as its own PR next. Done in #2642', status: 'done' },
         { label: 'OWNER: decide whether clientColors.mjs (and so the app) gives a session a kind colour of its own; it still says a session takes its client\'s tier colour, which Schedule now overrides', status: 'manual' },
         { label: 'OWNER: on the deployed site at 1440, open Clients and pick a client (the panel docks beside the list), Week and Reply & mark reviewed (Messages opens in its own tab, and the Week steps to the next one), and Schedule\'s Hours & rules tab', status: 'manual' },
       ],
