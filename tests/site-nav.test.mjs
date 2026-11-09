@@ -1126,7 +1126,7 @@ test('no layer that stays on screen floats over the open drawer', () => {
     // which is one tap on the bar itself. The shell loads it from /consent-banner.js.
     'consent-banner.js': 1,
     // Toasts (10000): a few seconds of feedback, meant to be topmost.
-    'clientMeSettings.jsx': 1, 'nutritionistGoalPage.jsx': 1, 'trainerGoalPage.jsx': 1,
+    'clientMeSettings.jsx': 1, 'coachGoalScore.jsx': 1,
     // The Kitchen's filter drawer (2147483647, at 960px and below): it exists only while the
     // visitor has opened it, its backdrop covers the page and the burger, so it and the site
     // drawer are never open together, and it has to clear the chat launcher (2147483646).

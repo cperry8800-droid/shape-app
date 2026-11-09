@@ -4,13 +4,11 @@
 //   node scripts/mutate.mjs --spec tests/mutations/coach-score-app-2026-10-18.mutations.mjs --fail-on-skipped
 const ROUTE = 'src/app/api/coach/score/route.ts';
 const APP = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
-const TRAINER = 'public/newdesign/trainerScorePage.jsx';
-const NUTRI = 'public/newdesign/nutritionistScorePage.jsx';
-
-// The website's two pages carry the same read; each mutation is applied to both, one at a time.
+// The website's two Score pages are one board since coach dashboard step 4c (coachGoalScore.jsx, which
+// trainerScorePage.jsx and nutritionistScorePage.jsx mount with their role), so each mutation lands once.
+const BOARD = 'public/newdesign/coachGoalScore.jsx';
 const website = (name, find, replace) => [
-  { name: `trainer page: ${name}`, file: TRAINER, find, replace },
-  { name: `nutritionist page: ${name}`, file: NUTRI, find, replace },
+  { name: `website board: ${name}`, file: BOARD, find, replace },
 ];
 
 export default {
@@ -69,7 +67,7 @@ export default {
     ...website('the unread headline names no failure', '    : { title: "—", eyebrow: read.state === "failed" ? "COACH SCORE · COULDN\'T READ" : "COACH SCORE" };', '    : { title: "—", eyebrow: "COACH SCORE" };'),
     ...website('the sample is not labelled in the headline', '    ? { title: score.total.toLocaleString(), eyebrow: `COACH SCORE · ${tierLabel}${read.state === "sample" ? " · SAMPLE" : ""}` }', '    ? { title: score.total.toLocaleString(), eyebrow: `COACH SCORE · ${tierLabel}` }'),
     ...website('the demo band is not shown for the sample', '      {read.state === "sample" && typeof DashDemoBand === "function" && <DashDemoBand />}', ''),
-    ...website('the path card is the old fixed figure', '          ? `${Math.max(0, Number(score.points_to_next) || 0).toLocaleString()} more points.', '          ? `8,580 more points.'),
+    ...website('the way up counts a fixed figure to the next tier', '<span style={DBZ_LBL}>{cgsPts(way.need)} to {way.next}</span>', '<span style={DBZ_LBL}>8,580 to {way.next}</span>'),
     // ── Codex on #2400: a coach's every listing of the role, the named one or the oldest ──
     { name: 'codex-2400 route: the named listing is ignored', file: ROUTE,
       find: '  const providerId = (owned.find((p) => p.id === asked) ?? owned[0]).id;', replace: '  const providerId = owned[0].id;' },
@@ -91,6 +89,6 @@ export default {
       find: `           count(distinct coalesce(s.client_id::text, 'sub:' || s.id::text))\n             filter (where s.status in ('active', 'trialing', 'past_due')) as active_clients\n    from public.subscriptions s\n    ${join}`,
       replace: `           count(*) filter (where s.status in ('active', 'trialing')) as active_clients\n    from public.subscriptions s\n    ${join}`,
     })),
-    { name: 'trainer page: the programs term is priced wrong', file: TRAINER, find: `    ["Programs published", "Per program · each program you've published", "+80"],`, replace: `    ["Programs published", "Per program · each program you've published", "+40"],` },
+    { name: 'website board: the programs term is priced wrong', file: BOARD, find: '{ key: "programs", label: "Programs published", short: "Programs", each: 80,', replace: '{ key: "programs", label: "Programs published", short: "Programs", each: 40,' },
   ],
 };

@@ -1594,16 +1594,31 @@ function DbzNetCard({ model }) {
 
 // ── Overview · today's pace and the goal ─────────────────────────────────────
 // One chart: the net a month at today's pace (coachForecast.js forecast from the Plan's own start,
-// planStart) against the goal line, which is the Plan's starting goal (half again today's net), and
-// says so. A history that couldn't be read, or none yet, starts from the Plan's stated defaults and
-// says that too. The one action opens the Plan, where both can be moved.
-function dbzPaceModel(base) {
+// planStart) against the goal line, and says whose goal it is. ⚠ THE GOAL LINE IS THE COACH'S OWN
+// REVENUE GOAL WHEN THEY HAVE ONE (coach dashboard step 4c, 4a's open item): a goal saved on the Goal
+// tab bound to the net a month (mrrNetMonthly), named on the card. Without one it is the Plan's
+// starting goal (half again today's net), as before, and a goals read that failed says so. A history
+// that couldn't be read, or none yet, starts from the Plan's stated defaults and says that too. The
+// one action opens the Plan, where both can be moved.
+// `goals`: the saved goals' list; undefined while the read runs, null when it couldn't be read.
+function dbzOwnRevenueGoal(goals) {
+  if (goals === undefined) return { state: "reading" };
+  if (!Array.isArray(goals)) return { state: "unread" };
+  const g = goals.find((x) => x && x.metric === "mrrNetMonthly" && x.tgt !== "" && x.tgt != null && Number.isFinite(Number(x.tgt)) && Number(x.tgt) > 0);
+  return g ? { state: "ready", title: String(g.t || g.title || "").trim() || "your revenue goal", cents: Math.round(Number(g.tgt) * 100) } : { state: "none" };
+}
+// `own`: dbzOwnRevenueGoal's answer, or undefined for the preview (the Plan's goal).
+function dbzPaceModel(base, own) {
   const CF = window.CoachForecast;
   if (!CF || !base || base.state !== "ready") return { state: base && base.state ? base.state : "loading" };
+  // The coach's own goal is read before the line is drawn, so the card never draws the Plan's and then jumps.
+  if (own && own.state === "reading") return { state: "loading" };
   const start = CF.planStart(base);
   const f = CF.forecast({ clients: base.clients, mrrNetCents: base.mrrNetCents, byoShare: base.byoShare, months: 36, priceCents: Math.round(start.rate * 100), adds: start.adds, churn: start.churnPct / 100 });
-  const goalCents = start.goal * 100;
-  return { state: "ready", known: base.pace.adds != null, unreadHistory: !!base.pace.unread, f, goalCents, reach: CF.monthsTo(goalCents, f), yearCents: f.rows[12].netCents, nowCents: base.mrrNetCents };
+  const mine = own && own.state === "ready" ? own : null;
+  const goalCents = mine ? mine.cents : start.goal * 100;
+  return { state: "ready", known: base.pace.adds != null, unreadHistory: !!base.pace.unread, f, goalCents, reach: CF.monthsTo(goalCents, f), yearCents: f.rows[12].netCents, nowCents: base.mrrNetCents,
+    goalOf: mine ? "own" : own && own.state === "unread" ? "unread" : "plan", goalTitle: mine ? mine.title : null };
 }
 function DbzPaceCard({ model, onPlan }) {
   const label = "Today's pace and the goal";
@@ -1623,7 +1638,9 @@ function DbzPaceCard({ model, onPlan }) {
       <p data-dbz-pace="ready" style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: DBZ_INK50 }}>{lead}, you net {b(dashMoney(model.yearCents) + " a month", DBZ_T_TEAL)} in a year.{reach}</p>
       <div style={{ marginTop: 10 }}><DbzPathsChart paths={[path]} goalCents={model.goalCents} months={months} /></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
-        <span style={{ ...DBZ_NOTE, fontSize: 11.5 }}>The goal line is the Plan's starting goal, half again today's net. A projection, not a promise.</span>
+        <span data-dbz-goal-of={model.goalOf || "plan"} style={{ ...DBZ_NOTE, fontSize: 11.5 }}>{model.goalOf === "own"
+          ? "The goal line is your goal “" + model.goalTitle + "”, from your Goal tab. A projection, not a promise."
+          : (model.goalOf === "unread" ? "Your goals couldn't be read just now, so the goal line is the Plan's starting goal, half again today's net." : "The goal line is the Plan's starting goal, half again today's net.") + " A projection, not a promise."}</span>
         {onPlan && <button type="button" onClick={onPlan} style={DBZ_OUTLINE}>Plan it →</button>}
       </div>
     </DbzCard>
@@ -2997,6 +3014,31 @@ function CoachBusinessPage({ role }) {
       .catch(() => { if (on) { setWaiting(null); setCapacity(null); } });
     return () => { on = false; };
   }, [role, isLive]);
+  // The coach's own goals (the Goal tab's saved document, user_goals(role)): the Overview's goal line is
+  // their revenue goal when they have one (dbzOwnRevenueGoal). undefined while the read runs, null when
+  // it couldn't be read. ⚠ A COPY OF A user_goals DOC IS READ AGAIN WHEN SOMETHING ELSE WRITES IT (WORKLOG):
+  // a setup in Nora's chat announces shape:accountSetup.
+  const [ownGoals, setOwnGoals] = React.useState(undefined);
+  const [setupRev, setSetupRev] = React.useState(0);
+  React.useEffect(() => { const again = () => setSetupRev((n) => n + 1); window.addEventListener("shape:accountSetup", again); return () => window.removeEventListener("shape:accountSetup", again); }, []);
+  React.useEffect(() => {
+    if (!isLive) return undefined;
+    let on = true;
+    (async () => {
+      const db = window.shapeDb;
+      try {
+        if (!db || typeof db.getUser !== "function" || typeof db.getUserGoals !== "function") { if (on) setOwnGoals(null); return; }
+        // ⚠ getSession() FIRST (dashData.jsx dashDocBridge; Codex on #2638): getUser doesn't bootstrap the
+        // Next.js cookie-session bridge, so a coach signed in that way read as nobody, and the goal line
+        // fell back to the Plan's for the whole visit.
+        try { if (typeof db.getSession === "function") await db.getSession(); } catch (e) { /* read on as before */ }
+        const user = await db.getUser();
+        const doc = user ? await db.getUserGoals(role, { expectedUserId: user.id }) : null;
+        if (on) setOwnGoals(doc && typeof doc === "object" ? (Array.isArray(doc.goals) ? doc.goals : []) : null);
+      } catch (e) { if (on) setOwnGoals(null); }
+    })();
+    return () => { on = false; };
+  }, [role, isLive, setupRev]);
   const stripe = extra && extra.stripe ? extra.stripe : null;
   // Outcomes: the live rollup verbatim (the route always returns the full
   // shape), the demo set ONLY under the band — a live viewer with a failed
@@ -3198,7 +3240,7 @@ function CoachBusinessPage({ role }) {
     { key: "atrisk", title: "Money at risk", blurb: "Plans ending this week and payments Stripe is retrying, and one message to send.", group: "money", size: "wide",
       render: () => <DbzAtRiskCard model={risk} clients={boardClients} role={role} /> },
     { key: "pace", title: "Today's pace and the goal", blurb: "Your net a month over the next two years at today's pace, against the goal line.", group: "money", size: "wide",
-      render: () => <DbzPaceCard model={dbzPaceModel(planBase)} onPlan={() => setSection("plan")} /> },
+      render: () => <DbzPaceCard model={dbzPaceModel(planBase, preview ? undefined : dbzOwnRevenueGoal(ownGoals))} onPlan={() => setSection("plan")} /> },
     { key: "payout", title: "Next payout", blurb: "When Stripe pays you next, and how much.", group: "money", size: "narrow",
       render: () => <DbzNextPayoutCard model={dbzPayoutModel({ preview, read: payoutRead, now })} onSetup={() => setSection("money")} /> },
     { key: "clients", title: "Clients", blurb: "Everyone on a plan with you, each with their Shape Score tier and price.", group: "clients", size: "full",

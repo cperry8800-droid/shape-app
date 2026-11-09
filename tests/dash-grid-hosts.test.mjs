@@ -146,8 +146,12 @@ test('no two DashGrid call sites in one module share a role+tab key', () => {
 // ⚠ 2026-11-08 (coach dashboard step 4a, the owner's approved build order): Business · Overview and
 // Business · Money are boards again, each on its own tab key, inside the page's section switch. Plan,
 // Growth and Retention stay fixed until 4b.
+// ⚠ 2026-11-08 (step 4c): Goal and Score are boards again, for both roles, drawn by one module
+// (coachGoalScore.jsx), each on a key no earlier build saved under: the old boards used "goal" and
+// "score" (2026-06 to #2365). The four page files mount it and render no grid themselves.
 const BOARDS = {
   'clientHabits.jsx': ['client|habits'],
+  'coachGoalScore.jsx': ['role|goal-board', 'role|score-board'],
   'dashBusiness.jsx': ['role|business-overview', 'role|business-money', 'role|business-plan', 'role|business-growth', 'role|business-retention'],
   'clientScore.jsx': ['client|score'],
   'dashClient.jsx': ['client|'],
@@ -160,7 +164,7 @@ const BOARDS = {
 
 // The coach pages that are FIXED: no grid, so no builder bar (My dashboard · Save as ·
 // Rename · Coaching preset · Undo · Widgets), no grip, no ×. Each declares its own layout.
-const FIXED = ['nutritionistClientsPage.jsx', 'nutritionistGoalPage.jsx', 'nutritionistScorePage.jsx', 'trainerClientsPage.jsx', 'trainerGoalPage.jsx', 'trainerScorePage.jsx'];
+const FIXED = ['nutritionistClientsPage.jsx', 'trainerClientsPage.jsx'];
 
 function gridKeys(src) {
   return [...src.matchAll(/<DashGrid\s+([^>]*?)\/?>/g)].map((m) => {
@@ -193,7 +197,11 @@ test('no two modules claim the same role+tab board', () => {
   }
 });
 
-test('the coach Clients, Goal and Score pages are fixed pages, and every Business section is a board', () => {
+test('the coach Clients pages are fixed pages, and every Business section, Goal and Score are boards', () => {
+  // Goal and Score (step 4c): each role's page file mounts the shared board with its role.
+  for (const [f, comp, role] of [['trainerGoalPage.jsx', 'CoachGoalBoard', 'trainer'], ['nutritionistGoalPage.jsx', 'CoachGoalBoard', 'nutritionist'], ['trainerScorePage.jsx', 'CoachScoreBoard', 'trainer'], ['nutritionistScorePage.jsx', 'CoachScoreBoard', 'nutritionist']]) {
+    assert.ok(fs.readFileSync(path.join(ND, f), 'utf8').includes('<' + comp + ' role="' + role + '" />'), f + ' no longer mounts the ' + role + "'s board");
+  }
   for (const f of FIXED) {
     const src = fs.readFileSync(path.join(ND, f), 'utf8').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
     assert.ok(!/<DashGrid[\s/>]/.test(src), f + ' renders a DashGrid again — the builder bar, grips and × come back with it');

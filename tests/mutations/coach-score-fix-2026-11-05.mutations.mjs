@@ -6,7 +6,8 @@
 const ROUTE = 'src/app/api/coach/score/route.ts';
 const SQL = 'supabase-migrations/2026-11-05-coach-score-past-sessions.sql';
 const LB = 'public/newdesign/leaderboards.jsx';
-const TR = 'public/newdesign/trainerScorePage.jsx';
+// Both roles' Score tabs are one board since coach dashboard step 4c.
+const TR = 'public/newdesign/coachGoalScore.jsx';
 const NOTE = 'mobile-app/src/broadsheet/BSScoreFixNote.jsx';
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
@@ -62,9 +63,9 @@ export default {
     { name: 'the website note names programs to a nutritionist', file: LB,
       find: '(role === "nutritionist" ? "sessions" : "sessions and programs")',
       replace: '"sessions and programs"' },
-    { name: 'the trainer page shows the note on the sample', file: TR,
-      find: '  const fixNote = read.state === "ok" && typeof coachScoreFixNote === "function" ? coachScoreFixNote("trainer") : null;',
-      replace: '  const fixNote = typeof coachScoreFixNote === "function" ? coachScoreFixNote("trainer") : null;' },
+    { name: 'the Score board shows the note on the sample', file: TR,
+      find: '  const fixNote = read.state === "ok" && typeof coachScoreFixNote === "function" ? coachScoreFixNote(role) : null;',
+      replace: '  const fixNote = typeof coachScoreFixNote === "function" ? coachScoreFixNote(role) : null;' },
     { name: 'the app note never ends', file: NOTE,
       find: '  return Number.isFinite(start) && now >= start && now < start + BS_SCORE_FIX_DAYS * 86400000;',
       replace: '  return Number.isFinite(start) && now >= start;' },
