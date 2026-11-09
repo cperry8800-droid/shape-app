@@ -201,3 +201,14 @@ test('no member-facing reader renders a meal plan payload key it does not know',
   ];
   for (const f of screens) assert.doesNotMatch(read(f), /from\(\s*['"]client_meal_plans['"]\s*\)/, f);
 });
+
+// Owner, 2026-11-09: the app records which library plan a meal plan came from too, so the website
+// library can say who is on it. The route keeps the id only when it is the caller's own, and an
+// older build that sends none still works.
+test('the app sends the library plan it assigned from', () => {
+  const backend = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
+  assert.match(backend, /async function assignClientMealPlan\(\{ clientId, title, weekStart, days, templateId \}\)/);
+  assert.match(backend, /body: JSON\.stringify\(\{ clientId, title, weekStart: weekStart \|\| null, days, \.\.\.\(templateId \? \{ templateId: String\(templateId\) \} : \{\}\) \}\)/);
+  const pros = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
+  assert.match(pros, /window\.ShapeAssign\.mealPlan\(\{ clientId: uid, title: plan\.name, weekStart: bsAssignIso\(monday\), days, templateId: plan\.id \}\)/);
+});

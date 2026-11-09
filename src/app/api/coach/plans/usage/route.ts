@@ -6,6 +6,8 @@
 
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
+import { readAllById, ROW_PAGE } from '@/lib/read-all-by-id';
+import { OPEN_SUB_STATUSES, openSubsAt } from '../../../../../lib/coach-trajectory.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +22,27 @@ const USAGE_CAP = 5000;
 const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };
 
 type UsageRow = { client_id?: unknown; template_id?: unknown };
+type Db = Awaited<ReturnType<typeof clientForRequest>>;
+
+// ⚠ ONLY CLIENTS WITH AN OPEN SUBSCRIPTION ARE ON A PLAN (owner, 2026-11-09). A former client's last
+// meal plan stays published, and their future program weeks stay on their calendar, when the
+// subscription ends: counted, they were "+N more" on a card and Most used ranked on people who left.
+// The roster's own rule decides who is a client now (src/lib/coach-roster.ts: the open statuses,
+// then openSubsAt's span), read every page. null when the read failed: the answer is then an error.
+async function openClients(db: Db, role: 'trainer' | 'nutritionist', providerIds: Array<string | number>): Promise<Set<string> | null> {
+  const { data, error } = await readAllById<{ id: unknown; client_id?: unknown }>((after) => {
+    let q = db.from('subscriptions')
+      .select('*')
+      .eq('provider_role', role)
+      .in('provider_id', providerIds)
+      .in('status', OPEN_SUB_STATUSES);
+    if (after) q = q.gt('id', after);
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
+    return q.order('id', { ascending: true }).limit(ROW_PAGE);
+  });
+  if (error || !data) return null;
+  return new Set(openSubsAt(data).map((r: { client_id?: unknown }) => (typeof r.client_id === 'string' ? r.client_id : '')).filter(Boolean));
+}
 
 // Clients, not rows: one client with twelve weeks of a program is one client on it.
 // fromEntries defines OWN properties, so a template id can never reach a prototype.
@@ -46,28 +69,27 @@ function usageOf(list: UsageRow[]) {
 // from the app, which sends no id yet, or by Nora). `untracked` is how many of the caller's
 // current plans carry no template id: a real count, read as one, or the read is an error. With it
 // above 0, the page never says a plan has no clients.
-async function mealPlanUsage(db: Awaited<ReturnType<typeof clientForRequest>>, ownerId: string) {
+async function mealPlanUsage(db: Db, ownerId: string) {
   const { data: nutritionists, error: nutritionistError } = await db.from('nutritionists').select('id').eq('owner_id', ownerId);
   if (nutritionistError) return NextResponse.json({ error: 'Could not verify the coach account.' }, { status: 500 });
   // No nutritionist row means no plan was ever sent from here — a real answer, not a missing one.
   if (!nutritionists?.length) return NextResponse.json({ usage: {}, capped: false, untracked: 0 }, { headers: PRIVATE_HEADERS });
   const ids = nutritionists.map((n: { id: string | number }) => n.id);
+  const open = await openClients(db, 'nutritionist', ids);
+  if (!open) return NextResponse.json({ error: 'Could not read who is on each plan. Retry.' }, { status: 500 });
+  // Every current plan, tracked or not, in one read: both counts are then over the same rows and the
+  // same open clients, so `untracked` is a count of plans the read held, never a guess.
   const { data: rows, error, count } = await db.from('client_meal_plans')
     .select('client_id, template_id:payload->template->>id', { count: 'exact' })
     .in('nutritionist_id', ids)
     .eq('status', 'published')
-    .not('payload->template->>id', 'is', null)
     .order('created_at', { ascending: false })
     .limit(USAGE_CAP);
   if (error) return NextResponse.json({ error: 'Could not read who is on each plan. Retry.' }, { status: 500 });
-  const { count: untracked, error: untrackedError } = await db.from('client_meal_plans')
-    .select('id', { count: 'exact', head: true })
-    .in('nutritionist_id', ids)
-    .eq('status', 'published')
-    .is('payload->template->>id', null);
-  if (untrackedError || typeof untracked !== 'number') return NextResponse.json({ error: 'Could not read who is on each plan. Retry.' }, { status: 500 });
-  const list: UsageRow[] = Array.isArray(rows) ? rows : [];
-  return NextResponse.json({ usage: usageOf(list), capped: count == null || count > list.length, untracked }, { headers: PRIVATE_HEADERS });
+  const current = (Array.isArray(rows) ? rows : [] as UsageRow[]).filter((r: UsageRow) => typeof r?.client_id === 'string' && open.has(r.client_id));
+  const untracked = current.filter((r: UsageRow) => !(typeof r?.template_id === 'string' && r.template_id)).length;
+  const fetched = Array.isArray(rows) ? rows.length : 0;
+  return NextResponse.json({ usage: usageOf(current), capped: count == null || count > fetched, untracked }, { headers: PRIVATE_HEADERS });
 }
 
 export async function GET(request: Request) {
@@ -88,6 +110,8 @@ export async function GET(request: Request) {
   if (trainerError) return NextResponse.json({ error: 'Could not verify the coach account.' }, { status: 500 });
   // No trainer row means nothing was ever assigned from here — a real answer, not a missing one.
   if (!trainers?.length) return NextResponse.json({ usage: {}, capped: false }, { headers: PRIVATE_HEADERS });
+  const open = await openClients(db, 'trainer', trainers.map((t: { id: string }) => t.id));
+  if (!open) return NextResponse.json({ error: 'Could not read who is on each program. Retry.' }, { status: 500 });
   const { data: rows, error, count } = await db.from('client_workouts')
     .select('client_id, template_id:payload->template->>id', { count: 'exact' })
     .in('trainer_id', trainers.map((t: { id: string }) => t.id))
@@ -98,5 +122,7 @@ export async function GET(request: Request) {
     .limit(USAGE_CAP);
   if (error) return NextResponse.json({ error: 'Could not read who is on each program. Retry.' }, { status: 500 });
   const list: UsageRow[] = Array.isArray(rows) ? rows : [];
-  return NextResponse.json({ usage: usageOf(list), capped: count == null || count > list.length }, { headers: PRIVATE_HEADERS });
+  // A former client's future weeks are still on their calendar: only an open subscription counts.
+  const current = list.filter((r) => typeof r?.client_id === 'string' && open.has(r.client_id));
+  return NextResponse.json({ usage: usageOf(current), capped: count == null || count > list.length }, { headers: PRIVATE_HEADERS });
 }

@@ -115,11 +115,14 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // ceiling, where a newest-first cap would drop the habits past it.
   // cron/push-held/route.ts joined on 2026-10-26: it walks every held notice by created_at, a page at a
   // time to the end, oldest first so the night's notices go in order and the per-person limit keeps
-  // the first ones.)
+  // the first ones. coach/plans/usage/route.ts joined on 2026-11-09: only a client with an open
+  // subscription is on a program or meal plan (the owner), so it walks the open subscriptions by the
+  // same readAllById, as coach/score does.)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
     'coach/capacity/route.ts',
+    'coach/plans/usage/route.ts',
     'coach/score/route.ts',
     'conversations/[id]/messages/route.ts',
     'cron/habit-watch/route.ts',
@@ -135,7 +138,8 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   ]);
   // The marker counts for every read up to 16 lines below it, so in a dashboard route it must sit
   // with the subscriptions walk alone: a session read it reached would be exempt unseen, ascending or not.
-  for (const f of ['trainer/dashboard/route.ts', 'nutritionist/dashboard/route.ts']) {
+  // The usage route's walk too: its plan and workout reads are not covered by it.
+  for (const f of ['trainer/dashboard/route.ts', 'nutritionist/dashboard/route.ts', 'coach/plans/usage/route.ts']) {
     assert.deepEqual(capped().filter((r) => r.where.startsWith(f + ':') && r.exempt).map((r) => r.col), ['id'], f);
   }
 });
