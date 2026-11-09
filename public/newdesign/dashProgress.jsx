@@ -783,7 +783,7 @@ function DprCycleCard() {
     return (
       <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_CYCLE_HEAT, paddingLeft: 24 }}>
         {eyebrow}
-        <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 18, letterSpacing: "-0.015em", lineHeight: 1.3 }}>Cycle-aware training & recovery.</div>
+        <div style={{ marginTop: 12, fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 18, letterSpacing: "-0.015em", lineHeight: 1.3 }}>Cycle-aware training & recovery.</div>
         <div style={{ marginTop: 8, fontSize: 12.5, lineHeight: 1.55, color: DPR_INK50 }}>{DPR_CYCLE_DISCLAIMER}</div>
         {unavailable ? (
           <div style={{ marginTop: 12, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>Setup isn't available yet.</div>
@@ -821,10 +821,10 @@ function DprCycleCard() {
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_CYCLE_HEAT, paddingLeft: 24 }}>
       {eyebrow}
-      <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 20, letterSpacing: "-0.015em", lineHeight: 1.25 }}>{head}</div>
+      <div style={{ marginTop: 12, fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 20, letterSpacing: "-0.015em", lineHeight: 1.25 }}>{head}</div>
       {meta ? <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DPR_INK50 }}>{meta}</div> : null}
       {pred ? <div style={{ marginTop: 6, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.06em", color: DPR_INK50 }}>Next period window · {dprCycleShortDate(pred.from)} – {dprCycleShortDate(pred.to)}</div> : null}
-      {cycle && cycle.phase === "luteal" && pred ? <div style={{ marginTop: 7, fontFamily: "Fraunces, serif", fontSize: 13, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>Week of the {dprCycleShortDate(pred.from)} is a natural deload window.</div> : null}
+      {cycle && cycle.phase === "luteal" && pred ? <div style={{ marginTop: 7, fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 13, fontStyle: "italic", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)" }}>Week of the {dprCycleShortDate(pred.from)} is a natural deload window.</div> : null}
 
       <button type="button" onClick={() => setCalOpen((o) => !o)}
         style={{ marginTop: 14, background: "transparent", border: 0, padding: "6px 0", fontFamily: DPR_MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: DPR_CYCLE_HEAT, cursor: "pointer" }}>
@@ -1056,7 +1056,7 @@ function DprWeeklyReadout({ shown, held }) {
   return (
     <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DPR_TEAL, paddingLeft: 24 }}>
       <span className="dash-eyebrow">The read · this week</span>
-      <div style={{ marginTop: 12, fontFamily: "Fraunces, serif", fontSize: 17, letterSpacing: "-0.015em", lineHeight: 1.35 }}>
+      <div style={{ marginTop: 12, fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 17, letterSpacing: "-0.015em", lineHeight: 1.35 }}>
         {held.readout.summary}
       </div>
       {insights.length === 0 ? (
@@ -1301,7 +1301,7 @@ function ClientProgressPage() {
               the mobile card renders the identical rows, no wording drift. */}
           {(window.DashSignals.crossoverCopy(crossover) || []).map((r, i) => (
             <div key={r.k} style={{ paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0, borderTop: i ? "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : 0 }}>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 16.5, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{r.text}</div>
+              <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 16.5, letterSpacing: "-0.01em", lineHeight: 1.35 }}>{r.text}</div>
               <div style={{ marginTop: 5, fontFamily: DPR_MONO, fontSize: 9.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DPR_INK50 }}>{r.sub}</div>
             </div>
           ))}

@@ -58,7 +58,7 @@ function NutHero() {
               <svg viewBox="0 0 80 80" style={{ width: 78, height: 78 }}>
                 <circle cx="40" cy="40" r="34" stroke="rgba(242,237,228,0.1)" strokeWidth="6" fill="none" />
                 <circle cx="40" cy="40" r="34" stroke={TEAL_BRIGHT} strokeWidth="6" fill="none" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 34 * 0.62} ${2 * Math.PI * 34}`} transform="rotate(-90 40 40)" />
-                <text x="40" y="38" textAnchor="middle" fontFamily="Fraunces, serif" fontSize="20" fontWeight="400" fill={INK}>1,210</text>
+                <text x="40" y="38" textAnchor="middle" fontFamily="'Anybody', 'Anybody Fallback', system-ui, sans-serif" fontSize="20" fontWeight="400" fill={INK}>1,210</text>
                 <text x="40" y="52" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="7" fill="rgba(242,237,228,0.5)" letterSpacing="1">/1950 KCAL</text>
               </svg>
               <div style={{ display: "grid", gap: 6 }}>

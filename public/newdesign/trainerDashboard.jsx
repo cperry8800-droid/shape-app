@@ -478,7 +478,7 @@ function DashTodayItemRow({ t }) {
                 {p.provider === "apple" ? appleMark : spotMark}
                 {p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"} · {(p.author || "COACH").toUpperCase()}'S PICK
               </div>
-              <div style={{ fontFamily: "Fraunces, serif", fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em", color: PAPER }}>{p.name}</div>
+              <div style={{ fontFamily: "'Anybody', 'Anybody Fallback', system-ui, sans-serif", fontSize: 20, fontWeight: 400, letterSpacing: "-0.01em", color: PAPER }}>{p.name}</div>
               <div style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.75)", letterSpacing: "0.06em", marginTop: 4 }}>
                 {p.bpm} BPM · {p.tracks || "—"} tracks · optional, always skippable
               </div>

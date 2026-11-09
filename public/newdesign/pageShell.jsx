@@ -30,6 +30,31 @@ const mono = "var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', m
 // itself is Schibsted Grotesk + Anybody, so a member moving between the
 // homepage and any other page sees one bar rather than two. Only the bar
 // changes face — nothing else in this file does.
+// ⚠ ONE TYPE SYSTEM ON EVERY PAGE (owner, 2026-11-09, the depth review's High finding: the
+// homepage and dashboards were Anybody / Schibsted Grotesk, the other pages Fraunces / Space
+// Grotesk). The site draws its display and body text through --sh-font-display / --sh-font-body;
+// dash.css declares them on the dashboards, and this declares the same faces on every page that
+// loads this file, so a var(--sh-font-*) there no longer falls to the old faces. Injected when the
+// file loads, not from a component: Login, the sign-up pages and Landing load the shell but draw
+// their own header, so nothing the shell renders reaches them. :where(body) is the page's text
+// where a component sets no family (Pricing's included list read in the browser's Times), at zero
+// specificity so a page's own body rule wins. Both families ask for their italic axis, so an <em>
+// is a real italic, and Anybody for its width axis.
+(function shapeTypeSystem() {
+  if (typeof document === "undefined" || document.getElementById("shape-type-system")) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,50..150,100..900;1,50..150,100..900&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap";
+  const style = document.createElement("style");
+  style.id = "shape-type-system";
+  style.textContent =
+    "@font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}" +
+    "@font-face{font-family:'Schibsted Fallback';src:local('Arial');size-adjust:101%;ascent-override:95%;descent-override:25%;line-gap-override:0%}" +
+    ":root{--sh-font-display:'Anybody','Anybody Fallback',system-ui,sans-serif;--sh-font-body:'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif}" +
+    ":where(body){font-family:var(--sh-font-body)}";
+  (document.head || document.documentElement).appendChild(link);
+  (document.head || document.documentElement).appendChild(style);
+})();
 const navSans = "'Schibsted Grotesk', 'Schibsted Fallback', 'Space Grotesk', system-ui, sans-serif";
 const navDisp = "'Anybody', 'Anybody Fallback', system-ui, sans-serif";
 // The bar's height, read by the spacer, the sticky dashboard sidebar and the
@@ -1849,7 +1874,7 @@ function ShapeMobileStyles() {
          tests/homepage-font-axes.test.mjs was written for, and it now derives from
          this file too. @import must come first in a stylesheet, hence its position
          above the @font-face rules. */
-      @import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,50..150,100..900;1,50..150,100..900&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap');
       /* Metrics-matched fallback fonts — the local fallback is scaled (size-adjust +
          ascent/descent overrides) to occupy the SAME space as the web font, so the swap
          on load doesn't reflow headers (Fraunces), sub-heads (JetBrains Mono) or body
