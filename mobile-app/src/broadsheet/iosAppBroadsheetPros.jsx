@@ -6037,14 +6037,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
     { n: 'PPL · 6-day split', meta: '6 days/wk · intermediate' },
     { n: 'Bro split · 5-day', meta: '5 days/wk · hypertrophy' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
-  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
-  const enrolled = signedIn ? [] : [
-    { prog: 'Push / Pull / Legs', n: 48, who: [['A', t.RUST], ['J', '#3b7de0'], ['C', t.AMBER]] },
-    { prog: 'Starting Strength', n: 31, who: [['R', t.AMBER], ['P', '#3b7de0']] },
-    { prog: 'Fat Loss 101', n: 22, who: [['P', '#8a5cf6'], ['D', t.RUST]] },
-    { prog: 'Hypertrophy Block', n: 19, who: [['S', '#2f7d4f']] },
-  ];
   const libBuild = ({ plans: 'plan', workouts: 'workout', programs: 'program' })[libTab] || 'plan';
 
   // ── Assign a catalogue plan to a linked client ──
@@ -6251,8 +6243,6 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
       items: shownPrograms.filter((p) => p !== topProgram).map((p) => item(p, openProgram(p), p.id ? () => duplicate(p) : undefined)),
       miss: programs.length && !shownPrograms.length ? missText : null,
       empty: programs.length || serverPlans === null ? null : { label: tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' }), build: { label: tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' }), onClick: () => openDraft('plan', true) }, nora: askNora } },
-    { kind: 'enrolled', head: tr('coach:head.enrolled', { defaultValue: 'Enrolled' }), empty: { label: tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' }) },
-      rows: enrolled.map((e) => ({ key: e.prog, name: e.prog, faces: e.who.map((w) => w[0]), demo: !signedIn, label: tr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n }), aria: tr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n }), onClick: () => flash(tr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog })) })) },
   ];
   const sortWord = sort === 'Price' ? tr('coach:head.sortPrice', { defaultValue: 'Price' }) : sort === 'Rating' ? tr('coach:head.sortRating', { defaultValue: 'Rating' }) : tr('coach:head.sortPopular', { defaultValue: 'Popular' });
   const model = {
@@ -7161,14 +7151,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     { n: 'Chicken + rice lunch', meta: '620 kcal · 48P · lunch' },
     { n: 'Recovery smoothie', meta: '310 kcal · 30P · snack' },
   ];
-  // Clients enrolled per paid plan (shown under the Plans sub-tab) — demo facepiles
-  // carry fabricated "N on it" counts, so signed-OUT preview only (§5 CodeRabbit).
-  const enrolled = signedIn ? [] : [
-    { prog: 'Lean Cut', n: 12, who: [['A', t.RUST], ['J', '#3b7de0']] },
-    { prog: 'Performance', n: 8, who: [['R', t.AMBER]] },
-    { prog: 'Vegetarian Base', n: 6, who: [['S', '#2f7d4f'], ['P', '#8a5cf6']] },
-    { prog: 'Maintenance', n: 14, who: [['C', t.AMBER], ['D', t.RUST]] },
-  ];
 
   // Open the plan a confirmed Nora draft just saved ("Open in builder" on her card). ⚠ IT WAITS FOR
   // THE LIBRARY, and reads it once more if the plan is not in it yet: the save landed a moment ago.
@@ -7346,8 +7328,6 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
       miss: plans.length && !shownPlans.length ? missText : null,
       empty: plans.length ? null : { label: tr('coach:plans.noPublishedPlans', { defaultValue: 'NO PUBLISHED PLANS' }), build: { label: tr('coach:plans.buildFromScratch', { defaultValue: '＋ Build from scratch' }), onClick: () => openDraft('mealplan', true) },
         nora: <BSProAskNora t={t} label={tr('feed:support.ask.draftMealPlanLink', { defaultValue: 'Ask Nora to draft one' })} draft={tr('feed:support.ask.draftMealPlan', { defaultValue: 'Draft a meal plan for me: ' })} /> } },
-    { kind: 'enrolled', head: tr('coach:head.enrolled', { defaultValue: 'Enrolled' }), empty: { label: tr('coach:plans.noEnrolled', { defaultValue: 'NO ENROLLED CLIENTS' }) },
-      rows: enrolled.map((e) => ({ key: e.prog, name: e.prog, faces: e.who.map((w) => w[0]), demo: !signedIn, label: tr('coach:plans.onIt', { defaultValue: '{count} ON IT', count: e.n }), aria: tr('coach:plans.enrolledAria', { defaultValue: '{prog}, {count} clients enrolled', prog: e.prog, count: e.n }), onClick: () => flash(tr('coach:plans.enrolledFlash', { defaultValue: '{count} clients on {prog}', count: e.n, prog: e.prog })) })) },
   ];
   const model = {
     role: 'nutritionist', title: tr('coach:shortcut.plans', { defaultValue: 'Plans' }), published: publishedLead, publishedRest,
