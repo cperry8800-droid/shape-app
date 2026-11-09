@@ -511,11 +511,18 @@ test('a moments ring points at the same pixels of the capture, whatever the wind
   // first item ring 74 px lower in the same window; the Wall's PR opens as its own page,
   // so its ring is the headline, the 245 lb top set and the member's note, at the
   // stylesheet's inset (the page's content starts 26 px in).
+  // Re-shot 2026-11-09 (owner: "need to update all screenshots of app on website, on
+  // home page and app page"), as -v5. Eat's fuel card and the session's set card now
+  // run nearly edge to edge, so those two rings sit just INSIDE their card (4% and
+  // 5.67%): at 2.5% the outline lay on the card's own border, and Eat's could not
+  // close under the card either, where a dotted line runs down to the next meal.
+  // Grocery's ring is the Produce heading and Apple, the Wall's the headline through
+  // the note, each re-measured off the capture's own elements (DOM rects × 1.6).
   const EXPECTED = [
-    { file: 'home-eat-v4.jpg', top: 480, height: 363, left: 15, right: 585 },
-    { file: 'home-grocery-v4.jpg', top: 898, height: 219, left: 15, right: 585 },
-    { file: 'home-session-v4.jpg', top: 482, height: 134, left: 15, right: 585 },
-    { file: 'home-feed-v4.jpg', top: 353, height: 303, left: 15, right: 585 },
+    { file: 'home-eat-v5.jpg', top: 566, height: 139, left: 24, right: 576 },
+    { file: 'home-grocery-v5.jpg', top: 702, height: 143, left: 15, right: 585 },
+    { file: 'home-session-v5.jpg', top: 509, height: 153, left: 34, right: 566 },
+    { file: 'home-feed-v5.jpg', top: 314, height: 301, left: 15, right: 585 },
   ];
 
   for (const [i, got] of momentsRings().entries()) {
@@ -605,7 +612,7 @@ test('the price phone is not a screen the journey rail already showed', () => {
   //
   // ⚠ AND "NO CAPTURE TWICE ON THE PAGE" WOULD FAIL CORRECT CODE, which is why
   // this is scoped to these two blocks. The moments strip and the rail SHARE
-  // home-session-v4.jpg and home-feed-v4.jpg deliberately, under different
+  // home-session-v5.jpg and home-feed-v5.jpg deliberately, under different
   // headlines, and the rail's stage 0 is the seeded markup by design — the test
   // above asserts that sameness. What must not repeat is the standing phone
   // beside the price showing a stage the rail has already walked the reader
