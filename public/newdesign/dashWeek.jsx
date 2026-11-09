@@ -354,10 +354,12 @@ function dwkHeadModel(entries, opts) {
   const total = entries.length;
   const ins = entries.filter((e) => e.state === "in");
   const none = entries.filter((e) => e.state === "none").length;
-  const unread = entries.filter((e) => e.state === "unread" || e.state === "beyond").length;
+  const unread = entries.filter((e) => e.state === "unread").length;
+  // A week older than the check-ins this page fetched: not read here, and not "couldn't be read".
+  const beyond = entries.filter((e) => e.state === "beyond").length;
   const pending = entries.filter((e) => e.state === "loading").length;
   const reviewed = ins.filter((e) => e.reviewed).length;
-  const known = total - unread - pending;
+  const known = total - unread - beyond - pending;
   const toReview = !reviewsRead || (total > 0 && known === 0) ? null : ins.length - reviewed;
   // One segment a client who checked in: the reviewed first, then the waiting, so the ring fills
   // the way the week does. A review state that was not read is neither.
@@ -365,26 +367,27 @@ function dwkHeadModel(entries, opts) {
   const segments = ins.filter((e) => reviewsRead && e.reviewed).map(seg).concat(ins.filter((e) => !(reviewsRead && e.reviewed)).map(seg));
   const facts = [];
   const which = opts && opts.isCurrent ? "this week's" : "that week's";
-  if (total && known === 0) facts.push(which + (pending ? " check-ins are still loading" : " check-ins couldn't be read"));
+  if (total && known === 0) facts.push(which + (pending ? " check-ins are still loading" : unread ? " check-ins couldn't be read" : " check-ins aren't loaded here · the client file holds the full history"));
   else if (total) {
     facts.push(ins.length + " of " + total + " checked in");
     if (none) facts.push(none + (opts && opts.isCurrent ? " haven't yet" : " didn't"));
     if (unread) facts.push(unread + " couldn't be read");
+    if (beyond) facts.push(beyond + " not loaded here");
     if (pending) facts.push(pending + " still loading");
   } else facts.push("no clients on the roster yet");
   if (opts && opts.reviewsLoading) facts.push("loading your reviews");
   else if (!reviewsRead) facts.push("your reviews couldn't be read");
   else if (ins.length) facts.push(reviewed + " of " + ins.length + " reviewed");
-  return { total, checkedIn: ins.length, none, unread, pending, reviewed, toReview, segments, facts };
+  return { total, checkedIn: ins.length, none, unread, beyond, pending, reviewed, toReview, segments, facts, isCurrent: !!(opts && opts.isCurrent) };
 }
 // The head before there is a roster to count: still loading, or a signed-in coach whose roster
 // could not be read (never the sample's people, never a 0).
 function dwkHeadWithout(why) {
-  return { total: 0, checkedIn: 0, none: 0, unread: 0, pending: 0, reviewed: 0, toReview: null, segments: [], facts: [why === "unread" ? "your roster couldn't be read just now · reload to try again" : "loading your roster"] };
+  return { total: 0, checkedIn: 0, none: 0, unread: 0, beyond: 0, pending: 0, reviewed: 0, toReview: null, segments: [], facts: [why === "unread" ? "your roster couldn't be read just now · reload to try again" : "loading your roster"] };
 }
 function dwkHeadTitle(m) {
   if (m.toReview == null) return "— check-ins to review";
-  if (m.toReview === 0) return m.checkedIn && !m.unread && !m.pending ? "Every check-in reviewed ✓" : "No check-ins to review";
+  if (m.toReview === 0) return m.checkedIn && !m.unread && !m.pending && !m.beyond ? "Every check-in reviewed ✓" : "No check-ins to review";
   return m.toReview === 1 ? "1 check-in to review" : m.toReview + " check-ins to review";
 }
 
@@ -412,7 +415,7 @@ const DWK_TOPICS = [
   ["fasting", /\bfasting\b/i],
   ["macros", /\bmacros?\b/i],
 ];
-function dwkPatterns(entries, isCurrent) {
+function dwkPatterns(entries, isCurrent, reviewsRead = true) {
   const out = [];
   const ins = entries.filter((e) => e.ck);
   let weak = null;
@@ -439,7 +442,8 @@ function dwkPatterns(entries, isCurrent) {
     }
     const rest = best ? asks.length - best.n : asks.length;
     const text = best
-      ? best.n + " asked about " + best.topic + ", answer " + (best.n === 2 ? "both" : "all " + best.n) + (rest ? "; " + rest + " more asked you something" : "")
+      // ⚠ "Answer" only where the reviews were read: unread, a question may already be answered.
+      ? best.n + " asked about " + best.topic + (reviewsRead ? ", answer " + (best.n === 2 ? "both" : "all " + best.n) : "") + (rest ? "; " + rest + " more asked you something" : "")
       : asks.length === 1 ? "1 client asked you something" : asks.length + " asked you something";
     out.push({ key: "asks", n: asks.length, text });
   }
@@ -533,7 +537,7 @@ function DwkRingKey({ segments }) {
 function DwkHead({ model, onStart, canStart, onMarkAll, canMarkAll }) {
   const count = (k) => model.segments.filter((s) => s.state === k).length;
   const label = model.segments.length
-    ? "Check-ins this week: " + [["waiting", "waiting"], ["reviewed", "reviewed"], ["unknown", "review not read"]].filter(([k]) => count(k)).map(([k, words]) => count(k) + " " + words).join(", ")
+    ? (model.isCurrent === false ? "Check-ins that week: " : "Check-ins this week: ") + [["waiting", "waiting"], ["reviewed", "reviewed"], ["unknown", "review not read"]].filter(([k]) => count(k)).map(([k, words]) => count(k) + " " + words).join(", ")
     : "No check-ins to show";
   return (
     <section aria-label="To review" data-dash-lift="2" style={{ ...DWK_CARD, boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" }}>
@@ -668,7 +672,7 @@ function DwkStat({ label, value, sub, tone }) {
 // ── Read, reply, next: the selected client's check-in (Lift 1, meeting its row) ──
 // The Week's own panel (not the Clients peek). `entry` is the page's reading of this client's week;
 // without one (a caller that renders the panel on its own) it is worked out here the same way.
-function DwkCheckinPanel({ row, role, weekOf, thisMonday, live, review, adherence, readout, onReview, onNote, canPersist, editable, entry, onReply, next, onNext, notice }) {
+function DwkCheckinPanel({ row, role, weekOf, thisMonday, live, review, adherence, readout, onReview, onNote, canPersist, editable, entry, onReply, next, onNext, notice, reviewsRead = true }) {
   const rec = row.client;
   const id = rec.profile.id;
   const [noteOpen, setNoteOpen] = React.useState(false);
@@ -712,7 +716,8 @@ function DwkCheckinPanel({ row, role, weekOf, thisMonday, live, review, adherenc
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 7 }}>
             {typeof DashClientGem === "function" ? <DashClientGem points={typeof dashRecordTier === "function" ? dashRecordTier(rec) : null} /> : null}
             <span style={{ fontFamily: DWK_SERIF, fontSize: 21, letterSpacing: "-0.01em", color: DWK_INK }}>{rec.profile.name}</span>
-            {reviewed ? <DwkChip color={DASH_SEV_COLORS.green}>Reviewed ✓</DwkChip> : ck ? <DwkChip color={DWK_AMBER}>Waiting</DwkChip> : null}
+            {/* The row's rule (DwkStatusChip): with the reviews unread, nothing is called waiting. */}
+            {reviewed ? <DwkChip color={DASH_SEV_COLORS.green}>Reviewed ✓</DwkChip> : ck ? (reviewsRead ? <DwkChip color={DWK_AMBER}>Waiting</DwkChip> : <DwkChip color={DWK_INK50}>Checked in</DwkChip>) : null}
           </div>
           {row.flags.length ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{row.flags.map((f, i) => <DashPill key={i} c={sevColor}>{f.label}</DashPill>)}</div> : null}
         </div>
@@ -853,7 +858,7 @@ function CoachWeekPage({ role }) {
   const reviewsRead = !live || canPersist;
   const entries = dwkEntries(rows, { weekOf, thisMonday, live, weekDoc });
   const head = rosterUnread ? dwkHeadWithout("unread") : pending ? dwkHeadWithout("loading") : dwkHeadModel(entries, { reviewsRead, reviewsLoading: live && reviews.kind === "loading", isCurrent });
-  const patterns = rosterUnread || pending ? [] : dwkPatterns(entries, isCurrent);
+  const patterns = rosterUnread || pending ? [] : dwkPatterns(entries, isCurrent, reviewsRead);
   const shown = onlyOpen ? entries.filter((e) => !e.reviewed) : entries;
   const patch = (patches) => {
     if (persisting) return reviews.apply(patches);
@@ -943,11 +948,11 @@ function CoachWeekPage({ role }) {
   const markAll = () => { const now = new Date().toISOString(); patch(entries.filter((e) => !e.reviewed).map((e) => ({ weekOf, clientId: e.id, patch: { reviewedAt: now, checkinSignature: e.ck ? JSON.stringify(e.ck) : null } }))); };
   const anyIn = entries.some((e) => e.state === "in");
   // Not one check-in read: still loading is not unread, and neither is an empty week.
-  const allLoading = rows.length > 0 && entries.every((e) => e.state === "loading");
   const allUnread = rows.length > 0 && entries.every((e) => e.state === "unread" || e.state === "beyond" || e.state === "loading");
+  const allLoading = allUnread && entries.some((e) => e.state === "loading");
   const weekWord = isCurrent ? "this week's" : "that week's";
   const patternsEmpty = allLoading ? "Reading " + weekWord + " check-ins…"
-    : allUnread ? (isCurrent ? "This" : "That") + " week's check-ins couldn't be read here, so there is nothing to work out."
+    : allUnread ? (isCurrent ? "This" : "That") + (entries.some((e) => e.state === "unread") ? " week's check-ins couldn't be read here" : " week's check-ins aren't loaded here") + ", so there is nothing to work out."
     : !anyIn ? (isCurrent ? "Nothing to work out yet: no check-ins this week so far." : "Nothing to work out: no check-ins that week.")
     : "Nothing stands out across " + weekWord + " check-ins.";
   const next = sel ? dwkNextWaiting(shown, sel.id) : null;
@@ -1033,7 +1038,7 @@ function CoachWeekPage({ role }) {
                 onNote={(text) => patch([{ weekOf, clientId: sel.id, patch: { note: text } }])}
                 onReply={(draft) => reply(sel, draft)}
                 next={next} onNext={(id) => { select(id, "key"); focusRow(id); }}
-                notice={notice} />
+                notice={notice} reviewsRead={reviewsRead} />
             ) : (
               <section aria-label="Check-in" data-dwk-panel="" style={{ ...DWK_CARD, boxShadow: "var(--lift-0, 0 1px 2px rgba(0,0,0,0.04))", borderStyle: "dashed" }}>
                 <div style={DWK_EYEBROW}>Read · reply · next</div>

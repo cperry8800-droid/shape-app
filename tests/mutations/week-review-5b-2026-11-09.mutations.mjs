@@ -29,7 +29,7 @@ export default {
     { name: 'a past week says "haven\'t yet"', file: WEEK,
       find: 'none + (opts && opts.isCurrent ? " haven\'t yet" : " didn\'t")', replace: 'none + " haven\'t yet"' },
     { name: 'every check-in reviewed, with some never read', file: WEEK,
-      find: 'm.checkedIn && !m.unread && !m.pending ?', replace: 'm.checkedIn ?' },
+      find: 'm.checkedIn && !m.unread && !m.pending && !m.beyond ?', replace: 'm.checkedIn ?' },
     { name: 'Start review opens a reviewed one', file: WEEK,
       find: 'const firstWaiting = shown.find((e) => e.state === "in" && !e.reviewed) || null;', replace: 'const firstWaiting = shown.find((e) => e.state === "in") || null;' },
 

@@ -486,3 +486,32 @@ test('next waiting skips the open one and wraps round', () => {
   assert.equal(W.dwkNextWaiting([list[0]], 'a'), null, 'never the one open');
   assert.equal(W.dwkNextWaiting(list, 'zz').id, 'a', 'from nowhere, the first one waiting');
 });
+
+// ── Review fixes (5b, before the PR): an unread or unfetched figure is never called known ─────────
+test('a week beyond the fetch is "not loaded here", and never "every check-in reviewed"', () => {
+  const four = rec(9, 'Fay', { checkins: [0, 1, 2, 3].map((n) => ck(W.dwkAddDays(MON, -7 * n), { sleep: 7 })) });
+  const old = W.dwkAddDays(MON, -28);
+  const only = W.dwkHeadModel(W.dwkEntries([row(four)], { weekOf: old, thisMonday: MON, live: true, weekDoc: {} }), { reviewsRead: true, isCurrent: false });
+  assert.equal(only.toReview, null);
+  assert.equal(only.facts[0], "that week's check-ins aren't loaded here · the client file holds the full history");
+  // One read and reviewed, one beyond the fetch: the reviewed one is not "every check-in".
+  const fetchedOld = rec(8, 'Gus', { checkins: [ck(old, { sleep: 6 })] });
+  const doc = { [fetchedOld.profile.id]: { reviewedAt: new Date().toISOString(), checkinSignature: JSON.stringify(fetchedOld.checkins[0]) } };
+  const mixed = W.dwkHeadModel(W.dwkEntries([row(fetchedOld), row(four)], { weekOf: old, thisMonday: MON, live: true, weekDoc: doc }), { reviewsRead: true, isCurrent: false });
+  assert.equal(mixed.toReview, 0);
+  assert.equal(mixed.facts.includes('1 not loaded here'), true, mixed.facts.join(' · '));
+  assert.equal(mixed.facts.some((f) => /couldn't be read/.test(f)), false);
+  assert.equal(W.dwkHeadTitle(mixed), 'No check-ins to review');
+});
+
+test('with the reviews unread, a question is not "to answer" and the panel calls nothing waiting', async () => {
+  const qs = [entry(1, {}, { question: 'Should I add creatine?' }), entry(2, {}, { question: 'Creatine on rest days?' })];
+  assert.deepEqual(W.dwkPatterns(qs, true, false).map((l) => l.text), ['2 asked about creatine']);
+  assert.deepEqual(W.dwkPatterns(qs, true, true).map((l) => l.text), ['2 asked about creatine, answer both']);
+  const p = await page({ rows: cast(), db: makeDb({ readFails: true }) });
+  await p.click(p.q('[data-dwk-start]'));
+  assert.equal(p.panelId(), id(1));
+  assert.equal(/Checked in/.test(p.panelText()), true, p.panelText());
+  assert.equal(/Waiting/.test(p.panelText()), false, 'the row\'s rule: nothing is waiting while the reviews are unread');
+  await p.close();
+});
