@@ -9,6 +9,7 @@ const DOC = 'public/newdesign/profileCustom.mjs';
 const PAGE = 'mobile-app/src/broadsheet/BSTrainerProfile.jsx';
 const EDIT = 'mobile-app/src/broadsheet/BSMakeItYours.jsx';
 const STUDIO = 'mobile-app/src/broadsheet/BSCoachStudio.jsx';
+const CLIMB = 'mobile-app/src/broadsheet/BSCoachClimb.jsx'; // the program sheet, since the Climb (2026-11-09)
 const DEMO = 'public/newdesign/trainerDemo.mjs'; // canonical since #2560
 const CLIENT = 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx';
 
@@ -73,21 +74,21 @@ export default {
       find: "    if (W.bsRequireAccount && !W.bsRequireAccount(tr('profile:trainer.buyAsk', { defaultValue: 'buy a program' }))) return;\n", replace: "" },
     { name: 'page: the checkout is never opened', file: PAGE,
       find: "      if (url) (W.bsOpenCheckout || ((u) => { window.location.href = u; }))(url);", replace: "" },
-    { name: 'page: the coach is offered Buy on their own program', file: PAGE,
-      find: "        {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>", replace: "        {false ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>" },
-    { name: 'page: Buy · Free goes to the paid checkout', file: PAGE,
-      find: "            : pr.paid ? <button type=\"button\" data-program-buy=\"\" onClick={onBuy}", replace: "            : pr.price ? <button type=\"button\" data-program-buy=\"\" onClick={onBuy}" },
+    { name: 'page: the coach is offered Buy on their own program', file: CLIMB,
+      find: "        {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: CLIMB.MUTED }}>", replace: "        {false ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: CLIMB.MUTED }}>" },
+    { name: 'page: Buy · Free goes to the paid checkout', file: CLIMB,
+      find: "            {pr.sample || !pr.paid", replace: "            {pr.sample || !pr.price" },
     { name: 'work: a free program is sold', file: WORK,
       find: "return Number.isFinite(n) && n > 0; };", replace: "return Number.isFinite(n) && n >= 0; };" },
-    { name: 'page: Buy on a sample', file: PAGE,
-      find: "          : pr.sample ? <button type=\"button\" onClick={onWork}", replace: "          : false ? <button type=\"button\" onClick={onWork}" },
-    { name: 'page: the program\'s video is not played', file: PAGE,
-      find: "      {pr.video ? <div data-program-video=\"\" style={{ margin: '10px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>", replace: "      {false ? <div data-program-video=\"\" style={{ margin: '10px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>" },
+    { name: 'page: Buy on a sample', file: CLIMB,
+      find: "            {pr.sample || !pr.paid", replace: "            {!pr.paid" },
+    { name: 'page: the program\'s video is not played', file: CLIMB,
+      find: "        {pr.video ? <div data-program-video=\"\"", replace: "        {false ? <div data-program-video=\"\"" },
     { name: 'page: a workout\'s video is not played', file: PAGE,
       find: "      {video ? <div data-replay-video=\"\"", replace: "      {false ? <div data-replay-video=\"\"" },
     { name: 'page: a workout with no sets has a stepper', file: PAGE,
       find: "      {rows.length ? <div style={{ margin: '12px 18px 0', display: 'flex', gap: 8 }}>", replace: "      {true ? <div style={{ margin: '12px 18px 0', display: 'flex', gap: 8 }}>" },
-    { name: 'page: the names-only line is not said', file: PAGE,
+    { name: 'page: the names-only line is not said', file: CLIMB,
       find: "      {p.namesOnly ? <p style={{ margin: '12px 18px 0'", replace: "      {false ? <p style={{ margin: '12px 18px 0'" },
     { name: 'page: the initials are the name\'s first two letters', file: PAGE,
       find: ": String(name).split(/\\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();", replace: ": String(name).slice(0, 2).toUpperCase();" },
@@ -101,8 +102,8 @@ export default {
       find: "  const coaching = Number.isFinite(price) && price > 0\n", replace: "  const coaching = true\n" },
     { name: 'studio: the focus filter does not filter', file: STUDIO,
       find: "  const shown = focusNow === 'all' ? works : works.filter((w) => w.focus === focusNow);", replace: "  const shown = works;" },
-    { name: 'page: no Studio tab for the work alone', file: PAGE,
-      find: "    ...(isSelf || hasStudioWork ? [['studio'", replace: "    ...(isSelf ? [['studio'" },
+    { name: 'page: no Range camp for the work alone', file: PAGE,
+      find: "      (isSelf || hasStudioWork) ? ['range'", replace: "      isSelf ? ['range'" },
     { name: 'doc: five focus words', file: DOC,
       find: "export const BS_FOCUS_MAX = 4;", replace: "export const BS_FOCUS_MAX = 5;" },
     { name: 'doc: a preset that is not one is kept', file: DOC,

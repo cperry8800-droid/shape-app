@@ -48,13 +48,19 @@ window.ShapeI18n = {
 };
 
 const flush = () => act(async () => { for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0)); });
+// A test that fails before its unmount would leave its page behind for the next to read: each mount
+// first takes down any page still up, and whatever its sheets left on the body.
+const liveRoots = [];
 async function mount(el) {
+  while (liveRoots.length) { const r = liveRoots.pop(); try { await act(async () => r.unmount()); } catch (e) { /* already down */ } }
+  document.body.innerHTML = '';
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
+  liveRoots.push(root);
   await act(async () => { root.render(el); });
   await flush();
-  return { host, text: () => document.body.textContent.replace(/\s+/g, ' '), unmount: async () => { await act(async () => root.unmount()); host.remove(); } };
+  return { host, text: () => document.body.textContent.replace(/\s+/g, ' '), unmount: async () => { const i = liveRoots.indexOf(root); if (i >= 0) liveRoots.splice(i, 1); await act(async () => root.unmount()); host.remove(); } };
 }
 const click = async (el) => { assert.ok(el, 'no such element'); await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); }); await flush(); };
 const type = async (el, text) => {
@@ -67,6 +73,14 @@ const type = async (el, text) => {
   await flush();
 };
 const button = (re) => [...document.querySelectorAll('button')].find((b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || ''));
+// The Climb (BSCoachClimb.jsx): the page's sections are camps on one page, each in the row of camps.
+const camp = (k) => document.querySelector(`[data-climb-camp="${k}"]`);
+const campTitle = (k) => { const el = document.querySelector(`#climb-camp-${k}`); return el ? el.textContent : null; };
+const campKeys = () => [...document.querySelectorAll('[data-climb-camp]')].map((el) => el.getAttribute('data-climb-camp'));
+// The summit holds the rating ("9.9 /10 · Rating · 284 reviews"), only with reviews.
+const summit = () => { const el = document.querySelector('[data-climb-summit]'); return el ? el.textContent.replace(/\s+/g, ' ') : ''; };
+// The Climb is dark throughout, whatever paper the coach picked (owner, 2026-11-09: "the climb").
+const CLIMB_BG = (() => { const d = document.createElement('div'); d.style.background = '#0a0e11'; return d.style.background; })();
 
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
 window.BSDetailHeader = ({ kicker, title, onBack }) => React.createElement('header', null, React.createElement('button', { type: 'button', onClick: onBack }, '← Back'), kicker, ' ', title);
@@ -147,7 +161,7 @@ test('the words follow the pronouns the coach wrote, else their first name', asy
   for (const [pronouns, day, work] of [['she/her', 'Her day', 'Work with her'], ['he/him', 'His day', 'Work with him'], ['they', 'Their day', 'Work with them'], ['', "Maya's day", 'Work with Maya'], ['xe/xem', "Maya's day", 'Work with Maya']]) {
     reset({ pronouns });
     const m = await mount(page());
-    assert.ok(button(new RegExp(`^${day}$`)), `${pronouns || '(none)'} → ${day}`);
+    assert.equal(campTitle('findme'), `${day}.`, `${pronouns || '(none)'} → ${day}`);
     assert.ok(button(new RegExp(`^${work}$`)), `${pronouns || '(none)'} → ${work}`);
     await m.unmount();
   }
@@ -157,7 +171,7 @@ test('the day: open times from the listing\'s own read, busy time only as busy, 
   const t0 = new Date(); t0.setDate(t0.getDate() + 1); t0.setHours(9, 0, 0, 0);
   reset({ busy: [{ start: t0.toISOString(), end: new Date(t0.getTime() + 3600000).toISOString(), kind: 'session' }] });
   const m = await mount(page());
-  const days = document.querySelectorAll('[role="group"] button');
+  const days = camp('findme').querySelectorAll('[role="group"] button');
   assert.equal(days.length, 7);
   await click(days[1]);
   assert.ok(document.querySelectorAll('[data-open-time]').length > 0, 'tomorrow has open times');
@@ -180,7 +194,7 @@ test('the day: open times from the listing\'s own read, busy time only as busy, 
 test('a changed intro length reads the times again and says so', async () => {
   reset({ bookError: Object.assign(new Error('x'), { code: 'length_changed', durationMin: 30 }) });
   const m = await mount(page());
-  await click(document.querySelectorAll('[role="group"] button')[1]);
+  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
   await click(document.querySelector('[data-open-time]'));
   await click(document.querySelector('[data-book-intro]'));
   assert.match(m.text(), /intro now runs 30 minutes/);
@@ -245,64 +259,54 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   reset();
   world.provider = { ...world.provider, price: 0 };
   let m = await mount(page());
-  assert.ok(button(/^Her day$/));
-  assert.ok(!button(/^Studio$/), 'no Studio tab with no programs, workouts or coaching');
-  assert.ok(!button(/^Replays$/), 'no replays tab without replays');
+  assert.ok(camp('findme'), 'Find me: the day');
+  assert.ok(!camp('range'), 'no Studio tab with no programs, workouts or coaching');
+  assert.ok(!camp('replays'), 'no replays tab without replays');
   await m.unmount();
   // A floor plan saved before the Studio became the coach's work is never drawn (owner, 2026-11-04).
   reset({ custom: { studio: { kind: 'gym', where: 'Fishtown', items: bsStudioFromTemplate('gym') } }, posts: [{ key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }] });
   m = await mount(page());
-  await click(button(/^Studio$/));
+  assert.ok(camp('range'), 'the range camp');
   assert.ok(document.querySelector('[data-coaching-card]'), 'monthly coaching is work enough for the tab');
   assert.equal(document.querySelectorAll('[data-station]').length, 0, 'no floor plan');
-  await click(button(/^Replays$/));
+  assert.ok(camp('replays'), 'the replays camp');
   assert.equal(document.querySelectorAll('[data-replay]').length, 1);
   await m.unmount();
   reset({ canView: false });
   m = await mount(page());
-  assert.ok(!button(/^Her day$/), 'a private profile shows no tabs');
+  assert.ok(!camp('findme') && !document.querySelector('[data-climb-camps]'), 'a private profile shows no camps');
   assert.match(m.text(), /keeps their profile private/);
   await m.unmount();
 });
 
-test('the page is painted in the coach\'s own colours, inside an app painted in others', async () => {
+test('the Climb is dark throughout, whatever colours the coach picked (owner, 2026-11-09: "the climb")', async () => {
   reset({ custom: { look: { paper: 'bone', accent: 'rust' } } });
   const m = await mount(page());
-  const bone = window.makePalette({ paperMode: 'bone', accentKey: 'rust' });
-  const el = document.querySelector('[data-trainer-profile]');
-  const probe = document.createElement('div'); probe.style.background = bone.PAPER_BG;
-  assert.equal(el.style.background, probe.style.background, 'bone paper');
+  assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, 'dark, not bone');
   const msg = button(/^Message Maya$/);
-  probe.style.background = bone.ACCENT;
-  assert.equal(msg.style.background, probe.style.background, 'the rust accent');
+  const probe = document.createElement('div'); probe.style.background = '#34d6c5';
+  assert.equal(msg.style.background, probe.style.background, "Shape's teal, not the coach's rust");
+  // The intro is booked in the trainer's rust.
+  probe.style.background = '#c0533b';
+  assert.equal(document.querySelector('[data-climb-book]').style.background, probe.style.background);
   await m.unmount();
 });
 
-test("the coach's own page is in the colours members see, before and without their own doc's read", async () => {
-  // Owner, 2026-10-31: "have the profile page reflect whatever the coaches picked that shows public
-  // to members". It fell back to the default dark until the coach's own doc was read, and for good
-  // when that read failed.
-  const bone = window.makePalette({ paperMode: 'bone', accentKey: 'rust' });
-  const probe = document.createElement('div'); probe.style.background = bone.PAPER_BG;
+test("the coach's own page is the same dark Climb members see, before, without and after their own doc's read", async () => {
   const painted = () => document.querySelector('[data-trainer-profile]').style.background;
   let release;
   reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, stored: { look: { paper: 'bone', accent: 'rust' } } });
   world.readHold = new Promise((r) => { release = r; });
   let m = await mount(page({ isSelf: true }));
-  assert.equal(painted(), probe.style.background, 'while the own doc is read');
+  assert.equal(painted(), CLIMB_BG, 'while the own doc is read');
   world.readHold = null;
   release();
   await flush();
-  assert.equal(painted(), probe.style.background, 'once it is read');
+  assert.equal(painted(), CLIMB_BG, 'once it is read');
   await m.unmount();
   reset({ me: 'u-maya', custom: { look: { paper: 'bone', accent: 'rust' } }, readFails: true });
   m = await mount(page({ isSelf: true }));
-  assert.equal(painted(), probe.style.background, 'when the own read fails');
-  await m.unmount();
-  // The own doc, once read, wins: what Make it yours saved is what members now read.
-  reset({ me: 'u-maya', custom: { look: { paper: 'dark', accent: 'teal' } }, stored: { look: { paper: 'bone', accent: 'rust' } } });
-  m = await mount(page({ isSelf: true }));
-  assert.equal(painted(), probe.style.background, 'the own doc over a stale public read');
+  assert.equal(painted(), CLIMB_BG, 'when the own read fails');
   await m.unmount();
 });
 
@@ -333,8 +337,8 @@ test('Make it yours saves look, cover and the Studio\'s words onto the doc as it
   assert.deepEqual(world.readWith, { expectedUserId: 'u-maya' }, 'the read is bound to the account that opened the editor');
   assert.deepEqual(world.saved.opts, { expectedUserId: 'u-maya' }, 'and so is the save');
   // Back on the page, the Studio reads the coach's line and who it is for.
-  await click(button(/^Studio$/));
-  assert.match(document.querySelector('[data-program]').textContent, /Base 6.*Six weeks to a first pull-up\..*For.*New to lifting/);
+  assert.ok(camp('range'), 'the range camp');
+  assert.match(document.querySelector('[data-program]').textContent, /New to lifting.*Base 6.*Six weeks to a first pull-up\./);
   await m.unmount();
 });
 
@@ -435,7 +439,7 @@ test('the wall photo is only the coach\'s own media, on the profile and in the e
 test('on their own page a coach sees their open times as members do, but cannot take one', async () => {
   reset({ me: 'u-maya' });
   const m = await mount(page({ isSelf: true }));
-  await click(document.querySelectorAll('[role="group"] button')[1]);
+  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
   const open = [...document.querySelectorAll('[data-open-time]')];
   assert.ok(open.length > 0);
   assert.ok(open.every((b) => b.disabled && !/Take it/.test(b.textContent)));
@@ -543,16 +547,15 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     const m = await mount(demoPage());
     assert.match(m.text(), /Quinn Harper\./, 'the signed-out persona, as everywhere else in the app');
     assert.equal(document.querySelector('img[alt="Quinn\'s wall photo"]').getAttribute('src'), '/m/demo/box-cover.webp', 'the wall photo');
-    const avatarBtn = document.querySelector('img[src="/m/demo-avatar.png"]').closest('button');
-    assert.ok(avatarBtn.disabled, 'the persona\'s photo, with no picker');
+    assert.ok(!document.querySelector('img[src="/m/demo-avatar.png"]').closest('button'), 'the persona\'s photo, with no picker');
     assert.ok(!document.querySelector('input[type="file"]'), 'no photo upload in the demo');
     assert.match(m.text(), /Strength and conditioning · Iron & Ordinary/);
     assert.match(m.text(), /Portland, OR/);
     assert.match(m.text(), /Get strong, move well/);
-    assert.match(m.text(), /9\.9\/10 from 284 reviews/);
-    assert.ok(button(/^Quinn's day$/), 'no pronouns: the words go by the first name');
+    assert.match(summit(), /9\.9 ?\/10.*284 reviews/);
+    assert.equal(campTitle('findme'), "Quinn's day.", 'no pronouns: the words go by the first name');
     // A week of open and busy times: some day in it has both, and none can be taken from here.
-    const days = [...document.querySelectorAll('[role="group"] button')];
+    const days = [...camp('findme').querySelectorAll('[role="group"] button')];
     let both = false;
     for (const d of days) {
       await click(d);
@@ -567,14 +570,14 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     // "Publish your first plan" under every tab: "dont think this is working properly").
     assert.deepEqual(window.__blockPlans.map((p) => [p.name, p.category, p.meta]), [['Strong in 12', 'program', '12 weeks'], ['Barbell basics', 'program', '6 weeks']]);
     await click(button(/^Close$/));
-    await click(button(/^Studio$/));
+    assert.ok(camp('range'), 'the range camp');
     // The sample's work (owner, 2026-11-04): its two programs, every program day and video as a workout,
     // and its coaching by the month; no floor plan.
     assert.deepEqual([...document.querySelectorAll('[data-program]')].map((p) => (p.textContent.match(/Strong in 12|Barbell basics/) || [''])[0]), ['Strong in 12', 'Barbell basics']);
     assert.equal(document.querySelectorAll('[data-workout]').length, 7, 'five program days and two videos');
     assert.match(document.querySelector('[data-coaching-card]').textContent, /Coaching with Quinn.*\$180.*A month/);
     assert.equal(document.querySelectorAll('[data-station]').length, 0, 'no floor plan');
-    await click(button(/^Replays$/));
+    assert.ok(camp('replays'), 'the replays camp');
     const replays = [...document.querySelectorAll('[data-replay]')];
     assert.equal(replays.length, 3);
     assert.match(replays[0].textContent, /Back squat, heavy triples/);
@@ -583,7 +586,7 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     await click(replays[0]);
     assert.match(m.text(), /Paused the first rep of every set/);
     await click(button(/^Close$/));
-    await click(button(/9\.9\/10 from 284 reviews/));
+    await click(document.querySelector('[data-climb-summit]'));
     assert.match(m.text(), /Priya S\./);
     await m.unmount();
     assert.deepEqual(spy.calls, [], 'no read or write reached Shape');
@@ -611,8 +614,7 @@ test('Make it yours in the demo changes the page on screen, saves nothing, and a
     await click(document.querySelector('[data-save-mine]'));
     assert.ok(!document.querySelector('[data-make-it-yours]'), 'Save closes the editor');
     assert.equal(document.querySelector('img[alt="Quinn\'s wall photo"]').getAttribute('src'), '/m/demo/studio-01.webp', 'the new wall photo');
-    const probe = document.createElement('div'); probe.style.background = window.makePalette({ paperMode: 'sage', accentKey: 'teal' }).PAPER_BG;
-    assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the new paper');
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, 'the Climb stays dark: the paper is kept in the doc');
     await m.unmount();
     assert.equal(world.saved, null);
     assert.deepEqual(spy.calls, [], 'nothing read or written');
@@ -657,18 +659,18 @@ test('a seeded listing\'s coach: its own listing, read by id, with a sample stud
     assert.ok(/^\/m\/demo\/.+\.webp$/.test(document.querySelector('img[alt="Leah\'s wall photo"]').getAttribute('src')), 'a sample wall photo');
     assert.match(m.text(), /HIIT built around clear blocks/);
     assert.match(m.text(), /Leah hasn't set up a Shape account yet, so the studio, replays, reviews and times here are samples\./);
-    assert.match(m.text(), /9\.6\/10 from 4 reviews/, 'the listing\'s rating over the sample reviews');
+    assert.match(summit(), /9\.6 ?\/10.*4 reviews/, 'the listing\'s rating over the sample reviews');
     assert.match(m.text(), /ACE-CPT/);
     assert.doesNotMatch(m.text(), /Iron & Ordinary|NSCA-CSCS/, 'nothing of the demo coach\'s own');
     // No hours on the listing: sample times, asked for, never taken (owner, 2026-10-29).
     assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times: Leah hasn't set open hours on Shape yet\./);
     let open = [];
-    for (const d of document.querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
+    for (const d of camp('findme').querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
     assert.ok(open.length > 0, 'sample open times');
     assert.ok(open.every((b) => !b.disabled && /Ask for it →/.test(b.textContent) && !/Take it/.test(b.textContent)), 'each is asked for, none taken');
-    await click(button(/^Studio$/));
+    assert.ok(camp('range'), 'the range camp');
     assert.match(document.querySelector('[data-program]').textContent, /Engine 8/, 'programs that fit HIIT');
-    await click(button(/^Replays$/));
+    assert.ok(camp('replays'), 'the replays camp');
     assert.match(document.querySelector('[data-replay]').textContent, /Air bike intervals/, 'conditioning replays for a HIIT coach');
     await click(button(/^Work with Leah$/));
     assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly coaching $120', 'the listing\'s own price');
@@ -684,7 +686,7 @@ test('a sample time is asked for, kept for Leah with the member\'s note; nothing
   reset({ me: 'u-me', byId: leahRow, slots: [] });
   const m = await mount(page({ person: leah }));
   try {
-    const firstOpen = async () => { for (const d of document.querySelectorAll('[role="group"] button')) { await click(d); const b = document.querySelector('[data-open-time]'); if (b) return b; } return null; };
+    const firstOpen = async () => { for (const d of camp('findme').querySelectorAll('[role="group"] button')) { await click(d); const b = document.querySelector('[data-open-time]'); if (b) return b; } return null; };
     await click(await firstOpen());
     assert.match(m.text(), /Ask for this time\./);
     assert.match(m.text(), /Leah isn't on Shape yet, so this time isn't booked\. Ask for it and Shape keeps it for Leah: you'll hear when they join\./);
@@ -766,7 +768,7 @@ test('the coach\'s own page lists what members asked of the listing before they 
 test('a seeded listing with real hours offers them to take, as its listing does', async () => {
   reset({ me: 'u-me', byId: leahRow });
   const m = await mount(page({ person: leah }));
-  await click(document.querySelectorAll('[role="group"] button')[1]);
+  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
   assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
   const open = [...document.querySelectorAll('[data-open-time]')];
   assert.ok(open.length > 0 && open.every((b) => !b.disabled && /Take it/.test(b.textContent)));
@@ -903,75 +905,60 @@ test('a demo saved in Make it yours keeps only what was changed, so the Studio s
     window.ShapeI18n.t = (key, opts) => (key === 'profile:sample.program.strong.name' ? 'Fuerte en 12' : hadT(key, opts));
     await act(async () => { for (const fn of subs) fn(); });
     await flush();
-    await click(button(/^Studio$/));
+    assert.ok(camp('range'), 'the range camp');
     assert.match(m.text(), /Fuerte en 12/, 'the Studio follows the language after a colours-only save');
-    const probe = document.createElement('div'); probe.style.background = window.makePalette({ paperMode: 'sage', accentKey: 'teal' }).PAPER_BG;
-    assert.equal(document.querySelector('[data-trainer-profile]').style.background, probe.style.background, 'and the saved paper stays');
+    assert.equal(document.querySelector('[data-trainer-profile]').style.background, CLIMB_BG, 'the Climb stays dark');
     await m.unmount();
   } finally { window.ShapeLocale = hadLocale; window.ShapeI18n.t = hadT; client.restore(); }
 });
 
-test('their activity: a tab of its own, last, with what they posted that the other tabs do not already show; a sample has its own', async () => {
+test('their activity: a camp of its own, Posts, with what they posted that the other camps do not already show; a sample has its own', async () => {
   // Owner, 2026-10-30: "there is also no activity feed on coaches profile"; 2026-10-31: "the coaches
-  // activity feed shouldn't be under replays, they should have a separate tab for activity".
+  // activity feed shouldn't be under replays, they should have a separate tab for activity". On the Climb
+  // it is the Posts camp, after Find me and before the Summit.
   const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
-  const tabNames = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.textContent);
+  const tabNames = () => [...document.querySelectorAll('[data-climb-camp-tab]')].map((b) => b.textContent);
   reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
-  world.provider = { ...world.provider, price: 0 }; // no coaching by the month, so no Studio tab: three tabs
+  world.provider = { ...world.provider, price: 0 }; // no coaching by the month, so no Range
   let m = await mount(page());
-  assert.equal(tabNames()[tabNames().length - 1], 'Activity', 'Activity is the last tab');
-  const tabSizes = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.style.fontSize);
-  assert.deepEqual(tabNames(), ['Her day', 'Replays', 'Activity']);
-  assert.ok(tabSizes().every((x) => x === '15px'), 'three tabs keep their size');
-  assert.ok(!document.querySelector('[data-activity]'), 'the feed is not on the page under another tab');
-  await tab('Replays');
-  assert.ok(!document.querySelector('[data-activity]'), 'nor under Replays');
-  await tab('Activity');
-  const feed = document.querySelector('[data-activity]');
-  assert.ok(feed, 'the feed, in its tab');
-  // No "Maya's activity" heading under a tab already named Activity: the cards carry her name in their byline.
+  assert.deepEqual(campKeys(), ['replays', 'findme', 'posts', 'summit']);
+  assert.deepEqual(tabNames(), ['Replays', 'Find me', 'Posts', 'Summit']);
+  assert.ok(!camp('replays').querySelector('[data-activity]'), 'the feed is not under Replays');
+  const feed = camp('posts').querySelector('[data-activity]');
+  assert.ok(feed, 'the feed, in its camp');
   assert.doesNotMatch(feed.textContent, /Maya's activity/);
   const titles = () => [...feed.querySelectorAll('[data-activity-card]')].map((c) => (c.textContent.match(/Note \d/) || [''])[0]);
   assert.deepEqual(titles(), ['Note 1', 'Note 2', 'Note 3', 'Note 4'], 'all of them, newest first; the logged session stays in Replays');
-  assert.ok(!feed.querySelector('[data-activity-all]'), 'no See all in a tab of its own');
+  assert.ok(!feed.querySelector('[data-activity-all]'), 'no See all in a camp of its own');
   assert.ok(!/Heavy squat day/.test(feed.textContent));
   assert.ok(!feed.querySelector('[data-log-activity]'), 'no Log activity on another coach\'s page');
-  const reviews = document.querySelector('[data-reviews-strip]');
-  if (reviews) assert.ok(feed.compareDocumentPosition(reviews) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'above the reviews');
   await m.unmount();
-  // Nothing posted: no Activity tab for a visitor.
+  // Nothing posted: no Posts camp for a visitor.
   reset({ posts: [] });
   m = await mount(page());
-  assert.ok(!tabNames().includes('Activity'), 'an empty tab for a visitor');
+  assert.ok(!camp('posts'), 'an empty camp for a visitor');
   assert.ok(!document.querySelector('[data-activity]'));
   await m.unmount();
-  // The coach's own page always has it, with Log activity.
+  // The coach's own page always has every camp, with what to add, Posts with Log activity.
   reset({ me: 'u-maya', posts: [] });
   m = await mount(page({ isSelf: true }));
-  assert.deepEqual(tabNames(), ['Her day', 'About me', 'Studio', 'Replays', 'Activity'], 'all five on their own page, Activity last');
-  assert.ok(tabSizes().every((x) => x === '13px'), 'more than three tabs set smaller');
-  // A tab never shrinks below its words: the row sets them smaller to fit (useTabFit), and one that still
-  // can't fit scrolls sideways instead of cutting a name to "…".
-  const nav = document.querySelector('nav[aria-label="Profile sections"]');
+  assert.deepEqual(campKeys(), ['base', 'range', 'replays', 'proof', 'words', 'about', 'findme', 'posts', 'summit'], 'every camp on their own page');
+  const nav = document.querySelector('[data-climb-camps]');
   assert.equal(nav.style.overflowX, 'auto', 'the row scrolls');
-  for (const b of nav.querySelectorAll('button')) {
-    assert.equal(b.style.flex, '1 0 auto', 'a tab shrinks below its words');
-    assert.notEqual(b.style.textOverflow, 'ellipsis', 'a name is cut to …');
-  }
-  await tab('Activity');
-  assert.ok(document.querySelector('[data-activity] [data-log-activity]'), 'Log activity on their own page');
+  for (const b of nav.querySelectorAll('button')) assert.ok(parseFloat(b.style.minHeight) >= 44, 'a 44px target');
+  assert.ok(camp('posts').querySelector('[data-activity] [data-log-activity]'), 'Log activity on their own page');
   await m.unmount();
   // A private profile shows none.
   reset({ posts: [note(1)], canView: false });
   m = await mount(page());
-  assert.ok(!tabNames().includes('Activity'));
+  assert.ok(!camp('posts'));
   assert.ok(!document.querySelector('[data-activity]'));
   await m.unmount();
   // A sample coach: its own run and note.
   reset({ me: 'u-me', byId: leahRow, slots: [] });
   m = await mount(page({ person: leah }));
   await tab('Activity');
-  assert.match(document.querySelector('[data-activity]').textContent, /Easy run, zone 2.*Deload week/s);
+  assert.match(camp('posts').querySelector('[data-activity]').textContent, /Easy run, zone 2.*Deload week/s);
   await m.unmount();
 });
 
@@ -997,7 +984,7 @@ test('a person tapped in the activity opens their profile, and Back returns to t
     await click(document.querySelector('[data-public-message]'));
     assert.deepEqual(messaged, ['u-sam'], 'Message on their profile messages them');
     await click(document.querySelector('[data-public-back]'));
-    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page, on its Activity tab');
+    assert.ok(document.querySelector('[data-activity]') && !document.querySelector('[data-public-profile]'), 'Back to the coach page, its Posts camp');
     // From a name on the card itself.
     await click(document.querySelector('[data-card-name]'));
     assert.ok(document.querySelector('[data-public-profile="u-sam"]'));
@@ -1013,14 +1000,12 @@ test('the reviews are on the page: the newest, each a card, and All reviews open
   let m = await mount(page({ person: leah }));
   const cards = [...document.querySelectorAll('[data-reviews-strip] [data-review-card]')];
   assert.equal(cards.length, 4, 'every sample review with words in it');
-  assert.match(cards[0].textContent, /★ 10\/10.*\+60 lb on my deadlift.*Priya S\./s);
-  assert.match(document.querySelector('[data-reviews-strip]').textContent, /What clients say/);
-  // At the foot of the page, after the tabs and what they hold (owner, 2026-10-30: "move reviews to
-  // bottom of page"), and before the footer.
-  const nav = document.querySelector('nav[aria-label="Profile sections"]');
+  assert.match(cards[0].textContent, /10\/10.*\+60 lb on my deadlift.*Priya S\./s);
+  // The Words camp: "What clients say", with the rating and how it spreads over the reviews read.
+  assert.equal(campTitle('words'), 'What clients say.');
   const strip = document.querySelector('[data-reviews-strip]');
-  assert.ok(nav.compareDocumentPosition(strip) & window.Node.DOCUMENT_POSITION_FOLLOWING, 'after the tabs');
-  assert.equal(strip.nextElementSibling.tagName, 'FOOTER', 'the last thing before the footer');
+  assert.ok(camp('words').contains(strip), 'in the Words camp');
+  assert.ok(strip.querySelector('[data-climb-spread]'), 'the spread of the ratings');
   await click(document.querySelector('[data-all-reviews]'));
   assert.match(document.querySelector('[role="dialog"]').textContent, /Reviews\..*Marcus L\./s, 'the full list');
   await m.unmount();
@@ -1059,7 +1044,9 @@ test('a reader who isn\'t a member sees the rating and Join to read them, never 
     let m = await mount(page());
     const strip = document.querySelector('[data-reviews-strip][data-reviews-locked]');
     assert.ok(strip, 'the strip says so');
-    assert.match(strip.textContent, /What clients say.*9\.4\/10 from 12 reviews.*Members read the reviews\..*Join to read them/s);
+    assert.match(strip.textContent, /9\.4 ?\/10.*12 reviews.*Members read the reviews\..*Join Shape to read all 12/s);
+    assert.equal(campTitle('words'), 'What clients say.');
+    assert.ok(!strip.querySelector('[data-climb-spread]'), 'no spread without the reviews to count');
     assert.equal(document.querySelectorAll('[data-review-card]').length, 0);
     // A guest is asked for an account first, and goes no further.
     window.bsRequireAccount = (label) => { calls.push(`account:${label}`); return false; };
@@ -1070,7 +1057,7 @@ test('a reader who isn\'t a member sees the rating and Join to read them, never 
     await click(strip.querySelector('[data-reviews-join]'));
     assert.deepEqual(calls, ['account:read the reviews', 'checkout']);
     // The full list says the same.
-    await click(button(/9\.4\/10 from 12 reviews/));
+    await click(document.querySelector('[data-climb-summit]'));
     const dlg = document.querySelector('[role="dialog"]');
     assert.match(dlg.textContent, /Members read the reviews\..*Join to read them/s);
     assert.doesNotMatch(dlg.textContent, /No reviews yet/);
@@ -1109,7 +1096,14 @@ const STRONG = { id: '11111111-2222-4333-8444-555555555555', kind: 'program', na
 } };
 const ROWER = { id: '66666666-2222-4333-8444-555555555555', kind: 'program', name: 'Engine 8', price: 'Free', providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Intervals', 'Rower', 'Rower')], weeks: 8, media: [] } };
 const MEAL = { id: '77777777-2222-4333-8444-555555555555', kind: 'meal_plan', name: 'A cut', price: 20, providerId: 7, providerRole: 'trainer', detail: { preview: true } };
-const tab = async (name) => click(button(new RegExp(`^${name}$`)));
+// The old tabs are camps on one page now: "going to one" is finding it there, and tapping its tab in the row.
+const CAMP_OF = { Studio: 'range', Replays: 'replays', 'About me': 'about', Activity: 'posts', 'Her day': 'findme' };
+const tab = async (name) => {
+  const k = CAMP_OF[name] || name;
+  assert.ok(camp(k), `the ${k} camp`);
+  const b = document.querySelector(`[data-climb-camp-tab="${k}"]`);
+  if (b) await click(b);
+};
 
 test('Studio: each program with its price once, its weeks and days, the lead with Preview and Open, and Buy through the storefront\'s checkout', async () => {
   reset({ salePlans: [STRONG, MEAL, ROWER] });
@@ -1117,13 +1111,14 @@ test('Studio: each program with its price once, its weeks and days, the lead wit
   await tab('Studio');
   const cards = [...document.querySelectorAll('[data-program]')];
   assert.equal(cards.length, 2, 'programs only, never a meal plan');
-  assert.match(cards[0].textContent, /Program.*Strong in 12.*12 weeks · 2 days a week.*\$79.*Once/);
-  assert.ok(cards[0].hasAttribute('data-lead'), 'the first is the lead');
-  assert.ok(cards[0].querySelector('[data-program-preview]'), 'with a free video, Preview');
+  // The range: a range of peaks a card, one a week of the program's own length, with its price once.
+  assert.match(cards[0].textContent, /12\s*Weeks.*Strong in 12.*12 weeks · 2 days a week.*\$79.*See the climb.*Start/);
+  assert.equal(cards[0].querySelector('[data-climb-peaks]').getAttribute('data-climb-peaks'), '12', 'a peak a week');
+  assert.equal(cards[0].querySelectorAll('[data-climb-price]').length, 1, 'the price once');
   assert.match(cards[1].textContent, /Engine 8.*8 weeks.*Free/);
-  assert.doesNotMatch(cards[1].textContent, /Once/, 'a free program is not bought once');
+  assert.ok(!cards[1].querySelector('[data-climb-start]'), 'a free program has no Start: nothing to check out');
   // A free program has no checkout (Codex on #2508): Work with in place of Buy.
-  await click(cards[1]);
+  await click(cards[1].querySelector('[data-program-open]'));
   assert.ok(!document.querySelector('[data-program-buy]'), 'no Buy · Free');
   assert.ok(button(/^Work with Maya$/));
   await click(button(/^Close$/));
@@ -1133,7 +1128,12 @@ test('Studio: each program with its price once, its weeks and days, the lead wit
   const video = sheet.querySelector('[data-program-video] video');
   assert.ok(video, 'the free video plays in the sheet');
   assert.equal(video.getAttribute('src'), CLIP);
-  assert.match(sheet.textContent, /The first week/);
+  assert.match(sheet.textContent, /The climb by block/);
+  // Its plates: the weeks, the days a week and the sessions they make; the rest of the route, by block.
+  assert.deepEqual([...sheet.querySelectorAll('[data-climb-sheet-plate]')].map((p) => p.textContent.replace(/\s+/g, '')), ['12Weeks', '2Daysaweek', '24Sessions']);
+  assert.deepEqual([...sheet.querySelectorAll('[data-climb-block]')].map((b) => b.getAttribute('data-climb-block')), ['2-4', '5-8', '9-12']);
+  assert.match(sheet.querySelector('[data-program-buy]').textContent, /^Start · \$79$/);
+  assert.match(sheet.querySelector('[data-climb-ask]').textContent, /^Ask Maya$/);
   // The first day open on its moves; another opens on a tap, its moves past the names kept counted.
   const days = [...sheet.querySelectorAll('[data-program-day]')];
   assert.equal(days.length, 2);
@@ -1145,6 +1145,10 @@ test('Studio: each program with its price once, its weeks and days, the lead wit
   await click(sheet.querySelector('[data-program-buy]'));
   assert.deepEqual(world.bought, { plan: { id: STRONG.id, name: 'Strong in 12', price: 79 }, providerRole: 'trainer', providerId: 7 });
   assert.equal(world.checkout, 'https://checkout.stripe.test/c/1');
+  await click(button(/^Close$/));
+  world.bought = undefined; world.checkout = undefined;
+  await click(document.querySelector('[data-climb-start]'));
+  assert.deepEqual(world.bought, { plan: { id: STRONG.id, name: 'Strong in 12', price: 79 }, providerRole: 'trainer', providerId: 7 }, "the card's Start, the same checkout");
   await m.unmount();
   // A guest is asked for an account first, and nothing is bought.
   reset({ salePlans: [STRONG] });
@@ -1191,7 +1195,7 @@ test('Studio: workouts posted on video play in the sheet; Replays keeps the sess
   await click(button(/^Close$/));
   await tab('Replays');
   assert.equal(document.querySelectorAll('[data-replay]').length, 1, 'a session with a video is a workout, not listed twice');
-  assert.ok(!document.querySelector('[data-workout]') && !document.querySelector('[data-program]'), 'Replays is the sessions alone');
+  assert.ok(!camp('replays').querySelector('[data-workout]') && !camp('replays').querySelector('[data-program]'), 'Replays is the sessions alone');
   await m.unmount();
 });
 
@@ -1216,10 +1220,12 @@ test('Studio: the coach\'s line on each, who a program is for, their picks first
   assert.match(m.text(), /Strength · Olympic lifting/);
   assert.doesNotMatch(m.text(), /Strength coach/);
   await tab('Studio');
-  assert.deepEqual([...document.querySelectorAll('[data-studio-jump-to]')].map((b) => b.textContent.replace(/\s+/g, '')), ['2Programs⌄', '6Workouts⌄', '1Coaching⌄']);
+  assert.deepEqual([...document.querySelectorAll('[data-studio-jump-to]')].map((b) => b.textContent.replace(/\s+/g, '')), ['6Workouts⌄', '1Coaching⌄'], 'the programs are the range\'s peaks, above');
   const progs = [...document.querySelectorAll('[data-program]')];
-  assert.match(progs[0].textContent, /Lift 3.*The program's own note\..*For.*New to lifting/, 'no line written: the program\'s own note');
-  assert.match(progs[1].textContent, /Strong in 12.*Three days a week, filmed\..*For.*Lifters back from injury/);
+  assert.equal(progs[0].querySelector('[data-studio-for]').textContent, 'New to lifting');
+  assert.match(progs[0].querySelector('[data-studio-desc]').textContent, /The program's own note\./, 'no line written: the program\'s own note');
+  assert.equal(progs[1].querySelector('[data-studio-for]').textContent, 'Lifters back from injury');
+  assert.match(progs[1].querySelector('[data-studio-desc]').textContent, /Three days a week, filmed\./);
   // The picks first, in the coach's order (a pick no longer there is left out), then every day and video once.
   const rows = () => [...document.querySelectorAll('[data-workout]')];
   assert.equal(rows().length, 3 + 2 + 1);
@@ -1323,7 +1329,7 @@ test('About me: the story, the details, the questions and the socials, as member
     links: { instagram: '@maya.lifts', website: 'https://mayaokafor.com/', x: 'javascript:alert(1)', youtube: 'two words', tiktok: 'https://?x' },
   } });
   const m = await mount(page());
-  await click(button(/^About me$/));
+  assert.ok(camp('about'), 'the about camp');
   const tab = document.querySelector('[data-about-tab]');
   assert.ok(tab, 'the About me tab');
   const story = tab.querySelector('[data-about="story"]');
@@ -1346,74 +1352,35 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
   // Only a social the page cannot link (Codex P2 on #2540): no tab either.
   reset({ custom: { look: { paper: 'bone', accent: 'rust' }, links: { website: 'https://' } } });
   let m = await mount(page());
-  assert.ok(!button(/^About me$/), 'no empty tab for members');
-  // Each tab keeps to one line (owner, 2026-10-31: "make this fit on one line"); three or fewer read at
-  // 15px, more at 13px with 5px sides and a hairline between two (owner, 2026-11-04). Where the row lays
-  // out, the tabs set smaller until it holds them (the next test); jsdom lays nothing out, so they
-  // keep their size here.
-  const tabStyle = () => [...document.querySelectorAll('[data-profile-tab]')].map((b) => [b.style.fontSize, b.style.padding, b.style.whiteSpace, b.style.flex].join(' '));
-  const few = tabStyle();
-  assert.ok(few.length >= 1 && few.length <= 3, `the member's tabs: ${few.length}`);
-  for (const st of few) assert.equal(st, '15px 0px 6px nowrap 1 0 auto');
+  assert.ok(!camp('about'), 'no empty tab for members');
   await m.unmount();
   reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
   m = await mount(page({ isSelf: true }));
-  const five = tabStyle();
-  assert.equal(five.length, 5, "the coach's own page: the day, About me, the studio, replays, Activity");
-  for (const st of five) assert.equal(st, '13px 0px 5px nowrap 1 0 auto');
-  assert.equal(document.querySelectorAll('[data-profile-tab-rule]').length, 4, 'a hairline between each two tabs, none at the ends');
-  assert.ok(!document.querySelector('[data-profile-tab-fade]'), 'no fade on a row that is not known to run over');
-  await click(button(/^About me$/));
+  assert.ok(camp('about'), 'the coach sees the About camp, empty, with what to add');
   assert.match(m.text(), /Tell members who you are: your story, how you coach, and where to find you\./);
   await click(document.querySelector('[data-about-edit]'));
   assert.ok(document.querySelector('[data-mine-about]'), 'Write About me opens Make it yours on About me');
   await m.unmount();
 });
 
-test('the tabs set smaller until the row holds them, down to 11.5px; a row that still runs over fades at its edge', async () => {
-  // Owner, 2026-11-04: "these tabs are also going off page". jsdom lays nothing out, so the row's widths
-  // are stood in for: each tab's words take 0.6em a letter (0.66em set bold, as the picked one is), its
-  // sides 10px, a hairline 1px.
-  const P = window.HTMLElement.prototype;
-  const saved = ['clientWidth', 'scrollWidth'].map((k) => [k, Object.getOwnPropertyDescriptor(P, k)]);
-  // Her day (picked), About me, Studio, Replays, Activity: 330.2px at 12px, 341.3px at 12.5px; the row
-  // holds what is within a pixel of its width, as the fit does.
-  let room = 340;
-  const need = (nav) => 12 + [...nav.querySelectorAll('[data-profile-tab]')].reduce((w, b) => w + b.textContent.length * (b.style.fontWeight === '600' ? 0.66 : 0.6) * parseFloat(b.style.fontSize) + 10, 0)
-    + nav.querySelectorAll('[data-profile-tab-rule]').length;
-  Object.defineProperty(P, 'clientWidth', { configurable: true, get() { return this.tagName === 'NAV' ? room : 0; } });
-  Object.defineProperty(P, 'scrollWidth', { configurable: true, get() { return this.tagName === 'NAV' ? Math.max(room, need(this)) : 0; } });
-  try {
-    reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
-    let m = await mount(page({ isSelf: true }));
-    const nav = document.querySelector('nav[aria-label="Profile sections"]');
-    const sizes = () => [...nav.querySelectorAll('[data-profile-tab]')].map((b) => parseFloat(b.style.fontSize));
-    const s = sizes();
-    assert.equal(s.length, 5);
-    assert.deepEqual(s, [12, 12, 12, 12, 12], 'the largest half point that fits: 12.5 needs 341.3px of 340');
-    assert.ok(need(nav) <= room + 1, 'the row holds them');
-    assert.ok(!nav.querySelector('[data-profile-tab-fade]'), 'no fade on a row that fits');
-    // The picked tab is set bold, so a pick changes the row and it is fitted again (Codex P2 on #2590): the
-    // shorter Studio frees room for 12.5 (340.5px), the longer Activity takes it back (342px at 12.5).
-    const tab = (label) => [...nav.querySelectorAll('[data-profile-tab]')].find((b) => b.textContent === label);
-    await click(tab('Studio'));
-    assert.deepEqual(sizes(), [12.5, 12.5, 12.5, 12.5, 12.5], 'fitted again for the shorter bold pick');
-    assert.ok(need(nav) <= room + 1, 'the row still holds them');
-    await click(tab('Activity'));
-    assert.deepEqual(sizes(), [12, 12, 12, 12, 12], 'and again for the longer one');
-    assert.ok(need(nav) <= room + 1, 'the row still holds them');
-    await m.unmount();
-    // Too narrow even at 11.5px: the row keeps 11.5 and scrolls, with a fade on the side there is more.
-    room = 200;
-    m = await mount(page({ isSelf: true }));
-    const nav2 = document.querySelector('nav[aria-label="Profile sections"]');
-    assert.ok([...nav2.querySelectorAll('[data-profile-tab]')].every((b) => b.style.fontSize === '11.5px'));
-    assert.equal(nav2.querySelector('[data-profile-tab-fade="right"]').style.opacity, '1', 'more to the right');
-    assert.equal(nav2.querySelector('[data-profile-tab-fade="left"]').style.opacity, '0', 'nothing to the left yet');
-    await m.unmount();
-  } finally {
-    for (const [k, d] of saved) { if (d) Object.defineProperty(P, k, d); else delete P[k]; }
-  }
+test('the camps pin under the condensed masthead as one row, each a 44px target, filling as you climb', async () => {
+  // Owner, 2026-11-09 (the Climb): the old tabs, which set smaller until the row held them, are the
+  // route's camps now. The row sticks under BSPage's pinned bar and scrolls sideways; the camp you are at
+  // is marked, and the dotted route under the row fills to it.
+  reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
+  const m = await mount(page({ isSelf: true }));
+  const nav = document.querySelector('[data-climb-camps]');
+  assert.equal(nav.style.position, 'sticky');
+  assert.equal(nav.style.overflowX, 'auto');
+  const tabs = [...nav.querySelectorAll('[data-climb-camp-tab]')];
+  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Range', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
+  assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.whiteSpace === 'nowrap'));
+  assert.equal(tabs.filter((b) => b.getAttribute('aria-current') === 'location').length, 1, 'one camp is where you are');
+  assert.ok(nav.querySelector('[data-climb-fill]'), 'the route under the row, filled as you climb');
+  // Tapping a camp marks it at once.
+  await click(tabs[6]);
+  assert.equal(tabs[6].getAttribute('aria-current'), 'location');
+  await m.unmount();
 });
 
 // Owner, 2026-11-04, of the editor: "with correct masthead as well", and of the masthead, the mark and
@@ -1525,7 +1492,7 @@ test('About me: certificates as Shape verified them, then the coach\'s accolades
       education: [{ title: 'BSc Kinesiology', detail: 'Rutgers', year: 2014 }],
     } } });
     let m = await mount(page());
-    await click(button(/^About me$/));
+    assert.ok(camp('about'), 'the about camp');
     assert.equal(world.certsFor, 'u-maya', 'the certificates were read for the coach');
     const tab = document.querySelector('[data-about-tab]');
     assert.deepEqual([...tab.querySelectorAll('[data-about]')].map((n) => n.getAttribute('data-about')), ['story', 'certs', 'accolades', 'education'], 'certificates, then accolades, then education, after the story');
@@ -1539,12 +1506,12 @@ test('About me: certificates as Shape verified them, then the coach\'s accolades
     // A listing Shape has not verified reads no certificates, and certificates alone open the tab.
     reset({ certs: ['NSCA-CSCS'], custom: null, provider: { ...world.provider, verified: false } });
     m = await mount(page());
-    assert.ok(!button(/^About me$/), 'nothing to show: no tab');
+    assert.ok(!camp('about'), 'nothing to show: no tab');
     assert.equal(world.certsFor, undefined, 'certificates were read for an unverified listing');
     await m.unmount();
     reset({ certs: ['NSCA-CSCS'], custom: null });
     m = await mount(page());
-    await click(button(/^About me$/));
+    assert.ok(camp('about'), 'the about camp');
     assert.deepEqual([...document.querySelectorAll('[data-about-cert]')].map((li) => li.textContent), ['NSCA-CSCS✓ Verified by Shape'], 'certificates alone open the tab');
     await m.unmount();
     // A private profile reads none: one the viewer may not see, and one that answers a visitor with no
@@ -1681,7 +1648,7 @@ test('⚠ the coach\'s own page reads their doc again when Nora\'s account setup
   window.shapeDb.getUserGoals = async (k, opts) => { if (k === 'profile_custom') reads += 1; return realGet(k, opts); };
   try {
     const m = await mount(page({ isSelf: true }));
-    await click(button(/^About me$/));
+    assert.ok(camp('about'), 'the about camp');
     const story = () => document.querySelector('[data-about-tab] [data-about="story"]').textContent;
     assert.match(story(), /Before Nora\./);
     assert.equal(reads, 1);
@@ -1720,13 +1687,13 @@ test('the coach\'s own page opens the composer from Activity, Replays and the St
       assert.ok(document.querySelector('[data-probe-composer]'), `${kind}: no composer`);
       await click(document.querySelector('[data-probe-composer]'));
     };
-    await click(document.querySelector('[data-profile-tab="activity"]'));
+    assert.ok(camp('posts'));
     await open('[data-log-activity]', 'Log activity');
-    await click(document.querySelector('[data-profile-tab="replays"]'));
+    assert.ok(camp('replays'));
     await click(button(/Log a session/));
     assert.ok(document.querySelector('[data-probe-composer]'), 'Log a session: no composer');
     await click(document.querySelector('[data-probe-composer]'));
-    await click(document.querySelector('[data-profile-tab="studio"]'));
+    assert.ok(camp('range'));
     await open('[data-post-video]', 'Post a workout video');
     assert.deepEqual(opened, ['any', 'workout', 'video'], 'each opens the composer on its own kind');
     assert.deepEqual(asked, [], 'opening it asks for no account');

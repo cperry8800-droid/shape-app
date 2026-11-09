@@ -4,21 +4,22 @@ import { createPortal } from 'react-dom';
 import { bsProfileLook, bsProfileStudio, bsProfileCover, bsProfileKitchen, bsProfileAbout, bsProfilePrompts, bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor, bsProfileLinkable, bsProfileLinkHref, bsProfileLinkText, bsPromptLabel, BS_PROFILE_LINK_KEYS, BS_PROFILE_LINK_GLYPHS } from '../services/profileCustom.mjs';
 import { bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel, bsCleanText, BS_FILM_CAPTION_MAX, BS_PINNED_REVIEWS_MAX } from '../services/profileCustom.mjs';
 import { STUDIO_WORDS } from '../services/studioKit.mjs';
-import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
-import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel, bsStudioFocusLabel } from './BSCoachStudio.jsx';
+import { bsCoachPrograms, bsWorkoutVideos, bsStudioModel, bsWorkPaid, bsWorkPrice, bsPlateNoteDays, energySplit, bsCoachStatFigures, bsCoachHeadline } from '../services/coachWork.mjs';
+import { BSStudioWorkTab, bsStudioHeat, bsFocusWordLabel, bsStudioWeekday, bsStudioForLabel } from './BSCoachStudio.jsx';
 import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import { bsProjectAvailability, bsIsZone, bsDayStartInZone } from '../services/coachAvailability.mjs';
 import { viewerZone, partsInZone, onZoneChange } from '../services/shapeZone.mjs';
 import { bsCoachPronoun, bsCoachFirstName } from '../services/coachPronoun.mjs';
 import { bsShortAge } from '../services/shortAge.mjs';
 import { bsTrainerDemo, bsTrainerSampleOf, BS_SAMPLE_CLIPS } from '../services/trainerDemo.mjs';
-import { bsMpTile, BSMpIcon } from './BSMemberBento.jsx';
+import { BSMpIcon } from './BSMemberBento.jsx';
 import { bsNutritionistDemo, bsNutritionistSampleOf } from '../services/nutritionistDemo.mjs';
 import { bsKitchenRecipe, bsKitchenGroceryList, bsOwnRecipeGroceryList, bsOwnRecipeCookable, bsShortHash } from './kitchenRecipes.js';
 import { BSCoachHoursPage } from './BSCoachHours.jsx';
 import { BSCoachBusinessPage, BSCoachBusinessCard } from './BSCoachBusiness.jsx';
 import { BSMakeItYours, BS_STAT_WORDS } from './BSMakeItYours.jsx';
 import { bsReceivedGroceryList } from '../services/groceryShare.mjs';
+import { BSCoachClimb, BSClimbProgramSheet, BSClimbRange, BSClimbStart, BSClimbProof, BSClimbWords, BSClimbSummit, BSClimbEmpty, CLIMB, CLIMB_PEAK_COLORS } from './BSCoachClimb.jsx';
 import { bsSaveReceivedGroceryList } from './BSGroceryShare.jsx';
 
 const { ShapeVideoPlayer } = createMobileVideoComponents(React);
@@ -27,47 +28,42 @@ const useBSUserGoalsRev = bsUserGoalsRevHook(React);
 const BS_OWN_PROFILE_KINDS = ['profile_custom'];
 
 // ─── THE COACH PROFILE: TRAINERS AND NUTRITIONISTS ───────────────────────────────────────────
-// Owner, 2026-10-27, after seven rounds on the canvas ("Show, don't sell · Quiet and premium ·
-// Feels like the Shape app"): one profile, three tabs, and Activity a fourth since 2026-10-31.
-// A nutritionist's page is the same page with a kitchen in place of the studio and plate notes in
-// place of replays (see the end of this note).
-// What clients say closes the page, under the tabs (owner, 2026-10-30: "move reviews to bottom of
-// page").
+// Owner, 2026-11-09 ("for coaches profile lets complete full buildout of 'the climb'"): every coach's
+// page is the Climb, drawn by BSCoachClimb.jsx, dark throughout in Shape's teal (a nutritionist's gold).
+// This module reads the coach and keeps every sheet and action; the Climb only draws what it is handed.
 //
-//   Header      the coach's wall photo with their round avatar over its edge, name, what they
-//               do and where, their bio, the verified line, up to three headline stats,
-//               Message · Work with · Follow.
-//   Spotlight   under the header, before the tabs: the highlight they pinned and their intro film
-//               (owner, 2026-11-04: "Show them on coach pages"). Their song and their practice's
-//               card (its hours and where to find them) are on About me, and the reviews they pinned
-//               (their wins wall) lead What clients say. Each shows only when set, all in Make it
-//               yours → Spotlight (the card in About me).
-//   Her day     the coach's week of open times and a day as it really is: open times you can
-//               take (a free intro call, booked at that time), and busy time that says only
-//               that it is busy. From the same public read the listing books from.
-//   Studio      their work, in three kinds (owner, 2026-11-04, round 3 of the studio on background C:
-//               "name it studio"; the floor plan it held was "too confusing for people"): the programs
-//               they sell (bought once), every program's day and every workout they posted on video
-//               (one session each, their picks first, by focus), and their coaching by the month, each
-//               with the line they wrote about it (BSCoachStudio.jsx; coachWork.mjs's bsStudioModel).
-//               Their listing photos moved to the foot of About me.
-//   Replays     the sessions they logged, stepped set by set with their note (owner, 2026-10-29: "There
-//               needs to be videos in replays of specific workouts or programs"; those moved to Studio).
-//   Activity    what they posted that the other tabs don't show (notes, photos, links, their own
-//               runs), as the member profile's activity cards; last, after Replays or Plate notes
-//               (owner, 2026-10-31: "the coaches activity feed shouldn't be under replays, they should
-//               have a separate tab for activity"). A visitor sees it when there is something in it.
-//
-// The coach paints it: their paper and accent from Shape's own set (profile_custom.look), set in
-// Make it yours. The page renders inside a BSProvider of those colours, so every piece of chrome
-// on it (the pinned masthead too) is theirs. Prices live in one place, the Work-with sheet, which
-// is the shared storefront (BSCoachCoachingBlock with useBSCoachCommerce, the client module's).
+//   Hero        the coach's wall photo darkened under the terrain, the route to the summit (their
+//               rating, only with reviews), pins for figures the page has, the prism portrait, the name,
+//               chips (verified, tier, how they coach, pronouns), their bio, the Shape Score row, the
+//               headline stats they picked as Doto plates and whether they take clients, Message · Work
+//               with · Follow, and the wire (the next open time, the newest post, the programs).
+//   Camps       the old tabs, one page now, in a row pinned under the condensed masthead:
+//     Base        Start here: the intro film and the highlight they pinned (owner, 2026-11-04: "Show them
+//                 on coach pages"), and their workout videos.
+//     Range       their programs as a range of peaks, one a week, then the rest of the Studio (every
+//                 program's day and workout video, coaching by the month; BSCoachStudio.jsx). A
+//                 nutritionist has Kitchen, Meal plans and Plate notes in its place.
+//     Replays     the sessions they logged, stepped set by set with their note.
+//     Proof       the reviews they pinned (their wins wall), as members read them.
+//     Words       what clients say: the rating and its spread, the reviews (members), or Join.
+//     About       their story, details, certificates, answers, song, practice card and socials.
+//     Find me     their week of open times and the day as it really is, from the read the listing
+//                 books from: open times to take, busy time said only as busy.
+//     Posts       what they posted that the camps above don't show, as the member profile's cards.
+//     Summit      the way in: Book, and the plans and prices (the Work-with sheet).
+//   Console     docked above the tab capsule: the free intro and the next open time, and Book, which
+//               opens the same booking sheet a time in Find me does (a sample's is asked for).
+// A visitor sees a camp only with something in it; the coach sees them all, with what to add. Prices
+// live in one place, the Work-with sheet, the shared storefront (BSCoachCoachingBlock with
+// useBSCoachCommerce, the client module's); a program's Start is the same checkout its sheet's is.
+// The colours a coach picked in Make it yours (profile_custom.look) stay in their doc; the Climb does
+// not paint with them.
 //
 // Words for the coach follow the pronouns they wrote, or their first name (coachPronoun.mjs).
 //
 // A nutritionist (person.kind 'NUTRI') reads and books as a nutritionist (their listing, hours and
-// intro calls), is painted amber until they pick their colours (Shape's nutritionist gold), and has
-// two tabs of their own (owner, 2026-10-27: "lets do something different for nutritionists"):
+// intro calls), is the Climb in Shape's nutritionist gold, and has two camps of their own (owner,
+// 2026-10-27: "lets do something different for nutritionists"), with Meal plans between them:
 //   Her kitchen  three parts shown one at a time (its floor plan, added 2026-10-30, went the next
 //                day: owner, "i dont think this concept makes sense for nutritionist profiles"; a
 //                layout already saved stays in profile_custom.studio, unread): their own recipes (cooked in Shape's cook mode, or sent to the member's
@@ -230,70 +226,19 @@ export function BSTrainerProfile(props) {
   const custom = previewCustom || (demo
     ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
     : isSelf ? own : (live && live.custom) || null);
-  // The coach's own page is in the colours members see (owner, 2026-10-31: "have the profile page
-  // reflect whatever the coaches picked that shows public to members"). Until their own doc is read,
-  // or when that read fails, those are the public read's, never the default dark.
-  const lookDoc = !previewCustom && !demo && isSelf && !own ? ((live && live.custom) || null) : custom;
-  const look = bsProfileLook(lookDoc && lookDoc.look) || {};
+  // The Climb is dark throughout, in Shape's teal (a nutritionist's gold), for every coach (owner,
+  // 2026-11-09: "the climb", one layout): the colours a coach picked in Make it yours stay in their doc
+  // but no longer paint the page.
   const page = demo
     ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
     : <TrainerPage {...props} role={role} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
   if (!BSProvider) return page;
   return (
-    <BSProvider paperMode={look.paper || 'dark'} accentKey={look.accent || (nutri ? 'amber' : 'teal')} densityKey={outer.densityKey} borderKey={outer.borderKey}
+    <BSProvider paperMode="dark" accentKey={nutri ? 'amber' : 'teal'} densityKey={outer.densityKey} borderKey={outer.borderKey}
       weightKey={outer.weightKey} textScaleKey={outer.textScaleKey} textureKey={outer.textureKey} textureColor={outer.textureColor}>
       {page}
     </BSProvider>
   );
-}
-
-// The tabs fit the row whole (owner, 2026-11-04, of a nutritionist's five: "these tabs are also going
-// off page"). Set at their size, then half a point smaller at a time down to TAB_FIT_MIN until the row
-// holds them; a row that still can't (a long name, a long language) scrolls, and `more` says so, for the
-// fades at its edges. Measured in the DOM, so it holds for any label in any locale; where nothing lays
-// out (no width), the tabs keep their size.
-const TAB_FIT_MIN = 11.5;
-function useTabFit(nav, key, max) {
-  const [fit, setFit] = React.useState({ key: null, max, size: max, more: false });
-  React.useLayoutEffect(() => {
-    if (!nav) return undefined;
-    let live = true;
-    const run = () => {
-      const tabs = nav.querySelectorAll('[data-profile-tab]');
-      if (!live || !tabs.length || !nav.clientWidth) return;
-      let size = max;
-      for (;;) {
-        tabs.forEach((b) => { b.style.fontSize = `${size}px`; });
-        if (nav.scrollWidth <= nav.clientWidth + 1 || size <= TAB_FIT_MIN) break;
-        size -= 0.5;
-      }
-      const more = nav.scrollWidth > nav.clientWidth + 1;
-      setFit((f) => (f.key === key && f.max === max && f.size === size && f.more === more ? f : { key, max, size, more }));
-    };
-    run();
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(run) : null;
-    if (ro) ro.observe(nav);
-    // The face may land after the first measure, and Saira sets wider than the fallback.
-    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) document.fonts.ready.then(run, () => {});
-    return () => { live = false; if (ro) ro.disconnect(); };
-  }, [nav, key, max]);
-  return fit.key === key && fit.max === max ? fit : { size: max, more: false };
-}
-// The row's scroll, for its fades: whether there is more to its left and to its right.
-function useTabEdges(nav, on) {
-  const [edges, setEdges] = React.useState({ left: false, right: false });
-  React.useEffect(() => {
-    if (!nav || !on) { setEdges((e) => (e.left || e.right ? { left: false, right: false } : e)); return undefined; }
-    const read = () => {
-      const left = nav.scrollLeft > 1;
-      const right = nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1;
-      setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
-    };
-    read();
-    nav.addEventListener('scroll', read, { passive: true });
-    return () => nav.removeEventListener('scroll', read);
-  }, [nav, on]);
-  return edges;
 }
 
 function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = false, meMode = false, onOpenSettings = () => {}, onOpenScore = null, live, custom, setOwn, ownState = 'ready', ownFor = null, onRetryOwn = () => {}, demo = null, onListing = null, previewCustom = null }) {
@@ -302,7 +247,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   const tr = useShapeTr();
   const nutri = role === 'nutritionist';
   const locale = intlLocale();
-  const ACC = t.ACCENT || (t.isLight ? '#0a8f87' : '#34d6c5');
+  const ACC = nutri ? CLIMB.GOLD : CLIMB.TEAL;
   const ON_ACC = onColor(ACC);
   const INK = t.INK;
   const ink = (a) => hexA(INK, a);
@@ -471,7 +416,14 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   }, [providerId, providerState, availEpoch, demo, role, zoneEpoch]);
 
   // ── The storefront: the client module's shared hook, fed this coach's real listing ──
-  const [tab, setTab] = React.useState('day');
+  // The camps are one page now: "go to the day" scrolls to Find me (the open times).
+  const toCamp = (key) => {
+    const sc = scrollerOf();
+    const el = pageRef.current && pageRef.current.querySelector ? pageRef.current.querySelector(`[data-climb-camp="${key}"]`) : null;
+    if (!sc || !el) return;
+    const y = sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - (pinnedTop + 52);
+    try { sc.scrollTo({ top: Math.max(0, y), behavior: 'smooth' }); } catch (e) { sc.scrollTop = Math.max(0, y); }
+  };
   const monthly = listed && Number(provider.price) > 0 ? Number(provider.price) : null;
   const offer = listed && provider.monthly_offer && typeof provider.monthly_offer === 'object' ? provider.monthly_offer : null;
   const commerce = !listed ? null : (person.commerce || {
@@ -480,7 +432,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     atCapacity: avail.kind === 'ready' && avail.atCapacity != null ? avail.atCapacity : undefined,
     introsAtCapacity: avail.kind === 'ready' ? avail.introsAtCap : false,
     // On sample times there is no time to take here, so the intro is booked on the full listing.
-    bookIntro: () => { setSheet(null); if (avail.sample && onListing) onListing(); else setTab('day'); },
+    bookIntro: () => { setSheet(null); if (avail.sample && onListing) onListing(); else toCamp('findme'); },
   });
   const cm = W.useBSCoachCommerce ? W.useBSCoachCommerce({ person: { ...person, commerce, providerId }, isSelf, isNutri: nutri, name, first, city: where }) : null;
   // The storefront shows only what this coach really sells: with no monthly price on their listing
@@ -745,34 +697,10 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // socials should be shown somewhere in this section if they choose to"): the same links About draws.
   const headSocials = custom && custom.headLinks === true && aboutLinks
     ? BS_PROFILE_LINK_KEYS.map((k) => [k, aboutLinks[k] ? bsProfileLinkHref(k, aboutLinks[k]) : null]).filter(([, href]) => href) : [];
-  // Tabs a visitor sees only when there is something in them; the coach always sees them all.
-  // Activity is a tab of its own, last (owner, 2026-10-31: "the coaches activity feed shouldn't be
-  // under replays, they should have a separate tab for activity"); it sat under the tabs.
   const gallery = media.gallery || [];
-  // The Studio tab: the coach's programs, workouts and coaching (BSCoachStudio.jsx).
+  // The Studio's work: the coach's programs, workouts and coaching (BSCoachStudio.jsx).
   const hasStudioWork = !!(studioModel && (studioModel.programs.length || studioModel.workouts.length || studioModel.coaching));
   const hasKitchen = !!(kitchen || gallery.length);
-  // About me comes second, after the day, so a member meets the coach before their kitchen or studio.
-  const aboutTab = isSelf || hasAbout ? [['about', tr('profile:trainer.tabAbout', { defaultValue: 'About me' })]] : [];
-  const tabs = nutri ? [
-    ['day', words.day],
-    ...aboutTab,
-    ...(isSelf || hasKitchen ? [['kitchen', words.kitchen]] : []),
-    ...(isSelf || plateDays.length ? [['plates', tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' })]] : []),
-    ...(isSelf || activity.length ? [['activity', tr('profile:tab.activity', { defaultValue: 'Activity' })]] : []),
-  ] : [
-    ['day', words.day],
-    ...aboutTab,
-    ...(isSelf || hasStudioWork ? [['studio', tr('profile:trainer.tabStudio', { defaultValue: 'Studio' })]] : []),
-    ...(isSelf || replays.length ? [['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' })]] : []),
-    ...(isSelf || activity.length ? [['activity', tr('profile:tab.activity', { defaultValue: 'Activity' })]] : []),
-  ];
-  const tabNow = tabs.some(([k]) => k === tab) ? tab : 'day';
-  const [tabNav, setTabNav] = React.useState(null);
-  // The picked tab is set bold, so picking another changes the row's width: it is part of the key, and
-  // the row is fitted again (Codex P2 on #2590).
-  const tabFit = useTabFit(tabNav, `${tabNow}|${tabs.map(([k, l]) => `${k}:${l}`).join('|')}`, tabs.length > 3 ? 13 : 15);
-  const tabEdges = useTabEdges(tabNav, tabFit.more);
 
   if (page === 'edit' && editReady) {
     const photos = demo ? demo.photos : [media.cover, ...(gallery.map((g) => g && g.url))].filter((u) => typeof u === 'string' && /^https:\/\//.test(u));
@@ -795,327 +723,300 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
 
   const BSPage = W.BSPage;
   const corner = W.BS_HEADER_AVATAR || 34;
-  const wallH = 214;
   const topPad = W.BS_MAST_TOP_CSS || '12px';
   const verified = listed && provider.verified;
   const ratingBit = reviews && reviews.count > 0
     ? tr('profile:trainer.rated', { defaultValue: '{rating}/10 from {count, plural, one {# review} other {# reviews}}', rating: (Math.round(reviews.avg * 10) / 10).toFixed(1), count: reviews.count })
     : tr('profile:trainer.newCoach', { defaultValue: 'New on Shape' });
 
+  // ── The Climb: what its hero, wire, camps and console show (BSCoachClimb.jsx) ──
+  // The next time a member can take: the first open slot still ahead, from the same projected week the
+  // day books from, on the viewer's clock. None while the coach is full and takes no intros.
+  const nowMs = Date.now();
+  const nextSlot = avail.kind === 'ready' && !introClosed && Array.isArray(avail.open)
+    ? avail.open.filter((s) => s && s.at > nowMs).sort((a, b) => a.at - b.at)[0] || null : null;
+  const fmtNext = (ms) => { try { return new Date(ms).toLocaleString(locale, { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZone: viewerZone() }); } catch (e) { return ''; } };
+  const how = !aboutDoc || !aboutDoc.how ? ''
+    : aboutDoc.how === 'online' ? tr('profile:climb.howOnline', { defaultValue: 'Remote' })
+    : aboutDoc.how === 'in_person' ? tr('profile:climb.howInPerson', { defaultValue: 'In person' })
+    : tr('profile:climb.howBoth', { defaultValue: 'In person + remote' });
+  const who = {
+    name, first, initials, avatar: avatarShown, onAvatarError: () => setBrokenAvatar(avatarShown), online,
+    eyebrow: isPrivate ? tierName : [roleLine, where].filter(Boolean).join(' · '),
+    pronouns: !isPrivate && live && typeof live.pronouns === 'string' ? live.pronouns.trim().slice(0, 24) : '',
+    quote: bio, how, tier: isPrivate ? '' : tierName, verified: !!verified,
+    years: aboutDoc && aboutDoc.years ? aboutDoc.years : null, where: isPrivate ? '' : where,
+  };
+  // The headline stats the coach picked (Make it yours → Spotlight), each only with a figure for it.
+  const statPlates = headline.map((s) => ({
+    key: s.key,
+    value: s.key === 'rating' ? Number(s.value).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(s.value).toLocaleString(locale),
+    unit: s.key === 'rating' ? '/10' : '',
+    label: tr(BS_STAT_WORDS[s.key][0], { defaultValue: BS_STAT_WORDS[s.key][1] }),
+  }));
+  // Whether they take clients, as their live listing says (a sample's listing row too); unread, none.
+  const status = listed ? { open: !(cm ? cm.atCapacity : provider.at_capacity) } : null;
+  const platesEmpty = isSelf && !statPlates.length ? (
+    <div>
+      <span style={{ display: 'block', fontSize: 13, lineHeight: 1.4, color: CLIMB.MUTED }}>{tr('profile:climb.statsEmptySelf', { defaultValue: 'Pick up to three headline stats for these plates.' })}</span>
+      <button type="button" data-climb-pick-stats="" onClick={() => openEdit('spotlight')} disabled={!editReady} style={{ ...linkBtn(ACC, DISPLAY), minHeight: 44 }}>{tr('profile:climb.pickStats', { defaultValue: 'Pick stats' })} →</button>
+    </div>
+  ) : null;
+  // Pins on the route: figures this page already has, never a count it doesn't read.
+  const milestones = [
+    who.years ? { key: 'years', label: tr('profile:climb.pinYears', { defaultValue: '{count, plural, one {# year coaching} other {# years coaching}}', count: who.years }) } : null,
+    !nutri && studioModel && studioModel.programs.length ? { key: 'programs', label: tr('profile:climb.pinPrograms', { defaultValue: '{count, plural, one {# program} other {# programs}}', count: studioModel.programs.length }) } : null,
+    nutri && kitchen && kitchen.recipes && kitchen.recipes.length ? { key: 'recipes', label: tr('profile:climb.pinRecipes', { defaultValue: '{count, plural, one {# recipe} other {# recipes}}', count: kitchen.recipes.length }) } : null,
+  ].filter(Boolean);
+  // The wire: real events only. The next open time, the newest post, the programs on sale.
+  const newestPost = demo ? ((demo.activity || [])[0] || null)
+    : (posts[0] && W.bsProfileCardFromPost ? W.bsProfileCardFromPost(posts[0], ownerRole) : null);
+  const wire = isPrivate ? [] : [
+    nextSlot ? { key: 'next', text: tr('profile:climb.wireNext', { defaultValue: 'Next open · {time}', time: fmtNext(nextSlot.at) }) } : null,
+    newestPost && (newestPost.title || newestPost.body) ? { key: 'post', text: [tr('profile:climb.wirePost', { defaultValue: 'New post: {title}', title: String(newestPost.title || newestPost.body).slice(0, 60) }), newestPost.ago ? bsShortAge(newestPost.ago, tr) : null].filter(Boolean).join(' · ') } : null,
+    ...(studioModel ? studioModel.programs.slice(0, 2).map((p) => ({ key: `p:${p.id}`, text: [p.name, p.weeks ? weeksSaid(p.weeks) : null, p.price].filter(Boolean).join(' · ') })) : []),
+    nutri && plateDays.length ? { key: 'plates', text: tr('profile:climb.wirePlates', { defaultValue: '{count, plural, one {# plate note} other {# plate notes}} shared', count: plateDays.length }) } : null,
+  ].filter(Boolean);
+
+  // The console: Book takes the next open time through the same sheet a time in the day opens (a
+  // sample's is asked for, kept for its coach); full, it opens Work with and its waiting list.
+  const canBook = !isSelf && !isPrivate && (listed || !!sample);
+  const dock = isSelf ? { kind: 'self', onMake: () => openEdit('colors'), onHours: () => setPage('hours'), makeReady: editReady }
+    : !canBook ? null
+    : {
+      kind: 'visitor', introMin: avail.introMin || 15,
+      nextOpen: nextSlot ? fmtNext(nextSlot.at) : null,
+      note: introClosed ? tr('profile:climb.fullNote', { defaultValue: 'Full right now · waiting list open' }) : avail.kind === 'loading' ? tr('profile:trainer.dayLoading', { defaultValue: 'Reading the week…' }) : null,
+      bookLabel: introClosed ? tr('profile:climb.joinList', { defaultValue: 'Join the list' }) : avail.sample ? tr('profile:climb.askIntro', { defaultValue: 'Ask for an intro' }) : tr('profile:climb.bookIntro', { defaultValue: 'Book a free intro' }),
+      onBook: introClosed ? () => setSheet({ kind: 'work' })
+        : avail.sample ? (providerId && nextSlot ? () => setSheet({ kind: 'ask', slot: nextSlot }) : (onListing || null))
+        : nextSlot ? () => setSheet({ kind: 'book', slot: nextSlot }) : () => toCamp('findme'),
+    };
+
+  // ── The camps: a visitor sees the ones with something in them; the coach sees all, with what to add ──
+  const spotlightDoor = editReady ? { label: tr('profile:climb.openSpotlight', { defaultValue: 'Open Spotlight' }), onClick: () => openEdit('spotlight') } : null;
+  const videos = !nutri && studioModel ? studioModel.workouts.filter((w) => w.kind === 'video').map((w) => ({ key: w.key, title: w.title || tr('profile:trainer.workoutVideo', { defaultValue: 'Workout video' }), thumb: w.video && /\.(mp4|m4v|mov|webm)(\?|#|$)/i.test(w.video.url) ? w.video.url : null, v: w.v })) : [];
+  const winsShown = isPrivate ? [] : wins;
+  const quotesRest = quotes.filter((r) => !r.pinned);
+  const rangePrograms = !nutri && studioModel ? studioModel.programs.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample), weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr })) : [];
+  const mealPlans = nutri && Array.isArray(sheetPlans) ? sheetPlans.filter((pl) => pl && pl.name).map((pl, i) => ({ key: `m:${pl.id || i}`, id: String(pl.id || i), name: pl.name, price: demo ? null : bsWorkPrice(pl.price), paid: false, weeks: Number.isInteger(pl.weeks) ? pl.weeks : null, perWeek: null, forSaid: '', poster: null, pr: pl })) : [];
+  const campList = isPrivate ? [] : [
+    (highlight || film || videos.length || isSelf) ? ['base', tr('profile:climb.base', { defaultValue: 'Base' }), tr('profile:climb.startTitle', { defaultValue: 'Start here' }),
+      tr('profile:climb.startSub', { defaultValue: 'The pinned highlight, the intro film, and how {name} works.', name: first }),
+      <BSClimbStart highlight={highlight} film={film} videos={videos} kindLabel={highlight ? bsPinKindLabel(highlight.kind, tr) : ''} nutri={nutri}
+        onVideo={(v) => setSheet({ kind: 'replay', r: v.v, i: 0 })}
+        allPosts={activity.length ? { label: tr('profile:climb.allPosts', { defaultValue: 'All {count, plural, one {# post} other {# posts}}', count: activity.length }), onClick: () => toCamp('posts') } : null}
+        empty={isSelf && !highlight && !film ? <BSClimbEmpty nutri={nutri} text={tr('profile:climb.startEmptySelf', { defaultValue: 'Pin a highlight and add your intro film in Make it yours → Spotlight. Members meet you here first.' })} action={spotlightDoor} /> : null} />] : null,
+    ...(nutri ? [
+      (isSelf || hasKitchen) ? ['kitchen', tr('profile:climb.kitchen', { defaultValue: 'Kitchen' }), words.kitchen, null,
+        <div style={{ padding: '0 18px 0 14px' }}><KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
+          ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
+          sec={kitchenSec} setSec={setKitchenSec} /></div>] : null,
+      (isSelf || mealPlans.length) ? ['plans', tr('profile:climb.mealPlans', { defaultValue: 'Meal plans' }), tr('profile:climb.mealPlans', { defaultValue: 'Meal plans' }),
+        tr('profile:climb.plansSub', { defaultValue: 'Plans that run for weeks. Each peak is a week.' }),
+        mealPlans.length ? <BSClimbRange programs={mealPlans} nutri isSelf={isSelf} onOpen={() => setSheet({ kind: 'work' })} openLabel={tr('profile:climb.plansPrices', { defaultValue: 'Plans and prices' })} />
+          : <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty nutri text={tr('profile:climb.plansEmptySelf', { defaultValue: 'Publish a meal plan and it shows here, for members to buy.' })} /></div>] : null,
+      (isSelf || plateDays.length) ? ['plates', tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }), tr('profile:nutri.tabPlateNotes', { defaultValue: 'Plate notes' }), null,
+        <div style={{ padding: '0 18px 0 14px' }}><PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} /></div>] : null,
+    ] : [
+      (isSelf || hasStudioWork) ? ['range', tr('profile:climb.range', { defaultValue: 'Range' }), tr('profile:climb.rangeTitle', { defaultValue: 'The range' }),
+        rangePrograms.length ? tr('profile:climb.rangeSub', { defaultValue: 'Each peak is a week, climbing to the top.' }) : null,
+        <>
+          {rangePrograms.length ? <BSClimbRange programs={rangePrograms} isSelf={isSelf} onOpen={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onStart={(pr) => buyProgram(pr)} />
+            : isSelf ? <div style={{ padding: '14px 18px 0 14px' }}><BSClimbEmpty text={tr('profile:trainer.programsEmptySelf', { defaultValue: 'Publish a program and it shows here with its preview video, for members to buy.' })} /></div> : null}
+          {studioModel && (isSelf || studioModel.workouts.length || studioModel.coaching) ? (
+            <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={14} stickyTop={pinnedTop + 47} showPrograms={false}
+              model={studioModel} first={first} isSelf={isSelf} heat={bsStudioHeat(t, 'teal', ACC)} hasMessage={hasMessage}
+              onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
+              onWork={() => setSheet({ kind: 'work' })} onMessage={() => onMessage && onMessage(person)}
+              onDescribe={isSelf && editReady ? () => openEdit('programs') : null}
+              onPostVideo={isSelf ? () => setShowLog('video') : null} />
+          ) : null}
+        </>] : null,
+      (isSelf || replays.length) ? ['replays', tr('profile:trainer.tabReplays', { defaultValue: 'Replays' }), tr('profile:trainer.tabReplays', { defaultValue: 'Replays' }), null,
+        <div style={{ padding: '0 18px 0 14px' }}><ReplaysTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
+          onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })} onLog={(kind) => setShowLog(kind || true)} /></div>] : null,
+    ]),
+    (isSelf || winsShown.length) ? ['proof', tr('profile:climb.proof', { defaultValue: 'Proof' }), tr('profile:climb.proof', { defaultValue: 'Proof' }),
+      tr('profile:climb.proofSub', { defaultValue: 'Wins {name} pinned, in clients\' own words.', name: first }),
+      <BSClimbProof wins={winsShown} nutri={nutri} empty={isSelf && !winsShown.length ? <BSClimbEmpty nutri={nutri} text={tr('profile:climb.proofEmptySelf', { defaultValue: 'Pin up to three of your reviews in Make it yours → Spotlight, and they stand here as wins.' })} action={spotlightDoor} /> : null} />] : null,
+    (isSelf || (reviews && reviews.count > 0) || quotes.length) ? ['words', tr('profile:climb.words', { defaultValue: 'Words' }), tr('profile:climb.wordsTitle', { defaultValue: 'What clients say' }), null,
+      <BSClimbWords rating={reviews && reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null} list={quotesRest} spread={reviews && Array.isArray(reviews.list) ? reviews.list : []} locked={revLocked}
+        onAll={() => setSheet({ kind: 'reviews' })} onJoin={joinToRead} nutri={nutri} first={first}
+        empty={isSelf && !(reviews && reviews.count > 0) ? <BSClimbEmpty nutri={nutri} text={tr('profile:climb.wordsEmptySelf', { defaultValue: 'Reviews from your clients show here, the rating at the summit.' })} /> : null} />] : null,
+    (isSelf || hasAbout) ? ['about', tr('profile:climb.about', { defaultValue: 'About' }), tr('profile:climb.aboutTitle', { defaultValue: 'Who {name} is', name: first }), null,
+      <div style={{ padding: '0 18px 0 14px' }}><AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} gallery={nutri || isPrivate ? [] : (media.gallery || [])} isSelf={isSelf} first={first}
+        biz={biz} song={songEmbed ? { label: song.label, embed: songEmbed } : null} onEdit={() => openEdit('about')} /></div>] : null,
+    ['findme', tr('profile:climb.findMe', { defaultValue: 'Find me' }), words.day,
+      tr('profile:climb.findMeSub', { defaultValue: 'Open times you can take, from {name}\'s Shape calendar.', name: first }),
+      <div style={{ padding: '0 18px 0 14px' }}><DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words} nutri={nutri}
+        introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)}
+        // A sample time is asked for, kept against the listing for its coach (the owner,
+        // 2026-10-29: "Request, saved for her"); a listing with no id has nothing to keep it on.
+        onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}
+        asks={asks} asksLive={!!providerId} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} /></div>],
+    // Activity draws its cards edge to edge, as the member profile's do.
+    (isSelf || activity.length) ? ['posts', tr('profile:climb.posts', { defaultValue: 'Posts' }), tr('profile:climb.postsTitle', { defaultValue: 'On the wire' }), null,
+      <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={14} cards={activity} isSelf={isSelf} first={first}
+        onLog={() => setShowLog(true)}
+        ctx={cardSheets && W.BSActivityCard ? {
+          t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
+          actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
+          // The byline's tier and face, as the member profile's (owner, 2026-10-31: "make coach
+          // profile cards show the full byline too"): keyed by the id the posts are listed by, and
+          // the page's own avatar, so a card reads the coach as the header above it does.
+          tierByUser: feedAuthor ? { [feedAuthor]: tierKey } : {}, avatarByUser: {}, ownerPhoto: avatarShown || null, feedAvatars: {},
+          myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
+          setOpenProfile: openPerson, feedApplyReaction: applyReaction,
+          // The coach edits a post of their own from its card, in the same composer.
+          onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
+          ...cardSheets.ctx,
+        } : null} />] : null,
+    ['summit', tr('profile:climb.summit', { defaultValue: 'Summit' }), words.work,
+      (offer && offer.blurb) || tr('profile:trainer.workSub', { defaultValue: 'Start with a free intro call. Everything runs in the Shape app.' }),
+      <BSClimbSummit>
+        {isSelf ? <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{tr('profile:climb.summitSelf', { defaultValue: 'Members start working with you from here: the intro, your plans and your coaching.' })}</p> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {dock && dock.onBook ? <button type="button" data-climb-summit-book="" onClick={dock.onBook} style={{ minHeight: 50, borderRadius: 11, border: 0, background: nutri ? CLIMB.GOLD : CLIMB.RUST, color: nutri ? '#14100a' : '#ffffff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{dock.bookLabel}</button> : null}
+            <button type="button" data-climb-plans="" onClick={() => setSheet({ kind: 'work' })} style={{ minHeight: 50, borderRadius: 11, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:climb.plansPrices', { defaultValue: 'Plans and prices' })}</button>
+          </div>
+        )}
+      </BSClimbSummit>],
+  ].filter(Boolean);
+  const camps = campList.map(([key, label, title, sub, body], i) => {
+    const stage = i === 0 ? tr('profile:climb.base', { defaultValue: 'Base' }) : key === 'summit' ? '' : tr('profile:climb.campN', { defaultValue: 'Camp {n}', n: i });
+    return { key, label, title, sub, body, eyebrow: stage && stage !== label ? `${stage} · ${label}` : label };
+  });
+
+  // The masthead row (logo + the corners), then ← Back on its own row under it, where every page keeps
+  // it (owner, 2026-10-31), white over the terrain.
+  const mast = (
+    <>
+      <div style={{ position: 'relative', padding: `${topPad} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: W.BS_MAST_ROW_H || 34 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: '#fff' }}>
+          {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
+          {W.BSLogo ? <W.BSLogo size={window.BS_MAST_LOGO || 26} color="#ffffff" /> : null}
+        </span>
+        {/* The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill). */}
+        {(() => { const Pill = W.BSMastToolPill; const tools = (
+          <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
+            {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
+            {isSelf ? (
+              <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
+                style={{ width: corner, height: corner, padding: 0, border: 0, background: 'transparent', color: '#fff', display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
+                <span style={{ width: 26, height: 26, boxSizing: 'border-box', display: 'grid', placeItems: 'center', borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></span>
+              </button>
+            ) : null}
+            {/* A visitor's ⚙ opens their own profile, as BSMeCorner's does; that corner itself draws a
+                second ✦ ⌕ and in the page's ink, not white over the photo. */}
+            {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
+          </div>
+        ); return Pill ? <Pill ink="#ffffff">{tools}</Pill> : tools; })()}
+      </div>
+      {!meMode && W.BSBackRow ? (
+        <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
+          <W.BSBackRow onBack={onBack} ink="#ffffff" label={tr('profile:trainer.back', { defaultValue: 'Back' })} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} />
+        </div>
+      ) : null}
+    </>
+  );
+
+  // What the hero carries under the quote: the coach's own prompts and notes, the sample's note, their
+  // socials, the Shape Score row, the coach's own-read error and, in the coach app, the business card.
+  const lead = (
+    <>
+      {!isPrivate && !bio && isSelf ? <button type="button" onClick={onOpenSettings} style={{ display: 'block', margin: '14px 0 0', padding: 0, minHeight: 44, border: 0, background: 'transparent', textAlign: 'left', fontSize: 14, color: CLIMB.MUTED, cursor: 'pointer' }}>{tr('profile:trainer.noBio', { defaultValue: 'Add a line about how you coach in Settings → Edit profile.' })}</button> : null}
+      {!isPrivate && headSocials.length ? (
+        <div data-head-socials="" role="group" aria-label={tr('profile:about.socials', { defaultValue: 'Find {name} online', name: first })} style={{ display: 'flex', flexWrap: 'wrap', margin: '6px 0 0 -12px' }}>
+          {headSocials.map(([k, href]) => (
+            <a key={k} data-head-social={k} href={href} target="_blank" rel="noopener noreferrer"
+              aria-label={`${k === 'website' ? tr('profile:editor.link.website', { defaultValue: 'Website' }) : LINK_NAMES[k]} ${bsProfileLinkText(k, aboutLinks[k])}`}
+              style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: CLIMB.MUTED }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {BS_PROFILE_LINK_GLYPHS[k].map((d, i) => <path key={i} d={d} />)}
+              </svg>
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {sample ? <p data-sample-note="" style={{ margin: '14px 0 0', padding: '10px 12px', borderLeft: `2px solid ${CLIMB.GOLD}`, background: 'rgba(216,162,58,0.1)', fontSize: 13, lineHeight: 1.45, color: CLIMB.INK }}>{nutri
+        ? tr('profile:nutri.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.', name: first })
+        : tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
+      {/* The Shape Score row, as on a member's page (owner, 2026-11-04): on your own page it opens the
+          Score page; on another coach's it shows their score and opens nothing. A coach with no score (a
+          seeded listing) has no row. */}
+      {!isPrivate && points != null ? (() => {
+        const tierWords = tierName ? tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierName }) : '';
+        const ptsWords = `${points.toLocaleString(locale)} ${tr('score:unit.pts', { defaultValue: 'pts' })}`;
+        const label = ['Shape Score', [tierWords, ptsWords].filter(Boolean).join(' · ')].join(': ');
+        const body = (
+          <>
+            <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: ACC }}>
+              <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${CLIMB.BG}`, background: CLIMB.PANEL, color: CLIMB.INK }}>
+                <BSMpIcon name="award" size={13} stroke={2.2} />
+              </span>
+            </span>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <span style={{ lineHeight: 1.25, overflowWrap: 'anywhere' }}>
+                <span style={{ fontSize: 11.5, color: CLIMB.MUTED }}>Shape Score</span>
+                {tierWords ? <>{' '}<span style={{ fontSize: 15, fontWeight: 700 }}>{tierWords}</span></> : null}
+              </span>
+              <span style={{ marginTop: 1, ...{ fontFamily: CLIMB.DOTO, fontVariationSettings: "'ROND' 100", fontWeight: 700 }, fontSize: 12.5, lineHeight: 1.3, color: CLIMB.MUTED, fontVariantNumeric: 'tabular-nums' }}>{ptsWords}</span>
+            </span>
+            {isSelf ? <span aria-hidden style={{ flex: 'none', color: CLIMB.DIM }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
+          </>
+        );
+        const rowStyle = { borderRadius: 12, border: `1px solid ${CLIMB.LINE}`, background: 'rgba(14,20,25,0.7)', display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '14px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: CLIMB.INK, boxSizing: 'border-box' };
+        const openScore = () => {
+          if (typeof onOpenScore === 'function') { onOpenScore(); return; }
+          try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {}
+        };
+        return isSelf
+          ? <button type="button" data-coach-score="" onClick={openScore} aria-label={label} style={{ ...rowStyle, cursor: 'pointer' }}>{body}</button>
+          : <div data-coach-score="" role="group" aria-label={label} style={rowStyle}>{body}</div>;
+      })() : null}
+      {isSelf && ownState === 'error' ? (
+        <div role="status" data-own-error="" style={{ marginTop: 10 }}>
+          <Hint ink={ink}>{tr('profile:trainer.ownError', { defaultValue: "Couldn't read your page just now." })}</Hint>
+          <button type="button" onClick={onRetryOwn} style={linkBtn(ACC, DISPLAY)}>{tr('profile:trainer.retry', { defaultValue: 'Try again' })}</button>
+        </div>
+      ) : null}
+      {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role={role} accent={ACC} onOpen={() => setPage('business')} /></div> : null}
+    </>
+  );
+  // A visitor's doors: Message, Work with, Follow. The coach's own are in the console.
+  const followOn = !!(follow && (follow.isFollowing || follow.isPending));
+  const actions = isSelf || isPrivate && !hasMessage ? null : (
+    <div data-climb-actions="" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+      {hasMessage ? <button type="button" onClick={() => onMessage(person)} style={{ flex: 1.2, minHeight: 46, borderRadius: 10, border: 0, background: ACC, color: ON_ACC, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
+      {!isPrivate ? <button type="button" onClick={() => setSheet({ kind: 'work' })} style={{ flex: 1, minHeight: 46, borderRadius: 10, border: `1px solid ${hasMessage ? CLIMB.LINE2 : ACC}`, background: hasMessage ? 'rgba(255,255,255,0.03)' : ACC, color: hasMessage ? CLIMB.INK : ON_ACC, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{words.work}</button> : null}
+      {person.userId ? (
+        <button type="button" onClick={toggleFollow} disabled={followBusy} aria-pressed={followOn}
+          aria-label={follow && follow.isFollowing ? tr('profile:trainer.following', { defaultValue: 'Following' }) : follow && follow.isPending ? tr('profile:trainer.requested', { defaultValue: 'Requested' }) : tr('profile:trainer.follow', { defaultValue: 'Follow' })}
+          style={{ width: 46, minHeight: 46, borderRadius: 10, border: `1px solid ${followOn ? ACC : CLIMB.LINE2}`, background: follow && follow.isFollowing ? hexA(ACC, 0.16) : 'transparent', color: followOn ? ACC : CLIMB.INK, fontSize: 18, cursor: 'pointer' }}>{follow && follow.isFollowing ? '✓' : follow && follow.isPending ? '…' : '♡'}</button>
+      ) : null}
+    </div>
+  );
+  const privateNote = isPrivate ? (
+    <p style={{ margin: '14px 0 0', fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{live && live.visibility === 'friends'
+      ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' })
+      : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</p>
+  ) : null;
+  // A private profile keeps what clients say: the reviews are the readers', not the coach's to hide.
+  const privateWords = isPrivate && (revLocked || quotes.length) ? [{ key: 'words', label: tr('profile:climb.words', { defaultValue: 'Words' }), eyebrow: tr('profile:climb.words', { defaultValue: 'Words' }), title: tr('profile:climb.wordsTitle', { defaultValue: 'What clients say' }), sub: null,
+    body: <BSClimbWords rating={reviews && reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null} list={quotes} spread={reviews && Array.isArray(reviews.list) ? reviews.list : []} locked={revLocked} onAll={() => setSheet({ kind: 'reviews' })} onJoin={joinToRead} nutri={nutri} first={first} /> }] : [];
+
   return (
     <BSPage>
-      <div ref={pageRef} data-trainer-profile="" style={{ color: INK, fontFamily: BODY, WebkitFontSmoothing: 'antialiased', minHeight: '100%', background: t.PAPER_BG }}>
+      <div ref={pageRef} data-coach-page="">
         {canPickPhoto && photoHook.fileRef ? <input ref={photoHook.fileRef} type="file" accept="image/*" onChange={photoHook.onPick} style={{ display: 'none' }} /> : null}
-        {/* The wall: their photo, or their colour until they add one */}
-        <div style={{ position: 'relative', height: `calc(${topPad} + ${wallH}px)`, overflow: 'hidden', background: wall ? '#111' : `linear-gradient(135deg, ${hexA(ACC, 0.42)}, ${t.PAPER2} 70%)` }}>
-          {wall ? <img src={wall} alt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: FOCUS_POS[look.focus] || FOCUS_POS.center }} /> : null}
-          <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0) 72%, rgba(0,0,0,0.22) 100%)' }} />
-          {/* The masthead row (logo + Vol·No + the corners), then ← Back on its own row under it, where
-              every page keeps it (owner, 2026-10-31); it sat in the logo's place before. */}
-          <div style={{ position: 'relative', padding: `${topPad} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: W.BS_MAST_ROW_H || 34 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: '#fff' }}>
-              {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-              {W.BSLogo ? <W.BSLogo size={window.BS_MAST_LOGO || 26} color="#ffffff" /> : null}
-            </span>
-            {/* The masthead's slim tool pill, as on every page (iosAppBroadsheet.jsx, BSMastToolPill). */}
-            {(() => { const Pill = W.BSMastToolPill; const tools = (
-              <div style={{ display: 'flex', alignItems: 'center', gap: W.BS_CORNER_GAP || 8 }}>
-                {W.BSSearchCorner ? <W.BSSearchCorner size={corner} ink="#ffffff" /> : null}
-                {isSelf ? (
-                  <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} aria-label={tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}
-                    style={{ width: corner, height: corner, padding: 0, border: 0, background: 'transparent', color: '#fff', display: 'grid', placeItems: 'center', cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
-                    <span style={{ width: 26, height: 26, boxSizing: 'border-box', display: 'grid', placeItems: 'center', borderRadius: 99, border: '1px solid rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.25)' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></span>
-                  </button>
-                ) : null}
-                {/* A visitor's ⚙ opens their own profile, as BSMeCorner's does; that corner itself draws a
-                    second ✦ ⌕ and in the page's ink, not white over the photo. */}
-                {W.BSSettingsCorner ? <W.BSSettingsCorner size={corner} ink="#ffffff" onClick={isSelf ? onOpenSettings : () => { try { window.dispatchEvent(new window.CustomEvent('shape:openProfile')); } catch (e) {} }} /> : null}
-              </div>
-            ); return Pill ? <Pill ink="#ffffff">{tools}</Pill> : tools; })()}
-          </div>
-          {!meMode && W.BSBackRow ? (
-            <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
-              <W.BSBackRow onBack={onBack} ink="#ffffff" label={tr('profile:trainer.back', { defaultValue: 'Back' })} buttonStyle={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }} />
-            </div>
-          ) : null}
-          {isSelf && !wall ? (
-            <button type="button" onClick={() => openEdit('wall')} disabled={!editReady}
-              style={{ position: 'absolute', right: gutter, bottom: 14, minHeight: 36, padding: '0 12px', borderRadius: 99, border: '1px solid rgba(255,255,255,0.6)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontFamily: DISPLAY, fontSize: 13, fontWeight: 600, cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.5 }}>
-              ＋ {tr('profile:trainer.addWall', { defaultValue: 'Add a wall photo' })}
-            </button>
-          ) : null}
-        </div>
-
-        {/* The avatar over the wall's edge, and who they are */}
-        <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
-          <div style={{ position: 'absolute', left: gutter, top: -58, width: 108, height: 108 }}>
-            <button type="button" disabled={!canPickPhoto} onClick={() => { if (canPickPhoto && photoHook.fileRef?.current) photoHook.fileRef.current.click(); }} aria-label={canPickPhoto ? tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' }) : name}
-              style={{ width: 108, height: 108, padding: 0, borderRadius: 99, border: `4px solid ${t.PAPER}`, background: t.PAPER2, overflow: 'hidden', cursor: canPickPhoto ? 'pointer' : 'default', display: 'grid', placeItems: 'center', boxSizing: 'border-box' }}>
-              {avatarShown ? <img src={avatarShown} alt="" onError={() => setBrokenAvatar(avatarShown)} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 25%' }} /> : <span data-initials="" style={{ fontFamily: DISPLAY, fontSize: 34, fontWeight: 600, color: INK }}>{initials}</span>}
-            </button>
-            {online ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 6, width: 18, height: 18, borderRadius: 99, background: '#34d6c5', border: `3px solid ${t.PAPER}`, boxSizing: 'border-box' }} /> : null}
-          </div>
-          <div style={{ marginLeft: 120, paddingTop: 8, minHeight: 58, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <h1 style={{ margin: 0, fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.05, color: INK }}>{name}<span style={{ color: ACC }}>.</span></h1>
-            <span style={{ fontSize: 13, color: ink(0.74) }}>{roleLine}</span>
-            {where ? <span style={{ fontSize: 12, color: ink(0.64) }}>{where}</span> : null}
-          </div>
-          {isPrivate ? (
-            <p style={{ margin: '14px 0 0', fontSize: 14, color: ink(0.74) }}>{live && live.visibility === 'friends'
-              ? tr('profile:coach.privateFriends', { name: first, defaultValue: '{name} shares their profile with friends — connect to see more.' })
-              : tr('profile:coach.privateOnly', { name: first, defaultValue: '{name} keeps their profile private — only name and tier are shown.' })}</p>
-          ) : (
-            <>
-              {bio ? <p style={{ margin: '14px 0 0', fontSize: 15.5, lineHeight: 1.5, color: INK }}>{bio}</p> : (isSelf ? <button type="button" onClick={onOpenSettings} style={{ display: 'block', margin: '14px 0 0', padding: 0, minHeight: 36, border: 0, background: 'transparent', textAlign: 'left', fontSize: 14, color: ink(0.6), cursor: 'pointer' }}>{tr('profile:trainer.noBio', { defaultValue: 'Add a line about how you coach in Settings → Edit profile.' })}</button> : null)}
-              <button type="button" onClick={() => setSheet({ kind: 'reviews' })} style={{ display: 'block', margin: '8px 0 0', padding: 0, border: 0, background: 'transparent', textAlign: 'left', fontSize: 12.5, color: ink(0.64), cursor: 'pointer' }}>
-                {verified ? <span style={{ color: ACC }}>✓ </span> : null}
-                {[verified ? tr('profile:trainer.verifiedTier', { defaultValue: 'Verified {tier} coach', tier: tierName }) : tierName, ratingBit].filter(Boolean).join(' · ')}
-              </button>
-              {headSocials.length ? (
-                <div data-head-socials="" role="group" aria-label={tr('profile:about.socials', { defaultValue: 'Find {name} online', name: first })} style={{ display: 'flex', flexWrap: 'wrap', margin: '2px 0 0 -12px' }}>
-                  {headSocials.map(([k, href]) => (
-                    <a key={k} data-head-social={k} href={href} target="_blank" rel="noopener noreferrer"
-                      aria-label={`${k === 'website' ? tr('profile:editor.link.website', { defaultValue: 'Website' }) : LINK_NAMES[k]} ${bsProfileLinkText(k, aboutLinks[k])}`}
-                      style={{ width: 44, height: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: ink(0.78) }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                        {BS_PROFILE_LINK_GLYPHS[k].map((d, i) => <path key={i} d={d} />)}
-                      </svg>
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-              {sample ? <p data-sample-note="" style={{ margin: '10px 0 0', padding: '8px 10px', borderLeft: `2px solid ${ACC}`, background: t.PAPER2, fontSize: 12.5, lineHeight: 1.45, color: ink(0.74) }}>{nutri
-                ? tr('profile:nutri.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples.', name: first })
-                : tr('profile:trainer.sampleNote', { defaultValue: '{name} hasn\'t set up a Shape account yet, so the studio, replays, reviews and times here are samples.', name: first })}</p> : null}
-              {/* The headline stats the coach picked (Make it yours → Spotlight): up to three of the figures
-                  this page already has, ruled as one row, each only when there is a figure for it. */}
-              {headline.length ? (
-                <div data-coach-stats="" role="list" aria-label={tr('profile:mine.statsTitle', { defaultValue: 'Headline stats' })}
-                  style={{ margin: '12px 0 0', display: 'grid', gridTemplateColumns: `repeat(${headline.length}, minmax(0, 1fr))`, borderTop: `1px solid ${ink(0.14)}`, borderBottom: `1px solid ${ink(0.14)}` }}>
-                  {headline.map((s, i) => {
-                    const label = tr(BS_STAT_WORDS[s.key][0], { defaultValue: BS_STAT_WORDS[s.key][1] });
-                    const fig = s.key === 'rating' ? Number(s.value).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(s.value).toLocaleString(locale);
-                    return (
-                      <div key={s.key} role="listitem" data-coach-stat={s.key} style={{ minWidth: 0, padding: `9px 8px 10px ${i ? 12 : 0}px`, borderLeft: i ? `1px solid ${ink(0.14)}` : 0 }}>
-                        <div style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 600, lineHeight: 1.05, color: INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                          {fig}{s.key === 'rating' ? <span style={{ fontFamily: MONO, fontSize: 11, fontWeight: 500, color: ink(0.55) }}>/10</span> : null}
-                        </div>
-                        <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.62), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {/* The Shape Score row, as on a member's page (owner, 2026-11-04: "Add the Shape Score row to
-                  coach profiles too"; it was a small "Shape Score 3,060 ›" on your own page only): the member
-                  row's tile, a ring in the page's accent round the award, "Shape Score" and the bold tier,
-                  the points under them, in this page's own faces. On your own page it opens the Score page
-                  (the host's onOpenScore, else shape:openScore, which both coach apps answer); on another
-                  coach's it shows their score and opens nothing, since the Score page reads only your own
-                  (as on a member's page, Codex P1 on #2599). A coach with no score (a seeded listing) has
-                  no row. */}
-              {points != null ? (() => {
-                const tierWords = tierName ? tr('settings:passport.tierLine', { defaultValue: '{tier} tier', tier: tierName }) : '';
-                const ptsWords = `${points.toLocaleString(locale)} ${tr('score:unit.pts', { defaultValue: 'pts' })}`;
-                const label = ['Shape Score', [tierWords, ptsWords].filter(Boolean).join(' · ')].join(': ');
-                const body = (
-                  <>
-                    <span aria-hidden style={{ flex: 'none', width: 30, height: 30, borderRadius: 99, padding: 2, boxSizing: 'border-box', background: ACC }}>
-                      <span style={{ width: '100%', height: '100%', borderRadius: 99, display: 'grid', placeItems: 'center', boxSizing: 'border-box', border: `2px solid ${t.PAPER}`, background: t.PAPER2, color: INK }}>
-                        <BSMpIcon name="award" size={13} stroke={2.2} />
-                      </span>
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ lineHeight: 1.25, overflowWrap: 'anywhere' }}>
-                        <span style={{ fontFamily: BODY, fontSize: 11.5, color: ink(0.62) }}>Shape Score</span>
-                        {tierWords ? <>{' '}<span style={{ fontFamily: DISPLAY, fontSize: 15, fontWeight: 600 }}>{tierWords}</span></> : null}
-                      </span>
-                      <span style={{ marginTop: 1, fontFamily: BODY, fontSize: 11.5, lineHeight: 1.3, color: ink(0.62), fontVariantNumeric: 'tabular-nums' }}>{ptsWords}</span>
-                    </span>
-                    {isSelf ? <span aria-hidden style={{ flex: 'none', color: ink(0.4) }}><BSMpIcon name="chevron" size={16} stroke={2.2} /></span> : null}
-                  </>
-                );
-                const rowStyle = { ...bsMpTile(t, INK), borderRadius: 14, display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 48, margin: '12px 0 0', padding: '5px 10px 5px 6px', textAlign: 'left', color: INK };
-                const openScore = () => {
-                  if (typeof onOpenScore === 'function') { onOpenScore(); return; }
-                  try { window.dispatchEvent(new window.CustomEvent('shape:openScore')); } catch (e) {}
-                };
-                return isSelf
-                  ? <button type="button" data-coach-score="" onClick={openScore} aria-label={label} style={{ ...rowStyle, cursor: 'pointer' }}>{body}</button>
-                  : <div data-coach-score="" role="group" aria-label={label} style={rowStyle}>{body}</div>;
-              })() : null}
-            </>
-          )}
-          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            {isSelf ? (
-              <>
-                <button type="button" onClick={() => openEdit('colors')} disabled={!editReady} style={{ flex: 1.2, minHeight: 46, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: editReady ? 'pointer' : 'default', opacity: editReady ? 1 : 0.55 }}>{tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}</button>
-                <button type="button" onClick={() => setPage('hours')} style={{ flex: 1, minHeight: 46, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.yourHours', { defaultValue: 'Your hours' })}</button>
-              </>
-            ) : (
-              <>
-                {hasMessage ? <button type="button" onClick={() => onMessage(person)} style={{ flex: 1.2, minHeight: 46, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
-                {!isPrivate ? <button type="button" onClick={() => setSheet({ kind: 'work' })} style={{ flex: 1, minHeight: 46, border: hasMessage ? `1px solid ${ink(0.22)}` : 0, background: hasMessage ? 'transparent' : ACC, color: hasMessage ? INK : ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{words.work}</button> : null}
-                {person.userId ? (
-                  <button type="button" onClick={toggleFollow} disabled={followBusy} aria-pressed={!!(follow && (follow.isFollowing || follow.isPending))}
-                    aria-label={follow && follow.isFollowing ? tr('profile:trainer.following', { defaultValue: 'Following' }) : follow && follow.isPending ? tr('profile:trainer.requested', { defaultValue: 'Requested' }) : tr('profile:trainer.follow', { defaultValue: 'Follow' })}
-                    style={{ width: 46, minHeight: 46, border: `1px solid ${follow && (follow.isFollowing || follow.isPending) ? ACC : ink(0.22)}`, background: follow && follow.isFollowing ? hexA(ACC, 0.16) : 'transparent', color: follow && (follow.isFollowing || follow.isPending) ? ACC : INK, fontSize: 18, cursor: 'pointer' }}>{follow && follow.isFollowing ? '✓' : follow && follow.isPending ? '…' : '＋'}</button>
-                ) : null}
-              </>
-            )}
-          </div>
-          {isSelf && ownState === 'error' ? (
-            <div role="status" data-own-error="" style={{ marginTop: 10 }}>
-              <Hint ink={ink}>{tr('profile:trainer.ownError', { defaultValue: "Couldn't read your page just now." })}</Hint>
-              <button type="button" onClick={onRetryOwn} style={linkBtn(ACC, DISPLAY)}>{tr('profile:trainer.retry', { defaultValue: 'Try again' })}</button>
-            </div>
-          ) : null}
-          {meMode && isSelf ? <div style={{ marginTop: 16 }}><BSCoachBusinessCard role={role} accent={ACC} onOpen={() => setPage('business')} /></div> : null}
-        </div>
-
-        {/* The spotlight (Make it yours → Spotlight): the highlight the coach pinned, as About me's
-            answers are set (the paper's second tone, the accent's spine), then their intro film. */}
-        {highlight || film ? (
-          <div data-coach-spotlight="" style={{ padding: `0 ${gutter}px`, marginTop: 18 }}>
-            {highlight ? (
-              <div data-coach-highlight="" style={{ padding: '12px 14px 13px', background: t.PAPER2, borderLeft: `3px solid ${ACC}` }}>
-                <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: ink(0.66) }}>
-                  <span aria-hidden style={{ color: ACC }}>★ </span>{tr('profile:extras.pinned', { defaultValue: 'Pinned' })} · {bsPinKindLabel(highlight.kind, tr) || tr('profile:extras.highlight', { defaultValue: 'Highlight' })}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6 }}>
-                  <p style={{ flex: 1, minWidth: 0, margin: 0, fontFamily: DISPLAY, fontSize: 18, fontWeight: 600, lineHeight: 1.25, color: INK, overflowWrap: 'anywhere' }}>{highlight.title}</p>
-                  {highlight.metric ? <span data-coach-highlight-metric="" style={{ flex: 'none', maxWidth: '45%', fontFamily: DISPLAY, fontSize: 18, fontWeight: 600, lineHeight: 1.25, color: ACC, fontVariantNumeric: 'tabular-nums', overflowWrap: 'anywhere', textAlign: 'right' }}>{highlight.metric}</span> : null}
-                </div>
-                {highlight.note ? <p style={{ margin: '4px 0 0', fontSize: 14, lineHeight: 1.45, color: ink(0.74), overflowWrap: 'anywhere' }}>{highlight.note}</p> : null}
-              </div>
-            ) : null}
-            {film ? (
-              <figure data-coach-film="" style={{ margin: highlight ? '18px 0 0' : 0 }}>
-                <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:film.headCoach', { defaultValue: 'Intro film' })}</span>
-                <div style={{ marginTop: 8, background: '#000', overflow: 'hidden' }}>
-                  {/* #t=0.1 draws the first frame before it plays, where a phone shows black otherwise. */}
-                  <video src={`${film.url}#t=0.1`} controls playsInline preload="metadata" aria-label={tr('profile:film.headCoach', { defaultValue: 'Intro film' })}
-                    style={{ display: 'block', width: '100%', maxHeight: 440, background: '#000' }} />
-                </div>
-                {film.caption ? <figcaption style={{ marginTop: 7, fontSize: 13.5, lineHeight: 1.4, color: ink(0.74), overflowWrap: 'anywhere' }}>{film.caption}</figcaption> : null}
-              </figure>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* Tabs */}
-        {!isPrivate ? (
-          <>
-            <nav ref={setTabNav} data-profile-tabs="" aria-label={tr('profile:trainer.sections', { defaultValue: 'Profile sections' })} className="bs-hide-scroll" style={{ position: 'sticky', top: pinnedTop, zIndex: 4, marginTop: 18, background: t.PAPER, borderBottom: `1px solid ${ink(0.18)}`, display: 'flex', padding: '0 6px', overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
-              {/* A row that still runs past the screen fades at the edge with more to show. */}
-              {tabFit.more ? <span aria-hidden="true" data-profile-tab-fade="left" style={{ position: 'sticky', left: 0, zIndex: 1, flex: '0 0 20px', marginRight: -20, pointerEvents: 'none', background: `linear-gradient(to right, ${t.PAPER}, transparent)`, opacity: tabEdges.left ? 1 : 0, transition: 'opacity 160ms ease' }} /> : null}
-              {tabs.map(([k, label], i) => {
-                const on = k === tabNow;
-                return (
-                  // One line each (owner, 2026-10-31: "make this fit on one line" of "Quinn's kitchen"):
-                  // a tab takes the width its words need and shares what is left, never wraps and never
-                  // shrinks below its words. The row sets them at 15px for three or fewer, 13px for more,
-                  // and smaller still, down to 11.5px, until the row holds them all (useTabFit). A hairline
-                  // stands between two tabs (owner, 2026-11-04: "add slight spacers in between these tabs,
-                  // or some subtle sectioning").
-                  <React.Fragment key={k}>
-                    {i > 0 ? <span aria-hidden="true" data-profile-tab-rule="" style={{ flex: '0 0 1px', alignSelf: 'center', height: 14, background: ink(0.16) }} /> : null}
-                    <button type="button" aria-pressed={on} onClick={(e) => { setTab(k); try { e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) {} }} title={label} data-profile-tab={k}
-                      style={{ flex: '1 0 auto', minHeight: 48, padding: tabs.length > 3 ? '0 5px' : '0 6px', border: 0, borderBottom: `2px solid ${on ? ACC : 'transparent'}`, marginBottom: -1, background: 'transparent', color: on ? INK : ink(0.55), fontFamily: DISPLAY, fontWeight: on ? 600 : 400, fontSize: tabFit.size, whiteSpace: 'nowrap', cursor: 'pointer' }}>{label}</button>
-                  </React.Fragment>
-                );
-              })}
-              {tabFit.more ? <span aria-hidden="true" data-profile-tab-fade="right" style={{ position: 'sticky', right: 0, zIndex: 1, flex: '0 0 20px', marginLeft: -20, pointerEvents: 'none', background: `linear-gradient(to left, ${t.PAPER}, transparent)`, opacity: tabEdges.right ? 1 : 0, transition: 'opacity 160ms ease' }} /> : null}
-            </nav>
-            {/* Activity draws its cards edge to edge, as the member profile's do, so it stands in
-                for the padded body rather than inside it. */}
-            {tabNow === 'studio' && studioModel ? (
-              <BSStudioWorkTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} stickyTop={pinnedTop + 49}
-                model={studioModel} first={first} isSelf={isSelf} heat={bsStudioHeat(t, look.accent, ACC)} hasMessage={hasMessage}
-                onProgram={(pr) => { if (pr) setSheet({ kind: 'program', pr }); }} onVideo={(v) => { if (v) setSheet({ kind: 'replay', r: v, i: 0 }); }}
-                onWork={() => setSheet({ kind: 'work' })} onMessage={() => onMessage && onMessage(person)}
-                onDescribe={isSelf && editReady ? () => openEdit('programs') : null}
-                onPostVideo={isSelf ? () => setShowLog('video') : null} />
-            ) : tabNow === 'activity' ? (
-              <ActivityFeed t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} gutter={gutter} cards={activity} isSelf={isSelf} first={first}
-                onLog={() => setShowLog(true)}
-                ctx={cardSheets && W.BSActivityCard ? {
-                  t, cardInk: INK, muted: ink(0.55), hair: ink(0.1), card: t.isLight ? t.PAPER2 : ink(0.05),
-                  actLikes, actDetailsOpen: {}, actCoSign: {}, actExpr, exprOpenKey: exprOpen, setExprOpenKey: setExprOpen, lpTimerRef, lpFiredRef,
-                  // The byline's tier and face, as the member profile's (owner, 2026-10-31: "make coach
-                  // profile cards show the full byline too"): keyed by the id the posts are listed by, and
-                  // the page's own avatar, so a card reads the coach as the header above it does.
-                  tierByUser: feedAuthor ? { [feedAuthor]: tierKey } : {}, avatarByUser: {}, ownerPhoto: avatarShown || null, feedAvatars: {},
-                  myRole: (W.ShapeAuth?.getCachedState?.()?.profile?.role) || 'client', coachClientIds: new Set(), myFollowingSet: null,
-                  setOpenProfile: openPerson, feedApplyReaction: applyReaction,
-                  // The coach edits a post of their own from its card, in the same composer.
-                  onEdit: isSelf && !demo ? (a) => { if (a.postId && BS_UUID.test(String(a.postId))) setEditingPost({ postId: a.postId, title: a.title || '', body: a.body || '', photo: a.photo || null, video: a.video || null, link: a.link || null, kind: a.editKind || null, privacy: a.privacy || 'public' }); } : undefined,
-                  ...cardSheets.ctx,
-                } : null} />
-            ) : (
-            <div style={{ padding: `0 ${gutter}px 30px` }}>
-              {tabNow === 'day' ? (
-                <DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words} nutri={nutri}
-                  introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)}
-                  // A sample time is asked for, kept against the listing for its coach (the owner,
-                  // 2026-10-29: "Request, saved for her"); a listing with no id has nothing to keep it on.
-                  onTake={isSelf ? null : avail.sample ? (providerId ? (slot) => setSheet({ kind: 'ask', slot }) : null) : (slot) => setSheet({ kind: 'book', slot })}
-                  asks={asks} asksLive={!!providerId} onWork={() => setSheet({ kind: 'work' })} onHours={() => setPage('hours')} />
-              ) : tabNow === 'kitchen' ? (
-                <KitchenTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} kitchen={kitchen} gallery={gallery} isSelf={isSelf} first={first}
-                  ownerKey={person.userId || person.providerId || null} stapleKeys={(demo && demo.stapleKeys) || null} onRecipe={(r) => setOwnRecipe(r)} onFill={(section) => openEdit('kitchen', section)}
-                  sec={kitchenSec} setSec={setKitchenSec} />
-              ) : tabNow === 'about' ? (
-                <AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} gallery={nutri || isPrivate ? [] : (media.gallery || [])} isSelf={isSelf} first={first}
-                  biz={biz} song={songEmbed ? { label: song.label, embed: songEmbed } : null}
-                  onEdit={() => openEdit('about')} />
-              ) : tabNow === 'plates' ? (
-                <PlateNotesTab t={t} tr={tr} locale={locale} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} days={plateDays} isSelf={isSelf} first={first} onOpen={(day) => setSheet({ kind: 'plateDay', day, i: 0 })} />
-              ) : (
-                <ReplaysTab t={t} tr={tr} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} replays={replays} isSelf={isSelf} first={first}
-                  onOpen={(r) => setSheet({ kind: 'replay', r, i: 0 })}
-                  onLog={(kind) => setShowLog(kind || true)} />
-              )}
-            </div>
-            )}
-          </>
-        ) : null}
-
-        {/* What clients say: the reviews on the page itself, shown on a private profile too: they are
-            the readers', not the coach's to hide. The newest few, each a card; All reviews opens the
-            full list. A reader who isn't a member gets the rating and Join to read them instead.
-            At the foot of the page, after the tabs (owner, 2026-10-30: "move reviews to bottom of
-            page"): the coach's day, space and work come first, and what clients say closes it. */}
-        {revLocked ? (
-          <section data-reviews-strip="" data-reviews-locked="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ margin: `${isPrivate ? 22 : 6}px ${gutter}px 18px` }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
-            <div style={{ marginTop: 8, padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {ratingBit}</span>
-              <span style={{ fontSize: 15, lineHeight: 1.45, color: INK }}>{tr('marketplace:listing.reviewsMembers', { defaultValue: 'Members read the reviews.' })}</span>
-              <button type="button" data-reviews-join="" onClick={joinToRead} style={{ alignSelf: 'flex-start', minHeight: 40, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('marketplace:listing.reviewsJoinCta', { defaultValue: 'Join to read them' })} →</button>
-            </div>
-          </section>
-        ) : quotes.length ? (
-          <section data-reviews-strip="" aria-label={tr('profile:trainer.reviews', { defaultValue: 'Reviews' })} style={{ margin: `${isPrivate ? 22 : 6}px 0 18px` }}>
-            <div style={{ padding: `0 ${gutter}px`, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: ink(0.64) }}>{tr('profile:trainer.clientsSay', { defaultValue: 'What clients say' })}</span>
-              <button type="button" data-all-reviews="" onClick={() => setSheet({ kind: 'reviews' })} style={{ minHeight: 36, padding: 0, border: 0, background: 'transparent', color: ACC, fontFamily: DISPLAY, fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.allReviews', { defaultValue: 'All reviews' })} →</button>
-            </div>
-            <div className="bs-scroll" style={{ marginTop: 8, display: 'flex', gap: 10, overflowX: 'auto', scrollSnapType: 'x mandatory', scrollPaddingLeft: gutter, padding: `0 ${gutter}px 4px` }}>
-              {quotes.map((r) => (
-                <figure key={r.id || r.text} data-review-card="" data-review-pinned={r.pinned ? '' : undefined} style={{ margin: 0, flex: quotes.length > 1 ? '0 0 80%' : '1 1 auto', scrollSnapAlign: 'start', boxSizing: 'border-box', padding: '12px 14px', background: t.PAPER2, borderTop: `2px solid ${ACC}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, color: ACC }}>★ {Math.round(Number(r.rating) || 0)}/10{r.pinned ? ` · ${tr('profile:extras.pinned', { defaultValue: 'Pinned' })}` : ''}</span>
-                  <blockquote style={{ margin: 0, fontSize: 15, lineHeight: 1.45, color: INK, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{r.text}</blockquote>
-                  <figcaption style={{ fontSize: 12.5, color: ink(0.64) }}>{r.author || tr('profile:role.member', { defaultValue: 'Member' })}</figcaption>
-                </figure>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <footer style={{ padding: `8px ${gutter}px 34px`, fontFamily: MONO, fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: ink(0.5) }}>
-          {[listed && provider.credential, verified ? tr('profile:trainer.checked', { defaultValue: 'Checked by Shape' }) : null].filter(Boolean).join(' · ')}
-        </footer>
+        <BSCoachClimb nutri={nutri} isSelf={isSelf} isPrivate={isPrivate} who={who} detailTitle={meMode ? '' : name} wall={isPrivate ? null : wall} wallAlt={tr('profile:trainer.wallAlt', { defaultValue: "{name}'s wall photo", name: first })} focus={FOCUS_POS[look.focus] || FOCUS_POS.center} mast={mast}
+          onPickPhoto={canPickPhoto ? () => { if (photoHook.fileRef?.current) photoHook.fileRef.current.click(); } : null}
+          onAddWall={isSelf && !wall && editReady ? () => openEdit('wall') : null}
+          rating={!isPrivate && reviews && reviews.count > 0 ? { avg: reviews.avg, count: reviews.count } : null} ratingNew={!isPrivate && !!reviews && !(reviews.count > 0)} onRating={() => setSheet({ kind: 'reviews' })}
+          milestones={isPrivate ? [] : milestones} plates={isPrivate ? [] : statPlates} platesEmpty={platesEmpty} status={isPrivate ? null : status} wire={wire}
+          camps={isPrivate ? privateWords : camps} actions={actions} lead={isPrivate ? null : lead} console={dock} privateNote={privateNote}
+          footer={[listed && provider.credential, verified ? tr('profile:trainer.checked', { defaultValue: 'Checked by Shape' }) : null].filter(Boolean).join(' · ')} />
       </div>
 
       {sheet && sheet.kind === 'work' ? (
@@ -1130,7 +1031,7 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
               {plansListed ? null : <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: ink(0.74) }}>{isSelf
                 ? tr('profile:trainer.noPricesSelf', { defaultValue: 'Members see your prices here once your listing has a monthly price.' })
                 : tr('profile:trainer.noPrices', { defaultValue: '{name} hasn\'t listed prices on Shape yet. Book a free intro or send a message to ask.', name: first })}</p>}
-              {!isSelf && providerId && !avail.sample ? <button type="button" onClick={() => { setSheet(null); setTab('day'); }} style={{ marginTop: 12, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
+              {!isSelf && providerId && !avail.sample ? <button type="button" onClick={() => { setSheet(null); toCamp('findme'); }} style={{ marginTop: 12, width: '100%', minHeight: 50, border: 0, background: ACC, color: ON_ACC, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.pickIntro', { defaultValue: 'Pick an intro time' })}</button> : null}
               {!isSelf && hasMessage ? <button type="button" onClick={() => { setSheet(null); onMessage(person); }} style={{ marginTop: 8, width: '100%', minHeight: 50, border: `1px solid ${ink(0.22)}`, background: 'transparent', color: INK, fontFamily: DISPLAY, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.message', { defaultValue: 'Message {name}', name: first })}</button> : null}
               {/* No monthly price, but plans to sell: the plans and the capacity states, without the monthly offer (Codex P2 on #2545). */}
               {plansListed && cm && W.BSCoachCoachingBlock ? <W.BSCoachCoachingBlock cm={cm} isSelf={isSelf} isNutri={nutri} first={first} ownZero salePlans={ownPlans} c={ACC} noMonthly /> : null}
@@ -1147,12 +1048,17 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
         <AskSheet t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} slot={sheet.slot} introMin={avail.introMin || 15} first={first} role={role} providerId={providerId}
           onClose={() => setSheet(null)} />
       ) : null}
-      {sheet && sheet.kind === 'program' ? (
-        <ProgramSheet t={t} tr={tr} locale={locale} pr={sheet.pr} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} isSelf={isSelf}
-          item={studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null}
-          days={studioModel ? studioModel.workouts.filter((w) => w.kind === 'day' && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true })) : []}
-          onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={() => setSheet({ kind: 'work' })} />
-      ) : null}
+      {sheet && sheet.kind === 'program' ? (() => {
+        const item = studioModel ? studioModel.programs.find((x) => x.id === String(sheet.pr.id)) || null : null;
+        const at = studioModel ? studioModel.programs.findIndex((x) => x.id === String(sheet.pr.id)) : -1;
+        return (
+          <BSClimbProgramSheet pr={sheet.pr} nutri={nutri} first={first} isSelf={isSelf} color={at >= 0 ? CLIMB_PEAK_COLORS[at % CLIMB_PEAK_COLORS.length] : null}
+            item={item ? { desc: item.desc, forSaid: bsStudioForLabel(tr, item.forWho) } : null}
+            days={studioModel ? studioModel.workouts.filter((w) => w.kind === 'day' && w.program && w.program.id === String(sheet.pr.id)).sort((a, b) => a.key.localeCompare(b.key, 'en', { numeric: true })) : []}
+            onClose={() => setSheet(null)} onBuy={() => buyProgram(sheet.pr)} onWork={() => setSheet({ kind: 'work' })}
+            onAsk={hasMessage ? () => { setSheet(null); onMessage(person); } : null} />
+        );
+      })() : null}
       {sheet && sheet.kind === 'replay' ? (
         <ReplaySheet tr={tr} r={sheet.r} i={sheet.i} setI={(i) => setSheet({ ...sheet, i })} ACC={ACC} DISPLAY={DISPLAY} MONO={MONO} first={first} avatar={avatarShown} isSelf={isSelf}
           onClose={() => setSheet(null)} onWork={() => setSheet({ kind: 'work' })} t={t} />
@@ -2143,11 +2049,6 @@ function PlateNotesSheet({ t, tr, locale, day, i, setI, ACC, DISPLAY, MONO, firs
 }
 
 // ── Replays ─────────────────────────────────────────────────────────────────────────────────
-const programMeta = (tr, pr) => [
-  pr.weeks ? tr('profile:trainer.programWeeks', { defaultValue: '{count, plural, one {# week} other {# weeks}}', count: pr.weeks }) : null,
-  pr.perWeek ? tr('profile:trainer.programDays', { defaultValue: '{count, plural, one {# day a week} other {# days a week}}', count: pr.perWeek }) : null,
-].filter(Boolean).join(' · ');
-
 // Replays: the sessions the coach logged, stepped set by set. Their programs and workout videos moved
 // to the Studio tab (owner, 2026-11-04), so this is the sessions alone.
 function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, replays, isSelf, first, onOpen, onLog }) {
@@ -2187,89 +2088,6 @@ function ReplaysTab({ t, tr, ACC, ON_ACC, ink, DISPLAY, MONO, replays, isSelf, f
       ) : isSelf ? <Hint ink={ink}>{tr('profile:trainer.replaysEmptySelf', { defaultValue: 'Log a session and share it, and it shows here with every set.' })}</Hint> : null}
     </section>
   );
-}
-
-// A program opened from the Studio tab: its free preview video, weeks and days, what the coach says
-// about it (their line, else the program's own note) and who it is for, the first week's days (each
-// opens to its moves and their muscles, with the coach's line about that day), and Buy. A sample
-// program has no Buy. All a public preview gives: sets, loads and cues stay with the buyer.
-function ProgramSheet({ t, tr, locale, pr, ACC, DISPLAY, MONO, first, isSelf, item = null, days = [], onClose, onBuy, onWork }) {
-  const muted = 'rgba(232,235,239,0.66)';
-  const rule = '1px solid rgba(232,235,239,0.12)';
-  const p = pr.preview || { units: [], kind: null };
-  const units = Array.isArray(p.units) ? p.units.filter((u) => u && !u.locked && !u.rest) : [];
-  const meta = programMeta(tr, pr);
-  const desc = (item && item.desc) || p.note || '';
-  const forSaid = item ? bsStudioForLabel(tr, item.forWho) : '';
-  const [open, setOpen] = React.useState(() => (days[0] ? days[0].key : null));
-  const host = sheetHost();
-  const el = (
-    <div role="dialog" aria-label={pr.name} data-program-sheet="" style={{ position: 'absolute', inset: 0, zIndex: 230, background: '#0c0d0f', color: '#e8ebef', overflowY: 'auto', overflowX: 'hidden', fontFamily: t.BODY, WebkitFontSmoothing: 'antialiased' }}>
-      <div style={{ padding: 'calc(10px + env(safe-area-inset-top)) 8px 0 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: muted }}>{[tr('profile:trainer.program', { defaultValue: 'Program' }), meta].filter(Boolean).join(' · ')}</span>
-        <CloseX onClose={onClose} color="#e8ebef" label={tr('profile:trainer.close', { defaultValue: 'Close' })} />
-      </div>
-      <h2 style={{ margin: '0 18px', fontFamily: DISPLAY, fontWeight: 600, fontSize: 26, lineHeight: 1.1 }}>{pr.name}<span style={{ color: ACC }}>.</span></h2>
-      {desc ? <p data-program-desc="" style={{ margin: '6px 18px 0', fontSize: 15, lineHeight: 1.45 }}>{desc}</p> : null}
-      {forSaid ? <p data-program-for="" style={{ margin: '6px 18px 0', display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 14, fontWeight: 600 }}><span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 500, letterSpacing: '0.13em', textTransform: 'uppercase', color: muted }}>{tr('profile:work.forLabel', { defaultValue: 'For' })}</span>{forSaid}</p> : null}
-      {pr.video ? <div data-program-video="" style={{ margin: '10px 18px 0' }}><ShapeVideoPlayer value={pr.video} title={pr.name} expanded /></div>
-        : pr.poster ? <div style={{ margin: '12px 18px 0', aspectRatio: '16 / 9', overflow: 'hidden', background: '#000' }}><img src={pr.poster} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div> : null}
-      {days.length ? (
-        <div data-program-days="" style={{ margin: '16px 18px 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{tr('profile:trainer.firstWeek', { defaultValue: 'The first week' })}</span>
-            <span style={{ fontSize: 12.5, color: muted }}>{tr('profile:work.tapDay', { defaultValue: 'Tap a day for its moves' })}</span>
-          </div>
-          {days.map((d) => {
-            const on = open === d.key;
-            const focusSaid = bsStudioFocusLabel(tr, d.focus);
-            const sub = [focusSaid ? focusSaid.toLowerCase() : null, on ? null : tr('profile:trainer.movesCount', { defaultValue: '{count, plural, one {# move} other {# moves}}', count: d.moves.length + (d.more || 0) })].filter(Boolean).join(' · ');
-            return (
-              <div key={d.key} data-program-day="" style={{ borderBottom: rule }}>
-                <button type="button" aria-expanded={on} onClick={() => setOpen(on ? null : d.key)} style={{ width: '100%', minHeight: 48, padding: '9px 0', border: 0, background: 'transparent', color: '#e8ebef', textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr) 16px', columnGap: 8, alignItems: 'baseline', fontFamily: 'inherit' }}>
-                  <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', color: ACC }}>{d.label}</span>
-                  <span><span style={{ display: 'block', fontSize: 15, fontWeight: 600 }}>{d.title}</span>{sub ? <span style={{ display: 'block', fontSize: 12.5, color: muted }}>{sub}</span> : null}</span>
-                  <span aria-hidden="true" style={{ color: muted, transform: on ? 'rotate(90deg)' : 'none' }}>›</span>
-                </button>
-                {on ? (
-                  <div data-program-moves="" style={{ paddingLeft: 52, paddingBottom: 10 }}>
-                    {d.desc ? <p style={{ margin: '0 0 6px', fontSize: 13.5, lineHeight: 1.45 }}>{d.desc}</p> : null}
-                    {d.moves.map((m, k) => (
-                      <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, minHeight: 30, alignItems: 'center', borderTop: rule, fontSize: 13.5 }}>
-                        <span>{m.name}</span>{m.muscle ? <span style={{ fontSize: 12.5, color: muted }}>{m.muscle}</span> : null}
-                      </div>
-                    ))}
-                    {d.more ? <div style={{ minHeight: 30, display: 'flex', alignItems: 'center', borderTop: rule, fontSize: 12.5, color: muted }}>＋{d.more}</div> : null}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : units.length ? (
-        <div style={{ margin: '14px 18px 0' }}>
-          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: muted }}>{p.kind === 'program' || p.kind === 'split' ? tr('profile:trainer.firstWeek', { defaultValue: 'The first week' }) : tr('profile:trainer.theMoves', { defaultValue: 'The moves' })}</span>
-          {units.slice(0, 14).map((u, k) => (
-            <div key={k} data-program-day="" style={{ padding: '9px 0', borderBottom: rule }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-                {u.label ? <span style={{ flexShrink: 0, minWidth: 40, fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.08em', color: ACC }}>{u.label}</span> : null}
-                <span style={{ fontSize: 15 }}>{u.title}</span>
-              </div>
-              {Array.isArray(u.moves) && u.moves.length ? <div style={{ marginTop: 3, paddingLeft: u.label ? 50 : 0, fontSize: 13, lineHeight: 1.45, color: 'rgba(232,235,239,0.72)' }}>{u.moves.concat(u.more > 0 ? [`＋${u.more}`] : []).join(' · ')}</div> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {p.namesOnly ? <p style={{ margin: '12px 18px 0', fontSize: 13, lineHeight: 1.45, color: muted }}>{tr('marketplace:preview.namesOnly', { defaultValue: 'Sets, loads, cues and exercise videos unlock when you buy' })}</p> : null}
-      <div style={{ margin: '20px 18px calc(28px + env(safe-area-inset-bottom))' }}>
-        {isSelf ? <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: muted }}>{tr('profile:trainer.programSelf', { defaultValue: 'This is what members see before they buy.' })}</p>
-          : pr.sample ? <button type="button" onClick={onWork} style={{ width: '100%', minHeight: 50, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}</button>
-            : pr.paid ? <button type="button" data-program-buy="" onClick={onBuy} style={{ width: '100%', minHeight: 50, border: 0, background: ACC, color: onColor(ACC), fontWeight: 700, cursor: 'pointer' }}>{tr('marketplace:preview.buy', { defaultValue: 'Buy · {price} →', price: pr.price })}</button>
-              : <button type="button" onClick={onWork} style={{ width: '100%', minHeight: 50, border: '1px solid rgba(232,235,239,0.25)', background: 'transparent', color: '#e8ebef', fontWeight: 600, cursor: 'pointer' }}>{tr('profile:trainer.workTitle', { defaultValue: 'Work with {name}', name: first })}</button>}
-      </div>
-    </div>
-  );
-  return host ? createPortal(el, host) : el;
 }
 
 function ReplaySheet({ t, tr, r, i, setI, ACC, DISPLAY, MONO, first, avatar, isSelf, onClose, onWork }) {
