@@ -2,7 +2,7 @@
 // coachProfileKit.mjs). What a visitor sees at a trainer's or nutritionist's public page
 // (MemberProfile.html): the stage (the terrain over their photo, the summit's rating, the prism
 // portrait, the name and the plates), the wire, and the camps on the spine (Base · {Name}'s day ·
-// the range or kitchen · Replays or Plate notes · Words · About · Activity · Find me · the Summit's
+// the range or kitchen · Replays or Plate notes · Proof · Words · About · Find me · Posts · the Summit's
 // storefront), with the booking console docked. tests/web-coach-climb.test.mjs reads the Climb's own
 // rules; these pin the parts it kept from today's page, that Subscribe and Buy run
 // through the old page's one path with the code box before the redirect, that a referral link opens
@@ -258,8 +258,12 @@ test('the website shows the spotlight: stats, highlight, film, the practice, the
   assert.match(document.querySelector('[data-coach-film]').textContent, /Intro film.*How I coach a squat\./);
   assert.ok(document.querySelector('[data-camp="base"] [data-coach-spotlight]'), 'at Base · Start here');
   assert.equal(document.querySelector('[data-camp]').getAttribute('data-camp'), 'base', 'the first camp');
-  const first = document.querySelector('[data-reviews-strip] figure');
-  assert.match(first.textContent, /10\/10 · Pinned.*An old favourite\./, 'the wins wall leads the Words');
+  // The wins wall is the Proof camp, ahead of the Words, which hold the rest (never the pinned one twice).
+  const proof = document.querySelector('[data-camp="proof"] [data-proof-card]');
+  assert.match(proof.textContent, /10\/10 · Pinned.*An old favourite\./, 'the wins wall is Proof');
+  assert.ok(!/An old favourite/.test(document.querySelector('[data-reviews-strip]').textContent), 'not again in the Words');
+  const campsNow = [...document.querySelectorAll('[data-camp]')].map((c) => c.getAttribute('data-camp'));
+  assert.ok(campsNow.indexOf('proof') >= 0 && campsNow.indexOf('proof') === campsNow.indexOf('words') - 1, 'Proof, then Words: ' + campsNow.join(','));
   assert.match(document.querySelector('[data-about="practice"]').textContent, /^The practiceIron Path Strength/);
   assert.deepEqual([...document.querySelectorAll('[data-about-practice-row]')].map((r) => r.textContent), ['WhereAustin, TX', 'HoursMon–Sat · by appointment', 'Find@ironpath']);
   assert.equal(document.querySelector('[data-about-song] iframe').getAttribute('src'), 'https://open.spotify.com/embed/track/2KH16WveTQWT6KOG9Rg6e2');
@@ -419,7 +423,7 @@ test('a post read that fails keeps the tabs it feeds, each saying so with Try ag
   backend({ fail: (t) => down && t === 'community_posts', reads });
   const p = await mount(LIVE);
   const camps = [...document.querySelectorAll('[data-camp]')].map((b) => b.getAttribute('data-camp'));
-  assert.ok(camps.includes('activity') && camps.includes('replays') && camps.includes('range'), 'the post camps stay: ' + camps.join(','));
+  assert.ok(camps.includes('posts') && camps.includes('replays') && camps.includes('range'), 'the post camps stay: ' + camps.join(','));
   assert.match(document.querySelector('[data-camp="replays"] [data-work-error]').textContent, /Couldn't read Tom's sessions just now/);
   // The range reads the posts too (the workout videos): it says so, and the programs that did load show.
   assert.match(document.querySelector('[data-camp="range"] [data-work-error]').textContent, /Couldn't read all of Tom's work just now/);
@@ -432,8 +436,8 @@ test('a post read that fails keeps the tabs it feeds, each saying so with Try ag
   await settle();
   assert.equal(reads.community_posts, before + 1, 'Try again reads the posts again');
   assert.ok(!document.querySelector('[data-posts-error]'));
-  // Read, and empty: a visitor sees no Activity camp, as before.
-  assert.ok(!document.querySelector('[data-camp="activity"]'));
+  // Read, and empty: a visitor sees no Posts camp, as before.
+  assert.ok(!document.querySelector('[data-camp="posts"]'));
   await p.unmount();
 });
 
@@ -465,7 +469,7 @@ test('a coach with no account is the app\'s sample: its studio, replays, reviews
   const p = await mount({ mode: 'sample', role: 'trainer', name: 'Jordan Reyes', sampleKey: 'Jordan Reyes', follow: null });
   assert.match(document.querySelector('[data-sample-note]').textContent, /hasn't set up a Shape account yet/);
   const camps = [...document.querySelectorAll('[data-camp]')].map((b) => b.getAttribute('data-camp'));
-  assert.deepEqual(camps, ['day', 'range', 'replays', 'words', 'activity', 'find', 'summit'], 'Find me holds the listing\'s photos');
+  assert.deepEqual(camps, ['day', 'range', 'replays', 'words', 'find', 'posts', 'summit'], 'Find me holds the listing\'s photos');
   assert.ok(!document.querySelector('[data-subscribe]') && !document.querySelector('[data-plan-buy]'), 'a sample sells nothing');
   assert.ok(!document.querySelector('a[data-open-time]'), 'sample times are shown, never taken');
   assert.match(document.querySelector('[data-day-sub]') ? document.querySelector('[data-day-sub]').textContent : 'Sample times', /Sample times/);
@@ -571,7 +575,7 @@ test('a nutritionist\'s page: amber until they pick, the kitchen and plate notes
   WIDE = true; backend();
   const p = await mount({ mode: 'sample', role: 'nutritionist', name: 'Quinn Avery', sampleKey: 'Quinn Avery', follow: null });
   const camps = [...document.querySelectorAll('[data-camp]')].map((b) => b.getAttribute('data-camp'));
-  assert.deepEqual(camps, ['day', 'range', 'kitchen', 'plates', 'words', 'activity', 'summit']);
+  assert.deepEqual(camps, ['day', 'range', 'kitchen', 'plates', 'words', 'posts', 'summit']);
   assert.equal(document.querySelector('#camp-h-kitchen').textContent, 'My kitchen.');
   assert.equal(document.querySelector('#camp-h-range').textContent, 'Meal plans.', 'the meal plans are a camp of their own');
   assert.match(document.querySelector('.cpw-h1').innerHTML, /#d8a23a|rgb\(216, 162, 58\)/, 'the name\'s full stop is the nutritionist gold');

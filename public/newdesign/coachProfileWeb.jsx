@@ -20,12 +20,15 @@
 //                the pinned highlight, an answer in their words, the newest posts with a photo),
 //                {Name}'s day (the week's open times), the range (each program a card of peaks, one a
 //                week, then the Studio's workouts and coaching; a nutritionist's meal plans, then
-//                their kitchen and plate notes), Replays, Words (the rating, and the words for
-//                members), About, Activity, Find me (the practice, the socials, where they coach), and
-//                the Summit: the storefront. A visitor sees a camp only when there is something in it
-//                (or a read failed, said so with Try again); the coach sees them all, saying what to
-//                add. No camp for clients' results: no source holds a result a client shared with
-//                consent, so none is drawn.
+//                their kitchen and plate notes), Replays, Proof (the reviews the coach pinned, their
+//                Wins wall, in clients' own words: members only, as all review words), Words (the
+//                rating, and the other words for members), About, Find me (the practice, the socials,
+//                where they coach), Posts, and the Summit: the storefront. The app's camps, in its
+//                order. A visitor sees a camp only when there is something in it (or a read failed,
+//                said so with Try again); the coach sees them all, saying what to add.
+//   The accent   the coach's own (Make it yours → look.accent, else the old customizer's hex) tints the
+//                drawing alone: the route, the contours, the summit's ring, the pins, the spine and its
+//                diamonds, the name's full stop. Text and buttons keep the role's colours.
 //   The dock     the booking console at the foot of the window: who, the free intro's length, the
 //                next open time, Message and Book a free intro (the booking page at that time, or the
 //                waiting list when they are full).
@@ -269,6 +272,32 @@ function cpwClimbPalette(K, nutri) {
     CTA: nutri ? "#d8a23a" : "#c0533b", ON_CTA: nutri ? "#16110a" : "#ffffff", CTA_TEXT: nutri ? "#e6c373" : "#ec8a70",
     RUST: "#ec8a70", GREEN: "#5fb16e",
   };
+}
+// The coach's accent for the drawing (PARITY §2): their look's accent as the kit paints it on a dark
+// stock (a black one turns white there; the role's own default is no pick), else the old customizer's
+// `custom.accent` when it is a #rrggbb that shows on the page; else the role's own. Only the drawing takes it: the route and its
+// glow, the contours, the summit's ring, the milestone pins, the camp spine and diamonds, and the name's
+// full stop. Text and controls keep the role's colours, so their contrast never rests on the pick.
+const CPW_HEX = /^#[0-9a-f]{6}$/i;
+// The digits are extracted, never sliced: a paper token (var(--…, #hex)) parses to its hex.
+const cpwLum = (hex) => {
+  const m = /#([0-9a-f]{6})(?![0-9a-f])/i.exec(String(hex || ""));
+  if (!m) return 0;
+  const n = parseInt(m[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+function cpwDrawAccent(K, look, custom, role, fallback) {
+  const shows = (hex) => CPW_HEX.test(hex) && (cpwLum(hex) + 0.05) / (cpwLum(CPW_BG) + 0.05) >= 1.6;
+  // The role's own key (teal for a trainer, amber for a nutritionist: what the editor seeds, and the
+  // samples carry) is no pick: the page keeps the Climb's teal or gold.
+  const own = role === "nutritionist" ? "amber" : "teal";
+  if (look && look.accent && look.accent !== own && K.BS_COACH_ACCENTS && K.BS_COACH_ACCENTS[look.accent] && typeof K.bsCoachPalette === "function") {
+    const a = K.bsCoachPalette({ paper: "dark", accent: look.accent }, role).ACCENT;
+    if (shows(a)) return a.toLowerCase();
+  }
+  const old = custom && typeof custom.accent === "string" ? custom.accent.trim() : "";
+  return shows(old) ? old.toLowerCase() : fallback;
 }
 // Doto, for the measured figures: requested once, from the page (the host pages load Anybody and
 // Schibsted Grotesk through pageShell.jsx, not Doto).
@@ -754,6 +783,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const ACC = pal.ACCENT, ON_ACC = pal.ON_ACCENT, INK = pal.INK;
   const CTA = pal.CTA, ON_CTA = pal.ON_CTA;
   const ink = (a) => `rgba(${pal.inkRGB},${a})`;
+  const DRAW = cpwDrawAccent(K, look, custom, role, ACC);
 
   // ── Their listing ──
   const [listingEpoch, setListingEpoch] = React.useState(0);
@@ -851,10 +881,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       return { list, avg, count, locked: !!cm.revLocked, unread, failed: unread && !!cm.revErr };
     })();
   const revLocked = !!(reviews.locked && reviews.count > 0 && !reviews.list.length);
-  // The coach's pinned reviews first (their Wins wall), then the newest.
+  // Proof: the reviews the coach pinned (their Wins wall), in clients' own words. Review words are for
+  // members: the route answers a locked reader with none, and a locked read draws none here either.
+  const proof = sample || reviews.locked ? [] : wins.filter((r) => r && String(r.text || "").trim());
+  // Words: the newest of the rest (the pinned ones are in Proof).
   const quotes = (() => {
-    const seen = new Set(), out = [];
-    for (const r of [...(sample ? [] : wins.map((w) => ({ ...w, pinned: true }))), ...reviews.list]) {
+    const seen = new Set(proof.map((r) => r.id || r.text)), out = [];
+    for (const r of reviews.list) {
       if (!r || !String(r.text || "").trim()) continue;
       const k = r.id || r.text;
       if (seen.has(k)) continue;
@@ -922,38 +955,66 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const mealPlans = nutri ? plansForSale.filter(Boolean) : [];
   const hasRange = nutri ? mealPlans.length > 0 || (live && salePlans.state === "error") : (hasStudioWork || workFailed);
   const hasWords = !!(quotes.length || revLocked || reviews.failed || reviews.count > 0);
+  // The camps, the app's list in its order (PARITY §1): [key, kind, the name on the tab and the spine].
   const campList = isPrivate ? [["words", "Words", "Reviews"]] : [
-    ...(isSelf || hasBase ? [["base", "Base", "Start here"]] : []),
-    ["day", "Book", words.day],
+    ...(isSelf || hasBase ? [["base", "Base", "Base"]] : []),
+    ["day", "Camp", "Book"],
     ...(nutri ? [
       ...(isSelf || hasRange ? [["range", "Camp", "Meal plans"]] : []),
-      ...(isSelf || kitchen || gallery.length ? [["kitchen", "Camp", words.kitchen]] : []),
+      ...(isSelf || kitchen || gallery.length ? [["kitchen", "Camp", "Kitchen"]] : []),
       ...(isSelf || plateDays.length || postsFailed ? [["plates", "Camp", "Plate notes"]] : []),
     ] : [
       ...(isSelf || hasRange ? [["range", "Camp", "Programs"]] : []),
       ...(isSelf || replays.length || postsFailed ? [["replays", "Camp", "Replays"]] : []),
     ]),
+    ...(isSelf || (proof.length && !reviews.locked) ? [["proof", "Camp", "Proof"]] : []),
     ...(isSelf || hasWords ? [["words", "Camp", "Words"]] : []),
     ...(isSelf || hasAbout ? [["about", "Camp", "About"]] : []),
-    ...(isSelf || activity.length || postsFailed ? [["activity", "Camp", "Activity"]] : []),
     ...(isSelf || hasFind ? [["find", "Camp", "Find me"]] : []),
-    ["summit", "Summit", words.work],
+    ...(isSelf || activity.length || postsFailed ? [["posts", "Camp", "Posts"]] : []),
+    ["summit", "Summit", "Summit"],
   ];
   // "Camp 1", "Camp 2" … between the base and the summit, as the route reads.
   let campN = 0;
-  const camps = campList.map(([k, kind, name]) => ({ key: k, name, label: kind === "Camp" ? `Camp ${++campN}` : kind }));
+  // The tab row names each camp as the app's does (Base, Book, Programs … Summit); the spine reads its
+  // number and name ("Base · Start here", "Camp 1 · Book", "Summit · Work with …").
+  const spineName = { base: "Start here", summit: words.work };
+  const camps = campList.map(([k, kind, name]) => ({ key: k, name, spine: spineName[k] || name, label: kind === "Camp" ? `Camp ${++campN}` : kind }));
   const campRefs = React.useRef({});
   const [campOn, setCampOn] = React.useState(camps[0] ? camps[0].key : null);
   const campKeys = camps.map((c) => c.key).join(",");
+  // The camp on: the last one whose head has come up under the header (and, on a phone, the camp row).
+  // Read on scroll, once a frame: an observer of the camps entering a band lit the one before, whose
+  // foot was still in it, while the next camp's head sat under the row.
   React.useEffect(() => {
-    if (typeof IntersectionObserver === "undefined") return undefined;
-    const io = new IntersectionObserver((es) => {
-      const seen = es.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-      if (seen[0]) setCampOn(seen[0].target.getAttribute("data-camp"));
-    }, { rootMargin: `-${headH + 60}px 0px -55% 0px` });
-    for (const el of Object.values(campRefs.current)) if (el) io.observe(el);
-    return () => io.disconnect();
-  }, [campKeys, headH]);
+    if (typeof window === "undefined" || !window.addEventListener) return undefined;
+    const keys = campKeys.split(",");
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      const line = headH + (wide ? 0 : 51) + 40;
+      let on = keys[0] || null;
+      for (const k of keys) { const el = campRefs.current[k]; if (el && el.getBoundingClientRect().top <= line) on = k; }
+      // At the foot of the page the last camps never reach the line: the summit is on there.
+      try { const d = document.documentElement; if (window.innerHeight + window.scrollY >= d.scrollHeight - 4) on = keys[keys.length - 1]; } catch (e) {}
+      if (on) setCampOn(on);
+    };
+    const onScroll = () => { if (!raf) raf = (window.requestAnimationFrame || setTimeout)(read); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); if (raf && window.cancelAnimationFrame) window.cancelAnimationFrame(raf); };
+  }, [campKeys, headH, wide]);
+  // On a phone the row keeps the camp that is on in view, scrolled sideways (never the page).
+  const campNavRef = React.useRef(null);
+  React.useEffect(() => {
+    const nav = campNavRef.current;
+    if (!nav || !campOn) return;
+    const btn = nav.querySelector(`[data-camp-link="${campOn}"]`);
+    if (!btn) return;
+    const left = btn.offsetLeft - 12, right = btn.offsetLeft + btn.offsetWidth + 12;
+    if (left < nav.scrollLeft || right > nav.scrollLeft + nav.clientWidth) {
+      try { nav.scrollTo({ left: Math.max(0, left), behavior: cpwReducedMotion() ? "auto" : "smooth" }); } catch (e) { nav.scrollLeft = Math.max(0, left); }
+    }
+  }, [campOn]);
   const toCamp = (k) => { const el = campRefs.current[k]; setCampOn(k); if (el && el.scrollIntoView) { try { el.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {} } };
 
   // ── The first screen's readouts, each only from what was read ──
@@ -1045,6 +1106,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const T = { pal, ACC, ON_ACC, INK, ink, first, name, words, nutri, isSelf, wide, CTA, ON_CTA };
   const seed = cpwHash(uid || sampleKey || name);
   const cssA = (x) => cpwA(ACC, x);
+  const drawA = (x) => cpwA(DRAW, x);
   React.useEffect(() => { cpwLoadDoto(); }, []);
   // Docked for every visitor. A private profile's console is Message alone, as today's page kept
   // Message on a private profile: no times, no Book, no storefront.
@@ -1060,7 +1122,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   const campBody = (k) => {
     if (k === "base") return (
       <CpwBase T={T} K={K} film={film} highlight={highlight} tip={tip} shots={shots} postCount={postCount}
-        onShot={(c) => setSheet({ kind: "replay", r: c, i: 0 })} onAll={() => toCamp("activity")} hasActivity={camps.some((c) => c.key === "activity")} />
+        onShot={(c) => setSheet({ kind: "replay", r: c, i: 0 })} onAll={() => toCamp("posts")} hasActivity={camps.some((c) => c.key === "posts")} />
     );
     if (k === "day") return (
       <CpwDayTab T={T} K={K} avail={avail} listingState={live ? listing.state : (sample ? "ready" : "none")} introClosed={introClosed} hoursHref={hoursHref}
@@ -1085,6 +1147,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     if (k === "kitchen") return <CpwKitchenTab T={T} kitchen={kitchen} gallery={gallery} onRecipe={(r) => setSheet({ kind: "recipe", r })} />;
     if (k === "plates") return <CpwPlateNotesTab T={T} days={plateDays} failed={postsFailed} onRetry={posts.retry} onOpen={(day) => setSheet({ kind: "plateDay", day, i: 0 })} />;
     if (k === "replays") return <CpwReplaysTab T={T} replays={replays} failed={postsFailed} onRetry={posts.retry} onOpen={(r) => setSheet({ kind: "replay", r, i: 0 })} />;
+    if (k === "proof") return <CpwProof T={T} items={proof} />;
     if (k === "words") return (
       <CpwReviewsStrip T={T} quotes={quotes} revLocked={revLocked} ratingBit={ratingBit} rating={ratingShown} count={reviews.count} failed={!!reviews.failed} onRetry={cm.retryReviews} onAll={() => setSheet({ kind: "reviews" })} />
     );
@@ -1095,7 +1158,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     if (k === "find") return (
       <CpwAboutTab T={T} K={K} part="find" about={null} prompts={[]} links={aboutLinks} certs={[]} gallery={aboutGallery} onEdit={canEdit ? () => setEditing(true) : null} biz={biz} song={null} />
     );
-    if (k === "activity") return <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />;
+    if (k === "posts") return <CpwActivityTab T={T} cards={activity} failed={postsFailed} onRetry={posts.retry} />;
     if (k === "summit") return (
       <div data-summit-camp="">
         {wide && !isPrivate ? (
@@ -1117,16 +1180,17 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     kitchen: `What ${first} cooks and teaches.`,
     plates: "",
     replays: "",
-    words: `From the people ${first} coached.`,
+    proof: proof.length ? `From clients' own words, pinned by ${first}.` : "",
+    words: proof.length ? `The rating, and the rest of the reviews.` : `From the people ${first} coached.`,
     about: `Who ${first} is and how ${first} coaches.`,
-    activity: `What ${first} posted lately.`,
+    posts: `What ${first} posted lately.`,
     find: `Where ${first} coaches, and where to follow along.`,
     summit: sells ? "Monthly coaching, the free intro and the plans, in one place." : "Start with a free intro call. Everything runs in the Shape app.",
   };
-  const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", words: "Words", about: `About ${first}`, activity: "Activity", find: "Find me", summit: words.work };
+  const campTitle = { base: "Start here", day: words.day, range: nutri ? "Meal plans" : "The range", kitchen: words.kitchen, plates: "Plate notes", replays: "Replays", proof: "Proof", words: "What clients say", about: `About ${first}`, find: "Find me", posts: "Posts", summit: words.work };
 
   return (
-    <div className="cpw" data-coach-profile="" data-climb="" data-role={role} data-mode={live ? "live" : "sample"} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
+    <div className="cpw" data-coach-profile="" data-climb="" data-role={role} data-mode={live ? "live" : "sample"} data-accent={DRAW} style={{ position: "relative", minHeight: chrome ? "100vh" : "auto", background: pal.PAPER_BG, color: INK, fontFamily: CPW_BODY, WebkitFontSmoothing: "antialiased", paddingBottom: docked ? 96 : 0 }}>
       <style>{`
     /* clip, not hidden: hidden makes a box a scroller, and the camp row and its marks never pin.
        pageShell's html, body { overflow-x: hidden } does that to <body> on every page, and a coach dashboard's
@@ -1187,10 +1251,10 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-campnav{position:sticky;z-index:20;display:flex;overflow-x:auto;gap:2px;margin-top:18px;padding:0 12px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
     .cpw-campnav button{flex:none;min-height:46px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-family:${CPW_DOTO};font-weight:700;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;font-variation-settings:'ROND' 30}
     .cpw-camps{position:relative;padding:36px 0 24px}
-    .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${cssA(0.1)},${ACC} 60px,${ACC} calc(100% - 60px),${cssA(0.1)});box-shadow:0 0 12px ${cssA(0.35)}}
+    .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${drawA(0.1)},${DRAW} 60px,${DRAW} calc(100% - 60px),${drawA(0.1)});box-shadow:0 0 12px ${drawA(0.35)}}
     .cpw-camp{position:relative;display:grid;grid-template-columns:210px minmax(0,1fr);padding:30px 0 40px}
     .cpw-camp-mark{position:sticky;top:${headH + 28}px;align-self:start;display:grid;grid-template-columns:50px minmax(0,1fr);column-gap:10px;row-gap:3px;align-items:center}
-    .cpw-diamond{grid-row:1 / 3;justify-self:center;width:22px;height:22px;transform:rotate(45deg);border:2px solid;box-shadow:0 0 14px ${cssA(0.45)}}
+    .cpw-diamond{grid-row:1 / 3;justify-self:center;width:22px;height:22px;transform:rotate(45deg);border:2px solid;box-shadow:0 0 14px ${drawA(0.45)}}
     .cpw-camp-name{font-weight:650;font-size:15.5px;color:#eef3f0}
     .cpw-camp-label{display:none}
     .cpw-camp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding-bottom:16px;margin-bottom:24px;border-bottom:1px solid ${cssA(0.32)}}
@@ -1346,13 +1410,13 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             {wall ? <img src={wall} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: CPW_FOCUS[look.focus] || CPW_FOCUS.center }} /> : null}
           </div>
           <div aria-hidden="true" className="cpw-stage-shade" />
-          <CpwTerrain ACC={ACC} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />
+          <CpwTerrain ACC={DRAW} seed={seed} sx={wide ? 0.79 : 0.8} sy={wide ? 0.44 : 0.42} pins={wide && !isSelf ? milestones : []} />
           {/* The summit: the rating, from the reviews, and how many. None while unread or on a failed read. */}
           {!isPrivate && (reviews.count > 0 || (!reviews.unread && !reviews.failed)) ? (
             <button type="button" data-summit="" className="cpw-summit" onClick={() => setSheet({ kind: "reviews" })}
               aria-label={ratingShown ? `Rated ${ratingShown} out of 10 from ${reviews.count} ${reviews.count === 1 ? "review" : "reviews"}` : "New on Shape: no reviews yet"}
               style={{ left: `${(wide ? 0.79 : 0.8) * 100}%`, top: `${(wide ? 0.44 : 0.42) * 100}%` }}>
-              <span className="cpw-plate cpw-summit-plate" style={{ borderColor: cpwA(ACC, 0.55) }}>
+              <span className="cpw-plate cpw-summit-plate" data-summit-ring="" style={{ borderColor: cpwA(DRAW, 0.55) }}>
                 {ratingShown ? <React.Fragment><span className="cpw-doto" style={{ fontSize: wide ? 46 : 36 }}>{ratingShown}</span><span style={{ fontSize: 14, color: ink(0.8), marginLeft: 4 }}>/10</span></React.Fragment>
                   : <span className="cpw-doto" style={{ fontSize: wide ? 30 : 24 }}>New</span>}
               </span>
@@ -1366,7 +1430,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
               eyebrow={["Base camp", where || null].filter(Boolean).join(" · ")} line={years ? `Coaching for ${years} ${years === 1 ? "year" : "years"}` : (tier ? `${tier} coach` : roleLine)} />
             <div className="cpw-stage-text">
               <span className="cpw-dtl cpw-eyebrow" style={{ color: ACC }}>{[roleLine, where].filter(Boolean).join(" · ")}</span>
-              <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "#fff", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span style={{ color: ACC }}>.</span></span></h1>
+              <h1 className="cpw-h1" style={{ margin: 0, fontFamily: CPW_DISPLAY, color: "#fff", overflowWrap: "anywhere", "--cpw-l": cpwLongestWord(name) + 1 }}>{cpwNameHead(name)}<span style={{ whiteSpace: "nowrap" }}>{cpwNameTail(name)}<span data-name-stop="" style={{ color: DRAW }}>.</span></span></h1>
               {isPrivate ? (
                 <p style={{ margin: "16px 0 0", fontSize: 15, color: ink(0.8) }}>{row && row.visibility === "friends" ? `${first} shares their profile with friends. Connect to see more.` : `${first} keeps their profile private. Only their name and tier are shown.`}</p>
               ) : (
@@ -1428,7 +1492,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 
       {/* ── The spine: the camps, one after another; on a phone their names pin as a row ── */}
       {!wide && camps.length > 1 ? (
-        <nav aria-label="Profile sections" className="cpw-tabs cpw-campnav" data-camp-nav="" style={{ top: headH }}>
+        <nav ref={campNavRef} aria-label="Profile sections" className="cpw-tabs cpw-campnav" data-camp-nav="" style={{ top: headH }}>
           {camps.map((c) => (
             <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => toCamp(c.key)}
               style={{ color: campOn === c.key ? ACC : ink(0.72), boxShadow: campOn === c.key ? `inset 0 -2px 0 ${ACC}` : "none" }}>{c.name}</button>
@@ -1440,19 +1504,19 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
           {camps.map((c) => (
             <section key={c.key} ref={(el) => { campRefs.current[c.key] = el; }} data-camp={c.key} id={`camp-${c.key}`} aria-labelledby={`camp-h-${c.key}`} className="cpw-camp" style={{ scrollMarginTop: headH + (wide ? 16 : 60) }}>
               <div className="cpw-camp-mark" aria-hidden="true">
-                <span className="cpw-diamond" style={{ borderColor: campOn === c.key ? ACC : cpwA(ACC, 0.7), background: campOn === c.key ? cpwA(ACC, 0.25) : pal.PAPER_BG }} />
+                <span className="cpw-diamond" style={{ borderColor: campOn === c.key ? DRAW : cpwA(DRAW, 0.7), background: campOn === c.key ? cpwA(DRAW, 0.25) : pal.PAPER_BG }} />
                 <span className="cpw-dtl" style={{ color: ACC }}>{c.label}</span>
-                <span className="cpw-camp-name">{c.name}</span>
+                <span className="cpw-camp-name">{c.spine}</span>
               </div>
               <div className="cpw-camp-body">
                 <div className="cpw-camp-head">
                   <div style={{ minWidth: 0 }}>
-                    <span className="cpw-dtl cpw-camp-label" style={{ color: ACC }}>{c.label} · {c.name}</span>
+                    <span className="cpw-dtl cpw-camp-label" style={{ color: ACC }}>{c.label} · {c.spine}</span>
                     <h2 id={`camp-h-${c.key}`} className="cpw-camp-title">{campTitle[c.key]}<span style={{ color: ACC }}>.</span></h2>
                     {campLead[c.key] ? <p className="cpw-camp-lead" style={{ color: ink(0.78) }}>{campLead[c.key]}</p> : null}
                   </div>
-                  {c.key === "base" && postCount && camps.some((x) => x.key === "activity") ? (
-                    <button type="button" data-all-posts="" onClick={() => toCamp("activity")} className="cpw-textlink" style={{ color: pal.CTA_TEXT }}>
+                  {c.key === "base" && postCount && camps.some((x) => x.key === "posts") ? (
+                    <button type="button" data-all-posts="" onClick={() => toCamp("posts")} className="cpw-textlink" style={{ color: pal.CTA_TEXT }}>
                       All {postCount >= 40 ? "40+" : postCount} {postCount === 1 ? "post" : "posts"} →
                     </button>
                   ) : null}
@@ -1966,8 +2030,8 @@ function CpwAboutTab({ T, K, about, prompts, links: linksIn, certs, gallery = []
         <React.Fragment>
           {!sections.length && !gallery.length ? <CpwHint ink={ink}>{part === "find"
             ? "Tell members where to find you: your practice's card and your socials, in the Shape app (Make it yours → About me)."
-            : "Tell members who you are: your story, how you coach, and where to find you. Write About me in the Shape app, in Make it yours."}</CpwHint> : null}
-          {onEdit ? <button type="button" onClick={onEdit} style={{ ...cpwLink(ACC), marginTop: 16 }}>{part === "find" ? "Edit your links →" : "Edit your questions and links →"}</button> : null}
+            : "Tell members who you are: your story, how you coach, your credentials. Write About me in the Shape app, in Make it yours."}</CpwHint> : null}
+          {onEdit ? <button type="button" onClick={onEdit} style={{ ...cpwLink(ACC), marginTop: 16 }}>{part === "find" ? "Edit your links →" : "Edit your story and questions →"}</button> : null}
         </React.Fragment>
       ) : null}
     </section>
@@ -2670,10 +2734,32 @@ function CpwActivityTab({ T, cards, failed = false, onRetry }) {
   );
 }
 
+// ── Proof ──────────────────────────────────────────────────────────────────────────────────────
+// The reviews the coach pinned (their Wins wall, useLvWinsWall: only members' reviews of this coach,
+// read by id, and none for a reader who may not read review words), in clients' own words. A visitor
+// sees the camp only with one; the coach sees where to pin them.
+function CpwProof({ T, items }) {
+  const { ACC, INK, ink } = T;
+  if (!items.length) return <CpwHint ink={ink}>Pin up to three of your members' reviews in Make it yours (Spotlight → Wins wall), and they show here, in their words.</CpwHint>;
+  return (
+    <section data-proof="" aria-label="Proof">
+      <div className="cpw-quotes">
+        {items.map((r) => (
+          <figure key={r.id || r.text} data-proof-card="" className="cpw-card" style={{ margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+            <span className="cpw-dtl" style={{ color: ACC }}>{Math.round(Number(r.rating) || 0)}/10 · Pinned</span>
+            <blockquote style={{ margin: 0, fontSize: 16.5, lineHeight: 1.5, color: INK }}>{r.text}</blockquote>
+            <figcaption style={{ fontSize: 13, color: ink(0.72) }}>{r.authorId ? <a href={"MemberProfile.html?u=" + encodeURIComponent(r.authorId)} style={{ color: "inherit" }}>{r.author || "Member"}</a> : (r.author || "Member")}</figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ── What clients say ─────────────────────────────────────────────────────────────────────────
 // The Words camp: the rating on a plate and how many reviews, then the newest words (the coach's pinned
-// reviews first). Review words are for members (owner, 2026-10-28): anyone else sees the rating and the
-// way in, "Join Shape to read all N". A read that failed says so, never an empty camp.
+// reviews are in Proof, not here). Review words are for members (owner, 2026-10-28): anyone else sees
+// the rating and the way in, "Join Shape to read all N". A read that failed says so, never an empty camp.
 function CpwReviewsStrip({ T, quotes, revLocked, ratingBit, rating = null, count = 0, failed = false, onRetry, onAll }) {
   const { pal, ACC, INK, ink, first, isSelf } = T;
   const summary = rating ? (

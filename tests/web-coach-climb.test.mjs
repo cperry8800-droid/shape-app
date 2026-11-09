@@ -161,7 +161,8 @@ test('a camp with nothing in it is hidden from a visitor and shown to the coach 
   assert.ok(!$('[data-milestone]'));
   await p.unmount();
   p = await mount({ ...bare, isSelf: true });
-  assert.deepEqual(camps(), ['base', 'day', 'range', 'replays', 'words', 'about', 'activity', 'find', 'summit'], 'the coach sees every camp');
+  assert.deepEqual(camps(), ['base', 'day', 'range', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'the coach sees every camp, in the app\'s order');
+  assert.match($('[data-camp="proof"]').textContent, /Pin up to three of your members' reviews/, 'Proof says where to pin them');
   assert.match($('[data-camp="base"]').textContent, /Make it yours → Spotlight/);
   assert.match($('[data-camp="range"]').textContent, /Publish a program/);
   assert.match($('[data-camp="find"]').textContent, /Tell members where to find you/);
@@ -294,5 +295,93 @@ test('Message is in the docked console on a phone too, and a private coach keeps
   assert.ok(!$('[data-dock-next]'), 'no open times on a private profile');
   // It is the page's own Message (the coach's chat once their listing is read), as on the stage before.
   assert.match(read('public/newdesign/coachProfileWeb.jsx'), /book=\{dockBook\} onMessage=\{message\}/);
+  await p.unmount();
+});
+
+// PARITY (9 Nov): one camp list on the website and in the app, in the app's order, under the app's
+// names; Proof is the coach's pinned reviews, members only like all review words.
+const PIN = '22222222-2222-4222-8222-222222222222';
+function withPinned(answer) {
+  const base = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (String(url).startsWith('/api/coaches/reviews?ids=')
+    ? { ok: true, status: 200, json: async () => answer }
+    : base(url, init));
+  return () => { globalThis.fetch = base; };
+}
+test('the camps are the app\'s, in its order: Base, Book, the range, Proof, Words, About, Find me, Posts, Summit', async () => {
+  WIDE = true;
+  backend({ reviews: { reviews: [{ id: PIN, author: 'Dana K.', rating: 10, text: 'An old favourite.', ownerId: 'coach-1', authorId: 'm-1' }, { id: 'r2', author: 'Lee P.', rating: 9, text: 'Patient and exact.' }], avg: 9.5, count: 2 } });
+  const undo = withPinned({ reviews: [{ id: PIN, author: 'Dana K.', rating: 10, text: 'An old favourite.', ownerId: 'coach-1', authorId: 'm-1' }] });
+  const custom = { ...ROW.custom, pinnedReviews: [PIN], links: { instagram: '@maya.lifts' } };
+  const p = await mount({ ...LIVE, row: { ...ROW, custom } });
+  assert.deepEqual(camps(), ['base', 'day', 'range', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
+  // The tab names (the phone's row) are the app's; the spine numbers the camps between Base and Summit.
+  assert.deepEqual($$('.cpw-camp-label').map((l) => l.textContent),
+    ['Base · Start here', 'Camp 1 · Book', 'Camp 2 · Programs', 'Camp 3 · Proof', 'Camp 4 · Words', 'Camp 5 · About', 'Camp 6 · Find me', 'Camp 7 · Posts', 'Summit · Work with her']);
+  assert.equal($('#camp-h-day').textContent, 'Her day.', 'the day keeps its title (words.day)');
+  assert.equal($('#camp-h-words').textContent, 'What clients say.');
+  // Proof holds the pinned review; Words the rating and the rest, never the pinned one twice.
+  assert.match($('[data-camp="proof"] [data-proof-card]').textContent, /10\/10 · Pinned.*An old favourite\..*Dana K\./);
+  const wordsText = $('[data-camp="words"]').textContent;
+  assert.match(wordsText, /9\.5\/10Rating · 2 reviews/);
+  assert.match(wordsText, /Patient and exact\./);
+  assert.doesNotMatch(wordsText, /An old favourite/);
+  // About holds no links, practice or photos; Find me holds the socials.
+  assert.ok(!$('[data-camp="about"] [data-about-link]') && !$('[data-camp="about"] [data-about="practice"]') && !$('[data-camp="about"] [data-about-photos]'));
+  assert.ok($('[data-camp="find"] [data-about-link="instagram"]'));
+  await p.unmount();
+  undo();
+  // A reader who may not read review words: the route answers the pins with none, so no Proof camp,
+  // and the Words are the rating and the way in.
+  backend({ reviews: { reviews: [], avg: 9.9, count: 284, locked: true } });
+  const undo2 = withPinned({ reviews: [], locked: true });
+  const q = await mount({ ...LIVE, row: { ...ROW, custom } });
+  assert.ok(!camps().includes('proof'), 'no Proof for a locked reader: ' + camps().join(','));
+  assert.ok(!$('[data-proof-card]'));
+  assert.doesNotMatch(text(), /An old favourite/);
+  assert.ok($('[data-camp="words"] [data-reviews-locked]'));
+  await q.unmount();
+  undo2();
+});
+
+// PARITY §2: the coach's accent tints the drawing, never the text or a button.
+test('the coach\'s accent tints the route, the contours, the summit ring and the full stop; labels and Book keep the role\'s colours', async () => {
+  const rgb = (hex) => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
+  const stop = () => $('[data-name-stop]').style.color;
+  const routeStroke = () => [...$('[data-terrain] svg').querySelectorAll('path')].map((x) => x.getAttribute('stroke')).filter((c) => c && c !== '#effffc');
+  WIDE = true; backend();
+  // Violet, picked in Make it yours.
+  let p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, look: { paper: 'dark', accent: 'violet' } } } });
+  const violet = K.BS_COACH_ACCENTS.violet.dark;
+  assert.equal($('[data-coach-profile]').getAttribute('data-accent'), violet);
+  assert.equal(stop(), rgb(violet), 'the name\'s full stop');
+  assert.ok(routeStroke().length && routeStroke().every((c) => c === violet), 'the route and the contours');
+  assert.match($('[data-summit-ring]').style.borderColor, /167, 139, 250/, 'the summit\'s ring');
+  assert.match($('[data-camp="day"] .cpw-diamond').style.borderColor, /167, 139, 250/, 'the spine\'s diamonds');
+  assert.equal($('.cpw-eyebrow').style.color, rgb('#34d6c5'), 'a label keeps the teal');
+  assert.equal($('.cpw-camp-label').style.color, rgb('#34d6c5'));
+  assert.equal($('[data-dock-book]').style.background, rgb('#c0533b'), 'Book keeps the rust');
+  await p.unmount();
+  // The old customizer's hex, when there is no look accent.
+  p = await mount({ ...LIVE, row: { ...ROW, custom: { ...ROW.custom, accent: '#ff7a1a' } } });
+  assert.equal(stop(), rgb('#ff7a1a'));
+  await p.unmount();
+  // None (or the role's own, which the editor seeds, or one that would vanish on the dark page): teal.
+  for (const custom of [ROW.custom, { ...ROW.custom, look: { accent: 'teal' } }, { ...ROW.custom, accent: '#050505' }, { ...ROW.custom, accent: 'red' }]) {
+    p = await mount({ ...LIVE, row: { ...ROW, custom } });
+    assert.equal(stop(), rgb('#34d6c5'), JSON.stringify(custom));
+    assert.ok(routeStroke().every((c) => c === '#34d6c5'));
+    await p.unmount();
+  }
+  // A nutritionist with none is gold; their pick tints the drawing and never the gold booking colour.
+  backend();
+  const NROW = { ...ROW, role: 'nutritionist', full_name: 'Rae Lindqvist' };
+  p = await mount({ ...LIVE, role: 'nutritionist', row: NROW });
+  assert.equal(stop(), rgb('#d8a23a'));
+  await p.unmount();
+  p = await mount({ ...LIVE, role: 'nutritionist', row: { ...NROW, custom: { look: { accent: 'rose' } } } });
+  assert.equal(stop(), rgb(K.BS_COACH_ACCENTS.rose.dark));
+  assert.equal($('.cpw-eyebrow').style.color, rgb('#d8a23a'), 'the label keeps the gold');
+  assert.match($('[data-dock]').innerHTML, /216, 162, 58|#d8a23a/, 'the booking colour stays gold');
   await p.unmount();
 });
