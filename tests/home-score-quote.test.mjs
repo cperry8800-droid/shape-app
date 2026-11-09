@@ -124,14 +124,33 @@ test('every tier colour holds 4.5:1 against the paper, mixed only as far as it t
   // The dark paper keeps every tier's own colour.
   for (const c of TIER_COLOURS) assert.equal(Q.bsQuoteInk(c, false, '#0f0e0c'), c);
   // The rest of the line is small text too: the week's green and rust go through the same mix, and the quiet
-  // words sit at 0.62 of the ink, which holds 4.5:1 on the light paper (0.56 read 4.4:1).
+  // words are derived against the paper.
   const SRC = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSHomeScoreQuote.jsx'), 'utf8');
   assert.match(SRC, /const green = bsQuoteInk\(t\.isLight \? '#2f8a3a' : '#a3e09a', t\.isLight, t\.PAPER\);/);
   assert.match(SRC, /const rust = bsQuoteInk\(t\.isLight \? '#b4452f' : '#e98a73', t\.isLight, t\.PAPER\);/);
-  assert.match(SRC, /const ink50 = `rgba\(\$\{rgb\},0\.62\)`;/);
-  const quiet = hex('#f5f0e6').map((p, i) => Math.round(p * 0.38 + hex('#0f0e0c')[i] * 0.62));
-  assert.ok(Q.bsQuoteContrast(quiet, hex('#f5f0e6')) >= 4.5, 'the quiet words are faint on the light paper');
-  for (const c of ['#2f8a3a', '#b4452f']) assert.ok(Q.bsQuoteContrast(hex(Q.bsQuoteInk(c, true, '#f5f0e6')), hex('#f5f0e6')) >= 4.5, `${c} is faint`);
+  assert.match(SRC, /const ink50 = bsQuoteQuiet\(t\.INK, t\.PAPER\) \|\| `rgba\(\$\{rgb\},0\.62\)`;/);
+});
+
+// Codex P2 on #2649: the midtone papers (manila, steel, sage) read the quiet words under 4.5:1 at a fixed
+// alpha. Every paper the app offers, read from the palette itself: the quiet words, every tier and the week.
+test('on every paper the app offers, all of the line holds 4.5:1', () => {
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const CHROME = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');
+  const papers = [...CHROME.matchAll(/^\s+(\w+):\s+\{ paper: '(#[0-9a-f]{6})',[^\n]*?ink: '(#[0-9a-f]{6})',[^\n]*?light: (true|false)/gim)].map((m) => ({ name: m[1], paper: m[2], ink: m[3], light: m[4] === 'true' }));
+  assert.ok(papers.length >= 17, `read ${papers.length} papers`);
+  for (const p of ['light', 'dark', 'manila', 'steel', 'sage']) assert.ok(papers.some((x) => x.name === p), `${p} is not read`);
+  for (const { name, paper, ink, light } of papers) {
+    const q = Q.bsQuoteQuiet(ink, paper);
+    const m = /rgba?\((\d+),(\d+),(\d+)(?:,([\d.]+))?\)/.exec(q);
+    const a = m[4] == null ? 1 : Number(m[4]);
+    assert.ok(a >= 0.62, `${name}: the quiet words lighter than before`);
+    const quiet = hex(paper).map((v, i) => Math.round(v * (1 - a) + Number(m[i + 1]) * a));
+    assert.ok(Q.bsQuoteContrast(quiet, hex(paper)) >= 4.5, `${name}: the quiet words read ${Q.bsQuoteContrast(quiet, hex(paper)).toFixed(2)}:1`);
+    for (const c of ['#5fa96e', '#d8a23a', '#e0463c', '#8fe3e6', '#34d6c5', light ? '#2f8a3a' : '#a3e09a', light ? '#b4452f' : '#e98a73']) {
+      const out = Q.bsQuoteInk(c, light, paper);
+      assert.ok(Q.bsQuoteContrast(hex(out), hex(paper)) >= 4.5, `${name}: ${c} reads ${Q.bsQuoteContrast(hex(out), hex(paper)).toFixed(2)}:1`);
+    }
+  }
 });
 
 test('member Home and coach Today draw it under the masthead, where the ticker was', () => {

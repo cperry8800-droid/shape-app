@@ -61,6 +61,25 @@ test('the count starts at zero before the first paint, and ends on the figure', 
   await again.unmount();
 });
 
+// Codex P2 on #2649: a language picked after the count kept the old grouping, because the old effect's
+// cleanup wrote the previous locale over React's new text.
+test('a language picked after the count prints the figure in its own grouping', async () => {
+  reduce = false;
+  frames.length = 0;
+  const Q = await load();
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  const draw = (locale) => act(async () => { root.render(h(Q.BSHomeScoreQuote, { score: { live: true, total: 1284, week: '+36', tier: 'Tempo' }, tiers: TIERS, signedIn: true, locale, onOpen() {} })); });
+  const total = () => host.querySelector('[data-bs-score-total]').textContent;
+  await draw('en-US');
+  for (let i = 0; i < 200 && frames.length; i++) frames.shift()(performance.now() + 10000);
+  assert.equal(total(), '1,284');
+  await draw('de-DE');
+  assert.equal(total(), '1.284', 'the figure kept the English grouping');
+  await act(async () => root.unmount());
+});
+
 test('reduced motion prints the figure as it is', async () => {
   reduce = true;
   frames.length = 0;

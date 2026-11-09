@@ -46,6 +46,19 @@ const lumOf = (c) => {
 };
 export const bsQuoteContrast = (a, b) => { const x = lumOf(a); const y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 export const BS_QUOTE_MIN_CONTRAST = 4.5;
+// The quiet words (the label, the words of the next rung): the ink at 0.62 or as much more as it takes to
+// hold 4.5:1 on this paper (Codex P2 on #2649: a fixed 0.62 read about 3.9:1 on manila, 4.0 on steel and
+// 4.1 on sage).
+export function bsQuoteQuiet(ink, paper, base = 0.62) {
+  const c = rgbOfHex(ink);
+  const bg = rgbOfHex(paper);
+  if (!c || !bg) return null;
+  for (let a = base; a < 1; a += 0.02) {
+    const mix = bg.map((v, i) => Math.round(v * (1 - a) + c[i] * a));
+    if (bsQuoteContrast(mix, bg) >= BS_QUOTE_MIN_CONTRAST) return `rgba(${c.join(',')},${Math.round(a * 100) / 100})`;
+  }
+  return `rgb(${c.join(',')})`;
+}
 export function bsQuoteInk(hex, isLight, paper) {
   const c = rgbOfHex(hex);
   if (!c) return hex;
@@ -80,8 +93,13 @@ function rich(text, parts) {
 // (Codex P2 on #2649).
 let bsQuoteCounted = false;
 function useCountUp(ref, total, locale) {
+  // The figure and the number format are read when each frame writes, so a language picked mid-count or
+  // after it keeps its grouping; the count is not restarted or rewritten by a language change (Codex P2
+  // on #2649: the old cleanup wrote the previous locale's grouping over React's new text).
   const latest = React.useRef(total);
   latest.current = total;
+  const latestLocale = React.useRef(locale);
+  latestLocale.current = locale;
   const on = total > 0;
   React.useLayoutEffect(() => {
     const node = ref.current && ref.current.firstChild;
@@ -90,17 +108,17 @@ function useCountUp(ref, total, locale) {
     let reduce = false;
     try { reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
     if (reduce || typeof requestAnimationFrame !== 'function') return undefined;
-    node.nodeValue = fmt(0, locale);
+    node.nodeValue = fmt(0, latestLocale.current);
     let raf = 0;
     const t0 = performance.now();
     const step = (now) => {
       const p = Math.min(1, (now - t0) / 800);
-      node.nodeValue = fmt(Math.round(latest.current * (1 - Math.pow(1 - p, 3))), locale);
+      node.nodeValue = fmt(Math.round(latest.current * (1 - Math.pow(1 - p, 3))), latestLocale.current);
       if (p < 1) raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
-    return () => { cancelAnimationFrame(raf); node.nodeValue = fmt(latest.current, locale); };
-  }, [ref, on, locale]);
+    return () => { cancelAnimationFrame(raf); node.nodeValue = fmt(latest.current, latestLocale.current); };
+  }, [ref, on]);
 }
 
 export function BSHomeScoreQuote({ score, tiers, signedIn, onOpen, locale }) {
@@ -112,9 +130,9 @@ export function BSHomeScoreQuote({ score, tiers, signedIn, onOpen, locale }) {
   useCountUp(numRef, q ? q.total : 0, locale);
   if (!q) return null;
   const rgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
-  // The quiet words at 0.62 of the ink, and the week's green and rust held to 4.5:1 as the tier is: all of
-  // this line is small text.
-  const ink50 = `rgba(${rgb},0.62)`;
+  // The quiet words and the week's green and rust held to 4.5:1 on this paper, as the tier is: all of this
+  // line is small text.
+  const ink50 = bsQuoteQuiet(t.INK, t.PAPER) || `rgba(${rgb},0.62)`;
   const green = bsQuoteInk(t.isLight ? '#2f8a3a' : '#a3e09a', t.isLight, t.PAPER);
   const rust = bsQuoteInk(t.isLight ? '#b4452f' : '#e98a73', t.isLight, t.PAPER);
   const color = bsQuoteInk(tierColor(q.tier), t.isLight, t.PAPER);
