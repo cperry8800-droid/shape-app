@@ -15,8 +15,8 @@ export default {
   timeoutMs: 300_000,
   mutations: [
     // ── The row is the meal (the Lunch bug) ──
-    { name: 'a placed meal keeps the food\'s default slot', file: WEEK, find: '    m.slot = slot;\n', replace: '' },
-    { name: 'placing a meal ignores its row', file: WEEK, find: '    var m = newMeal(food, slot);', replace: '    var m = newMeal(food, "Lunch");' },
+    // placeMeal sets the slot twice (newMeal's argument, then m.slot), so only breaking both is a fault.
+    { name: 'placing a meal ignores its row', file: WEEK, find: '    var m = newMeal(food, slot);\n    m.slot = slot;\n', replace: '    var m = newMeal(food, "Lunch");\n' },
     { name: 'the week module brings back Lunch after Lunch', file: WEEK, find: '    for (var i = 0; i < MAIN.length; i++) if (!taken[MAIN[i]]) return MAIN[i];\n    return "Snack";', replace: '    return (Array.isArray(meals) && meals.length) ? "Lunch" : "Breakfast";' },
     { name: 'a rest day\'s extra is a Snack again', file: UI, find: 'const added = DashMeals.newMeal(f, dmbNextSlot(DashMeals.resolveDay(day, cur)));', replace: 'const added = DashMeals.newMeal(f, "Snack");' },
     { name: 'the Kitchen adds to the first row, full or not', file: WEEK, find: '    for (var i = 0; i < ROWS.length; i++) if (!mealsIn(meals, ROWS[i]).length) return ROWS[i];', replace: '    return ROWS[0];' },
@@ -34,7 +34,8 @@ export default {
     { name: 'the projection drops the food', file: WEEK, find: '    return { from: from, to: Math.round(from + num(food && food.kcal)) };', replace: '    return { from: from, to: from };' },
     // ── Training and rest days ──
     { name: 'a rest day is measured against the training target', file: WEEK, find: '    if (kind === "rest" && doc && validTargets(doc.restTargets)) return doc.restTargets;', replace: '' },
-    { name: 'the assignment sends a rest day the training target', file: WEEK, find: '      if (d.tag === "REST" && validTargets(plan.restTargets)) {', replace: '      if (false) {' },
+    { name: 'the assignment sends a rest day the training target', file: WEEK, find: 'if ((d.tag === "REST" || training.indexOf(d.dow) < 0) && validTargets(plan.restTargets)) {', replace: 'if (false) {' },
+    { name: 'a rest weekday with no rest version takes the training target', file: WEEK, find: '(d.tag === "REST" || training.indexOf(d.dow) < 0)', replace: '(d.tag === "REST")' },
     { name: 'the rest target ships unscaled', file: WEEK, find: "d.targets = { cal: Math.round(num(r.kcal) * scale)", replace: "d.targets = { cal: Math.round(num(r.kcal))" },
     { name: 'the note to the client never rides', file: WEEK, find: '        if (note) m.coachNote = note;', replace: '' },
     { name: 'the rest day reads the training day\'s meals for its notes', file: WEEK, find: 'var src = core.resolveDay(plan.days[d.dow % n], d.tag === "REST" ? "rest" : "training");', replace: 'var src = core.resolveDay(plan.days[d.dow % n], "training");' },

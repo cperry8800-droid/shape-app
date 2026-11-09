@@ -483,6 +483,17 @@ test('the Lunch bug: four meals put on an empty day\'s rows read Breakfast, Lunc
     await click(buttons().find((b) => b.textContent.includes('Add “' + dishName + '”')));
   }
   assert.deepEqual(W.ROWS.map((slot) => cellMeals('Day C', slot)), [['Jollof rice'], ['Egusi soup'], ['Suya plate'], ['Chin chin']]);
+  // A rest day's own extra takes the meal the rest day lacks, not always Snack: this rest day has
+  // its breakfast, so the extra is its lunch.
+  const t4 = TEMPLATE();
+  t4.detail.mealBuilder.days = [{ name: 'Day D', slots: [DashMeals.newMeal({ name: 'Akara', kcal: 320, p: 14, c: 30, f: 16 }, 'Breakfast')], variants: { rest: { overrides: {}, extras: [] } } }];
+  await mount(builder({ template: t4 }));
+  await click(buttons().find((b) => /^Rest days/.test(b.textContent)));
+  await click(document.querySelector('.dmb-dayhead[data-day="Day D"]'));
+  await click(button('+ Meal on this day'));
+  await typeInto(document.querySelector('input[placeholder^="Search foods"]'), 'Moi moi');
+  await click(buttons().find((b) => b.textContent.includes('Add “Moi moi”')));
+  assert.deepEqual(cellMeals('Day D', 'Lunch'), ['Moi moi'], 'a rest day\'s extra was filed as a Snack');
 });
 
 test('picking a meal opens that one meal under the week, with its swaps, night-before prep and a note to the client', async () => {

@@ -18,7 +18,8 @@ export default {
     // ── The session adds itself up ──
     { name: 'the warm-up counts as working sets', file: CORE, find: 'if (!blocks[b] || blocks[b].kind === "warmup") continue;', replace: 'if (!blocks[b]) continue;' },
     { name: 'a rep range counts as a number', file: CORE, find: 'function wholeReps(v) { var t = tagText(v); return /^\\d+$/.test(t) ? Number(t) : null; }', replace: 'function wholeReps(v) { var t = tagText(v); return parseInt(t, 10) || null; }' },
-    { name: 'per cent of 1RM is volume in kg', file: CORE, find: 'var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" ? "" : "kg";', replace: 'var unit = row.loadType === "lb" ? "lb" : "kg";' },
+    { name: 'per cent of 1RM is volume in kg', file: CORE, find: 'row.loadType === "pct" || row.loadType === "rpe" ? "" : "kg";', replace: 'row.loadType === "rpe" ? "" : "kg";' },
+    { name: 'an RPE is volume in kg', file: CORE, find: 'row.loadType === "pct" || row.loadType === "rpe" ? "" : "kg";', replace: 'row.loadType === "pct" ? "" : "kg";' },
     { name: 'a ladder counts its first set for all of them', file: CORE, find: 'var t = WorkoutDoc.setTarget(row, i);', replace: 'var t = WorkoutDoc.setTarget(row, 0);' },
     { name: 'a move with no weight is not said to be left out', file: CORE, find: '        if (sets && !counted) out.unweighed += 1;\n', replace: '' },
     { name: 'an untagged move counts nowhere', file: CORE, find: '        } else out.untagged += sets;', replace: '        }' },
