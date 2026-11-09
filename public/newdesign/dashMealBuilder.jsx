@@ -565,6 +565,10 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
 // renders, playable: log meals, watch the ledger tick, swap alternates. ─────
 // `targets` and `label` are the picked day's own (Codex on #2648): a rest day is measured against the
 // plan's rest-day target and called a rest day, whether or not it has a rest version of its meals.
+// What the Kitchen's exclusions are, said the same way on the panel and in the plan's rules: words
+// read from a recipe's ingredient names, never a certified allergen check.
+const DMB_ALLERGEN_NOTE = "read from ingredient names, not a certified allergen check";
+
 function DmbClientPreview({ doc, day, variant, targets, label }) {
   const meals = React.useMemo(() => DashMeals.resolveDay(day, variant).map((m, i) => ({
     id: m.id || "pv-" + i, slot: m.slot, time: null, title: m.name,
@@ -681,7 +685,7 @@ function DmbKitchenPanel({ kitchen, mine, constraints, target, onAdd, onPreview,
         {W.KITCHEN_FILTERS.map((fl) => <button key={fl.key} type="button" aria-pressed={!!on[fl.key]} onClick={() => setOn({ ...on, [fl.key]: !on[fl.key] })}>{fl.label}</button>)}
       </div>
       <p className="dmb-quiet" data-kitchen-target="">{where ? <>Adding to <b>{where}</b>. Drag a recipe onto any meal, or pick one here.</> : "Pick a meal in the week, or drag a recipe onto one."}</p>
-      {((constraints && constraints.exclusions) || []).length > 0 && <p className="dmb-quiet">Filtered · no {constraints.exclusions.join(", ")}{readOff.length ? " (" + readOff.join(", ") + " read from each recipe’s ingredients)" : ""}</p>}
+      {((constraints && constraints.exclusions) || []).length > 0 && <p className="dmb-quiet" data-allergen-note="">Filtered · no {constraints.exclusions.join(", ")}{readOff.length ? " · " + readOff.join(", ") + " " + DMB_ALLERGEN_NOTE : ""}</p>}
       {tab === "kitchen" && !kitchen && <p className="dmb-quiet" role="status">Shape Kitchen didn’t load on this page. Reload to search it.</p>}
       {tab === "mine" && mine.state === "preview" && <p className="dmb-quiet" role="status">Sign in to see your own recipes.</p>}
       {tab === "mine" && mine.state === "loading" && <p className="dmb-quiet" role="status">Reading your kitchen…</p>}
@@ -1175,6 +1179,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
                     );
                   })}
                 </div>
+                <p className="dmb-quiet" data-allergen-note="">Exclusions are {DMB_ALLERGEN_NOTE}.</p>
                 <span style={{ ...dmbLabel, marginTop: 10 }}>Phase shift · every day, version and swap</span>
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => shift({ carbsPct: -10 })} style={{ ...dmbBtn(false), minHeight: 30, padding: "4px 8px", fontSize: 11 }}>−10% carbs</button>

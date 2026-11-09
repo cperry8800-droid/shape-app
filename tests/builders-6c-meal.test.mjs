@@ -497,7 +497,58 @@ test('the plan\'s exclusions filter the Kitchen, and say which ones are read fro
   await mount(builder({ template: t }));
   const K = W.kitchenFoods(RECIPES, window.recipeNeeds);
   assert.equal(cards().length, W.searchKitchen(K, '', {}, { exclusions: ['dairy', 'nuts'] }).length);
-  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts \(nuts read from each recipe’s ingredients\)/);
+  // The words say what the check is: read from ingredient names, never a certified allergen check.
+  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts · nuts read from ingredient names, not a certified allergen check/);
+  // A dish of the coach's own has no catalog lists, so every exclusion on Mine is read that way.
+  await click([...document.querySelectorAll('[data-kitchen] [role="tab"]')][1]);
+  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts · dairy, nuts read from ingredient names, not a certified allergen check/);
+  // …and the plan's rules, where the exclusions are picked, say it once too.
+  assert.match(line(document.querySelector('details.dmb-settings')), /Exclusions are read from ingredient names, not a certified allergen check\./);
+});
+
+// The scan of every Kitchen recipe (the catalog's 100, which the sample kitchens copy) against the
+// ingredient words, after #2648. Each word below was missed, or misread, by the words #2648 shipped.
+test('the ingredient words: what the scan of the Kitchen\'s recipes added, and what it keeps out', () => {
+  const own = (t, ...m) => W.ownRecipeFood({ id: 'w-' + t, t, kcal: 400, p: 20, c: 40, f: 10, ing: m.map((x) => ({ n: '1', m: x })) });
+  const has = (a, t, ...m) => W.ownContains(own(t, ...m), a);
+  // Gluten: croutons (Codex's last finding on #2648: the catalog's Chicken Caesar), and condensed
+  // soups, which are thickened with wheat flour (the catalog's root vegetable stew).
+  for (const m of ['wholegrain croutons', 'crouton', 'condensed tomato soup', 'condensed cream of mushroom soup', 'cream of chicken soup']) assert.equal(has('gluten', 'Dish', m), true, m + ' passed a gluten exclusion');
+  // …but not the corn tortilla, a vegetable noodle, a pasta or pizza sauce, or a dish that says it has none.
+  for (const m of ['corn tortillas', 'no-salt-added pasta sauce', 'pizza sauce', 'zucchini noodles']) assert.equal(has('gluten', 'Dish', m), false, m + ' was called gluten');
+  assert.equal(has('gluten', 'Garlic shrimp and courgette noodles', 'shrimp, peeled', 'courgettes, spiralised'), false, 'courgette noodles were called gluten');
+  assert.equal(has('gluten', 'Noodle-free potato bake', 'small red potatoes'), false, '"Noodle-free" was called gluten');
+  assert.equal(has('gluten', 'Tacos', 'corn and flour tortillas'), true, 'a flour tortilla still counts');
+  // Dairy: pesto carries parmesan; butter lettuce, butter beans and cream of tartar are not dairy.
+  assert.equal(has('dairy', 'Dish', 'basil pesto'), true, 'basil pesto passed a dairy exclusion');
+  for (const m of ['butter lettuce', 'butter beans', 'cream of tartar']) assert.equal(has('dairy', 'Dish', m), false, m + ' was called dairy');
+  assert.equal(has('dairy', 'Dish', 'unsalted butter'), true);
+  assert.equal(has('dairy', 'Dish', 'cream of mushroom soup'), true, 'a cream soup is dairy');
+  // Nuts: pesto's pine nuts, chestnuts and the butternut itself; never coconut, nutmeg, butternut
+  // squash or a water chestnut, and never a dish named nut-free.
+  for (const m of ['basil pesto', 'roasted chestnuts', 'butternuts']) assert.equal(has('nuts', 'Dish', m), true, m + ' passed a nuts exclusion');
+  for (const m of ['coconut', 'light coconut milk', 'nutmeg', 'butternut squash, cubed', 'water chestnuts']) assert.equal(has('nuts', 'Dish', m), false, m + ' was called a nut');
+  assert.equal(has('nuts', 'Nut-free granola bars', 'rolled oats'), false, '"Nut-free" was called nuts');
+  // Egg: the egg dishes by name, as the core's tags do; not a dish named egg-free.
+  for (const t of ['Tomato and garlic omelette', 'Ham omelet', 'Spinach frittata', 'Leek quiche', 'Green shakshuka']) assert.equal(has('egg', t), true, t + ' passed an egg exclusion');
+  assert.equal(has('egg', 'Egg-free pancakes', 'flour'), false, '"Egg-free" was called egg');
+  // Fish: catfish and pollock by name.
+  for (const m of ['catfish fillets', 'frozen pollock']) assert.equal(has('fish', 'Dish', m), true, m + ' passed a fish exclusion');
+  assert.equal(has('fish', 'Fish-free curry', 'chickpeas'), false);
+  assert.equal(has('soy', 'Soy-free stir-fry', 'coconut aminos'), false);
+  assert.equal(has('soy', 'Dish', 'soybeans'), true);
+});
+
+test('the catalog side: Catfish stew is fish and Chicken pesto pasta is nuts, so an exclusion keeps them out', () => {
+  const K = W.kitchenFoods(RECIPES, window.recipeNeeds);
+  const left = (a) => W.searchKitchen(K, '', {}, { exclusions: [a] }).map((f) => f.name);
+  assert.equal(K.some((f) => f.name === 'Catfish stew with brown rice'), true, 'the catalog has its catfish stew');
+  assert.equal(left('fish').includes('Catfish stew with brown rice'), false, 'Catfish stew passed a fish exclusion');
+  assert.equal(left('nuts').includes('Chicken pesto pasta'), false, 'Chicken pesto pasta passed a nuts exclusion');
+  assert.equal(left('egg').includes('Tomato and garlic omelette with croutons'), false);
+  // A recipe with neither keeps its place.
+  assert.equal(left('fish').includes('One-pan chicken and rice'), true);
+  assert.equal(left('nuts').includes('Curried butternut and chickpea stew'), true, 'butternut squash is not a nut');
 });
 
 test('a recipe lands in the meal it is put on, and the day says the new total first: 1,370 → 1,710', async () => {

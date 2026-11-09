@@ -196,13 +196,19 @@
   // What a catalog recipe is known to hold. Dairy and gluten are the catalog's own lists
   // (recipes.jsx recipeNeeds); the other allergens are read from the recipe's ingredients and its
   // diet, and the panel says so where it filters on one.
+  // Every word is word-bounded, and a word followed by "-free" ("nut-free", "Noodle-free") is the
+  // dish ruling it out, never containing it. The scan of the catalog's 100 recipes (the PR after
+  // #2648) added croutons, condensed soup, pesto, catfish, pollock, omelette and the like, and
+  // kept the plant and vegetable forms out (butter lettuce, corn tortillas, courgette noodles,
+  // pasta sauce, cream of tartar, water chestnuts).
   var ALLERGEN_WORDS = {
-    // A nut by name, or the word nut(s) on its own: never "nutmeg" (Codex on #2648).
-    nuts: /\b(?:(?:almond|walnut|pecan|cashew|pistachio|hazelnut|peanut|macadamia)\w*|pine nuts?|nut butters?|nuts?)\b/i,
-    egg: /\b(eggs?|egg whites?|yolks?|mayo|mayonnaise)\b/i,
-    soy: /\b(soy|tofu|tempeh|edamame|miso|tamari)\w*/i,
-    fish: /\b(salmon|tuna|cod|fish|anchov\w*|sardines?|trout|tilapia|halibut|mackerel|haddock|snapper)\b/i,
-    shellfish: /\b(shrimps?|prawns?|crab|lobster|scallops?|mussels?|clams?|oysters?)\b/i,
+    // A nut by name, or the word nut(s) on its own: never "nutmeg", "coconut", "butternut squash"
+    // or "water chestnut" (Codex on #2648). Basil pesto is made with pine nuts.
+    nuts: /\b(?:(?:almond|walnut|pecan|cashew|pistachio|hazelnut|peanut|macadamia)\w*|(?<!\bwater )chestnuts?|butternuts|pine nuts?|nut butters?|nuts?|pestos?)\b(?!-free)/i,
+    egg: /\b(eggs?|egg whites?|yolks?|mayo|mayonnaise|omelet(?:te)?s?|frittatas?|quiches?|shakshuka)\b(?!-free)/i,
+    soy: /\b(soy|tofu|tempeh|edamame|miso|tamari)\w*\b(?!-free)/i,
+    fish: /\b(salmon|tuna|cod|fish|catfish|pollock|anchov\w*|sardines?|trout|tilapia|halibut|mackerel|haddock|snapper)\b(?!-free)/i,
+    shellfish: /\b(shrimps?|prawns?|crab|lobster|scallops?|mussels?|clams?|oysters?)\b(?!-free)/i,
   };
   var READ_FROM_INGREDIENTS = ["nuts", "egg", "soy", "fish", "shellfish"];
   // A dish of the coach's own has no catalog lists, so every allergen is read from its name and its
@@ -212,14 +218,14 @@
     // A plant milk or butter ("peanut butter", "oat milk", "coconut cream") is not dairy; a milk
     // inside another word (buttermilk, a milkshake) is (Codex on #2648), and so are the cheeses and
     // creams by name.
-    dairy: /(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(milk|butter|cream)\b|\b(cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr|mascarpone|halloumi|burrata|pecorino|gruy[eè]re|gouda|brie|camembert|custard|quark|lactose|curds?)\w*|\b(buttermilk|milkshakes?|half-and-half|cr[eè]me fra[iî]che|margarine|caesar)\b/i,
+    dairy: /(?:(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(?:milk|butter(?! (?:lettuce|beans?)\b)|cream(?! of tartar\b))\b|\b(?:cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(?:h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr|mascarpone|halloumi|burrata|pecorino|gruy[eè]re|gouda|brie|camembert|custard|quark|lactose|curds?|pestos?)\w*\b|\b(?:buttermilk|milkshakes?|half-and-half|cr[eè]me fra[iî]che|margarine|caesar)\b)(?!-free)/i,
     // Oats count, as the core's own oat dishes are tagged gluten (Codex on #2648).
     // Breads, wraps and pasta by name too, as the core tags its sourdough toast, tortilla wrap and
     // oat dishes gluten (Codex on #2648). The catalog's ambiguous classes (recipes.jsx
     // _RECIPE_ALLERGEN_NOTES: oats, soy sauce, broth/stock/bouillon; margarine for dairy) keep a
     // catalog recipe's claim only with a note naming the certified form. A coach's own dish has no
     // such note, so each counts here.
-    gluten: /\b(soy sauce|teriyaki|hoisin|broth|stock|bouillon|wheat|flour|bread|breads|sourdough|toast|bagels?|baguettes?|brioche|croissants?|buns?|muffins?|pancakes?|waffles?|naan|ciabatta|focaccia|pizza|pastry|crumpets?|wraps?|pasta|noodles?|spaghetti|macaroni|penne|fusilli|rigatoni|linguine|fettuccine|lasagne|lasagna|orzo|gnocchi|ramen|udon|dumplings?|barley|rye|malt|couscous|seitan|bulgur|semolina|spelt|farro|tortillas?|pita|crackers?|breadcrumbs?|panko|oats?|oatmeal|granola|muesli)\b/i,
+    gluten: /\b(?:soy sauce|teriyaki|hoisin|broth|stock|bouillon|wheat|flour|bread|breads|sourdough|toast|bagels?|baguettes?|brioche|croissants?|buns?|muffins?|pancakes?|waffles?|naan|ciabatta|focaccia|pizza(?! sauce\b)|pastry|crumpets?|wraps?|pasta(?! sauce\b)|(?<!\b(?:courgette|zucchini|squash|cucumber|carrot|kelp|shirataki|konjac) )noodles?|spaghetti|macaroni|penne|fusilli|rigatoni|linguine|fettuccine|lasagne|lasagna|orzo|gnocchi|ramen|udon|dumplings?|barley|rye|malt|couscous|seitan|bulgur|semolina|spelt|farro|(?<!\bcorn )tortillas?|pita|crackers?|croutons?|breadcrumbs?|panko|oats?|oatmeal|granola|muesli|condensed(?: [\w-]+){0,3} soups?|cream of [\w-]+ soups?)\b(?!-free)/i,
   };
   // Caesar dressing carries egg and cheese: the core tags its own Chicken caesar dairy and egg.
   OWN_WORDS.egg = new RegExp(ALLERGEN_WORDS.egg.source + "|\\bcaesar\\b", "i");
