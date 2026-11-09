@@ -91,7 +91,7 @@ export function BSNoraProfile({ onClose, onLeave = null, avatar, cover = null })
         <div style={{ position: 'relative', padding: `${MAST_TOP} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
             {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-            {BSLogo && <BSLogo size={16} color={WHITE} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={WHITE} />}
           </span>
           {(() => {
             const tools = (

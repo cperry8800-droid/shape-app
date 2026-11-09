@@ -1225,6 +1225,14 @@ const BS_CORNER_GAP = 9;
 // BS_BACK_ROW_H are the old row's, kept for a Back with no masthead row above it and for what a page
 // puts on the back row's right.
 const BS_MAST_ROW_H = 34;
+// The mark's size in a masthead row (owner, 2026-11-09: "make sure the icons including shape triangle logos
+// in top left of masthead match the size of icons on the top right"): at 18 the prisms paint 17px tall, as
+// ⚙, ⌕ and ✦ do (at 16 they were 15). Every masthead row draws its mark at this size, here and in the
+// modules' hand-built rows (window.BS_MAST_LOGO).
+const BS_MAST_LOGO = 18;
+// The masthead's ← (BSBackButton compact, and the pinned bar's BSPinBackButton): 22px paints it 16px wide,
+// in step with the mark and the tools.
+const BS_MAST_ARROW = 22;
 const BS_BACK_ROW_GAP = 4;
 const BS_BACK_ROW_H = 44;
 // The same inset as a CSS value, and the NATIVE CONTRACT it encodes:
@@ -1344,7 +1352,7 @@ function BSMastWordRow({ word, tools, backSlot = true }) {
     <div data-bs-mast-word-row="" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         {backSlot ? <BSMastBackSlot /> : null}
-        <BSLogo size={16} color={t.INK} />
+        <BSLogo size={BS_MAST_LOGO} color={t.INK} />
         {Nora ? <Nora bare /> : null}
       </span>
       {word ? (
@@ -1469,7 +1477,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
       <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H, marginBottom: title ? (compact ? 4 : 10) : 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSMastBackSlot />
-          <BSLogo size={16} color={t.INK} />
+          <BSLogo size={BS_MAST_LOGO} color={t.INK} />
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
@@ -1507,7 +1515,7 @@ function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKick
 // page with the 34px corner. minHeight is the corner's, so the back row lands at one y everywhere.
 // `ink` is for a dark ground of the page's own (a photo, the meal band); it defaults to the theme's.
 // `backSlot={false}` on a pinned bar, which draws its own ← (BSPinBackButton) ahead of this row.
-function BSMastRow({ trailing = null, size = 16, style = null, ink = null, backSlot = true }) {
+function BSMastRow({ trailing = null, size = BS_MAST_LOGO, style = null, ink = null, backSlot = true }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
   return (
@@ -1533,7 +1541,7 @@ function BSPageHeader({ vol = 'Vol. 1', no = 'No. 1', kicker, title, trailing, o
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <BSMastBackSlot />
-          <BSLogo size={16} color={t.INK} />
+          <BSLogo size={BS_MAST_LOGO} color={t.INK} />
         </div>
         <BSMastToolPill>{trailing}</BSMastToolPill>
       </div>
@@ -2424,7 +2432,7 @@ function BSSettingsCorner({ size = 34, ink = null, onClick = null }) {
   );
 }
 
-// `compact` is the masthead's ← (BSBackRow puts it ahead of the logo): the arrow alone, 18px, in a 44px
+// `compact` is the masthead's ← (BSBackRow puts it ahead of the logo): the arrow alone (BS_MAST_ARROW), in a 44px
 // target that reaches past the 34px row with negative margins, the same mark and place as the pinned
 // bar's ← (BSPinBackButton). Without it, "← BACK" in words, for a screen that places its own Back.
 function BSBackButton({ onClick, label = null, style, ink = null, disabled = false, compact = false }) {
@@ -2445,7 +2453,7 @@ function BSBackButton({ onClick, label = null, style, ink = null, disabled = fal
         width: 44, height: 44, margin: '-5px -6px -5px -14px', padding: 0, flexShrink: 0,
         display: 'grid', placeItems: 'center', background: 'transparent', border: 0,
         cursor: disabled ? 'default' : 'pointer', color: ink || t.INK, opacity: disabled ? 0.45 : 1,
-        fontSize: 18, lineHeight: 1, ...style,
+        fontSize: BS_MAST_ARROW, lineHeight: 1, ...style,
       }}><span aria-hidden>←</span></button>
     );
   }
@@ -2478,7 +2486,7 @@ function BSPinBackButton({ run, ink = null }) {
       aria-label={tr('common:action.back', { defaultValue: 'Back' })} style={{
         width: 44, height: 44, margin: '-5px -10px -5px -14px', padding: 0, flexShrink: 0,
         display: 'grid', placeItems: 'center', background: 'transparent', border: 0, cursor: 'pointer',
-        color: ink || t.INK, fontSize: 18, lineHeight: 1,
+        color: ink || t.INK, fontSize: BS_MAST_ARROW, lineHeight: 1,
       }}><span aria-hidden>←</span></button>
   );
 }
@@ -2847,7 +2855,7 @@ function BSNavGestures() {
 }
 
 Object.assign(window, {
-  BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSMastBackSlot, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
+  BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSMastBackSlot, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_MAST_LOGO, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
   BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,

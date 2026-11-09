@@ -46,6 +46,10 @@ test('the slot has one geometry, owned by the chrome', () => {
   assert.match(btn, /data-bs-back="" data-bs-back-compact=""/, 'the swipe finds the compact ←');
   assert.match(btn, /width: 44, height: 44, margin: '-5px -6px -5px -14px'/, 'the ← sits on the gutter and keeps the row 34px tall');
   assert.match(btn, /<span aria-hidden>←<\/span><\/button>/, 'the arrow alone, no word');
+  // The masthead's icons one size (owner, 2026-11-09): the ← at BS_MAST_ARROW, here and on the pinned bar.
+  assert.match(CHROME, /const BS_MAST_ARROW = 22;/);
+  assert.match(btn, /fontSize: BS_MAST_ARROW, lineHeight: 1, \.\.\.style,/);
+  assert.match(fnSrc(CHROME, 'BSPinBackButton'), /fontSize: BS_MAST_ARROW, lineHeight: 1,/);
   assert.match(btn, /minHeight: BS_BACK_ROW_H, padding: '0 12px 0 0'/, 'the worded Back fills the old row');
   assert.match(btn, /data-bs-back=""/, 'the swipe finds it');
   // The slot draws the Back the row below hands it.
@@ -64,8 +68,8 @@ test('the slot has one geometry, owned by the chrome', () => {
 
 test('every masthead row keeps the slot ahead of its logo; the pinned bars draw their own ←', () => {
   assert.match(fnSrc(CHROME, 'BSMastRow'), /\{backSlot \? <BSMastBackSlot \/> : null\}\n\s*<BSLogo /);
-  assert.match(fnSrc(CHROME, 'BSMasthead'), /<BSMastBackSlot \/>\n\s*<BSLogo size=\{16\}/);
-  assert.match(fnSrc(CHROME, 'BSPageHeader'), /<BSMastBackSlot \/>\n\s*<BSLogo size=\{16\}/);
+  assert.match(fnSrc(CHROME, 'BSMasthead'), /<BSMastBackSlot \/>\n\s*<BSLogo size=\{BS_MAST_LOGO\}/);
+  assert.match(fnSrc(CHROME, 'BSPageHeader'), /<BSMastBackSlot \/>\n\s*<BSLogo size=\{BS_MAST_LOGO\}/);
   assert.match(fnSrc(CHROME, 'BSMastWordRow'), /\{backSlot \? <BSMastBackSlot \/> : null\}\n\s*<BSLogo /);
   // The pinned bars (BSPage's and a takeover's) draw BSPinBackButton ahead of the row, so their row has none.
   const page = fnSrc(CHROME, 'BSPage');

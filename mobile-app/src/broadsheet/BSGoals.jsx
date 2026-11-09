@@ -141,7 +141,7 @@ function BSGoalEditSheet({ tab, goal, onClose, onSave, onDelete }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('goal:sheet.closeAria', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>

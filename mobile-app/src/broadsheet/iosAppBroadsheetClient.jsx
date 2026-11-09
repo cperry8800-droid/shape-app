@@ -421,7 +421,10 @@ function BSSearchCorner({ size = BS_HEADER_AVATAR, ink = null, nora = true, clos
       {nora && <BSNoraCorner size={size} close={close} />}
       <button onClick={() => fire('shape:openSearch')} aria-label="Search Shape"
         style={corner}>
-        <svg width={g} height={g} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
+        {/* The view box is cropped to the glyph, so ⌕ paints at its full size, as ⚙ does (owner, 2026-11-09:
+            the masthead's icons one size; in the 24-unit box it painted 13px to ⚙'s 17), and the stroke is
+            thinned by the same 18/24, so its line is ⚙'s weight. */}
+        <svg width={g} height={g} viewBox="3.3 3.3 18 18" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.3 15.3 5.2 5.2" /></svg>
       </button>
     </>
   );
@@ -626,7 +629,7 @@ function BSScoreIntro({ onClose, onOpenScore }) {
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 6px` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={16} color={t.INK} />}
+          {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
         </div>
         {/* Uppercase via CSS, never JS: String.toUpperCase() is locale-insensitive
             (Turkish i → I, should be İ). text-transform honors the document locale. */}
@@ -3427,13 +3430,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     const mon = new Date(_now); mon.setHours(0, 0, 0, 0); mon.setDate(_now.getDate() - todayIdx);
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(mon); d.setDate(mon.getDate() + i); return d; });
   })();
-  const isoWeek = (() => {
-    const d = new Date(Date.UTC(_now.getFullYear(), _now.getMonth(), _now.getDate()));
-    const day = (d.getUTCDay() + 6) % 7;
-    d.setUTCDate(d.getUTCDate() - day + 3);
-    const firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-    return 1 + Math.round(((d - firstThu) / 86400000 - 3 + ((firstThu.getUTCDay() + 6) % 7)) / 7);
-  })();
   const nowTime = `${String(_now.getHours()).padStart(2, '0')}:${String(_now.getMinutes()).padStart(2, '0')}`;
   const fmtDate = (idx) => `${_monShort(weekDates[idx])} ${weekDates[idx].getDate()}`;
   // The slate's NOW tick tracks the wall clock while Home stays open — a
@@ -3979,12 +3975,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         // ⌕ and ⚙ at the right; ✦ sits beside the mark at the left (BSMastWordRow).
         trailing={<BSHeaderTools onProfile={onProfile} nora={false} />}
-        // The dateline rides in the masthead: the day, the phase and week, the live clock (no edition
-        // label: owner, 2026-11-08).
+        // The dateline rides in the masthead: the day alone (no edition label: owner, 2026-11-08; and no
+        // phase and week, and no clock: owner, 2026-11-09, "remove the time and cut w45 from masthead").
         dateline={{
           date: `${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()}`,
-          extra: `${bsHomeProgram.nutritionPhase || tr('home:phase.cut', { defaultValue: 'Cut' })} ${tr('home:dateline.weekAbbr', { defaultValue: 'W' })}${isoWeek}`,
-          clock: `${String(Math.floor(bsNowMin / 60)).padStart(2, '0')}:${String(bsNowMin % 60).padStart(2, '0')}`,
         }}
       />
       {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
@@ -4951,7 +4945,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('session:build.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -13808,7 +13802,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               needs the sheet's own BG/INK, not the page theme. */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {BSLogo && <BSLogo size={16} color={INK} />}
+              {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={INK} />}
             </div>
             <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
@@ -17082,7 +17076,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
                   {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-                  {BSLogo && <BSLogo size={16} color={WHITE} />}
+                  {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={WHITE} />}
                 </span>
                 <BSMastToolPill ink={WHITE}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={corner} ink={WHITE} />
@@ -18331,7 +18325,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {BSLogo && <BSLogo size={16} color={INK} />}
+                {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={INK} />}
               </div>
               <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
@@ -18349,7 +18343,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-              {BSLogo && <BSLogo size={16} color={INK} />}
+              {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={INK} />}
             </div>
             {isSelf
               ? <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
@@ -19061,7 +19055,7 @@ function BSUniversalSearch({ onClose }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('common:search.closeAria', { defaultValue: 'Close search' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -20202,7 +20196,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} /></BSMastToolPill>
         </div>
@@ -23300,7 +23294,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={onProfile} /></BSMastToolPill>
         </div>
@@ -27122,7 +27116,7 @@ function BSCycleOptInSheet({ onClose, onDone }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -27731,7 +27725,7 @@ function BSStepsHistory({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-            {BSLogo && <BSLogo size={16} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
           </div>
           <BSMastToolPill><BSMeCorner /></BSMastToolPill>
         </div>
