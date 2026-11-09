@@ -570,3 +570,15 @@ test('soundtrackToWeb keeps only what the row holds; the client entry is the app
   assert.equal(P.plRosterFrom({ loading: false, source: 'demo', clients: [ADA] }, true).state, 'ready');
   assert.equal(P.plRosterFrom({ loading: true }, false).state, 'loading');
 });
+
+test('a day with music in only some weeks says how many, never "No music"', async () => {
+  const half = () => { const s = STRENGTH(); s.detail.builder.weeks[1].days[0].playlist = null; s.detail.builder.weeks[0].days[1].playlist = null; return s; };
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/plans': () => ok({ plans: [half()] }) }) });
+  assert.equal(p.text(p.q('[data-pl-brief-text]')), '0 of 2 program days your clients are on have music.');
+  // The raised day is the first missing on the busiest program: Lower, partial.
+  assert.equal(p.text(p.q('[data-pl-raised]')), 'Some weeks Strength Block · Lower has music in only 1 of 2 weeks (4 clients).');
+  await p.tab('matrix');
+  assert.equal(p.text(p.q('[data-pl-day="p1:0"] [data-pl-no-music]')), 'Music in 1 of 2 weeks · 4 clients');
+  assert.equal(p.text(p.q('[data-pl-day="p1:1"] [data-pl-no-music]')), 'No music · 4 clients');
+  assert.equal(p.text(p.cell('p1:0:st-1')), '✓ some weeks');
+});

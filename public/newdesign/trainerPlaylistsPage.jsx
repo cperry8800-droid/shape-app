@@ -36,11 +36,12 @@ const PL_MONO = "'JetBrains Mono', monospace";
 const PL_INK2 = "var(--sh-ink2, #a09b94)";
 const PL_INK3 = "var(--sh-ink3, #75706a)";
 const PL_LINE = "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
-// ⚠ THE MATRIX SCROLLS IN ITS OWN BOX, SO ITS HEADER CAN PIN. A wide table needs overflow-x, and
-// an overflow box is the scroll container a sticky header pins to: with the page scrolling past it,
-// `top` under the app bar would never engage. The box is capped below the app bar (pageShell's fixed
-// .shape-header) and scrolls both ways; the header pins at its top, the day names at its left.
-const PL_MATRIX_MAX_H = "calc(100vh - 150px)";
+// ⚠ THE MATRIX SCROLLS IN ITS OWN BOX, SO ITS HEADER CAN PIN. Nothing on a dashboard page can pin
+// to the window: DashPage's <main> is overflow-x: hidden, which makes it the scroll container every
+// sticky element pins to, and it never scrolls itself (the app bar isn't fixed either). So the
+// matrix is a box capped to the window that scrolls both ways: the playlists' row pins at its top,
+// the day names at its left.
+const PL_MATRIX_MAX_H = "calc(100vh - 96px)";
 const plProviderName = (provider) => (provider === "apple" ? "Apple Music" : "Spotify");
 // A provider's kind colour: always said in words beside it (plProviderName).
 const plProviderAccent = (provider) => (provider === "apple" ? "#c4566a" : "#3f8f5f");
@@ -179,6 +180,8 @@ function plMusicCoverage(programs) {
   inUse.forEach((p) => p.days.forEach((d) => days.push({ program: p, day: d, music: (d.playlists || []).some((x) => x.weeksWith >= d.weeks) })));
   const missing = days.filter((x) => !x.music);
   // The one raised: the missing day on the program most clients are on.
+  // A day with music in only some weeks is partial, not silent: it says how many.
+  missing.forEach((x) => { x.most = (x.day.playlists || []).reduce((m, y) => Math.max(m, y.weeksWith), 0); });
   missing.sort((a, b) => (Number(b.program.clients) || 0) - (Number(a.program.clients) || 0));
   return { usageRead, total: days.length, covered: days.length - missing.length, missing };
 }
@@ -411,6 +414,8 @@ function PlaylistPage({ ctx }) {
             {view === "builder" && <BuilderDrawer selectedId={selectedId} setSelectedId={setSelectedId} />}
           </React.Fragment>
         )}
+        {/* Room under the last row for the preview's fixed band, so it covers no card. */}
+        {demo && <div aria-hidden="true" data-pl-band-room style={{ height: 56 }} />}
         {adding && <NewPlaylistDialog onClose={() => setAdding(false)} />}
       </DashPage>
     </PlaylistCtx.Provider>
@@ -435,7 +440,8 @@ function plBriefModel(c) {
     if (!cov.missing.length) return { text: head, action: null };
     const m = cov.missing[0];
     const who = m.program.clients == null ? "" : " (" + m.program.clients + (m.program.clients === 1 ? " client" : " clients") + ")";
-    return { text: head, raised: m.program.name + " · " + m.day.name + " has no music" + who + ".", action: { label: "Attach", focus: { programId: m.program.id, dayIndex: m.day.index } } };
+    const what = m.most > 0 ? " has music in only " + m.most + " of " + m.day.weeks + " weeks" : " has no music";
+    return { text: head, raised: m.program.name + " · " + m.day.name + what + who + ".", partial: m.most > 0, action: { label: "Attach", focus: { programId: m.program.id, dayIndex: m.day.index } } };
   }
   // A nutritionist's playlists reach clients only as sends.
   if (c.roster.state === "loading") return { text: "Reading your clients…", action: null };
@@ -454,7 +460,7 @@ function PlBrief() {
     <div data-pl-brief style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", padding: "14px 18px", marginBottom: 18, borderRadius: 12, border: `1px solid ${m.raised ? PL_RUST_EDGE : PL_LINE}`, borderLeft: m.raised ? `3px solid ${PL_RUST}` : undefined, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)", boxShadow: m.raised ? "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" : "none" }}>
       <div style={{ flex: "1 1 320px", minWidth: 0 }}>
         <div data-pl-brief-text style={{ fontSize: 15, fontWeight: 500 }}>{m.text}</div>
-        {m.raised && <div data-pl-raised style={{ fontSize: 13, color: PL_INK2, marginTop: 4 }}><span style={{ ...plChip, borderColor: PL_RUST_EDGE, color: PL_RUST, marginRight: 8 }}>No music</span>{m.raised}</div>}
+        {m.raised && <div data-pl-raised style={{ fontSize: 13, color: PL_INK2, marginTop: 4 }}><span style={{ ...plChip, borderColor: PL_RUST_EDGE, color: PL_RUST, marginRight: 8 }}>{m.partial ? "Some weeks" : "No music"}</span>{m.raised}</div>}
       </div>
       {m.action && <button type="button" data-pl-brief-action onClick={() => (m.action.add ? c.setAdding(true) : c.openAttach(m.action.focus))} style={pillPrimary}>{m.action.label}</button>}
     </div>
@@ -480,7 +486,7 @@ function LibraryGrid() {
           <button type="button" onClick={() => c.setAdding(true)} style={pillPrimary}>＋ New playlist</button>
         </Card>
       ) : (
-        <div data-pl-grid style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 14 }}>
+        <div data-pl-grid style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
           {items.map((p) => <PlaylistCard key={p.id} p={p} onPeek={() => setPeek(p.id)} />)}
         </div>
       )}
@@ -506,14 +512,14 @@ function PlaylistCard({ p, onPeek }) {
   const facts = plFacts(p);
   return (
     <div data-pl-card={p.id} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}><Card style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1 }}>
-      <div aria-hidden="true" style={{ height: 86, background: p.cover, position: "relative" }}>
+      <div aria-hidden="true" style={{ height: 64, background: p.cover, position: "relative" }}>
         <div style={{ position: "absolute", left: 12, bottom: 10, display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,0.45)", padding: "4px 9px", borderRadius: 999, fontSize: 9.5, fontFamily: PL_MONO, letterSpacing: "0.1em", color: "#f2ede4" }}>
           <ProviderMark kind={p.provider} size={11} />{p.provider === "apple" ? "APPLE MUSIC" : "SPOTIFY"}
         </div>
       </div>
       <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-        <button type="button" data-pl-peek onClick={onPeek} style={{ all: "unset", cursor: "pointer", fontFamily: serif, fontSize: 19, lineHeight: 1.15, letterSpacing: "-0.01em" }}>{p.name}</button>
-        <div data-pl-facts style={{ fontFamily: PL_MONO, fontSize: 10.5, color: PL_INK2, letterSpacing: "0.04em", minHeight: 14 }}>{facts || "Open it to add tracks, length and tempo"}</div>
+        <button type="button" data-pl-peek onClick={onPeek} style={{ all: "unset", cursor: "pointer", fontFamily: serif, fontSize: 17, lineHeight: 1.15, letterSpacing: "-0.01em", overflowWrap: "anywhere" }}>{p.name}</button>
+        <div data-pl-facts style={{ fontFamily: facts ? PL_MONO : sans, fontSize: facts ? 10.5 : 11.5, color: PL_INK2, letterSpacing: facts ? "0.04em" : 0, minHeight: 14 }}>{facts || "Open it to add tracks, length and tempo"}</div>
         <div style={{ fontSize: 12, color: PL_INK2 }}>On {plProviderName(p.provider)}</div>
         <div data-pl-who style={{ fontSize: 12, color: quiet ? PL_INK3 : INK }}>{heard}</div>
         <div style={{ flex: 1 }} />
@@ -813,10 +819,10 @@ function AttachMatrix({ focus }) {
       <tr>
         <th style={{ ...thFirst, top: 0, position: "sticky", zIndex: 3 }}>{c.role === "nutritionist" ? "CLIENTS" : "PROGRAM DAYS"}</th>
         {playlists.map((p) => (
-          <th key={p.id} data-pl-col={p.id} style={{ ...th, top: 0, position: "sticky", zIndex: 2, minWidth: 112, boxShadow: colOn(p) ? `inset 0 -2px 0 ${p.accent}` : undefined }}>
+          <th key={p.id} data-pl-col={p.id} style={{ ...th, top: 0, position: "sticky", zIndex: 2, minWidth: 92, maxWidth: 132, boxShadow: colOn(p) ? `inset 0 -2px 0 ${p.accent}` : undefined }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
               <div aria-hidden="true" style={{ width: 28, height: 28, borderRadius: 6, background: p.cover }} />
-              <div style={{ fontSize: 11, fontFamily: sans, fontWeight: 500, color: INK, textAlign: "center", lineHeight: 1.25, whiteSpace: "normal", textTransform: "none", letterSpacing: 0 }}>{p.name}</div>
+              <div title={p.name} style={{ fontSize: 11, fontFamily: sans, fontWeight: 500, color: INK, textAlign: "center", lineHeight: 1.25, whiteSpace: "normal", textTransform: "none", letterSpacing: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.name}</div>
               <div style={{ fontSize: 9.5, color: PL_INK3, fontFamily: PL_MONO, letterSpacing: "0.06em", textTransform: "none" }}>{plProviderName(p.provider)}</div>
             </div>
           </th>
@@ -831,7 +837,7 @@ function AttachMatrix({ focus }) {
         style={{ minWidth: 56, height: 32, padding: "0 10px", borderRadius: 8, cursor: held(locks) ? "default" : "pointer", fontFamily: PL_MONO, fontSize: 11, fontWeight: 600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
           border: on ? `1.5px solid ${accent}` : needs ? `1.5px dashed ${PL_RUST_DASH}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
           background: on === true ? accent : "transparent", color: on === true ? "#fff" : on === "some" ? INK : needs ? PL_RUST : PL_INK3, opacity: held(locks) ? 0.5 : 1 }}>
-        {on === true ? "✓" + (count == null ? "" : " " + count) : on === "some" ? "✓ some wks" : "＋"}
+        {on === true ? "✓" + (count == null ? "" : " " + count) : on === "some" ? "✓ some weeks" : "＋"}
       </button>
     </td>
   );
@@ -854,14 +860,15 @@ function AttachMatrix({ focus }) {
         </tr>
         {prog.days.map((d) => {
           const music = (d.playlists || []).some((x) => x.weeksWith >= d.weeks);
+          const most = (d.playlists || []).reduce((m, x) => Math.max(m, x.weeksWith), 0);
           const needs = !music && (prog.clients == null || prog.clients > 0);
           const lifted = focus && focus.programId === prog.id && focus.dayIndex === d.index;
           return (
             <tr key={d.index} data-pl-day={prog.id + ":" + d.index} data-needs={needs ? "1" : "0"} style={lifted ? { boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" } : undefined}>
               <td style={{ ...tdFirst, borderLeft: needs ? `3px solid ${PL_RUST}` : "3px solid transparent" }}>
                 <div style={{ fontSize: 13.5, fontWeight: 500 }}>{d.name}</div>
-                {needs && <div data-pl-no-music style={{ fontSize: 11, color: PL_RUST, fontFamily: PL_MONO, marginTop: 3 }}>No music{prog.clients ? " · " + prog.clients + (prog.clients === 1 ? " client" : " clients") : ""}</div>}
-                {d.weeks > 1 && <div style={{ fontSize: 10.5, color: PL_INK3, fontFamily: PL_MONO, marginTop: 2 }}>every week · {d.weeks} weeks</div>}
+                {needs && <div data-pl-no-music style={{ fontSize: 11, color: PL_RUST, fontFamily: PL_MONO, marginTop: 3 }}>{most > 0 ? "Music in " + most + " of " + d.weeks + " weeks" : "No music"}{prog.clients ? " · " + prog.clients + (prog.clients === 1 ? " client" : " clients") : ""}</div>}
+                {d.weeks > 1 && !needs && <div style={{ fontSize: 10.5, color: PL_INK3, fontFamily: PL_MONO, marginTop: 2 }}>{d.weeks} weeks</div>}
               </td>
               {playlists.map((p) => {
                 const on = plDayHas(d, p.name);
@@ -913,7 +920,7 @@ function AttachMatrix({ focus }) {
             : "A day plays one playlist, every week of its program. The client sees its name on that day's session from the next time you assign the program; a session already on a calendar keeps what it was sent with. ✓ N is the clients on that program. To have it open in their own app, send it to them below."}
         </div>
       </div>
-      <div ref={wrap} data-pl-matrix style={{ overflow: "auto", maxHeight: PL_MATRIX_MAX_H, overscrollBehavior: "contain" }}>
+      <div ref={wrap} data-pl-matrix style={{ overflow: "auto", maxHeight: PL_MATRIX_MAX_H }}>
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 12.5 }}>
           {header}
           {programSection}
@@ -925,9 +932,9 @@ function AttachMatrix({ focus }) {
 }
 
 const th = { padding: "14px 10px", textAlign: "center", fontFamily: PL_MONO, fontSize: 10.5, letterSpacing: "0.12em", color: PL_INK2, borderBottom: `1px solid ${PL_LINE}`, verticalAlign: "bottom", background: "var(--sh-ground, #1a1612)" };
-const thFirst = { ...th, textAlign: "left", minWidth: 220, paddingLeft: 22, left: 0 };
+const thFirst = { ...th, textAlign: "left", minWidth: 180, paddingLeft: 22, left: 0 };
 const td = { padding: "8px 8px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", textAlign: "center" };
-const tdFirst = { padding: "12px 22px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", position: "sticky", left: 0, background: "var(--sh-ground, #1a1612)", zIndex: 1, minWidth: 220 };
+const tdFirst = { padding: "12px 22px", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", position: "sticky", left: 0, background: "var(--sh-ground, #1a1612)", zIndex: 1, minWidth: 180 };
 const plLabel = { fontSize: 10.5, fontFamily: PL_MONO, letterSpacing: "0.12em", color: PL_INK2 };
 
 // ────────────────────────────────────────────────────────────
@@ -991,7 +998,7 @@ function BuilderDetailPane({ p }) {
   };
   const field = (label, k, props) => (
     <label style={{ ...lbl, marginTop: 0 }}>{label}
-      <input value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} style={{ ...input, marginTop: 6 }} {...(props || {})} />
+      <input value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} style={{ ...input, marginTop: 6, ...(k === "url" ? {} : { fontFamily: sans, fontSize: 13.5 }) }} {...(props || {})} />
     </label>
   );
   return (
@@ -1037,16 +1044,15 @@ function BuilderDetailPane({ p }) {
 
         <div style={{ display: "flex", gap: 10, marginTop: 22, paddingTop: 18, borderTop: `1px solid ${PL_LINE}`, alignItems: "center", flexWrap: "wrap" }}>
           <button type="button" data-pl-save onClick={save} disabled={!dirty || state.busy} style={{ ...pillPrimary, opacity: !dirty || state.busy ? 0.5 : 1, cursor: !dirty || state.busy ? "default" : "pointer" }}>{state.busy ? "Saving…" : "Save"}</button>
-          {state.msg && <span role="status" data-pl-save-msg style={{ fontSize: 12.5, color: state.error ? PL_RUST : PL_INK2 }}>{state.msg}</span>}
-          <div style={{ flex: 1 }} />
           <div ref={menuRef} style={{ position: "relative" }}>
             <button type="button" aria-label="More for this playlist" aria-haspopup="menu" aria-expanded={menu} data-pl-more onClick={() => setMenu(!menu)} style={{ ...pillGhost, padding: "8px 14px" }}>⋯</button>
             {menu && (
-              <div role="menu" style={{ position: "absolute", right: 0, bottom: "calc(100% + 6px)", minWidth: 180, background: "var(--sh-ground, #1a1612)", border: `1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)`, borderRadius: 10, boxShadow: "0 14px 34px rgba(0,0,0,0.35)", padding: 6, zIndex: 5 }}>
+              <div role="menu" style={{ position: "absolute", left: 0, bottom: "calc(100% + 6px)", minWidth: 180, background: "var(--sh-ground, #1a1612)", border: `1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)`, borderRadius: 10, boxShadow: "0 14px 34px rgba(0,0,0,0.35)", padding: 6, zIndex: 5 }}>
                 <button type="button" role="menuitem" data-pl-delete onClick={remove} style={{ all: "unset", cursor: "pointer", display: "block", width: "100%", boxSizing: "border-box", padding: "9px 12px", borderRadius: 6, fontSize: 13, color: PL_RUST }}>Delete playlist…</button>
               </div>
             )}
           </div>
+          {state.msg && <span role="status" data-pl-save-msg style={{ fontSize: 12.5, color: state.error ? PL_RUST : PL_INK2 }}>{state.msg}</span>}
         </div>
       </div>
     </Card></div>
