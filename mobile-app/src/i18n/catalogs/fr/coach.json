@@ -791,6 +791,7 @@
   "sound.toPlans": "aux plans",
   "sound.tracksCount": "{count} titres",
   "sound.usedBy": "utilisée par {count}",
+  "sound.notAssigned": "pas encore attribuée",
   "sound.yourAppleFooter": "Votre Apple Music",
   "sound.yourSpotifyFooter": "Votre Spotify",
   "sound.yourWord": "Votre",

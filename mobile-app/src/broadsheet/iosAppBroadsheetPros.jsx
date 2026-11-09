@@ -7445,6 +7445,9 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const [iUrl, setIUrl] = useStateBSP('');
   // Spotify "pick from your library" importer
   const [spotConnected, setSpotConnected] = useStateBSP(null); // null = checking
+  // How many of the two music sources this coach has connected, read with Spotify's (null while
+  // checking or unread: the tile reads "—"). The tile used to print a typed-in 2.
+  const [sourcesConnected, setSourcesConnected] = useStateBSP(null);
   const [spotPlaylists, setSpotPlaylists] = useStateBSP(null);
   const [spotBusy, setSpotBusy] = useStateBSP(false);
   const [spotErr, setSpotErr] = useStateBSP('');
@@ -7471,7 +7474,12 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
     let alive = true;
     if (!window.ShapeIntegrations?.getStatus) { setSpotConnected(false); return undefined; }
     window.ShapeIntegrations.getStatus()
-      .then(s => { if (alive) setSpotConnected(!!(s?.providers || []).find(p => p.id === 'spotify')?.connected); })
+      .then(s => {
+        if (!alive) return;
+        const providers = s?.providers || [];
+        setSpotConnected(!!providers.find(p => p.id === 'spotify')?.connected);
+        setSourcesConnected(['spotify', 'apple_music'].filter((id) => !!providers.find(p => p.id === id)?.connected).length);
+      })
       .catch(() => { if (alive) setSpotConnected(false); });
     return () => { alive = false; };
   }, []);
@@ -7527,7 +7535,11 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const shown = all
     .filter(p => filter === 'all' ? true : p.provider === filter)
     .filter(p => { const q = query.trim().toLowerCase(); return !q || p.name.toLowerCase().includes(q) || (p.tag || '').toLowerCase().includes(q); });
-  const totalAttached = all.reduce((s, p) => s + (p.used || 0) + assignedCount(p), 0);
+  // ⚠ THE SAMPLE PLAYLISTS' "used by" COUNTS ARE MADE UP. They seed the list, and a signed-out preview
+  // may show them; a signed-in coach's Attached and a row's line count only what is real.
+  const stSignedIn = !!window.ShapeAuth?.getCachedState?.()?.user?.id;
+  const usedOf = (p) => (stSignedIn && !isServerRow(p) && BS_SOUNDTRACKS_DEMO.includes(p) ? 0 : (p.used || 0));
+  const totalAttached = all.reduce((s, p) => s + usedOf(p) + assignedCount(p), 0);
 
   const saveImport = async () => {
     const name = iName.trim();
@@ -7785,7 +7797,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
         <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {stat(tr('coach:sound.statPlaylists', { defaultValue: 'PLAYLISTS' }), String(all.length), '', gold)}
           {stat(tr('coach:sound.statAttached', { defaultValue: 'ATTACHED' }), String(totalAttached), tr('coach:sound.toPlans', { defaultValue: 'to plans' }), teal)}
-          {stat(tr('coach:sound.statSources', { defaultValue: 'SOURCES' }), '2', tr('coach:sound.connected', { defaultValue: 'connected' }), purple)}
+          {stat(tr('coach:sound.statSources', { defaultValue: 'SOURCES' }), sourcesConnected == null ? '—' : String(sourcesConnected), tr('coach:sound.connected', { defaultValue: 'connected' }), purple)}
         </div>
 
         {/* Search */}
@@ -7821,7 +7833,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
                     {providerLabel(p.provider)} · {(p.tag || '').toUpperCase()}
                   </div>
                   <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
-                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur} · {p.bpm} BPM · {att > 0 ? tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att }) : tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: p.used })}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur} · {p.bpm} BPM · {att > 0 ? tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att }) : usedOf(p) > 0 ? tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: usedOf(p) }) : tr('coach:sound.notAssigned', { defaultValue: 'not assigned yet' })}</div>
                 </div>
                 <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>{tr('coach:plans.assign', { defaultValue: 'ASSIGN' })}</button>
               </div>

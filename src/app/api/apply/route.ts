@@ -756,7 +756,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
       <h2 style="margin:0 0 16px;font-size:22px;font-weight:500;">Thanks, ${escapeHtml(ctx.firstName)}.</h2>
       <p style="margin:0 0 16px;line-height:1.55;">We've received your application to join Shape as a ${escapeHtml(ctx.role.toLowerCase())}. Welcome aboard — here's what happens next:</p>
       <ol style="margin:0 0 20px;padding-left:20px;line-height:1.6;">
-        <li>Our team reviews your application (usually within 2 business days).</li>
+        <li>Our team reviews your application (usually within 2–3 business days).</li>
         <li>If it's a fit, we'll verify your credentials and send the required background check invite.</li>
         <li>After the background check clears, we'll set up your dashboard and help you launch your profile.</li>
       </ol>
@@ -771,7 +771,7 @@ async function sendApplicationEmails(ctx: EmailContext): Promise<void> {
     `We've received your application to join Shape as a ${ctx.role.toLowerCase()}.`,
     '',
     "Here's what happens next:",
-    '  1. Our team reviews your application (usually within 2 business days).',
+    '  1. Our team reviews your application (usually within 2–3 business days).',
     "  2. If it's a fit, we'll verify your credentials and send the required background check invite.",
     "  3. After the background check clears, we'll set up your dashboard and help you launch your profile.",
     '',
