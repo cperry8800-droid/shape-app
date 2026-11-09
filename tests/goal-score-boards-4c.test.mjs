@@ -131,10 +131,13 @@ function shell({ live = { kind: 'demo' }, roster = null, all = false, confirm = 
   return seen;
 }
 // window.shapeDb for a coach: `goals` is what getUserGoals answers (null: the read failed); saves are recorded.
-function account({ user = { id: 'coach-uid' }, goals = {}, saveError = null } = {}) {
-  const db = { saves: [], reads: [] };
+// `bridge`: the coach is signed in only through the Next.js cookie bridge, so getUser answers nobody until
+// getSession() has bootstrapped it (dashData.jsx dashDocBridge).
+function account({ user = { id: 'coach-uid' }, goals = {}, saveError = null, bridge = false } = {}) {
+  const db = { saves: [], reads: [], bridged: !bridge };
   window.shapeDb = {
-    getUser: async () => user,
+    getSession: async () => { db.bridged = true; return { user }; },
+    getUser: async () => (db.bridged ? user : null),
     getUserGoals: async (kind, opts) => { db.reads.push([kind, opts]); return typeof goals === 'function' ? goals() : goals; },
     saveUserGoals: async (kind, data, opts) => { db.saves.push([kind, JSON.parse(JSON.stringify(data)), opts]); return saveError ? { error: { message: saveError } } : { ok: true }; },
   };
@@ -660,9 +663,9 @@ test('signed out (a 401): the sample board, labelled, with the fastest way up th
     try {
       assert.deepEqual(paths, ['/api/coach/score?role=' + role]);
       assert.deepEqual([board.role, board.tab], [role, 'score-board'], 'its own tab key, never the old board\'s "score"');
-      assert.deepEqual(board.widgets.map((w) => w.key), ['score', 'wayup', 'parts', 'earn'], 'a lean board of four');
+      assert.deepEqual(board.widgets.map((w) => w.key), ['score', 'wayup', 'parts'], 'a lean board of three; the formula sits under it');
       assert.deepEqual(board.widgets.filter((w) => w.optional).map((w) => w.key), [], 'and nothing in the catalogue: the perks left the page');
-      assert.deepEqual(resolveGridLayout(null, board.widgets).visible.map((v) => v.key + ':' + v.w), ['score:8', 'wayup:4', 'parts:8', 'earn:4']);
+      assert.deepEqual(resolveGridLayout(null, board.widgets).visible.map((v) => v.key + ':' + v.w), ['score:8', 'wayup:4', 'parts:12']);
       for (const w of board.widgets) assert.equal(GROUPS.includes(w.group), true, w.key);
       assert.equal(title(), total);
       assert.match(eyebrow(), /· PRO · SAMPLE$/);
@@ -683,9 +686,10 @@ test('signed out (a 401): the sample board, labelled, with the fastest way up th
       assert.equal(segs.reduce((a, b) => a + b, 0), Number(total.replace(',', '')));
       assert.equal(segs.length, role === 'trainer' ? 3 : 2);
       assert.match(textOf(m.div.querySelector('[data-cgs-sum]')), role === 'trainer' ? /^700 \+ 900 \+ 160 = 1,760$/ : /^600 \+ 910 = 1,510$/);
-      assert.match(textOf(card(m, 'earn')), new RegExp((role === 'trainer' ? 3 : 2) + ' TERMS'));
-      assert.equal(/Programs published/.test(textOf(card(m, 'earn'))), role === 'trainer');
-      assert.equal(!!m.div.querySelector('#score-earn'), true, 'How it works still has somewhere to scroll');
+      const earn = m.div.querySelector('#score-earn');
+      assert.match(textOf(earn), new RegExp('^How points are earned' + (role === 'trainer' ? 3 : 2) + ' TERMS'));
+      assert.equal(/Programs published/.test(textOf(earn)), role === 'trainer');
+      assert.equal(!!earn.closest('[data-card]'), false, 'How it works scrolls to a section no board control can hide');
       assert.doesNotMatch(m.text(), PERKS, 'no perks: nothing grants them');
     } finally { await m.unmount(); }
   }
@@ -716,7 +720,8 @@ test('a failed read is never the sample: the score card says so, and the cards t
       try {
         assert.equal(title(), '—', what);
         assert.match(eyebrow(), /COULDN'T READ/, what);
-        assert.deepEqual(board.widgets.filter((w) => !w.empty).map((w) => w.key), ['score', 'earn'], what + ': the way up and the bar wait on a score');
+        assert.deepEqual(board.widgets.filter((w) => !w.empty).map((w) => w.key), ['score'], what + ': the way up and the bar wait on a score');
+        assert.equal(!!m.div.querySelector('#score-earn'), true, what + ': the formula is still there to read');
         assert.equal(board.widgets.find((w) => w.key === 'wayup').emptyWhy, 'your score couldn\'t be read');
         assert.match(textOf(card(m, 'score')), /Couldn't read your score just now\./);
         assert.doesNotMatch(m.text(), /1,760|1,510|14 clients|12 clients|SAMPLE|Sample/, what);
@@ -802,11 +807,12 @@ test('the Business page reads the coach\'s goals, bound to the account, and agai
     trainerNavItems: () => [], nutriNavItems: () => [], trainerPayoutCard: {}, nutriPayoutCard: {}, useDashUnits: () => ({ measure: (v, u) => ({ value: v, unit: u }) }), useDashNextPayout: undefined,
   });
   let target = 20000;
-  const db = account({ goals: () => ({ goals: [{ id: 'g', t: 'My revenue goal', metric: 'mrrNetMonthly', tgt: target }] }) });
+  // Signed in only through the cookie bridge (Codex on #2638): getUser answers nobody until getSession runs.
+  const db = account({ bridge: true, goals: () => ({ goals: [{ id: 'g', t: 'My revenue goal', metric: 'mrrNetMonthly', tgt: target }] }) });
   const m = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
   await settle(6);
   try {
-    assert.deepEqual(db.reads, [['trainer', { expectedUserId: 'coach-uid' }]]);
+    assert.deepEqual([db.bridged, db.reads], [true, [['trainer', { expectedUserId: 'coach-uid' }]]]);
     const pace = () => textOf(card(m, 'pace'));
     assert.match(pace(), /The goal line is your goal “My revenue goal”, from your Goal tab\./);
     assert.match(pace(), /\$20,000 goal line/);
@@ -821,4 +827,40 @@ test('the Business page reads the coach\'s goals, bound to the account, and agai
   const f = await mount(React.createElement(window.CoachBusinessPage, { role: 'trainer' }));
   await settle(6);
   try { assert.match(textOf(card(f, 'pace')), /Your goals couldn't be read just now, so the goal line is the Plan's starting goal/); } finally { await f.unmount(); }
+});
+
+test('Codex on #2638: "How it works" keeps somewhere to scroll with every card hidden, and while the score reads', async () => {
+  // A board whose coach hid every card renders none of them; the formula is the page's, under the board.
+  globalThis.fetch = window.fetch = () => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) });
+  const seen = shell();
+  const shown = globalThis.DashGrid;
+  globalThis.DashGrid = (props) => { seen.boards[props.tab] = props; return null; };
+  const m = await mount(React.createElement(PAGES.TrainerScorePage));
+  await settle();
+  try {
+    assert.equal(!!seen.boards['score-board'], true);
+    assert.equal(m.div.querySelectorAll('[data-card]').length, 0, 'every card hidden');
+    assert.match(textOf(m.div.querySelector('#score-earn')), /^How points are earned3 TERMS/);
+  } finally { await m.unmount(); globalThis.DashGrid = shown; }
+  // Still reading: the formula is there before the board.
+  globalThis.fetch = window.fetch = () => new Promise(() => {});
+  shell();
+  const p = await mount(React.createElement(PAGES.NutritionistScorePage));
+  try {
+    assert.equal(!!p.div.querySelector('[data-cgs-read="pending"]'), true);
+    assert.match(textOf(p.div.querySelector('#score-earn')), /^How points are earned2 TERMS/);
+  } finally { await p.unmount(); }
+});
+
+test('Codex on #2638: a coach signed in only through the cookie bridge reads their own goals, on Goal and on Business', async () => {
+  const mine = { id: 'g-rev', t: 'My revenue goal', metric: 'mrrNetMonthly', money: true, cur: 0, tgt: 20000, start: 9000, startAt: new Date(Date.now() - 30 * DAY).toISOString(), due: C.cgsDayKey(C.cgsToday() + 60) };
+  const db = account({ bridge: true, goals: { goals: [mine] } });
+  const { m, board } = await goalPage('trainer', { live: { kind: 'live', activeClients: 10, mrrNetCents: 1482000, adherencePct: null } });
+  try {
+    assert.equal(db.bridged, true, 'getSession ran');
+    assert.deepEqual(db.reads, [['trainer', { expectedUserId: 'coach-uid' }]], 'and the goals read as this coach');
+    assert.deepEqual(board.widgets.filter((w) => !w.optional && !w.empty).map((w) => w.key), ['goal-g-rev']);
+    assert.doesNotMatch(m.text(), /Sample view|50 active clients/, 'never the sample in their place');
+  } finally { await m.unmount(); }
+  // Business · Overview reads the goals the same way: its page test signs the coach in through the bridge.
 });

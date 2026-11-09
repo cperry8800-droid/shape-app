@@ -622,6 +622,11 @@ function CoachGoalBoard({ role }) {
       const db = window.shapeDb;
       const toSample = () => { if (on) { setState(cgsSampleState(role)); setRead("sample"); } };
       if (!db || typeof db.getUser !== "function" || typeof db.getUserGoals !== "function") return toSample();
+      // ⚠ getSession() FIRST (dashData.jsx dashDocBridge; Codex on #2638): getUser doesn't bootstrap the
+      // Next.js cookie-session bridge, so a coach signed in that way with nothing in localStorage read as
+      // signed out and was shown the sample in place of their own goals.
+      try { if (typeof db.getSession === "function") await db.getSession(); } catch (e) { /* read on as before */ }
+      if (!on) return;
       let user = null;
       try { user = await db.getUser(); } catch (e) { if (on) setRead((r) => (r === "pending" ? "failed" : r)); return; }
       if (!on) return;
@@ -997,15 +1002,17 @@ function CgsFormulaCard({ role }) {
   return (
     <div id="score-earn" style={{ scrollMarginTop: 80 }}>
       <DbzCard label="How points are earned" right={<span style={DBZ_LBL}>{terms.length} TERMS</span>}>
-        {terms.map((t, i) => (
-          <div key={t.key} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, padding: "10px 0", borderTop: i ? DBZ_RULE : "none", alignItems: "baseline" }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{t.label}</div>
-              <div style={{ fontFamily: DBZ_MONO, fontSize: 10.5, color: DBZ_INK50, marginTop: 3, letterSpacing: "0.03em", lineHeight: 1.45 }}>{t.sub}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "4px 28px" }}>
+          {terms.map((t) => (
+            <div key={t.key} data-cgs-term={t.key} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 14, padding: "10px 0", alignItems: "baseline" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{t.label}</div>
+                <div style={{ fontFamily: DBZ_MONO, fontSize: 10.5, color: DBZ_INK50, marginTop: 3, letterSpacing: "0.03em", lineHeight: 1.45 }}>{t.sub}</div>
+              </div>
+              <div style={{ fontFamily: DBZ_MONO, fontSize: 13, fontWeight: 700, color: "var(--sh-accent-ink, #2ee0c4)" }}>{"+" + t.each}</div>
             </div>
-            <div style={{ fontFamily: DBZ_MONO, fontSize: 13, fontWeight: 700, color: "var(--sh-accent-ink, #2ee0c4)" }}>{"+" + t.each}</div>
-          </div>
-        ))}
+          ))}
+        </div>
         <div style={{ ...DBZ_NOTE, fontSize: 11.5, marginTop: 6 }}>Tiers: Pro from 750, Elite from 2,000, Master from 5,000, Icon from 15,000.</div>
       </DbzCard>
     </div>
@@ -1062,9 +1069,12 @@ function CoachScoreBoard({ role }) {
   // score (leaderboards.jsx coachScoreFixNote). Never on the sample.
   const fixNote = read.state === "ok" && typeof coachScoreFixNote === "function" ? coachScoreFixNote(role) : null;
 
-  // The board: the score and its tier, the fastest way up (the one raised card), the parts adding up to
-  // it, and how points are earned (the header's "How it works" scrolls to it). "What Master unlocks" left
-  // the page and is in no catalogue: nothing grants those perks, and what they are is the owner's call.
+  // The board: the score and its tier, the fastest way up (the one raised card) and the parts adding up to
+  // it. "What Master unlocks" left the page and is in no catalogue: nothing grants those perks, and what
+  // they are is the owner's call.
+  // ⚠ HOW POINTS ARE EARNED IS UNDER THE BOARD, NOT ON IT (Codex on #2638): the header's "How it works"
+  // scrolls to #score-earn, and a coach who hid a formula card left that button doing nothing. It is the
+  // page's reference, so it can't be hidden, and it is there while the score is still reading.
   const unread = read.state === "failed";
   const why = unread ? "your score couldn't be read" : "your score is still loading";
   const scoreWidgets = [
@@ -1072,10 +1082,8 @@ function CoachScoreBoard({ role }) {
       render: () => <CgsScoreCard model={model} state={read.state} /> },
     { key: "wayup", title: "Fastest way up", blurb: "What reaches the next tier in the fewest steps, each with its sum and where it lands.", group: "clients", size: "narrow",
       empty: !model, emptyWhy: why, render: () => <CgsWayUpCard model={model} role={role} /> },
-    { key: "parts", title: "What your score is made of", blurb: (role === "trainer" ? "Clients, completion and programs" : "Clients and completion") + " as parts of one bar that adds up to your score.", group: "clients", size: "wide",
+    { key: "parts", title: "What your score is made of", blurb: (role === "trainer" ? "Clients, completion and programs" : "Clients and completion") + " as parts of one bar that adds up to your score.", group: "clients", size: "full",
       empty: !model, emptyWhy: why, render: () => <CgsPartsCard model={model} role={role} /> },
-    { key: "earn", title: "How points are earned", blurb: "The terms your score counts, and what each is worth.", group: "clients", size: "narrow",
-      render: () => <CgsFormulaCard role={role} /> },
   ];
   const grid = typeof DashGrid === "function";
 
@@ -1096,6 +1104,7 @@ function CoachScoreBoard({ role }) {
           // ⚠ ITS OWN TAB KEY ("score-board"). The old Score board (2026-06 to #2365) saved under "score",
           // with the perks card among its own; no earlier build saved under this one.
           : grid ? <DashGrid key="score-board" role={role} tab="score-board" widgets={scoreWidgets} /> : cgsStack(scoreWidgets)}
+        <CgsFormulaCard role={role} />
       </div>
       )}
       {read.state === "sample" && typeof DashDemoBand === "function" && <DashDemoBand />}

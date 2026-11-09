@@ -9,6 +9,15 @@ export default {
   test: 'node --test tests/goal-score-boards-4c.test.mjs tests/coach-score-website.test.mjs tests/goal-archive.test.mjs tests/dash-grid-hosts.test.mjs tests/business-boards.test.mjs',
   timeoutMs: 600_000,
   mutations: [
+    // ── Codex on #2638: the session bridge before a goals read, and the formula no board control can hide
+    { name: 'the Goal board reads goals without bootstrapping the session', file: GSB,
+      find: '      try { if (typeof db.getSession === "function") await db.getSession(); } catch (e) { /* read on as before */ }\n      if (!on) return;\n      let user = null;',
+      replace: '      if (!on) return;\n      let user = null;' },
+    { name: 'Business reads goals without bootstrapping the session', file: BIZ,
+      find: '        try { if (typeof db.getSession === "function") await db.getSession(); } catch (e) { /* read on as before */ }\n        const user = await db.getUser();',
+      replace: '        const user = await db.getUser();' },
+    { name: 'the formula is gone from under the board', file: GSB,
+      find: '        <CgsFormulaCard role={role} />\n      </div>', replace: '      </div>' },
     // ── Goal · who a nudge names (4c review: a plan that couldn't be read names no one)
     { name: 'a client whose plan is unread is named in a nudge', file: GSB,
       find: '!(c.payments && (c.payments.onPlan === false || c.payments.onPlan === null));', replace: '!(c.payments && c.payments.onPlan === false);' },

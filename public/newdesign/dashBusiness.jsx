@@ -3028,6 +3028,10 @@ function CoachBusinessPage({ role }) {
       const db = window.shapeDb;
       try {
         if (!db || typeof db.getUser !== "function" || typeof db.getUserGoals !== "function") { if (on) setOwnGoals(null); return; }
+        // ⚠ getSession() FIRST (dashData.jsx dashDocBridge; Codex on #2638): getUser doesn't bootstrap the
+        // Next.js cookie-session bridge, so a coach signed in that way read as nobody, and the goal line
+        // fell back to the Plan's for the whole visit.
+        try { if (typeof db.getSession === "function") await db.getSession(); } catch (e) { /* read on as before */ }
         const user = await db.getUser();
         const doc = user ? await db.getUserGoals(role, { expectedUserId: user.id }) : null;
         if (on) setOwnGoals(doc && typeof doc === "object" ? (Array.isArray(doc.goals) ? doc.goals : []) : null);
