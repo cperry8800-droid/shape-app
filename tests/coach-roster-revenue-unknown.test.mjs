@@ -51,15 +51,18 @@ function makeClient({ subs = { data: [], error: null }, sess = { data: [], error
   };
 }
 
-async function load(client) {
+// `lookup`: what the sign-in check answered ({ user, error }), the signed-in coach by default.
+async function load(client, lookup = { user: { id: UID }, error: null }) {
   return loadRealModule(join(ROOT, 'src/lib/coach-roster.ts'), {
     typescript: true,
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/request-auth', {
         clientForRequest: async () => client,
-        currentUser: async () => ({ id: UID }),
+        currentUser: async () => lookup.user,
+        userLookupForRequest: async () => lookup,
       }],
+      ['@/lib/auth-lookup', await loadRealModule(join(ROOT, 'src/lib/auth-lookup.ts'), { typescript: true })],
       ['@/lib/time', await import(pathToFileURL(join(ROOT, 'src/lib/time.ts')).href).catch(() => ({ DAY_MS: 86400000 }))],
       ['@/lib/coach-messages', await loadRealModule(join(ROOT, 'src/lib/coach-messages.ts'), { typescript: true, registry: new Map([['@/lib/supabase/server', {}]]) })],
       ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
@@ -282,4 +285,19 @@ test('the roster reads every open plan in 1,000-row pages: 2,500 clients all lis
     assert.equal(p.limit, 1000);
     assert.ok(p.filters.some(([op, col]) => op === 'in' && col === 'status'), 'each page keeps the open statuses');
   }
+});
+
+// Codex on #2642: the coach pages read this route's 401 as the signed-out preview, so a 401 must
+// mean signed out. A sign-in check that didn't finish (an auth outage) answers 503, which
+// useDashboard reads as "unread"; no session, or a token the auth server refused, is still 401.
+test('an auth outage is a 503, never the preview\'s 401; signed out is still 401', async () => {
+  const req = () => new Request('https://x/api/trainer/clients');
+  const outage = await load(makeClient({ subs: { data: [], error: null }, sess: SESSIONS }), { user: null, error: { name: 'AuthRetryableFetchError', status: 0, message: 'fetch failed' } });
+  const down = await outage.coachClientsResponse('trainer', req());
+  assert.equal(down.status, 503);
+  assert.equal(down.headers.get('Cache-Control'), 'private, no-store, max-age=0');
+  const signedOut = await load(makeClient({ subs: { data: [], error: null }, sess: SESSIONS }), { user: null, error: null });
+  assert.equal((await signedOut.coachClientsResponse('trainer', req())).status, 401);
+  const refused = await load(makeClient({ subs: { data: [], error: null }, sess: SESSIONS }), { user: null, error: { name: 'AuthApiError', status: 401, message: 'invalid JWT' } });
+  assert.equal((await refused.coachClientsResponse('trainer', req())).status, 401);
 });

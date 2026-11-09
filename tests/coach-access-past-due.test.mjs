@@ -348,7 +348,8 @@ test('the roster\'s client count is the dashboard\'s activeClients on the same r
       typescript: true,
       registry: new Map([
         ['next/server', require_('next/server')],
-        ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: COACH }) }],
+        ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: COACH }), userLookupForRequest: async () => ({ user: { id: COACH }, error: null }) }],
+        ['@/lib/auth-lookup', { isMeasuredSignedOut: (e) => !e }],
         ['@/lib/time', time],
         ['@/lib/coach-messages', messages],
         ['@/lib/read-all-by-id', await loadRealModule(join(ROOT, 'src/lib/read-all-by-id.ts'), { typescript: true })],
