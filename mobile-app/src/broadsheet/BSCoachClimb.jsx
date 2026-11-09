@@ -243,7 +243,11 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
         <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 600, background: wall ? '#05080a' : `radial-gradient(120% 80% at 80% 30%, ${hexA(ACC, 0.18)}, ${CLIMB.BG} 70%)` }}>
           {wall ? <img src={wall} alt={wallAlt} data-climb-wall="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: focus, filter: 'grayscale(1) brightness(0.42) contrast(1.05)' }} /> : null}
           <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, rgba(10,14,17,0.55) 0%, rgba(10,14,17,0.1) 30%, rgba(10,14,17,0.35) 62%, ${CLIMB.BG} 100%)` }} />
-          <Terrain accent={ACC} reduced={reduced} />
+          {/* The route and its contours fade out above the name, so they never run through the name,
+              the chips or the quote (review, 9 Nov: the line crossed them on a phone). */}
+          <div style={{ position: 'absolute', inset: 0, WebkitMaskImage: 'linear-gradient(180deg, #000 0, #000 370px, transparent 425px)', maskImage: 'linear-gradient(180deg, #000 0, #000 370px, transparent 425px)' }}>
+            <Terrain accent={ACC} reduced={reduced} />
+          </div>
         </div>
         <div style={{ position: 'relative' }}>{mast}</div>
         {onAddWall && !wall ? (

@@ -847,7 +847,9 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
     (isSelf || hasAbout) ? ['about', tr('profile:climb.about', { defaultValue: 'About' }), tr('profile:climb.aboutTitle', { defaultValue: 'Who {name} is', name: first }), null,
       <div style={{ padding: '0 18px 0 14px' }}><AboutTab t={t} tr={tr} ACC={ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} about={aboutDoc} prompts={aboutPrompts} links={aboutLinks} certs={certs} gallery={nutri || isPrivate ? [] : (media.gallery || [])} isSelf={isSelf} first={first}
         biz={biz} song={songEmbed ? { label: song.label, embed: songEmbed } : null} onEdit={() => openEdit('about')} /></div>] : null,
-    ['findme', tr('profile:climb.findMe', { defaultValue: 'Find me' }), words.day,
+    // The week's open times: the website's "Book" camp, named the same in the app (review, 9 Nov: it was
+    // labelled Find me, which on the website is where the coach is and their links).
+    ['findme', tr('profile:climb.book', { defaultValue: 'Book' }), words.day,
       tr('profile:climb.findMeSub', { defaultValue: 'Open times you can take, from {name}\'s Shape calendar.', name: first }),
       <div style={{ padding: '0 18px 0 14px' }}><DayTab t={t} tr={tr} locale={locale} ACC={ACC} ON_ACC={ON_ACC} ink={ink} DISPLAY={DISPLAY} MONO={MONO} avail={avail} providerState={avail.sample ? 'ready' : providerState} isSelf={isSelf} first={first} words={words} nutri={nutri}
         introClosed={introClosed} onRetry={() => (providerState === 'error' ? setProviderEpoch : setAvailEpoch)((n) => n + 1)}

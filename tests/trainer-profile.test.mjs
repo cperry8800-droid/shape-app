@@ -259,7 +259,7 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   reset();
   world.provider = { ...world.provider, price: 0 };
   let m = await mount(page());
-  assert.ok(camp('findme'), 'Find me: the day');
+  assert.ok(camp('findme'), 'Book: the day');
   assert.ok(!camp('range'), 'no Studio tab with no programs, workouts or coaching');
   assert.ok(!camp('replays'), 'no replays tab without replays');
   await m.unmount();
@@ -922,7 +922,7 @@ test('their activity: a camp of its own, Posts, with what they posted that the o
   world.provider = { ...world.provider, price: 0 }; // no coaching by the month, so no Range
   let m = await mount(page());
   assert.deepEqual(campKeys(), ['replays', 'findme', 'posts', 'summit']);
-  assert.deepEqual(tabNames(), ['Replays', 'Find me', 'Posts', 'Summit']);
+  assert.deepEqual(tabNames(), ['Replays', 'Book', 'Posts', 'Summit']);
   assert.ok(!camp('replays').querySelector('[data-activity]'), 'the feed is not under Replays');
   const feed = camp('posts').querySelector('[data-activity]');
   assert.ok(feed, 'the feed, in its camp');
@@ -1373,7 +1373,7 @@ test('the camps pin under the condensed masthead as one row, each a 44px target,
   assert.equal(nav.style.position, 'sticky');
   assert.equal(nav.style.overflowX, 'auto');
   const tabs = [...nav.querySelectorAll('[data-climb-camp-tab]')];
-  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Range', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
+  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Range', 'Replays', 'Proof', 'Words', 'About', 'Book', 'Posts', 'Summit']);
   assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.whiteSpace === 'nowrap'));
   assert.equal(tabs.filter((b) => b.getAttribute('aria-current') === 'location').length, 1, 'one camp is where you are');
   assert.ok(nav.querySelector('[data-climb-fill]'), 'the route under the row, filled as you climb');

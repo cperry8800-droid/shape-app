@@ -201,7 +201,7 @@ test('a visitor sees only the camps with something in them; the coach sees all o
   reset({ provider: { id: 7, owner_id: 'u-maya', price: 0, verified: false, listing_media: { cover: null, gallery: [] } } });
   let m = await mount(page());
   assert.deepEqual(campKeys(), ['findme', 'summit'], 'nothing posted, sold, pinned or reviewed: the day and the way in');
-  assert.deepEqual($$('[data-climb-camp-tab]').map((b) => b.textContent), ['Find me', 'Summit'], 'the row has those two');
+  assert.deepEqual($$('[data-climb-camp-tab]').map((b) => b.textContent), ['Book', 'Summit'], 'the row has those two');
   assert.ok(!$('[data-coach-stats]') && !$('[data-climb-wire-item="post"]'));
   await m.unmount();
   reset({ me: 'u-maya', provider: { id: 7, owner_id: 'u-maya', price: 0, verified: false, listing_media: { cover: null, gallery: [] } } });
