@@ -70,6 +70,12 @@ export default {
     { name: 'Programs takes a demo roster as the preview before the library answers', file: PROG, find: "const roster=source==='demo'&&!resolved.current?'loading':dashLibRosterState(source,isLive);", replace: 'const roster=dashLibRosterState(source,isLive);' },
     { name: 'Meal plans shows the band on any demo roster', file: PLANS, find: '{preview && <DashDemoBand />}', replace: '{source === "demo" && <DashDemoBand />}' },
     { name: 'Meal plans names the sample cast on an unread roster', file: PLANS, find: 'const people = roster === "live" || roster === "demo" ? clients : DMB_NOBODY;', replace: 'const people = clients;' },
+    // ── An unread roster is a signed-in coach, not the preview (useDashboard's "unread") ──
+    { name: 'Meal plans is live only when the day feed answered', file: PLANS, find: 'const isLive = !!live || roster === "live" || roster === "unread";', replace: 'const isLive = !!live;' },
+    { name: 'Programs\' assign sheet calls an unread roster empty', file: PROG, find: "const emptyNote=roster==='unread'?DASH_LIB_ROSTER_UNREAD:roster==='loading'", replace: "const emptyNote=roster==='loading'" },
+    { name: 'Meal plans\' assign sheet calls an unread roster empty', file: PLANS, find: 'const emptyNote = roster === "unread" ? DASH_LIB_ROSTER_UNREAD : roster === "loading"', replace: 'const emptyNote = roster === "loading"' },
+    { name: 'the program assign sheet ignores what its empty list means', file: PROG, find: '{emptyNote || "No clients loaded."}', replace: '{"No clients loaded."}' },
+    { name: 'the meal assign sheet ignores what its empty list means', file: PLANS, find: '{emptyNote || "No clients loaded."}', replace: '{"No clients loaded."}' },
     { name: 'Meal plans takes a demo roster as the preview before the library answers', file: PLANS, find: 'const roster = source === "demo" && !resolved.current ? "loading" : dashLibRosterState(source, signedIn);', replace: 'const roster = dashLibRosterState(source, signedIn);' },
   ],
 };

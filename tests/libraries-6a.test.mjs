@@ -144,6 +144,8 @@ const topText = () => (top() ? words(top()) : '');
 const cardOf = (name) => [...document.querySelectorAll('[data-lib-card]')].find((c) => c.querySelector('h2')?.textContent === name);
 const cardNames = () => [...document.querySelectorAll('[data-lib-card] h2')].map((h) => h.textContent);
 const whoOf = (name) => words(cardOf(name).querySelector('.dash-lib-who'));
+// The open assign sheet's words (Programs' DbuDialog; the meal library's own overlay).
+const sheet = () => { const d = [...document.querySelectorAll('[role="dialog"]')].find((x) => /Put clients on it\./.test(x.textContent)) || [...document.querySelectorAll('div')].reverse().find((x) => /^Assign · /.test(x.textContent) && /Put clients on it\./.test(x.textContent)); return d ? d.textContent.replace(/\s+/g, ' ') : ''; };
 const drawer = () => document.querySelector('.dash-lib-drawer');
 async function typeInto(input, value) {
   await React.act(async () => {
@@ -417,7 +419,8 @@ test('Programs: the preview shows its sample under the band; a signed-in coach n
   assert.ok(!cardOf('Strength Block 3'), 'no sample program');
   // The roster useDashboard handed over is the sample cast: the assign sheet must not list it.
   await click(button('Assign', cardOf('Glute Builder')));
-  assert.match(text(), /No clients loaded\./, 'the assign sheet names nobody from the sample cast');
+  assert.ok(sheet().includes(UNREAD), 'the assign sheet says the roster was not read, never "no clients"');
+  assert.doesNotMatch(sheet(), /No clients (yet|loaded)/);
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), 'a sample person in the assign sheet: ' + n);
   // And "unread" itself: no band, no sample.
   dashboard('unread', DashSignals.buildMockClients(NOW)); stubFetch();
@@ -425,7 +428,14 @@ test('Programs: the preview shows its sample under the band; a signed-in coach n
   assert.ok(!document.querySelector('.dash-demo-band'));
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), n);
   await click(button('Assign', cardOf('Glute Builder')));
-  assert.match(text(), /No clients loaded\./, 'the assign sheet lists nobody it could not read');
+  assert.ok(sheet().includes(UNREAD), 'the assign sheet lists nobody it could not read, and says why');
+  assert.doesNotMatch(sheet(), /No clients (yet|loaded)/);
+  // A roster that was read and is empty: that, in words.
+  dashboard('live', []); stubFetch();
+  await mount(React.createElement(TrainerProgramsPage));
+  await click(button('Assign', cardOf('Glute Builder')));
+  assert.match(sheet(), /No clients yet\./);
+  assert.ok(!sheet().includes(UNREAD));
 });
 
 test('Programs: who is on it counts an id the roster does not hold, and never drops one', () => {
@@ -649,7 +659,8 @@ test('Meal plans: the preview shows its sample under the band; a signed-in nutri
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), 'a sample person on a signed-in page: ' + n);
   assert.ok(!mealCard('Summer Cut · 1900'));
   await click(button('Assign', mealCard('Lean Week')));
-  assert.match(text(), /No clients loaded\./);
+  assert.ok(text().includes(UNREAD));
+  assert.doesNotMatch(text(), /DEMO · marks the queue only/, 'a signed-in coach\'s sheet is live');
 });
 
 test('Meal plans: before the library answers, a roster that came back as the demo shows no band and no sample; an example is not the visitor\'s to delete', async () => {
@@ -662,6 +673,29 @@ test('Meal plans: before the library answers, a roster that came back as the dem
   dashboard('demo', DashSignals.buildMockClients(NOW), 'nutritionist'); stubFetch({ libraryOk: false }); stubConfirm(true);
   await mount(React.createElement(NutritionistPlansPage));
   assert.deepEqual(await openMenu(mealCard('Summer Cut · 1900')), ['Edit', 'Use as template']);
+});
+
+test('Meal plans: a signed-in nutritionist whose roster could not be read is still live, and the sheet says why it is empty', async () => {
+  // source unread, and the day feed did not answer either (today null).
+  globalThis.useDashboard = () => ({ loading: false, clients: [], triage: [], queue: [], today: null, source: 'unread', planCount: undefined });
+  stubFetch({ meals: MEALS });
+  await mount(React.createElement(NutritionistPlansPage));
+  await click(button('Assign', mealCard('Lean Week')));
+  assert.ok(text().includes(UNREAD));
+  assert.doesNotMatch(text(), /DEMO · marks the queue only|No clients (yet|loaded)/);
+  await click(button('Cancel'));
+  await openMenu(mealCard('Bulk Base'));
+  await click(menuItem('Edit'));
+  await click(button('Save template'));
+  await settle();
+  assert.match(text(), /Template saved to your library\./);
+  assert.doesNotMatch(text(), /Sign in to save to your library/);
+  assert.doesNotMatch(text(), /draft saved on this device/, 'the builder is the library\'s, not the device\'s');
+  // And a read, empty roster: "No clients yet."
+  dashboard('live', [], 'nutritionist'); stubFetch({ meals: MEALS });
+  await mount(React.createElement(NutritionistPlansPage));
+  await click(button('Assign', mealCard('Lean Week')));
+  assert.match(text(), /No clients yet\./);
 });
 
 test('the week ends on Sunday, on the account\'s clock', () => {

@@ -400,7 +400,9 @@ function DmbGroceryPanel({ plan, edits, onEdits }) {
 }
 
 // ── Assign modal — per-client portion scale + training days + start date ────
-function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose }) {
+// `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
+// could not be read says so, and only a read, empty roster reads "No clients yet."
+function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose, emptyNote }) {
   const [picked, setPicked] = React.useState(() => (preselectId ? { [preselectId]: true } : {}));
   React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [scales, setScales] = React.useState({});
@@ -495,7 +497,7 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
               </label>
             );
           })}
-          {!clients.length && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>No clients loaded.</div>}
+          {!clients.length && <div role="status" style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>{emptyNote || "No clients loaded."}</div>}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button onClick={assign} disabled={!ids.length || state === "working"} style={{ ...dmbBtn(true), padding: "11px 18px", opacity: !ids.length || state === "working" ? 0.6 : 1 }}>
@@ -543,7 +545,7 @@ function DmbClientPreview({ doc, day, variant }) {
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
-function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId }) {
+function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId, emptyNote }) {
   const prefs = useRememberedChoices(!!live);
   const [layout, setLayout] = useRememberedChoice(prefs, "mealBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
   const [step, setStep] = React.useState(0);
@@ -772,7 +774,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
         <DmbAssignModal
           template={{ id: idRef.current, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
           clients={clients} queue={queue} lifecycle={lifecycle} live={live}
-          preselectId={assignClientId || preselectId}
+          preselectId={assignClientId || preselectId} emptyNote={emptyNote}
           onClose={() => setAssigning(false)} />
       )}
     </div>
@@ -898,14 +900,20 @@ function NutritionistPlansPage() {
   // loading, and the first answer is not an account CHANGE — treating it as one closed the
   // builder under the coach's hands and took what they had typed with it.
   const resolved = React.useRef(false);
-  const isLive = !!live;
   // ⚠ THE PREVIEW IS THE SIGNED-OUT LIBRARY, NOTHING ELSE (dashLibRosterState): until the library
   // has answered, a visitor and a coach whose roster read failed look alike, so neither the band
   // nor a sample person shows; once it has, a signed-in library never names the sample cast.
   const signedIn = !!libraryOwner.current;
   const roster = source === "demo" && !resolved.current ? "loading" : dashLibRosterState(source, signedIn);
   const preview = roster === "demo";
+  // ⚠ LIVE IS "NOT THE PREVIEW", NOT "THE DAY FEED ANSWERED". A signed-in coach whose roster read
+  // failed (unread) may have no feed either, and on `!!live` alone the assign sheet said "DEMO ·
+  // marks the queue only", the builder kept drafts on the device and the remembered choices stayed
+  // shut (as Schedule now gates).
+  const isLive = !!live || roster === "live" || roster === "unread";
   const people = roster === "live" || roster === "demo" ? clients : DMB_NOBODY;
+  // What an empty client list in the assign sheet means: unread is not "no clients".
+  const emptyNote = roster === "unread" ? DASH_LIB_ROSTER_UNREAD : roster === "loading" ? "Reading your roster…" : "No clients yet.";
   const peopleQueue = people === clients ? queue : DMB_NOBODY;
   const targetClient = people.find((c) => c.profile.id === forClient);
   const lifecycle = React.useMemo(() => DashMeals.buildPlanLifecycle(people || [], peopleQueue || []), [people, peopleQueue]);
@@ -1035,7 +1043,7 @@ function NutritionistPlansPage() {
             key={view.template.id || view.template.name}
             template={view.template} ownerId={libraryOwner.current}
             clients={people} queue={peopleQueue} lifecycle={lifecycle} live={isLive}
-            assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null}
+            assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null} emptyNote={emptyNote}
             customFoods={customFoods}
             onBack={() => { setView(null); setRefresh((n) => n + 1); }}
             onSaved={({ id, name, doc, revision }) => {
@@ -1115,7 +1123,7 @@ function NutritionistPlansPage() {
           doc={assignFor.template.detail.mealBuilder}
           groceryEdits={assignFor.template.detail.mealBuilder.groceryEdits || {}}
           clients={people} queue={peopleQueue} lifecycle={lifecycle} live={isLive}
-          preselectId={assignFor.clientId || (targetClient ? forClient : null)}
+          preselectId={assignFor.clientId || (targetClient ? forClient : null)} emptyNote={emptyNote}
           onClose={closeAssign} />
       )}
     </React.Fragment>

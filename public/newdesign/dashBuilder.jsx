@@ -1669,7 +1669,9 @@ function DbuFutureUpdates({template,clients,onClose}) {
 }
 
 // ── Assign modal — multi-client + start date; marks the programming queue ───
-function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose }) {
+// `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
+// could not be read says so, and only a read, empty roster reads "No clients yet."
+function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, emptyNote }) {
   const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
   React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [startDate, setStartDate] = React.useState(() => {
@@ -1776,7 +1778,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
               </label>
             );
           })}
-          {!clients.length && <div style={{ fontSize: 12, color: DBU_INK50, padding: 8 }}>No clients loaded.</div>}
+          {!clients.length && <div role="status" style={{ fontSize: 12, color: DBU_INK50, padding: 8 }}>{emptyNote || "No clients loaded."}</div>}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button onClick={assign} disabled={!ids.length || state === "working"} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff", padding: "11px 18px", opacity: !ids.length || state === "working" ? 0.6 : 1 }}>
@@ -2232,7 +2234,7 @@ function DbuDeleteDay({ day, wi, onDelete, onCancel }) {
   );
 }
 
-function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved }) {
+function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved, emptyNote }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
@@ -3001,7 +3003,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         )}
       </div>
 
-      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} onClose={() => setAssigning(false)} />}
+      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} emptyNote={emptyNote} onClose={() => setAssigning(false)} />}
     </fieldset>
   );
 }
@@ -3237,6 +3239,8 @@ function TrainerProgramsPage() {
   const preview=roster==='demo';
   // The people the page may name: the coach's roster, or the preview's cast under the band.
   const people=roster==='live'||roster==='demo'?clients:[];
+  // What an empty client list in the assign sheet means: unread is not "no clients".
+  const emptyNote=roster==='unread'?DASH_LIB_ROSTER_UNREAD:roster==='loading'?'Reading your roster…':'No clients yet.';
   const targetPerson=people.find(c=>c.profile.id===forClient)||null;
   const [sort,setSort]=React.useState('newest');
   const usedOf=t=>usage.state==='ready'&&Object.prototype.hasOwnProperty.call(usage.map,t.id)?Number(usage.map[t.id].clients)||0:0;
@@ -3282,7 +3286,7 @@ function TrainerProgramsPage() {
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {targetPerson && <p role="status">Choose a program for {targetPerson.profile.name}{/\.$/.test(targetPerson.profile.name)?'':'.'} The assignment will have this client selected.{pickFor&&<> <button type="button" style={dbuLibBtn(false)} onClick={()=>setPickFor(null)}>Not now</button></>}</p>}
-      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} emptyNote={emptyNote} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
         <div className="dbu-library-actions">
           <button type="button" style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button>
           <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
@@ -3336,7 +3340,7 @@ function TrainerProgramsPage() {
     </DashPage>
     {reviewing&&week.ahead&&<DbuWeekDrawer ahead={week.ahead} onClose={()=>setReviewing(false)} onPick={id=>{setPickFor(id);setReviewing(false);}}/>}
     {updateFor&&<DbuFutureUpdates template={updateFor} clients={people} onClose={()=>setUpdateFor(null)}/>}
-    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={people} queue={queue} live={isLive} preselectId={targetPerson ? forClient : null} onClose={()=>setAssignFor(null)}/>}
+    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={people} queue={queue} live={isLive} preselectId={targetPerson ? forClient : null} emptyNote={emptyNote} onClose={()=>setAssignFor(null)}/>}
   </React.Fragment>;
 }
 
