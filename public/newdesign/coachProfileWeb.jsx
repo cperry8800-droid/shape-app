@@ -1355,6 +1355,12 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
       .cpw-dock-msg{padding:0 14px}
       ${docked ? "#shape-global-chat-button{bottom:calc(84px + env(safe-area-inset-bottom)) !important}" : ""}
     }
+    @media (max-width:374px){
+      .cpw-dock-who{display:none}
+      .cpw-dock-acts{flex:1;min-width:0}
+      .cpw-dock-acts .cpw-cta{padding:0 12px;white-space:normal;text-align:center;line-height:1.15}
+      .cpw-dock-acts .cpw-cta:last-child{flex:1;min-width:0}
+    }
     @media (max-width:640px){
       .cpw-wrap{padding:0 16px}
       .cpw-crumb-more,.cpw-counts{display:none !important}

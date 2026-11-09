@@ -385,3 +385,15 @@ test('the coach\'s accent tints the route, the contours, the summit ring and the
   assert.match($('[data-dock]').innerHTML, /216, 162, 58|#d8a23a/, 'the booking colour stays gold');
   await p.unmount();
 });
+
+test('under 375px the dock drops the avatar and lets the booking action shrink and wrap (Codex P2 on #2652)', () => {
+  // Measured at 320–390px in Chromium: below 375 the 44px avatar ran under Message and "Join the
+  // waiting list" past the dock's padding. jsdom has no layout, so the rule is pinned here.
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  const m = src.match(/@media \(max-width:374px\)\{([^}]*\}[^}]*\}[^}]*\}[^}]*\})/);
+  assert.ok(m, 'a 374px rule for the dock');
+  assert.match(m[1], /\.cpw-dock-who\{display:none\}/);
+  assert.match(m[1], /\.cpw-dock-acts\{flex:1;min-width:0\}/);
+  assert.match(m[1], /\.cpw-dock-acts \.cpw-cta\{[^}]*white-space:normal/);
+  assert.match(m[1], /\.cpw-dock-acts \.cpw-cta:last-child\{flex:1;min-width:0\}/);
+});
