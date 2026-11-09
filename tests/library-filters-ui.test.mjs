@@ -19,6 +19,7 @@ Object.assign(globalThis, await loadRealModule(fileURLToPath(new URL('../public/
 const { createRoot } = require('react-dom/client'); globalThis.ReactDOM = require('react-dom');
 globalThis.DashBuilder = require('../public/newdesign/dashBuilderCore.js');
 globalThis.DashMeals = require('../public/newdesign/dashMealCore.js');
+globalThis.DashMealWeek = require('../public/newdesign/dashMealWeek.js');
 globalThis.ShapeWorkoutDocument = require('../public/newdesign/workoutDocument.js');
 globalThis.DashPill = ({ children }) => React.createElement('span', null, children);
 globalThis.DashMealLedgerCard = () => null;

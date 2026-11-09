@@ -340,27 +340,11 @@ test('the week\'s reads are used only in the week they were read for (Codex P2s 
   assert.match(src, /answered: \(iso\) => bsCiAnswered\(bsCiDay\(weekSeries, iso\)\)/);
 });
 
-test("the ticker: signed out the preview; signed in only the member's own figures, never a sample beside a real one (#2583)", () => {
-  const all = [{ label: 'PTS', value: '1,240', live: true }, { label: 'CAL', value: '1568/2100', live: false }, { label: 'HAB', value: '2/3', live: true }, { label: 'SLP', value: '7H24M', live: false }];
-  const out = [all[2], all[0], all[1], all[3]];
-  // Signed out: the preview, in the member's order; everything hidden still reads as the preview.
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: false }), out);
-  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: false }), all);
-  // Signed in: only the live ones, in their order: a habit and the score, never the sample calories or sleep.
-  assert.deepEqual(H.bsHomeTickerShown(out, all, { signedIn: true }).map((i) => i.label), ['HAB', 'PTS']);
-  // A new account whose score is all there is: the score alone (Codex P2 on #2583).
-  assert.deepEqual(H.bsHomeTickerShown([all[0], all[1]], all, { signedIn: true }).map((i) => i.label), ['PTS']);
-  // Nothing live, or everything hidden: no ticker, never the hidden ones back.
-  assert.deepEqual(H.bsHomeTickerShown([all[1], all[3]], all, { signedIn: true }), []);
-  assert.deepEqual(H.bsHomeTickerShown([], all, { signedIn: true }), []);
-  // Home's ticker marks each entry live from its own read, and the score in the reader's number format.
+// The ticker under Home's masthead gave way to the score quote (owner, 2026-11-09; BSHomeScoreQuote.jsx,
+// tests/home-score-quote.test.mjs). Its rule stays: signed in, only the member's own figure.
+test("the ticker is gone from Home and Settings: no strip, no filter, no editor", () => {
   const client = readFileSync(join(ROOT, 'mobile-app', 'src', 'broadsheet', 'iosAppBroadsheetClient.jsx'), 'utf8');
-  assert.match(client, /return bsHomeTickerShown\(out, all, \{ signedIn: bsHomeSignedIn \}\);/);
-  assert.match(client, /\{ label: 'PTS', live: true, value: homeScore\.total\.toLocaleString\(bsCkLocale\(\)\)/);
-  for (const [k, live] of [['CAL', "tk.cal != null"], ['PRO', "tk.protein_g != null"], ['HAB', '!!tkHab'], ['SLP', 'tk.sleep_hours != null'], ['HRV', 'tk.hrv_ms != null'], ['RHR', 'tk.resting_hr != null'], ['WGT', 'tk.weight_lb != null']]) {
-    assert.ok(client.includes(`{ label: '${k}', live: ${live},`), `${k} says when it is the member's own`);
-  }
-  assert.doesNotMatch(client, /toLocaleString\('en-US'\)/, 'the score in English digits everywhere');
-  // The score is one of Settings' ticker entries, so it can be moved or hidden like the rest.
-  assert.match(client, /const BS_TICKER_METRICS = \[[\s\S]{0,200}\{ key: 'PTS', name: 'Shape Score' \},/);
+  assert.equal(H.bsHomeTickerShown, undefined, 'the ticker filter is back');
+  assert.doesNotMatch(client, /<BSTicker\b|BS_TICKER_METRICS|'client_ticker'|settings:ticker\./);
+  assert.match(client, /<BSHomeScoreQuote score=\{homeScore\} tiers=\{SHAPE_SCORE_TIERS\} signedIn=\{bsHomeSignedIn\} onOpen=\{\(\) => goScore && goScore\(\)\} locale=\{bsCkLocale\(\)\} \/>/);
 });

@@ -102,8 +102,9 @@ test('Home places the note right under its masthead', () => {
   const home = CLIENT.slice(CLIENT.indexOf('function BSClientHome('));
   const mast = home.indexOf('<BSMasthead');
   const hint = home.indexOf('<BSNoraHint t={t} />');
-  const dateline = home.indexOf('{/* DATELINE');
-  assert.ok(mast > 0 && hint > mast && hint < dateline, 'between the masthead and the dateline');
+  // The score quote took the ticker's place under the masthead (owner, 2026-11-09).
+  const quote = home.indexOf('<BSHomeScoreQuote ');
+  assert.ok(mast > 0 && hint > mast && hint < quote, 'between the masthead and the score quote');
   assert.match(CLIENT, /^import \{ BSNoraHint, bsNoraHintDone \} from '\.\/BSNoraHint\.jsx';$/m);
 });
 

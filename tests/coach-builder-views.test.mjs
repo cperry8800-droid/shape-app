@@ -50,6 +50,15 @@ const {DbuBuilder,DbuRow,dbuWithWeekdays,dbuDefaultWeekdays,dbuDateMap,dbuNextFr
 const buttons=()=>[...document.querySelectorAll('button')];
 const byText=t=>buttons().find(b=>b.textContent===t);
 const text=()=>document.body.textContent;
+// ⚠ STEP 6c: A PROGRAM OPENS ON ITS PLAN — weeks across, training days down — and a session is
+// peeked there and opened in the builder in the plan's place. The plan's grid holds one corner,
+// a heading per week, then per weekday row a label and one cell per week; a week's column is read
+// off that, and its strip of seven letters is in its heading.
+const planCells=(wi)=>{const g=document.querySelector('.dpl');const W=g.querySelectorAll('.wkh').length;const kids=[...g.children];const out=[];for(let i=1+W;i<kids.length;i+=W+1)out.push(kids[i+1+wi]);return out;};
+const strip=(wi)=>[...[...document.querySelectorAll('.dpl .wkh')][wi].querySelectorAll('.wst button')];
+const letter=(wk,wd)=>buttons().find(b=>(b.getAttribute('aria-label')||'').startsWith(wd+', week '+wk+':'));
+async function openDay(wk,wd){await React.act(async()=>letter(wk,wd).click());await React.act(async()=>byText('Open in builder').click());}
+const viewButtons=()=>[...document.querySelectorAll('.seg[aria-label="Builder view"] button')];
 
 // A two-session week, the shape F3 is about, with NO weekday on either day.
 function legacyDoc(){
@@ -75,8 +84,7 @@ async function mount(t,extra={}){
   const root=createRoot(document.getElementById('root'));
   OPEN.push(root);
   await React.act(async()=>root.render(React.createElement(DbuBuilder,{template:t,clients:[],queue:[],live:false,ownerId:'coach-a',playlists:[],clips:[],dayTemplates:[{name:'Saved push day',day:DashBuilder.newDay('Push')}],onBack(){},onSaved(){},...extra})));
-  // ⚠ ONE WAY TO BUILD SINCE STEP 3: the builder opens on the Grid with week 1's first day
-  // open in the day editor docked under it, so there is no layout or panel to choose first.
+  // ⚠ SINCE STEP 6c A PROGRAM OPENS ON ITS PLAN, with no day open.
   return root;
 }
 
@@ -142,12 +150,16 @@ test('the summary is derived from the document, never typed',()=>{
 
 test('both views render, the switch flips between them, and each is the same document',async()=>{
   const root=await mount(template());
-  const grid=byText('▦Grid'),sheet=byText('▤Sheet');
+  const grid=byText('▦Plan'),sheet=byText('▤Sheet');
   assert.ok(grid&&sheet,'the builder offers both canvases');
-  assert.equal(grid.getAttribute('aria-pressed'),'true','Grid opens first');
+  assert.equal(grid.getAttribute('aria-pressed'),'true','the Plan opens first');
   assert.equal(sheet.getAttribute('aria-pressed'),'false');
-  assert.match(text(),/Squat day/,'the grid draws the session');
-  assert.match(text(),/Rest/,'an empty weekday reads Rest rather than nothing');
+  assert.match(text(),/Squat day/,'the plan draws the session');
+  // ⚠ STEP 6c: "A calendar where most cells say Rest" is retired. Two weeks are two cards, each
+  // with a strip of seven letters, and no cell says Rest.
+  assert.equal(document.querySelectorAll('.dpl .wkh').length,2,'a week is not one card');
+  assert.equal(strip(0).length,7,'a week has no strip of seven letters');
+  assert.equal(/Rest · ＋ Add session/.test(text()),false,'the plan drew Rest cells');
   await React.act(async()=>sheet.click());
   assert.equal(byText('▤Sheet').getAttribute('aria-pressed'),'true','the switch flips');
   assert.match(text(),/Week 1/,'the sheet runs weeks across');
@@ -164,81 +176,60 @@ test('a date is on screen in both views, and the header says whose start it is n
   // ⚠ Read the date ELEMENTS, not the page text: textContent concatenates adjacent nodes
   // ("Week 1" + "28 Sep" reads as "128 Sep"), so a \b-anchored sweep reports a correctly
   // dated grid as undated — an instrument failure that looks exactly like the defect.
-  const gridDates=[...document.querySelectorAll('.wg .c .d')].map(n=>n.textContent);
-  assert.ok(gridDates.length>=2,'the grid drew no session cells at all');
-  assert.ok(gridDates.every(d=>MON.test(d)),'every session cell carries its date: '+JSON.stringify(gridDates));
+  const gridDates=[...document.querySelectorAll('.dpl .ses:not(.empty) .d')].map(n=>n.textContent);
+  assert.ok(gridDates.length>=2,'the plan drew no session cards at all');
+  assert.ok(gridDates.every(d=>MON.test(d)),'every session card carries its date: '+JSON.stringify(gridDates));
   assert.match(text(),/each client's own start is chosen at assign/i,'the reference start is never presented as the client start');
   assert.ok(document.querySelector('input[type="date"]'),'the reference Monday is a control, not a constant');
-  await React.act(async()=>byText('▦Grid▤Sheet')?.click?.()||[...document.querySelectorAll('.seg button')].find(b=>/Sheet/.test(b.textContent)).click());
+  await React.act(async()=>viewButtons().find(b=>/Sheet/.test(b.textContent)).click());
   const heads=[...document.querySelectorAll('.sh thead th small')].map(n=>n.textContent);
   assert.ok(heads.length>=2,'the sheet drew no week columns');
   assert.ok(heads.every(h=>/(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2} /.test(h)),'every week column carries its date: '+JSON.stringify(heads));
   await React.act(async()=>root.unmount());
 });
 
-// ⚠ F1 (P0). The preview used to wrap into the 210px tree column, 1,413px below the fold,
-// where position:sticky could not lift it because the cell it stuck inside WAS that row. A
-// coach ticked the box, saw nothing change, and concluded the control did nothing.
-// ⚠ THE CANVAS IS FULL WIDTH: measured rather than preferred, because as columns the panels
-// left the grid 640px, at which "Rest · ＋ Add session" wraps to three lines and the sheet's
-// week columns clip. So nothing can wrap into a row that does not exist.
-// ⚠ AND SINCE STEP 3 (owner, 2026-10-07) ONLY THE PREVIEW FLOATS. The day editor floated in
-// three positions (beside the canvas, Planner's side panel, popped out and dragged); it is
-// docked under the canvas now, in the flow, at the builder's full width, which is where
-// step 2's detail sits beside the list.
-test('the canvas is full width, the day editor docks under it, and only the preview floats', async () => {
+// ⚠ F1 (P0). The preview used to wrap into the 210px tree column, 1,413px below the fold.
+// ⚠ STEP 6c: CLIENT VIEW IS A TAB ON THE SHEET ("Client view is a tab on the sheet"), so nothing
+// floats any more, and a program's open day takes the plan's place instead of docking below the
+// fold ("the day editor docks below the fold").
+test('a day opens in the plan\'s place, nothing floats, and Client view is a tab', async () => {
   const src = await import('node:fs').then(fs => fs.readFileSync(SRC, 'utf8'));
   assert.ok(!/\.dbu-c3\{|\.dbu-layout\{/.test(src),
     'the old multi-column layout must not come back — a child of it wrapped below the fold');
-  // Comments are stripped first — this file's own prose names the retired rules.
-  // ⚠ THE INTERPOLATIONS ARE BLANKED BEFORE A RULE IS CUT OUT. The stylesheet is a template
-  // literal, so `${DBU_PANEL_W}` puts a `}` INSIDE a rule — and a `[^}]*` body match stops
-  // dead at it, reading only the front of the declaration.
   const code = stripComments(src).replace(/\$\{[^}]*\}/g, 'X');
   assert.ok(!/\.drawer\.float|is-popped|is-sidepanel|Pop out editor|Dock editor/.test(code),
     'a retired day-editor position is back');
   const drawerRules = [...code.matchAll(/\.dbu2 \.drawer\{([^}]*)\}/g)].map((m) => m[1]);
   assert.ok(drawerRules.length >= 1, 'the .dbu2 .drawer rule is gone — this guard is reading nothing');
   assert.ok(drawerRules.every((r) => !/position:(fixed|absolute|sticky)/.test(r)), 'the day editor left the flow');
-  // ⚠ THE PREVIEW STILL FLOATS, AND ITS HEIGHT IS DERIVED FROM WHERE IT ACTUALLY SITS. A
-  // fixed box budgeted as `100vh - <constant>` fits only while it happens to start at that
-  // constant, so once moved it is sized from its own top in JS (`useDbuDrag`).
-  const budget = /maxHeight: Math\.max\([^\n]*window\.innerHeight - ([A-Za-z.]*\by)\b/.exec(code);
-  assert.ok(budget, 'a floating panel must size itself from its own top, so the budget is correct by construction');
-  assert.ok(!/maxHeight: Math\.max\([^\n]*window\.innerHeight - \d/.test(code),
-    'the budget must not be a constant offset from the viewport — that fits only while the panel starts at that constant');
-  assert.match(src, /\.dbu2 \.pop\{position:fixed/, 'the client preview floats');
+  assert.ok(!/\.dbu2 \.pop\{|Preview as client|useDbuDrag/.test(code), 'the floating client preview is back beside the tab that replaced it');
 
   const root = await mount(template());
+  assert.ok(!document.querySelector('.drawer'), 'a program opened on a day rather than its plan');
+  assert.ok(document.querySelector('.stage .dpl'), 'the plan is on the stage');
+  await openDay(1, 'Monday');
   const drawer = document.querySelector('.drawer');
-  assert.ok(drawer, 'a day is open, so the day editor is on the page');
-  const stage = document.querySelector('.stage');
-  assert.ok(stage && stage.contains(document.querySelector('.wg')), 'and the grid is rendered on the stage');
-  assert.ok(!!(stage.compareDocumentPosition(drawer) & window.Node.DOCUMENT_POSITION_FOLLOWING) && !stage.contains(drawer),
-    'the day editor follows the canvas in the flow, rather than sitting inside or over it');
+  assert.ok(drawer, 'Open in builder did not open the day');
+  assert.ok(!document.querySelector('.stage'), 'the plan stayed on the page under the open day');
   assert.ok(!drawer.getAttribute('style'), 'nothing positions the day editor inline');
+  assert.ok(document.activeElement === drawer, 'the keyboard was not moved into the open day');
 
-  // Sheet is read left to right across weeks; switching to it closes the day editor, which
-  // a coach reopens from a band.
-  await React.act(async () => [...document.querySelectorAll('.seg button')].find(b => /Sheet/.test(b.textContent)).click());
-  // ⚠ NEVER HAND A LIVE DOM NODE TO A VALUE-COMPARING ASSERTION — tests/assert-dom-value.test.mjs.
-  assert.ok(!document.querySelector('.drawer'), 'switching to Sheet closes the day editor');
+  // Client view is a tab: the EXACT card the client gets, in the day's place, and Build again.
+  const tab = (t) => [...document.querySelectorAll('[role="tab"]')].find((b) => b.textContent === t);
+  assert.equal(tab('Build').getAttribute('aria-selected'), 'true');
+  await React.act(async () => tab('Client view').click());
+  assert.ok(!!document.querySelector('[data-testid="client-card"]'), 'the Client view tab draws no client card');
+  assert.equal(document.querySelector('.dday').closest('[hidden]') != null, true, 'the build tab is still showing under the client view');
+  await React.act(async () => tab('Build').click());
+  assert.equal(!!document.querySelector('[data-testid="client-card"]'), false);
+
+  // Sheet is read left to right across weeks; a band opens the day too.
+  await React.act(async () => byText('Done').click());
+  await React.act(async () => viewButtons().find(b => /Sheet/.test(b.textContent)).click());
+  assert.ok(!document.querySelector('.drawer'), 'switching to Sheet left a day open');
   assert.ok(document.querySelector('.sh'), 'the sheet renders');
-
-  await React.act(async () => byText('Preview as client').click());
-  const pop = document.querySelector('[role="dialog"][aria-label="Client preview"]');
-  assert.ok(pop, 'the preview is reachable and on screen in Sheet');
-  assert.ok(document.querySelector('.sh'), 'without displacing the sheet');
-  // No day is picked (switching view closed the panel), so the preview says so rather than
-  // drawing somebody else's session — the honest empty this file's own rules require.
-  assert.match(pop.textContent, /Pick a session/, 'with nothing picked it says so');
-  assert.ok(!document.querySelector('[data-testid="client-card"]'),
-    'and draws no client card while nothing is picked');
   await React.act(async () => [...document.querySelectorAll('.sh tr.band .bn button')][0].click());
-  const pop2 = document.querySelector('[role="dialog"][aria-label="Client preview"]');
-  assert.ok(pop2.contains(document.querySelector('[data-testid="client-card"]')),
-    'and once a session is picked it carries that client card');
-  assert.ok(document.querySelector('.drawer'), 'and the band opened the day editor under the sheet');
+  assert.ok(document.querySelector('.drawer'), 'a band did not open the day');
   assert.ok(document.activeElement === document.querySelector('.drawer'), 'with the keyboard moved into it, which brings it on screen');
   await React.act(async () => root.unmount());
 });
@@ -257,21 +248,26 @@ const shown=el=>!!el&&!el.hidden&&!el.hasAttribute('hidden')&&(el.style||{}).dis
 // are new on the day.
 test('no week or day tool was lost with the retired tree',async()=>{
   const root=await mount(template());
-  for (const label of ['Copy','Deload','Duplicate day','Copy to weeks','Delete day','Done']) {
-    assert.ok(shown(byText(label)),'the builder still offers "'+label+'", and on screen');
-  }
+  for (const label of ['Copy','Deload']) assert.ok(shown(byText(label)),'the plan still offers "'+label+'", and on screen');
   assert.ok(!byText('Progress'),'the retired Progress tool is back beside the bar that replaced it');
   assert.ok(shown(document.querySelector('.dprog[aria-label="Progression"]')),'the progression bar is on screen');
   assert.ok(byText('＋ Week'),'and adding a week');
-  assert.ok([...document.querySelectorAll('select')].some(s=>s.getAttribute('aria-label')==='Add a saved day to week 1'),
-    'reuse-a-saved-day survives; it is the one tree control with no home in either canvas');
+  // ⚠ STEP 6c: reuse-a-saved-day is the tray of sessions to drag in ("replace 'Add a saved day…'").
+  const saved=buttons().find(b=>b.getAttribute('aria-label')==='Add Saved push day to week 1');
+  assert.ok(shown(saved),'reuse-a-saved-day is gone with the dropdown the tray replaced');
+  await openDay(1,'Monday');
+  for (const label of ['Duplicate day','Copy to weeks','Delete day','Done']) {
+    assert.ok(shown(byText(label)),'the open day still offers "'+label+'", and on screen');
+  }
   await React.act(async()=>root.unmount());
 });
 
 test('duplicating a day gives the copy its own free weekday rather than a collision',async()=>{
   const root=await mount(template());
+  await openDay(1,'Monday');
   await React.act(async()=>byText('Duplicate day').click());
-  assert.match(text(),/Squat day \(copy\)/,'the copy is there');
+  assert.equal(document.querySelector('#dbu-day-name').value,'Squat day (copy)','the copy is there, and open');
+  await React.act(async()=>byText('Done').click());
   await React.act(async()=>byText('▤Sheet').click());
   const bands=text().match(/Squat day/g)||[];
   assert.ok(bands.length>=2,'and it is a band of its own, not merged into the original');
@@ -286,12 +282,12 @@ test('the view switch is remembered per coach, against the switch\'s own options
   const root=await mount(template(),{live:true});
   const ask=REMEMBER.asks.find(a=>a.key==='builderView');
   assert.ok(ask,'the builder asks the dashboard store which view this coach last had open');
-  assert.equal(ask.fallback,'grid','and opens to the calendar when nobody has chosen yet');
+  assert.equal(ask.fallback,'plan','and opens to the plan when nobody has chosen yet');
   assert.ok(REMEMBER.opens.includes(true),'the store is opened live for a signed-in coach');
   // ⚠ DERIVED FROM THE RENDERED SWITCH, not from a list typed here. `useRememberedChoice`
   // silently IGNORES a stored value outside its allow-list, so a view the switch offers and
   // the allow-list omits reads on screen as "it forgot what I picked" with nothing failing.
-  const offered=[...document.querySelectorAll('.seg button')].map(b=>b.textContent.replace(/[^A-Za-z]/g,'').toLowerCase());
+  const offered=viewButtons().map(b=>b.textContent.replace(/[^A-Za-z]/g,'').toLowerCase());
   assert.ok(offered.length>=2,'the switch rendered no options — this check would be vacuous');
   assert.deepEqual(ask.allowed,offered,'every view the switch offers must be a value the store will keep');
   await React.act(async()=>root.unmount());
@@ -305,43 +301,37 @@ test('the signed-out preview opens no per-account document',async()=>{
   await React.act(async()=>root.unmount());
 });
 
-// ── Drag and drop on the grid ────────────────────────────────────────────────
-// ⚠ DRIVEN THROUGH THE MOUNTED GRID, never matched in the source. Both defects below are
+// ── Drag and drop on the plan ────────────────────────────────────────────────
+// ⚠ DRIVEN THROUGH THE MOUNTED PLAN, never matched in the source. Both defects below are
 // about what the document ends up holding after a drop, and a handler can be spelled any
 // number of correct ways — what must not change is the result on screen.
-const cells = () => [...document.querySelectorAll('button.c')];
-const weekCells = (wi) => cells().slice(wi * 7, wi * 7 + 7);
-const populated = (wi) => weekCells(wi).filter((c) => !c.className.includes('rest'));
+const populated = (wi) => planCells(wi).filter((c) => !c.classList.contains('empty'));
+const trains = (wi) => strip(wi).map((b) => b.classList.contains('on'));
 const fire = async (el, type) => {
   await React.act(async () => { el.dispatchEvent(new window.Event(type, { bubbles: true })); });
 };
 const dragOnto = async (from, to) => { await fire(from, 'dragstart'); await fire(to, 'drop'); };
 
-test('a session dragged onto an empty cell in ANOTHER week does not move within its own', async () => {
+test('a session dragged onto a free day in ANOTHER week does not move within its own', async () => {
   // ⚠ THE REST CELL WAS MISSING THE `f.wi === wi` GUARD ITS POPULATED SIBLING CARRIES, and
   // that was not a harmless no-op: `moveTo` only ever edits the DRAG SOURCE's week, so the
   // drop target the coach aimed at was ignored and the session silently changed WEEKDAY back
-  // in week 1. Moving a day between weeks is a feature and is deliberately not what this
-  // asserts — the fix is that the two cell types behave the same. (CodeRabbit, #2143.)
+  // in week 1. (CodeRabbit, #2143.) On the plan a free day is a rest letter in a week's strip.
   await mount(template(dbuWithWeekdays(legacyDoc())));           // two weeks, Mon + Thu
-  const before = weekCells(0).map((c) => c.className.includes('rest'));
-  assert.deepEqual(before.filter((r) => !r).length, 2, 'setup: week 1 does not have two sessions');
-  const tueOfWeek2 = weekCells(1).find((c) => (c.getAttribute('aria-label') || '').startsWith('Add a session on Tue'));
-  assert.ok(tueOfWeek2, 'setup: week 2 has no empty Tuesday to drop onto');
+  const before = trains(0);
+  assert.deepEqual(before.filter(Boolean).length, 2, 'setup: week 1 does not have two sessions');
+  const tueOfWeek2 = strip(1).find((c) => (c.getAttribute('aria-label') || '').startsWith('Add a session on Tuesday'));
+  assert.ok(tueOfWeek2, 'setup: week 2 has no free Tuesday to drop onto');
 
   await dragOnto(populated(0)[0], tueOfWeek2);
 
-  assert.deepEqual(weekCells(0).map((c) => c.className.includes('rest')), before,
-    "a cross-week drop reassigned the session's weekday inside its own week");
+  assert.deepEqual(trains(0), before, "a cross-week drop reassigned the session's weekday inside its own week");
   assert.equal(populated(1).length, 2, 'the drop target week gained or lost a session');
 });
 
 test('a session dropped onto an occupied day SWAPS with it — no session can vanish', async () => {
-  // ⚠ THE GRID FINDS A DAY BY WEEKDAY, so two days sharing one means the second cannot be
-  // rendered, selected or edited while the document still holds it. Dropping onto a populated
-  // cell means that weekday is by definition taken, so before the swap this was the ORDINARY
-  // case, not an edge one — and it passes the `f.wi === wi` guard, so that guard never
-  // protected it. Found by reading the diff after CodeRabbit's rest-cell finding.
+  // ⚠ THE PLAN FINDS A DAY BY WEEKDAY, so two days sharing one means the second cannot be
+  // rendered, selected or edited while the document still holds it.
   await mount(template(dbuWithWeekdays(legacyDoc())));
   assert.equal(populated(0).length, 2, 'setup: week 1 does not have two sessions');
   const names = () => populated(0).map((c) => (c.querySelector('b') || {}).textContent);
@@ -349,16 +339,17 @@ test('a session dropped onto an occupied day SWAPS with it — no session can va
 
   await dragOnto(populated(0)[0], populated(0)[1]);              // Mon onto the occupied Thu
 
-  assert.equal(populated(0).length, 2, 'a session disappeared from the grid — two days share a weekday');
+  assert.equal(populated(0).length, 2, 'a session disappeared from the plan — two days share a weekday');
   assert.deepEqual(names(), ['Pull day', 'Squat day'], 'the drop did not swap the two days');
 });
 
-test('the source is one handler, so the two cell types cannot drift apart again', async () => {
-  // The tests above prove the BEHAVIOUR; this proves there is only one behaviour to prove.
+test('every drop target is one handler, so they cannot drift apart again', async () => {
+  // The tests above prove the BEHAVIOUR; this proves there is only one behaviour to prove: a
+  // session, a free slot and a strip letter (training or rest) each hand the drop to `drop`.
   const src = await import('node:fs').then((fs) => fs.readFileSync(SRC, 'utf8'));
   const drops = [...src.matchAll(/onDrop=\{([^\n]*)\}\n/g)].map((m) => m[1].trim());
-  assert.equal(drops.length, 2, 'the grid no longer has exactly two drop handlers — re-read this check');
-  assert.equal(drops[0], drops[1], 'the rest cell and the populated cell handle a drop differently');
+  assert.equal(drops.length, 4, 'the plan no longer has exactly four drop targets — re-read this check');
+  assert.equal(new Set(drops).size, 1, 'two drop targets handle a drop differently: ' + JSON.stringify(drops));
 });
 
 test('the reference start snaps to the Monday of whatever week is picked', () => {
@@ -487,20 +478,21 @@ test('the Training-day select swaps too — the ordinary control cannot hide a s
   const names = () => populated(0).map((c) => (c.querySelector('b') || {}).textContent);
   assert.deepEqual(names(), ['Squat day', 'Pull day'], 'setup: the sessions are not where expected');
 
-  await React.act(async () => { populated(0)[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  await openDay(1, 'Monday');
   const sel = daySelect();
-  assert.ok(sel, 'clicking a session did not open the day editor');
+  assert.ok(sel, 'opening a session did not open the day editor');
   assert.equal(sel.value, '0', 'setup: the open day is not the Monday one');
 
   await pick(sel, '3');                                          // Thursday, held by Pull day
+  await React.act(async () => byText('Done').click());
 
-  assert.equal(populated(0).length, 2, 'a session vanished from the grid — two days share a weekday');
+  assert.equal(populated(0).length, 2, 'a session vanished from the plan — two days share a weekday');
   assert.deepEqual(names(), ['Pull day', 'Squat day'], 'the select overwrote instead of swapping');
 });
 
 test('the select names the day it would swap with, so the outcome is legible first', async () => {
   await mount(template(dbuWithWeekdays(legacyDoc())));
-  await React.act(async () => { populated(0)[0].dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  await openDay(1, 'Monday');
   const opts = [...daySelect().options].map((o) => o.textContent);
   assert.ok(opts.some((o) => /^Thursday \u00b7 swaps with Pull day$/.test(o)),
     'a weekday another day holds is offered with no hint that picking it exchanges them: ' + JSON.stringify(opts));
@@ -560,9 +552,8 @@ test('every site that sets a day weekday is one of nine, each safe for a stated 
   assert.ok(sites.some((x) => /:: next\.weekday =/.test(x)), 'the walk no longer sees the assignment form');
 
   assert.deepEqual(sites.sort(), [
-    // Duplicate a day / reuse a saved day — both take the next FREE weekday in the target week.
+    // Duplicate a day takes the next FREE weekday in its week.
     'DbuBuilder :: next.weekday = dbuNextFreeWeekday(doc.weeks[sel.w])',
-    'DbuBuilder :: next.weekday = dbuNextFreeWeekday(doc.weeks[target])',
     // ＋ Week: a fresh week whose only day can collide with nothing.
     'DbuBuilder :: weekday: 0',
     // addAt is reached from a REST cell, so that weekday is free by construction.
@@ -578,6 +569,9 @@ test('every site that sets a day weekday is one of nine, each safe for a stated 
     'dbuCopyDayToWeeks :: copy.weekday = dbuNextFreeWeekday(w)',
     // Load-time fill, and only for days that have no weekday, from the unused set.
     'dbuWithWeekdays :: weekday: wd',
+    // A session from the tray (step 6c, it replaced reuse-a-saved-day) lands only on a weekday
+    // the week does not hold: a taken one is refused, with the reason, before this line.
+    'placeSession :: copy.weekday = weekday',
   ], 'a new site sets a day weekday — route it through dbuAssignWeekday, or add it here with why it cannot collide');
 });
 
@@ -621,7 +615,7 @@ test('a stored week holding two days on one weekday is repaired when the builder
   assert.equal(wds[2], 2, 'a day that was not in conflict was moved');
 
   await mount(template(fixed));
-  assert.equal(populated(0).length, 3, 'a session is still hidden from the grid after the repair');
+  assert.equal(populated(0).length, 3, 'a session is still hidden from the plan after the repair');
 });
 
 test('a sound document is returned unchanged, so opening a program cannot mark it dirty', () => {

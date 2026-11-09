@@ -31,8 +31,9 @@ test('every isComposing guard on the website also reads Safari\'s keyCode 229', 
 test('the builder\'s guards ask its one rule', () => {
   const src = readFileSync(new URL('dashBuilder.jsx', DIR), 'utf8');
   assert.match(src, /const dbuImeComposing = \(e\) => !!\(e && \(e\.isComposing \|\| e\.keyCode === 229\)\);/);
-  // The exercise picker's search and DbuDialog's own keydown (the Escape that closes it).
-  assert.match(src, /if \(dbuImeComposing\(e\.nativeEvent\)\) return;\n\s+if \(e\.key === "Escape"\) onClose\(\);/);
+  // The exercise library's search (step 6c: it replaced the picker pop-up) and DbuDialog's own
+  // keydown (the Escape that closes it).
+  assert.match(src, /if \(dbuImeComposing\(e\.nativeEvent\)\) return;\n\s+if \(e\.key === "Enter" && canCreate\) \{ e\.preventDefault\(\); create\(\); \}/);
   assert.match(src, /const key=e=>\{if\(dbuImeComposing\(e\)\)return;if\(e\.key==='Escape'/);
   assert.equal((src.match(/\.isComposing\b/g) || []).length, 1, 'only the rule itself reads isComposing');
 });

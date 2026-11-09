@@ -444,7 +444,9 @@ test('every builder box drawn with dbuField takes the floor\'s class', () => {
     }
   };
   walk(ast.program);
-  assert.ok(found.length >= 7, 'the walk found ' + found.length + ' boxes');
+  // Five since step 6c: the picker pop-up's search and the "Add a saved day…" select went with
+  // the pop-up and the dropdown the library panel and the session tray replaced.
+  assert.ok(found.length >= 5, 'the walk found ' + found.length + ' boxes');
   const bare = found.filter((f) => !/"(?:dbu-field|dash-tag-new)"/.test(f.cls));
   assert.deepEqual(bare.map((f) => f.tag), [], 'boxes under 16px with no floor class');
 });

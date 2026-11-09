@@ -36,6 +36,7 @@ const DashSignals = require_('../public/newdesign/dashSignals.js');
 const ShapeWorkoutDocument = require_('../public/newdesign/workoutDocument.js');
 const DashBuilder = require_('../public/newdesign/dashBuilderCore.js');
 const DashMeals = require_('../public/newdesign/dashMealCore.js');
+const DashMealWeek = require_('../public/newdesign/dashMealWeek.js');
 const ShapeZone = await import('../public/newdesign/shapeZone.mjs');
 const ShapeClientColors = await import('../public/newdesign/clientColors.mjs');
 Object.assign(window, { ShapeZone, ShapeClientColors });
@@ -45,7 +46,7 @@ Object.assign(window, { ShapeZone, ShapeClientColors });
 const Pass = ({ children }) => React.createElement('main', null, children);
 let messaged = [];
 Object.assign(globalThis, {
-  React, ReactDOM, DashSignals, ShapeWorkoutDocument, DashBuilder, DashMeals,
+  React, ReactDOM, DashSignals, ShapeWorkoutDocument, DashBuilder, DashMeals, DashMealWeek,
   ShapeVideoAttachment: () => null, ShapeVideoLink: () => null, ShapeVideoPlayer: () => null, ssAlpha: (c) => c,
   serif: 'serif', sans: 'sans-serif', mono: 'monospace', INK: '#f2ede4', PAPER: '#1a1612', TEAL: '#0ac5a8', TEAL_BRIGHT: '#2ee0c4',
   useDashUnits: () => null, useDashFocusRefresh: () => {}, useDashPaper: () => {},
@@ -902,11 +903,15 @@ test('Meal plans: a signed-in nutritionist whose roster could not be read is sti
   await click(button('Cancel'));
   await openMenu(mealCard('Bulk Base'));
   await click(menuItem('Edit'));
-  await click(button('Save template'));
+  // ⚠ NO SAVE TEMPLATE BUTTON SINCE STEP 6c ("the plan saves and stamps a version"): an edit saves,
+  // and it saves to the library, never the device.
+  await typeInto(document.querySelector('[aria-label="Daily kcal target"]'), '2650');
+  await click(button('← Library'));
   await settle();
-  assert.match(text(), /Template saved to your library\./);
-  assert.doesNotMatch(text(), /Sign in to save to your library/);
-  assert.doesNotMatch(text(), /draft saved on this device/, 'the builder is the library\'s, not the device\'s');
+  const wrote = calls.filter(([u, m]) => u === '/api/coach/plans' && m === 'PATCH');
+  assert.equal(wrote.length, 1, 'the edit was saved to the library');
+  assert.equal(wrote[0][2].detail.mealBuilder.targets.kcal, 2650);
+  assert.equal(localStorage.getItem('shape.dashMealDrafts'), null, 'the builder is the library\'s, not the device\'s');
   // And a read, empty roster: "No clients yet."
   dashboard('live', [], 'nutritionist'); stubFetch({ meals: MEALS });
   await mount(React.createElement(NutritionistPlansPage));

@@ -81,7 +81,7 @@ const names = () => lines().map((l) => l.querySelector('.nm').textContent);
 const line = (name) => lines().find((l) => l.querySelector('.nm').textContent === name);
 const detailName = () => { const h = document.querySelector('aside.ddetail h3'); return h ? h.textContent : ''; };
 const said = () => document.querySelector('.dday [role="status"]').textContent;
-const savedDay = async (writes) => { await click(button('Save template')); return writes.at(-1).detail.builder.weeks[0].days[0]; };
+const savedDay = async (writes) => { await click(button('Save now')); return writes.at(-1).detail.builder.weeks[0].days[0]; };
 const shape = (day) => day.blocks.map((b) => b.kind + ':' + b.rows.map((r) => r.id).join(','));
 const activeLabel = () => (document.activeElement && document.activeElement.getAttribute('aria-label')) || '';
 

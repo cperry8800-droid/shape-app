@@ -19,11 +19,13 @@ test('the flag masthead draws no rule under it', () => {
   assert.doesNotMatch(tag, /border(Bottom)?:/, 'the masthead closes on a rule again');
 });
 
-test('every Home that carries the ticker uses that masthead', () => {
+// The ticker under it gave way to the score quote (owner, 2026-11-09), which follows the same masthead.
+test('every Home that carries the score quote uses that masthead', () => {
   for (const f of ['mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx', 'mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx']) {
     const src = read(f);
     const mast = src.indexOf('layout="flag"');
-    const ticker = src.indexOf('<BSTicker');
-    assert.ok(mast > 0 && ticker > mast, `${f}: the ticker no longer follows the flag masthead`);
+    const quote = src.indexOf('<BSHomeScoreQuote ');
+    assert.ok(mast > 0 && quote > mast, `${f}: the score quote no longer follows the flag masthead`);
+    assert.ok(!src.includes('<BSTicker'), `${f}: the ticker is back`);
   }
 });
