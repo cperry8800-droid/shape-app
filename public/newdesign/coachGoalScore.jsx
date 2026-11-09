@@ -190,12 +190,13 @@ const CGS_ADHERENCE_FLAG = { trainer: "missed_sessions", nutritionist: "protein_
 // ⚠ ONLY REAL READS ARE NAMED. `roster` is useDashboard's { source, triage }: the signed-out sample's
 // people only for the sample, and a coach's own only once the roster read live (a roster that fell back
 // to the demo is unread, never someone else's clients). A client whose progress is still loading or
-// couldn't be read is not named.
+// couldn't be read is not named, and neither is one whose plan the roster couldn't read (onPlan null:
+// neither on a plan nor off one, as Business · Retention rules it, #2636).
 function cgsNudgeModel({ role, roster, sample }) {
   if (!roster || roster.source == null) return { state: "loading" };
   if (roster.source !== (sample ? "demo" : "live") || !Array.isArray(roster.triage)) return { state: "unread" };
   const key = CGS_ADHERENCE_FLAG[role];
-  const onPlan = (c) => !!(c && c.profile) && !(c.payments && c.payments.onPlan === false);
+  const onPlan = (c) => !!(c && c.profile) && !(c.payments && (c.payments.onPlan === false || c.payments.onPlan === null));
   const readOf = (c) => (c && c.progressRead && c.progressRead.state) || "ready";
   const clients = [];
   let pending = 0;

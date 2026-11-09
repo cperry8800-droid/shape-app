@@ -9,6 +9,11 @@ export default {
   test: 'node --test tests/goal-score-boards-4c.test.mjs tests/coach-score-website.test.mjs tests/goal-archive.test.mjs tests/dash-grid-hosts.test.mjs tests/business-boards.test.mjs',
   timeoutMs: 600_000,
   mutations: [
+    // ── Goal · who a nudge names (4c review: a plan that couldn't be read names no one)
+    { name: 'a client whose plan is unread is named in a nudge', file: GSB,
+      find: '!(c.payments && (c.payments.onPlan === false || c.payments.onPlan === null));', replace: '!(c.payments && c.payments.onPlan === false);' },
+    { name: 'a preview record with no onPlan is not named', file: GSB,
+      find: '!(c.payments && (c.payments.onPlan === false || c.payments.onPlan === null));', replace: '!(c.payments && c.payments.onPlan !== true);' },
     // ── Goal · pace and status
     { name: 'a goal on its line is not on track', file: GSB,
       find: 'const status = p >= f - 1e-9 ? "ontrack"', replace: 'const status = p > f + 1e-9 ? "ontrack"' },

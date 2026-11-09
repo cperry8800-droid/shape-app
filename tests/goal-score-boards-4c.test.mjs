@@ -305,6 +305,12 @@ test('an adherence goal names the clients pulling it down, from real reads only'
     : r.client.profile.name === 'Jonah W.' ? { ...r, client: { ...r.client, progressRead: { state: 'unavailable' } } } : r));
   const partial = C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: feed }, sample: false });
   assert.deepEqual([partial.clients.length, partial.pending], [0, 1]);
+  // A client whose plan the roster couldn't read (onPlan null) is neither on a plan nor off one, so is
+  // not named (Business · Retention's rule, #2636); one with no onPlan at all (the preview's) still is.
+  const planUnread = mockFeed('trainer').map((r) => (r.client.profile.name === 'Sam R.' ? { ...r, client: { ...r.client, payments: { ...(r.client.payments || {}), onPlan: null } } } : r));
+  assert.deepEqual(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: planUnread }, sample: false }).clients.map((c) => c.name), ['Jonah W.']);
+  const noField = mockFeed('trainer').map((r) => ({ ...r, client: { ...r.client, payments: { ...(r.client.payments || {}), onPlan: undefined } } }));
+  assert.deepEqual(C.cgsNudgeModel({ role: 'trainer', roster: { source: 'live', triage: noField }, sample: false }).clients.map((c) => c.name), ['Sam R.', 'Jonah W.']);
   // The action, by kind, and only when there is someone to name.
   const p = { status: 'atrisk' };
   assert.equal(C.cgsGoalAction({ metric: 'adherencePct' }, p, { role: 'trainer', nudge: t }).label, 'Nudge Sam R. and Jonah W.');
