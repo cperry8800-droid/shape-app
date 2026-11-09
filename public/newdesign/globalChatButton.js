@@ -971,8 +971,10 @@
       spacer.style.cssText = "display:block;flex:none;width:100%;height:calc(80px + env(safe-area-inset-bottom, 0px));pointer-events:none";
     }
     // Last in <body>, ahead of the dock itself, so it follows the page's own content.
-    if (spacer.nextSibling !== button || spacer.parentNode !== document.body) {
-      document.body.insertBefore(spacer, button.parentNode === document.body ? button : null);
+    // Compared with where it should be first, so the body observer that runs this never loops.
+    var ref = button.parentNode === document.body ? button : null;
+    if (spacer.parentNode !== document.body || spacer.nextSibling !== ref) {
+      document.body.insertBefore(spacer, ref);
     }
     document.documentElement.style.setProperty("--shape-dock-space", "calc(80px + env(safe-area-inset-bottom, 0px))");
   }
