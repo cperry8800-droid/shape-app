@@ -102,12 +102,13 @@ test('the ticker is 10px in from each side, as the deck and panels under it on e
 
 // Owner, 2026-11-08: SHAPE moved up into the masthead row, as on the pinned bar ("Make the shape logo in the
 // masthead like this even when scrolled all the way to the top"), so the 138px flag row went (idea 3 of
-// three): 116px at the row's centre, giving way on a narrow phone, the hairlines around the dateline now.
+// three): 116px at the row's centre, giving way on a narrow phone. The dateline and its hairlines went
+// (owner, 2026-11-09: "also just remove this").
 test('the Shape wordmark on the Home flag sits in the masthead row, up to 116px, and still gives way on a narrow phone', () => {
   const flag = between(CHROME, 'function BSMastLayout(', '\nfunction BSMasthead(');
   const row = between(CHROME, 'function BSMastWordRow(', '\nfunction BSMastLayout(');
   assert.doesNotMatch(flag, /word\(138\)/, 'the wordmark has its own row again');
   assert.match(row, /width: `min\(116px, calc\(100% - \$\{2 \* BS_MAST_SIDE\}px\)\)`/, 'it shrinks before it reaches either side');
   assert.match(CHROME, /const BS_MAST_SIDE = 90;/, 'each side keeps the pill and the row\'s 12px gap');
-  assert.match(flag, /flex: '1 1 0', minWidth: 10,/, 'the flanks keep 10px');
+  assert.doesNotMatch(flag, /flank|dateline/, 'the dateline or its hairlines are back under the row');
 });

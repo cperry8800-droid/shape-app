@@ -10,6 +10,7 @@
 // wordmark SVG. Owner, 2026-11-08: the wordmark moved up into the masthead row, as on the pinned bar, at
 // the row's true centre, with ✦ beside the mark at the left ("move noras icon to the right of shape
 // triangles in top left"), and the double hairlines frame the dateline instead (idea 3 of three).
+// Owner, 2026-11-09, of the day between those hairlines: "also just remove this". The row stands alone.
 //
 // Shape Radio's box: "lets make this shape radio box look way cooler and fit the home page better";
 // of three, "go with b for radio box and make it go a little further across screen. almost full width
@@ -33,14 +34,14 @@ const body = (src, marker) => {
   return src.slice(at, next < 0 ? undefined : next);
 };
 
-test('the flag masthead: only member Home and coach Today ask for it, and both hand it their dateline', () => {
+test('the flag masthead: only member Home and coach Today ask for it, and neither hands it a dateline', () => {
   // Each call runs to its own closing line (a title's <img /> closes inside it).
   const callers = (src) => [...src.matchAll(/<BSMasthead\b[\s\S]*?\n\s*\/>/g)].map((m) => m[0]);
   const flagged = [CLIENT, PROS].flatMap(callers).filter((m) => /layout="flag"/.test(m));
   assert.equal(flagged.length, 2, 'member Home and coach Today are not both on the flag');
   for (const m of flagged) {
     assert.match(m, /shape-wordmark\.svg/, 'the flag lost the Shape wordmark');
-    assert.match(m, /dateline=\{\{/, 'a flag page draws its own dateline band again');
+    assert.doesNotMatch(m, /dateline=/, 'a flag page hands the masthead a dateline again');
     assert.doesNotMatch(m, /\bcompact\b|thinRule|showDotTexture/, 'a flag page still passes the old masthead\'s switches');
   }
   // No other page changes: every other BSMasthead takes no layout.
@@ -64,9 +65,10 @@ test('the flag keeps the wordmark\'s letters and draws its tools in the shared p
   // The mark and ✦ at the left; the tools ride in the shared slim pill at the right.
   assert.match(row, /\{backSlot \? <BSMastBackSlot \/> : null\}\s*<BSLogo size=\{BS_MAST_LOGO\} color=\{t\.INK\} \/>\s*\{Nora \? <Nora bare \/> : null\}/);
   assert.match(row, /\{tools \? <BSMastToolPill>\{tools\}<\/BSMastToolPill> : null\}/);
-  // No second wordmark row under it: the hairlines frame the dateline, centred, the clock folded in.
+  // No second wordmark row under it, and nothing else: no dateline, no hairlines.
   assert.equal((flag.match(/<BSMastWordRow /g) || []).length, 1);
-  assert.match(flag, /\{flank\}\s*<span style=\{\{ flex: '0 1 auto', minWidth: 0, textAlign: 'center'[\s\S]*?\{dl\.clock \? <>[\s\S]*?<\/span>\s*\{flank\}/);
+  assert.doesNotMatch(flag, /dateline|flank|borderTop/, 'the dateline band is back under the row');
+  assert.doesNotMatch(body(CHROME, 'function BSMasthead('), /dateline/);
   // Home and coach Today hand the pill ⌕ and ⚙ alone; ✦ is the row's.
   assert.match(body(CLIENT, 'function BSClientHome('), /trailing=\{<BSHeaderTools onProfile=\{onProfile\} nora=\{false\} \/>\}/);
   assert.match(body(PROS, 'function BSProToday('), /React\.createElement\(window\.BSSearchCorner, \{ size: [^}]*, nora: false \}\)/);
@@ -143,16 +145,9 @@ test('the slim tool pill is on every page\'s top row and the pinned bar, the pro
   assert.equal(wordmarks, 2, 'the Shape wordmark shows beyond member Home and coach Today');
 });
 
-// Owner, 2026-11-09, of Home's masthead: "remove the time and cut w45 from masthead", and "make sure the icons
-// including shape triangle logos in top left of masthead match the size of icons on the top right".
-test('the dateline is the day alone, and the masthead\'s icons are one size', () => {
-  const callers = (src) => [...src.matchAll(/<BSMasthead\b[\s\S]*?\n\s*\/>/g)].map((m) => m[0]).filter((m) => /layout="flag"/.test(m));
-  for (const m of [CLIENT, PROS].flatMap(callers)) {
-    const dl = /dateline=\{\{([\s\S]*?)\}\}/.exec(m);
-    assert.ok(dl, 'a flag page lost its dateline');
-    assert.match(dl[1], /^\s*date: /, 'the day');
-    assert.doesNotMatch(dl[1], /\b(?:clock|extra):/, 'the time or the phase and week are back in the masthead');
-  }
+// Owner, 2026-11-09, of Home's masthead: "make sure the icons including shape triangle logos in top left of
+// masthead match the size of icons on the top right". (The dateline under it went the same day: see above.)
+test('the masthead\'s icons are one size', () => {
   // The mark at BS_MAST_LOGO in every masthead row: the chrome's and the modules' hand-built ones.
   assert.match(CHROME, /const BS_MAST_LOGO = 26;/, 'the mark paints the tools\' 17px width');
   assert.match(body(CHROME, 'function BSMastRow('), /size = BS_MAST_LOGO/);

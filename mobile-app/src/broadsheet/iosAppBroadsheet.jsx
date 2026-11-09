@@ -1366,10 +1366,10 @@ function BSMastWordRow({ word, tools, backSlot = true }) {
   );
 }
 
-// The wordmark masthead of member Home and coach Today (`layout`): the Shape wordmark, its
-// tools and the dateline ({ date, extra, clock }). The wordmark element is
-// the page's own (shape-wordmark.svg); the layout sets only its width and place.
-function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
+// The wordmark masthead of member Home and coach Today (`layout`): the Shape wordmark and its
+// tools. The wordmark element is the page's own (shape-wordmark.svg); the layout sets only its
+// width and place.
+function BSMastLayout({ layout, title, trailing, onBack }) {
   const t = useBS();
   // The flag hands its wordmark to the pinned bar (BSMastWordCtx), so SHAPE stays on screen when the
   // page scrolls. Re-sent only when the image or its paper filter changes, and taken back on unmount.
@@ -1382,19 +1382,14 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
     reportWord(wordEl);
     return () => reportWord(null);
   }, [reportWord, wordSrc, wordFilter]);
-  const dl = dateline || {};
-  const run = [dl.date, dl.extra].filter(Boolean).join(' · ');
-  const mono = { fontFamily: t.MONO, textTransform: 'uppercase', fontWeight: 800 };
-
   // THE FLAG — the mark and ✦ at the left, the wordmark centred in the same row, the tools in a slim pill
-  // at the right (BSMastWordRow, the pinned bar's row too); then the dateline centred between two double
-  // hairlines, the newspaper flag's rules, which framed the wordmark until it moved up into the row
-  // (owner, 2026-11-08: idea 3). No rule closes it: the ticker under it follows straight on (owner,
-  // 2026-11-04: "remove this border line abobe the ticker on home page for all profiles").
+  // at the right (BSMastWordRow, the pinned bar's row too), and nothing under it: no dateline and no
+  // hairlines (owner, 2026-11-09, of the day between double rules: "also just remove this"). No rule
+  // closes it: the ticker under it follows straight on (owner, 2026-11-04: "remove this border line abobe
+  // the ticker on home page for all profiles"); 8px under the row keeps the ticker off the tools' pill.
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
-  const flank = <span aria-hidden style={{ flex: '1 1 0', minWidth: 10, height: 4, borderTop: `1px solid ${t.INK}`, borderBottom: `1px solid ${t.INK}`, opacity: 0.6 }} />;
   return (
-    <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
+    <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 8px` }}>
       <div aria-hidden style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
         backgroundImage: `repeating-linear-gradient(135deg, rgba(${inkRgb},0.035) 0, rgba(${inkRgb},0.035) 1px, transparent 1px, transparent 7px)`,
@@ -1402,27 +1397,14 @@ function BSMastLayout({ layout, title, trailing, dateline, onBack, vol, no }) {
       }} />
       <BSMastWordRow word={wordEl} tools={trailing || null} />
       {onBack && <BSBackRow onBack={onBack} />}
-      {dateline && (
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0 9px' }}>
-          {flank}
-          <span style={{ flex: '0 1 auto', minWidth: 0, textAlign: 'center', ...mono, fontSize: 8.5, letterSpacing: '0.18em', lineHeight: 1.6 }}>
-            {/* Each piece keeps together; on a narrow phone the line breaks between them. */}
-            {/* No edition label and no Vol · No (owner, 2026-11-08: "remove these from app"): the day, then
-                the clock. */}
-            {run ? <span style={{ color: t.INK70, whiteSpace: 'nowrap' }}>{run}</span> : null}
-            {dl.clock ? <>{run ? ' ' : null}<span style={{ color: t.INK, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{run ? '· ' : null}{dl.clock}</span></> : null}
-          </span>
-          {flank}
-        </div>
-      )}
     </div>
   );
 }
 
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false, layout = null, dateline = null }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false, layout = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
-  if (layout) return <BSMastLayout layout={layout} title={title} trailing={trailing} dateline={dateline} onBack={onBack} vol={vol} no={no} />;
+  if (layout) return <BSMastLayout layout={layout} title={title} trailing={trailing} onBack={onBack} />;
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
   // Hero background — only when there's a title (i.e. home pages).
   // Layered: subtle halftone dot wash + faint pinstripes + side vignette + double rule.
@@ -1974,7 +1956,7 @@ function BSTabBar({ tabs, active, onChange }) {
   const GEM = 26;
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   // Bottom (the default), or the same bar turned upright on the left or right edge (Settings →
-  // Preferences → Nav bar), centred on the screen's height: as long as the bottom bar is wide
+  // Customize → Nav bar), centred on the screen's height: as long as the bottom bar is wide
   // (bsSideNavLength, measured on the screen it stands on), BS_DOCK_H thick, the gem sliding down it.
   const side = useBSNavSide();
   const upright = side === 'left' || side === 'right';
@@ -2010,14 +1992,15 @@ function BSTabBar({ tabs, active, onChange }) {
       <nav data-bs-tabbar="" aria-orientation={upright ? 'vertical' : undefined} style={{
         position: 'relative', flex: '0 0 auto', width: '100%', height: upright ? '100%' : BS_DOCK_H, pointerEvents: 'auto',
         borderRadius: 999,
-        // Frosted glass: paper at about 60% over a blur, so what scrolls under it shows through,
-        // softened, without competing with the icons (owner, 2026-10-24: "make nav bar a little
-        // transparent"; it was about three-quarters).
-        background: `${t.PAPER}99`,
+        // Clear glass: paper at about 35% over a light blur, so what scrolls under it shows through,
+        // its shapes still readable, without competing with the icons (owner, 2026-11-09: "make the nav
+        // bar on app more transparent"; it was 60% over a 10px blur, and three-quarters before 2026-10-24).
+        // 25% over 3px let a card's labels run into the icons.
+        background: `${t.PAPER}59`,
         color: t.INK,
         border: `1px solid rgba(${t.inkRGB},${t.isLight ? 0.1 : 0.16})`,
-        backdropFilter: 'blur(10px) saturate(170%)',
-        WebkitBackdropFilter: 'blur(10px) saturate(170%)',
+        backdropFilter: 'blur(4px) saturate(170%)',
+        WebkitBackdropFilter: 'blur(4px) saturate(170%)',
         boxShadow: t.isLight
           ? '0 6px 22px rgba(15,14,12,0.12), 0 1px 3px rgba(15,14,12,0.06)'
           : '0 8px 26px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)',

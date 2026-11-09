@@ -3973,13 +3973,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // The Shape wordmark (shape-wordmark.svg, 7.5:1, cropped close; owner 2026-11-08), unchanged: the
         // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
-        // ⌕ and ⚙ at the right; ✦ sits beside the mark at the left (BSMastWordRow).
+        // ⌕ and ⚙ at the right; ✦ sits beside the mark at the left (BSMastWordRow). No dateline under it
+        // (owner, 2026-11-09: "also just remove this").
         trailing={<BSHeaderTools onProfile={onProfile} nora={false} />}
-        // The dateline rides in the masthead: the day alone (no edition label: owner, 2026-11-08; and no
-        // phase and week, and no clock: owner, 2026-11-09, "remove the time and cut w45 from masthead").
-        dateline={{
-          date: `${_dowShort(_now)} · ${_monShort(_now)} ${_now.getDate()}`,
-        }}
       />
       {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
       <BSNoraHint t={t} />

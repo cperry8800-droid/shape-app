@@ -1503,12 +1503,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
         // layout sets its size and place, never its letters.
         title={<img src={`${import.meta.env.BASE_URL}shape-wordmark.svg`} alt="Shape" style={{ display: 'block', margin: '4px auto 2px', width: 'min(106px, 100%)', height: 'auto', aspectRatio: '932 / 124', filter: t.isLight ? 'brightness(0)' : 'brightness(0) invert(1)' }} />}
         trailing={<span style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>{typeof window !== 'undefined' && window.BSSearchCorner ? React.createElement(window.BSSearchCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, nora: false }) : null}{typeof window !== 'undefined' && window.BSSettingsCorner ? React.createElement(window.BSSettingsCorner, { size: (typeof window !== 'undefined' && window.BS_HEADER_AVATAR) || 34, onClick: onProfile }) : null}</span>}
-        // The top bars stay (owner, 2026-10-25: "Keep the top bars in home page"): the day the strip shows
-        // rides in the masthead; no edition label (owner, 2026-11-08: "remove these from app") and no clock
-        // (owner, 2026-11-09: "remove the time … from masthead").
-        dateline={{
-          date: dayWord(selDate, { weekday: 'short', month: 'short', day: 'numeric' }),
-        }}
+        // No dateline under the row, as on member Home (owner, 2026-11-09: "also just remove this").
       />
       <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
 

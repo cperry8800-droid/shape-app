@@ -83,11 +83,11 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     assert.equal(bar.tagName, 'NAV');
     assert.equal(bar.style.pointerEvents, 'auto');
     // A 44px capsule (owner, 2026-11-08: "make this a little smaller actually"; 50 since 2026-10-25, 60 before) of
-    // paper at about 60% (the page shows through; owner, 2026-10-24: "make nav bar a little transparent"),
-    // with a soft neutral shadow.
+    // paper at about 35% (the page shows through; owner, 2026-11-09: "make the nav bar on app more transparent";
+    // 60% since 2026-10-24), with a soft neutral shadow.
     assert.equal(bar.style.height, '44px');
     assert.equal(bar.style.borderRadius, '999px');
-    assert.ok(sameColor(bar.style.background, `${theme.PAPER}99`), 'paper at about 60%');
+    assert.ok(sameColor(bar.style.background, `${theme.PAPER}59`), 'paper at about 35%');
     assert.doesNotMatch(bar.style.background, /gradient/);
     assert.match(bar.style.boxShadow, isLight ? /rgba\(15, ?14, ?12, ?0\.12\)/ : /rgba\(0, ?0, ?0, ?0\.5\)/, 'a neutral shadow, not a glow');
     // The selected tab's gem: an ink square turned 45° with the facet's rounded corners, centred on the
@@ -192,9 +192,10 @@ for (const [paperMode, isLight] of [['light', true], ['dark', false]]) {
     // jsdom drops backdrop-filter and env(), so these are read from the component's source.
     const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), 'utf8');
     const bar = src.slice(src.indexOf('function BSTabBar('), src.indexOf('// Footer masthead'));
-    assert.match(bar, /background: `\$\{t\.PAPER\}99`/);
-    assert.match(bar, /backdropFilter: 'blur\(10px\) saturate\(170%\)'/);
-    assert.match(bar, /WebkitBackdropFilter: 'blur\(10px\) saturate\(170%\)'/);
+    // A light blur, so what passes under it keeps its shapes (owner, 2026-11-09: "more transparent").
+    assert.match(bar, /background: `\$\{t\.PAPER\}59`/);
+    assert.match(bar, /backdropFilter: 'blur\(4px\) saturate\(170%\)'/);
+    assert.match(bar, /WebkitBackdropFilter: 'blur\(4px\) saturate\(170%\)'/);
     assert.match(bar, /height: BS_TABBAR_CSS,/);
     assert.match(bar, /paddingBottom: BS_DOCK_BOTTOM_CSS,/);
     // A filled icon's inner marks (the coach's Today and Plans) are cut in the gem's ink when selected.

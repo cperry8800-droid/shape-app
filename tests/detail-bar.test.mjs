@@ -139,7 +139,7 @@ test('Home\'s pinned bar keeps the SHAPE wordmark; a page without the flag does 
   const word = h('img', { src: '/m/shape-wordmark.svg', alt: 'Shape', style: { width: 'min(106px, 100%)', filter: 'brightness(0)' } });
   const render = (flag) => act(async () => {
     root.render(h(BSProvider, { paperMode: 'light' }, h(BSPage, null, flag
-      ? h(BSMasthead, { layout: 'flag', title: word, dateline: { date: 'Sun · Nov 8', clock: '14:02' } })
+      ? h(BSMasthead, { layout: 'flag', title: word })
       : h('p', null, 'no flag'))));
   });
   await render(true);
