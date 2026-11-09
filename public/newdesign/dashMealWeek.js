@@ -228,7 +228,7 @@
     gluten: /\b(?:soy sauce|teriyaki|hoisin|broth|stock|bouillon|wheat|flour|bread|breads|sourdough|toast|bagels?|baguettes?|brioche|croissants?|buns?|muffins?|pancakes?|waffles?|naan|ciabatta|focaccia|pizza(?! sauce\b)|pastry|crumpets?|wraps?|pasta(?! sauce\b)|(?<!\b(?:courgette|zucchini|squash|cucumber|carrot|kelp|shirataki|konjac) )noodles?|spaghetti|macaroni|penne|fusilli|rigatoni|linguine|fettuccine|lasagne|lasagna|orzo|gnocchi|ramen|udon|dumplings?|barley|rye|malt|couscous|seitan|bulgur|semolina|spelt|farro|(?<!\bcorn )tortillas?|pita|crackers?|croutons?|breadcrumbs?|panko|oats?|oatmeal|granola|muesli|condensed(?: [\w-]+){0,3} soups?|cream of [\w-]+ soups?)\b(?!-free)/i,
   };
   // Caesar dressing carries egg and cheese: the core tags its own Chicken caesar dairy and egg.
-  OWN_WORDS.egg = new RegExp(ALLERGEN_WORDS.egg.source + "|\\bcaesar\\b", "i");
+  OWN_WORDS.egg = new RegExp(ALLERGEN_WORDS.egg.source + "|\\bcaesar\\b(?!-free)", "i");
   function ownContains(food, allergen) {
     var a = String(allergen).toLowerCase();
     if ((food.tags || []).indexOf(a) >= 0) return true;

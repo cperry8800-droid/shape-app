@@ -39,6 +39,7 @@ export default {
     { name: 'a quiche is not egg', file: WEEK, find: '|quiches?|shakshuka)', replace: '|shakshuka)' },
     { name: 'shakshuka is not egg', file: WEEK, find: '|quiches?|shakshuka)', replace: '|quiches?)' },
     { name: '"Egg-free" is egg', file: WEEK, find: '|quiches?|shakshuka)\\b(?!-free)/i,', replace: '|quiches?|shakshuka)\\b/i,' },
+    { name: '"Caesar-free" is egg', file: WEEK, find: '"|\\\\bcaesar\\\\b(?!-free)", "i");', replace: '"|\\\\bcaesar\\\\b", "i");' },
     // ── Fish and soy ──
     { name: 'catfish is not fish', file: WEEK, find: '|fish|catfish|pollock|', replace: '|fish|pollock|' },
     { name: 'pollock is not fish', file: WEEK, find: '|fish|catfish|pollock|', replace: '|fish|catfish|' },

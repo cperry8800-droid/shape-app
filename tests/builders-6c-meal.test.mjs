@@ -535,6 +535,10 @@ test('the ingredient words: what the scan of the Kitchen\'s recipes added, and w
   // Egg: the egg dishes by name, as the core's tags do; not a dish named egg-free.
   for (const t of ['Tomato and garlic omelette', 'Ham omelet', 'Spinach frittata', 'Leek quiche', 'Green shakshuka']) assert.equal(has('egg', t), true, t + ' passed an egg exclusion');
   assert.equal(has('egg', 'Egg-free pancakes', 'flour'), false, '"Egg-free" was called egg');
+  // …and Caesar, which counts as egg and dairy, follows the same rule (Codex on ac78a57).
+  assert.equal(has('egg', 'Caesar-free salad', 'romaine'), false, '"Caesar-free" was called egg');
+  assert.equal(has('dairy', 'Caesar-free salad', 'romaine'), false, '"Caesar-free" was called dairy');
+  assert.equal(has('egg', 'Caesar salad', 'romaine'), true);
   // Fish: catfish and pollock by name.
   for (const m of ['catfish fillets', 'frozen pollock']) assert.equal(has('fish', 'Dish', m), true, m + ' passed a fish exclusion');
   assert.equal(has('fish', 'Fish-free curry', 'chickpeas'), false);
