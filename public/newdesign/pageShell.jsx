@@ -383,6 +383,7 @@ const DASH_SHELL_STUBS = {
     "TrainerAnalytics.html": "business", "TrainerPlaylists.html": "playlists",
     "TrainerGoal.html": "goal",
     "TrainerScore.html": "score", "TrainerProfile.html": "profile",
+    "TrainerNewWorkout.html": "programs", "TrainerNewProgram.html": "programs",
   },
   nutritionist: {
     "NutritionistDashboard.html": "today", "NutritionistSchedule.html": "schedule",
