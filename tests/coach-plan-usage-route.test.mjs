@@ -19,7 +19,7 @@ async function api(results, { user = { id: 'coach-a' } } = {}) {
     return query;
   } };
   const registry = new Map([
-    ['next/server', { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), { status: init?.status || 200, headers: { 'Content-Type': 'application/json' } }) } }],
+    ['next/server', { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), { status: init?.status || 200, headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) } }) } }],
     ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => user }],
   ]);
   const route = await loadRealModule(fileURLToPath(new URL('../src/app/api/coach/plans/usage/route.ts', import.meta.url)), { typescript: true, registry });
@@ -63,6 +63,15 @@ test('counts distinct CLIENTS per program, from this coach\'s published sessions
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'status' && c[2] === 'published'), 'a draft is on nobody\'s calendar');
   assert.ok(calls.some((c) => c[0] === 'gte' && c[1] === 'scheduled_date' && c[2] === '2026-09-22'), 'today counts');
   assert.ok(calls.some((c) => c[0] === 'not' && c[1] === 'payload->template->>id' && c[2] === 'is' && c[3] === null));
+});
+
+// It names the coach's clients now (clientIds), so it is answered private and never cached, as the
+// roster routes are (#2630): the full answer and the no-trainer answer alike.
+test('the answer names clients, so it is private and never cached', async () => {
+  const full = await api([{ data: [{ id: 't1' }], error: null }, { data: [{ client_id: 'c1', template_id: 'p1' }], error: null, count: 1 }]);
+  assert.equal((await full.route.GET(get())).headers.get('Cache-Control'), 'private, no-store, max-age=0');
+  const none = await api([{ data: [], error: null }]);
+  assert.equal((await none.route.GET(get())).headers.get('Cache-Control'), 'private, no-store, max-age=0');
 });
 
 test('a read past the cap says so, because it can only under-count', async () => {

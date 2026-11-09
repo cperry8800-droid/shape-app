@@ -13,6 +13,10 @@ export const dynamic = 'force-dynamic';
 // so `capped` goes back with it and the page may then say "in use", never "not in use".
 const USAGE_CAP = 5000;
 
+// ⚠ PRIVATE, NEVER CACHED: the answer names the coach's clients (`clientIds`, step 6a), so it
+// is answered as the roster routes are (src/lib/coach-roster.ts, #2630).
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };
+
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -27,7 +31,7 @@ export async function GET(request: Request) {
   const { data: trainers, error: trainerError } = await db.from('trainers').select('id').eq('owner_id', user.id);
   if (trainerError) return NextResponse.json({ error: 'Could not verify the coach account.' }, { status: 500 });
   // No trainer row means nothing was ever assigned from here — a real answer, not a missing one.
-  if (!trainers?.length) return NextResponse.json({ usage: {}, capped: false });
+  if (!trainers?.length) return NextResponse.json({ usage: {}, capped: false }, { headers: PRIVATE_HEADERS });
   const { data: rows, error, count } = await db.from('client_workouts')
     .select('client_id, template_id:payload->template->>id', { count: 'exact' })
     .in('trainer_id', trainers.map((t: { id: string }) => t.id))
@@ -52,5 +56,5 @@ export async function GET(request: Request) {
   // `clientIds` say WHO (the library's "who's on it", matched to the coach's own roster by id):
   // the ids this read already holds, the coach's own clients under RLS.
   const usage = Object.fromEntries([...byTemplate].map(([id, clients]) => [id, { clients: clients.size, clientIds: [...clients].sort() }]));
-  return NextResponse.json({ usage, capped: count == null || count > list.length });
+  return NextResponse.json({ usage, capped: count == null || count > list.length }, { headers: PRIVATE_HEADERS });
 }

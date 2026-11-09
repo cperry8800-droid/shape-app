@@ -304,7 +304,8 @@ function DashLibTopLine({ label, figure, line, chips, note, actions }) {
 }
 
 // The details behind a top line: a panel from the right, over the page. Escape or the scrim
-// closes it, and focus goes back to what opened it.
+// closes it, and focus goes back to what opened it. ⚠ A MODAL HOLDS FOCUS: it says aria-modal, so
+// Tab and Shift-Tab cycle inside it and never reach the page behind (as the client panel's sheet).
 function DashLibDrawer({ title, sub, onClose, children }) {
   const id = React.useId();
   const panel = React.useRef(null);
@@ -312,7 +313,17 @@ function DashLibDrawer({ title, sub, onClose, children }) {
   closeRef.current = onClose;
   React.useEffect(() => {
     const opener = document.activeElement;
-    const key = (e) => { if (e.key === "Escape") { e.preventDefault(); closeRef.current(); } };
+    const focusable = () => (panel.current ? [...panel.current.querySelectorAll("a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex='0']")] : []);
+    const key = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); closeRef.current(); return; }
+      if (e.key !== "Tab" || !panel.current) return;
+      const items = focusable();
+      const first = items[0], last = items[items.length - 1];
+      const inside = panel.current.contains(document.activeElement);
+      if (!first) { e.preventDefault(); return; }
+      if (e.shiftKey && (!inside || document.activeElement === first || document.activeElement === panel.current.querySelector("h2"))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (!inside || document.activeElement === last)) { e.preventDefault(); first.focus(); }
+    };
     document.addEventListener("keydown", key);
     const h = panel.current && panel.current.querySelector("h2");
     if (h) h.focus();

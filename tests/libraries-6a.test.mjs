@@ -181,6 +181,14 @@ test('Programs: Review opens the drawer, the ones that need you first, and Choos
   const d = drawer();
   assert.ok(!!d, 'the drawer opened');
   assert.equal(d.getAttribute('role'), 'dialog');
+  // A modal holds focus: Tab from its last control comes back to its first, Shift-Tab from the
+  // first goes to the last, and neither reaches the page behind.
+  const ctl = [...d.querySelectorAll('button:not([disabled])')];
+  const tab = (shift) => document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: !!shift, bubbles: true, cancelable: true }));
+  ctl[ctl.length - 1].focus(); tab(false);
+  assert.ok(document.activeElement === ctl[0], 'Tab from the last control left the drawer');
+  ctl[0].focus(); tab(true);
+  assert.ok(document.activeElement === ctl[ctl.length - 1], 'Shift-Tab from the first control left the drawer');
   const rows = [...d.querySelectorAll('.dash-lib-row')].map((r) => r.getAttribute('data-next') + ':' + r.querySelector('b').textContent);
   assert.deepEqual(rows, ['need:Jonah W.', 'need:Tess B.', 'ready:Priya S.', 'ready:Sam R.']);
   const dt = d.textContent.replace(/\s+/g, ' ');
