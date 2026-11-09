@@ -64,7 +64,7 @@ function ClientOvHero() {
             </div>
             <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
               <span>5 sessions · 1 review</span>
-              <span style={{ color: TEAL }}>on track ●</span>
+              <span style={{ color: TEAL }}>on track</span>
             </div>
           </div>
           <div style={{ position: "absolute", bottom: -24, left: -24, background: DARK, color: LIGHT, padding: "14px 18px", borderRadius: 10, fontFamily: clSans, fontSize: 12, lineHeight: 1.4, boxShadow: "0 20px 72px rgba(0,0,0,0.25)", maxWidth: 220 }}>
@@ -328,7 +328,7 @@ function ClientOvSnapshots() {
             </div>
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(233,239,237,0.08)", display: "flex", justifyContent: "space-between", fontFamily: clNum, fontWeight: 700, fontVariationSettings: "'ROND' 30", fontSize: 10.5, color: "rgba(233,239,237,0.5)", letterSpacing: "0.08em" }}>
               <span>5 / 8 above target · 3 don'ts</span>
-              <span style={{ color: TEAL }}>Shape Score +12 ●</span>
+              <span style={{ color: TEAL }}>Shape Score +12</span>
             </div>
           </div>
 

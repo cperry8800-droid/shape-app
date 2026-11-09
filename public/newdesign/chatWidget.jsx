@@ -2970,7 +2970,7 @@ function ChatWidget(props) {
             )}
             {isSupport && (voiceState !== "idle" || voiceErr || speakNotice) && (
               <div style={{ padding: "0 14px 6px", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: (voiceErr || speakNotice) && voiceState === "idle" ? "var(--sh-gold, #d8a23a)" : (voiceState === "listening" ? "#e0463c" : "var(--sh-ink2, #a09b94)") }}>
-                {voiceState === "listening" ? "● Listening… tap the mic to stop"
+                {voiceState === "listening" ? "Listening… tap the mic to stop"
                   : voiceState === "transcribing" ? "Transcribing…"
                   : (voiceErr || speakNotice)}
               </div>

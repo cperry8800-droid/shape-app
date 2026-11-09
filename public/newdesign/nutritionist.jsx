@@ -107,7 +107,7 @@ function NutHero() {
             {/* Totals footer — receipt-style */}
             <div style={{ borderTop: `2px solid rgba(242,237,228,0.22)`, marginTop: 10, paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(242,237,228,0.55)" }}>Hydration · 1.8 / 3 L</div>
-              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>On plan ●</div>
+              <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: "0.16em", textTransform: "uppercase", color: TEAL }}>On plan</div>
             </div>
           </div>
           {/* Small stamp tag */}

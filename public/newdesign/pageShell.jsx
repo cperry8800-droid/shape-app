@@ -1682,7 +1682,7 @@ function Header({ active }) {
                             onMouseLeave={e => { if (r !== authUser.role) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(var(--sh-ink-rgb, 242,237,228),0.85)"; } }}
                           >
                             <span>{roleLabel(r)}</span>
-                            {r === authUser.role && <span style={{ fontSize: 10, color: TEAL }}>● active</span>}
+                            {r === authUser.role && <span style={{ fontSize: 10, color: TEAL }}>active</span>}
                           </button>
                         ))}
                       </div>
