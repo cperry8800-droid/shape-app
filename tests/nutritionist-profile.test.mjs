@@ -59,16 +59,28 @@ window.ShapeI18n = {
 };
 
 const flush = () => act(async () => { for (let i = 0; i < 8; i++) await new Promise((r) => setTimeout(r, 0)); });
+// A test that fails before its unmount would leave its page behind for the next to read: each mount
+// first takes down any page still up, and whatever its sheets left on the body.
+const liveRoots = [];
 async function mount(el) {
+  while (liveRoots.length) { const r = liveRoots.pop(); try { await act(async () => r.unmount()); } catch (e) { /* already down */ } }
+  document.body.innerHTML = '';
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = ReactDOMClient.createRoot(host);
+  liveRoots.push(root);
   await act(async () => { root.render(el); });
   await flush();
-  return { host, text: () => document.body.textContent.replace(/\s+/g, ' '), unmount: async () => { await act(async () => root.unmount()); host.remove(); } };
+  return { host, text: () => document.body.textContent.replace(/\s+/g, ' '), unmount: async () => { const i = liveRoots.indexOf(root); if (i >= 0) liveRoots.splice(i, 1); await act(async () => root.unmount()); host.remove(); } };
 }
 const click = async (el) => { assert.ok(el, 'no such element'); await act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); }); await flush(); };
 const button = (re) => [...document.querySelectorAll('button')].find((b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || ''));
+// The Climb (BSCoachClimb.jsx): the page's sections are camps on one page, each in the row of camps.
+const camp = (k) => document.querySelector(`[data-climb-camp="${k}"]`);
+const campTitle = (k) => { const el = document.querySelector(`#climb-camp-${k}`); return el ? el.textContent : null; };
+const campKeys = () => [...document.querySelectorAll('[data-climb-camp]')].map((el) => el.getAttribute('data-climb-camp'));
+const goCamp = async (k) => { assert.ok(camp(k), `the ${k} camp`); const b = document.querySelector(`[data-climb-camp-tab="${k}"]`); if (b) await click(b); };
+const CLIMB_BG = (() => { const d = document.createElement('div'); d.style.background = '#0a0e11'; return d.style.background; })();
 // Types into an input or textarea as React sees typing.
 const type = async (el, text) => {
   assert.ok(el, 'no such field');
@@ -178,16 +190,18 @@ test('a nutritionist\'s page reads, sells and books as a nutritionist, and start
   assert.deepEqual(world.roles, [['listing', 'nutritionist'], ['hours', 'nutritionist']], 'the nutritionist listing and its hours');
   assert.equal(world.isNutriSeen, true, 'the storefront is told it is a nutritionist');
   assert.equal(world.commerceSeen.coach.provider_role, 'nutritionist');
-  // No colours of their own yet: Shape's amber, not the trainers' teal.
-  const amber = window.makePalette({ paperMode: 'dark', accentKey: 'amber' });
-  const probe = document.createElement('div'); probe.style.background = amber.ACCENT;
-  assert.equal(button(/^Message Nadia$/).style.background, probe.style.background, 'amber');
-  assert.ok(button(/^Her day$/));
+  // The Climb in a nutritionist's gold (#d8a23a on the dark), not the trainers' teal, and the intro
+  // booked in gold too.
+  const probe = document.createElement('div'); probe.style.background = '#d8a23a';
+  assert.equal(button(/^Message Nadia$/).style.background, probe.style.background, 'gold');
+  assert.equal(document.querySelector('[data-climb-book]').style.background, probe.style.background, 'Book in gold');
+  assert.equal(document.querySelector('[data-climb]').getAttribute('data-climb-role'), 'nutritionist');
+  assert.equal(campTitle('day'), 'Her day.');
   await click(button(/^Work with her$/));
   assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly nutrition coaching $140');
   assert.equal(world.blockNutri, true, 'the storefront block files plans as a nutritionist\'s (Codex P1 on #2497)');
   await click(button(/^Close$/));
-  await click(document.querySelectorAll('[role="group"] button')[1]);
+  await click(camp('day').querySelectorAll('[role="group"] button')[1]);
   assert.match(document.querySelector('[data-busy-time]').textContent, /With a client/, 'busy time, said as a nutritionist\'s');
   await click(document.querySelector('[data-open-time]'));
   assert.match(m.text(), /Tell Nadia what you want from your food\./);
@@ -215,38 +229,38 @@ test('with no monthly price but meal plans to sell, the plans-only storefront fi
 test('a nutritionist has their kitchen and plate notes, never the studio or replays; a trainer never the kitchen', async () => {
   reset();
   let m = await mount(page());
-  assert.ok(button(/^Her day$/));
-  for (const re of [/^My kitchen$/, /^Plate notes$/, /^The studio$/, /^Replays$/]) assert.ok(!button(re), String(re));
+  assert.ok(camp('day'));
+  for (const k of ['kitchen', 'plates', 'range', 'replays']) assert.ok(!camp(k), k);
   await m.unmount();
   // A studio and a workout on a nutritionist's doc and feed show nothing; a kitchen and a meal do.
   reset({ custom: { studio: { kind: 'gym', items: [{ t: 'rack', x: 10, y: 10, w: 60, h: 40, st: { title: 'Rack', note: '' } }] }, kitchen: KITCHEN }, posts: [workout, meal()] });
   m = await mount(page());
-  assert.ok(button(/^My kitchen$/) && button(/^Plate notes$/));
-  assert.ok(!button(/^The studio$/) && !button(/^Replays$/));
+  assert.ok(camp('kitchen') && camp('plates'));
+  assert.ok(!camp('range') && !camp('replays'));
   await m.unmount();
   // The tab is My kitchen, in the coach's voice as About me, whatever pronouns they wrote and never
   // their name (owner, 2026-11-04: "just have it say my kitchen", "not persons name").
   for (const pronouns of ['he/him', 'they/them', '']) {
     reset({ pronouns, custom: { kitchen: KITCHEN } });
     m = await mount(page());
-    assert.ok(button(/^My kitchen$/), pronouns || 'no pronouns');
-    assert.ok(!button(/kitchen$/i) || button(/kitchen$/i) === button(/^My kitchen$/), 'one kitchen tab');
-    assert.ok(![...document.querySelectorAll('[data-profile-tab]')].some((b) => /Nadia/.test(b.textContent) && /kitchen/i.test(b.textContent)), 'the name on the kitchen tab');
+    assert.equal(campTitle('kitchen'), 'My kitchen.', pronouns || 'no pronouns');
+    assert.equal(document.querySelector('[data-climb-camp-tab="kitchen"]').textContent, 'Kitchen', 'the camp in the row');
+    assert.ok(![...document.querySelectorAll('[data-climb-camp-tab]')].some((b) => /Nadia/.test(b.textContent)), 'the name on the kitchen tab');
     await m.unmount();
   }
   // A trainer with a kitchen on their doc gets no kitchen tab.
   reset({ custom: { kitchen: KITCHEN }, posts: [meal()] });
   m = await mount(page({ person: { ...nadia, kind: 'TRAINER' } }));
-  assert.ok(!button(/kitchen$/) && !button(/^Plate notes$/));
+  assert.ok(!camp('kitchen') && !camp('plates'));
   assert.deepEqual(world.roles[0], ['listing', 'trainer']);
   await m.unmount();
   // Their own page always shows all three, with a way to fill the kitchen.
   reset({ me: 'u-nadia', stored: {} });
   m = await mount(page({ isSelf: true }));
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   assert.match(m.text(), /Show members your recipes, the plate you teach and what is always in your kitchen\./);
   assert.ok(button(/^Fill your kitchen$/));
-  await click(button(/^Plate notes$/));
+  await goCamp('plates');
   assert.match(m.text(), /each day you share becomes a plate note here/);
   await m.unmount();
 });
@@ -254,7 +268,7 @@ test('a nutritionist has their kitchen and plate notes, never the studio or repl
 test('her kitchen: one part at a time, her recipes first, then her plate and her staples; a visitor sees only the parts with something in them', async () => {
   reset({ custom: { kitchen: KITCHEN } });
   let m = await mount(page());
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   assert.deepEqual([...document.querySelectorAll('[data-kitchen-section]')].map((b) => b.textContent), ['Recipes2', 'Plate', 'Staples3'], 'the three parts, with how much is in each');
   assert.equal(section('recipes').getAttribute('aria-pressed'), 'true', 'it opens on the recipes');
   assert.ok(!document.querySelector('[data-kitchen-plate]') && !document.querySelector('[data-kitchen-staples]'), 'one part at a time');
@@ -283,7 +297,7 @@ test('her kitchen: one part at a time, her recipes first, then her plate and her
   // Only staples: no parts to pick from, the staples straight away.
   reset({ custom: { kitchen: { staples: KITCHEN.staples } } });
   m = await mount(page());
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   assert.ok(!document.querySelector('[data-kitchen-section]'));
   assert.ok(document.querySelector('[data-kitchen-staples]'));
   await m.unmount();
@@ -292,7 +306,7 @@ test('her kitchen: one part at a time, her recipes first, then her plate and her
 test('a recipe opens with its numbers, her note, the ingredients and the method, and cooks in Shape\'s cook mode', async () => {
   reset({ custom: { kitchen: KITCHEN } });
   const m = await mount(page());
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   await click(document.querySelector('[data-recipe="r1"]'));
   const sheet = () => document.querySelector('[data-own-recipe="r1"]');
   assert.ok(sheet(), 'the recipe, over the page');
@@ -315,7 +329,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
   try {
     reset({ custom: { kitchen: KITCHEN } });
     let m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(document.querySelector('[data-recipe="r1"]'));
     const add = () => document.querySelector('[data-recipe-list]');
     assert.equal(add().textContent, 'Add the ingredients to my grocery list');
@@ -330,7 +344,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
     assert.equal(add().textContent, '✓ On your grocery list, under Eat');
     await m.unmount();
     m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(document.querySelector('[data-recipe="r1"]'));
     await click(add());
     assert.equal(g.received[1].id, g.received[0].id, 'sent again, the same list');
@@ -338,7 +352,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
     // Signed out: asked for an account, and nothing is saved.
     reset({ me: null, custom: { kitchen: KITCHEN } });
     m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(document.querySelector('[data-recipe="r2"]'));
     await click(add());
     assert.deepEqual(g.asked.slice(-1), ['add to your grocery list']);
@@ -347,7 +361,7 @@ test('a recipe\'s ingredients go onto the member\'s grocery lists as one list, t
     // On her own page she can cook it, but not send it to a grocery list.
     reset({ me: 'u-nadia', stored: { kitchen: KITCHEN } });
     m = await mount(page({ isSelf: true }));
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(document.querySelector('[data-recipe="r1"]'));
     assert.ok(document.querySelector('[data-cook-recipe]') && !add());
     await m.unmount();
@@ -359,7 +373,7 @@ test('a member picks staples and adds them to their own grocery lists as one lis
   try {
     reset({ custom: { kitchen: KITCHEN } });
     let m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(section('staples'));
     const add = document.querySelector('[data-add-staples]');
     assert.ok(add.disabled, 'nothing picked, nothing to add');
@@ -384,7 +398,7 @@ test('a member picks staples and adds them to their own grocery lists as one lis
     // Signed out: asked for an account, and nothing is saved.
     reset({ me: null, custom: { kitchen: KITCHEN } });
     m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(section('staples'));
     await click(document.querySelectorAll('[data-staple]')[1]);
     await click(document.querySelector('[data-add-staples]'));
@@ -394,7 +408,7 @@ test('a member picks staples and adds them to their own grocery lists as one lis
     // On their own page the staples are shown, not offered.
     reset({ me: 'u-nadia', stored: { kitchen: KITCHEN } });
     m = await mount(page({ isSelf: true }));
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(section('staples'));
     assert.ok(!document.querySelector('button[data-staple]') && !document.querySelector('[data-add-staples]'));
     assert.equal(document.querySelectorAll('[data-staple]').length, 3);
@@ -411,7 +425,7 @@ test('a bigger pick of long staple names is its own list', async () => {
       { n: 'Unsweetened almond milk, vanilla', g: 'fridge' },
     ] } } });
     const m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(document.querySelectorAll('[data-staple]')[0]);
     await click(document.querySelectorAll('[data-staple]')[1]);
     await click(document.querySelector('[data-add-staples]'));
@@ -439,7 +453,7 @@ test('her kitchen has no floor plan, even with one saved: the tab opens on her r
   for (const studio of [kitchenPlan, { ...kitchenPlan, kind: 'blank' }]) {
     reset({ custom: { kitchen: KITCHEN, studio } });
     const m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     for (const sel of ['[data-kitchen-plan]', '[data-studio-plan]', '[data-station]', '[data-piece]', '[data-spot-row]']) assert.ok(!document.querySelector(sel), `${studio.kind}: ${sel} is drawn`);
     assert.doesNotMatch(m.text(), /Tap a number, or a lit spot|The test kitchen|One pan most nights/);
     assert.ok(section('recipes'), 'the three parts lead the tab');
@@ -450,21 +464,20 @@ test('her kitchen has no floor plan, even with one saved: the tab opens on her r
 test('her activity: a tab of its own, last, with her posts that are not plate notes; on her own page, Log activity and what the feed is for', async () => {
   // Owner, 2026-10-31: "the coaches activity feed shouldn't be under replays, they should have a
   // separate tab for activity".
-  const tabNames = () => [...document.querySelectorAll('nav[aria-label="Profile sections"] button')].map((b) => b.textContent);
   reset({ posts: [meal(), { key: 'n1', title: 'Sunday prep', typeLabel: 'Note', ago: '1d', body: 'Twelve boxes.', statsRow: [], breakdown: null }] });
   let m = await mount(page());
-  assert.equal(tabNames()[tabNames().length - 1], 'Activity', 'Activity is the last tab, after Plate notes');
-  assert.ok(!document.querySelector('[data-activity]'), 'not on the page under another tab');
-  await click(button(/^Activity$/));
-  const feed = document.querySelector('[data-activity]');
+  assert.deepEqual(campKeys(), ['day', 'plates', 'posts', 'summit'], 'Book right after Base, then Plate notes, Posts and the Summit');
+  assert.ok(!camp('plates').querySelector('[data-activity]'), 'not under Plate notes');
+  await goCamp('posts');
+  const feed = camp('posts').querySelector('[data-activity]');
   assert.match(feed.textContent, /Sunday prep/);
   assert.doesNotMatch(feed.textContent, /Nadia's activity/, 'no heading repeating the tab\'s name');
   assert.ok(!/Greek yogurt power bowl/.test(feed.textContent), 'the shared meal stays in Plate notes');
   await m.unmount();
   reset({ me: 'u-nadia', stored: {}, posts: [] });
   m = await mount(page({ isSelf: true }));
-  assert.ok(tabNames().includes('Activity'), 'her own page always has it');
-  await click(button(/^Activity$/));
+  assert.ok(camp('posts'), 'her own page always has it');
+  await goCamp('posts');
   const own = document.querySelector('[data-activity]');
   assert.match(own.textContent, /Nothing posted yet\. Log a run, a note or a photo, and members see it here\./);
   assert.ok(own.querySelector('[data-log-activity]'), 'Log activity');
@@ -476,7 +489,7 @@ test('staples: a card per place they live; Pick all picks the group, then clears
   try {
     reset({ custom: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }, { n: 'Spinach', g: 'fridge' }, { n: 'Oats', g: 'pantry' }] } } });
     const m = await mount(page());
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     assert.deepEqual([...document.querySelectorAll('[data-staple-group-pick]')].map((b) => b.getAttribute('data-staple-group-pick')), ['fridge'], 'only a group of more than one');
     await click(document.querySelector('[data-staple-group-pick="fridge"]'));
     assert.match(document.querySelector('[data-add-staples]').textContent, /Add 2 to my grocery list/);
@@ -491,7 +504,7 @@ test('on her own page there is no Draw your kitchen, and Make it yours\'s kitche
   const studio = { kind: 'kitchen', where: '', items: [{ t: 'range', x: 40, y: 40, w: 30, h: 34, st: { title: 'Stove', note: '' } }] };
   reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] }, studio } });
   const m = await mount(page({ isSelf: true }));
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   assert.ok(!document.querySelector('[data-kitchen-plan-empty]'), 'Draw your kitchen is back');
   assert.ok(!document.querySelector('[data-kitchen-fill="layout"]'));
   assert.doesNotMatch(m.text(), /Draw your kitchen/);
@@ -507,7 +520,7 @@ test('on her own page there is no Draw your kitchen, and Make it yours\'s kitche
 test('on her own page each empty part says what goes there and opens Make it yours on it', async () => {
   reset({ me: 'u-nadia', stored: { kitchen: { staples: [{ n: 'Eggs', g: 'fridge' }] } } });
   const m = await mount(page({ isSelf: true }));
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   assert.deepEqual([...document.querySelectorAll('[data-kitchen-section]')].map((b) => b.getAttribute('data-kitchen-section')), ['recipes', 'plate', 'staples'], 'all three parts');
   assert.match(m.text(), /Write the recipes you give clients\./);
   await click(section('plate'));
@@ -516,7 +529,7 @@ test('on her own page each empty part says what goes there and opens Make it you
   assert.ok(document.querySelector('[data-mine-part="plate"]'), 'Make it yours, on the plate');
   await click(document.querySelector("[data-make-it-yours] [data-bs-back]"));
   // Back lands where she left: her kitchen, on the plate (owner, 2026-10-30).
-  assert.equal(button(/^My kitchen$/).getAttribute('aria-pressed'), 'true', 'still on her kitchen');
+  assert.ok(camp('kitchen'), 'back on her page, her kitchen there');
   assert.equal(section('plate').getAttribute('aria-pressed'), 'true', 'still on the plate');
   await click(section('recipes'));
   await click(document.querySelector('[data-kitchen-fill="recipes"]'));
@@ -529,7 +542,7 @@ test('plate notes: shared meals by day, newest first, stepped through with the p
   const g = groceryWorld();
   const m = await mount(page());
   try {
-    await click(button(/^Plate notes$/));
+    await goCamp('plates');
     const days = [...document.querySelectorAll('[data-plate-day]')];
     assert.equal(days.length, 2, 'two days; the workout is not a plate');
     assert.match(days[0].textContent, /2 meals/);
@@ -563,7 +576,7 @@ test('plate notes: shared meals by day, newest first, stepped through with the p
     assert.match(document.querySelector('[data-recipe-grocery]').textContent, /^On your grocery list$/);
     await click(button(/^Leave the recipe$/));
     // On the second day the apple carried no protein, so no running total is claimed after it.
-    await click(button(/^Plate notes$/));
+    await goCamp('plates');
     await click(document.querySelectorAll('[data-plate-day]')[1]);
     assert.match(step(), /An apple/);
     assert.match(step(), /95 kcal/);
@@ -891,7 +904,7 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   assert.equal(world.byIdFor, 52);
   assert.match(m.text(), /Rae hasn't set up a Shape account yet, so the kitchen, plate notes, reviews and times here are samples\./);
   assert.ok(!document.querySelector('img[alt="Rae\'s wall photo"]'), 'no sample wall photo: their colours');
-  await click(button(/^My kitchen$/));
+  await goCamp('kitchen');
   assert.equal(document.querySelectorAll('[data-recipe]').length, 6, 'six recipes');
   await click(document.querySelector('[data-recipe]'));
   assert.ok(document.querySelectorAll('[data-recipe-ingredients] li').length > 3 && document.querySelectorAll('[data-recipe-method] li').length > 3, 'each written out in full');
@@ -900,9 +913,9 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   assert.match(document.querySelector('[data-kitchen-plate]').textContent, /Beans, lentils or tofu at every meal/, 'a plant kitchen for a plant-based specialty');
   await click(section('staples'));
   assert.ok(document.querySelectorAll('[data-staple]').length >= 8);
-  await click(button(/^Plate notes$/));
+  await goCamp('plates');
   assert.equal(document.querySelectorAll('[data-plate-day]').length, 2);
-  await click(button(/^Rae's day$/));
+  assert.equal(campTitle('day'), "Rae's day.");
   assert.match(m.text(), /Sample times: Rae hasn't set open hours on Shape yet\./);
   assert.ok([...document.querySelectorAll('[data-open-time]')].every((b) => !b.disabled && /Ask for it/.test(b.textContent)), 'sample times are asked for, not taken');
   await m.unmount();
@@ -918,7 +931,7 @@ test('a sample nutritionist\'s page reads in the reader\'s language: rules, stap
     const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
     reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
     const m = await mount(page({ person: rae }));
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     assert.ok(m.text().includes(de['sample.nutri.dish.plant.0']), 'a recipe note in German');
     assert.ok(m.text().includes('Crispy tofu grain bowl'), 'the recipe keeps the catalog\'s name');
     await click(section('plate'));
@@ -926,7 +939,7 @@ test('a sample nutritionist\'s page reads in the reader\'s language: rules, stap
     assert.doesNotMatch(document.querySelector('[data-kitchen-plate]').textContent, /Beans, lentils or tofu at every meal/);
     await click(section('staples'));
     assert.ok(m.text().includes(de['sample.nutri.staple.firmTofu']), 'a staple in German');
-    await click(button(/^Plate notes$/));
+    await goCamp('plates');
     assert.ok(m.text().includes(de['sample.nutri.mealName.plant.0.2']) || m.text().includes(de['sample.nutri.meal.plant.0.0']), 'the plate notes in German');
     await click(button(/^Work with Rae$/));
     assert.deepEqual(world.blockPlans.map((p) => p.name), [de['sample.nutri.plan.plant.0'], de['sample.nutri.plan.plant.1']], 'its meal plans in German');
@@ -946,7 +959,7 @@ test('a sample\'s staples added in German and in English make the same grocery l
   const addTwo = async () => {
     reset({ me: 'u-me', byId: raeRow, slots: [] });
     const m = await mount(page({ person: rae }));
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(section('staples'));
     const chips = [...document.querySelectorAll('[data-staple]')];
     await click(chips[0]);
@@ -983,7 +996,7 @@ test('a sample\'s staples picked in German and added after a switch to English a
     const rae = { who: 'Rae Lindqvist', kind: 'NUTRI', providerId: 52, city: 'Remote', bio: 'Plant-forward fuelling.', specialty: 'Plant-based nutrition Vegan', rating10: 9.8 };
     reset({ me: 'u-me', byId: { id: 52, owner_id: null, name: 'Rae Lindqvist', price: 110, specialty: 'Plant-based nutrition', credential: 'RD', verified: false, listing_media: { cover: null, gallery: [] }, monthly_offer: null }, slots: [] });
     const m = await mount(page({ person: rae }));
-    await click(button(/^My kitchen$/));
+    await goCamp('kitchen');
     await click(section('staples'));
     const chips = [...document.querySelectorAll('[data-staple]')];
     await click(chips[0]);
@@ -1014,7 +1027,7 @@ test('signed out, the nutritionist app\'s own page is the sample, and Make it yo
   assert.deepEqual(world.blockPlans.map((p) => [p.name, p.category, p.kind, p.meta, p.price, p.providerId ?? null]),
     [['Train-day fuel', 'meal', 'meal_plan', '4 weeks', 49, null], ['Race week', 'meal', 'meal_plan', '1 week', 29, null]])
   await click(button(/^Close$/));
-  await click(button(/kitchen$/));
+  await goCamp('kitchen');
   assert.equal(document.querySelectorAll('[data-recipe]').length, 6);
   await click(button(/^Make it yours$/));
   await click(button(/^Your kitchen$/));
@@ -1022,7 +1035,7 @@ test('signed out, the nutritionist app\'s own page is the sample, and Make it yo
   await click(document.querySelector('[data-plate-preset="lighter"]'));
   await click(document.querySelector('[data-save-mine]'));
   assert.equal(world.saved, null, 'nothing written');
-  await click(button(/kitchen$/));
+  await goCamp('kitchen');
   await click(section('plate'));
   assert.match(document.querySelector('[data-kitchen-plate]').textContent, /Vegetables\s*50%.*Protein\s*35%.*Carbs\s*15%/, 'the page shows the change');
   await m.unmount();
@@ -1140,7 +1153,7 @@ test('a recipe of hers as a grocery list and for cook mode', () => {
 test('a day of plate notes logged at 0 kcal says 0 kcal, not nothing (Codex P3 on #2497)', async () => {
   reset({ posts: [meal({ key: 'z1', title: 'Black coffee', created_at: at(1, 7), meal: { kcal: 0, p: 0, c: 0, f: 0 } }), meal({ key: 'z2', title: 'Sparkling water', created_at: at(1, 9), meal: { kcal: 0 } })] });
   const m = await mount(page());
-  await click(button(/^Plate notes$/));
+  await goCamp('plates');
   const day = document.querySelector('[data-plate-day]').textContent;
   assert.match(day, /0 kcal/, 'every meal logged its energy, at 0');
   assert.doesNotMatch(day, /g protein/, 'one meal logged no protein');

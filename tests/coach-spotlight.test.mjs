@@ -79,6 +79,8 @@ const fileOf = (name, type, size = 1024) => ({ name, type, size });
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 const button = (re) => $$('button').find((b) => re.test(b.textContent) || re.test(b.getAttribute('aria-label') || ''));
+// The Climb (BSCoachClimb.jsx): the page's sections are camps on one page.
+const camp = (k) => document.querySelector(`[data-climb-camp="${k}"]`);
 const editorTab = (name) => click([...$$('[data-make-it-yours] [role="group"]')[0].querySelectorAll('button')].find((b) => b.textContent === name));
 
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
@@ -387,27 +389,28 @@ test('the trainer page shows each part when set: stats, highlight, film, the pra
   assert.deepEqual(stats.map((s) => s.getAttribute('data-coach-stat')), ['rating', 'years', 'replays']);
   assert.deepEqual(stats.map((s) => s.textContent), ['9.5/10Rating', '7Years coaching', '1Replays'], 'the page\'s own figures');
   const hl = $('[data-coach-highlight]');
-  assert.match(hl.textContent, /★ Pinned · Win/);
+  assert.match(hl.textContent, /Pinned · Win/);
   assert.match(hl.textContent, /Client deadlift: twice her bodyweight/);
   assert.equal(hl.querySelector('[data-coach-highlight-metric]').textContent, '2×BW');
   assert.match(hl.textContent, /Fourteen weeks, no missed sessions\./);
   assert.equal($('[data-coach-film] video').getAttribute('src'), `${FILM}#t=0.1`);
   assert.match($('[data-coach-film]').textContent, /Intro film.*How I coach a squat, start to finish\./);
-  // Under the head, before the tabs.
-  const nav = $('nav[aria-label="Profile sections"]');
-  assert.ok($('[data-coach-spotlight]').compareDocumentPosition(nav) & window.Node.DOCUMENT_POSITION_FOLLOWING);
-  // The wins wall leads What clients say: the pins in their order, each only as one of this coach's
-  // members' reviews (the other coach's never), then the newest.
+  // The Climb's base camp, Start here: the first camp on the route.
+  assert.ok(camp('base').contains($('[data-coach-spotlight]')));
+  assert.equal($$('[data-climb-camp]')[0], camp('base'));
+  // The wins wall is Proof: the pins in their order, each only as one of this coach's members' reviews
+  // (the other coach's never); What clients say (Words) has the rest, newest first, a pin never twice.
   assert.ok(world.byIdsFor.includes([R5, R2].join(',')));
+  const wins = $$('[data-climb-win]');
+  assert.ok(wins.every((w) => camp('proof').contains(w) && w.hasAttribute('data-review-pinned')));
+  assert.match(wins[0].textContent, /10\s*\/10.*An old favourite\.Dana K\./);
+  assert.match(wins[1].textContent, /Books up fast/);
   const cards = $$('[data-review-card]');
-  assert.deepEqual(cards.slice(0, 2).map((c) => c.hasAttribute('data-review-pinned')), [true, true]);
-  assert.match(cards[0].textContent, /★ 10\/10 · Pinned.*An old favourite\.Dana K\./);
-  assert.match(cards[1].textContent, /Books up fast/);
-  assert.match(cards[2].textContent, /\+60 lb/);
-  assert.ok(!cards[2].hasAttribute('data-review-pinned'));
-  assert.equal(cards.filter((c) => /Books up fast/.test(c.textContent)).length, 1, 'a pin is not shown twice');
-  // About me: the practice's card after the facts, and the song after the answers.
-  await click(button(/^About me$/));
+  assert.match(cards[0].textContent, /\+60 lb/);
+  assert.ok(cards.every((c) => !c.hasAttribute('data-review-pinned')), 'Words has no pin');
+  assert.equal([...wins, ...cards].filter((c) => /Books up fast/.test(c.textContent)).length, 1, 'a pin is not shown twice');
+  // About: the practice's card after the facts, and the song after the answers.
+  assert.ok(camp('about'));
   const practice = $('[data-about="practice"]');
   assert.match(practice.textContent, /The practice.*Iron Path Strength/);
   assert.deepEqual($$('[data-about-practice-row]').map((r) => [r.getAttribute('data-about-practice-row'), r.textContent]),
@@ -425,7 +428,7 @@ test('none shows when unset, when it is not the coach\'s own, or on a private pr
   reset({ me: 'u-me', custom: { about: { story: 'Ten years.' } } });
   let m = await mount(page());
   for (const sel of SPOT) assert.ok(!$(sel), `${sel}: nothing set, nothing shown`);
-  await click(button(/^About me$/));
+  assert.ok(camp('about'));
   assert.ok(!$('[data-about="practice"]') && !$('[data-about="song"]'));
   await m.unmount();
 
@@ -437,7 +440,7 @@ test('none shows when unset, when it is not the coach\'s own, or on a private pr
   } });
   m = await mount(page());
   for (const sel of SPOT) assert.ok(!$(sel), `${sel}: not the coach's own, not shown`);
-  assert.ok(!button(/^About me$/), 'a visitor sees no About me with nothing in it');
+  assert.ok(!camp('about'), 'a visitor sees no About with nothing in it');
   await m.unmount();
   reset({ me: 'u-me', custom: { film: { url: media('coach-media', 'u-other', 'a.mp4') } } });
   m = await mount(page());
