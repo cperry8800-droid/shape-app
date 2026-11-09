@@ -7428,7 +7428,7 @@ const APPLE_PICKER_ENABLED = String(import.meta.env.VITE_APPLE_LIBRARY_PICKER ??
 function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const t = useBS();
   const tr = useShapeTr();
-  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const gold = '#d8b25a', teal = t.isLight ? '#0a8f87' : '#34d6c5', purple = '#8a5cf6';
   const [extra, setExtra] = useStateBSP(() => bsReadJSON('bs_coach_soundtracks', []));
   const [serverList, setServerList] = useStateBSP(null); // array once synced from the API
   const [assign, setAssign] = useStateBSP(() => bsReadJSON('bs_coach_soundtrack_assign', {}));
@@ -7527,6 +7527,7 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   const shown = all
     .filter(p => filter === 'all' ? true : p.provider === filter)
     .filter(p => { const q = query.trim().toLowerCase(); return !q || p.name.toLowerCase().includes(q) || (p.tag || '').toLowerCase().includes(q); });
+  const totalAttached = all.reduce((s, p) => s + (p.used || 0) + assignedCount(p), 0);
 
   const saveImport = async () => {
     const name = iName.trim();
@@ -7752,73 +7753,77 @@ function BSProSoundtracks({ role = 'trainer', onBack, embedded = false }) {
   }
 
   // ── Library (main) ──
-  // Drawn as the Programs page's lists are (BSProCatalog.jsx, owner 2026-11-09: "make sure you do workouts
-  // and all the other pages on programs and plans"): ＋ Import as a quiet row, the search and the source in
-  // one slim field, every playlist a row on the page with a quiet Assign. The three figure tiles are gone:
-  // "Sources · 2 connected" was a literal, not a reading of the coach's connections.
-  const inkA = (a) => `rgba(${t.isLight ? '20,18,15' : '242,237,228'},${a})`;
-  const sans = t.DISPLAY;
-  const head = t.HEAD || t.DISPLAY;
-  const sourceOptions = [['all', tr('coach:sound.filterAll', { defaultValue: 'All · {count}', count: all.length })], ['spotify', 'Spotify'], ['apple', 'Apple Music']];
+  const stat = (label, value, sub, color) => (
+    <div style={{ borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: '13px 14px' }}>
+      <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color }}>{label}</div>
+      <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 26, fontWeight: 600, color: t.INK, lineHeight: 1 }}>{value}</div>
+      <div style={{ marginTop: 5, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>
+    </div>
+  );
   return (
     <BSStShell embedded={embedded} t={t} footerL={tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })} footerR={tr('coach:sound.playlistsCountLower', { defaultValue: '{count} playlists', count: all.length })}>
         {!embedded && (<>
         {/* The masthead row is BSStShell's — every branch of this page opens on
             it, so drawing a second one here would double the row. */}
-        <BSBackRow onBack={onBack} />
-        <div style={{ marginTop: 12, fontFamily: head, fontSize: 28, fontWeight: 700, color: t.INK, lineHeight: 1.05, letterSpacing: '-0.035em' }}>{tr('coach:sound.footerLeft', { defaultValue: 'Soundtracks' })}<span aria-hidden="true" style={{ color: role === 'nutritionist' ? gold : '#c0533b' }}>.</span></div>
-        <div style={{ marginTop: 4, fontFamily: sans, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{tr('coach:sound.libraryBlurb', { defaultValue: 'Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.' })}</div>
+        <BSBackRow onBack={onBack} trailing={<span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.playlistsCountUpper', { defaultValue: '{count} PLAYLISTS', count: all.length })}</span>} />
+        <div style={{ marginTop: 16, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.18em', color: gold }}>{tr('coach:sound.libraryHead', { defaultValue: 'SOUNDTRACK LIBRARY' })}</div>
+        <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 31, fontWeight: 700, color: t.INK, lineHeight: 1, letterSpacing: "-0.03em" }}>{tr('coach:sound.yourWord', { defaultValue: 'Your' })} <span style={{ fontStyle: 'italic', color: gold }}>{tr('coach:sound.soundtracksAccent', { defaultValue: 'soundtracks.' })}</span></div>
+        <div style={{ marginTop: 12, fontFamily: t.DISPLAY, fontSize: 14.5, fontStyle: 'italic', color: t.INK70, lineHeight: 1.5 }}>{tr('coach:sound.libraryBlurb', { defaultValue: 'Premade playlists you can attach to any workout or meal plan — no need to build a new one each time.' })}</div>
         </>)}
 
-        {/* The list's head, with ＋ Import (the page's ＋ New on its other lists). */}
-        <div data-st-head="" style={{ marginTop: embedded ? 2 : 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 44 }}>
-          <h2 style={{ margin: 0, minWidth: 0, fontFamily: sans, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{tr('coach:sound.statPlaylists', { defaultValue: 'PLAYLISTS' })} <span style={{ fontVariantNumeric: 'tabular-nums' }}>{all.length}</span></h2>
-          <button type="button" data-st-import="" onClick={() => setImporting(true)} aria-label={tr('coach:sound.importFrom', { defaultValue: 'Import from Spotify or Apple Music' })}
-            style={{ flexShrink: 0, minWidth: 44, minHeight: 44, marginRight: -6, padding: '0 6px', border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: sans, fontSize: 13, fontWeight: 650, color: teal === '#34d6c5' ? teal : '#07706a', whiteSpace: 'nowrap' }}>
-            <span aria-hidden="true">＋</span>{tr('coach:sound.importShort', { defaultValue: 'Import' })}
-          </button>
+        {/* New soundtrack */}
+        <button onClick={() => setImporting(true)} style={{ width: '100%', marginTop: 20, textAlign: 'left', cursor: 'pointer', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 14, alignItems: 'center', borderRadius: 16, border: `1px solid ${gold}44`, background: `linear-gradient(150deg, ${gold}1c, ${t.PAPER2} 75%), ${t.PAPER2}`, padding: 16 }}>
+          <span style={{ width: 48, height: 48, borderRadius: 12, background: gold, color: '#241c08', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 300, lineHeight: 1 }}>+</span>
+          <div>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', color: gold }}>{tr('coach:sound.newSoundtrack', { defaultValue: 'NEW SOUNDTRACK' })}</div>
+            <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, lineHeight: 1.15 }}>{tr('coach:sound.importFrom', { defaultValue: 'Import from Spotify or Apple Music' })}</div>
+          </div>
+          <span style={{ color: gold, fontSize: 16 }}>→</span>
+        </button>
+
+        {/* Stats */}
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          {stat(tr('coach:sound.statPlaylists', { defaultValue: 'PLAYLISTS' }), String(all.length), '', gold)}
+          {stat(tr('coach:sound.statAttached', { defaultValue: 'ATTACHED' }), String(totalAttached), tr('coach:sound.toPlans', { defaultValue: 'to plans' }), teal)}
+          {stat(tr('coach:sound.statSources', { defaultValue: 'SOURCES' }), '2', tr('coach:sound.connected', { defaultValue: 'connected' }), purple)}
         </div>
 
-        {/* The search and the source in one slim field. */}
-        <div style={{ display: 'flex', alignItems: 'stretch', boxSizing: 'border-box', minHeight: 44, borderRadius: 14, background: inkA(t.isLight ? 0.045 : 0.07) }}>
-          <label style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 9, padding: '0 6px 0 13px', cursor: 'text' }}>
-            <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2.2" strokeLinecap="round" style={{ flex: 'none' }}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('coach:sound.searchSoundtracks', { defaultValue: 'Search soundtracks…' })} placeholder={tr('coach:sound.searchSoundtracks', { defaultValue: 'Search soundtracks…' })}
-              style={{ flex: 1, minWidth: 0, minHeight: 44, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: sans, fontSize: 16, fontWeight: 500, textOverflow: 'ellipsis' }} />
-          </label>
-          <span aria-hidden="true" style={{ flex: 'none', width: 1, margin: '10px 0', background: inkA(0.12) }} />
-          <span data-st-source={filter} style={{ position: 'relative', flex: 'none', display: 'inline-flex', alignItems: 'center' }}>
-            <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label={tr('coach:sound.sourceAria', { defaultValue: 'Source' })}
-              style={{ appearance: 'none', WebkitAppearance: 'none', minHeight: 44, minWidth: 44, maxWidth: 150, height: '100%', padding: '0 28px 0 12px', border: 0, background: 'transparent', color: t.INK70, cursor: 'pointer', fontFamily: sans, fontSize: 16, fontWeight: 600, outline: 'none', textOverflow: 'ellipsis' }}>
-              {sourceOptions.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-            </select>
-            <svg aria-hidden="true" width="12" height="8" viewBox="0 0 12 8" fill="none" stroke={t.INK50} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', right: 11, top: '50%', marginTop: -4, pointerEvents: 'none' }}><path d="M1.5 1.5l4.5 4.5 4.5-4.5" /></svg>
-          </span>
+        {/* Search */}
+        <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 9, borderBottom: `1px solid ${t.RULE}`, padding: '8px 2px' }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={t.INK50} strokeWidth="2" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={tr('coach:sound.searchSoundtracks', { defaultValue: 'Search soundtracks…' })} style={{ flex: 1, minWidth: 0, border: 0, background: 'transparent', outline: 'none', color: t.INK, fontFamily: t.DISPLAY, fontSize: 15 }} />
         </div>
 
-        {/* Every playlist as a row: its cover with the source's dot, its name, the source and facts, Assign. */}
-        <div style={{ marginTop: 6 }}>
+        {/* Filter pills */}
+        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[['all', tr('coach:sound.filterAll', { defaultValue: 'All · {count}', count: all.length })], ['spotify', 'Spotify'], ['apple', 'Apple Music']].map(([k, l]) => {
+            const on = filter === k;
+            return <button key={k} onClick={() => setFilter(k)} style={{ borderRadius: 999, padding: '8px 15px', cursor: 'pointer', border: `1px solid ${on ? gold : t.RULE}`, background: on ? `${gold}1c` : 'transparent', color: on ? gold : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{l}</button>;
+          })}
+        </div>
+
+        {/* Playlist cards */}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {shown.length === 0 && (
-            <div style={{ marginTop: 8, padding: '16px', borderRadius: 14, background: inkA(t.isLight ? 0.04 : 0.05), fontFamily: sans, fontSize: 13, fontWeight: 600, color: t.INK70, textAlign: 'center' }}>{tr('coach:sound.noMatch', { defaultValue: 'No soundtracks match.' })}</div>
+            <div style={{ padding: '22px 16px', borderRadius: 16, border: `1px dashed ${t.RULE}`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>{tr('coach:sound.noMatch', { defaultValue: 'No soundtracks match.' })}</div>
           )}
-          {shown.map((p, i) => {
+          {shown.map((p) => {
             const att = assignedCount(p);
             return (
-              <div key={p.id} data-st-row="" style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 64, padding: '8px 0', borderTop: i ? `1px solid ${inkA(0.07)}` : 0 }}>
-                <div aria-hidden="true" style={{ position: 'relative', flex: 'none', width: 48, height: 48, borderRadius: 12, background: `linear-gradient(150deg, ${p.c}, ${p.c}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 13, alignItems: 'center', borderRadius: 16, border: `1px solid ${t.RULE}`, background: t.PAPER2, padding: 13 }}>
+                <div style={{ position: 'relative', width: 58, height: 58, borderRadius: 12, background: `linear-gradient(150deg, ${p.c}, ${p.c}99)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {bsEqGlyph('#ffffffd0')}
-                  <span style={{ position: 'absolute', top: 5, right: 5, width: 8, height: 8, borderRadius: 999, background: providerDot(p.provider), border: '1.5px solid rgba(0,0,0,0.25)' }} />
+                  <span style={{ position: 'absolute', top: 6, right: 6, width: 9, height: 9, borderRadius: 999, background: providerDot(p.provider), border: '1.5px solid rgba(0,0,0,0.25)' }} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: head, fontSize: 15, fontWeight: 650, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                  <div style={{ marginTop: 2, fontFamily: sans, fontSize: 12.5, color: t.INK70, lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {p.provider === 'apple' ? 'Apple Music' : 'Spotify'}{p.tag ? ` · ${p.tag}` : ''} · {tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur}{p.bpm ? ` · ${p.bpm} BPM` : ''}{att > 0 ? ` · ${tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att })}` : (p.used ? ` · ${tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: p.used })}` : '')}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', color: t.INK50 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: providerDot(p.provider) }} />
+                    {providerLabel(p.provider)} · {(p.tag || '').toUpperCase()}
                   </div>
+                  <div style={{ marginTop: 3, fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.1 }}>{p.name}</div>
+                  <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 9, color: t.INK50, letterSpacing: '0.02em', lineHeight: 1.4 }}>{tr('coach:sound.tracksCount', { defaultValue: '{count} tracks', count: p.tracks })} · {p.dur} · {p.bpm} BPM · {att > 0 ? tr('coach:sound.assignedCount', { defaultValue: 'assigned {count}', count: att }) : tr('coach:sound.usedBy', { defaultValue: 'used by {count}', count: p.used })}</div>
                 </div>
-                <button type="button" data-st-assign="" onClick={() => setAssignFor(p.id)} aria-label={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: p.name })}
-                  style={{ flex: 'none', minWidth: 44, minHeight: 44, margin: '-5px 0', padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 30, padding: '0 12px', borderRadius: 999, boxSizing: 'border-box', fontFamily: sans, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', color: t.INK, background: att > 0 ? inkA(0.12) : (t.isLight ? 'rgba(255,255,255,0.72)' : inkA(0.06)), border: `1px solid ${inkA(t.isLight ? 0.12 : 0.16)}` }}>{tr('coach:head.assign', { defaultValue: 'Assign' })}</span>
-                </button>
+                <button onClick={() => setAssignFor(p.id)} style={{ alignSelf: 'stretch', minWidth: 64, borderRadius: 12, border: `1px solid ${att > 0 ? gold : `${gold}77`}`, background: att > 0 ? `${gold}1c` : 'transparent', color: gold, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', cursor: 'pointer', padding: '0 10px' }}>{tr('coach:plans.assign', { defaultValue: 'ASSIGN' })}</button>
               </div>
             );
           })}

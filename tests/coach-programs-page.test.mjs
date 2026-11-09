@@ -1,6 +1,7 @@
-// The coach's Programs (trainer) and Plans (nutritionist) pages as shipped, the owner's B (2026-11-04: "B for
-// programs just reduce size of this button"), and the draft composer they open (owner: "describe plan looks
-// good just clean up filters, make them smaller, and alow for custom focuses to be used").
+// The coach's Programs (trainer) and Plans (nutritionist) pages as shipped, the owner's A (2026-11-09: "for
+// programs and plans do A": one list, the most popular plan its first row), and the draft composer they open
+// (owner: "describe plan looks good just clean up filters, make them smaller, and alow for custom focuses to
+// be used"). Music keeps its own look (owner, 2026-11-09, of its screenshot: "but do this for playlists").
 //
 // The shipping pages, mounted in jsdom (the harness is tests/nutri-plans-library.test.mjs's): the tabs, the
 // search, the sort, From scratch, the featured plan, opening a plan, Assign going to the Assign page, the
@@ -71,10 +72,12 @@ async function mount(Page, props = {}) {
 const tabs = (m) => m.all('[role="tab"]');
 const tab = (m, label) => m.click(tabs(m).find((b) => b.textContent === label));
 const names = (m) => m.all('[data-pc-item] [data-pc-name]').map((n) => n.textContent);
+// The sort is one small picker in the search field.
+const sortTo = (m, value) => React.act(async () => { const el = m.q('[data-pc-sort] select'); el.value = value; el.dispatchEvent(new W.Event('change', { bubbles: true })); });
 const signOut = () => { W.ShapeAuth = undefined; W.ShapeCoachPlans = undefined; W.ShapeAI = undefined; W.localStorage.clear(); };
 const signIn = (list) => { W.localStorage.clear(); W.ShapeAuth = { getCachedState: () => ({ user: { id: 'coach-1' } }) }; W.ShapeCoachPlans = { list }; };
 
-test('trainer, signed out: the title, the counts, the four kinds as tabs, the most popular plan and the rest as tiles', async () => {
+test('trainer, signed out: the title, the counts, the four kinds as tabs, and one list led by the most popular plan', async () => {
   signOut();
   const m = await mount(PROS.BSTrainerPrograms);
   try {
@@ -82,10 +85,13 @@ test('trainer, signed out: the title, the counts, the four kinds as tabs, the mo
     assert.equal(m.q('[data-deck-published]').textContent, '4 published · 1 draft');
     assert.deepEqual(tabs(m).map((b) => [b.textContent, b.getAttribute('aria-selected')]), [['Plans', 'true'], ['Workouts', 'false'], ['Programs', 'false'], ['Music', 'false']]);
     const featured = m.q('[data-pc-featured]');
+    assert.ok(featured.hasAttribute('data-pc-item'), 'the most popular plan is a row of the list');
     assert.equal(featured.querySelector('[data-pc-featured-name]').textContent, 'Push / Pull / Legs');
-    assert.equal(featured.querySelector('[data-pc-action="assign"]').getAttribute('data-pc-compact'), 'primary');
-    assert.deepEqual(names(m), ['Starting Strength', 'Fat Loss 101', 'Hypertrophy Block']);
-    assert.equal(m.all('[data-pc-enrolled]').length, 4, 'Enrolled, a tile a plan');
+    assert.equal(featured.querySelector('[data-pc-action="assign"]').getAttribute('data-pc-compact'), 'quiet');
+    assert.deepEqual(names(m), ['Push / Pull / Legs', 'Starting Strength', 'Fat Loss 101', 'Hypertrophy Block']);
+    // Enrolled repeated every plan with the count its row carries, and drew only the sample's.
+    assert.equal(m.all('[data-pc-enrolled]').length, 0, 'no Enrolled list');
+    assert.doesNotMatch(m.text(), /Enrolled|ON IT/);
   } finally { await m.close(); }
 });
 
@@ -95,25 +101,26 @@ test('trainer: the search covers the list and says when nothing matches; the sor
   try {
     await m.type(m.q('input[type="search"]'), 'fat');
     assert.equal(m.q('[data-pc-featured-name]').textContent, 'Fat Loss 101', 'the most popular of what matches leads');
-    assert.deepEqual(names(m), []);
+    assert.deepEqual(names(m), ['Fat Loss 101']);
     await m.type(m.q('input[type="search"]'), 'strength');
     assert.equal(m.q('[data-pc-featured-name]').textContent, 'Starting Strength');
     await m.type(m.q('input[type="search"]'), 's');
     assert.equal(m.q('[data-pc-featured-name]').textContent, 'Push / Pull / Legs');
-    assert.deepEqual(names(m), ['Starting Strength', 'Fat Loss 101'], 'the rest that match, as tiles');
+    assert.deepEqual(names(m), ['Push / Pull / Legs', 'Starting Strength', 'Fat Loss 101'], 'what matches, the most popular first');
     await m.type(m.q('input[type="search"]'), 'zzz');
     assert.deepEqual(names(m), []);
     assert.equal(m.q('[data-pc-miss]').textContent, 'Nothing matches “zzz”.');
     await m.type(m.q('input[type="search"]'), '');
-    const sort = (label) => m.click(m.all('[data-pc-sort] button').find((b) => b.textContent === label));
-    assert.deepEqual(m.all('[data-pc-sort] button').map((b) => [b.textContent, b.getAttribute('aria-pressed')]), [['Popular', 'true'], ['Price', 'false'], ['Rating', 'false']]);
-    await sort('Price');
-    assert.ok(!m.q('[data-pc-featured]'), 'featured only under Popular');
+    const sel = m.q('[data-pc-sort] select');
+    assert.equal(sel.getAttribute('aria-label'), 'Sort: Popular');
+    assert.deepEqual([...sel.options].map((o) => [o.value, o.textContent]), [['Popular', 'Popular'], ['Price', 'Price'], ['Rating', 'Rating']]);
+    await sortTo(m, 'Price');
+    assert.ok(!m.q('[data-pc-featured]'), 'the ★ only under Popular');
     assert.deepEqual(names(m), ['Fat Loss 101', 'Push / Pull / Legs', 'Hypertrophy Block', 'Starting Strength']);
-    await sort('Rating');
+    await sortTo(m, 'Rating');
     assert.equal(names(m)[0], 'Push / Pull / Legs');
     assert.equal(names(m).at(-1), 'Fat Loss 101');
-    await sort('Popular');
+    await sortTo(m, 'Popular');
     assert.ok(m.q('[data-pc-featured]'));
   } finally { await m.close(); }
 });
@@ -124,14 +131,20 @@ test('trainer: the tabs switch the lists; Workouts has the sample\'s top pick, i
   try {
     await tab(m, 'Workouts');
     assert.equal(tabs(m).find((b) => b.textContent === 'Workouts').getAttribute('aria-selected'), 'true');
-    assert.equal(m.q('[data-pc-featured-name]').textContent, 'Lower Push — Peak.');
-    assert.ok(m.q('[data-pc-action="edit"]'), 'its Edit');
+    // The sample's top pick is the first row of Sessions, marked, and is not listed a second time.
+    const pick = m.q('[data-pc-featured]');
+    assert.ok(pick.hasAttribute('data-pc-item'), 'a row, not a second card');
+    assert.equal(pick.querySelector('[data-pc-featured-name]').textContent, 'Lower Push — Peak');
+    assert.match(pick.textContent, /★ TOP WORKOUT · 62 MIN/);
+    assert.equal(names(m).filter((n) => n === 'Lower Push — Peak').length, 1);
+    assert.equal(names(m)[0], 'Lower Push — Peak');
     assert.ok(m.q('[data-pc-section="sessions"]') && m.q('[data-pc-section="videos"]'));
     assert.ok(names(m).includes('Tempo Run · Zone 2'));
     assert.ok(!m.q('[data-pc-sort]'), 'sort is the paid plans\' alone');
     await tab(m, 'Programs');
     assert.ok(m.q('[data-pc-section="templates"]'));
     assert.ok(names(m).includes('3-day Full Body'));
+    assert.equal(names(m)[0], '5-day Upper / Lower', 'its top pick leads its list');
   } finally { await m.close(); }
 });
 

@@ -1,7 +1,8 @@
-// The coach's Programs / Plans page, the owner's B (2026-11-04): "B for programs just reduce size of this
-// button", of the most popular plan's big filled Assign. Every action on the page is a compact pill now: a
-// 34px pill drawn inside a 44px button, so the tap stays 44 while the button reads small. The most popular
-// plan's Assign is the page's one filled teal pill; every other plan's is the quiet one, the same size.
+// The coach's Programs / Plans page, the owner's A (2026-11-09, "for programs and plans do A"; before it,
+// of the 2026-11-04 B, "just reduce size of this button"). One list: the most popular plan is the first row
+// of the list under it, marked ★, not a card of its own. Every row's Assign is the quiet compact pill (30px
+// drawn inside a 44px button), Copy a quiet icon in a 44px target, and ＋ From scratch the page's one
+// filled teal action.
 //
 // The shipping component (BSProCatalog.jsx), mounted in jsdom with a page's model.
 import test from 'node:test';
@@ -57,54 +58,59 @@ function model(calls) {
   };
 }
 
-test('the most popular plan: its photo, "★ Most popular", the name, the length, clients and rating, the price, and a compact filled Assign', async () => {
-  const calls = [];
-  const m = await mount(model(calls));
-  try {
-    const tile = m.host.querySelector('[data-pc-featured]');
-    assert.match(tile.textContent, /★ Most popular/);
-    assert.equal(tile.querySelector('[data-pc-featured-name]').textContent, 'Push / Pull / Legs');
-    assert.match(nb(tile.textContent), /12 WK · 48 clients · 4\.9 ★/);
-    assert.equal(tile.querySelector('[data-pc-price]').textContent, '$120/mo');
-    assert.equal(tile.querySelector('[data-pc-thumb]').getAttribute('data-pc-thumb'), 'photo', 'the sample plan wears its photo');
-    const assign = tile.querySelector('[data-pc-action="assign"]');
-    assert.equal(assign.getAttribute('data-pc-compact'), 'primary', 'the page\'s one filled action');
-    assert.equal(assign.style.minHeight, '44px', 'the tap stays 44');
-    assert.equal(assign.style.minWidth, '44px');
-    const pill = assign.querySelector('[data-pc-pill]');
-    assert.equal(pill.style.height, '34px', 'the pill reads small');
-    assert.equal(pill.style.fontSize, '13px');
-    assert.equal(pill.style.background, 'rgb(10, 143, 135)', 'teal, filled');
-    assert.equal(assign.getAttribute('aria-label'), 'Assign Push / Pull / Legs to a client');
-    await m.click(assign);
-    await m.click(tile.querySelector('[data-pc-open]'));
-    assert.deepEqual(calls, ['assign Push / Pull / Legs', 'open Push / Pull / Legs'], 'Assign keeps its own tap; the tile opens the plan');
-  } finally { await m.close(); }
-});
-
-test('every other plan\'s Assign is the quiet pill, the same size; Copy is the words alone; a plan with no figures shows none', async () => {
+test('the most popular plan is the first row, marked ★: its photo, the name, the price with its length, clients and rating, and the quiet Assign', async () => {
   const calls = [];
   const m = await mount(model(calls));
   try {
     const rows = [...m.host.querySelectorAll('[data-pc-item]')];
-    assert.equal(rows.length, 2);
-    const assign = rows[0].querySelector('[data-pc-action="assign"]');
-    assert.equal(assign.getAttribute('data-pc-compact'), 'quiet');
-    assert.equal(assign.style.minHeight, '44px');
-    assert.equal(assign.querySelector('[data-pc-pill]').style.height, '34px', 'the same size as the featured one');
-    assert.equal(assign.querySelector('[data-pc-pill]').style.background, 'rgba(255, 255, 255, 0.72)', 'quiet, in the paper\'s own colour');
-    const copy = rows[0].querySelector('[data-pc-action="copy"]');
-    assert.equal(copy.getAttribute('data-pc-compact'), 'bare');
-    assert.equal(copy.getAttribute('aria-label'), 'Duplicate Starting Strength');
-    await m.click(copy);
-    assert.deepEqual(calls, ['copy Starting Strength']);
-    assert.match(nb(rows[0].textContent), /8 WK · 31 clients · 4\.8 ★/);
-    assert.ok(!rows[1].querySelector('[data-pc-price]'), 'no price, none drawn');
-    assert.match(rows[1].textContent, /2,400 kcal/, 'the line as it is when it carries no figure the page reads');
+    assert.equal(rows.length, 3, 'the most popular plan and the two others, in one list');
+    assert.equal(m.host.querySelectorAll('[data-pc-featured]').length, 1);
+    const top = rows[0];
+    assert.ok(top.hasAttribute('data-pc-featured'), 'the first row is the most popular plan');
+    assert.match(top.textContent, /★ Most popular/);
+    assert.equal(top.querySelector('[data-pc-featured-name]').textContent, 'Push / Pull / Legs');
+    assert.match(nb(top.textContent), /\$120\/mo · 12 WK · 48 clients · 4\.9 ★/);
+    assert.equal(top.querySelector('[data-pc-price]').textContent, '$120/mo');
+    assert.equal(top.querySelector('[data-pc-thumb]').getAttribute('data-pc-thumb'), 'photo', 'the sample plan wears its photo');
+    const assign = top.querySelector('[data-pc-action="assign"]');
+    assert.equal(assign.getAttribute('data-pc-compact'), 'quiet', 'no filled Assign: the page\'s one filled action is ＋ From scratch');
+    assert.equal(assign.style.minHeight, '44px', 'the tap stays 44');
+    assert.equal(assign.style.minWidth, '44px');
+    assert.equal(assign.querySelector('[data-pc-pill]').style.height, '30px', 'the pill reads small');
+    assert.equal(assign.getAttribute('aria-label'), 'Assign Push / Pull / Legs to a client');
+    await m.click(assign);
+    await m.click(top.querySelector('[data-pc-open]'));
+    assert.deepEqual(calls, ['assign Push / Pull / Legs', 'open Push / Pull / Legs'], 'Assign keeps its own tap; the row opens the plan');
+    // The list's head is the list's own; the most popular plan does not get one of its own.
+    assert.deepEqual([...m.host.querySelectorAll('h2')].map((h) => h.textContent), ['All plans']);
   } finally { await m.close(); }
 });
 
-test('the head: the title with its full stop, what is published, and ＋ From scratch at 44', async () => {
+test('every plan\'s Assign is the same quiet pill; Copy is a quiet icon in a 44px target; a plan with no figures shows none', async () => {
+  const calls = [];
+  const m = await mount(model(calls));
+  try {
+    const rows = [...m.host.querySelectorAll('[data-pc-item]')];
+    for (const r of rows) {
+      const a = r.querySelector('[data-pc-action="assign"]');
+      assert.equal(a.getAttribute('data-pc-compact'), 'quiet');
+      assert.equal(a.querySelector('[data-pc-pill]').style.height, '30px');
+      assert.equal(a.querySelector('[data-pc-pill]').style.background, 'rgba(255, 255, 255, 0.72)', 'quiet, in the paper\'s own colour');
+    }
+    const copy = rows[1].querySelector('[data-pc-action="copy"]');
+    assert.equal(copy.getAttribute('aria-label'), 'Duplicate Starting Strength');
+    assert.equal(copy.style.minHeight, '44px');
+    assert.equal(copy.style.minWidth, '44px');
+    assert.ok(copy.querySelector('svg'), 'an icon, its name for a reader');
+    await m.click(copy);
+    assert.deepEqual(calls, ['copy Starting Strength']);
+    assert.match(nb(rows[1].textContent), /\$95 · 8 WK · 31 clients · 4\.8 ★/);
+    assert.ok(!rows[2].querySelector('[data-pc-price]'), 'no price, none drawn');
+    assert.match(rows[2].textContent, /2,400 kcal/, 'the line as it is when it carries no figure the page reads');
+  } finally { await m.close(); }
+});
+
+test('the head: the title with its full stop, what is published, and ＋ From scratch, the one filled action, at 44', async () => {
   const calls = [];
   const m = await mount(model(calls));
   try {
@@ -113,6 +119,7 @@ test('the head: the title with its full stop, what is published, and ＋ From sc
     const scratch = m.host.querySelector('[data-create="scratch"]');
     assert.equal(scratch.textContent, '＋ From scratch');
     assert.ok(parseFloat(scratch.style.minHeight) >= 44);
+    assert.equal(scratch.querySelector('[data-pc-pill]').style.background, 'rgb(10, 122, 114)', 'teal, filled');
     await m.click(scratch);
     assert.deepEqual(calls, ['scratch']);
     for (const b of m.host.querySelectorAll('button')) {

@@ -318,7 +318,7 @@ function PcRow({ t, tr, role, item, src, i }) {
         <div style={{ ...onTop, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           {item.onDuplicate ? (
             <button type="button" data-pc-press="" data-pc-action="copy" onClick={item.onDuplicate} aria-label={tr('coach:workoutEditor.copyName', { defaultValue: 'Duplicate {name}', name: item.name })} title={tr('coach:head.copy', { defaultValue: 'Copy' })}
-              style={{ flexShrink: 0, width: 44, height: 44, marginRight: -4, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: t.INK70 }}><CopyIcon /></button>
+              style={{ flexShrink: 0, minWidth: 44, minHeight: 44, marginRight: -4, padding: 0, border: 0, background: 'transparent', cursor: 'pointer', display: 'grid', placeItems: 'center', color: t.INK70 }}><CopyIcon /></button>
           ) : null}
           {item.onAssign ? <PcCompact t={t} label={tr('coach:head.assign', { defaultValue: 'Assign' })} aria={tr('coach:plans.assignAria', { defaultValue: 'Assign {name} to a client', name: item.name })} onClick={item.onAssign} tag="assign" small /> : null}
         </div>

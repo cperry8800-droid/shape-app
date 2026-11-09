@@ -90,7 +90,8 @@ test('the tabs end with All, every current client, and its count', async () => {
     await open(m.host, 3);
     const all = m.host.querySelector('[data-roster-group="all"]');
     assert.ok(all, 'the All list');
-    assert.match(all.querySelector('h2').textContent, /^Current clients\s*3$/);
+    // The head, and (on the first list) what the figure at the end of a row measures.
+    assert.match(all.querySelector('h2').textContent, /^Current clients\s*3\s*Adherence$/);
     assert.deepEqual(['Ben Tal', 'Ana Reyes', 'Cleo Park'].map((n) => !!rowOf(all, n)), [true, true, true]);
     // Who needs the coach comes first.
     const order = [...all.querySelectorAll('button')].map((b) => b.textContent).filter((t) => /Ben Tal|Ana Reyes|Cleo Park/.test(t)).map((t) => t.match(/Ben Tal|Ana Reyes|Cleo Park/)[0]);
