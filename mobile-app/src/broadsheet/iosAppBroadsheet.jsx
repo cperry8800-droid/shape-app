@@ -530,14 +530,17 @@ function bsSetNavSide(v) {
   try { if (side === 'bottom') localStorage.removeItem(BS_NAV_SIDE_LS); else localStorage.setItem(BS_NAV_SIDE_LS, side); } catch (e) {}
   try { window.dispatchEvent(new CustomEvent('shape:navSide', { detail: { side } })); } catch (e) {}
 }
-// ⚠ ON A SIDE IT IS THE SAME BAR, THE SAME SIZE (owner, 2026-11-08: "make it the same size and look just
-// going vertically on the side of the screen"): as long as the bottom bar is wide (the screen's width less
-// BS_DOCK_SIDE each side), BS_DOCK_H thick, its tabs as far apart. Only a screen too short for that (a
-// phone held sideways) shortens it, to leave 24px above and below; never shorter than BS_DOCK_H a tab.
+// ⚠ ON A SIDE IT IS THE SAME BAR, THE SAME LOOK (owner, 2026-11-08: "make it the same size and look just
+// going vertically on the side of the screen"), BS_DOCK_H thick, but shorter than the bottom bar is wide
+// (owner, 2026-11-09: "make the nav bar on the sides shorter, not as long"; it ran the bottom bar's 342px
+// on a 390 phone): BS_SIDE_NAV_TAB a tab, 260px for five. Never longer than the bottom bar is wide, a
+// screen too short for it (a phone held sideways) leaves 24px above and below, and never under BS_DOCK_H
+// a tab.
+const BS_SIDE_NAV_TAB = 52;
 function bsSideNavLength(width, height, n) {
   const w = Number(width), h = Number(height), tabs = Math.max(1, Number(n) || 1);
   if (!(w > 0) || !(h > 0)) return null;
-  return Math.max(BS_DOCK_H * tabs, Math.min(w - BS_DOCK_SIDE * 2, h - 48));
+  return Math.max(BS_DOCK_H * tabs, Math.min(BS_SIDE_NAV_TAB * tabs, w - BS_DOCK_SIDE * 2, h - 48));
 }
 function useBSNavSide() {
   const [side, setSide] = React.useState(bsNavSide);
@@ -1956,8 +1959,8 @@ function BSTabBar({ tabs, active, onChange }) {
   const GEM = 26;
   const FA = typeof window !== 'undefined' ? window.BSFacetAvatar : null;
   // Bottom (the default), or the same bar turned upright on the left or right edge (Settings →
-  // Customize → Nav bar), centred on the screen's height: as long as the bottom bar is wide
-  // (bsSideNavLength, measured on the screen it stands on), BS_DOCK_H thick, the gem sliding down it.
+  // Customize → Nav bar), centred on the screen's height: BS_SIDE_NAV_TAB a tab (bsSideNavLength,
+  // measured on the screen it stands on), BS_DOCK_H thick, the gem sliding down it.
   const side = useBSNavSide();
   const upright = side === 'left' || side === 'right';
   const dockRef = React.useRef(null);
@@ -1975,7 +1978,7 @@ function BSTabBar({ tabs, active, onChange }) {
   const dock = upright ? {
     position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 55,
     [side]: `calc(${BS_DOCK_SIDE_GAP}px + env(safe-area-inset-${side}, 0px))`,
-    width: BS_DOCK_H, height: sideLen != null ? sideLen : `calc(100vw - ${BS_DOCK_SIDE * 2}px)`,
+    width: BS_DOCK_H, height: sideLen != null ? sideLen : BS_SIDE_NAV_TAB * n,
     display: 'flex', pointerEvents: 'none',
   } : {
     position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 55,
@@ -2844,7 +2847,7 @@ function BSNavGestures() {
 Object.assign(window, {
   BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSMastBackSlot, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_MAST_LOGO, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
-  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
+  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BS_SIDE_NAV_TAB, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,
