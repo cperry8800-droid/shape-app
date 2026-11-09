@@ -981,10 +981,19 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   // Escape or a tap off the bar closes it.
   const campNavRef = React.useRef(null);
   const [campPick, setCampPick] = React.useState(false);
+  const campPickRef = React.useRef(null);
+  // Closing with focus inside the grid hands it back to the bar, so it is never left in a hidden list
+  // (Codex, #2664); a tap off the bar leaves focus where that tap put it.
+  const closeCampPick = () => {
+    const nav = campNavRef.current, grid = nav && nav.querySelector("[data-camp-grid]");
+    const inGrid = !!(grid && typeof document !== "undefined" && grid.contains(document.activeElement));
+    setCampPick(false);
+    if (inGrid && campPickRef.current) { try { campPickRef.current.focus({ preventScroll: true }); } catch (e) { campPickRef.current.focus(); } }
+  };
   React.useEffect(() => {
     if (!campPick || typeof document === "undefined") return undefined;
     const off = (e) => { const nav = campNavRef.current; if (nav && e.target && !nav.contains(e.target)) setCampPick(false); };
-    const key = (e) => { if (e.key === "Escape") setCampPick(false); };
+    const key = (e) => { if (e.key === "Escape") closeCampPick(); };
     document.addEventListener("pointerdown", off, true);
     document.addEventListener("keydown", key);
     return () => { document.removeEventListener("pointerdown", off, true); document.removeEventListener("keydown", key); };
@@ -1492,7 +1501,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
             const i = Math.max(0, camps.findIndex((c) => c.key === campOn));
             const here = camps[i];
             return (
-              <button type="button" className="cpw-campnav-pick" data-camp-pick="" aria-expanded={campPick ? "true" : "false"} aria-controls="cpw-camp-grid" onClick={() => setCampPick((v) => !v)}>
+              <button ref={campPickRef} type="button" className="cpw-campnav-pick" data-camp-pick="" aria-expanded={campPick ? "true" : "false"} aria-controls="cpw-camp-grid" onClick={() => setCampPick((v) => !v)}>
                 <span data-camp-here="" style={{ color: ACC }}>{here.label === here.name ? here.name : `${here.label} · ${here.name}`}</span>
                 <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" style={{ transform: campPick ? "rotate(180deg)" : "none" }}><path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke={ink(0.55)} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
               </button>
@@ -1500,7 +1509,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
           })()}
           <div id="cpw-camp-grid" className="cpw-campnav-grid" data-camp-grid="" hidden={!campPick}>
             {camps.map((c) => (
-              <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => { setCampPick(false); toCamp(c.key); }}
+              <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => { closeCampPick(); toCamp(c.key); }}
                 style={{ color: campOn === c.key ? ACC : "#eef3f0", borderColor: campOn === c.key ? cpwA(ACC, 0.6) : "rgba(238,243,240,.14)", background: campOn === c.key ? cpwA(ACC, 0.12) : "transparent" }}>{c.name}</button>
             ))}
           </div>

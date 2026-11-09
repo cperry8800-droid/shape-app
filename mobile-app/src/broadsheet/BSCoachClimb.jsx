@@ -219,12 +219,22 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
   // names the camp you are at; a tap opens every camp as a grid under it, and a camp closes it. Escape, or
   // a tap anywhere off the bar, closes it too.
   const [pick, setPick] = React.useState(false);
+  const pickRef = React.useRef(null);
+  // Closing with focus inside the grid hands it back to the bar, so it is never left in a hidden list
+  // (Codex, #2664); a tap off the bar leaves focus where that tap put it.
+  const closePick = () => {
+    const nav = navRef.current, grid = nav && nav.querySelector('[data-climb-camp-grid]');
+    const doc = rootRef.current && rootRef.current.ownerDocument;
+    const inGrid = !!(grid && doc && grid.contains(doc.activeElement));
+    setPick(false);
+    if (inGrid && pickRef.current) { try { pickRef.current.focus({ preventScroll: true }); } catch (e) { pickRef.current.focus(); } }
+  };
   React.useEffect(() => {
     if (!pick) return undefined;
     const doc = rootRef.current && rootRef.current.ownerDocument;
     if (!doc) return undefined;
     const off = (e) => { const nav = navRef.current; if (nav && e.target && !nav.contains(e.target)) setPick(false); };
-    const key = (e) => { if (e.key === 'Escape') setPick(false); };
+    const key = (e) => { if (e.key === 'Escape') closePick(); };
     doc.addEventListener('pointerdown', off, true);
     doc.addEventListener('keydown', key);
     return () => { doc.removeEventListener('pointerdown', off, true); doc.removeEventListener('keydown', key); };
@@ -354,7 +364,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
                 const idx = Math.max(0, camps.findIndex((c) => c.key === at.key));
                 const here = camps[idx];
                 return (
-                  <button type="button" data-climb-camp-pick="" aria-expanded={pick ? 'true' : 'false'} aria-controls="climb-camp-grid" onClick={() => setPick((v) => !v)}
+                  <button ref={pickRef} type="button" data-climb-camp-pick="" aria-expanded={pick ? 'true' : 'false'} aria-controls="climb-camp-grid" onClick={() => setPick((v) => !v)}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: ROW_H, padding: `0 ${gutter}px`, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
                     <span data-climb-camp-here="" style={{ flex: 1, minWidth: 0, ...mono(10.5, ACC), fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{here.eyebrow || here.label}</span>
                     <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" style={{ flex: 'none', transform: pick ? 'rotate(180deg)' : 'none', transition: reduced ? 'none' : 'transform 160ms ease' }}><path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke={CLIMB.MUTED} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -370,7 +380,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
                 {camps.map((c) => {
                   const on = c.key === at.key;
                   return (
-                    <button key={c.key} type="button" data-profile-tab={c.key} data-climb-camp-tab={c.key} aria-current={on ? 'location' : undefined} onClick={() => { setPick(false); goTo(c.key); }}
+                    <button key={c.key} type="button" data-profile-tab={c.key} data-climb-camp-tab={c.key} aria-current={on ? 'location' : undefined} onClick={() => { closePick(); goTo(c.key); }}
                       style={{ minWidth: 0, minHeight: 44, padding: '0 6px', borderRadius: 8, border: `1px solid ${on ? hexA(ACC, 0.6) : CLIMB.LINE}`, background: on ? hexA(ACC, 0.12) : 'transparent', ...mono(10, on ? ACC : CLIMB.INK), fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</button>
                   );
                 })}

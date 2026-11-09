@@ -1394,15 +1394,20 @@ test('the camps pin under the condensed masthead as one bar naming where you are
   assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Book', 'Programs', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
   assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.textOverflow === 'ellipsis'));
   assert.equal(tabs.filter((b) => b.getAttribute('aria-current') === 'location').length, 1, 'one camp is where you are');
-  // Tapping a camp marks it at once, names it on the bar and closes the grid.
+  // Tapping a camp marks it at once, names it on the bar and closes the grid, handing focus back to the bar
+  // (Codex, #2664: never left in the hidden grid).
+  tabs[7].focus();
   await click(tabs[7]);
+  assert.equal(document.activeElement === pick, true, 'focus is back on the bar');
   assert.equal(tabs[7].getAttribute('aria-current'), 'location');
   assert.match(nav.querySelector('[data-climb-camp-here]').textContent, /Find me/);
   assert.equal(grid.hidden, true, 'a camp closes the grid');
   // Escape closes it; so does a tap off the bar.
   await click(pick);
+  tabs[2].focus();
   await act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
   assert.equal(grid.hidden, true, 'Escape closes it');
+  assert.equal(document.activeElement === pick, true, 'and hands focus back to the bar');
   await click(pick);
   await act(async () => { document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true })); });
   assert.equal(grid.hidden, true, 'a tap off the bar closes it');

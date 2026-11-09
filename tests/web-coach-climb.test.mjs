@@ -276,14 +276,18 @@ test('on a phone the camps pin as one bar naming where you are; a tap opens them
   let scrolled = null;
   const was = window.Element.prototype.scrollIntoView;
   window.Element.prototype.scrollIntoView = function () { scrolled = this.getAttribute('data-camp'); };
+  $('[data-camp-link="words"]').focus();
   await React.act(async () => $('[data-camp-link="words"]').click());
+  assert.equal(document.activeElement === pick, true, 'focus is back on the bar (Codex, #2664)');
   assert.equal(scrolled, 'words');
   assert.equal($('[data-camp-link="words"]').getAttribute('aria-current'), 'true');
   assert.match($('[data-camp-here]').textContent, /Words/, 'the bar names it');
   assert.equal(grid.hidden, true, 'a camp closes the grid');
   await React.act(async () => pick.click());
+  $('[data-camp-link="about"]').focus();
   await React.act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
   assert.equal(grid.hidden, true, 'Escape closes it');
+  assert.equal(document.activeElement === pick, true, 'and hands focus back to the bar');
   await React.act(async () => pick.click());
   await React.act(async () => { document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true })); });
   assert.equal(grid.hidden, true, 'a tap off the bar closes it');
