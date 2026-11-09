@@ -27,7 +27,8 @@ const REDIRECTED = {
   marketplace: '/newdesign/Coaches.html',
   'for-trainers': '/newdesign/Coach.html',
   'for-nutritionists': '/newdesign/Nutritionist.html',
-  'for-clients': '/newdesign/Client.html',
+  // Its website page is retired too (owner, 2026-11-09: "remove the members page from website").
+  'for-clients': '/newdesign/index.html',
   'shape-score': '/newdesign/Score.html',
   'shape-score-trainer': '/newdesign/Score.html',
   'shape-score-nutritionist': '/newdesign/Score.html',

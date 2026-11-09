@@ -24,7 +24,8 @@ const retiredPages: Array<[string, string]> = [
   ['marketplace', '/newdesign/Coaches.html'],
   ['for-trainers', '/newdesign/Coach.html'],
   ['for-nutritionists', '/newdesign/Nutritionist.html'],
-  ['for-clients', '/newdesign/Client.html'],
+  // Its website page, Client.html, is retired too (2026-11-09, below), so the homepage.
+  ['for-clients', '/newdesign/index.html'],
   ['shape-score', '/newdesign/Score.html'],
   ['shape-score-trainer', '/newdesign/Score.html'],
   ['shape-score-nutritionist', '/newdesign/Score.html'],
@@ -64,6 +65,9 @@ const nextConfig: NextConfig = {
       { source: '/about', destination: '/newdesign/index.html', permanent: false },
       { source: '/about.html', destination: '/newdesign/index.html', permanent: false },
       { source: '/newdesign/About.html', destination: '/newdesign/index.html', permanent: false },
+      // The members page is retired the same way (owner, 2026-11-09: "remove the members page
+      // from website"). Temporary, like About.
+      { source: '/newdesign/Client.html', destination: '/newdesign/index.html', permanent: false },
       // The legacy coach applications are retired (owner, 2026-10-12: "retire legacy pages"):
       // the root pages and the /mobile preview's sign-up pages each kept their own copy of the
       // application, which drifted from the rules the website and the app follow. Every old link

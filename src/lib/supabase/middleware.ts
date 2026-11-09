@@ -77,7 +77,7 @@ const LARGE_BODY_PREFIXES = [
 //
 // Gated:     /newdesign/Client<X>.html, Trainer<X>.html, Nutritionist<X>.html
 //            (e.g. ClientDashboard.html, TrainerClients.html)
-// NOT gated: bare overview pages (Client.html / Coach.html / Nutritionist.html),
+// NOT gated: bare overview pages (Coach.html / Nutritionist.html),
 //            the public coach profiles (TrainerPublic.html,
 //            NutritionistPublic.html), and every marketing page (index,
 //            Marketplace, Radio, Pricing, ...).

@@ -94,8 +94,8 @@ test('the sitemap lists live pages only, on the www host, and each one exists', 
   }
   // The pages the header and footer link are all there. The marketplace is Coaches.html since
   // 2026-11-05 (Marketplace.html forwards there, so it left the sitemap) and the coaches' pitch
-  // is ForCoaches.html.
-  for (const p of ['index', 'Coaches', 'ForCoaches', 'Pricing', 'GetApp', 'Radio', 'Recipes', 'Client']) {
+  // is ForCoaches.html. The members page, Client.html, is retired (owner, 2026-11-09).
+  for (const p of ['index', 'Coaches', 'ForCoaches', 'Pricing', 'GetApp', 'Radio', 'Recipes']) {
     assert.ok(paths.includes(`/newdesign/${p}.html`), `/newdesign/${p}.html is missing from the sitemap`);
   }
   assert.match(read('public/robots.txt'), /^Sitemap: https:\/\/www\.theshapecommunity\.com\/sitemap\.xml$/m);

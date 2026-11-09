@@ -320,25 +320,23 @@ const REWARDS_ITEMS = [
 // and `tests/site-nav.test.mjs` pins it, or the next reader tidies the drawer to
 // match the bar and silently loses the page.
 //
-// ⚠ MEMBERS IS THE SECOND LINK, beside Coaches, and it is the members' door the
-// way Coaches is the coaches' — owner, 2026-09-14: `Client.html` ("For members")
-// was reachable from the footer alone; "maybe a seperate client tab on nav bar",
-// named Members because the footer already says "For members" and a visitor who
-// has not got a coach yet is not anyone's client. Signed in it drops out, with
-// Pricing: those two are the sign-up pages (`SIGNED_OUT_ONLY`, below).
+// ⚠ THERE IS NO MEMBERS TAB, AND NO MEMBERS PAGE. `Client.html` ("For members")
+// was the second link from 2026-09-14 (#2069) until the owner retired the page on
+// 2026-11-09: "remove the members page from website". Its old address redirects
+// to the homepage (next.config.ts); `tests/members-page-retired.test.mjs` holds
+// the absence. Pricing is the one sign-up page left (`SIGNED_OUT_ONLY`, below).
 //
 // ⚠ AND THE THREE `Dashboard` DROPDOWN ITEMS ARE GONE. The retired Clients /
 // Trainers / Nutritionists menus each carried one, which opened the demo
 // dashboard for an anonymous visitor — the access PR 2 gates behind an account.
 // `Coach.html`, `Nutritionist.html` and `Recipes.html` keep working and keep
 // their footer links; they simply leave the bar. (`Client.html` was in that
-// list too and is NOT any more — it came back as the `Members` tab below.)
+// list too; it became the `Members` tab, and is now retired, above.)
 const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "Coaches", href: COACHES_HREF, match: ["Coaches", "Marketplace", "Trainers", "Nutritionists", "Trainer Overview", "Nutritionist Overview"] },
-  { kind: "link", label: "Members", href: "Client.html" },
   { kind: "link", label: "App", href: "GetApp.html" },
   // ⚠ THE KITCHEN WAS FOOTER-ONLY UNTIL NOW, which is the same standing
-  // `Client.html` had before the `Members` tab (#2069). Owner, 2026-09-16:
+  // `Client.html` had before its `Members` tab (#2069). Owner, 2026-09-16:
   // "also need to create a link for it on nav bar on website". One word, like
   // every other item in this row; the page's own masthead still reads Shape
   // Kitchen. The footer keeps its own "Shape Kitchen" entry — a footer is read
@@ -350,14 +348,15 @@ const SHAPE_NAV_GROUPS = [
   { kind: "link", label: "Pricing", href: "Pricing.html" },
 ];
 
-// ⚠ SIGNED IN, THE ROW IS THE SITE'S OWN TABS MINUS THE TWO SIGN-UP PAGES —
+// ⚠ SIGNED IN, THE ROW IS THE SITE'S OWN TABS MINUS THE SIGN-UP PAGE —
 // Coaches · App · Kitchen · Community · Rewards · Store, the same row for a
 // member, a trainer and a nutritionist. Owner, 2026-09-23, on a screenshot of the
 // signed-in bar reading only "Coaches ▾  About": "need to add more nav tabs on main
 // nav bar when signed into account" — and of the rows put to them, "Site tabs
-// minus sign-up pages". Members (the pitch to someone without a membership) and
-// Pricing (what joining costs) are written for a visitor who has no account yet;
-// every other tab is a place a signed-in member still goes.
+// minus sign-up pages". Pricing (what joining costs) is written for a visitor who
+// has no account yet; every other tab is a place a signed-in member still goes.
+// (Members, the pitch to someone without a membership, was the other until the
+// page was retired on 2026-11-09.)
 //
 // ⚠ DERIVED FROM THE SIGNED-OUT TABLE, NOT RESTATED. This was a second
 // hand-written table, and the two had already drifted: its Coaches tab lit on
@@ -374,15 +373,15 @@ const SHAPE_NAV_GROUPS = [
 // of the dashboard the teal Dashboard button opens, and none is in the table this
 // filters, so none can come back through it. `tests/site-nav.test.mjs` pins both.
 //
-// ⚠ AND THE HOMEPAGE'S STATIC BAR CANNOT READ THIS, so it marks the same two
-// links `data-signed-out-only` in its own markup and removes them on sign-in; the
+// ⚠ AND THE HOMEPAGE'S STATIC BAR CANNOT READ THIS, so it marks the same
+// link `data-signed-out-only` in its own markup and removes them on sign-in; the
 // same test requires the two lists to agree.
 //
 // ⚠ AN ENTRY WITH `signedIn` IS REPLACED BY THAT LIST ON THIS ROW, in place.
 // Rewards is the one (owner, 2026-10-09): its menu's Store becomes a tab beside
 // it. The homepage marks the same swap: the Rewards caret and menu are
 // `data-signed-out-only`, and the Store tab is `data-signed-in-only`.
-const SIGNED_OUT_ONLY = ["Members", "Pricing"];
+const SIGNED_OUT_ONLY = ["Pricing"];
 const PORTAL_NAV = SHAPE_NAV_GROUPS
   .filter((g) => !SIGNED_OUT_ONLY.includes(g.label))
   .flatMap((g) => g.signedIn || [g]);
@@ -1830,16 +1829,16 @@ function Footer({ logoHeight = 36 } = {}) {
                sits above them in the nav and does NOT replace them: each still
                carries its own copy and its own application.
 
-               ⚠ CLIENT.HTML AND RECIPES.HTML ARE THE EXCEPTIONS, AND THEY ARE
-               NAMED RATHER THAN LEFT IN THE LIST ABOVE. The `Members` tab points at
-               the first and the `Kitchen` tab at the second, so the footer is not
-               the only way in to either. That sentence used to include Client.html
-               and #2069 made it false without anything noticing;
+               ⚠ RECIPES.HTML IS THE EXCEPTION, AND IT IS NAMED RATHER THAN LEFT
+               IN THE LIST ABOVE. The `Kitchen` tab points at it, so the footer is
+               not the only way in. That sentence used to include Client.html, and
+               #2069 made it false without anything noticing;
                `tests/site-footer.test.mjs` now asserts the two pages named above
-               are absent from the nav table AND that both exceptions are present in
+               are absent from the nav table AND that the exception is present in
                it, so the next tab promoted out of the footer fails a test instead of
-               quietly leaving a wrong claim here. */
-            ["Product",     [["Find a coach", "Coaches.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"], ["For members", "Client.html"]]],
+               quietly leaving a wrong claim here. (Client.html, "For members", is
+               retired: owner, 2026-11-09, "remove the members page from website".) */
+            ["Product",     [["Find a coach", "Coaches.html"], ["The app", "GetApp.html"], ["Shape Score", "Score.html"], ["Shape Store", "Store.html"], ["Radio", "Radio.html"], ["Shape Kitchen", "Recipes.html"]]],
             ["For coaches", [["For coaches", "ForCoaches.html"], ["For trainers", "Coach.html"], ["For nutritionists", "Nutritionist.html"], ["Apply", "SignupTrainer.html"], ["Rates & payouts", "Pricing.html"]]],
             ["Company",     [["Pricing", "Pricing.html"], ["Privacy", "/privacy.html"], ["Terms", "/terms.html"]]],
             ["Support",     [["Help", "/help.html"], ["Contact", "/contact.html"], ["Code of conduct", "/code-of-conduct.html"], ["Data & compliance", "/data-compliance.html"], ["Consumer health data", "/health-data-privacy.html"], ["Subprocessors", "/subprocessors.html"]]],
