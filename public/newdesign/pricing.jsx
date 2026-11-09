@@ -70,7 +70,7 @@ function PricingHero() {
       <div aria-hidden style={{ position: "absolute", width: 620, height: 620, top: "-20%", right: "-8%", borderRadius: "50%", filter: "blur(80px)", opacity: 0.32, background: `radial-gradient(circle, ${TEAL}, transparent 70%)`, pointerEvents: "none" }} />
       <div style={{ maxWidth: 1320, margin: "0 auto", position: "relative", textAlign: "center" }}>
         <div style={{ fontFamily: mono, fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", color: TEAL, marginBottom: 24 }}>Pricing</div>
-        <h1 style={{ fontFamily: serif, fontSize: "clamp(54px, 9vw, 132px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
+        <h1 style={{ fontFamily: serif, fontSize: "clamp(42px, 6vw, 84px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
           Five dollars <em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>a&nbsp;month</em>.<br />The whole app.
         </h1>
         <p style={{ fontFamily: sans, fontSize: 18, color: "rgba(242,237,228,0.66)", margin: "32px auto 0", maxWidth: 720, lineHeight: 1.6 }}>One flat membership. Train, log meals, cook from Shape Kitchen, earn Score points for the Store, listen to Shape Radio and ask Nora. Coaches are optional: they set their own rates, you pay them directly, and you can cancel any time.</p>

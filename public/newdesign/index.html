@@ -318,16 +318,17 @@
   .mo h3{font-size:20px;margin-top:6px}
   .mo .shot{position:relative;margin-top:16px;border-radius:8px;overflow:hidden;aspect-ratio:3/4;
             background:var(--ink-3);border:1px solid var(--line-2)}
-  /* --y is a % of the IMAGE's height; the window is a 3:4 port onto a 600x1387
-     capture, so it shows 800 image px (a square one showed 600) — the crop is
-     chosen per screen, not scaled.
-     ⚠ THE ASPECT RATIO AND THE .hl RINGS ARE ONE NUMBER IN TWO PLACES. A ring's
-     top/height are a % of THIS WINDOW while --y offsets the image by a % of the
-     IMAGE, so changing the ratio alone slides every ring off the content it points
-     at — silently, because both values stay legal CSS and the ring still draws.
-     Widening from 1/1 to 3/4 is why each ring was multiplied by 600/800. The guard
-     in tests/homepage-climb.test.mjs pins each ring's position in IMAGE pixels, so
-     the next change to this line fails rather than drifts.
+  /* The card shows the TOP THREE-QUARTERS of its screen, zoomed out (owner,
+     2026-11-09: "show more zoomed out screenshots here", of the two mock-ups,
+     "Top three-quarters"). The screen is 78% of the card's width from 3.6% below
+     its top edge and runs off the card's foot, so ~998 of the capture's 1387 px
+     show, against the 800 the full-width crop showed. No per-screen offset: every
+     card shows its screen from the top.
+     ⚠ THE RINGS LIVE INSIDE .scr, SO EACH IS A % OF THE CAPTURE ITSELF: top and
+     height of its 1387 px, left and right of its 600 px. The card's shape, the
+     screen's width and its margin can all change without moving a ring off the
+     content it points at. tests/homepage-climb.test.mjs pins each ring in image
+     pixels, and holds every ring above the card's foot at these numbers.
      ⚠ AND EACH RING IS FITTED TO ITS CAPTURE, ON ALL FOUR SIDES. The app's own
      content starts ~28 px into a 600 px capture (5%), so a 5% inset drew every
      ring THROUGH the text it framed: "1,568", "1/25", "SET 01", the NEW PR chip.
@@ -336,7 +337,9 @@
      own border, so that ring overrides its inset to sit just inside the card
      (4% and 5.67%). Each ring's top/height is the target's measured bounds plus
      ~12 px, or the midpoint of the gap where its neighbours are closer than that. */
-  .mo .shot img{display:block;width:100%;height:auto;transform:translateY(calc(var(--y) * -1))}
+  .mo .scr{position:relative;width:78%;margin:3.6% auto 0;border:1px solid var(--line-2);border-bottom:0;
+           border-radius:14px 14px 0 0;overflow:hidden}
+  .mo .scr img{display:block;width:100%;height:auto}
   .mo .hl{position:absolute;left:2.5%;right:2.5%;border:1.5px solid var(--teal);border-radius:6px;
           box-shadow:0 0 0 3px rgba(var(--teal-rgb),.12);opacity:0;transition:opacity .25s}
   .mo.on .hl{opacity:1}
@@ -1070,19 +1073,19 @@
     <div class="mo-grid" id="mo-grid">
       <div class="mo on" data-tilt="4">
         <div class="eb">Eat · the menu</div><h3>The ledger ticks.</h3>
-        <div class="shot"><img src="/newdesign/home-eat-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the fuel left today, 532 kcal, and what is left of each macro, then lunch up next with Log it and Swap" style="--y:19%"><span class="hl" style="top:37.81%;height:17.38%;left:4%;right:4%"></span></div>
+        <div class="shot"><div class="scr"><img src="/newdesign/home-eat-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the fuel left today, 532 kcal, and what is left of each macro, then lunch up next with Log it and Swap"><span class="hl" style="top:40.81%;height:10.02%;left:4%;right:4%"></span></div></div>
       </div>
       <div class="mo" data-tilt="4">
         <div class="eb">Eat · the shop</div><h3>The list writes itself.</h3>
-        <div class="shot"><img src="/newdesign/home-grocery-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan, 8 of 89 in the cart, shopped by aisle with the aisles stepped across the top and Produce open, 24 to get" style="--y:34%"><span class="hl" style="top:28.8%;height:17.88%"></span></div>
+        <div class="shot"><div class="scr"><img src="/newdesign/home-grocery-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan, 8 of 89 in the cart, shopped by aisle with the aisles stepped across the top and Produce open, 24 to get"><span class="hl" style="top:50.61%;height:10.31%"></span></div></div>
       </div>
       <div class="mo" data-tilt="4">
         <div class="eb">Train · in the session</div><h3>A set logs.</h3>
-        <div class="shot"><img src="/newdesign/home-session-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, set one up with its load and reps" style="--y:10.75%"><span class="hl" style="top:44.99%;height:19.13%;left:5.67%;right:5.67%"></span></div>
+        <div class="shot"><div class="scr"><img src="/newdesign/home-session-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, set one up with its load and reps"><span class="hl" style="top:36.7%;height:11.03%;left:5.67%;right:5.67%"></span></div></div>
       </div>
       <div class="mo" data-tilt="4">
         <div class="eb">Community · the Wall</div><h3>A PR lands.</h3>
-        <div class="shot"><img src="/newdesign/home-feed-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A deadlift PR from the Wall: 245 lb as the top set under the headline, the member's note, and the coach's co-sign below" style="--y:0%"><span class="hl" style="top:39.25%;height:37.63%"></span></div>
+        <div class="shot"><div class="scr"><img src="/newdesign/home-feed-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A deadlift PR from the Wall: 245 lb as the top set under the headline, the member's note, and the coach's co-sign below"><span class="hl" style="top:22.64%;height:21.7%"></span></div></div>
       </div>
     </div>
     <div style="margin-top:20px"><span class="exlabel">Example member · captured from the app's signed-out preview</span></div>

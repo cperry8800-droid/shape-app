@@ -624,6 +624,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website: zoomed-out moments, a solid Kitchen bar, smaller headings, no app page figures, every coach goal (#2665). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09: "show more zoomed out screenshots here" (then "Top three-quarters"), "nav bar on kitchen page needs to not look like this", "looks faded", "reduce the size of the heading on community, pricing, rewards pages", "also remove this on app page", and of the Coaches matcher "make sure all goals are here and this actually works"', status: 'done' },
+        { label: '#2665 homepage moments: the screen at 78% of the card from its top (~998 of 1387 px shown); the rings inside the screen\'s frame as a % of the capture, held above the card\'s foot by tests/homepage-climb.test.mjs', status: 'done' },
+        { label: '#2665 Kitchen: Recipes, Cook and RecipeDetail set --sh-header-bg solid (#0b0e0c), so the shared header\'s 55% glass no longer reads grey-olive over the cream paper', status: 'done' },
+        { label: '#2665 the Community, Pricing and Rewards hero headings at clamp(42px, 6vw, 84px); the app page\'s four-figure row gone, its example label under the buttons', status: 'done' },
+        { label: '#2665 Coaches: 19 goals, so each of the app marketplace\'s 21 categories finds one of its own; the fold keeps six cards, the matcher lists all in Training and Nutrition, the Refine panel shows the ones a coach fits', status: 'done' },
+        { label: 'Review: Codex clean on 4d4c5cd; CI green on 4d4c5cd', status: 'done' },
+        { label: 'Held by the owner ("hold off on marketplace"): the journey\'s Match stage as the app\'s Find your coach screen; captured, kept outside the repo', status: 'pending' },
+        { label: 'OWNER: every Coaches search reads 0 coaches you can book; none of production\'s 41 live listings has an account (see Waiting on the owner, seeded listings)', status: 'manual' },
+      ],
+    },
+    {
       section: 'Website: the fold\'s eyebrow and stats out, the members page retired (#2659); every app screenshot re-shot from the current app (#2663). No migration',
       items: [
         { label: 'Owner, 2026-11-09: "remove these from home page on website" (the fold\'s "Your climb · Shape Score" eyebrow and its three stats), "remove the members page from website", and "need to update all screenshots of app on website, on home page and app page"', status: 'done' },

@@ -248,13 +248,33 @@ const COACHES_FULL = [
 ];
 
 // ── Goals: what a visitor asks for, read from what a listing says it does ─────────────────────
+// The six with `card` are the fold's goal cards. Every goal is in the matcher's Goal list and the
+// Refine panel, so each of the app marketplace's 21 categories (BSM_MARKETPLACE_CATEGORIES in
+// iosAppBroadsheetMarketplace.jsx) has a goal that finds it (owner, 2026-11-09, of the matcher:
+// "make sure all goals are here and this actually works"). `nu` goals only match nutritionists,
+// `tr` goals only trainers.
 const MK_GOALS = [
-  { id: "strength", label: "Strength", sub: "Lift heavier, build muscle", icon: "strength" },
-  { id: "fatloss", label: "Fat loss", sub: "Lose fat, keep the muscle", icon: "fatloss" },
-  { id: "endurance", label: "Endurance", sub: "Run, ride, Hyrox, triathlon", icon: "endurance" },
-  { id: "mobility", label: "Mobility & rehab", sub: "Move well, recover", icon: "mobility" },
-  { id: "nutrition", label: "Sports nutrition", sub: "Fuel the training you do", icon: "nutrition", nu: true },
-  { id: "general", label: "General fitness", sub: "At home or in the gym", icon: "general" },
+  { id: "strength", label: "Strength", sub: "Lift heavier, build muscle", icon: "strength", card: true },
+  { id: "fatloss", label: "Fat loss", sub: "Lose fat, keep the muscle", icon: "fatloss", card: true },
+  { id: "endurance", label: "Endurance", sub: "Run, ride, Hyrox, triathlon", icon: "endurance", card: true },
+  { id: "mobility", label: "Mobility & rehab", sub: "Move well, recover", icon: "mobility", card: true },
+  { id: "nutrition", label: "Sports nutrition", sub: "Fuel the training you do", icon: "nutrition", nu: true, card: true },
+  { id: "general", label: "General fitness", sub: "At home or in the gym", icon: "general", card: true },
+  { id: "running", label: "Running", icon: "endurance", tr: true },
+  { id: "hyrox", label: "Hyrox", icon: "endurance", tr: true },
+  { id: "hiit", label: "HIIT", icon: "fatloss", tr: true },
+  { id: "bodybuilding", label: "Bodybuilding", icon: "strength", tr: true },
+  { id: "functional", label: "Functional & hybrid", icon: "general", tr: true },
+  { id: "home", label: "At home", icon: "general", tr: true },
+  { id: "women", label: "Just for women", icon: "general", tr: true },
+  { id: "weight", label: "Weight management", icon: "nutrition", nu: true },
+  { id: "muscle", label: "Muscle gain", icon: "nutrition", nu: true },
+  { id: "gut", label: "Gut health", icon: "nutrition", nu: true },
+  { id: "plant", label: "Plant-based", icon: "nutrition", nu: true },
+  { id: "prenatal", label: "Prenatal & postnatal", icon: "nutrition", nu: true },
+  { id: "mealprep", label: "Meal prep", icon: "nutrition", nu: true },
+  { id: "medical", label: "Medical & conditions", icon: "nutrition", nu: true },
+  { id: "longevity", label: "Longevity", icon: "nutrition", nu: true },
 ];
 const MK_GOAL_RX = {
   strength: /strength|hypertroph|powerlift|bodybuild|barbell|olympic|weightlift|kettlebell|calisthen|physique|muscle|bulk|recomp|crossfit/i,
@@ -263,12 +283,28 @@ const MK_GOAL_RX = {
   mobility: /mobil|rehab|recover|yoga|pilates|post-op|physio|physical therap|senior|balance|posture|pelvic|postpartum|breath|flexib|return/i,
   nutrition: /sport|performance|athlete|hydration|fuel|supplement|contest/i,
   general: /home|functional|family|general|habit|meal prep|dance|boxing|combat|beginner|women|prenatal|wellness|longevity|healthspan|plant|gut|clinical|medical|cultural|budget|vegan|full body|fullbody|kids/i,
+  running: /\brun\b|running|runner|marathon|\b5k\b|\b10k\b|trail|ultra|track/i,
+  hyrox: /hyrox/i,
+  hiit: /hiit|metcon|interval|tabata/i,
+  bodybuilding: /bodybuild|physique|hypertroph/i,
+  functional: /functional|hybrid|crossfit|calisthen/i,
+  home: /at home|\bhome\b|no equipment/i,
+  women: /women|female|postpartum|pelvic/i,
+  weight: /weight|fat loss|\blean/i,
+  muscle: /muscle|bulk|mass gain/i,
+  gut: /\bgut\b|\bibs\b|digest|microbiome|functional nutrition/i,
+  plant: /plant|vegan|vegetarian/i,
+  prenatal: /prenatal|postnatal|pregnan|fertility/i,
+  mealprep: /meal prep|batch cook/i,
+  medical: /medical|clinical|condition|diabet|pcos|renal|cardiac|kidney/i,
+  longevity: /longevity|healthspan|\bag(e|)ing\b/i,
 };
 function mkGoalsOf(c) {
   const text = [c.role, c.category, ...(c.specialties || [])].join(" · ");
   const out = new Set();
   for (const g of MK_GOALS) {
-    if (g.id === "nutrition" && c.tag !== "Nutritionist") continue;
+    if (g.nu && c.tag !== "Nutritionist") continue;
+    if (g.tr && c.tag === "Nutritionist") continue;
     if (MK_GOAL_RX[g.id].test(text)) out.add(g.id);
   }
   if (!out.size) out.add("general");
@@ -692,7 +728,7 @@ function MkHero({ f, set, counts, bookable, budgetMax, cities, onFind }) {
           <h1>What are you<br /><em>training for?</em></h1>
           <p className="mk-sub">Pick a goal and the marketplace narrows to the coaches who fit your budget, your week and how you want to meet. Each coach sets their own rate, and you book a free intro before you pay for anything.</p>
           <div className="mk-goals">
-            {MK_GOALS.map((g) => {
+            {MK_GOALS.filter((g) => g.card).map((g) => {
               const on = f.goals.includes(g.id);
               return (
                 <button key={g.id} type="button" aria-pressed={on} className={"mk-goal" + (on ? " on" : "") + (g.nu ? " nug" : "")} onClick={() => pickGoal(g.id)}>
@@ -707,7 +743,9 @@ function MkHero({ f, set, counts, bookable, budgetMax, cities, onFind }) {
           <label className="mk-mf"><span className="lbl">Goal</span>
             <span className="v sel">{goal ? <MkIcon name={goal.icon} size={18} /> : null}
               <select value={goal ? goal.id : ""} onChange={(e) => set({ goals: e.target.value ? [e.target.value] : [] })} aria-label="Goal">
-                <option value="">Any goal</option>{MK_GOALS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+                <option value="">Any goal</option>
+                <optgroup label="Training">{MK_GOALS.filter((g) => !g.nu).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</optgroup>
+                <optgroup label="Nutrition">{MK_GOALS.filter((g) => g.nu).map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}</optgroup>
               </select><MkCaret /></span></label>
           <label className="mk-mf"><span className="lbl">Budget</span>
             <span className="v">{f[bKey] == null ? "Any" : "Up to $" + bVal} <small>/ {perMonth ? "month" : "session"}</small></span>
@@ -894,7 +932,7 @@ function MkFilters({ f, set, counts, budgetMax, cities, specs, onReset }) {
         {[["Both", "Trainers and nutritionists"], ["Trainer", "Trainers"], ["Nutritionist", "Nutritionists"]].map(([v, l]) => <MkOpt key={v} radio on={f.role === v} label={l} n={counts.role[v]} onClick={() => set({ role: v })} />)}
       </MkGroup>
       <MkGroup title="Goal" open={open.goal} onToggle={() => tog("goal")} k={nGoals}>
-        {MK_GOALS.map((g) => <MkOpt key={g.id} on={f.goals.includes(g.id)} label={g.label} n={counts.goal[g.id] || 0} onClick={() => flip("goals", g.id)} />)}
+        {MK_GOALS.filter((g) => g.card || counts.goal[g.id] || f.goals.includes(g.id)).map((g) => <MkOpt key={g.id} on={f.goals.includes(g.id)} label={g.label} n={counts.goal[g.id] || 0} onClick={() => flip("goals", g.id)} />)}
       </MkGroup>
       {specs.length ? (
         <MkGroup title="Specialty" open={open.spec} onToggle={() => tog("spec")} k={nSpecs}>
