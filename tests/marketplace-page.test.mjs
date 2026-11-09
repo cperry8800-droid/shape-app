@@ -327,3 +327,72 @@ test('open times are read for every account, six at a time', async () => {
   assert.ok(peak <= 6, 'more than six reads at once: ' + peak);
   assert.ok(!/owned\.slice\(0,\s*\d+\)/.test(SRC.replace(/\/\/.*$/gm, '')), 'a cap on the accounts whose times are read is back');
 });
+
+// Owner, 9 Nov: the city and open intro this week at the top of the filters, compact, and the city list
+// with no scrollbar: Shape's own list in place of the browser's select.
+test('the filters: city and open intro this week first, the city picked from a list with no scrollbar', async () => {
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  const filters = document.querySelector('.mk-filters');
+  const top = filters.querySelector('[data-mk-top]');
+  assert.ok(top, 'the top block');
+  assert.equal(top.previousElementSibling && top.previousElementSibling.querySelector('input[type="search"]') ? 'search' : 'other', 'search', 'right under the search');
+  assert.ok(top.querySelector('[role="combobox"][aria-label="City"]') && top.querySelector('[role="switch"]'), 'the city and the open-intro switch');
+  assert.ok(!document.querySelector('select[aria-label="City"]'), 'no browser select for the city');
+  const heads = [...filters.querySelectorAll('.mk-rg-h')].map((h) => h.textContent);
+  assert.ok(!heads.some((h) => /^City|^Availability/.test(h)), 'no City or Availability section further down');
+  const box = top.querySelector('[role="combobox"]');
+  assert.equal(box.getAttribute('aria-expanded'), 'false');
+  await click(box);
+  const list = document.getElementById(box.getAttribute('aria-controls'));
+  assert.ok(list && list.getAttribute('role') === 'listbox', 'the list opens');
+  assert.match(SRC, /\.mk-city-l\{[^}]*overflow-y:auto;scrollbar-width:none[^}]*\}\n\s+\.mk-city-l::-webkit-scrollbar\{display:none\}/, 'it scrolls with no bar');
+  // The hero clips what leaves it and its matcher is its last row: there the list opens upward (Codex P2 on #2658;
+  // measured in Chromium at 1440 and 390, the open list inside the hero).
+  assert.match(SRC, /\.mk-hero\{[^}]*overflow:hidden/);
+  assert.match(SRC, /\.mk-city\.hero \.mk-city-l\{top:auto;bottom:calc\(100% \+ 6px\);/, 'the hero list opens upward');
+  assert.ok(document.querySelector('.mk-hero .mk-city.hero [role="combobox"]'), 'the hero uses the same list');
+  const opts = [...list.querySelectorAll('[role="option"]')];
+  assert.equal(opts[0].textContent, 'Anywhere✓');
+  const city = opts[1];
+  const name = city.textContent;
+  await click(city);
+  assert.ok(!document.getElementById(box.getAttribute('aria-controls')), 'a pick closes it');
+  assert.equal(box.querySelector('.v').textContent, name, 'the pick shows');
+  await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
+  assert.equal(box.getAttribute('aria-expanded'), 'true', '↓ opens it');
+  await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })); });
+  await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  assert.equal(box.querySelector('.v').textContent, 'Anywhere', 'Home and Enter pick Anywhere');
+  await m.unmount();
+});
+
+// Codex P2 on #2658: the browser's select let a keyboard user type a city's first letter to jump to it; the
+// custom list keeps that, as a select does: closed, typing picks; open, it moves the highlight.
+test('the city picker keeps a select\'s type-ahead: a letter jumps, the same letter again moves on, letters typed fast match a prefix', async () => {
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  const box = document.querySelector('.mk-top [role="combobox"]');
+  const key = (k) => React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: k, bubbles: true })); });
+  await click(box);
+  const cities = [...document.getElementById(box.getAttribute('aria-controls')).querySelectorAll('[role="option"]')].map((o) => o.textContent.replace('✓', '')).slice(1);
+  await click(box);
+  // A letter two or more cities start with.
+  const letter = [...new Set(cities.map((c) => c[0]))].find((l) => cities.filter((c) => c[0] === l).length >= 2);
+  assert.ok(letter, 'the sample cities share a first letter');
+  const withIt = cities.filter((c) => c[0] === letter);
+  await key(letter.toLowerCase());
+  assert.equal(box.querySelector('.v').textContent, withIt[0], 'closed: the letter picks the first city with it');
+  assert.equal(box.getAttribute('aria-expanded'), 'false');
+  await new Promise((r) => setTimeout(r, 750));
+  await key(letter);
+  assert.equal(box.querySelector('.v').textContent, withIt[1], 'the same letter again moves on to the next');
+  // Open: a prefix typed fast moves the highlight to the city that starts with it, and Enter picks it.
+  await new Promise((r) => setTimeout(r, 750));
+  await key('ArrowDown');
+  const target = withIt[0];
+  for (const ch of target.slice(0, 3)) await key(ch);
+  const active = document.getElementById(box.getAttribute('aria-activedescendant'));
+  assert.equal(active ? active.textContent.replace('✓', '') : null, target, 'the highlight on the city the prefix names');
+  await key('Enter');
+  assert.equal(box.querySelector('.v').textContent, target);
+  await m.unmount();
+});
