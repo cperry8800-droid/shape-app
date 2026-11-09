@@ -61,7 +61,7 @@ export default {
     { name: 'a capped read with names says nothing is missing', file: PLANS, find: '<DashLibPeople people={who.people} extra={who.count - who.people.length} />{partly}', replace: '<DashLibPeople people={who.people} extra={who.count - who.people.length} />' },
     { name: 'the preview reads as a coach\'s page', file: PLANS, find: 'if (preview) body = <span className="dash-lib-quiet">Preview · no client plans to read</span>;\n  else if', replace: 'if (false) body = null;\n  else if' },
     { name: 'a failed refresh blanks the reading', file: PLANS, find: 'setUsage((u) => (u.state === "ready" ? u : { state: "error" }))', replace: 'setUsage({ state: "error" })' },
-    { name: 'another account\'s reading carries across', file: PLANS, find: 'setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); }', replace: 'setFilters(DFB_EMPTY); }' },
+    { name: 'another account\'s reading carries across', file: PLANS, find: 'setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); setWalk(null);', replace: 'setFilters(DFB_EMPTY); setWalk(null);' },
     { name: 'the library is not read again after a send', file: PLANS, find: '    if (libraryOwner.current) loadUsage();\n    for (const id of ids) { try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh"', replace: '    for (const id of ids) { try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh"' },
     { name: 'the most-used chip is gone', file: PLANS, find: 'badges: most && t.id && most.id === t.id ?', replace: 'badges: false ?' },
     // ── The send ──

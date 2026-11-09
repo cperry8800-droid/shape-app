@@ -1715,6 +1715,11 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
     // second is true.
     let landed = 0;
     let totalWeeks = 0;
+    // The clients a week landed for, read from each answer's per-client results: a publish to
+    // several clients can answer 409 with some of them accepted (Codex on #2645), and those clients'
+    // weeks are live, so the page must read them again.
+    const landedFor = new Set();
+    const noteLanded = (d) => { for (const r of (d && Array.isArray(d.results) ? d.results : [])) { if (r && r.clientId && (r.status === "accepted" || r.status === "already_delivered")) landedFor.add(String(r.clientId)); } };
     try {
       if (live) {
         // ⚠ ONE PUBLISH PER WEEK, not per session. The boundary evaluates and
@@ -1742,10 +1747,9 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
           // A 409 is the progression guardrail HOLDING the week, not a fault —
           // it carries the reason in `error`, and throwing "HTTP 409" would
           // strip exactly the sentence the coach needs to act on.
-          if (!res.ok) {
-            const d = await res.json().catch(() => ({}));
-            throw new Error(d.error || ("HTTP " + res.status));
-          }
+          const d = await res.json().catch(() => ({}));
+          noteLanded(d);
+          if (!res.ok) throw new Error(d.error || ("HTTP " + res.status));
           landed += 1;
         }
       }
@@ -1761,7 +1765,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
       if (live && typeof onAssigned === "function") onAssigned(ids);
       closeTimer.current = setTimeout(close, 1100);
     } catch (e) {
-      if (live && landed > 0 && typeof onAssigned === "function") onAssigned(ids);
+      if (live && (landed > 0 || landedFor.size) && typeof onAssigned === "function") onAssigned(landed > 0 ? ids : [...landedFor]);
       const reason = (e && e.message ? String(e.message) : "").trim();
       // Name what actually landed. Silence here reads as "nothing was written",
       // and the coach would re-assign the whole program on top of the weeks that
@@ -3221,7 +3225,9 @@ function TrainerProgramsPage() {
         if(on){
           // A different account is a different library: nothing from the last one — the
           // open program, the filters, who was on what — may carry across.
-          if(resolved.current&&libraryOwner.current!==data.ownerId){setView(null);setAssignFor(null);setUpdateFor(null);setFilters(DFB_EMPTY);usageRead.current++;setUsage({state:'idle'});}
+          // Everything this page holds for one account (Codex on #2645: the drawer's pick, the open
+          // review, the last notice, who was on what) goes with it.
+          if(resolved.current&&libraryOwner.current!==data.ownerId){setView(null);setAssignFor(null);setUpdateFor(null);setFilters(DFB_EMPTY);usageRead.current++;setUsage({state:'idle'});setPickFor(null);setReviewing(false);setNotice('');}
           resolved.current=true;libraryOwner.current=data.ownerId;setOwnerId(data.ownerId);setTemplates((data.plans||[]).map(ShapeWorkoutDocument.normalizeWorkoutPlan));setError('');setRecoveries(Object.entries(dbuReadDrafts(data.ownerId)));
           if(data.ownerId)loadUsage();
         }

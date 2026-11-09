@@ -1010,7 +1010,10 @@ function NutritionistPlansPage() {
         // A different account is a different library: nothing from the last one — the
         // open plan, the assign sheet, the filters, who was on what — may carry across.
         const owner = d.ownerId || null;
-        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); }
+        // Everything this page holds for one account goes with it (Codex on #2645): an Assign all walk
+        // still on the last account's clients and plans, this visit's sends, the drawer's pick, the
+        // open review and the last notice, as well as the open plan, the sheet and who was on what.
+        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); setWalk(null); setSentNow(new Set()); setPickFor(null); setReviewing(false); setNotice(""); }
         resolved.current = true;
         libraryOwner.current = owner;
         setTemplates(rows);

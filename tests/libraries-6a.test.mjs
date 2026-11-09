@@ -966,3 +966,38 @@ test('Meal plans: a client sent a plan this week is not due one, from this visit
   assert.doesNotMatch(words(top()), /Tess B\./, 'the client just sent a plan is still listed as due');
   assert.ok(!button('Assign all 1', top()), 'Assign all is offered again to the client it was just sent to');
 });
+
+// Codex on #2645 (round 3): a publish to several clients can answer 409 with some accepted, and
+// those clients' weeks are live, so they are read again even when the first week failed.
+test('Programs: a mixed first-week publish still refreshes the clients it landed for', async () => {
+  dashboard('live', ROSTER()); stubFetch();
+  const [a, b] = ROSTER();
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    calls.push([u, opts.method || 'GET', opts.body ? JSON.parse(opts.body) : null]);
+    if (u === '/api/trainer/workout') return { ok: false, status: 409, json: async () => ({ ok: false, error: 'Held by the progression guardrail.', results: [{ clientId: a.profile.id, status: 'accepted' }, { clientId: b.profile.id, status: 'rejected' }] }) };
+    return { ok: true, json: async () => ({}) };
+  };
+  let told = null;
+  await mount(React.createElement(DbuAssignModal, { template: { id: 'p1', name: 'Glute Builder', revision: 1 }, doc: LIB[0].detail.builder, clients: ROSTER(), queue: [], live: true, preselectId: a.profile.id, onClose: () => {}, onAssigned: (ids) => { told = ids; } }));
+  const boxB = [...document.querySelectorAll('input[type="checkbox"]')].find((i) => i.closest('label').textContent.includes(b.profile.name));
+  await click(boxB);
+  await click(button('Publish to 2 clients'));
+  await settle();
+  assert.match(text(), /Held by the progression guardrail\./, 'the hold is said');
+  assert.deepEqual(told, [String(a.profile.id)], 'the client whose week landed was not refreshed');
+});
+
+// Codex on #2645 (round 3): an account change takes everything this page held for the last one.
+test('Meal plans: another account ends an Assign all walk and forgets the last account\'s sends', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS });
+  await mount(React.createElement(NutritionistPlansPage));
+  await click(button('Assign all 2', top()));
+  await click(button('Cancel'));
+  assert.match(text(), /Assign all · 1 of 2 opened\. Next: Tess B\./);
+  stubFetch({ owner: 'coach-b', meals: MEALS });
+  await React.act(async () => { window.dispatchEvent(new window.Event('focus')); });
+  await settle();
+  assert.doesNotMatch(text(), /Assign all · /, 'the last account\'s walk is still on the page');
+  assert.ok(!button('Open'), 'Open would make a sheet from the last account\'s client and plan');
+});
