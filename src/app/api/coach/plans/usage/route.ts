@@ -80,7 +80,7 @@ async function mealPlanUsage(db: Db, ownerId: string) {
   // Every current plan, tracked or not, in one read: both counts are then over the same rows and the
   // same open clients, so `untracked` is a count of plans the read held, never a guess.
   const { data: rows, error, count } = await db.from('client_meal_plans')
-    .select('client_id, template_id:payload->template->>id', { count: 'exact' })
+    .select('client_id, template_id:payload->template->>id, created_at', { count: 'exact' })
     .in('nutritionist_id', ids)
     .eq('status', 'published')
     .order('created_at', { ascending: false })
@@ -89,7 +89,14 @@ async function mealPlanUsage(db: Db, ownerId: string) {
   const current = (Array.isArray(rows) ? rows : [] as UsageRow[]).filter((r: UsageRow) => typeof r?.client_id === 'string' && open.has(r.client_id));
   const untracked = current.filter((r: UsageRow) => !(typeof r?.template_id === 'string' && r.template_id)).length;
   const fetched = Array.isArray(rows) ? rows.length : 0;
-  return NextResponse.json({ usage: usageOf(current), capped: count == null || count > fetched, untracked }, { headers: PRIVATE_HEADERS });
+  // `sentAt`: when each open client's current plan from this nutritionist was sent (the newest, the
+  // rows being newest first), so the library's "plans due" leaves out a client sent one this week
+  // (Codex on #2645). Their own clients, under RLS, as the ids above.
+  const sentAt: Record<string, string> = {};
+  for (const r of current as Array<UsageRow & { created_at?: unknown }>) {
+    if (typeof r.client_id === 'string' && !Object.prototype.hasOwnProperty.call(sentAt, r.client_id) && typeof r.created_at === 'string') sentAt[r.client_id] = r.created_at;
+  }
+  return NextResponse.json({ usage: usageOf(current), capped: count == null || count > fetched, untracked, sentAt }, { headers: PRIVATE_HEADERS });
 }
 
 export async function GET(request: Request) {

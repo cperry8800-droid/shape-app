@@ -1671,7 +1671,9 @@ function DbuFutureUpdates({template,clients,onClose}) {
 // ── Assign modal — multi-client + start date; marks the programming queue ───
 // `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
 // could not be read says so, and only a read, empty roster reads "No clients yet."
-function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, emptyNote }) {
+// `onAssigned(ids)`: the clients something was published for, so the page reads who is on what again
+// (Codex on #2645); it fires on a partial publish too, since those weeks are live.
+function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, emptyNote, onAssigned }) {
   // ⚠ ONE CLOSE PER SHEET (Codex on #2645). A finished assign closes itself a moment later; a coach
   // who closes it first (Cancel, the scrim, Esc) used to get a second close when the timer fired, and
   // the library's Assign all stepped past the next client. The first close wins, and the timer goes
@@ -1756,8 +1758,10 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
         localStorage.setItem(key, JSON.stringify([...done]));
       } catch (e) {}
       setState("done");
+      if (live && typeof onAssigned === "function") onAssigned(ids);
       closeTimer.current = setTimeout(close, 1100);
     } catch (e) {
+      if (live && landed > 0 && typeof onAssigned === "function") onAssigned(ids);
       const reason = (e && e.message ? String(e.message) : "").trim();
       // Name what actually landed. Silence here reads as "nothing was written",
       // and the coach would re-assign the whole program on top of the weeks that
@@ -2247,7 +2251,7 @@ function DbuDeleteDay({ day, wi, onDelete, onCancel }) {
   );
 }
 
-function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved, emptyNote }) {
+function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ownerId, clips, dayTemplates, customMoves, customTags, onBack, onSaved, emptyNote, onAssigned }) {
   const ownerRef = React.useRef(ownerId);
   const initial = React.useRef(template.recovered || {name:template.name,doc:template.detail.builder,revision:template.detail.revision || 0});
   const [name, setName] = React.useState(initial.current.name);
@@ -3016,7 +3020,7 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
         )}
       </div>
 
-      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} emptyNote={emptyNote} onClose={() => setAssigning(false)} />}
+      {assigning && <DbuAssignModal template={{ id: idRef.current, name, revision: revision.current }} doc={doc} clients={clients} queue={queue} live={live} preselectId={preselectId} emptyNote={emptyNote} onAssigned={onAssigned} onClose={() => setAssigning(false)} />}
     </fieldset>
   );
 }
@@ -3264,6 +3268,14 @@ function TrainerProgramsPage() {
   const [reviewing,setReviewing]=React.useState(false);
   const oneRows=usage.state==='ready'&&(roster==='live'||roster==='unread')?DashBuilder.oneClientPrograms(templates||[],usage.map,usage.capped,people):null;
   const [notice,setNotice]=React.useState('');
+  // ⚠ AN ASSIGN CHANGES WHO IS ON WHAT (Codex on #2645): the card's "On it" is the usage read's, and the
+  // week line is each client's program leg on the roster's overview. Both are read again once a sheet
+  // has published, so the page never invites the same assign twice: the usage now, and the roster by
+  // the event useDashboard already listens for, one client at a time (their overviews only).
+  const assigned=ids=>{
+    if(libraryOwner.current)loadUsage();
+    for(const id of ids||[]){try{window.dispatchEvent(new CustomEvent('shape:coach-progress-refresh',{detail:{clientId:id}}));}catch(e){}}
+  };
   // Delete: the plans route's own DELETE (the app's coach Plans uses it), behind ShapeConfirm. A
   // program is a template; what clients were assigned is a snapshot on their calendar, and stays.
   const canDelete=isLive&&typeof window!=='undefined'&&!!(window.ShapeConfirm&&window.ShapeConfirm.open);
@@ -3299,7 +3311,7 @@ function TrainerProgramsPage() {
     <DashPage tourHero="hero-programs" navItems={trainerNavItems('programs')} payoutCard={trainerPayoutCard}
       eyebrow="WORKOUT LIBRARY" title={<>Workouts <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontWeight: 500, fontSize: "0.86em", letterSpacing: 0 }}>&amp;</span> programs</>} subtitle={view?'Build once. Use the same workout on the website and app.':'Reusable single days and programs, with demonstrations attached to each exercise.'}>
       {targetPerson && <p role="status">Choose a program for {targetPerson.profile.name}{/\.$/.test(targetPerson.profile.name)?'':'.'} The assignment will have this client selected.{pickFor&&<> <button type="button" style={dbuLibBtn(false)} onClick={()=>setPickFor(null)}>Not now</button></>}</p>}
-      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} emptyNote={emptyNote} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
+      {view?<DbuBuilder key={view.id||view.name} template={view} preselectId={targetPerson ? forClient : null} clients={people} queue={queue} live={isLive} ownerId={ownerId} playlists={playlists} clips={clips} dayTemplates={days} customMoves={customMoves} customTags={customTags} emptyNote={emptyNote} onAssigned={assigned} onBack={()=>{setView(null);setRefresh(n=>n+1);}} onSaved={saved}/>:<>
         <div className="dbu-library-actions">
           <button type="button" style={dbuLibBtn(true)} onClick={()=>create('workout')}>＋ Single workout day</button>
           <button type="button" style={dbuLibBtn(false)} onClick={()=>create('program')}>＋ Program</button>
@@ -3353,7 +3365,7 @@ function TrainerProgramsPage() {
     </DashPage>
     {reviewing&&week.ahead&&<DbuWeekDrawer ahead={week.ahead} onClose={()=>setReviewing(false)} onPick={id=>{setPickFor(id);setReviewing(false);}}/>}
     {updateFor&&<DbuFutureUpdates template={updateFor} clients={people} onClose={()=>setUpdateFor(null)}/>}
-    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={people} queue={queue} live={isLive} preselectId={targetPerson ? forClient : null} emptyNote={emptyNote} onClose={()=>setAssignFor(null)}/>}
+    {assignFor&&<DbuAssignModal template={{id:assignFor.id,name:assignFor.name,revision:assignFor.detail.revision}} doc={assignFor.detail.builder} clients={people} queue={queue} live={isLive} preselectId={targetPerson ? forClient : null} emptyNote={emptyNote} onAssigned={assigned} onClose={()=>setAssignFor(null)}/>}
   </React.Fragment>;
 }
 

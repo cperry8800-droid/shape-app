@@ -31,9 +31,9 @@ export default {
     { name: 'the plans read counts archived plans', file: USAGE, find: ".in('nutritionist_id', ids)\n    .eq('status', 'published')\n    .order('created_at', { ascending: false })", replace: ".in('nutritionist_id', ids)\n    .order('created_at', { ascending: false })" },
     { name: 'a former client is on a meal plan', file: USAGE, find: "filter((r: UsageRow) => typeof r?.client_id === 'string' && open.has(r.client_id));", replace: "filter((r: UsageRow) => typeof r?.client_id === 'string');" },
     { name: 'untracked counts the tracked plans too', file: USAGE, find: "const untracked = current.filter((r: UsageRow) => !(typeof r?.template_id === 'string' && r.template_id)).length;", replace: 'const untracked = current.length;' },
-    { name: 'untracked is not sent', file: USAGE, find: 'capped: count == null || count > fetched, untracked }', replace: 'capped: count == null || count > fetched }' },
-    { name: 'the meal library\'s cap is not reported', file: USAGE, find: 'capped: count == null || count > fetched, untracked }', replace: 'capped: false, untracked }' },
-    { name: 'the meal library\'s answer is cacheable', file: USAGE, find: 'capped: count == null || count > fetched, untracked }, { headers: PRIVATE_HEADERS });', replace: 'capped: count == null || count > fetched, untracked });' },
+    { name: 'untracked is not sent', file: USAGE, find: 'capped: count == null || count > fetched, untracked, sentAt }', replace: 'capped: count == null || count > fetched, sentAt }' },
+    { name: 'the meal library\'s cap is not reported', file: USAGE, find: 'capped: count == null || count > fetched, untracked, sentAt }', replace: 'capped: false, untracked, sentAt }' },
+    { name: 'the meal library\'s answer is cacheable', file: USAGE, find: 'capped: count == null || count > fetched, untracked, sentAt }, { headers: PRIVATE_HEADERS });', replace: 'capped: count == null || count > fetched, untracked, sentAt });' },
     // ── Only clients with an open subscription (owner, 2026-11-09) ──
     { name: 'a former client is on a program', file: USAGE, find: "const current = list.filter((r) => typeof r?.client_id === 'string' && open.has(r.client_id));", replace: 'const current = list;' },
     { name: 'another role\'s subscriptions count', file: USAGE, find: "      .eq('provider_role', role)\n      .in('provider_id', providerIds)", replace: "      .in('provider_id', providerIds)" },
@@ -62,7 +62,7 @@ export default {
     { name: 'the preview reads as a coach\'s page', file: PLANS, find: 'if (preview) body = <span className="dash-lib-quiet">Preview · no client plans to read</span>;\n  else if', replace: 'if (false) body = null;\n  else if' },
     { name: 'a failed refresh blanks the reading', file: PLANS, find: 'setUsage((u) => (u.state === "ready" ? u : { state: "error" }))', replace: 'setUsage({ state: "error" })' },
     { name: 'another account\'s reading carries across', file: PLANS, find: 'setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); }', replace: 'setFilters(DFB_EMPTY); }' },
-    { name: 'the library is not read again after a send', file: PLANS, find: '    if (libraryOwner.current) loadUsage();\n  };', replace: '  };' },
+    { name: 'the library is not read again after a send', file: PLANS, find: '    if (libraryOwner.current) loadUsage();\n    for (const id of ids) { try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh"', replace: '    for (const id of ids) { try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh"' },
     { name: 'the most-used chip is gone', file: PLANS, find: 'badges: most && t.id && most.id === t.id ?', replace: 'badges: false ?' },
     // ── The send ──
     { name: 'the assign sheet sends no library plan', file: PLANS, find: ', ...(template.id ? { templateId: String(template.id) } : {}) }),', replace: ' }),' },

@@ -420,6 +420,28 @@ function dashLibRosterState(source, signedIn) {
   if (source === "demo") return "demo";
   return "loading";
 }
+// The day an instant falls on, "YYYY-MM-DD", on the account's clock (ShapeZone); this browser's
+// without it. '' when it can't be read.
+function dashLibDayKey(at) {
+  const t = typeof at === "number" ? at : Date.parse(String(at || ""));
+  if (!Number.isFinite(t)) return "";
+  try {
+    const Z = typeof window !== "undefined" ? window.ShapeZone : null;
+    if (Z && typeof Z.dayKey === "function" && typeof Z.viewerZone === "function") { const k = Z.dayKey(t, Z.viewerZone()); if (k) return k; }
+  } catch (e) { /* the browser's day below */ }
+  const x = new Date(t);
+  return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+}
+// The Monday the coach's week opens on, "YYYY-MM-DD", on the account's clock.
+function dashLibWeekStartKey(now) {
+  const t = now == null ? Date.now() : +now;
+  const key = dashLibDayKey(t);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!m) return "";
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
 // The coach's week ends on Sunday, on the account's clock (ShapeZone); this browser's without it.
 // "Sun · Nov 15".
 function dashLibWeekEnd(now) {
@@ -438,4 +460,4 @@ function dashLibWeekEnd(now) {
 }
 
 Object.assign(window, { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift,
-  DashLibSort, DashLibStatus, DashLibMenu, DashLibTopLine, DashLibDrawer, DashLibPeople, DashLibCard, DASH_LIB_ROSTER_UNREAD, dashLibRosterState, dashLibWeekEnd, dashLibKind });
+  DashLibSort, DashLibStatus, DashLibMenu, DashLibTopLine, DashLibDrawer, DashLibPeople, DashLibCard, DASH_LIB_ROSTER_UNREAD, dashLibRosterState, dashLibWeekEnd, dashLibKind, dashLibDayKey, dashLibWeekStartKey });

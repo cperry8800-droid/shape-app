@@ -57,7 +57,7 @@ const TODAY_NAMES = ['DashPill', 'DashDemoBand', 'dashRouteParam', 'dashClientHr
 Object.assign(globalThis, new Function(compile(read('dashToday.jsx')) + ';return {' + TODAY_NAMES.join(',') + '};')());
 globalThis.dashMessageClient = (name, role, draft, id) => { messaged.push([name, role, id]); };
 const KIT = ['DashFilterBar', 'DashFacetMenu', 'DashTagChips', 'DFB_EMPTY', 'dfbRun', 'dfbToggle', 'dfbClearFacet', 'dfbSelected', 'dfbCountLabel', 'dfbPopShift', 'useDfbPopShift',
-  'DashLibSort', 'DashLibStatus', 'DashLibMenu', 'DashLibTopLine', 'DashLibDrawer', 'DashLibPeople', 'DashLibCard', 'DASH_LIB_ROSTER_UNREAD', 'dashLibRosterState', 'dashLibWeekEnd', 'dashLibKind'];
+  'DashLibSort', 'DashLibStatus', 'DashLibMenu', 'DashLibTopLine', 'DashLibDrawer', 'DashLibPeople', 'DashLibCard', 'DASH_LIB_ROSTER_UNREAD', 'dashLibRosterState', 'dashLibWeekEnd', 'dashLibKind', 'dashLibDayKey', 'dashLibWeekStartKey'];
 Object.assign(globalThis, new Function(compile(read('dashFilterBar.jsx')) + ';return {' + KIT.join(',') + '};')());
 Object.assign(globalThis, new Function(compile(read('coachBuilderLayouts.jsx')) + ';return { coachTemplateCopy, CoachBuilderNav, CoachBuilderFooter, COACH_BUILDER_LAYOUTS };')());
 const { TrainerProgramsPage, DbuAssignModal } = new Function(compile(read('dashBuilder.jsx')) + ';return { TrainerProgramsPage, DbuAssignModal };')();
@@ -926,3 +926,43 @@ test('the roster state: a signed-in library never reads as the preview', () => {
 });
 
 test.after(async () => { if (root) await React.act(async () => root.unmount()); });
+
+// Codex on #2645 (round 2): an assign changes who is on what, and the page has to say so at once, or
+// it invites the same assign twice.
+test('Programs: a publish from a card reads who is on it again, and the roster for that client', async () => {
+  dashboard('live', ROSTER()); stubFetch();
+  const refreshed = [];
+  const onRefresh = (e) => refreshed.push(e.detail && e.detail.clientId);
+  window.addEventListener('shape:coach-progress-refresh', onRefresh);
+  try {
+    await mount(React.createElement(TrainerProgramsPage));
+    const before = usageCalls().length;
+    await click(button('Assign', cardOf('Glute Builder')));
+    const box = [...document.querySelectorAll('input[type="checkbox"]')][0];
+    const who = box.closest('label').querySelector('span').textContent;
+    await click(box);
+    await click(button('Publish to 1 client'));
+    await settle();
+    assert.ok(calls.some(([u, m]) => u === '/api/trainer/workout' && m === 'POST'), 'the program was published');
+    assert.equal(usageCalls().length, before + 1, 'who is on it was not read again');
+    const id = ROSTER().find((c) => c.profile.name === who).profile.id;
+    assert.deepEqual(refreshed, [id], 'the roster (the week line\'s program legs) was not read again for that client');
+  } finally { window.removeEventListener('shape:coach-progress-refresh', onRefresh); }
+});
+
+test('Meal plans: a client sent a plan this week is not due one, from this visit\'s send or the read\'s sentAt', async () => {
+  // Priya was sent her plan earlier this week, on another device: the read says so.
+  const thisWeek = new Date().toISOString();
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 1, clientIds: [uid(1)] } }, { sentAt: { [uid(1)]: thisWeek } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.doesNotMatch(words(top()), /Priya S\./, 'a client sent a plan this week is still listed as due');
+  assert.ok(!!button('Assign all 1', top()), 'only Tess is left to assign');
+  // Assign all to Tess, publish, and she leaves the line as soon as the sheet has sent it.
+  await click(button('Assign all 1', top()));
+  await click(button('Publish to 1 client'));
+  await settle();
+  await pause(1300);
+  await settle();
+  assert.doesNotMatch(words(top()), /Tess B\./, 'the client just sent a plan is still listed as due');
+  assert.ok(!button('Assign all 1', top()), 'Assign all is offered again to the client it was just sent to');
+});

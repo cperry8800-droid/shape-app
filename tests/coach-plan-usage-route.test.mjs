@@ -120,15 +120,17 @@ const meal = (q = '') => get('?role=nutritionist' + q);
 
 test('the meal library: distinct clients per plan from this nutritionist\'s current plans, and a real count of the untracked', async () => {
   const rows = [
-    { client_id: 'c1', template_id: 'm1' }, { client_id: 'c1', template_id: 'm1' }, { client_id: 'c2', template_id: 'm1' },
-    { client_id: 'c3', template_id: 'm2' }, { client_id: null, template_id: 'm3' }, { client_id: 'c4', template_id: null },
+    { client_id: 'c1', template_id: 'm1', created_at: '2026-11-03T10:00:00Z' }, { client_id: 'c1', template_id: 'm1', created_at: '2026-10-01T10:00:00Z' }, { client_id: 'c2', template_id: 'm1', created_at: '2026-11-02T10:00:00Z' },
+    { client_id: 'c3', template_id: 'm2', created_at: '2026-10-20T10:00:00Z' }, { client_id: null, template_id: 'm3', created_at: '2026-11-01T10:00:00Z' }, { client_id: 'c4', template_id: null, created_at: '2026-10-01T10:00:00Z' },
     // A former client (no open subscription) is on nothing, tracked or not.
-    { client_id: 'gone', template_id: 'm2' }, { client_id: 'gone2', template_id: null },
+    { client_id: 'gone', template_id: 'm2', created_at: '2026-11-04T10:00:00Z' }, { client_id: 'gone2', template_id: null, created_at: '2026-11-04T10:00:00Z' },
   ];
   const { route, calls } = await api([{ data: [{ id: 4 }, { id: 5 }], error: null }, SUBS(['c1', 'c2', 'c3', 'c4']), { data: rows, error: null, count: rows.length }]);
   const res = await route.GET(meal('&today=2026-09-22'));
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { usage: { m1: { clients: 2, clientIds: ['c1', 'c2'] }, m2: { clients: 1, clientIds: ['c3'] } }, capped: false, untracked: 1 });
+  // `sentAt`: when each open client's current plan was sent (the newest of theirs; rows come newest first).
+  assert.deepEqual(await res.json(), { usage: { m1: { clients: 2, clientIds: ['c1', 'c2'] }, m2: { clients: 1, clientIds: ['c3'] } }, capped: false, untracked: 1,
+    sentAt: { c1: '2026-11-03T10:00:00Z', c2: '2026-11-02T10:00:00Z', c3: '2026-10-20T10:00:00Z', c4: '2026-10-01T10:00:00Z' } });
   assert.equal(res.headers.get('Cache-Control'), 'private, no-store, max-age=0', 'it names the coach\'s clients');
   assert.deepEqual(calls.filter((c) => c[0] === 'from').map((c) => c[1]), ['nutritionists', 'subscriptions', 'client_meal_plans'], 'never a trainer\'s calendar');
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'owner_id' && c[2] === 'coach-a'), 'the nutritionist rows are the caller\'s own');
@@ -136,7 +138,7 @@ test('the meal library: distinct clients per plan from this nutritionist\'s curr
   assert.ok(calls.some((c) => c[0] === 'in' && c[1] === 'provider_id' && c[2].join() === '4,5'), 'with these rows');
   assert.ok(calls.some((c) => c[0] === 'in' && c[1] === 'nutritionist_id' && c[2].join() === '4,5'), 'the plans read keeps to those rows');
   assert.ok(calls.some((c) => c[0] === 'eq' && c[1] === 'status' && c[2] === 'published'), 'a client\'s current plan is the published one');
-  assert.ok(calls.some((c) => c[0] === 'select' && c[1] === 'client_id, template_id:payload->template->>id' && c[2]?.count === 'exact'));
+  assert.ok(calls.some((c) => c[0] === 'select' && c[1] === 'client_id, template_id:payload->template->>id, created_at' && c[2]?.count === 'exact'));
   assert.ok(!calls.some((c) => c[0] === 'not' || c[0] === 'is'), 'one read of every current plan: tracked and untracked over the same rows');
   assert.ok(calls.some((c) => c[0] === 'limit' && c[1] === 5000));
   assert.ok(!calls.some((c) => c[0] === 'gte'), 'a current plan is published, whatever its week: no day');
@@ -170,7 +172,7 @@ test('the meal library: a failed read, of the rows, the subscriptions or the pla
 
 test('the meal library: a read past the cap says so', async () => {
   const { route } = await api([{ data: [{ id: 4 }], error: null }, SUBS(['c1']), { data: [{ client_id: 'c1', template_id: 'm1' }], error: null, count: 9000 }]);
-  assert.deepEqual(await (await route.GET(meal())).json(), { usage: { m1: { clients: 1, clientIds: ['c1'] } }, capped: true, untracked: 0 });
+  assert.deepEqual(await (await route.GET(meal())).json(), { usage: { m1: { clients: 1, clientIds: ['c1'] } }, capped: true, untracked: 0, sentAt: {} });
   const unknown = await api([{ data: [{ id: 4 }], error: null }, SUBS([]), { data: [], error: null, count: null }]);
   assert.equal((await (await unknown.route.GET(meal())).json()).capped, true, 'an unknown count is not a complete one');
 });
@@ -204,7 +206,7 @@ test('only a client with an open subscription counts, for programs and meal plan
   assert.deepEqual(await (await workouts.route.GET(get())).json(), { usage: { p1: { clients: 1, clientIds: ['now'] } }, capped: false });
   assert.ok(workouts.calls.some((c) => c[0] === 'eq' && c[1] === 'provider_role' && c[2] === 'trainer'));
   const meals = await api([{ data: [{ id: 4 }], error: null }, subs, { data: [...rows, { client_id: 'left', template_id: null }], error: null, count: 5 }]);
-  assert.deepEqual(await (await meals.route.GET(meal())).json(), { usage: { p1: { clients: 1, clientIds: ['now'] } }, capped: false, untracked: 0 }, 'a former client is not untracked either');
+  assert.deepEqual(await (await meals.route.GET(meal())).json(), { usage: { p1: { clients: 1, clientIds: ['now'] } }, capped: false, untracked: 0, sentAt: {} }, 'a former client is not untracked either');
   // A subscriptions read that fails is an error, never everyone or no one.
   const failed = await api([{ data: [{ id: 't1' }], error: null }, { data: null, error: { message: 'boom' } }]);
   assert.equal((await failed.route.GET(get())).status, 500);

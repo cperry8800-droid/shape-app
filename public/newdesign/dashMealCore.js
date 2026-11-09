@@ -578,7 +578,12 @@
     if (!r || typeof r !== "object") return "ready";
     return r.state === "ready" ? "ready" : r.state === "loading" ? "loading" : "unread";
   }
-  function planTodo(clients, queue, templates) {
+  // `sent`: the clients sent a plan this week (the usage read's sentAt, and this visit's own sends):
+  // they have this week's plan, so they are not due one (Codex on #2645: the line offered Assign all
+  // again to the clients it had just been sent to).
+  function planTodo(clients, queue, templates, sent) {
+    var sentIds = Object.create(null);
+    (sent && typeof sent.forEach === "function" ? sent : []).forEach(function (id) { if (id != null) sentIds[String(id)] = true; });
     var all = (Array.isArray(clients) ? clients : []).filter(function (c) { return c && c.profile; });
     var read = all.filter(function (c) { return todoReadState(c) === "ready"; });
     var pending = all.filter(function (c) { return todoReadState(c) === "loading"; }).length;
@@ -589,7 +594,7 @@
     var rows = [], at = Object.create(null);
     var add = function (c, reason) {
       var id = c && c.profile ? String(c.profile.id) : "";
-      if (!id) return;
+      if (!id || sentIds[id]) return;
       if (at[id] == null) {
         var phase = phaseKeyOf(c.goalPhase);
         var tpl = phase ? (templates || []).find(function (t) { return t && t.detail && t.detail.mealBuilder && t.detail.mealBuilder.goalPhase === phase; }) : null;
