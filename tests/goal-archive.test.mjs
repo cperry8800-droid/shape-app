@@ -5,8 +5,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const PAGES = ['public/newdesign/trainerGoalPage.jsx', 'public/newdesign/nutritionistGoalPage.jsx'];
+// Both roles' Goal tabs are one board since coach dashboard step 4c: coachGoalScore.jsx, which each
+// role's page file mounts with its role.
+const PAGES = ['public/newdesign/coachGoalScore.jsx'];
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+
+test('each role\'s Goal page is the shared board', () => {
+  for (const [f, role] of [['trainerGoalPage.jsx', 'trainer'], ['nutritionistGoalPage.jsx', 'nutritionist']]) {
+    assert.ok(read('public/newdesign/' + f).includes('<CoachGoalBoard role="' + role + '" />'), f);
+  }
+});
 
 for (const p of PAGES) {
   test(`${p}: Archive asks first, keeps the goals, and can give them back`, () => {
@@ -18,15 +26,16 @@ for (const p of PAGES) {
     assert.ok(ask > 0 && save > ask, 'archiving no longer asks before it saves');
     assert.match(fn, /goals: current \}\];/, 'the archived copy no longer holds the goals');
     assert.match(src, /data-goal-archive onClick=\{archiveGoals\}/);
-    assert.match(src, /!\(state\.goals \|\| \[\]\)\.length && lastArchive\(state\) && <button data-goal-restore onClick=\{restoreGoals\}/,
+    assert.match(src, /!\(state\.goals \|\| \[\]\)\.length && cgsLastArchive\(state\) && <button data-goal-restore onClick=\{restoreGoals\}/,
       'an empty page no longer offers the archived goals back');
   });
 }
 
 test('the restore offers the newest archived quarter that holds goals', () => {
   const src = read(PAGES[0]);
-  const body = src.slice(src.indexOf('function lastArchive(state) {'), src.indexOf('function TrainerGoalPage() {'));
-  const lastArchive = new Function(body + '; return lastArchive;')();
+  const at = src.indexOf('function cgsLastArchive(state) {');
+  const body = src.slice(at, src.indexOf('\n}\n', at) + 3);
+  const lastArchive = new Function(body + '; return cgsLastArchive;')();
   assert.equal(lastArchive({}), null);
   assert.equal(lastArchive({ archived: [] }), null);
   assert.equal(lastArchive({ archived: [{ goals: [] }] }), null);
@@ -39,7 +48,7 @@ for (const p of PAGES) {
   test(`${p}: every save is bound to the account the page loaded (Codex on #2626)`, () => {
     const src = read(p);
     assert.match(src, /ownerId\.current = user\.id;/, 'the page no longer remembers whose goals it loaded');
-    assert.match(src, /saveUserGoals\("(trainer|nutritionist)", next, ownerId\.current \? \{ expectedUserId: ownerId\.current \} : undefined\)/,
+    assert.match(src, /saveUserGoals\(role, next, ownerId\.current \? \{ expectedUserId: ownerId\.current \} : undefined\)/,
       'a save writes to whoever is signed in at save time again');
     assert.equal((src.match(/saveUserGoals\(/g) || []).length, 1, 'a second save path skips the account binding');
     assert.match(src, /res\.error\.message === "Account changed" \? "Not saved: another account is signed in now\. Reload this page\."/);

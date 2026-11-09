@@ -88,12 +88,13 @@ const CGS_EARLY_DAYS = 7;
 const CGS_AT_RISK = 0.75;
 function cgsGoalPace(g, reading, today) {
   const tgt = cgsNum(g && g.tgt);
-  if (!reading || reading.state === "loading") return { status: "reading" };
-  if (reading.state !== "ready" || tgt == null) return { status: "unread" };
+  const start = cgsNum(g && g.start);
+  const startDay = g && g.startAt ? cgsDayOfInstant(g.startAt) : null;
+  const dueDay = cgsDayNum(g && g.due);
+  // A figure still reading, or unreadable, keeps the goal's dates (its card still says when it is due).
+  if (!reading || reading.state === "loading") return { status: "reading", tgt, start, startDay, dueDay };
+  if (reading.state !== "ready" || tgt == null) return { status: "unread", tgt, start, startDay, dueDay };
   const cur = reading.cur;
-  const start = cgsNum(g.start);
-  const startDay = g.startAt ? cgsDayOfInstant(g.startAt) : null;
-  const dueDay = cgsDayNum(g.due);
   const down = start != null && start > tgt;
   const from = start != null ? start : 0;
   const reached = down ? cur <= tgt : cur >= tgt;

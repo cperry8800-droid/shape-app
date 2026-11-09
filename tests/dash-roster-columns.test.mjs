@@ -133,8 +133,9 @@ test('both roster views carry the two columns, and their track counts line up', 
 });
 
 // ── R9: a goal bound to a live metric ───────────────────────────────────────
-const GOAL = readFileSync(new URL('../public/newdesign/trainerGoalPage.jsx', import.meta.url), 'utf8');
-const NUTRI_GOAL = readFileSync(new URL('../public/newdesign/nutritionistGoalPage.jsx', import.meta.url), 'utf8');
+// Both roles' Goal tabs are one board since coach dashboard step 4c (coachGoalScore.jsx); the page
+// files mount it with their role.
+const GOAL = readFileSync(new URL('../public/newdesign/coachGoalScore.jsx', import.meta.url), 'utf8');
 const { goalLiveValue, goalMetricsFor } = load(DATA, ['goalMetricsFor', 'goalLiveValue']);
 
 test('a bound goal reads the practice; unreadable is null, loading is neither', () => {
@@ -168,11 +169,11 @@ test('the two roles are offered bindings their OWN payload can answer', () => {
 });
 
 test('the Goal pages consume the shared helpers rather than each keeping a copy', () => {
-  for (const src of [GOAL, NUTRI_GOAL]) {
+  for (const src of [GOAL]) {
     assert.doesNotMatch(src, /const GOAL_METRICS = \[/, 'the metric list belongs in dashData.jsx');
     assert.doesNotMatch(src, /function goalLiveValue/, 'goalLiveValue belongs in dashData.jsx');
-    assert.match(src, /goalMetricsFor\(/);
-    assert.match(src, /useCoachLiveFigures\("(trainer|nutritionist)"\)/);
+    assert.match(src, /goalMetricsFor\(role\)/);
+    assert.match(src, /useCoachLiveFigures\(role\)/);
     assert.match(src, /coachLiveMomentum\(live\)/);
   }
 });
@@ -182,8 +183,8 @@ test('both Goal pages use Business\'s "What clients earn you", not a weekly sess
   // clients a coach brings, and multiplied a week by 4.33. Its two guards here (no delta against a
   // subscriptions-only pace; -$n not $-n) went with it: the calculator is now the shared one in
   // dashBusiness.jsx, started from the coach's live figures and tested in business-plan-page.test.mjs.
-  for (const [name, src] of [['trainer', GOAL], ['nutritionist', NUTRI_GOAL]]) {
-    assert.match(src, new RegExp('<DbzGoalEarn role="' + name + '" live=\\{live\\} />'), name);
+  for (const [name, src] of [['coachGoalScore', GOAL]]) {
+    assert.match(src, /<DbzGoalEarn role=\{role\} live=\{live\} \/>/, name);
     assert.doesNotMatch(src, /4\.33|PLATFORM_FEE_RATE|CalcEditModal|paceDelta|grossWeekly/, name + ' keeps none of the old model');
   }
 });
@@ -279,7 +280,7 @@ test('a bound metric carries its own unit, so the card cannot format it wrongly'
 });
 
 test('both Goal modals apply the metric’s unit when the binding changes', () => {
-  for (const f of ['trainerGoalPage', 'nutritionistGoalPage']) {
+  for (const f of ['coachGoalScore']) {
     const src = readFileSync(new URL(`../public/newdesign/${f}.jsx`, import.meta.url), 'utf8');
     assert.match(src, /setG\(\{\s*\.\.\.g,\s*metric,\s*\.\.\.\(metric \? goalMetricUnit\(metric\) : \{\}\)\s*\}\)/, f);
     // and the unit checkboxes stop accepting input the card would override

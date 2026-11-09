@@ -491,15 +491,17 @@ test('the app\'s Settings pane: a read that answers after a save does not undo i
 });
 
 test('the coach Score pages claim no rank the board did not give (CodeRabbit, on #2371)', () => {
+  // Both roles' Score tabs are one board since coach dashboard step 4c (coachGoalScore.jsx).
   for (const role of ['trainer', 'nutritionist']) {
-    const page = stripComments(read(`public/newdesign/${role}ScorePage.jsx`));
-    // (the Icon rung's own description, "Top 1% of coaches", is the ladder, not a claim about you)
-    assert.ok(!/right="[^"]*TOP \d+%|Top \d+% of (trainers|nutritionists) on Shape/.test(page), `the ${role} Score page still shows a fixed percentage`);
-    assert.match(page, /<SectionTitle right=\{tierLabel\}>Tiers<\/SectionTitle>/, `the ${role} Tiers card does not read the live tier`);
-    // The label is the read's own rung (2026-10-18: the page derives it from the read rather than
-    // setting it over a fixed MASTER; tests/coach-score-website.test.mjs mounts it).
-    assert.match(page, /const tierName = score \? String\(cn\(score\.current_tier\)\) : null;\s*const tierLabel = tierName \? tierName\.toUpperCase\(\) : "—";/);
+    assert.ok(read(`public/newdesign/${role}ScorePage.jsx`).includes(`<CoachScoreBoard role="${role}" />`), role);
   }
+  const board = stripComments(read('public/newdesign/coachGoalScore.jsx'));
+  assert.ok(!/TOP \d+%|Top \d+% of (coaches|trainers|nutritionists)/.test(board), 'the Score board still shows a fixed percentage');
+  // The tier is the read's own rung (2026-10-18: derived from the read rather than set over a fixed
+  // MASTER; tests/coach-score-website.test.mjs mounts it), and it marks the coach's place on the tiers.
+  assert.match(board, /tier: String\(cgsTierName\(score\.current_tier\)\)/);
+  assert.match(board, /const tierLabel = model \? model\.tier\.toUpperCase\(\) : "—";/);
+  assert.match(board, /const cur = i === place\.index/);
 });
 
 test('the board\'s "Show me" button takes its text colour from the paper (CodeRabbit, on #2371)', () => {

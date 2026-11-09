@@ -21,20 +21,24 @@ globalThis.React = React;
 const { createRoot } = require_('react-dom/client');
 
 // The shell the pages are drawn in (pageShell.jsx, trainerDashboard.jsx, coachNav.jsx, leaderboards.jsx,
-// dashToday.jsx), reduced to what prints the page's own words.
+// dashToday.jsx), reduced to what prints the page's own words. Since coach dashboard step 4c the page
+// files mount coachGoalScore.jsx's board, which draws with dashBusiness.jsx's cards; without dashGrid.jsx
+// its default cards stack, as a stale cache would show them.
 const h = React.createElement;
 Object.assign(globalThis, {
-  INK: '#fff', TEAL: '#0ac5a8', TEAL_BRIGHT: '#2ee0c4', serif: 'serif',
+  INK: '#fff', PAPER: '#000', TEAL: '#0ac5a8', TEAL_BRIGHT: '#2ee0c4', serif: 'serif', sans: 'sans',
   DashPage: ({ eyebrow, title, subtitle, actions, children }) => h('main', null, h('div', { 'data-eyebrow': '' }, eyebrow), h('h1', null, title), subtitle, actions, children),
-  Card: ({ children }) => h('section', null, children),
-  SectionTitle: ({ children, right }) => h('header', null, h('span', null, children), right ? h('span', { 'data-right': '' }, right) : null),
   trainerNavItems: () => [], nutriNavItems: () => [], trainerPayoutCard: null, nutriPayoutCard: null,
   useCoachStanding: () => null, coachStandingLine: () => 'standing',
   CoachScoreActions: () => null, CoachLeaderboard: () => null,
   DashDemoBand: () => h('div', { 'data-band': '' }, 'Preview · demo data — an example of a live account'),
+  DashClientGem: () => null, dashRecordTier: () => null,
 });
 
 const { loadRealModule } = await import('./helpers/load-real-module.mjs');
+const B = await loadRealModule(ND('dashBusiness.jsx'), { appendExports: 'export { DbzCard, DbzChip, DbzGem, DBZ_FILLED, DBZ_OUTLINE, DBZ_NOTE, DBZ_LBL, DBZ_MONO, DBZ_INK, DBZ_INK50, DBZ_RULE };' });
+Object.assign(globalThis, { DbzCard: B.DbzCard, DbzChip: B.DbzChip, DbzGem: B.DbzGem, DBZ_FILLED: B.DBZ_FILLED, DBZ_OUTLINE: B.DBZ_OUTLINE, DBZ_NOTE: B.DBZ_NOTE, DBZ_LBL: B.DBZ_LBL, DBZ_MONO: B.DBZ_MONO, DBZ_INK: B.DBZ_INK, DBZ_INK50: B.DBZ_INK50, DBZ_RULE: B.DBZ_RULE });
+globalThis.CoachScoreBoard = (await loadRealModule(ND('coachGoalScore.jsx'), { appendExports: 'export { CoachScoreBoard };' })).CoachScoreBoard;
 const PAGES = {
   trainer: (await loadRealModule(ND('trainerScorePage.jsx'), { appendExports: 'export { TrainerScorePage };' })).TrainerScorePage,
   nutritionist: (await loadRealModule(ND('nutritionistScorePage.jsx'), { appendExports: 'export { NutritionistScorePage };' })).NutritionistScorePage,
@@ -87,11 +91,10 @@ test('a signed-in coach whose read fails sees an unread state, never the sample'
         assert.match(s.eyebrow(), /COULDN'T READ/, what);
         assert.match(s.text(), /Couldn't read your score just now\./, what);
         assert.doesNotMatch(s.text(), OLD_SAMPLE, what);
-        // Not the new sample either, and no rung is marked or named.
-        for (const sample of ['3,060', '2,340', '34 clients', '28 clients', 'SAMPLE', 'PATH TO']) assert.ok(!s.text().includes(sample), `${what}: shows "${sample}"`);
+        // Not the sample either (nor the one before it), and no rung is marked, no way up offered.
+        for (const sample of ['1,760', '1,510', '3,060', '2,340', '14 clients', '12 clients', 'SAMPLE', 'Sample', 'Fastest way up']) assert.ok(!s.text().includes(sample), `${what}: shows "${sample}"`);
         assert.ok(!s.div.querySelector('[data-band]'), `${what}: the demo band is up`);
-        const tiersHead = [...s.div.querySelectorAll('header')].find((x) => /^Tiers/.test(x.textContent));
-        assert.equal(tiersHead.querySelector('[data-right]').textContent, '—', `${what}: the Tiers card names a rung`);
+        assert.ok(!s.div.querySelector('[data-cgs-current]'), `${what}: a rung is marked`);
       } finally { await s.unmount(); }
     }
   }
@@ -105,12 +108,11 @@ test('a signed-in coach reads their own score: total, rung, breakdown and the ne
     try {
       assert.equal(s.title(), d.total.toLocaleString(), role);
       assert.equal(s.eyebrow(), `COACH SCORE · ${d.current_tier.toUpperCase()}`, role);
-      // The Tiers card names the read's rung.
-      const tiersHead = [...s.div.querySelectorAll('header')].find((x) => /^Tiers/.test(x.textContent));
-      assert.equal(tiersHead && tiersHead.querySelector('[data-right]').textContent, d.current_tier.toUpperCase(), role);
-      for (const b of d.breakdown) assert.ok(s.text().includes(b.label) && s.text().includes(b.sub), `${role}: ${b.label}`);
-      assert.match(s.text(), new RegExp(`PATH TO ${d.next_tier.toUpperCase()}`), role);
-      assert.match(s.text(), new RegExp(`${d.points_to_next.toLocaleString()} more points`), role);
+      // The five tiers mark the read's rung, and the way up counts to the next.
+      const cur = s.div.querySelector('[data-cgs-current]');
+      assert.equal(cur ? cur.getAttribute('data-cgs-tier') : null, d.current_tier, role);
+      for (const b of d.breakdown) assert.ok(s.text().includes(b.label) && s.text().includes(b.points.toLocaleString()), `${role}: ${b.label}`);
+      assert.match(s.text(), new RegExp(`${d.points_to_next.toLocaleString()} to ${d.next_tier}`), role);
       assert.doesNotMatch(s.text(), OLD_SAMPLE, role);
       assert.ok(!s.text().includes('SAMPLE'), role);
       assert.ok(!s.div.querySelector('[data-band]'), role);
@@ -125,18 +127,18 @@ test('while the read runs, no figure is printed', async () => {
     assert.equal(s.title(), '—');
     assert.match(s.text(), /Reading your score…/);
     assert.doesNotMatch(s.text(), OLD_SAMPLE);
-    assert.ok(!s.text().includes('3,060'));
+    assert.ok(!s.text().includes('1,760'));
   } finally { await s.unmount(); }
 });
 
 test('signed out (a 401), the sample is shown and labelled, and it is the route\'s formula', async () => {
-  for (const [role, total, terms] of [['trainer', '3,060', 3], ['nutritionist', '2,340', 2]]) {
+  for (const [role, total, terms] of [['trainer', '1,760', 3], ['nutritionist', '1,510', 2]]) {
     scriptFetch(401);
     const s = await mount(role);
     try {
       assert.equal(s.title(), total, role);
       assert.match(s.eyebrow(), /· SAMPLE$/, role);
-      assert.match(s.text(), /SAMPLE · TOTAL/, role);
+      assert.match(s.text(), /Sample · an example coach/, role);
       assert.ok(s.div.querySelector('[data-band]'), `${role}: the demo band labels the sample`);
       // The sample's rows add up to its total, and are the formula's terms.
       assert.match(s.text(), new RegExp(`${terms} TERMS`), role);

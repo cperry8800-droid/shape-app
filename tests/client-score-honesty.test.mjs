@@ -7,8 +7,8 @@ import { stripComments } from './helpers/strip-comments.mjs';
 
 const SCORE = readFileSync(new URL('../public/newdesign/clientScore.jsx', import.meta.url), 'utf8');
 const SHELL = readFileSync(new URL('../public/newdesign/trainerDashboard.jsx', import.meta.url), 'utf8');
-const TGOAL = readFileSync(new URL('../public/newdesign/trainerGoalPage.jsx', import.meta.url), 'utf8');
-const NGOAL = readFileSync(new URL('../public/newdesign/nutritionistGoalPage.jsx', import.meta.url), 'utf8');
+// Both roles' Goal tabs are drawn by one module since coach dashboard step 4c (the page files mount it).
+const GOALS = readFileSync(new URL('../public/newdesign/coachGoalScore.jsx', import.meta.url), 'utf8');
 
 function fn(src, name, deps) {
   const at = src.indexOf('function ' + name + '(');
@@ -31,7 +31,7 @@ test('the goal quarter is computed, never typed', () => {
     ['2026-12-31T12:00:00', 'YOUR GOALS · Q4 2026'],
     ['2027-01-01T12:00:00', 'YOUR GOALS · Q1 2027'],
   ]) assert.equal(q(new Date(iso)), want, iso);
-  for (const [name, src] of [['trainerGoalPage', TGOAL], ['nutritionistGoalPage', NGOAL]]) {
+  for (const [name, src] of [['coachGoalScore', GOALS]]) {
     const s = stripComments(src);
     assert.match(s, /eyebrow=\{goalQuarterLabel\(\)\}/, name + ' still types its quarter');
     assert.ok(!/Q[1-4] 20\d\d/.test(s), name + ' carries a frozen quarter literal');

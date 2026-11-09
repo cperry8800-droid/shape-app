@@ -207,10 +207,14 @@ test('the app\'s line says the date in the app\'s language, and nothing outside 
 });
 
 test('both Score pages print it on a coach\'s own score only; the app prints it under the breakdown', () => {
+  // Both roles' Score tabs are one board since coach dashboard step 4c (coachGoalScore.jsx), each page
+  // file mounting it with its role.
+  const board = readFileSync(join(ROOT, 'public/newdesign/coachGoalScore.jsx'), 'utf8');
+  assert.ok(board.includes('const fixNote = read.state === "ok" && typeof coachScoreFixNote === "function" ? coachScoreFixNote(role) : null;'));
+  assert.match(board, /\{fixNote && <div role="note" data-score-fix/);
   for (const [page, role] of [['trainerScorePage.jsx', 'trainer'], ['nutritionistScorePage.jsx', 'nutritionist']]) {
     const src = readFileSync(join(ROOT, 'public/newdesign', page), 'utf8');
-    assert.ok(src.includes(`const fixNote = read.state === "ok" && typeof coachScoreFixNote === "function" ? coachScoreFixNote("${role}") : null;`), page);
-    assert.match(src, /\{fixNote && <div role="note" data-score-fix/, page);
+    assert.ok(src.includes(`<CoachScoreBoard role="${role}" />`), page);
   }
   const client = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /import \{ BSScoreFixNote \} from '\.\/BSScoreFixNote\.jsx';/);
