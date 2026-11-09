@@ -611,7 +611,7 @@ function dashPeekFacts(rec, role) {
   } else {
     const a = rec.trainingAdherence;
     keeping = a && a.pct != null
-      ? { v: a.pct + "%", sub: (a.done != null && a.planned != null ? a.done + " of " + a.planned + " kept" : "kept") + " · 42 days", state: "value" }
+      ? { v: a.pct + "%", sub: (a.done != null && a.planned != null ? a.done + " of " + a.planned + " · " : "") + "42 days", state: "value" }
       : miss("Not shared");
   }
   const st = rec.streaks;
@@ -620,19 +620,22 @@ function dashPeekFacts(rec, role) {
     : miss("Not shared");
   return [
     { key: "program", label: nutri ? "Plan" : "Program", ...program },
-    { key: "keeping", label: nutri ? "Logging · 7 days" : "Sessions kept", ...keeping },
+    { key: "keeping", label: nutri ? "Logging · 7d" : "Sessions kept", ...keeping },
     { key: "streak", label: "Streak", ...streak },
   ];
 }
 function DashPeekFacts({ rec, role }) {
   const facts = dashPeekFacts(rec, role);
   return (
-    <div data-peek-facts="" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1, background: "var(--sh-line, #302c27)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+    // ⚠ NOT `repeat(3, …)`: pageShell's phone rules collapse any inline repeat(3 grid to one column
+    // with a 20px gap, which stacked the three facts into a tower in the 900px slide-over. The
+    // program takes the wider third, and a long name wraps rather than losing its end.
+    <div data-peek-facts="" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)", gap: 1, background: "var(--sh-line, #302c27)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
       {facts.map((f) => (
         <div key={f.key} data-peek-fact={f.key} data-state={f.state} style={{ background: "var(--sh-card, #25211d)", padding: "11px 12px", minWidth: 0 }}>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{f.label}</div>
-          <div title={f.v} style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: f.state === "value" ? 17 : 14, marginTop: 5, lineHeight: 1.15, color: f.state === "value" ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.v}</div>
-          {f.sub && <div style={{ fontSize: 10.5, color: DASH_ROSTER_INK50, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.sub}</div>}
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.label}</div>
+          <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: f.state === "value" ? 16 : 14, marginTop: 5, lineHeight: 1.2, color: f.state === "value" ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50, overflowWrap: "anywhere" }}>{f.v}</div>
+          {f.sub && <div style={{ fontSize: 10.5, lineHeight: 1.35, color: DASH_ROSTER_INK50, marginTop: 3 }}>{f.sub}</div>}
         </div>
       ))}
     </div>

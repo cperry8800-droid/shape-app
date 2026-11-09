@@ -401,9 +401,9 @@ test('three facts at the top: program, sessions kept and streak, each a value, o
   const cast = asLive(CAST());
   const jordan = cast.find((c) => c.profile.name === 'Jordan M.');
   const facts = (rec, role = 'trainer') => R.dashPeekFacts(rec, role).map((f) => [f.label, f.v, f.sub, f.state]);
-  assert.deepEqual(facts(jordan), [['Program', 'Strength Block 3', 'week 6 of 12', 'value'], ['Sessions kept', '90%', '18 of 20 kept · 42 days', 'value'], ['Streak', '9 days', 'best 14', 'value']]);
-  assert.deepEqual(facts(jordan, 'nutritionist').map((f) => f[0]), ['Plan', 'Logging · 7 days', 'Streak']);
-  assert.deepEqual(facts(jordan, 'nutritionist')[1], ['Logging · 7 days', '86%', '6 of 7 days logged', 'value']);
+  assert.deepEqual(facts(jordan), [['Program', 'Strength Block 3', 'week 6 of 12', 'value'], ['Sessions kept', '90%', '18 of 20 · 42 days', 'value'], ['Streak', '9 days', 'best 14', 'value']]);
+  assert.deepEqual(facts(jordan, 'nutritionist').map((f) => f[0]), ['Plan', 'Logging · 7d', 'Streak']);
+  assert.deepEqual(facts(jordan, 'nutritionist')[1], ['Logging · 7d', '86%', '6 of 7 days logged', 'value']);
   const bare = { ...jordan, program: null, programs: null, trainingAdherence: null, streaks: null };
   assert.deepEqual(facts({ ...bare, goalPhase: null }).map((f) => f[1] + '|' + f[3]), ['Not set|empty', 'Not shared|empty', 'Not shared|empty'], 'a read overview that holds nothing');
   // No program of their own but a goal phase: the phase, said as that.
@@ -572,7 +572,7 @@ test('the nutritionist\'s Clients docks the same panel, with its own lens', asyn
     await click(rowNamed(m.div, 'Priya S.'));
     const panel = document.querySelector('[data-peek]');
     assert.equal(panel.getAttribute('data-peek'), 'docked');
-    assert.equal(/Quick consult/.test(panel.textContent) && /Next consult/i.test(panel.textContent) && /Logging · 7 days/i.test(panel.textContent), true);
+    assert.equal(/Quick consult/.test(panel.textContent) && /Next consult/i.test(panel.textContent) && /Logging · 7d/i.test(panel.textContent), true);
     assert.equal(inertNow(), 0);
   } finally { await m.unmount(); }
 });
