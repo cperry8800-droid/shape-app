@@ -1379,15 +1379,19 @@
 
   function size(){ W=cv.clientWidth; H=cv.clientHeight;
     cv.width=Math.max(1,Math.round(W*DPR)); cv.height=Math.max(1,Math.round(H*DPR));
-    ctx.setTransform(DPR,0,0,DPR,0,0); baseY=H*BASE_U; }
+    ctx.setTransform(DPR,0,0,DPR,0,0); baseY=trailhead(); }
 
-  /* THE TRAILHEAD: 0.14H above the canvas floor, clear of the wire (46px) on any
-     fold taller than 330px. Until 2026-11-09 it was measured against the three
-     stats along the bottom of the fold, which the route had been drawn across
-     ("0 ads · Shape Radio, included"); the owner took the stats out, and with
-     them the only thing over the canvas the trailhead had to clear. Below 760px
-     the terrain is its own band and nothing sits over it at all. */
-  var BASE_U=0.86, baseY=0;
+  /* THE TRAILHEAD: 0.14H above the canvas floor, and never nearer the floor than
+     WIRE_CLEAR — the wire's 46px plus ~4px of the route's 7px stroke. Until
+     2026-11-09 it was measured against the three stats along the bottom of the
+     fold, which the route had been drawn across ("0 ads · Shape Radio,
+     included"); the owner took the stats out, and the wire is all that is left
+     to clear. ⚠ THE FRACTION ALONE IS NOT ENOUGH ON A SHORT WINDOW: at 800x402
+     the canvas is 340px, 0.14H is 47.6px, and half the stroke was drawn inside
+     the wire (Codex on #2659). The floor binds only under ~357px of canvas.
+     Below 760px the terrain is its own band and nothing sits over it at all. */
+  var BASE_U=0.86, WIRE_CLEAR=50, baseY=0;
+  function trailhead(){ return Math.min(H*BASE_U,H-WIRE_CLEAR); }
 
   /* deterministic: no Math.random anywhere, so the ridge is the same mountain on
      every load and between two visitors looking at the same page */

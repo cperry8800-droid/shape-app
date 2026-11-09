@@ -66,8 +66,14 @@ function expr(re, label) {
 // anchored between its own name and the trailhead that follows it.
 const X0_SRC = expr(/\bx0=([^,;]+),\s*y0=/, 'x0');
 const BASE_U = Number(expr(/var BASE_U=([\d.]+)/, 'BASE_U'));
+const WIRE_CLEAR = Number(expr(/WIRE_CLEAR=(\d+)/, 'WIRE_CLEAR'));
 // The wire as the stylesheet sizes it on a desktop fold, read rather than retyped.
 const WIRE_H = Number(expr(/\.wire\{[^}]*?height:(\d+)px/, '.wire height'));
+// The route is stroked 7px wide: ~4px of it sits under its centre line.
+const HALO = 4;
+
+/** The shipped trailhead() for a canvas H tall. */
+const trailheadAt = (H) => Function('H', 'BASE_U', 'WIRE_CLEAR', `${grab('trailhead')}; return trailhead();`)(H, BASE_U, WIRE_CLEAR);
 
 test('the fold carries no stats, and nothing measures them', () => {
   // Owner, 2026-11-09, on a screenshot of the three stats: "remove these from
@@ -80,13 +86,21 @@ test('the fold carries no stats, and nothing measures them', () => {
   assert.doesNotMatch(code, /measureBase|CAMP_CLEAR/, 'the trailhead is still being measured against stats that are gone');
 });
 
-test('the trailhead clears the wire on any fold taller than 330px', () => {
-  // The route is stroked 7px wide, so ~4px of halo sits under its centre line.
+test('the trailhead clears the wire, stroke included, on every fold', () => {
   assert.ok(BASE_U > 0.5 && BASE_U < 1, `a trailhead at ${BASE_U}H is off the mountain`);
-  for (let H = 330; H <= 1400; H += 1) {
-    const clearance = H - H * BASE_U - WIRE_H;
-    assert.ok(clearance >= 0, `H=${H}: the trailhead is ${(-clearance).toFixed(1)}px down in the wire`);
+  let fractionAloneFails = 0;
+  for (let H = 200; H <= 1400; H += 1) {
+    const base = trailheadAt(H);
+    assert.ok(H - base >= WIRE_H + HALO - 1e-9,
+      `H=${H}: the trailhead is ${(H - base).toFixed(1)}px above the floor, and the wire plus the stroke need ${WIRE_H + HALO}`);
+    assert.ok(base > 0, `H=${H}: the trailhead is off the top of the canvas`);
+    if (H - H * BASE_U < WIRE_H + HALO) fractionAloneFails++;
   }
+  // POSITIVE CONTROL: the bare fraction did draw the stroke into the wire on
+  // short folds (Codex on #2659, 800x402), so the sweep reaches the hazard.
+  assert.ok(fractionAloneFails > 100, `the sweep never reaches a fold where 0.14H is too little (${fractionAloneFails})`);
+  // And on an ordinary window the fraction, not the floor, decides.
+  assert.equal(trailheadAt(828), 828 * BASE_U, 'the floor binds on a 1440x900 fold, moving the route for no reason');
 });
 
 test('the trailhead has ONE source', () => {
@@ -96,9 +110,9 @@ test('the trailhead has ONE source', () => {
   // other right-hand side allowed, and a third one is a second opinion about
   // where the route starts.
   const writes = [...code.matchAll(/baseY\s*=\s*([^,;]+)/g)].map((m) => m[1].trim());
-  assert.ok(writes.includes('H*BASE_U'), 'baseY is never set from the canvas height — the trailhead is stuck at 0');
+  assert.ok(writes.includes('trailhead()'), 'baseY is never set from trailhead() — the route is stuck at the canvas top');
   for (const rhs of writes) {
-    assert.ok(rhs === '0' || rhs === 'H*BASE_U', `the trailhead is written as \`${rhs}\` — only H*BASE_U may decide it`);
+    assert.ok(rhs === '0' || rhs === 'trailhead()', `the trailhead is written as \`${rhs}\` — only trailhead() may decide it`);
   }
 });
 
