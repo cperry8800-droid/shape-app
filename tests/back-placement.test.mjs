@@ -306,6 +306,30 @@ test('Back returns to the page where the reader was on it', async () => {
   } finally { await app.unmount(); }
 });
 
+// Codex on #2637: a section's own view sits deep in its page (Soundtracks embedded in a coach's Programs puts
+// its Back five levels under the page's masthead). It still lands in that masthead.
+test('a Back deep in a section of its page still lands in the page\'s masthead row', async () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  let backs = 0;
+  const nest = (n, child) => (n ? h('div', { 'data-depth': n }, nest(n - 1, child)) : child);
+  await act(async () => {
+    root.render(h(window.BSProvider, { paperMode: 'light', accentKey: 'teal' }, h(window.BSPage, null,
+      h('div', { style: { padding: '0 22px' } }, h(window.BSMastRow, { trailing: null })),
+      h('section', null, nest(5, h(window.BSBackRow, { onBack: () => { backs += 1; }, trailing: h('span', null, 'Spotify') }))))));
+  });
+  await flush();
+  try {
+    const arrow = scroller().querySelector('[data-bs-mast-row] [data-bs-mast-back-slot] [data-bs-back-compact]');
+    assert.ok(arrow, 'the deep Back kept a row of its own');
+    assert.ok(!document.querySelector('[data-bs-back-row]:not([data-bs-back-in-mast])'));
+    assert.equal(document.querySelector('[data-bs-back-in-mast]').textContent, 'Spotify');
+    await tap(arrow);
+    assert.equal(backs, 1);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
 test('a Back with no masthead row above it keeps its own row', async () => {
   const host = document.createElement('div');
   document.body.appendChild(host);

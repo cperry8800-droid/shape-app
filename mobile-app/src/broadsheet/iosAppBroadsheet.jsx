@@ -2529,10 +2529,13 @@ function BSMastBackSlot() {
   );
 }
 // The slot of the masthead row just above `anchor`: the last one before it in the page, looked for in its
-// parent, then the parent's parent, a few levels up and never past the page, a sheet or a scroller. A slot
+// parent, then the parent's parent, up to BS_BACK_SLOT_DEPTH levels and never past the page, a scroller, a
+// dialog or the phone's surface (so a layer with no masthead never reaches the page under it). A slot
 // holds one ←: one another Back already holds is passed over (BS_BACK_SLOT_OWNER), so two Backs under one
-// masthead never draw two arrows (the second keeps its own row).
-const BS_BACK_SLOT_DEPTH = 4;
+// masthead never draw two arrows (the second keeps its own row). Eight levels: a section's own view sits
+// deep in its page (Soundtracks inside a coach's Programs is five down; Codex on #2637), and the page's
+// bounds, not the count, are what keep a Back in its own page.
+const BS_BACK_SLOT_DEPTH = 8;
 const BS_BACK_SLOT_OWNER = new WeakMap();
 function bsMastBackSlotFor(anchor, owner = null) {
   if (!anchor || typeof anchor.compareDocumentPosition !== 'function') return null;
@@ -2549,7 +2552,7 @@ function bsMastBackSlotFor(anchor, owner = null) {
       if (!held || held === owner) best = slot;
     }
     if (best) return best;
-    if (parent.matches('[data-bs-page], .bs-scroll, .bs-hide-scroll, [role="dialog"]')) return null;
+    if (parent.matches('[data-bs-page], .bs-scroll, .bs-hide-scroll, [role="dialog"], #bs-phone-surface')) return null;
     node = parent;
   }
   return null;
