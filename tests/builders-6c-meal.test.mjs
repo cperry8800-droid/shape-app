@@ -325,6 +325,9 @@ test('Codex on #2648: oats are gluten in a coach\'s own dish, an ingredient with
   assert.equal(W.ownContains(own('a5', 'Pb', 'peanut butter'), 'dairy'), false);
   // A milk inside another word, and cheeses and creams by name, are dairy (Codex on #2648).
   for (const m of ['buttermilk', 'chocolate milkshake', 'mascarpone', 'halloumi', 'crème fraîche', 'custard']) assert.equal(W.ownContains(own('d-' + m, 'Dish', m), 'dairy'), true, m + ' passed a dairy exclusion');
+  // Caesar dressing, as the core's own Chicken caesar is tagged: dairy and egg.
+  assert.equal(W.ownContains(own('cz', 'Chicken caesar', 'Caesar dressing'), 'dairy'), true, 'Caesar dressing passed a dairy exclusion');
+  assert.equal(W.ownContains(own('cz2', 'Wrap', 'caesar dressing'), 'egg'), true, 'Caesar dressing passed an egg exclusion');
   for (const m of ['oat milk', 'coconut cream', 'almond butter']) assert.equal(W.ownContains(own('nd-' + m, 'Dish', m), 'dairy'), false, m + ' was called dairy');
   // No amount: "to taste sriracha" on a dish served all week is one line with no amount, never "7 ×".
   const doc = weekDoc();

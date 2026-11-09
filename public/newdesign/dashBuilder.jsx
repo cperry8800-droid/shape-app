@@ -1662,7 +1662,7 @@ function useDbuAssign({ template, doc, live, onAssigned }) {
     setState("working");
     setErrMsg("");
     let rows;
-    try { rows=DashBuilder.buildAssignmentRows(doc, tpl, startDate); if(!rows.length || rows.some(r=>!r.payload.exercises.length))throw new Error("Add exercises to each training day before assigning."); } catch(e){setErrMsg(e.message);setState("error");return false;}
+    try { rows=DashBuilder.buildAssignmentRows((meta && meta.doc) || doc, tpl, startDate); if(!rows.length || rows.some(r=>!r.payload.exercises.length))throw new Error("Add exercises to each training day before assigning."); } catch(e){setErrMsg(e.message);setState("error");return false;}
     // Weeks publish one at a time, so a failure partway through leaves the
     // earlier weeks LIVE. Counting them is the difference between "nothing
     // happened" and "three weeks landed and week four was held" — and only the
@@ -2841,7 +2841,8 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
       by.get(wk).push(String((c.profile && c.profile.name) || "A client"));
     });
     return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([week, names]) => ({ week, names }));
-  }, [clients]);
+    // The program's id is a ref: "Save as new copy" changes it without a new roster (Codex on #2648).
+  }, [clients, idRef.current]);
   // The header's Assign: the sheet for a single workout; the program's own panel for a program,
   // back on the plan if a session is open.
   const openAssign = async () => {
@@ -2850,7 +2851,9 @@ function DbuBuilder({ template, preselectId, clients, queue, live, playlists, ow
     setTimeout(() => { const el = assignRef.current; if (el) { if (el.scrollIntoView) el.scrollIntoView({ block: "center" }); el.focus(); } }, 0);
   };
   // The panel saves first, then assigns the version it saved.
-  const beforeAssign = async () => ((await flush()) ? { id: idRef.current, name: latest.current.name, revision: revision.current } : null);
+  // What Assign sends is what just saved (Codex on #2648): the document the save wrote, read after it,
+  // never the one on screen when Assign was pressed (an edit made while the save ran is in the save).
+  const beforeAssign = async () => ((await flush()) ? { id: idRef.current, name: latest.current.name, revision: revision.current, doc: latest.current.doc } : null);
 
   // What the program's progression does to each move of the open day, for its marks.
   const progress = {}, rpeProgress = {};

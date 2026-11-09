@@ -495,3 +495,44 @@ test('the old builder pages redirect to Programs', () => {
     assert.equal(/newWorkout\.jsx|newProgram\.jsx/.test(html), false, f + ' still loads the retired builder');
   }
 });
+
+// ── Codex on #2648 ────────────────────────────────────────────────────────────
+test('Assign sends what just saved, an edit made while the save ran included', async () => {
+  await mount(program(2), { clients: ROSTER, usage: { state: 'ready', map: {}, capped: false } });
+  // Hold the save open, so an edit can land while Assign waits on it.
+  let release;
+  const held = new Promise((r) => { release = r; });
+  const base = globalThis.fetch;
+  let holdNext = true;
+  globalThis.fetch = async (url, opts = {}) => {
+    if (String(url).includes('/api/coach/plans') && opts.method === 'PATCH' && holdNext) { holdNext = false; await held; }
+    return base(url, opts);
+  };
+  await setValue(byAria('Load added each week'), '7');
+  const panel = document.querySelector('.das');
+  for (const g of [...panel.querySelectorAll('.das-gem')].filter((g) => /Nadine|Pia/.test(g.textContent))) await click(g);
+  await click(button('Assign to Nadine K. and Pia N.', panel));
+  // While the first save runs, the coach changes the weekly increase again.
+  await setValue(byAria('Load added each week'), '10');
+  await React.act(async () => { release(); await new Promise((r) => setTimeout(r, 0)); });
+  await settle(); await settle();
+  const posts = calls.filter((c) => c[0] === '/api/trainer/workout');
+  assert.equal(posts.length, 2, 'one publish per week');
+  const squat = posts[1][2].sessions[0].payload.exercises.find((e) => /Back squat/.test(e.name));
+  assert.match(String(squat.load), /265/, 'week 2 was sent from the document on screen when Assign was pressed, not the one that saved');
+});
+
+test('after Save as new copy, the chart\'s Now marks are the copy\'s (none), not the source program\'s', async () => {
+  await mount(program(4), { clients: ROSTER });
+  assert.equal(document.querySelectorAll('.dpc-now').length, 1, 'Samir is on the source program');
+  // A revision conflict offers Save as new copy.
+  const base = globalThis.fetch;
+  globalThis.fetch = async (url, opts = {}) => (String(url).includes('/api/coach/plans') && opts.method === 'PATCH'
+    ? { ok: false, status: 409, json: async () => ({ error: 'Changed elsewhere', code: 'revision_conflict' }) } : base(url, opts));
+  await setValue(byAria('Load added each week'), '6');
+  await click(button('Save now'));
+  await settle();
+  await click(button('Save as new copy'));
+  await settle(); await settle();
+  assert.equal(document.querySelectorAll('.dpc-now').length, 0, 'the copy shows the source program\'s clients as on it');
+});
