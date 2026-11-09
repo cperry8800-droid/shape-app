@@ -598,8 +598,10 @@ function dashPeekFacts(rec, role) {
     : read === "unavailable" ? { v: "—", sub: "couldn't be read", state: "unread" }
     : { v: empty, sub: null, state: "empty" };
   const pr = dashProgramOf(rec, role);
+  // No program of this role's own, but a goal phase: the phase, as the panel's header said before.
   const program = pr && pr.name
     ? { v: pr.name, sub: pr.status === "paused" ? "paused" : pr.week ? "week " + pr.week + (pr.weeks ? " of " + pr.weeks : "") : null, state: "value" }
+    : rec.goalPhase ? { v: rec.goalPhase + " phase", sub: nutri ? "no plan set" : "no program set", state: "value" }
     : miss("Not set");
   let keeping;
   if (nutri) {
@@ -687,7 +689,9 @@ function DashSecCheckin({ rec, role }) {
   const rated = ratings && typeof ratings === "object"
     ? DASH_CHECKIN_RATINGS.filter(([k]) => typeof ratings[k] === "number" && Number.isFinite(ratings[k])).map(([k, l]) => l + " " + ratings[k] + "/10")
     : [];
-  const review = !latest ? null
+  // The review state is said for this week's or last week's check-in only, the window the engine
+  // treats as a to-do (ruleCheckinWaiting); an older one is Week's history, not a nag.
+  const review = !latest || ago == null || ago < 0 || ago > 1 ? null
     : latest.reviewed === true ? { t: "Reviewed", c: DASH_SEV_COLORS.green }
     : latest.reviewed === false ? { t: "Waiting on your review", c: DASH_SEV_COLORS.amber }
     : { t: "Review status couldn't be read", c: DASH_SEV_COLORS.unknown };
@@ -822,7 +826,7 @@ function DashSecJoint({ rec, role, ctx }) {
           style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "var(--sh-card, #25211d)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 6, padding: "8px 11px", minHeight: 32, cursor: "pointer" }}>
           {(j.action && j.action.label) || "Start joint note"}
         </button>
-        <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>Between you and {who}. The client doesn't see it.</span>
+        <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>A private thread. The client doesn't see it.</span>
       </div>
       <div role="status" style={{ marginTop: fail ? 6 : 0, fontSize: 12, color: DASH_ROSTER_INK50 }}>{fail || ""}</div>
     </div>

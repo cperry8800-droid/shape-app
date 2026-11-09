@@ -405,9 +405,11 @@ test('three facts at the top: program, sessions kept and streak, each a value, o
   assert.deepEqual(facts(jordan, 'nutritionist').map((f) => f[0]), ['Plan', 'Logging · 7 days', 'Streak']);
   assert.deepEqual(facts(jordan, 'nutritionist')[1], ['Logging · 7 days', '86%', '6 of 7 days logged', 'value']);
   const bare = { ...jordan, program: null, programs: null, trainingAdherence: null, streaks: null };
-  assert.deepEqual(facts(bare).map((f) => f[1] + '|' + f[3]), ['Not set|empty', 'Not shared|empty', 'Not shared|empty'], 'a read overview that holds nothing');
-  assert.deepEqual(facts({ ...bare, progressRead: { state: 'loading' } }).map((f) => f[1] + '|' + f[2]), ['…|reading', '…|reading', '…|reading'], 'still reading is not "not set"');
-  assert.deepEqual(facts({ ...bare, progressRead: { state: 'unavailable' } }).map((f) => f[1] + '|' + f[2]), ['—|couldn\'t be read', '—|couldn\'t be read', '—|couldn\'t be read']);
+  assert.deepEqual(facts({ ...bare, goalPhase: null }).map((f) => f[1] + '|' + f[3]), ['Not set|empty', 'Not shared|empty', 'Not shared|empty'], 'a read overview that holds nothing');
+  // No program of their own but a goal phase: the phase, said as that.
+  assert.deepEqual(facts({ ...bare, goalPhase: 'Cut' })[0], ['Program', 'Cut phase', 'no program set', 'value']);
+  assert.deepEqual(facts({ ...bare, goalPhase: null, progressRead: { state: 'loading' } }).map((f) => f[1] + '|' + f[2]), ['…|reading', '…|reading', '…|reading'], 'still reading is not "not set"');
+  assert.deepEqual(facts({ ...bare, goalPhase: null, progressRead: { state: 'unavailable' } }).map((f) => f[1] + '|' + f[2]), ['—|couldn\'t be read', '—|couldn\'t be read', '—|couldn\'t be read']);
   // A value the page already holds is shown whatever the read state.
   assert.equal(facts({ ...jordan, progressRead: { state: 'unavailable' } })[2][1], '9 days');
   // On the panel, at the top, before the sections.
@@ -537,6 +539,9 @@ test('the week\'s check-in: this week\'s or the last one, its words, and whether
   assert.equal(/Review status couldn't be read/.test(await text({ ...base, checkIn: { lastWeekOf: wk(0), latest: { weekOf: wk(0), reviewed: null } } })), true, 'an unread review state claimed one');
   assert.equal(/Last week's check-in\. This week's isn't in yet\./.test(await text({ ...base, checkIn: { lastWeekOf: wk(1) } })), true);
   assert.equal(/Their last check-in was 3 weeks ago\./.test(await text({ ...base, checkIn: { lastWeekOf: wk(3) } })), true);
+  // A month-old check-in is Week's history: it is not "waiting on your review".
+  const old = await text({ ...base, checkIn: { lastWeekOf: wk(4), latest: { weekOf: wk(4), reviewed: false } } });
+  assert.equal(/4 weeks ago/.test(old) && !/Waiting on your review|Read it on Week/.test(old), true, old);
   assert.equal(/No check-in yet\./.test(await text({ ...base, checkIn: { lastWeekOf: null } })), true);
   // Loading, unread and not shared are three sentences.
   assert.equal(/Reading their check-ins…/.test(await text({ ...base, checkIn: null, progressRead: { state: 'loading' } })), true);
