@@ -149,6 +149,8 @@ test('the meal library: a failed read, or an untracked count it could not take, 
     [{ data: null, error: { message: 'boom' } }],
     [{ data: [{ id: 4 }], error: null }, { data: null, error: { message: 'boom' }, count: null }],
     [{ data: [{ id: 4 }], error: null }, { data: [], error: null, count: 0 }, { data: null, error: { message: 'boom' }, count: null }],
+    // An error is an error, whatever count rides with it.
+    [{ data: [{ id: 4 }], error: null }, { data: [], error: null, count: 0 }, { data: null, error: { message: 'boom' }, count: 0 }],
     [{ data: [{ id: 4 }], error: null }, { data: [], error: null, count: 0 }, { data: null, error: null, count: null }],
   ];
   for (const results of cases) {

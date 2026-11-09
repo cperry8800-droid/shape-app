@@ -61,7 +61,7 @@ const KIT = ['DashFilterBar', 'DashFacetMenu', 'DashTagChips', 'DFB_EMPTY', 'dfb
 Object.assign(globalThis, new Function(compile(read('dashFilterBar.jsx')) + ';return {' + KIT.join(',') + '};')());
 Object.assign(globalThis, new Function(compile(read('coachBuilderLayouts.jsx')) + ';return { coachTemplateCopy, CoachBuilderNav, CoachBuilderFooter, COACH_BUILDER_LAYOUTS };')());
 const { TrainerProgramsPage } = new Function(compile(read('dashBuilder.jsx')) + ';return { TrainerProgramsPage };')();
-const { NutritionistPlansPage, DmbAssignModal } = new Function(compile(read('dashMealBuilder.jsx')) + ';return { NutritionistPlansPage, DmbAssignModal };')();
+const { NutritionistPlansPage, DmbAssignModal, DmbBuilder } = new Function(compile(read('dashMealBuilder.jsx')) + ';return { NutritionistPlansPage, DmbAssignModal, DmbBuilder };')();
 const UNREAD = DASH_LIB_ROSTER_UNREAD;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -800,6 +800,28 @@ test('Meal plans: a plan with no library id sends none', async () => {
   assert.equal('templateId' in sent[0][2], false, 'no id is sent for a plan that has none');
   await pause(1200);
   assert.equal(closed, 1);
+});
+
+test('Meal plans: the builder never sends the id of a plan it has not saved', async () => {
+  // The builder's sheet opened before any save (assignClientId): its working id is this tab's own,
+  // not a library plan's, so none is sent. Once saved, the saved plan's id is.
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS });
+  const draft = { id: null, name: 'New meal plan', detail: { mealBuilder: MEALS[0].detail.mealBuilder } };
+  const props = { template: draft, clients: NUTRI(), queue: [], lifecycle: null, live: true, assignClientId: uid(1), customFoods: [], ownerId: 'coach-a', onBack: () => {}, onSaved: () => {} };
+  await mount(React.createElement(DmbBuilder, props));
+  await click(button('Publish to 1 client'));
+  await settle();
+  let sent = calls.filter(([u, m]) => u === '/api/nutritionist/meal-plan' && m === 'POST');
+  assert.equal(sent.length, 1);
+  assert.equal('templateId' in sent[0][2], false, 'an unsaved plan has no library id');
+  await pause(1200);
+  stubFetch({ meals: MEALS });
+  await mount(React.createElement(DmbBuilder, { ...props, template: MEALS[1] }));
+  await click(button('Publish to 1 client'));
+  await settle();
+  sent = calls.filter(([u, m]) => u === '/api/nutritionist/meal-plan' && m === 'POST');
+  assert.equal(sent[0][2].templateId, 'm2', 'a saved plan sends its own');
+  await pause(1200);
 });
 
 test('Meal plans: the preview shows its sample under the band; a signed-in nutritionist never sees it', async () => {
