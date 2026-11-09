@@ -659,8 +659,9 @@ test('Meal plans: the preview shows its sample under the band; a signed-in nutri
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), 'a sample person on a signed-in page: ' + n);
   assert.ok(!mealCard('Summer Cut · 1900'));
   await click(button('Assign', mealCard('Lean Week')));
-  assert.ok(text().includes(UNREAD));
-  assert.doesNotMatch(text(), /DEMO · marks the queue only/, 'a signed-in coach\'s sheet is live');
+  assert.ok(sheet().includes(UNREAD), 'the sheet says the roster was not read');
+  for (const n of SAMPLE_NAMES) assert.ok(!sheet().includes(n), 'a sample person in the assign sheet: ' + n);
+  assert.doesNotMatch(sheet(), /DEMO · marks the queue only/, 'a signed-in coach\'s sheet is live');
 });
 
 test('Meal plans: before the library answers, a roster that came back as the demo shows no band and no sample; an example is not the visitor\'s to delete', async () => {
