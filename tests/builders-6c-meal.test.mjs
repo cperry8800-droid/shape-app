@@ -316,6 +316,13 @@ test('Codex on #2648: oats are gluten in a coach\'s own dish, an ingredient with
   const own = (id, t, m) => W.ownRecipeFood({ id, t, kcal: 400, p: 20, c: 40, f: 10, ing: [{ n: '1', m }] });
   const glutenOwn = [own('g1', 'Eggs on toast', 'sourdough'), own('g2', 'Lunch roll-up', 'tortilla wrap'), own('g3', 'Mac', 'macaroni'), own('g4', 'Bowl', 'jasmine rice')];
   assert.deepEqual(W.searchKitchen(glutenOwn, '', {}, { exclusions: ['gluten'] }).map((f) => f.name), ['Bowl'], 'sourdough, a wrap or macaroni passed a gluten exclusion');
+  // The catalog's own ambiguous classes count for a coach's dish, which has no certified-form note:
+  // soy sauce and broth for gluten, margarine for dairy (recipes.jsx _RECIPE_ALLERGEN_NOTES).
+  const ambiguous = [own('a1', 'Stir-fry', 'soy sauce'), own('a2', 'Soup', 'chicken broth'), own('a3', 'Rice', 'basmati rice')];
+  assert.deepEqual(W.searchKitchen(ambiguous, '', {}, { exclusions: ['gluten'] }).map((f) => f.name), ['Rice'], 'soy sauce or broth passed a gluten exclusion');
+  const marg = own('a4', 'Toastless', 'margarine');
+  assert.equal(W.ownContains(marg, 'dairy'), true, 'margarine passed a dairy exclusion');
+  assert.equal(W.ownContains(own('a5', 'Pb', 'peanut butter'), 'dairy'), false);
   // No amount: "to taste sriracha" on a dish served all week is one line with no amount, never "7 ×".
   const doc = weekDoc();
   doc.days.forEach((d) => { d.slots[0].ingredients = [...(d.slots[0].ingredients || []), { name: 'to taste sriracha', qty: null, unit: '' }]; });
