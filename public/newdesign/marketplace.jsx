@@ -715,9 +715,8 @@ function MkHero({ f, set, counts, bookable, budgetMax, cities, onFind }) {
               onChange={(e) => { const v = Number(e.target.value); set({ [bKey]: v >= bMax ? null : v }); }} style={{ "--p": ((bVal - Math.min(30, bMax)) / Math.max(1, bMax - Math.min(30, bMax))) * 100 + "%" }} /></label>
           <div className="mk-mf"><span className="lbl">How you meet</span>
             <div className="mk-seg" role="group" aria-label="How you meet">{[["inperson", "In person"], ["remote", "Remote"], ["either", "Either"]].map(([v, l]) => <button key={v} type="button" aria-pressed={f.meet === v} className={f.meet === v ? "on" : ""} onClick={() => set({ meet: v })}>{l}</button>)}</div></div>
-          <label className="mk-mf"><span className="lbl">City</span>
-            <span className="v sel"><MkIcon name="pin" size={17} />
-              <select value={f.city} onChange={(e) => set({ city: e.target.value })} aria-label="City">{["Anywhere", ...cities].map((c) => <option key={c} value={c}>{c}</option>)}</select><MkCaret /></span></label>
+          <div className="mk-mf"><span className="lbl">City</span>
+            <MkCityPick hero value={f.city} cities={cities} onPick={(c) => set({ city: c })} /></div>
           <button className="mk-find" type="submit">Find my coach <span className="n"><b className="dig">{bookable}</b><small>bookable</small></span></button>
         </form>
       </div>
@@ -794,8 +793,59 @@ function MkOpt({ on, label, n, onClick, radio }) {
 function MkToggle({ on, label, n, onClick }) {
   return <button type="button" role="switch" aria-checked={on} className={"mk-tg" + (on ? " on" : "")} onClick={onClick}><span>{label}{n != null ? <span className="n"> {n}</span> : null}</span><span className={"mk-toggle" + (on ? " on" : "")} /></button>;
 }
+// The city picker: Shape's own list in place of the browser's, whose open list always drew a scrollbar
+// (owner, 9 Nov: "remove the scroll toggle bar that appears when i click on location list"). The list
+// scrolls with no bar; the keys work as a select's do (↑ ↓, Home, End, Enter, Esc), and a click away closes it.
+function MkCityPick({ value, cities, onPick, hero = false }) {
+  const [open, setOpen] = useS(false);
+  const [hi, setHi] = useS(0);
+  const box = useR(null), list = useR(null);
+  const all = ["Anywhere", ...cities];
+  const id = hero ? "mk-city-hero" : "mk-city-rail";
+  useE(() => {
+    if (!open) return undefined;
+    setHi(Math.max(0, all.indexOf(value)));
+    const away = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("touchstart", away);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("touchstart", away); };
+  }, [open]);
+  useE(() => {
+    const el = open && list.current ? list.current.children[hi] : null;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }, [open, hi]);
+  const pick = (c) => { onPick(c); setOpen(false); };
+  const onKey = (e) => {
+    const k = e.key;
+    if (k === "ArrowDown" || k === "ArrowUp") {
+      e.preventDefault();
+      if (!open) { setOpen(true); return; }
+      setHi((h) => Math.max(0, Math.min(all.length - 1, h + (k === "ArrowDown" ? 1 : -1))));
+    } else if (open && (k === "Home" || k === "End")) { e.preventDefault(); setHi(k === "Home" ? 0 : all.length - 1); }
+    else if (open && (k === "Enter" || k === " ")) { e.preventDefault(); pick(all[hi]); }
+    else if (open && (k === "Escape" || k === "Tab")) { if (k === "Escape") e.preventDefault(); setOpen(false); }
+  };
+  return (
+    <div className={"mk-city" + (hero ? " hero" : "")} ref={box}>
+      <button type="button" role="combobox" className="mk-city-b" aria-label="City" aria-haspopup="listbox" aria-expanded={open} aria-controls={id}
+        aria-activedescendant={open ? id + "-" + hi : undefined} onClick={() => setOpen((o) => !o)} onKeyDown={onKey}>
+        <MkIcon name="pin" size={hero ? 17 : 15} /><span className="v">{value}</span><MkCaret up={open} />
+      </button>
+      {open ? (
+        <ul className="mk-city-l" id={id} role="listbox" aria-label="City" ref={list}>
+          {all.map((c, i) => (
+            <li key={c} id={id + "-" + i} role="option" aria-selected={c === value} className={(i === hi ? "hi" : "") + (c === value ? " on" : "")}
+              onMouseEnter={() => setHi(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(c)}>
+              <span>{c}</span>{c === value ? <span aria-hidden="true">✓</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 function MkFilters({ f, set, counts, budgetMax, cities, specs, onReset }) {
-  const [open, setOpen] = useS({ coach: true, goal: true, spec: true, budget: true, meet: true, city: true, avail: true, trust: true });
+  const [open, setOpen] = useS({ coach: true, goal: true, spec: true, budget: true, meet: true, trust: true });
   const tog = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const flip = (key, v) => set({ [key]: f[key].includes(v) ? f[key].filter((x) => x !== v) : [...f[key], v] });
   const hist = (vals, max) => { const bins = new Array(12).fill(0); vals.forEach((v) => { bins[Math.min(11, Math.floor((v / Math.max(1, max)) * 12))] += 1; }); const top = Math.max(1, ...bins); return bins.map((b) => b / top); };
@@ -816,6 +866,13 @@ function MkFilters({ f, set, counts, budgetMax, cities, specs, onReset }) {
   return (
     <div className="mk-filters">
       <label className="mk-field"><MkIcon name="search" size={15} /><input type="search" value={f.q} onChange={(e) => set({ q: e.target.value })} placeholder="Name or specialty" aria-label="Search coaches by name or specialty" /></label>
+      {/* Where and when, first and small (owner, 9 Nov: "put it towards top of filter section", "make both of those
+          sections smaller", "more compact"): the city, then open intro this week. A city keeps the coaches there,
+          plus remote coaches unless How you meet is In person (the results pill says "or remote"). */}
+      <div className="mk-top" data-mk-top="">
+        <MkCityPick value={f.city} cities={cities} onPick={(c) => set({ city: c })} />
+        <MkToggle on={f.openWeek} label="Open intro this week" n={counts.openWeek} onClick={() => set({ openWeek: !f.openWeek })} />
+      </div>
       <MkGroup title="Coach" open={open.coach} onToggle={() => tog("coach")} k={f.role !== "Both" ? 1 : 0}>
         {[["Both", "Trainers and nutritionists"], ["Trainer", "Trainers"], ["Nutritionist", "Nutritionists"]].map(([v, l]) => <MkOpt key={v} radio on={f.role === v} label={l} n={counts.role[v]} onClick={() => set({ role: v })} />)}
       </MkGroup>
@@ -834,13 +891,6 @@ function MkFilters({ f, set, counts, budgetMax, cities, specs, onReset }) {
       <MkGroup title="How you meet" open={open.meet} onToggle={() => tog("meet")} k={f.meet !== "either" ? 1 : 0}>
         {[["either", "Either"], ["inperson", "In person"], ["remote", "Remote"]].map(([v, l]) => <MkOpt key={v} radio on={f.meet === v} label={l} n={counts.meet[v]} onClick={() => set({ meet: v })} />)}
         <p className="mk-note">Listings that don't say how they meet show under Either.</p>
-      </MkGroup>
-      <MkGroup title="City" open={open.city} onToggle={() => tog("city")} k={f.city !== "Anywhere" ? 1 : 0}>
-        <label className="mk-field"><MkIcon name="pin" size={15} /><select value={f.city} onChange={(e) => set({ city: e.target.value })} aria-label="City">{["Anywhere", ...cities].map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
-        <p className="mk-note">A city keeps the coaches there, plus remote coaches unless you pick In person.</p>
-      </MkGroup>
-      <MkGroup title="Availability" open={open.avail} onToggle={() => tog("avail")} k={f.openWeek ? 1 : 0}>
-        <MkToggle on={f.openWeek} label="Open intro this week" n={counts.openWeek} onClick={() => set({ openWeek: !f.openWeek })} />
       </MkGroup>
       <MkGroup title="Trust & offers" open={open.trust} onToggle={() => tog("trust")} k={(f.verified ? 1 : 0) + (f.intro ? 1 : 0) + (f.taking ? 1 : 0)}>
         <MkToggle on={f.verified} label="✓ Verified only" n={counts.verified} onClick={() => set({ verified: !f.verified })} />
@@ -1408,6 +1458,18 @@ function Marketplace() {
         .mk-range-v{display:flex;justify-content:space-between;margin-top:2px;font-size:12px;color:var(--fg-3)}
         .mk-range-v .dig{font-size:13px}
         .mk-reset{display:block;margin:6px 16px 14px;font-size:12.5px;font-weight:600;color:var(--teal)}
+        .mk-top{display:flex;flex-direction:column;gap:2px;padding:4px 16px 10px}
+        .mk-top .mk-tg{min-height:32px;font-size:12.5px}
+        .mk-city{position:relative}
+        .mk-city-b{display:flex!important;align-items:center;gap:8px;width:100%;min-height:36px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:rgba(0,0,0,.25);box-shadow:inset 0 1px 2px rgba(0,0,0,.4);color:var(--fg);font:500 13px var(--sans);text-align:left;cursor:pointer}
+        .mk-city-b svg{color:var(--teal);flex:none}
+        .mk-city-b .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .mk-city.hero .mk-city-b{min-height:0;padding:2px 0;border:0;background:transparent;box-shadow:none;font:600 15px var(--sans)}
+        .mk-city-l{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 4px);min-width:180px;max-height:240px;overflow-y:auto;scrollbar-width:none;margin:0;padding:4px;list-style:none;border-radius:10px;border:1px solid var(--line);background:#0c131d;box-shadow:var(--elev-2, 0 18px 40px -12px rgba(0,0,0,.8))}
+        .mk-city-l::-webkit-scrollbar{display:none}
+        .mk-city-l li{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:0 10px;border-radius:6px;font-size:13px;color:var(--fg-2);cursor:pointer}
+        .mk-city-l li.hi{background:rgba(255,255,255,.06);color:var(--fg)}
+        .mk-city-l li.on{color:var(--teal);font-weight:600}
         .mk-resbar{position:sticky;top:72px;z-index:20;margin:0 -12px;padding:10px 12px 12px;background:rgba(6,9,15,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line-2)}
         .mk-res-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
         .mk-res-head h2{display:flex;align-items:center;gap:12px;font-family:var(--disp);font-weight:500;font-variation-settings:'wdth' 90;font-size:28px;line-height:1;margin:0;color:var(--fg)}

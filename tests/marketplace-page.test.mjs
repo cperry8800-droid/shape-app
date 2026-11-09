@@ -327,3 +327,36 @@ test('open times are read for every account, six at a time', async () => {
   assert.ok(peak <= 6, 'more than six reads at once: ' + peak);
   assert.ok(!/owned\.slice\(0,\s*\d+\)/.test(SRC.replace(/\/\/.*$/gm, '')), 'a cap on the accounts whose times are read is back');
 });
+
+// Owner, 9 Nov: the city and open intro this week at the top of the filters, compact, and the city list
+// with no scrollbar: Shape's own list in place of the browser's select.
+test('the filters: city and open intro this week first, the city picked from a list with no scrollbar', async () => {
+  const m = await mountPage({ rows: [SEEDED, SEEDED_2, NUTRI] });
+  const filters = document.querySelector('.mk-filters');
+  const top = filters.querySelector('[data-mk-top]');
+  assert.ok(top, 'the top block');
+  assert.equal(top.previousElementSibling && top.previousElementSibling.querySelector('input[type="search"]') ? 'search' : 'other', 'search', 'right under the search');
+  assert.ok(top.querySelector('[role="combobox"][aria-label="City"]') && top.querySelector('[role="switch"]'), 'the city and the open-intro switch');
+  assert.ok(!document.querySelector('select[aria-label="City"]'), 'no browser select for the city');
+  const heads = [...filters.querySelectorAll('.mk-rg-h')].map((h) => h.textContent);
+  assert.ok(!heads.some((h) => /^City|^Availability/.test(h)), 'no City or Availability section further down');
+  const box = top.querySelector('[role="combobox"]');
+  assert.equal(box.getAttribute('aria-expanded'), 'false');
+  await click(box);
+  const list = document.getElementById(box.getAttribute('aria-controls'));
+  assert.ok(list && list.getAttribute('role') === 'listbox', 'the list opens');
+  assert.match(SRC, /\.mk-city-l\{[^}]*overflow-y:auto;scrollbar-width:none[^}]*\}\n\s+\.mk-city-l::-webkit-scrollbar\{display:none\}/, 'it scrolls with no bar');
+  const opts = [...list.querySelectorAll('[role="option"]')];
+  assert.equal(opts[0].textContent, 'Anywhere✓');
+  const city = opts[1];
+  const name = city.textContent;
+  await click(city);
+  assert.equal(document.getElementById(box.getAttribute('aria-controls')), null, 'a pick closes it');
+  assert.equal(box.querySelector('.v').textContent, name, 'the pick shows');
+  await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); });
+  assert.equal(box.getAttribute('aria-expanded'), 'true', '↓ opens it');
+  await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Home', bubbles: true })); });
+  await React.act(async () => { box.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  assert.equal(box.querySelector('.v').textContent, 'Anywhere', 'Home and Enter pick Anywhere');
+  await m.unmount();
+});
