@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Piani e prezzi",
   "climb.plansSub": "Piani di più settimane. Ogni vetta è una settimana.",
   "climb.posts": "Post",
-  "climb.postsTitle": "Sul filo",
   "climb.proof": "Prove",
   "climb.proofEmptySelf": "Fissa fino a tre recensioni in Rendilo tuo → In evidenza e appariranno qui come successi.",
   "climb.proofSub": "Successi fissati da {name}, con le parole dei clienti.",
-  "climb.range": "Catena",
   "climb.rangeSub": "Ogni vetta è una settimana, fino in cima.",
   "climb.rangeTitle": "La catena",
   "climb.rating": "Valutazione",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Qui appaiono le recensioni dei tuoi clienti, con la valutazione in vetta.",
   "climb.wordsTitle": "Cosa dicono i clienti",
   "climb.aboutTitle": "Chi è {name}",
-  "climb.spreadLatest": "Le ultime {count}"
+  "climb.spreadLatest": "Le ultime {count}",
+  "climb.programs": "Programmi",
+  "climb.findMe": "Trovami",
+  "climb.findEmptySelf": "Aggiungi il tuo studio, i suoi orari e i tuoi link in Personalizza → Su di me, e i membri ti troveranno qui.",
+  "climb.findAdd": "Aggiungi dove trovarti",
+  "climb.findEdit": "Modifica dove trovarti",
+  "climb.postsError": "Impossibile leggere i post di {name} in questo momento.",
+  "climb.programsError": "Impossibile leggere i programmi di {name} in questo momento.",
+  "climb.mealPlansError": "Impossibile leggere i piani alimentari di {name} in questo momento.",
+  "climb.reviewsError": "Impossibile leggere le recensioni in questo momento."
 }

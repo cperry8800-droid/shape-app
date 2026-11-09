@@ -161,7 +161,7 @@ test('the words follow the pronouns the coach wrote, else their first name', asy
   for (const [pronouns, day, work] of [['she/her', 'Her day', 'Work with her'], ['he/him', 'His day', 'Work with him'], ['they', 'Their day', 'Work with them'], ['', "Maya's day", 'Work with Maya'], ['xe/xem', "Maya's day", 'Work with Maya']]) {
     reset({ pronouns });
     const m = await mount(page());
-    assert.equal(campTitle('findme'), `${day}.`, `${pronouns || '(none)'} → ${day}`);
+    assert.equal(campTitle('day'), `${day}.`, `${pronouns || '(none)'} → ${day}`);
     assert.ok(button(new RegExp(`^${work}$`)), `${pronouns || '(none)'} → ${work}`);
     await m.unmount();
   }
@@ -171,7 +171,7 @@ test('the day: open times from the listing\'s own read, busy time only as busy, 
   const t0 = new Date(); t0.setDate(t0.getDate() + 1); t0.setHours(9, 0, 0, 0);
   reset({ busy: [{ start: t0.toISOString(), end: new Date(t0.getTime() + 3600000).toISOString(), kind: 'session' }] });
   const m = await mount(page());
-  const days = camp('findme').querySelectorAll('[role="group"] button');
+  const days = camp('day').querySelectorAll('[role="group"] button');
   assert.equal(days.length, 7);
   await click(days[1]);
   assert.ok(document.querySelectorAll('[data-open-time]').length > 0, 'tomorrow has open times');
@@ -194,7 +194,7 @@ test('the day: open times from the listing\'s own read, busy time only as busy, 
 test('a changed intro length reads the times again and says so', async () => {
   reset({ bookError: Object.assign(new Error('x'), { code: 'length_changed', durationMin: 30 }) });
   const m = await mount(page());
-  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
+  await click(camp('day').querySelectorAll('[role="group"] button')[1]);
   await click(document.querySelector('[data-open-time]'));
   await click(document.querySelector('[data-book-intro]'));
   assert.match(m.text(), /intro now runs 30 minutes/);
@@ -259,7 +259,7 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   reset();
   world.provider = { ...world.provider, price: 0 };
   let m = await mount(page());
-  assert.ok(camp('findme'), 'Book: the day');
+  assert.ok(camp('day'), 'Book: the day');
   assert.ok(!camp('range'), 'no Studio tab with no programs, workouts or coaching');
   assert.ok(!camp('replays'), 'no replays tab without replays');
   await m.unmount();
@@ -274,7 +274,7 @@ test('a visitor sees a tab only when it has something in it; a private profile s
   await m.unmount();
   reset({ canView: false });
   m = await mount(page());
-  assert.ok(!camp('findme') && !document.querySelector('[data-climb-camps]'), 'a private profile shows no camps');
+  assert.ok(!camp('day') && !document.querySelector('[data-climb-camps]'), 'a private profile shows no camps');
   assert.match(m.text(), /keeps their profile private/);
   await m.unmount();
 });
@@ -439,7 +439,7 @@ test('the wall photo is only the coach\'s own media, on the profile and in the e
 test('on their own page a coach sees their open times as members do, but cannot take one', async () => {
   reset({ me: 'u-maya' });
   const m = await mount(page({ isSelf: true }));
-  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
+  await click(camp('day').querySelectorAll('[role="group"] button')[1]);
   const open = [...document.querySelectorAll('[data-open-time]')];
   assert.ok(open.length > 0);
   assert.ok(open.every((b) => b.disabled && !/Take it/.test(b.textContent)));
@@ -553,9 +553,9 @@ test('signed out, the trainer\'s own page is the new profile with sample content
     assert.match(m.text(), /Portland, OR/);
     assert.match(m.text(), /Get strong, move well/);
     assert.match(summit(), /9\.9 ?\/10.*284 reviews/);
-    assert.equal(campTitle('findme'), "Quinn's day.", 'no pronouns: the words go by the first name');
+    assert.equal(campTitle('day'), "Quinn's day.", 'no pronouns: the words go by the first name');
     // A week of open and busy times: some day in it has both, and none can be taken from here.
-    const days = [...camp('findme').querySelectorAll('[role="group"] button')];
+    const days = [...camp('day').querySelectorAll('[role="group"] button')];
     let both = false;
     for (const d of days) {
       await click(d);
@@ -665,7 +665,7 @@ test('a seeded listing\'s coach: its own listing, read by id, with a sample stud
     // No hours on the listing: sample times, asked for, never taken (owner, 2026-10-29).
     assert.match(document.querySelector('[data-day-sub]').textContent, /Sample times: Leah hasn't set open hours on Shape yet\./);
     let open = [];
-    for (const d of camp('findme').querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
+    for (const d of camp('day').querySelectorAll('[role="group"] button')) { await click(d); open = open.concat([...document.querySelectorAll('[data-open-time]')]); }
     assert.ok(open.length > 0, 'sample open times');
     assert.ok(open.every((b) => !b.disabled && /Ask for it →/.test(b.textContent) && !/Take it/.test(b.textContent)), 'each is asked for, none taken');
     assert.ok(camp('range'), 'the range camp');
@@ -686,7 +686,7 @@ test('a sample time is asked for, kept for Leah with the member\'s note; nothing
   reset({ me: 'u-me', byId: leahRow, slots: [] });
   const m = await mount(page({ person: leah }));
   try {
-    const firstOpen = async () => { for (const d of camp('findme').querySelectorAll('[role="group"] button')) { await click(d); const b = document.querySelector('[data-open-time]'); if (b) return b; } return null; };
+    const firstOpen = async () => { for (const d of camp('day').querySelectorAll('[role="group"] button')) { await click(d); const b = document.querySelector('[data-open-time]'); if (b) return b; } return null; };
     await click(await firstOpen());
     assert.match(m.text(), /Ask for this time\./);
     assert.match(m.text(), /Leah isn't on Shape yet, so this time isn't booked\. Ask for it and Shape keeps it for Leah: you'll hear when they join\./);
@@ -768,7 +768,7 @@ test('the coach\'s own page lists what members asked of the listing before they 
 test('a seeded listing with real hours offers them to take, as its listing does', async () => {
   reset({ me: 'u-me', byId: leahRow });
   const m = await mount(page({ person: leah }));
-  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
+  await click(camp('day').querySelectorAll('[role="group"] button')[1]);
   assert.match(document.querySelector('[data-day-sub]').textContent, /From Leah's Shape calendar/);
   const open = [...document.querySelectorAll('[data-open-time]')];
   assert.ok(open.length > 0 && open.every((b) => !b.disabled && /Take it/.test(b.textContent)));
@@ -915,14 +915,14 @@ test('a demo saved in Make it yours keeps only what was changed, so the Studio s
 test('their activity: a camp of its own, Posts, with what they posted that the other camps do not already show; a sample has its own', async () => {
   // Owner, 2026-10-30: "there is also no activity feed on coaches profile"; 2026-10-31: "the coaches
   // activity feed shouldn't be under replays, they should have a separate tab for activity". On the Climb
-  // it is the Posts camp, after Find me and before the Summit.
+  // it is the Posts camp, after Find me and before the Summit (Book is right after Base).
   const note = (i) => ({ key: `n${i}`, title: `Note ${i}`, typeLabel: 'Note', ago: `${i}d`, body: `Body ${i}`, statsRow: [], breakdown: null });
   const tabNames = () => [...document.querySelectorAll('[data-climb-camp-tab]')].map((b) => b.textContent);
   reset({ posts: [note(1), { key: 'p1', title: 'Heavy squat day', ago: '2d', statsRow: [], breakdown: { label: 'Sets', rows: [['Set 1', '100 kg × 5', '']] } }, note(2), note(3), note(4)] });
   world.provider = { ...world.provider, price: 0 }; // no coaching by the month, so no Range
   let m = await mount(page());
-  assert.deepEqual(campKeys(), ['replays', 'findme', 'posts', 'summit']);
-  assert.deepEqual(tabNames(), ['Replays', 'Book', 'Posts', 'Summit']);
+  assert.deepEqual(campKeys(), ['day', 'replays', 'posts', 'summit']);
+  assert.deepEqual(tabNames(), ['Book', 'Replays', 'Posts', 'Summit']);
   assert.ok(!camp('replays').querySelector('[data-activity]'), 'the feed is not under Replays');
   const feed = camp('posts').querySelector('[data-activity]');
   assert.ok(feed, 'the feed, in its camp');
@@ -942,7 +942,7 @@ test('their activity: a camp of its own, Posts, with what they posted that the o
   // The coach's own page always has every camp, with what to add, Posts with Log activity.
   reset({ me: 'u-maya', posts: [] });
   m = await mount(page({ isSelf: true }));
-  assert.deepEqual(campKeys(), ['base', 'range', 'replays', 'proof', 'words', 'about', 'findme', 'posts', 'summit'], 'every camp on their own page');
+  assert.deepEqual(campKeys(), ['base', 'day', 'range', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'every camp on their own page');
   const nav = document.querySelector('[data-climb-camps]');
   assert.equal(nav.style.overflowX, 'auto', 'the row scrolls');
   for (const b of nav.querySelectorAll('button')) assert.ok(parseFloat(b.style.minHeight) >= 44, 'a 44px target');
@@ -1097,7 +1097,7 @@ const STRONG = { id: '11111111-2222-4333-8444-555555555555', kind: 'program', na
 const ROWER = { id: '66666666-2222-4333-8444-555555555555', kind: 'program', name: 'Engine 8', price: 'Free', providerId: 7, providerRole: 'trainer', detail: { preview: true, blocks: [row(0, 0, 'Intervals', 'Rower', 'Rower')], weeks: 8, media: [] } };
 const MEAL = { id: '77777777-2222-4333-8444-555555555555', kind: 'meal_plan', name: 'A cut', price: 20, providerId: 7, providerRole: 'trainer', detail: { preview: true } };
 // The old tabs are camps on one page now: "going to one" is finding it there, and tapping its tab in the row.
-const CAMP_OF = { Studio: 'range', Replays: 'replays', 'About me': 'about', Activity: 'posts', 'Her day': 'findme' };
+const CAMP_OF = { Studio: 'range', Replays: 'replays', 'About me': 'about', Activity: 'posts', 'Her day': 'day' };
 const tab = async (name) => {
   const k = CAMP_OF[name] || name;
   assert.ok(camp(k), `the ${k} camp`);
@@ -1339,11 +1339,14 @@ test('About me: the story, the details, the questions and the socials, as member
   const answers = [...tab.querySelectorAll('[data-about-answer]')].map((a) => [a.children[0].textContent, a.children[1].textContent]);
   assert.deepEqual(answers, [['My coaching philosophy', 'Strong first, then fast.'], ['Something I wrote myself', 'Kept as written.']], 'a prompt reads in the reader\'s language; one written by hand as written');
   assert.match(tab.querySelector('[data-about="qa"]').textContent, /^In Maya's words/);
-  const links = [...tab.querySelectorAll('[data-about-link]')];
+  // The socials are Find me's, not About's (one camp list on both surfaces, 9 Nov).
+  assert.ok(!camp('about').querySelector('[data-about-link]'), 'no links under About');
+  const find = camp('find').querySelector('[data-about-tab="find"]');
+  const links = [...find.querySelectorAll('[data-about-link]')];
   assert.deepEqual(links.map((a) => [a.getAttribute('data-about-link'), a.getAttribute('href')]), [['instagram', 'https://instagram.com/maya.lifts'], ['website', 'https://mayaokafor.com/']], 'a javascript: address, a value with a space and an address with no host are no links');
   assert.match(links[0].textContent, /^Instagram@maya\.lifts/);
   for (const a of links) { assert.equal(a.getAttribute('target'), '_blank'); assert.equal(a.getAttribute('rel'), 'noopener noreferrer'); }
-  assert.match(tab.querySelector('[data-about="socials"]').textContent, /^Find Maya online/);
+  assert.match(find.querySelector('[data-about="socials"]').textContent, /^Find Maya online/);
   assert.ok(!document.querySelector('[data-about-edit]'), 'a member has no way to edit it');
   await m.unmount();
 });
@@ -1373,7 +1376,7 @@ test('the camps pin under the condensed masthead as one row, each a 44px target,
   assert.equal(nav.style.position, 'sticky');
   assert.equal(nav.style.overflowX, 'auto');
   const tabs = [...nav.querySelectorAll('[data-climb-camp-tab]')];
-  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Range', 'Replays', 'Proof', 'Words', 'About', 'Book', 'Posts', 'Summit']);
+  assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Book', 'Programs', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
   assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.whiteSpace === 'nowrap'));
   assert.equal(tabs.filter((b) => b.getAttribute('aria-current') === 'location').length, 1, 'one camp is where you are');
   assert.ok(nav.querySelector('[data-climb-fill]'), 'the route under the row, filled as you climb');

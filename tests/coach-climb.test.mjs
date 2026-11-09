@@ -67,7 +67,8 @@ const campKeys = () => $$('[data-climb-camp]').map((el) => el.getAttribute('data
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
 const climbMod = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCoachClimb.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
 const { BSTrainerProfile } = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
-const { bsClimbPeaks, bsClimbPeaksPath, bsClimbBlocks } = climbMod;
+const { bsClimbPeaks, bsClimbPeaksPath, bsClimbBlocks, bsClimbAccent, CLIMB_ACCENTS } = climbMod;
+const { BS_COACH_ACCENTS, bsCoachPalette } = await import(join(ROOT, 'public/newdesign/coachProfileKit.mjs'));
 
 // ── The world the page reads ─────────────────────────────────────────────────────────────────
 const ZONE = 'America/New_York';
@@ -99,13 +100,13 @@ window.ShapeProfiles = { getPublicProfile: async () => ({ name: 'Maya Okafor', p
 window.ShapeCoachListing = { publicByOwner: async () => world.provider, publicById: async () => world.byId || null };
 window.ShapeCoachAvailability = { get: async () => { if (world.availFails) throw new Error('offline'); return { slots: world.slots, booked: [], busy: [], rules: { consultMin: 20 }, timezone: ZONE, atCapacity: world.atCapacity }; } };
 window.ShapeCoachReviews = {
-  forOwner: async () => { if (world.reviewsHold) await world.reviewsHold; return world.reviews; },
+  forOwner: async () => { if (world.reviewsHold) await world.reviewsHold; if (world.revFails) throw new Error('offline'); return world.reviews; },
   byIds: async () => ({ reviews: world.byIds }),
 };
-window.ShapeCoachPlans = { salePlansByUser: async () => world.salePlans, buy: async (a) => { world.bought = a; return 'https://checkout.stripe.test/c/1'; } };
+window.ShapeCoachPlans = { salePlansByUser: async () => { if (world.plansFail) throw new Error('offline'); return world.salePlans; }, buy: async (a) => { world.bought = a; return 'https://checkout.stripe.test/c/1'; } };
 window.bsOpenCheckout = (u) => { world.checkout = u; };
 window.ShapeFollows = { stats: async () => ({ isFollowing: false, isPending: false }), toggle: async () => ({ isFollowing: true }), getCached: () => null };
-window.ShapeCommunity = { listByAuthor: async () => ({ data: world.posts }) };
+window.ShapeCommunity = { listByAuthor: async () => { if (world.postsFail) throw new Error('offline'); return { data: world.posts }; } };
 window.shapeDb = { getUserGoals: async () => world.stored, saveUserGoals: async () => ({ ok: true }) };
 window.ShapeBookings = { submitConsultationBooking: async (a) => { world.booked = a; return { ok: true }; } };
 window.ShapeListingAsks = { ask: async (a) => { world.asked = a; return { already: false }; }, forListing: async () => ({ rows: [], total: 0 }) };
@@ -184,7 +185,7 @@ test('null is unread: no rating, no next time and no "New on Shape" until the re
 test('a failed read says so with Try again, and never puts a sample in its place', async () => {
   reset({ availFails: true });
   const m = await mount(page());
-  const findMe = camp('findme');
+  const findMe = camp('day');
   assert.match(findMe.textContent, /Couldn't read the open times just now\./);
   assert.ok(button(/^Try again$/));
   assert.ok(!$('[data-climb-next]'), 'no next open time when the week could not be read');
@@ -200,13 +201,13 @@ test('a failed read says so with Try again, and never puts a sample in its place
 test('a visitor sees only the camps with something in them; the coach sees all of them, each with what to add', async () => {
   reset({ provider: { id: 7, owner_id: 'u-maya', price: 0, verified: false, listing_media: { cover: null, gallery: [] } } });
   let m = await mount(page());
-  assert.deepEqual(campKeys(), ['findme', 'summit'], 'nothing posted, sold, pinned or reviewed: the day and the way in');
+  assert.deepEqual(campKeys(), ['day', 'summit'], 'nothing posted, sold, pinned or reviewed: the day and the way in');
   assert.deepEqual($$('[data-climb-camp-tab]').map((b) => b.textContent), ['Book', 'Summit'], 'the row has those two');
   assert.ok(!$('[data-coach-stats]') && !$('[data-climb-wire-item="post"]'));
   await m.unmount();
   reset({ me: 'u-maya', provider: { id: 7, owner_id: 'u-maya', price: 0, verified: false, listing_media: { cover: null, gallery: [] } } });
   m = await mount(page({ isSelf: true }));
-  assert.deepEqual(campKeys(), ['base', 'range', 'replays', 'proof', 'words', 'about', 'findme', 'posts', 'summit']);
+  assert.deepEqual(campKeys(), ['base', 'day', 'range', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
   assert.match(camp('base').textContent, /Pin a highlight and add your intro film/);
   assert.match(camp('proof').textContent, /Pin up to three of your reviews/);
   assert.match(camp('words').textContent, /Reviews from your clients show here/);
@@ -282,6 +283,7 @@ test('a sample coach is a sample, under its note: times asked for, never booked,
   assert.equal(world.booked, null);
   assert.ok($$('[data-program]').length > 0, 'its sample programs');
   assert.ok(!$('[data-climb-start]') && !$('[data-climb-price]'), 'no Start and no price on a sample');
+  assert.ok(!camp('proof'), 'no Proof on a sample: its reviews are the sample\'s own');
   await m.unmount();
 });
 
@@ -311,8 +313,9 @@ test('a nutritionist\'s Climb is gold, with Kitchen, Meal plans and Plate notes 
   reset({ me: 'u-nadia', provider: { id: 9, owner_id: 'u-nadia', price: 140, verified: true, listing_media: { cover: null, gallery: [] } } });
   const m = await mount(page({ person: { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' }, isSelf: true }));
   assert.equal($('[data-climb]').getAttribute('data-climb-role'), 'nutritionist');
-  assert.deepEqual(campKeys(), ['base', 'kitchen', 'plans', 'plates', 'proof', 'words', 'about', 'findme', 'posts', 'summit']);
-  assert.ok(!camp('range') && !camp('replays'), 'no trainer camps');
+  assert.deepEqual(campKeys(), ['base', 'day', 'range', 'kitchen', 'plates', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
+  assert.equal(camp('range').querySelector('h2').textContent, 'Meal plans.', 'her range is her meal plans');
+  assert.ok(!camp('replays') && !$('[data-climb-camp-tab="range"]').textContent.includes('Programs'), 'no trainer camps');
   const probe = document.createElement('div'); probe.style.background = '#d8a23a';
   assert.equal($('[data-climb-make]').style.background, probe.style.background, 'gold');
   await m.unmount();
@@ -346,4 +349,156 @@ test('the module stands alone: its own useShapeTr, globals read at call time, sh
   assert.doesNotMatch(src, /\bconfirm\(/);
   const profile = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), 'utf8');
   assert.match(profile, /from '\.\/BSCoachClimb\.jsx';/);
+});
+
+// ── One camp list on both surfaces (owner, 9 Nov: "Fix everything with profile then open PR") ────────
+const PHOTO = 'https://x.supabase.co/storage/v1/object/public/community-photos/u-maya/lift.jpg';
+const fullCoach = (over = {}) => reset({
+  reviews: { reviews: REVIEWS, avg: 9.5, count: 2 }, byIds: [REVIEWS[0]], salePlans: [PLAN],
+  posts: [{ key: 'ph1', title: 'Morning lift', photo: PHOTO, ago: '1d', statsRow: [] }, { key: 'n1', title: 'Week 7 notes are up', ago: '6h', statsRow: [] }],
+  custom: {
+    about: { story: 'I started lifting at 30.', years: 9 }, prompts: [{ q: 'philosophy', a: 'Strong first.' }],
+    links: { instagram: '@maya.lifts' }, bizCard: { name: 'Iron Path Strength', where: 'Brooklyn' }, pinnedReviews: [R1],
+  },
+  provider: { id: 7, owner_id: 'u-maya', price: 180, specialty: 'Strength coach', verified: true, listing_media: { cover: null, gallery: [{ url: 'https://x.supabase.co/storage/v1/object/public/coach-media/u-maya/gym.jpg', caption: 'The gym' }] }, monthly_offer: { includes: [] }, at_capacity: false },
+  ...over,
+});
+
+test('the camps run as on the website: Base, Book, the range, Proof, Words, About, Find me, Posts, Summit', async () => {
+  fullCoach();
+  const m = await mount(page());
+  assert.deepEqual(campKeys(), ['base', 'day', 'range', 'proof', 'words', 'about', 'find', 'posts', 'summit']);
+  assert.deepEqual($$('[data-climb-camp-tab]').map((b) => b.textContent), ['Base', 'Book', 'Programs', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
+  // The numbering: Base first, the Summit last, Camp 1, 2 … between.
+  assert.match(camp('day').textContent, /^Camp 1 · Book/);
+  assert.match(camp('find').textContent, /^Camp 6 · Find me/);
+  // Base: the newest post with a photo, opening the Posts camp, and All N posts.
+  const tile = camp('base').querySelector('[data-climb-photo-post]');
+  assert.equal(tile.querySelector('img').getAttribute('src'), PHOTO);
+  assert.match(camp('base').querySelector('[data-climb-all-posts]').textContent, /All 2 posts/);
+  // About is who they are; Find me is where: the practice's card, the links and the listing's photos.
+  const about = camp('about'), find = camp('find');
+  assert.ok(about.querySelector('[data-about="story"]') && about.querySelector('[data-about="qa"]'));
+  assert.ok(!about.querySelector('[data-about="practice"], [data-about="socials"], [data-about="photos"]'), 'none of Find me under About');
+  assert.match(find.querySelector('[data-about="practice"]').textContent, /Iron Path Strength/);
+  assert.equal(find.querySelector('[data-about-link="instagram"]').getAttribute('href'), 'https://instagram.com/maya.lifts');
+  assert.ok(find.querySelector('[data-about="photos"] img'), 'the listing photos');
+  assert.ok(!find.querySelector('[data-about="story"], [data-about="qa"]'));
+  // Proof is the pinned win; Words the rest.
+  assert.match(camp('proof').textContent, /Back squat from 225 to 245/);
+  assert.doesNotMatch(camp('words').textContent, /Back squat from 225 to 245/, 'a pinned review is in Proof, not twice');
+  assert.match(camp('words').textContent, /Tempo work fixed my knees/);
+  await m.unmount();
+});
+
+test('Proof is review text: a reader the reviews are locked for never sees the camp', async () => {
+  fullCoach({ reviews: { reviews: [], avg: 9.5, count: 2, locked: true } });
+  const m = await mount(page());
+  assert.ok(!camp('proof'), 'no Proof for a locked reader, even with pins');
+  assert.doesNotMatch(m.text(), /Back squat from 225 to 245/);
+  assert.match(camp('words').textContent, /Join Shape to read all 2/);
+  await m.unmount();
+});
+
+test('Find me: hidden from a visitor with nothing in it; the coach sees it empty with what to add', async () => {
+  reset({ custom: { about: { story: 'Hi.' } } });
+  let m = await mount(page());
+  assert.ok(camp('about') && !camp('find'), 'About, but no empty Find me');
+  await m.unmount();
+  reset({ me: 'u-maya', stored: {} });
+  m = await mount(page({ isSelf: true }));
+  assert.match(camp('find').textContent, /Add your practice, its hours and your links/);
+  await click(camp('find').querySelector('[data-about-edit="find"]'));
+  assert.ok($('[data-mine-about]'), 'Add where to find you opens Make it yours on About me');
+  await m.unmount();
+});
+
+test('a failed read of the posts, programs or reviews says so in its camp, with Try again', async () => {
+  reset({ postsFail: true, plansFail: true, revFails: true });
+  const m = await mount(page());
+  assert.match(camp('posts').querySelector('[data-climb-read-error]').textContent, /Couldn't read Maya's posts just now/);
+  assert.match(camp('replays').querySelector('[data-climb-read-error]').textContent, /Couldn't read Maya's posts/);
+  assert.match(camp('range').querySelector('[data-climb-read-error]').textContent, /Couldn't read Maya's programs just now/);
+  assert.match(camp('words').querySelector('[data-climb-read-error]').textContent, /Couldn't read the reviews just now/);
+  assert.doesNotMatch(m.text(), SAMPLE_WORDS, 'never a sample in its place');
+  world.postsFail = false; world.posts = [{ key: 'n1', title: 'Week 7 notes are up', ago: '6h', statsRow: [] }];
+  await click(camp('posts').querySelector('[data-climb-retry]'));
+  assert.ok(!camp('posts').querySelector('[data-climb-read-error]'));
+  assert.match(camp('posts').textContent, /Week 7 notes are up/);
+  world.plansFail = false; world.salePlans = [PLAN];
+  await click(camp('range').querySelector('[data-climb-retry]'));
+  assert.ok(camp('range').querySelector('[data-climb-program]'), 'the program, read again');
+  world.revFails = false; world.reviews = { reviews: REVIEWS, avg: 9.5, count: 2 };
+  await click(camp('words').querySelector('[data-climb-retry]'));
+  assert.match(camp('words').textContent, /Tempo work fixed my knees/);
+  await m.unmount();
+});
+
+// ── The coach's accent: the drawing, never the words ─────────────────────────────────────────
+const colorOf = (hex) => { const d = document.createElement('div'); d.style.color = hex; return d.style.color; };
+test('the accent the coach picked tints the route, the spine and the full stop; labels and Book keep the role colours', async () => {
+  fullCoach();
+  world.custom = { ...world.custom, look: { accent: 'violet' } };
+  let m = await mount(page());
+  const V = CLIMB_ACCENTS.violet;
+  assert.equal($('[data-climb-route-glow]').getAttribute('stroke'), V, 'the route');
+  assert.ok($$('[data-climb-contour]').every((c) => c.getAttribute('stroke') === V), 'the contours');
+  assert.equal($('[data-climb-stop]').style.color, colorOf(V), 'the name\'s full stop');
+  assert.ok($$('[data-climb-camp-stop]').length && $$('[data-climb-camp-stop]').every((d) => d.style.color === colorOf(V)), 'each camp title\'s full stop');
+  assert.match($('[data-climb-spine]').style.background, /167, 139, 250|#a78bfa/i, 'the spine');
+  assert.ok($$('[data-climb-diamond]').every((d) => d.style.borderColor === colorOf(V)), 'the diamonds');
+  assert.equal($('[data-climb-pin-ring]').style.borderColor, colorOf(V), 'the pins');
+  assert.match($('[data-climb-summit-ring]').style.border, /167, 139, 250/, 'the summit ring');
+  // Text and controls: teal labels, the rust Book.
+  assert.equal($('[data-climb-eyebrow]').style.color, colorOf('#34d6c5'), 'a label stays teal');
+  assert.equal($('[data-climb-camp-tab][aria-current]').style.color, colorOf('#34d6c5'), 'the tab you are at stays teal');
+  const probe = document.createElement('div'); probe.style.background = '#c0533b';
+  assert.equal($('[data-climb-book]').style.background, probe.style.background, 'Book stays rust');
+  await m.unmount();
+  // No accent, or one that is not Shape's: today's teal.
+  for (const look of [null, { accent: 'chartreuse' }, { accent: '#123456' }]) {
+    fullCoach(); world.custom = { ...world.custom, look };
+    m = await mount(page());
+    assert.equal($('[data-climb-route-glow]').getAttribute('stroke'), '#34d6c5', JSON.stringify(look));
+    assert.equal($('[data-climb-stop]').style.color, colorOf('#34d6c5'));
+    await m.unmount();
+  }
+  // A trainer whose pick is the seeded teal: teal (no pick).
+  fullCoach(); world.custom = { ...world.custom, look: { accent: 'teal' } };
+  m = await mount(page());
+  assert.equal($('[data-climb-route-glow]').getAttribute('stroke'), '#34d6c5');
+  await m.unmount();
+  // A nutritionist with the seeded amber, which is no pick: the Climb's gold.
+  reset({ me: 'u-nadia', stored: { look: { accent: 'amber' } }, custom: { look: { accent: 'amber' } }, provider: { id: 9, owner_id: 'u-nadia', price: 140, verified: true, listing_media: { cover: null, gallery: [] } } });
+  m = await mount(page({ person: { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' } }));
+  assert.equal($('[data-climb-route-glow]').getAttribute('stroke'), '#d8a23a', 'amber is her own: gold');
+  await m.unmount();
+  // A nutritionist with none: gold.
+  reset({ me: 'u-nadia', provider: { id: 9, owner_id: 'u-nadia', price: 140, verified: true, listing_media: { cover: null, gallery: [] } } });
+  m = await mount(page({ person: { userId: 'u-nadia', who: 'Nadia Rahman', kind: 'NUTRI' }, isSelf: true }));
+  assert.equal($('[data-climb-route-glow]').getAttribute('stroke'), '#d8a23a');
+  assert.equal($('[data-climb-stop]').style.color, colorOf('#d8a23a'));
+  await m.unmount();
+});
+
+test('the accent keys draw the hexes bsCoachPalette paints on a dark stock; the role\'s own key is no pick', () => {
+  for (const role of ['trainer', 'nutritionist']) {
+    const own = role === 'nutritionist' ? 'amber' : 'teal';
+    for (const k of Object.keys(BS_COACH_ACCENTS)) {
+      const kit = bsCoachPalette({ paper: 'dark', accent: k }, role).ACCENT;
+      assert.equal(bsClimbAccent(k, role), k === own ? null : kit, `${role} ${k}`);
+    }
+  }
+  assert.equal(bsClimbAccent('black'), '#ffffff', 'black reads as white on the dark');
+  assert.equal(bsClimbAccent('amber', 'trainer'), CLIMB_ACCENTS.amber, 'amber is a trainer\'s real pick');
+  for (const bad of [null, undefined, '', 'chartreuse', '#123456', 'constructor', '__proto__']) assert.equal(bsClimbAccent(bad), null, String(bad));
+});
+
+test('the Climb itself draws only a #rrggbb accent; anything else is the role colour', async () => {
+  for (const [accent, want] of [['#a78bfa', '#a78bfa'], ['red', '#34d6c5'], ['#abc', '#34d6c5'], ['url(x)', '#34d6c5']]) {
+    const m = await mount(React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
+      React.createElement(climbMod.BSCoachClimb, { who: { name: 'Maya Okafor', first: 'Maya', initials: 'MO' }, accent })));
+    assert.equal($('[data-climb-stop]').style.color, colorOf(want), accent);
+    await m.unmount();
+  }
 });

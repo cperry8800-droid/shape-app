@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Plans et prix",
   "climb.plansSub": "Des plans sur plusieurs semaines. Chaque sommet est une semaine.",
   "climb.posts": "Publications",
-  "climb.postsTitle": "Sur le fil",
   "climb.proof": "Preuves",
   "climb.proofEmptySelf": "Épingle jusqu’à trois de tes avis dans Personnalise → À la une, et ils apparaissent ici comme réussites.",
   "climb.proofSub": "Réussites épinglées par {name}, avec les mots des clients.",
-  "climb.range": "Massif",
   "climb.rangeSub": "Chaque sommet est une semaine, jusqu’en haut.",
   "climb.rangeTitle": "Le massif",
   "climb.rating": "Note",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Les avis de tes clients apparaissent ici, la note au sommet.",
   "climb.wordsTitle": "Ce que disent les clients",
   "climb.aboutTitle": "Qui est {name}",
-  "climb.spreadLatest": "Les {count} plus récents"
+  "climb.spreadLatest": "Les {count} plus récents",
+  "climb.programs": "Programmes",
+  "climb.findMe": "Me trouver",
+  "climb.findEmptySelf": "Ajoutez votre cabinet, ses horaires et vos liens dans Personnaliser → À propos de moi, et les membres vous trouveront ici.",
+  "climb.findAdd": "Ajouter où vous trouver",
+  "climb.findEdit": "Modifier où vous trouver",
+  "climb.postsError": "Impossible de lire les publications de {name} pour le moment.",
+  "climb.programsError": "Impossible de lire les programmes de {name} pour le moment.",
+  "climb.mealPlansError": "Impossible de lire les plans de repas de {name} pour le moment.",
+  "climb.reviewsError": "Impossible de lire les avis pour le moment."
 }

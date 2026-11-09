@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Planes y precios",
   "climb.plansSub": "Planes de varias semanas. Cada pico es una semana.",
   "climb.posts": "Publicaciones",
-  "climb.postsTitle": "En el teletipo",
   "climb.proof": "Pruebas",
   "climb.proofEmptySelf": "Fija hasta tres de tus reseñas en Hazlo tuyo → Destacado y aparecerán aquí como logros.",
   "climb.proofSub": "Logros que {name} fijó, en palabras de sus clientes.",
-  "climb.range": "Cordillera",
   "climb.rangeSub": "Cada pico es una semana, subiendo hasta la cima.",
   "climb.rangeTitle": "La cordillera",
   "climb.rating": "Valoración",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Las reseñas de tus clientes aparecen aquí, y la valoración en la cima.",
   "climb.wordsTitle": "Lo que dicen los clientes",
   "climb.aboutTitle": "Quién es {name}",
-  "climb.spreadLatest": "Las {count} más recientes"
+  "climb.spreadLatest": "Las {count} más recientes",
+  "climb.programs": "Programas",
+  "climb.findMe": "Encuéntrame",
+  "climb.findEmptySelf": "Añade tu centro, su horario y tus enlaces en Hazlo tuyo → Sobre mí, y los miembros te encontrarán aquí.",
+  "climb.findAdd": "Añade dónde encontrarte",
+  "climb.findEdit": "Edita dónde encontrarte",
+  "climb.postsError": "No se pudieron leer las publicaciones de {name} ahora.",
+  "climb.programsError": "No se pudieron leer los programas de {name} ahora.",
+  "climb.mealPlansError": "No se pudieron leer los planes de comidas de {name} ahora.",
+  "climb.reviewsError": "No se pudieron leer las reseñas ahora."
 }

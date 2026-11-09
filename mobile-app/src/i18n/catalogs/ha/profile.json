@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Tsare-tsare da farashi",
   "climb.plansSub": "Tsare-tsare na makonni. Kowane ƙoli mako ɗaya ne.",
   "climb.posts": "Rubuce-rubuce",
-  "climb.postsTitle": "A kan labarai",
   "climb.proof": "Shaida",
   "climb.proofEmptySelf": "Manna har sharhi uku a Mai da shi naka → Haske, kuma za su tsaya a nan a matsayin nasarori.",
   "climb.proofSub": "Nasarorin da {name} ya manna, da kalmomin abokan ciniki.",
-  "climb.range": "Tsaunuka",
   "climb.rangeSub": "Kowane ƙoli mako ɗaya ne, har zuwa sama.",
   "climb.rangeTitle": "Tsaunuka",
   "climb.rating": "Maki",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Sharhi daga abokan cinikinka suna bayyana a nan, maki a ƙoli.",
   "climb.wordsTitle": "Abin da abokan ciniki ke cewa",
   "climb.aboutTitle": "Wanene {name}",
-  "climb.spreadLatest": "Na baya-bayan nan {count}"
+  "climb.spreadLatest": "Na baya-bayan nan {count}",
+  "climb.programs": "Shirye-shirye",
+  "climb.findMe": "Same ni",
+  "climb.findEmptySelf": "Ƙara wurin aikinka, lokutansa da hanyoyin haɗinka a Mayar da shi naka → Game da ni, kuma membobi za su same ka a nan.",
+  "climb.findAdd": "Ƙara inda za a same ka",
+  "climb.findEdit": "Gyara inda za a same ka",
+  "climb.postsError": "Ba a iya karanta rubuce-rubucen {name} yanzu ba.",
+  "climb.programsError": "Ba a iya karanta shirye-shiryen {name} yanzu ba.",
+  "climb.mealPlansError": "Ba a iya karanta tsare-tsaren abinci na {name} yanzu ba.",
+  "climb.reviewsError": "Ba a iya karanta sharhohi yanzu ba."
 }

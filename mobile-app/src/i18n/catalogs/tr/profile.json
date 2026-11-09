@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Planlar ve fiyatlar",
   "climb.plansSub": "Haftalarca süren planlar. Her zirve bir hafta.",
   "climb.posts": "Gönderiler",
-  "climb.postsTitle": "Haber bandında",
   "climb.proof": "Kanıt",
   "climb.proofEmptySelf": "Kendine göre yap → Öne Çıkan’da en fazla üç yorumunu sabitle, burada başarı olarak dursunlar.",
   "climb.proofSub": "{name} tarafından sabitlenen başarılar, danışanların kendi sözleriyle.",
-  "climb.range": "Sıradağ",
   "climb.rangeSub": "Her zirve bir hafta, en tepeye kadar.",
   "climb.rangeTitle": "Sıradağ",
   "climb.rating": "Puan",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Danışanlarının yorumları burada, puanın zirvede görünür.",
   "climb.wordsTitle": "Danışanlar ne diyor",
   "climb.aboutTitle": "{name} kimdir",
-  "climb.spreadLatest": "Son {count}"
+  "climb.spreadLatest": "Son {count}",
+  "climb.programs": "Programlar",
+  "climb.findMe": "Beni bul",
+  "climb.findEmptySelf": "Kendine göre yap → Hakkımda bölümüne çalıştığın yeri, saatlerini ve bağlantılarını ekle; üyeler seni burada bulsun.",
+  "climb.findAdd": "Seni nerede bulacaklarını ekle",
+  "climb.findEdit": "Seni nerede bulacaklarını düzenle",
+  "climb.postsError": "{name} adlı kişinin gönderileri şu an okunamadı.",
+  "climb.programsError": "{name} adlı kişinin programları şu an okunamadı.",
+  "climb.mealPlansError": "{name} adlı kişinin beslenme planları şu an okunamadı.",
+  "climb.reviewsError": "Yorumlar şu an okunamadı."
 }

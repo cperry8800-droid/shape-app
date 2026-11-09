@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Планы и цены",
   "climb.plansSub": "Планы на несколько недель. Каждая вершина — неделя.",
   "climb.posts": "Публикации",
-  "climb.postsTitle": "В ленте",
   "climb.proof": "Доказательства",
   "climb.proofEmptySelf": "Закрепите до трёх отзывов в «Сделать своим» → «В центре внимания», и они встанут здесь как победы.",
   "climb.proofSub": "Победы, которые закрепил(а) {name}, словами клиентов.",
-  "climb.range": "Хребет",
   "climb.rangeSub": "Каждая вершина — неделя, до самого верха.",
   "climb.rangeTitle": "Хребет",
   "climb.rating": "Рейтинг",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Здесь появятся отзывы ваших клиентов, а рейтинг — на вершине.",
   "climb.wordsTitle": "Что говорят клиенты",
   "climb.aboutTitle": "Знакомьтесь: {name}",
-  "climb.spreadLatest": "Последние {count}"
+  "climb.spreadLatest": "Последние {count}",
+  "climb.programs": "Программы",
+  "climb.findMe": "Где меня найти",
+  "climb.findEmptySelf": "Добавьте свою практику, её часы и ссылки в Под себя → Обо мне, и участники найдут вас здесь.",
+  "climb.findAdd": "Добавить, где вас найти",
+  "climb.findEdit": "Изменить, где вас найти",
+  "climb.postsError": "Не удалось прочитать публикации {name}.",
+  "climb.programsError": "Не удалось прочитать программы {name}.",
+  "climb.mealPlansError": "Не удалось прочитать планы питания {name}.",
+  "climb.reviewsError": "Не удалось прочитать отзывы."
 }

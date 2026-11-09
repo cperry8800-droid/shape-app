@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Planos e preços",
   "climb.plansSub": "Planos de várias semanas. Cada pico é uma semana.",
   "climb.posts": "Posts",
-  "climb.postsTitle": "No letreiro",
   "climb.proof": "Provas",
   "climb.proofEmptySelf": "Fixe até três avaliações em Deixe com sua cara → Destaque, e elas aparecem aqui como conquistas.",
   "climb.proofSub": "Conquistas que {name} fixou, nas palavras dos clientes.",
-  "climb.range": "Cordilheira",
   "climb.rangeSub": "Cada pico é uma semana, subindo até o topo.",
   "climb.rangeTitle": "A cordilheira",
   "climb.rating": "Nota",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "As avaliações dos seus clientes aparecem aqui, a nota no cume.",
   "climb.wordsTitle": "O que os clientes dizem",
   "climb.aboutTitle": "Quem é {name}",
-  "climb.spreadLatest": "As {count} mais recentes"
+  "climb.spreadLatest": "As {count} mais recentes",
+  "climb.programs": "Programas",
+  "climb.findMe": "Me encontre",
+  "climb.findEmptySelf": "Adicione seu espaço, os horários dele e seus links em Deixe com a sua cara → Sobre mim, e os membros encontram você aqui.",
+  "climb.findAdd": "Adicionar onde te encontrar",
+  "climb.findEdit": "Editar onde te encontrar",
+  "climb.postsError": "Não foi possível ler os posts de {name} agora.",
+  "climb.programsError": "Não foi possível ler os programas de {name} agora.",
+  "climb.mealPlansError": "Não foi possível ler os planos alimentares de {name} agora.",
+  "climb.reviewsError": "Não foi possível ler as avaliações agora."
 }

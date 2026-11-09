@@ -67,6 +67,39 @@ export const CLIMB = Object.freeze({
   MONO: "'JetBrains Mono', ui-monospace, monospace",
   DOTO: "'Doto', 'JetBrains Mono', ui-monospace, monospace",
 });
+// The coach's accent (Make it yours → Colours, profile_custom.look.accent, a key bsProfileLook let
+// through) as the Climb draws with it: the dark row of coachProfileKit.mjs's BS_COACH_ACCENTS (the
+// app's makePalette values, as bsCoachPalette paints them on a dark stock; tests/coach-climb.test.mjs
+// holds the two to the same hexes), black flipped to white as on any dark paper. The role's own key
+// (teal for a trainer, amber for a nutritionist, which the editor and the samples seed) is no pick: the
+// Climb keeps its teal or gold. A pick that would not show on the Climb's ground (contrast under 1.6)
+// is none either. It tints the drawing only (the route, the contours, the summit's ring, the pins, the
+// spine and its diamonds, the full stops after the name and the camps' titles): text and controls keep
+// the role's colour, so their contrast never rests on the coach's pick.
+export const CLIMB_ACCENTS = Object.freeze({
+  blue: '#5b8df9', amber: '#e3a544', rust: '#e06547', green: '#5fb16e', teal: '#34d6c5', violet: '#a78bfa', rose: '#f2749f', white: '#ffffff', black: '#ffffff',
+});
+const climbLum = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+/** The contrast of two #rrggbb colours (WCAG). */
+export function bsClimbContrast(a, b) {
+  const x = climbLum(a), y = climbLum(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+/**
+ * The hex the Climb draws with for a look's accent key, or null: none set, not one of Shape's, the
+ * role's own (teal for a trainer, amber for a nutritionist), or one that would not show on the Climb.
+ */
+export function bsClimbAccent(key, role = 'trainer') {
+  if (typeof key !== 'string' || !Object.prototype.hasOwnProperty.call(CLIMB_ACCENTS, key)) return null;
+  if (key === (role === 'nutritionist' ? 'amber' : 'teal')) return null;
+  const hex = CLIMB_ACCENTS[key];
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
+  return bsClimbContrast(hex, '#0a0e11') >= 1.6 ? hex : null;
+}
 // Doto draws its dots only with ROND at 100; at the default it is unreadable (fonts.css).
 const doto = (size, color = CLIMB.INK) => ({ fontFamily: CLIMB.DOTO, fontVariationSettings: "'ROND' 100", fontWeight: 800, fontSize: size, lineHeight: 1, color, fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' });
 const mono = (size = 10, color = CLIMB.DIM) => ({ fontFamily: CLIMB.MONO, fontSize: size, letterSpacing: '0.14em', textTransform: 'uppercase', color });
@@ -140,9 +173,9 @@ function Terrain({ accent, reduced }) {
       <defs>
         <linearGradient id={beam} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={accent} stopOpacity="0.32" /><stop offset="1" stopColor={accent} stopOpacity="0" /></linearGradient>
       </defs>
-      {contours.map((d, k) => <path key={k} d={d} fill="none" stroke={accent} strokeOpacity={0.26 - k * 0.022} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
+      {contours.map((d, k) => <path key={k} data-climb-contour="" d={d} fill="none" stroke={accent} strokeOpacity={0.26 - k * 0.022} strokeWidth="1" vectorEffect="non-scaling-stroke" />)}
       <rect x={SUMMIT[0] - 1.6} y={SUMMIT[1]} width="3.2" height={100 - SUMMIT[1]} fill={`url(#${beam})`} />
-      <path d={route} fill="none" stroke={accent} strokeOpacity="0.35" strokeWidth="6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+      <path d={route} data-climb-route-glow="" fill="none" stroke={accent} strokeOpacity="0.35" strokeWidth="6" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       <path d={route} fill="none" stroke="#ffffff" strokeWidth="1.8" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
       {reduced ? null : <path d={route} fill="none" stroke={accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeDasharray="4 120" strokeLinecap="round"><animate attributeName="stroke-dashoffset" from="124" to="0" dur="5s" repeatCount="indefinite" /></path>}
     </svg>
@@ -162,12 +195,15 @@ function Terrain({ accent, reduced }) {
 //   lead       what follows the quote in the hero (sample note, socials, Score row, own-read error …)
 //   console    { kind: 'visitor'|'self', introMin, nextOpen, closed, onBook, bookLabel, onMake, onHours, makeReady } | null
 //   footer     the credential line
-export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false, who, detailTitle = null, wall = null, wallAlt = '', focus = 'center 50%', mast = null, onPickPhoto = null, onAddWall = null,
+//   accent     the coach's own accent as a #rrggbb (bsClimbAccent), or null: the drawing only
+export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false, who, accent = null, detailTitle = null, wall = null, wallAlt = '', focus = 'center 50%', mast = null, onPickPhoto = null, onAddWall = null,
   rating = null, ratingNew = false, onRating = null, milestones = [], plates = [], platesEmpty = null, status = null, wire = [], camps = [], actions = null, lead = null, console: dock = null, footer = '', privateNote = null }) {
   const W = window;
   const tr = useShapeTr();
   const reduced = bsClimbReduced();
   const ACC = nutri ? CLIMB.GOLD : CLIMB.TEAL;
+  // What the drawing takes: the coach's accent when it is a real #rrggbb, else the role's colour.
+  const DRAW = /^#[0-9a-f]{6}$/i.test(String(accent || '')) ? accent : ACC;
   const pinnedTop = W.useBSPinnedMastTop ? W.useBSPinnedMastTop() : 0;
   const gutter = 18;
   const rootRef = React.useRef(null);
@@ -240,13 +276,13 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
     <div ref={rootRef} data-trainer-profile="" data-climb="" data-climb-role={nutri ? 'nutritionist' : 'trainer'} style={{ position: 'relative', minHeight: '100%', background: CLIMB.BG, color: CLIMB.INK, fontFamily: CLIMB.BODY, WebkitFontSmoothing: 'antialiased' }}>
       {/* ── The terrain: the coach's photo, darkened, the contours and the route to the summit ── */}
       <section data-climb-hero="" style={{ position: 'relative', overflow: 'hidden' }}>
-        <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 600, background: wall ? '#05080a' : `radial-gradient(120% 80% at 80% 30%, ${hexA(ACC, 0.18)}, ${CLIMB.BG} 70%)` }}>
+        <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 600, background: wall ? '#05080a' : `radial-gradient(120% 80% at 80% 30%, ${hexA(DRAW, 0.18)}, ${CLIMB.BG} 70%)` }}>
           {wall ? <img src={wall} alt={wallAlt} data-climb-wall="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: focus, filter: 'grayscale(1) brightness(0.42) contrast(1.05)' }} /> : null}
           <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, rgba(10,14,17,0.55) 0%, rgba(10,14,17,0.1) 30%, rgba(10,14,17,0.35) 62%, ${CLIMB.BG} 100%)` }} />
           {/* The route and its contours fade out above the name, so they never run through the name,
               the chips or the quote (review, 9 Nov: the line crossed them on a phone). */}
           <div style={{ position: 'absolute', inset: 0, WebkitMaskImage: 'linear-gradient(180deg, #000 0, #000 370px, transparent 425px)', maskImage: 'linear-gradient(180deg, #000 0, #000 370px, transparent 425px)' }}>
-            <Terrain accent={ACC} reduced={reduced} />
+            <Terrain accent={DRAW} reduced={reduced} />
           </div>
         </div>
         <div style={{ position: 'relative' }}>{mast}</div>
@@ -259,7 +295,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
           {rating ? (
             <button type="button" data-climb-summit="" onClick={onRating || undefined} aria-label={tr('profile:climb.ratingAria', { defaultValue: 'Rated {rating} out of 10 from {count, plural, one {# review} other {# reviews}}', rating: ratingFig, count: rating.count })}
               style={{ position: 'absolute', right: gutter - 4, top: SUMMIT[1] * 6 - 112, minWidth: 44, minHeight: 44, padding: 0, border: 0, background: 'transparent', color: CLIMB.INK, cursor: onRating ? 'pointer' : 'default', textAlign: 'right', pointerEvents: 'auto' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, padding: '12px 14px 10px', background: 'rgba(10,14,17,0.78)', border: `1px solid ${hexA(ACC, 0.55)}`, clipPath: cut(10), boxShadow: `0 0 24px ${hexA(ACC, 0.25)}` }}>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, padding: '12px 14px 10px', background: 'rgba(10,14,17,0.78)', border: `1px solid ${hexA(DRAW, 0.55)}`, clipPath: cut(10), boxShadow: `0 0 24px ${hexA(DRAW, 0.25)}` }} data-climb-summit-ring="">
                 <span data-climb-rating="" style={doto(40)}>{ratingFig}</span>
                 <span style={{ ...mono(12, CLIMB.MUTED), letterSpacing: 0 }}>/10</span>
               </span>
@@ -273,7 +309,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
             const [x, y] = PINS[i];
             return (
               <span key={m.key} data-climb-pin={m.key} style={{ position: 'absolute', left: `${x}%`, top: y * 6, transform: 'translate(-6px, -6px)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span aria-hidden="true" style={{ width: 12, height: 12, borderRadius: 99, border: `2px solid ${ACC}`, background: CLIMB.BG, boxSizing: 'border-box' }} />
+                <span aria-hidden="true" data-climb-pin-ring="" style={{ width: 12, height: 12, borderRadius: 99, border: `2px solid ${DRAW}`, background: CLIMB.BG, boxSizing: 'border-box' }} />
                 <span style={{ padding: '3px 6px', background: 'rgba(10,14,17,0.72)', ...mono(8.5, CLIMB.INK), letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{m.label}</span>
               </span>
             );
@@ -288,7 +324,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
         <div style={{ position: 'relative', padding: `0 ${gutter}px` }}>
           {who.eyebrow ? <div data-climb-eyebrow="" style={{ ...mono(10, ACC), lineHeight: 1.5 }}>{who.eyebrow}</div> : null}
           <h1 ref={titleRef || undefined} data-climb-name="" style={{ margin: '4px 0 0', ...display(nameSize, 850), lineHeight: 0.92, color: '#ffffff', overflowWrap: 'anywhere', textShadow: '0 2px 18px rgba(0,0,0,0.5)' }}>
-            {who.name}<span style={{ color: ACC }}>.</span>
+            {who.name}<span aria-hidden="true" data-climb-stop="" style={{ color: DRAW }}>.</span>
           </h1>
           {isPrivate ? null : (
             <div data-climb-chips="" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 14 }}>
@@ -349,18 +385,18 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
                 })}
                 {/* The route under the row, filled as far as you have climbed, a diamond at each camp */}
                 <span aria-hidden="true" style={{ position: 'absolute', left: 18, right: 18, bottom: 5, height: 1, backgroundImage: `linear-gradient(90deg, ${CLIMB.LINE2} 50%, transparent 50%)`, backgroundSize: '6px 1px' }} />
-                <span aria-hidden="true" data-climb-fill="" style={{ position: 'absolute', left: 18, bottom: 5, height: 1, width: `calc((100% - 36px) * ${at.fill.toFixed(3)})`, background: ACC, transition: reduced ? 'none' : 'width 160ms linear' }} />
+                <span aria-hidden="true" data-climb-fill="" style={{ position: 'absolute', left: 18, bottom: 5, height: 1, width: `calc((100% - 36px) * ${at.fill.toFixed(3)})`, background: DRAW, transition: reduced ? 'none' : 'width 160ms linear' }} />
               </div>
             </nav>
           ) : null}
           <div data-climb-route="" style={{ position: 'relative', padding: '6px 0 0' }}>
-            <span aria-hidden="true" style={{ position: 'absolute', left: 21, top: 0, bottom: 0, width: 1.5, background: `linear-gradient(180deg, ${ACC}, ${hexA(ACC, 0.25)})` }} />
+            <span aria-hidden="true" data-climb-spine="" style={{ position: 'absolute', left: 21, top: 0, bottom: 0, width: 1.5, background: `linear-gradient(180deg, ${DRAW}, ${hexA(DRAW, 0.25)})` }} />
             {camps.map((c, i) => (
               <section key={c.key} data-climb-camp={c.key} aria-labelledby={`climb-camp-${c.key}`} style={{ position: 'relative', paddingTop: i ? 34 : 22 }}>
                 <div ref={(el) => { headRefs.current[c.key] = el; }} style={{ position: 'relative', padding: `0 ${gutter}px 0 44px` }}>
-                  <span aria-hidden="true" style={{ position: 'absolute', left: 14, top: 2, width: 15, height: 15, transform: 'rotate(45deg)', border: `1.5px solid ${ACC}`, background: c.key === at.key ? ACC : CLIMB.BG, boxShadow: `0 0 12px ${hexA(ACC, 0.45)}` }} />
+                  <span aria-hidden="true" data-climb-diamond="" style={{ position: 'absolute', left: 14, top: 2, width: 15, height: 15, transform: 'rotate(45deg)', border: `1.5px solid ${DRAW}`, background: c.key === at.key ? DRAW : CLIMB.BG, boxShadow: `0 0 12px ${hexA(DRAW, 0.45)}` }} />
                   <div style={mono(9.5, ACC)}>{c.eyebrow}</div>
-                  <h2 id={`climb-camp-${c.key}`} style={{ margin: '6px 0 0', ...display(30, 820), lineHeight: 1.02, color: CLIMB.INK }}>{c.title}<span style={{ color: ACC }}>.</span></h2>
+                  <h2 id={`climb-camp-${c.key}`} style={{ margin: '6px 0 0', ...display(30, 820), lineHeight: 1.02, color: CLIMB.INK }}>{c.title}<span aria-hidden="true" data-climb-camp-stop="" style={{ color: DRAW }}>.</span></h2>
                   {c.sub ? <p style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.45, color: CLIMB.MUTED }}>{c.sub}</p> : null}
                 </div>
                 <div data-climb-camp-body={c.key} style={{ paddingLeft: c.full ? 30 : 30 }}>{c.body}</div>
@@ -653,8 +689,9 @@ export function BSClimbProgramSheet({ pr, nutri = false, item = null, days = [],
 }
 
 // ── Camps the Climb draws itself ───────────────────────────────────────────────────────────────
-// Start here: the highlight the coach pinned, their intro film, and their workout videos as a row.
-export function BSClimbStart({ highlight = null, film = null, videos = [], kindLabel = '', onVideo, allPosts = null, empty = null, nutri = false }) {
+// Start here: the highlight the coach pinned, their intro film, and their workout videos as a row, then
+// their newest posts with a photo (each opens the Posts camp, where the post is).
+export function BSClimbStart({ highlight = null, film = null, videos = [], photos = [], onPhoto = null, kindLabel = '', onVideo, allPosts = null, empty = null, nutri = false }) {
   const tr = useShapeTr();
   const ACC = nutri ? CLIMB.GOLD : CLIMB.TEAL;
   return (
@@ -679,7 +716,7 @@ export function BSClimbStart({ highlight = null, film = null, videos = [], kindL
           {highlight.note ? <p style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.45, color: CLIMB.MUTED, overflowWrap: 'anywhere' }}>{highlight.note}</p> : null}
         </div>
       ) : null}
-      {videos.length ? (
+      {videos.length || photos.length ? (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
             <span style={mono(9, CLIMB.DIM)}>{tr('profile:climb.highlights', { defaultValue: 'Highlights' })}</span>
@@ -695,10 +732,30 @@ export function BSClimbStart({ highlight = null, film = null, videos = [], kindL
                 <span style={{ display: 'block', marginTop: 6, fontSize: 13, fontWeight: 600, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.title}</span>
               </button>
             ))}
+            {photos.map((ph) => (
+              <button key={ph.key} type="button" data-climb-photo-post="" onClick={() => onPhoto && onPhoto(ph)} style={{ flex: 'none', width: 118, padding: 0, border: 0, background: 'transparent', color: CLIMB.INK, textAlign: 'left', cursor: 'pointer' }}>
+                <span style={{ position: 'relative', display: 'block', width: 118, height: 148, background: '#1b252c', clipPath: cut(12), overflow: 'hidden', border: `1px solid ${CLIMB.LINE}` }}>
+                  <img src={ph.photo} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                </span>
+                <span style={{ display: 'block', marginTop: 6, fontSize: 13, fontWeight: 600, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ph.title}</span>
+              </button>
+            ))}
           </div>
         </div>
       ) : null}
       {empty}
+    </div>
+  );
+}
+
+// A read that failed: says so, with Try again (null is unread, never a sample).
+export function BSClimbReadError({ text, onRetry = null, nutri = false }) {
+  const tr = useShapeTr();
+  const ACC = nutri ? CLIMB.GOLD : CLIMB.TEAL;
+  return (
+    <div role="status" data-climb-read-error="" style={{ margin: '14px 18px 0 14px', padding: '12px 14px', border: `1px solid ${CLIMB.LINE2}`, background: 'rgba(255,255,255,0.02)' }}>
+      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: CLIMB.MUTED }}>{text}</p>
+      {onRetry ? <button type="button" data-climb-retry="" onClick={onRetry} style={{ minHeight: 44, padding: 0, border: 0, background: 'transparent', color: ACC, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:trainer.retry', { defaultValue: 'Try again' })}</button> : null}
     </div>
   );
 }

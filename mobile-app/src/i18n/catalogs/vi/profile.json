@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Kế hoạch và giá",
   "climb.plansSub": "Kế hoạch kéo dài nhiều tuần. Mỗi đỉnh là một tuần.",
   "climb.posts": "Bài đăng",
-  "climb.postsTitle": "Trên bản tin",
   "climb.proof": "Bằng chứng",
   "climb.proofEmptySelf": "Ghim tối đa ba đánh giá trong Làm theo ý bạn → Tiêu điểm, chúng sẽ đứng đây như thành tích.",
   "climb.proofSub": "Thành tích {name} đã ghim, bằng lời của khách hàng.",
-  "climb.range": "Dãy núi",
   "climb.rangeSub": "Mỗi đỉnh là một tuần, leo đến tận đỉnh.",
   "climb.rangeTitle": "Dãy núi",
   "climb.rating": "Điểm",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Đánh giá từ khách hàng của bạn hiện ở đây, điểm ở trên đỉnh.",
   "climb.wordsTitle": "Khách hàng nói gì",
   "climb.aboutTitle": "{name} là ai",
-  "climb.spreadLatest": "{count} gần nhất"
+  "climb.spreadLatest": "{count} gần nhất",
+  "climb.programs": "Chương trình",
+  "climb.findMe": "Tìm tôi",
+  "climb.findEmptySelf": "Thêm nơi bạn làm việc, giờ mở cửa và các liên kết trong Cá nhân hóa → Về tôi, để thành viên tìm thấy bạn ở đây.",
+  "climb.findAdd": "Thêm nơi tìm bạn",
+  "climb.findEdit": "Sửa nơi tìm bạn",
+  "climb.postsError": "Hiện không đọc được bài đăng của {name}.",
+  "climb.programsError": "Hiện không đọc được chương trình của {name}.",
+  "climb.mealPlansError": "Hiện không đọc được kế hoạch ăn của {name}.",
+  "climb.reviewsError": "Hiện không đọc được đánh giá."
 }

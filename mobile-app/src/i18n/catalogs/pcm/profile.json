@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Plans and prices",
   "climb.plansSub": "Plans wey run for weeks. Each peak na one week.",
   "climb.posts": "Posts",
-  "climb.postsTitle": "For the wire",
   "climb.proof": "Proof",
   "climb.proofEmptySelf": "Pin reach three of your reviews for Make am your own → Spotlight, and dem go stand here as wins.",
   "climb.proofSub": "Wins wey {name} pin, for clients own words.",
-  "climb.range": "Range",
   "climb.rangeSub": "Each peak na one week, dey climb reach the top.",
   "climb.rangeTitle": "The range",
   "climb.rating": "Rating",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Reviews from your clients go show here, the rating for the summit.",
   "climb.wordsTitle": "Wetin clients talk",
   "climb.aboutTitle": "Who {name} be",
-  "climb.spreadLatest": "The latest {count}"
+  "climb.spreadLatest": "The latest {count}",
+  "climb.programs": "Programs",
+  "climb.findMe": "Find me",
+  "climb.findEmptySelf": "Add your practice, im hours and your links for Make am your own → About me, and members go find you here.",
+  "climb.findAdd": "Add where dem go find you",
+  "climb.findEdit": "Change where dem go find you",
+  "climb.postsError": "We no fit read {name} posts now.",
+  "climb.programsError": "We no fit read {name} programs now.",
+  "climb.mealPlansError": "We no fit read {name} meal plans now.",
+  "climb.reviewsError": "We no fit read di reviews now."
 }

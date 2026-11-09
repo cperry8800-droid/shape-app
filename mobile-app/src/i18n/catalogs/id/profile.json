@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Rencana dan harga",
   "climb.plansSub": "Rencana beberapa minggu. Setiap puncak adalah satu minggu.",
   "climb.posts": "Postingan",
-  "climb.postsTitle": "Di kabar",
   "climb.proof": "Bukti",
   "climb.proofEmptySelf": "Sematkan hingga tiga ulasanmu di Jadikan milikmu → Sorotan, dan semuanya tampil di sini sebagai pencapaian.",
   "climb.proofSub": "Pencapaian yang disematkan {name}, dengan kata-kata klien.",
-  "climb.range": "Pegunungan",
   "climb.rangeSub": "Setiap puncak adalah satu minggu, naik sampai ke atas.",
   "climb.rangeTitle": "Pegunungan",
   "climb.rating": "Rating",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Ulasan dari klienmu muncul di sini, rating-nya di puncak.",
   "climb.wordsTitle": "Kata klien",
   "climb.aboutTitle": "Siapa {name}",
-  "climb.spreadLatest": "{count} terbaru"
+  "climb.spreadLatest": "{count} terbaru",
+  "climb.programs": "Program",
+  "climb.findMe": "Temukan saya",
+  "climb.findEmptySelf": "Tambahkan tempat praktikmu, jam bukanya, dan tautanmu di Buat jadi milikmu → Tentang saya, dan member menemukanmu di sini.",
+  "climb.findAdd": "Tambahkan tempat menemukanmu",
+  "climb.findEdit": "Ubah tempat menemukanmu",
+  "climb.postsError": "Postingan {name} tidak bisa dibaca sekarang.",
+  "climb.programsError": "Program {name} tidak bisa dibaca sekarang.",
+  "climb.mealPlansError": "Rencana makan {name} tidak bisa dibaca sekarang.",
+  "climb.reviewsError": "Ulasan tidak bisa dibaca sekarang."
 }

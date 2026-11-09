@@ -103,7 +103,7 @@ export default {
     { name: 'studio: the focus filter does not filter', file: STUDIO,
       find: "  const shown = focusNow === 'all' ? works : works.filter((w) => w.focus === focusNow);", replace: "  const shown = works;" },
     { name: 'page: no Range camp for the work alone', file: PAGE,
-      find: "      (isSelf || hasStudioWork) ? ['range'", replace: "      isSelf ? ['range'" },
+      find: "      (isSelf || hasStudioWork || plansFailed) ? ['range'", replace: "      (isSelf || plansFailed) ? ['range'" },
     { name: 'doc: five focus words', file: DOC,
       find: "export const BS_FOCUS_MAX = 4;", replace: "export const BS_FOCUS_MAX = 5;" },
     { name: 'doc: a preset that is not one is kept', file: DOC,

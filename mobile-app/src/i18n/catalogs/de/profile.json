@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Pläne und Preise",
   "climb.plansSub": "Pläne über mehrere Wochen. Jeder Gipfel ist eine Woche.",
   "climb.posts": "Beiträge",
-  "climb.postsTitle": "Auf dem Ticker",
   "climb.proof": "Beweis",
   "climb.proofEmptySelf": "Hefte bis zu drei deiner Bewertungen in Mach es zu deinem → Spotlight an, dann stehen sie hier als Erfolge.",
   "climb.proofSub": "Erfolge, die {name} angeheftet hat, in den Worten der Kunden.",
-  "climb.range": "Gebirge",
   "climb.rangeSub": "Jeder Gipfel ist eine Woche, bis ganz nach oben.",
   "climb.rangeTitle": "Das Gebirge",
   "climb.rating": "Bewertung",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Bewertungen deiner Kunden erscheinen hier, die Bewertung auf dem Gipfel.",
   "climb.wordsTitle": "Was Kunden sagen",
   "climb.aboutTitle": "Wer {name} ist",
-  "climb.spreadLatest": "Die neuesten {count}"
+  "climb.spreadLatest": "Die neuesten {count}",
+  "climb.programs": "Programme",
+  "climb.findMe": "Finde mich",
+  "climb.findEmptySelf": "Füge deine Praxis, ihre Zeiten und deine Links in Mach es zu deinem → Über mich hinzu, dann finden dich Mitglieder hier.",
+  "climb.findAdd": "Hinzufügen, wo man dich findet",
+  "climb.findEdit": "Bearbeiten, wo man dich findet",
+  "climb.postsError": "Die Beiträge von {name} konnten gerade nicht gelesen werden.",
+  "climb.programsError": "Die Programme von {name} konnten gerade nicht gelesen werden.",
+  "climb.mealPlansError": "Die Ernährungspläne von {name} konnten gerade nicht gelesen werden.",
+  "climb.reviewsError": "Die Bewertungen konnten gerade nicht gelesen werden."
 }

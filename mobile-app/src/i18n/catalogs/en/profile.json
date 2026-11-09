@@ -1271,11 +1271,9 @@
   "climb.plansPrices": "Plans and prices",
   "climb.plansSub": "Plans that run for weeks. Each peak is a week.",
   "climb.posts": "Posts",
-  "climb.postsTitle": "On the wire",
   "climb.proof": "Proof",
   "climb.proofEmptySelf": "Pin up to three of your reviews in Make it yours → Spotlight, and they stand here as wins.",
   "climb.proofSub": "Wins {name} pinned, in clients' own words.",
-  "climb.range": "Range",
   "climb.rangeSub": "Each peak is a week, climbing to the top.",
   "climb.rangeTitle": "The range",
   "climb.rating": "Rating",
@@ -1308,5 +1306,14 @@
   "climb.wordsEmptySelf": "Reviews from your clients show here, the rating at the summit.",
   "climb.wordsTitle": "What clients say",
   "climb.aboutTitle": "Who {name} is",
-  "climb.spreadLatest": "The latest {count}"
+  "climb.spreadLatest": "The latest {count}",
+  "climb.programs": "Programs",
+  "climb.findMe": "Find me",
+  "climb.findEmptySelf": "Add your practice, its hours and your links in Make it yours → About me, and members find you here.",
+  "climb.findAdd": "Add where to find you",
+  "climb.findEdit": "Edit where to find you",
+  "climb.postsError": "Couldn't read {name}'s posts just now.",
+  "climb.programsError": "Couldn't read {name}'s programs just now.",
+  "climb.mealPlansError": "Couldn't read {name}'s meal plans just now.",
+  "climb.reviewsError": "Couldn't read the reviews just now."
 }

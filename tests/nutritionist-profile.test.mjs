@@ -196,12 +196,12 @@ test('a nutritionist\'s page reads, sells and books as a nutritionist, and start
   assert.equal(button(/^Message Nadia$/).style.background, probe.style.background, 'gold');
   assert.equal(document.querySelector('[data-climb-book]').style.background, probe.style.background, 'Book in gold');
   assert.equal(document.querySelector('[data-climb]').getAttribute('data-climb-role'), 'nutritionist');
-  assert.equal(campTitle('findme'), 'Her day.');
+  assert.equal(campTitle('day'), 'Her day.');
   await click(button(/^Work with her$/));
   assert.equal(document.querySelector('[data-coaching-block]').textContent, 'Monthly nutrition coaching $140');
   assert.equal(world.blockNutri, true, 'the storefront block files plans as a nutritionist\'s (Codex P1 on #2497)');
   await click(button(/^Close$/));
-  await click(camp('findme').querySelectorAll('[role="group"] button')[1]);
+  await click(camp('day').querySelectorAll('[role="group"] button')[1]);
   assert.match(document.querySelector('[data-busy-time]').textContent, /With a client/, 'busy time, said as a nutritionist\'s');
   await click(document.querySelector('[data-open-time]'));
   assert.match(m.text(), /Tell Nadia what you want from your food\./);
@@ -229,7 +229,7 @@ test('with no monthly price but meal plans to sell, the plans-only storefront fi
 test('a nutritionist has their kitchen and plate notes, never the studio or replays; a trainer never the kitchen', async () => {
   reset();
   let m = await mount(page());
-  assert.ok(camp('findme'));
+  assert.ok(camp('day'));
   for (const k of ['kitchen', 'plates', 'range', 'replays']) assert.ok(!camp(k), k);
   await m.unmount();
   // A studio and a workout on a nutritionist's doc and feed show nothing; a kitchen and a meal do.
@@ -466,7 +466,7 @@ test('her activity: a tab of its own, last, with her posts that are not plate no
   // separate tab for activity".
   reset({ posts: [meal(), { key: 'n1', title: 'Sunday prep', typeLabel: 'Note', ago: '1d', body: 'Twelve boxes.', statsRow: [], breakdown: null }] });
   let m = await mount(page());
-  assert.deepEqual(campKeys(), ['plates', 'findme', 'posts', 'summit'], 'Posts after Plate notes and Find me, before the Summit');
+  assert.deepEqual(campKeys(), ['day', 'plates', 'posts', 'summit'], 'Book right after Base, then Plate notes, Posts and the Summit');
   assert.ok(!camp('plates').querySelector('[data-activity]'), 'not under Plate notes');
   await goCamp('posts');
   const feed = camp('posts').querySelector('[data-activity]');
@@ -915,7 +915,7 @@ test('a seeded nutritionist listing is a sample: its listing by id, a sample kit
   assert.ok(document.querySelectorAll('[data-staple]').length >= 8);
   await goCamp('plates');
   assert.equal(document.querySelectorAll('[data-plate-day]').length, 2);
-  assert.equal(campTitle('findme'), "Rae's day.");
+  assert.equal(campTitle('day'), "Rae's day.");
   assert.match(m.text(), /Sample times: Rae hasn't set open hours on Shape yet\./);
   assert.ok([...document.querySelectorAll('[data-open-time]')].every((b) => !b.disabled && /Ask for it/.test(b.textContent)), 'sample times are asked for, not taken');
   await m.unmount();

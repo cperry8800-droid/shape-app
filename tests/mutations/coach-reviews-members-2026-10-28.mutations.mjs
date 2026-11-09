@@ -78,7 +78,7 @@ export default {
       replace: '  select r.coach_slug, r.owner_id, coalesce(sum(r.rating), 0)::bigint, count(*)::bigint, max(r.body)\n' },
     // ── the screens ──
     { name: 'trainer profile: a locked answer reads as no reviews', file: TRAINER,
-      find: 'locked: d.locked === true }); }).catch(() => {});', replace: 'locked: false }); }).catch(() => {});' },
+      find: 'locked: d.locked === true }); } }).catch(', replace: 'locked: false }); } }).catch(' },
     { name: 'trainer profile: Join skips the account a guest needs', file: TRAINER,
       find: "    if (W.bsRequireAccount && !W.bsRequireAccount(tr('marketplace:listing.reviewsJoin', { defaultValue: 'read the reviews' }))) return;\n", replace: '' },
     { name: 'trainer profile: Join calls the backend bare', file: TRAINER,
