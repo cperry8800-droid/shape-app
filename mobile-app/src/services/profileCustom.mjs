@@ -25,4 +25,5 @@ export {
   BS_PROMPTS_MAX, BS_PROMPT_Q_MAX, BS_PROMPT_A_MAX, bsCleanStory, bsProfileAbout, bsProfileLinks, bsProfileLinkable, bsProfilePrompts, bsProfileLinkHref, bsProfileLinkText,
   BS_FOCUS_MAX, BS_FOCUS_WORD_MAX, BS_FOCUS_PRESETS, BS_PICKS_MAX, BS_DESC_MAX, BS_DESCS_MAX, BS_FOR_WORDS_MAX, BS_FOR_PRESETS,
   bsProfileFocus, bsProfilePicks, bsProfileDescriptions, bsProfileProgramFor,
+  BS_PUBLIC_STATS, bsProfilePublicStats,
 } from '../../../public/newdesign/profileCustom.mjs';

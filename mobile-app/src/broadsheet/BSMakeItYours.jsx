@@ -11,6 +11,7 @@ import {
   BS_FILM_CAPTION_MAX, BS_BIZ_NAME_MAX, BS_BIZ_WHERE_MAX, BS_BIZ_HOURS_MAX, BS_BIZ_HANDLE_MAX, BS_PINNED_REVIEWS_MAX,
   BS_PIN_TITLE_MAX, BS_PIN_NOTE_MAX, BS_PIN_METRIC_MAX, BS_SONG_LABEL_MAX, BS_HERO_STATS_MAX, BS_COACH_FILM_MAX_MB, BS_PIN_KINDS,
   bsProfileFilm, bsProfileBizCard, bsProfilePinnedReviews, bsProfilePinned, bsProfileSong, bsSpotifyEmbed, bsPinKindLabel,
+  BS_PUBLIC_STATS, bsProfilePublicStats,
 } from '../services/profileCustom.mjs';
 import { BS_COACH_STATS, bsCoachHeadlineKeys } from '../services/coachWork.mjs';
 import { bsFocusWordLabel, bsStudioForLabel } from './BSCoachStudio.jsx';
@@ -42,7 +43,9 @@ import { bsWsLed } from './bsMagazine.mjs';
 //   Spotlight    what the old editors offered and no coach page showed until 2026-11-04: an intro film
 //                (their own upload to coach-media), up to three headline stats (figures their page
 //                already has, `figures`), a pinned highlight, a profile song (a Spotify link) and up
-//                to three of their members' reviews pinned to the front of What clients say.
+//                to three of their members' reviews pinned to the front of What clients say; and
+//                What's public (owner, 2026-11-09): which of the figures Shape records for them a
+//                visitor sees (`publicStats`), none until they turn one on.
 //   About me     for a trainer, first what members read under their name: a preview, up to four
 //                focus words (a preset, stored as its token, or their own) and up to two workouts
 //                they would start a member on (their picks); then, for every coach, the story, the
@@ -56,7 +59,7 @@ import { bsWsLed } from './bsMagazine.mjs';
 //
 // What it writes: whichever of `look`, `cover`, `kitchen`, `about`, `prompts`, `links`, `headLinks`,
 // `focus`, `picks`, `descriptions`, `programFor`, `film`, `heroStats`, `pinned`, `song`,
-// `pinnedReviews` and `bizCard` the coach changed here, in the profile_custom
+// `pinnedReviews`, `bizCard` and `publicStats` the coach changed here, in the profile_custom
 // doc, merged onto the doc as it is at save time (re-read for this account, so a key saved
 // elsewhere since this opened is kept; no read, no save), through the same normalizer every
 // surface uses. Nothing is saved until Save. The profile opens it only on the coach's doc as read,
@@ -899,7 +902,19 @@ export const BS_STAT_WORDS = {
   rating: ['profile:stat.rating', 'Rating'], reviews: ['profile:trainer.reviews', 'Reviews'], years: ['profile:mine.years', 'Years coaching'],
   programs: ['profile:trainer.programs', 'Programs'], workouts: ['profile:trainer.workouts', 'Workouts'], replays: ['profile:trainer.tabReplays', 'Replays'],
   recipes: ['profile:nutri.secRecipes', 'Recipes'], plates: ['profile:nutri.tabPlateNotes', 'Plate notes'], certs: ['profile:about.certs', 'Certificates'],
+  // Shape's own figures (owner, 2026-11-09), shown only when the coach made them public: What's public's words.
+  sessions: ['profile:mine.publicSessions', 'Sessions coached'], clients: ['profile:mine.publicClients', 'Active clients'],
 };
+// What's public (owner, 2026-11-09: "coaches should be able to decide what they want public"): each of
+// the figures Shape records for a coach, by its publicStats key, with the one line that says what a
+// visitor sees. [title key, English, line key, English]; a nutritionist's last is their meal plans.
+export const BS_PUBLIC_STAT_WORDS = {
+  sessions: ['profile:mine.publicSessions', 'Sessions coached', 'profile:mine.publicSessionsLine', 'The sessions you’ve completed on Shape'],
+  clients: ['profile:mine.publicClients', 'Active clients', 'profile:mine.publicClientsLine', 'How many clients pay you now'],
+  since: ['profile:mine.publicSince', 'Coaching since', 'profile:mine.publicSinceLine', 'The year of your first client on Shape'],
+  programClients: ['profile:mine.publicPrograms', 'Clients on each program', 'profile:mine.publicProgramsLine', 'How many clients are on each of your published programs now'],
+};
+const BS_PUBLIC_PLANS_WORDS = ['profile:mine.publicPlans', 'Clients on each meal plan', 'profile:mine.publicPlansLine', 'How many clients are on each of your published meal plans now'];
 // A literal address, the same in every language (the old editor's note on it): not a key.
 const SPOTIFY_PH = 'https://open.spotify.com/track/…';
 // The video types the film's own check keeps (bsOwnVideoUrl): a picker that names no type is read by
@@ -915,7 +930,33 @@ const statFigure = (k, v, locale) => {
   try { return k === 'rating' ? Number(v).toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : Number(v).toLocaleString(locale); } catch (e) { return String(v); }
 };
 
-function SpotlightTab({ tr, role, locale, film, setFilm, filmBusy, filmErr, onFilm, stats, setStats, figures, pinned, setPinned, song, setSong, pins, togglePin, reviews, reviewsRead }) {
+// The four switches of What's public, one row each: what it is, and the plain line of what a visitor sees.
+function PublicStats({ tr, role, on, setOn }) {
+  const toggle = (k) => setOn(on.includes(k) ? on.filter((x) => x !== k) : BS_PUBLIC_STATS.filter((x) => x === k || on.includes(x)));
+  return (
+    <div data-spot-public-list="" style={{ ...ABOUT_CARD, marginTop: 9 }}>
+      {BS_PUBLIC_STATS.map((k, i) => {
+        const w = k === 'programClients' && role === 'nutritionist' ? BS_PUBLIC_PLANS_WORDS : BS_PUBLIC_STAT_WORDS[k];
+        const lit = on.includes(k);
+        return (
+          <button key={k} type="button" role="switch" aria-checked={lit} data-public-stat={k} onClick={() => toggle(k)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%', minHeight: 60, padding: '9px 14px', border: 0, borderTop: i ? `1px solid ${ABOUT_HAIR}` : 0,
+              background: 'transparent', color: E.INK, cursor: 'pointer', textAlign: 'left', fontFamily: BODY }}>
+            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 15, fontWeight: 600, lineHeight: 1.25 }}>{tr(w[0], { defaultValue: w[1] })}</span>
+              <span data-public-line="" style={{ fontSize: 12.5, lineHeight: 1.35, color: ea(0.66) }}>{tr(w[2], { defaultValue: w[3] })}</span>
+            </span>
+            <span aria-hidden style={{ flex: 'none', width: 42, height: 24, borderRadius: 999, background: lit ? E.ED : ea(0.22), position: 'relative', transition: 'background 160ms ease' }}>
+              <span style={{ position: 'absolute', top: 3, left: lit ? 21 : 3, width: 18, height: 18, borderRadius: 999, background: lit ? E.ON_ED : E.INK, transition: 'left 160ms ease' }} />
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SpotlightTab({ tr, role, locale, film, setFilm, filmBusy, filmErr, onFilm, stats, setStats, figures, publicStats = [], setPublicStats = () => {}, pinned, setPinned, song, setSong, pins, togglePin, reviews, reviewsRead }) {
   const fileRef = React.useRef(null);
   const [statMsg, setStatMsg] = React.useState(null);
   const optional = tr('profile:mine.optional', { defaultValue: 'Optional' });
@@ -985,6 +1026,11 @@ function SpotlightTab({ tr, role, locale, film, setFilm, filmBusy, filmErr, onFi
         </div>
         {statMsg ? <p role="alert" style={{ margin: '8px 0 0', fontSize: 13.5, color: E.WARN }}>{statMsg}</p> : null}
         <p style={hintStyle}>{tr('profile:mine.statsHint', { defaultValue: 'Up to three of your numbers, under your name, in the order you pick them. One you have no figure for yet stays off your page.' })}</p>
+      </Ruled>
+
+      <Ruled data-spot-public="" kicker={tr('profile:mine.publicTitle', { defaultValue: 'What’s public' })} right={tr('profile:mine.countOf', { defaultValue: '{count} of {max}', count: publicStats.length, max: BS_PUBLIC_STATS.length })}>
+        <PublicStats tr={tr} role={role} on={publicStats} setOn={setPublicStats} />
+        <p style={hintStyle}>{tr('profile:mine.publicHint', { defaultValue: 'Shape counts these for you. Each stays off your page until you turn it on, and none shows a client’s name. Sessions coached and Active clients show as headline stats only when they are on here.' })}</p>
       </Ruled>
 
       <Ruled data-spot-pin="" kicker={tr('profile:editor.pin.label', { defaultValue: 'Pin a highlight' })} right={optional}>
@@ -1484,6 +1530,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
       // coach's opens unticked, and a song or highlight the page would not draw opens empty.
       film: filmOf(initial && initial.film),
       stats: bsCoachHeadlineKeys(initial && initial.heroStats, role),
+      publicStats: bsProfilePublicStats(initial && initial.publicStats),
       pinned: (() => { const p = bsProfilePinned(initial && initial.pinned); return p ? { kind: p.kind || 'win', title: p.title, note: p.note, metric: p.metric } : { kind: 'win', title: '', note: '', metric: '' }; })(),
       song: (() => { const s = bsProfileSong(initial && initial.song); return s ? { url: s.url, label: s.label } : { url: '', label: '' }; })(),
       // A demo's pins are its sample reviews' ids; a coach's, their members' reviews' (uuids).
@@ -1511,6 +1558,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const [filmBusy, setFilmBusy] = React.useState(false);
   const [filmErr, setFilmErr] = React.useState(null);
   const [stats, setStats] = React.useState(seed.stats);
+  const [publicStats, setPublicStats] = React.useState(seed.publicStats);
   const [highlight, setHighlight] = React.useState(seed.pinned);
   const [song, setSong] = React.useState(seed.song);
   const [pins, setPins] = React.useState(seed.pins);
@@ -1585,6 +1633,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const filmOut = film ? { url: film.url, caption: bsCleanText(film.caption, BS_FILM_CAPTION_MAX) } : null;
   const filmChanged = !sameJson(filmOut, seed.film);
   const statsChanged = !sameJson(stats, seed.stats);
+  const publicChanged = !sameJson(bsProfilePublicStats(publicStats), seed.publicStats);
   const pinnedDoc = (p) => (p.title.trim() ? bsProfilePinned(p) : null);
   const pinProblem = !highlight.title.trim() && !!(highlight.note.trim() || highlight.metric.trim());
   const pinnedChanged = !sameJson(pinnedDoc(highlight), pinnedDoc(seed.pinned)) || pinProblem;
@@ -1598,7 +1647,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
   const bizChanged = !sameJson(bizDoc(biz), bizDoc(seed.biz)) || bizProblem;
   const dirty = lookChanged || wallChanged || kitchenChanged || aboutChanged || promptsChanged || linksChanged || headLinksChanged
     || focusChanged || picksChanged || descriptionsChanged || programForChanged
-    || filmChanged || statsChanged || pinnedChanged || songChanged || pinsChanged || bizChanged;
+    || filmChanged || statsChanged || publicChanged || pinnedChanged || songChanged || pinsChanged || bizChanged;
   const first = who.first || bsCoachFirstName(who.name);
   const w = words || { day: tr('profile:trainer.dayName', { defaultValue: "{name}'s day", name: first }), work: tr('profile:trainer.workName', { defaultValue: 'Work with {name}', name: first }) };
 
@@ -1682,6 +1731,8 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     // The Spotlight and the practice's card, each written cleaned and dropped when emptied.
     if (filmChanged) { const f = filmOut ? filmOf(filmOut) : null; if (f) doc.film = f; else delete doc.film; }
     if (statsChanged) { if (stats.length) doc.heroStats = stats.slice(); else delete doc.heroStats; }
+    // What's public: none (the default) drops the key, so nothing is public.
+    if (publicChanged) { const p = bsProfilePublicStats(publicStats); if (p.length) doc.publicStats = p; else delete doc.publicStats; }
     if (pinnedChanged) { const p = pinnedDoc(highlight); if (p) doc.pinned = p; else delete doc.pinned; }
     if (songChanged) { const s = songDoc(song); if (s) doc.song = s; else delete doc.song; }
     if (pinsChanged) { if (pins.length) doc.pinnedReviews = pins.slice(); else delete doc.pinnedReviews; }
@@ -1706,7 +1757,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
     if (pinProblem) { setTab('spotlight'); setErr(tr('profile:mine.errPinTitle', { defaultValue: 'Give your highlight a headline, or clear it.' })); return; }
     if (songProblem) { setTab('spotlight'); setErr(tr('profile:editor.song.err', { defaultValue: 'Paste a Spotify track or playlist link (open.spotify.com/…).' })); return; }
     if (filmBusy) { setTab('spotlight'); setErr(tr('profile:editor.err.uploadBusy', { defaultValue: 'Hang on — an upload is still in progress.' })); return; }
-    const spot = { film: filmChanged, heroStats: statsChanged, pinned: pinnedChanged, song: songChanged, pinnedReviews: pinsChanged, bizCard: bizChanged };
+    const spot = { film: filmChanged, heroStats: statsChanged, publicStats: publicChanged, pinned: pinnedChanged, song: songChanged, pinnedReviews: pinsChanged, bizCard: bizChanged };
     // The demo also says which keys were changed here, so its page keeps only those over its own
     // sample (whose station names follow the language; Codex P2 on #2486). Its pins are its sample
     // reviews' ids, which the normalizer (a coach's pins are their members' reviews' uuids) would drop.
@@ -1861,7 +1912,7 @@ export function BSMakeItYours({ role = 'trainer', demo = false, ownerUid = null,
         {tab === 'programs' ? <ProgramsTab tr={tr} work={wk} first={first} descs={descs} setDescs={setDescs} programFor={programFor} setProgramFor={setProgramFor} /> : null}
         {tab === 'kitchen' ? <KitchenTab tr={tr} look={look} kitchen={kitchen} setKitchen={setKitchen} startSection={startSection} owner={owner} uploadPhoto={uploadRecipePhoto} draft={recipeDraft} setDraft={setRecipeDraft} /> : null}
         {tab === 'spotlight' ? <SpotlightTab tr={tr} role={role} locale={intlLocale()} film={film} setFilm={(f) => { setFilm(f); setFilmErr(null); }} filmBusy={filmBusy} filmErr={filmErr} onFilm={onFilm}
-          stats={stats} setStats={setStats} figures={figures} pinned={highlight} setPinned={(f) => { setHighlight(f); setErr(null); }} song={song} setSong={(s) => { setSong(s); setErr(null); }}
+          stats={stats} setStats={setStats} figures={figures} publicStats={publicStats} setPublicStats={setPublicStats} pinned={highlight} setPinned={(f) => { setHighlight(f); setErr(null); }} song={song} setSong={(s) => { setSong(s); setErr(null); }}
           pins={livePins} togglePin={togglePin} reviews={cands} reviewsRead={cands !== null} /> : null}
         {tab === 'about' ? <AboutTab tr={tr} about={about} setAbout={setAbout} prompts={prompts} setPrompts={setPrompts} links={links} setLinks={(f) => { setLinks(f); setErr(null); }} headLinks={headLinks} setHeadLinks={setHeadLinks}
           studioWords={nutri ? null : { focus, setFocus, picks, setPicks, work: wk, name: who.name || first }} biz={biz} setBiz={(f) => { setBiz(f); setErr(null); }} /> : null}

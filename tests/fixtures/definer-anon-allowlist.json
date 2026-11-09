@@ -118,6 +118,11 @@
       "class": "coach-gated",
       "note": "Returns null unless is_coach_on_client(p_user_id) holds."
     },
+    "get_coach_public_stats": {
+      "class": "public-by-design",
+      "anonGrant": "explicit",
+      "note": "A coach's public stats for their public page (2026-11-09-coach-public-stats): sessions coached, active clients, the year they started and clients on each published plan, each ONLY when the coach listed it in their own profile_custom.publicStats, else null; counts only, no client name or id. A private profile, or a friends-tier one to a non-friend (anon included), gets all nulls by get_public_profile's can_view rule; an account with no provider row gets all nulls."
+    },
     "get_coach_certs": {
       "class": "public-by-design",
       "anonGrant": "explicit",
