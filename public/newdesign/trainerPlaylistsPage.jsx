@@ -278,8 +278,10 @@ function plWhoHears(p, programs, dupNames) {
   const counts = on.map((x) => x.program.clients);
   const programClients = counts.some((c) => c == null) ? null : counts.reduce((s, c) => s + c, 0);
   const attached = Array.isArray(p.attached) ? p.attached : [];
+  // ⚠ A SEND WITHOUT A LINK REACHES NOBODY (Codex P2 on #2644): get_my_coach_playlists leaves out
+  // every row whose url is empty, so such a send is said as unseen, never as heard.
   return {
-    programs: on, programClients, programsUnknown,
+    programs: on, programClients, programsUnknown, linked: !!plSafeUrl(p.url),
     all: attached.some((a) => a.kind === "all_clients"),
     clients: attached.filter((a) => a.kind === "client" && a.clientId).map((a) => a.clientId),
   };
@@ -288,7 +290,8 @@ function plWhoHears(p, programs, dupNames) {
 const PL_NOT_PLAYING = "Not playing anywhere yet";
 function plWhoHearsText(w, role, programsState) {
   const parts = [];
-  if (w.all) parts.push("Every client");
+  if ((w.all || w.clients.length) && !w.linked) parts.push("Sent, but it has no link, so clients don't see it");
+  else if (w.all) parts.push("Every client");
   else if (w.clients.length) parts.push("Sent to " + w.clients.length + (w.clients.length === 1 ? " client" : " clients"));
   if (role !== "nutritionist" && w.programs.length) {
     const days = w.programs.reduce((s, x) => s + x.days.length, 0);
@@ -304,6 +307,10 @@ const plClientEntry = (c) => ({ id: "client:" + c.id, kind: "client", clientId: 
 function plIsSentTo(p, target) {
   const list = Array.isArray(p.attached) ? p.attached : [];
   return target === "all" ? list.some((a) => a.kind === "all_clients") : list.some((a) => a.kind === "client" && a.clientId === target);
+}
+// Why a playlist can't be sent: members see only playlists with a link. Null when it can.
+function plNoLinkWhy(p) {
+  return plSafeUrl(p && p.url) ? null : "Add its Spotify or Apple Music link in the Builder before sending it: clients only see playlists with a link.";
 }
 function plToggleSent(p, target) {
   const list = Array.isArray(p.attached) ? p.attached : [];
@@ -491,6 +498,8 @@ function PlaylistPage({ ctx }) {
   // Send a playlist to every client, or one client (the `attached` entries members read).
   const toggleSent = async (given, target) => {
     const p = rowsRef.current.find((x) => x.id === given.id) || given;
+    const adding = target.id === "all" ? !plIsSentTo(p, "all") : !plIsSentTo(p, target.id);
+    if (adding && plNoLinkWhy(p)) { setNote(plNoLinkWhy(p)); return { error: plNoLinkWhy(p) }; }
     const next = plToggleSent(p, target);
     if (demo) { setDemoPlaylists((list) => list.map((x) => (x.id === p.id ? { ...x, attached: next } : x))); return { ok: true }; }
     const was = p;
@@ -584,12 +593,13 @@ function plBriefModel(c) {
   }
   // A nutritionist's playlists reach clients only as sends.
   if (c.roster.state === "loading") return { text: "Reading your clients…", action: null };
-  const sentAll = c.playlists.some((p) => plIsSentTo(p, "all"));
+  const linked = c.playlists.filter((p) => plSafeUrl(p.url));
+  const sentAll = linked.some((p) => plIsSentTo(p, "all"));
   if (!c.playlists.length) return { text: "Save a playlist you cook to, then send it to your clients.", action: { label: "＋ New playlist", add: true } };
   if (sentAll) return { text: "Every client gets a cooking playlist on their Eat page.", action: null };
   if (c.roster.state !== "ready") return { text: "Your clients couldn't be read, so this page can't say who gets a playlist.", action: { label: "Attach", focus: null } };
   const total = c.roster.clients.length;
-  const reached = c.roster.clients.filter((cl) => c.playlists.some((p) => plIsSentTo(p, cl.id))).length;
+  const reached = c.roster.clients.filter((cl) => linked.some((p) => plIsSentTo(p, cl.id))).length;
   return { text: reached + " of " + total + (total === 1 ? " client gets" : " clients get") + " a cooking playlist.", action: reached < total ? { label: "Send to clients", focus: null } : null };
 }
 function PlBrief() {
@@ -975,9 +985,9 @@ function AttachMatrix({ focus }) {
     </thead>
   );
   // A cell: filled reads "✓ N" in the playlist's colour; empty is ＋ (dashed where the day needs music).
-  const cell = (key, locks, on, label, count, needs, onClick, accent) => (
+  const cell = (key, locks, on, label, count, needs, onClick, accent, blocked) => (
     <td key={key} style={td}>
-      <button type="button" aria-pressed={on === true} aria-label={label} disabled={held(locks)} onClick={() => run(locks, onClick)} data-pl-cell={key} data-on={on === true ? "1" : on === "some" ? "some" : "0"}
+      <button type="button" aria-pressed={on === true} aria-label={label} disabled={held(locks) || (!!blocked && on !== true)} title={blocked && on !== true ? blocked : undefined} data-blocked={blocked && on !== true ? "1" : undefined} onClick={() => run(locks, onClick)} data-pl-cell={key} data-on={on === true ? "1" : on === "some" ? "some" : "0"}
         style={{ minWidth: 56, height: 32, padding: "0 10px", borderRadius: 8, cursor: held(locks) ? "default" : "pointer", fontFamily: PL_MONO, fontSize: 11, fontWeight: 600, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
           border: on ? `1.5px solid ${accent}` : needs ? `1.5px dashed ${PL_RUST_DASH}` : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)",
           background: on === true ? accent : "transparent", color: on === true ? "#fff" : on === "some" ? INK : needs ? PL_RUST : PL_INK3, opacity: held(locks) ? 0.5 : 1 }}>
@@ -1038,7 +1048,7 @@ function AttachMatrix({ focus }) {
       </tr>
       <tr data-pl-send="all">
         <td style={tdFirst}><div style={{ fontSize: 13.5, fontWeight: 500 }}>Every client</div></td>
-        {playlists.map((p) => { const on = plIsSentTo(p, "all"); const key = "all:" + p.id; return cell(key, ["pl:" + p.id], on, (on ? "Stop sending " : "Send ") + p.name + " to every client", null, false, () => c.toggleSent(p, { id: "all" }), p.accent); })}
+        {playlists.map((p) => { const on = plIsSentTo(p, "all"); const key = "all:" + p.id; return cell(key, ["pl:" + p.id], on, (on ? "Stop sending " : "Send ") + p.name + " to every client", null, false, () => c.toggleSent(p, { id: "all" }), p.accent, plNoLinkWhy(p)); })}
       </tr>
       {roster.state === "loading" && <tr><td colSpan={cols + 1} style={{ ...tdFirst, color: PL_INK2 }}>Reading your clients…</td></tr>}
       {roster.state === "unread" && <tr><td colSpan={cols + 1} data-pl-roster-unread style={{ ...tdFirst, color: PL_INK2 }}>Your clients couldn't be read, so one-by-one sends aren't shown.</td></tr>}
@@ -1049,7 +1059,7 @@ function AttachMatrix({ focus }) {
               {typeof DashClientGem === "function" && <DashClientGem points={cl.points} title={cl.name} />}{cl.name}
             </span>
           </td>
-          {playlists.map((p) => { const on = plIsSentTo(p, cl.id); const key = cl.id + ":" + p.id; return cell(key, ["pl:" + p.id], on, (on ? "Stop sending " : "Send ") + p.name + " to " + cl.name, null, false, () => c.toggleSent(p, cl), p.accent); })}
+          {playlists.map((p) => { const on = plIsSentTo(p, cl.id); const key = cl.id + ":" + p.id; return cell(key, ["pl:" + p.id], on, (on ? "Stop sending " : "Send ") + p.name + " to " + cl.name, null, false, () => c.toggleSent(p, cl), p.accent, plNoLinkWhy(p)); })}
         </tr>
       ))}
     </tbody>

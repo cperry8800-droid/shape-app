@@ -798,3 +798,19 @@ test('the Builder stacks its panes at phone width (P2)', async () => {
   const css = [...p.div.querySelectorAll('style')].map((x) => x.textContent).join(' ');
   assert.match(css, /@media \(max-width: 760px\) \{ \.pl-builder \{ grid-template-columns: minmax\(0, 1fr\) !important; \} \}/);
 });
+
+test('a playlist without a link can\'t be sent, and an old send of one is said as unseen (P2)', async () => {
+  const sentNoLink = { ...QUIET, attached: [{ id: 'all_clients', kind: 'all_clients', name: 'All my clients' }] };
+  const p = await page({ role: 'nutritionist', handlers: trainerLive({ 'GET /api/coach/soundtracks': () => ok({ soundtracks: [LEG, sentNoLink] }) }) });
+  assert.equal(p.text(p.card('st-2').querySelector('[data-pl-who]')), "Sent, but it has no link, so clients don't see it");
+  assert.equal(p.text(p.q('[data-pl-brief-text]')), '0 of 2 clients get a cooking playlist.', 'an unseen send reaches nobody');
+  await p.tab('matrix');
+  const cellOf = (k) => p.cell(k);
+  assert.equal(cellOf(id(1) + ':st-2').disabled, true, 'no new send without a link');
+  assert.equal(cellOf(id(1) + ':st-2').getAttribute('data-blocked'), '1');
+  assert.equal(cellOf('all:st-2').disabled, false, 'an existing send can still be taken off');
+  await p.click(cellOf('all:st-2'));
+  assert.deepEqual(p.reqs('PATCH', '/api/coach/soundtracks')[0].body.attached, []);
+  assert.equal(cellOf('all:st-2').disabled, true, 'and not sent again');
+  assert.equal(cellOf(id(1) + ':st-1').disabled, false, 'a linked playlist sends as before');
+});

@@ -60,10 +60,14 @@ export default {
       find: '  const programsUnknown = programs == null;', replace: '  const programsUnknown = false;' },
     { name: 'a link from the other service keeps the old provider', file: PAGE,
       find: '...(linkProvider && linkProvider !== p.provider ? { provider: linkProvider } : {})', replace: '' },
+    { name: 'a playlist without a link can be sent', file: PAGE,
+      find: '    if (adding && plNoLinkWhy(p)) { setNote(plNoLinkWhy(p)); return { error: plNoLinkWhy(p) }; }\n', replace: '' },
+    { name: 'a send without a link counts as heard', file: PAGE,
+      find: 'programs: on, programClients, programsUnknown, linked: !!plSafeUrl(p.url),', replace: 'programs: on, programClients, programsUnknown, linked: true,' },
     { name: 'a picked playlist loses its track count', file: PAGE,
       find: '...(tracks != null ? { tracks } : {})', replace: '' },
     { name: 'the nutritionist brief counts nobody reached', file: PAGE,
-      find: 'const reached = c.roster.clients.filter((cl) => c.playlists.some((p) => plIsSentTo(p, cl.id))).length;', replace: 'const reached = 0;' },
+      find: 'const reached = c.roster.clients.filter((cl) => linked.some((p) => plIsSentTo(p, cl.id))).length;', replace: 'const reached = 0;' },
 
     // ── Program-day writes
     { name: 'a day is written in the first week only', file: PAGE,
