@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, number} в роботі",
   "coach.fixNote": "{date} ми виправили те, як очки враховують сесії та програми. Твої очки могли змінитися.",
   "coach.fixNoteNutri": "{date} ми виправили те, як очки враховують сесії. Твої очки могли змінитися.",
-  "quote.label": "Рахунок Shape",
+  "quote.label": "Рахунок",
   "quote.toNext": "{toNext} до {next}",
   "quote.topTier": "Найвищий рівень",
-  "quote.week": "тиж.",
   "quote.aria": "Рахунок Shape {total}, {tier}. Відкрити рахунок."
 }

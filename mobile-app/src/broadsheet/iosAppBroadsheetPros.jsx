@@ -1335,7 +1335,7 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   // holds, Up next, the week, To do, the day's schedule, then Shortcuts. The header, Up next and
   // To do read TODAY's bookings whichever day the week strip shows; the schedule reads that day.
   const loc = coachLocale();
-  // The coach score for the score quote under the masthead (BSHomeScoreQuote.jsx): the coach ladder, read
+  // The coach score for the score line under the masthead (BSHomeScoreQuote.jsx): the coach ladder, read
   // as the Store's Score page reads it; signed in, nothing draws until it has been read.
   const coachScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES && SHAPE_SCORE_PROFILES[role]);
   const nowD = new Date();
@@ -1508,10 +1508,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       />
       <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
 
-      {/* THE SCORE QUOTE, as on member Home (owner, 2026-11-09: the ticker gave way to "A2", the score beside
-          its tier ring; BSHomeScoreQuote.jsx), on the coach ladder. It opens the coach's Score page. */}
+      {/* THE SCORE LINE, as on member Home (owner, 2026-11-09: the ticker gave way to the score as one slim
+          line, "B1"; BSHomeScoreQuote.jsx), on the coach ladder. It opens the coach's Score page. */}
       <BSHomeScoreQuote score={coachScore} tiers={SHAPE_SCORE_TIERS_COACH} signedIn={coachSignedIn} onOpen={() => onOpenScore()} locale={loc} />
-      {/* 2px out from its own 8, so Shape Radio is 10px in, as the score quote above and the deck below. */}
+      {/* 2px out from its own 8, so Shape Radio is 10px in, as the deck below. */}
       <div style={{ margin: '12px 2px 0' }}>
         <BSNowPlaying onOpen={goRadio} />
       </div>

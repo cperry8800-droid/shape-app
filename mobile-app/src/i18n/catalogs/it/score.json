@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, plural, one {# attivo} other {# attivi}}",
   "coach.fixNote": "Il {date} abbiamo corretto il modo in cui il punteggio conta le sessioni e i programmi. Il tuo punteggio potrebbe essere cambiato.",
   "coach.fixNoteNutri": "Il {date} abbiamo corretto il modo in cui il punteggio conta le sessioni. Il tuo punteggio potrebbe essere cambiato.",
-  "quote.label": "Punteggio Shape",
+  "quote.label": "Punti",
   "quote.toNext": "{toNext} a {next}",
   "quote.topTier": "Livello massimo",
-  "quote.week": "sett.",
   "quote.aria": "Punteggio Shape {total}, {tier}. Apri il tuo punteggio."
 }

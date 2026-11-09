@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, number} đang mở",
   "coach.fixNote": "Ngày {date}, chúng tôi đã sửa cách Điểm tính các buổi tập và chương trình. Điểm của bạn có thể đã thay đổi.",
   "coach.fixNoteNutri": "Ngày {date}, chúng tôi đã sửa cách Điểm tính các buổi tập. Điểm của bạn có thể đã thay đổi.",
-  "quote.label": "Điểm Shape",
+  "quote.label": "Điểm",
   "quote.toNext": "còn {toNext} tới {next}",
   "quote.topTier": "Hạng cao nhất",
-  "quote.week": "tuần",
   "quote.aria": "Điểm Shape {total}, {tier}. Mở điểm của bạn."
 }

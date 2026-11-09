@@ -76,11 +76,12 @@ test('coach Today: the deck\'s sessions follow the day picked in the strip', () 
 });
 
 // Owner, 2026-11-04: "make this ticker box the same width as the boxes below it on all home pages. also
-// make the club shape a littile larger on home pages". The score quote took the ticker's place (owner,
-// 2026-11-09) and keeps its width.
-test('the score quote is 10px in from each side, as the deck and panels under it on every Home', () => {
+// make the club shape a littile larger on home pages". The ticker gave way to the score line (2026-11-09).
+test('the boxes under the masthead are 10px in from each side on every Home', () => {
+  // The score line that took the ticker's place (owner, 2026-11-09, "B1") is no box: it keeps the page's
+  // gutter, as the masthead row over it does.
   const QUOTE = readFileSync(new URL('../mobile-app/src/broadsheet/BSHomeScoreQuote.jsx', import.meta.url), 'utf8');
-  assert.match(QUOTE, /width: 'calc\(100% - 20px\)', margin: '2px 10px 0',/);
+  assert.match(QUOTE, /padding: `0 \$\{t\.padX\}px`, border: 0, background: 'transparent',/);
   // The boxes it lines up with: member Home's deck and morning panel, coach Today's deck.
   assert.match(DECK, /margin: radio \? '10px 10px 0' : '6px 10px 0'/);
   const CHECKIN = readFileSync(new URL('../mobile-app/src/broadsheet/BSCheckinCard.jsx', import.meta.url), 'utf8');
@@ -88,7 +89,7 @@ test('the score quote is 10px in from each side, as the deck and panels under it
   const INSTR = readFileSync(new URL('../mobile-app/src/broadsheet/BSProInstrument.jsx', import.meta.url), 'utf8');
   // 10px in on both sides, dense or not (coach Today's dense deck stands 16px under Shape Radio, 2026-11-04).
   assert.match(INSTR, /<section data-pro-deck="" data-glass=""[^>]*margin: dense \? '16px 10px 0' : '6px 10px 0'/);
-  // Coach Today's Shape Radio box, between the score quote and the deck, is 10px in too (its own 8 and 2).
+  // Coach Today's Shape Radio box, between the score line and the deck, is 10px in too (its own 8 and 2).
   const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
   assert.match(PROS, /<div style=\{\{ margin: '12px 2px 0' \}\}>\n\s+<BSNowPlaying onOpen=\{goRadio\} \/>/);
   const RADIO = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url), 'utf8');

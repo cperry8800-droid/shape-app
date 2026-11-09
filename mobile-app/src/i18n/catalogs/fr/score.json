@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, number} en ligne",
   "coach.fixNote": "Le {date}, nous avons corrigé la façon dont le score compte les séances et les programmes. Votre score a peut-être changé.",
   "coach.fixNoteNutri": "Le {date}, nous avons corrigé la façon dont le score compte les séances. Votre score a peut-être changé.",
-  "quote.label": "Score Shape",
+  "quote.label": "Score",
   "quote.toNext": "{toNext} avant {next}",
   "quote.topTier": "Palier max",
-  "quote.week": "sem.",
   "quote.aria": "Score Shape {total}, {tier}. Ouvrir ton score."
 }

@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, number} live",
   "coach.fixNote": "Am {date} haben wir korrigiert, wie der Score Sitzungen und Programme zählt. Deine Punkte können sich verändert haben.",
   "coach.fixNoteNutri": "Am {date} haben wir korrigiert, wie der Score Sitzungen zählt. Deine Punkte können sich verändert haben.",
-  "quote.label": "Shape-Score",
+  "quote.label": "Score",
   "quote.toNext": "noch {toNext} bis {next}",
   "quote.topTier": "Höchste Stufe",
-  "quote.week": "Wo.",
   "quote.aria": "Shape-Score {total}, {tier}. Deinen Score öffnen."
 }

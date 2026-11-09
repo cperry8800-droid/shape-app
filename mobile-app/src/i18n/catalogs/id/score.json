@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, number} aktif",
   "coach.fixNote": "Pada {date} kami memperbaiki cara Skor menghitung sesi dan program. Skormu mungkin berubah.",
   "coach.fixNoteNutri": "Pada {date} kami memperbaiki cara Skor menghitung sesi. Skormu mungkin berubah.",
-  "quote.label": "Skor Shape",
+  "quote.label": "Skor",
   "quote.toNext": "{toNext} lagi ke {next}",
   "quote.topTier": "Tingkat teratas",
-  "quote.week": "mg",
   "quote.aria": "Skor Shape {total}, {tier}. Buka skormu."
 }

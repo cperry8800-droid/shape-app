@@ -86,7 +86,6 @@ import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSections.jsx';
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
 import { BSHomeScoreQuote } from './BSHomeScoreQuote.jsx';
-import { BSHomeScoreIdea, BSScoreDrawer, bsHomeScoreIdea, bsScoreIdeaQuote } from './BSHomeScoreIdeas.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
@@ -3959,11 +3958,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
       <BSNoraHint t={t} />
 
-      {/* THE SCORE QUOTE (owner, 2026-11-09: the ticker gave way to "A2", the Shape Score beside its tier
-          ring, "a little smaller"; BSHomeScoreQuote.jsx). Signed in, only the member's own score once read.
-          It opens the Score page. */}
-      {/* PROTOTYPE switch (BSHomeScoreIdeas.jsx). */}
-      {bsHomeScoreIdea() ? <BSHomeScoreIdea idea={bsHomeScoreIdea()} score={homeScore} tiers={SHAPE_SCORE_TIERS} signedIn={bsHomeSignedIn} /> : <BSHomeScoreQuote score={homeScore} tiers={SHAPE_SCORE_TIERS} signedIn={bsHomeSignedIn} onOpen={() => goScore && goScore()} locale={bsCkLocale()} />}
+      {/* THE SCORE LINE (owner, 2026-11-09: the ticker gave way to the Shape Score, as one slim line with no
+          box, "B1", so Shape Radio is the only box up top; BSHomeScoreQuote.jsx). Signed in, only the
+          member's own score once read. It opens the Score page. */}
+      <BSHomeScoreQuote score={homeScore} tiers={SHAPE_SCORE_TIERS} signedIn={bsHomeSignedIn} onOpen={() => goScore && goScore()} locale={bsCkLocale()} />
 
       {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
           pages Home opens keep their own type: they return above, and the steps history sits outside. */}
@@ -3973,7 +3971,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           should just be goal progress"): an ink band holding Shape Radio's slim box, the climb to the
           member's goal (what Your goal said, BSHomeDeck.jsx), and This week as five bars a day (what Week
           so far's rows said: train, food, protein, steps, check-in). A day opens the calendar. */}
-      <BSHomeDeck radio={bsHomeScoreIdea() === 'b2' && bsScoreIdeaQuote(homeScore, SHAPE_SCORE_TIERS, bsHomeSignedIn) ? <div style={{ isolation: 'isolate' }}><BSNowPlaying onOpen={goRadio} /><BSScoreDrawer q={bsScoreIdeaQuote(homeScore, SHAPE_SCORE_TIERS, bsHomeSignedIn)} /></div> : <BSNowPlaying onOpen={goRadio} />}>
+      <BSHomeDeck radio={<BSNowPlaying onOpen={goRadio} />}>
         <BSHomeClimb tour="hero-goal" demo={bsHomeSignedIn ? null : BS_GOALS_DEFAULT} docKg={bsGoalDocKg} isWeightGoal={bsPrimaryGoalIsWeight}
           goalWords={(id) => bsPrimaryGoalLabel(id, tr)} onOpen={() => setGoalsPage(true)} />
         <BSHomeWeekBars

@@ -284,9 +284,8 @@
   "coach.sub.programs": "{n, plural, one {# ativo} other {# ativos}}",
   "coach.fixNote": "Em {date}, corrigimos como a pontuação conta as sessões e os programas. Sua pontuação pode ter mudado.",
   "coach.fixNoteNutri": "Em {date}, corrigimos como a pontuação conta as sessões. Sua pontuação pode ter mudado.",
-  "quote.label": "Shape Score",
+  "quote.label": "Pontos",
   "quote.toNext": "{toNext} para {next}",
   "quote.topTier": "Nível máximo",
-  "quote.week": "sem",
   "quote.aria": "Shape Score {total}, {tier}. Abrir sua pontuação."
 }
