@@ -41,8 +41,8 @@ test('Talk to a person: a quiet card at the foot of the talk, a rounded field, S
   const opener = between(CLIENT, '<button type="button" data-nora-person', '</button>');
   assert.match(opener, /aria-expanded=\{!!personForm\}/);
   assert.match(opener, /onClick=\{\(\) => \(personForm \? setPersonForm\(null\) : openPersonForm\(\)\)\}/);
-  assert.match(opener, /border: `1px solid \$\{bsTHexA\(t\.PAPER, personForm \? 0\.7 : 0\.3\)\}`/);
-  assert.doesNotMatch(opener, /background: t\.PAPER,/, 'a person is the second key, never the first');
+  assert.match(opener, /border: `1px solid \$\{bsTHexA\(t\.INK, personForm \? 0\.7 : 0\.3\)\}`/);
+  assert.doesNotMatch(opener, /background: t\.INK,/, 'a person is the second key, never the first');
 });
 
 test('the Radio station\'s deck (option E, "the horizon"): one long key, the votes as one capsule, the channels as lit tabs', () => {

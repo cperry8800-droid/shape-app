@@ -88,15 +88,18 @@ test('the screen she is told rides over the composer, under the talk', () => {
   } finally { api.bsNoraOpen({ page: null, label: null }); reset(); }
 });
 
-test('her desk: an inverted band that stays put, with Talk to Nora on the paper and a person in outline', () => {
+// Owner, 2026-11-09, of the cream band over her dark talk: "remove the white color from the top part of chat
+// screen. Make it all same color". Her desk is on the sheet's own paper, a hairline under it.
+test('her desk: a band on the sheet\'s own paper that stays put, with Talk to Nora in ink and a person in outline', () => {
   const desk = between(SHEET, '<div data-nora-desk', '<div ref={scrollRef}');
-  assert.match(desk, /style=\{\{ flex: 'none', background: t\.INK, color: t\.PAPER,/);
+  assert.match(desk, /style=\{\{ flex: 'none', background: t\.PAPER, color: t\.INK, padding: `8px \$\{t\.padX\}px 16px`, borderBottom: `1px solid \$\{bsTHexA\(t\.INK, 0\.1\)\}` \}\}/);
   // Out of the scrolling talk: the desk closes before the scroller opens.
   assert.ok(SHEET.indexOf('<div data-nora-desk') < SHEET.indexOf('<div ref={scrollRef}'));
-  // The band's teal is the other theme's, since the band is the other theme's colours.
-  assert.match(SHEET, /const deskTeal = t\.isLight \? '#34d6c5' : '#0a7a72';/);
-  // Talk to Nora is the filled key (the paper on the band), 44px.
-  assert.match(desk, /data-nora-talk-button onClick=\{\(\) => talk\.start\(\)\} style=\{\{ flex: 1, minWidth: 0, minHeight: 44, [^}]*background: t\.PAPER, color: t\.INK,/);
+  // The page's own teal, since the desk is the page's own colours.
+  assert.match(SHEET, /const deskTeal = t\.isLight \? '#0a7a72' : '#34d6c5';/);
+  // Talk to Nora is the filled key (ink on the paper), 44px, its bars in the other theme's teal.
+  assert.match(desk, /data-nora-talk-button onClick=\{\(\) => talk\.start\(\)\} style=\{\{ flex: 1, minWidth: 0, minHeight: 44, [^}]*background: t\.INK, color: t\.PAPER,/);
+  assert.match(desk, /borderRadius: 2, background: t\.isLight \? '#34d6c5' : '#0a7a72' \}\} \/>\)\}/);
   // Her portrait and name open her profile, a button of its own (Talk and × are not inside it).
   assert.match(desk, /<button type="button" onClick=\{\(\) => setShowNora\(true\)\}/);
   assert.doesNotMatch(desk, /role="button"/);

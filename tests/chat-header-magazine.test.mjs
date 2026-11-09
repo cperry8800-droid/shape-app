@@ -176,10 +176,12 @@ test('Channels: the masthead, the magazine\'s teal, the names in the Wall\'s fac
 
 // The thread screen left the magazine look for Nora's sheet's design (owner, 2026-11-01: "also use this
 // chat design for the rest of messaging on chat page"): tests/chat-thread-nora-design.test.mjs drives it.
-test('the thread screen: the magazine teal on the paper, the desk on the ink, Nora\'s tray', () => {
+// The desk is on the page's own paper since 2026-11-09 ("remove the white color from the top part of chat
+// screen. Make it all same color").
+test('the thread screen: the magazine teal on the paper, the desk on the same paper, Nora\'s tray', () => {
   const th = between(CLIENT, 'function BSChatThread({', '\n}\n');
   assert.match(th, /const teal = bsWsAccent\(t\);/);
-  assert.match(th, /const DESK = t\.INK, DESK_INK = t\.PAPER;/);
+  assert.match(th, /const DESK = t\.PAPER, DESK_INK = t\.INK;/);
   assert.match(th, /<window\.BSMastRow ink=\{DESK_INK\} trailing=\{<BSMeCorner ink=\{DESK_INK\} \/>\} \/>/);
   assert.doesNotMatch(th, /<BSFacetAvatar/, 'faces are round photos, as hers are');
   // onType sets the words and sends the typing signal (2026-11-02).
