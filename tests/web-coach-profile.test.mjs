@@ -462,6 +462,16 @@ test('on a phone Work with is a sheet, and a coach\'s referral link opens on it'
   const ref = await mount(LIVE, '/newdesign/MemberProfile.html?u=coach-1&ref=0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f&role=trainer');
   assert.ok(document.querySelector('[data-work-sheet] [data-subscribe]'), 'the person a coach brings lands on the storefront');
   await ref.unmount();
+  // On a desktop the storefront is the summit: the referral link brings it into view (Codex P2 on #2652).
+  WIDE = true; backend();
+  const was = window.Element.prototype.scrollIntoView;
+  const scrolled = [];
+  window.Element.prototype.scrollIntoView = function () { scrolled.push(this.hasAttribute('data-work-rail')); };
+  try {
+    const wideRef = await mount(LIVE, '/newdesign/MemberProfile.html?u=coach-1&ref=0b6f3c1e-8a2d-4c5b-9e7f-1a2b3c4d5e6f&role=trainer');
+    assert.equal(scrolled.filter(Boolean).length, 1, 'scrolled to the summit\'s storefront once');
+    await wideRef.unmount();
+  } finally { window.Element.prototype.scrollIntoView = was; }
 });
 
 test('a coach with no account is the app\'s sample: its studio, replays, reviews and times, said so, selling nothing', async () => {

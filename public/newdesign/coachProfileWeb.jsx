@@ -1075,11 +1075,21 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
   };
   // ⚠ A COACH'S REFERRAL LINK OPENS ON THE STOREFRONT (owner, 2026-10-18): the person it brings came
   // to hire this coach. On a phone that is the Work-with sheet; on a desktop it is the summit.
+  // On a desktop the summit's storefront may draw after the first render, so the scroll waits for it
+  // (Codex P2 on #2652: a referral link left a desktop visitor at the top).
+  const refPending = React.useRef(false);
   React.useEffect(() => {
     let ref = null;
     try { ref = new URLSearchParams(window.location.search).get("ref"); } catch (e) {}
-    if (ref && !isSelf && !isPrivate && !wide) setSheet({ kind: "work" });
+    if (!ref || isSelf || isPrivate) return;
+    if (wide) refPending.current = true;
+    else setSheet({ kind: "work" });
   }, []);
+  React.useEffect(() => {
+    if (!refPending.current || !railRef.current) return;
+    refPending.current = false;
+    openWork();
+  });
   const toDay = () => { setSheet(null); setTimeout(() => toCamp("day"), 40); };
   const message = () => { if (cm.provId) cm.openChat(); else onMessage(); };
   const canEdit = isSelf && typeof ProfileCustomizer !== "undefined";
