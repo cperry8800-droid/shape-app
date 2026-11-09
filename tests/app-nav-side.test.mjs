@@ -1,7 +1,7 @@
 // Where the app's nav bar sits (owner, 2026-11-08: "the ability for user to choose where they want the nav
 // bar. Either at bottom of screen, vertically displayed on right side of phone screen or left", "on the app
 // that is"). MOUNTED: the real BSTabBar and BSPage from mobile-app/src/broadsheet/iosAppBroadsheet.jsx in the
-// real BSProvider. The choice is this phone's (localStorage), set in Settings → Preferences → Nav bar; on a
+// real BSProvider. The choice is this phone's (localStorage), set in Settings → Customize → Nav bar; on a
 // side it is the same bar turned upright, floating over the page as the bottom one does, and nothing else moves. Compares strings and booleans.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -113,11 +113,19 @@ test('a side nav floats over the page: the page and its pinned bar keep their fu
   localStorage.clear();
 });
 
-test('Settings → Preferences offers Nav bar: Bottom, Left, Right, kept on this phone', () => {
+// Owner, 2026-11-09: "I want to see setting option of selecting where I want the nav bar on app" (it was the
+// last row of Training & nutrition, under the preview's banner): Customize's first row, named on its tile.
+test('Settings → Customize opens on Nav bar: Bottom, Left, Right, kept on this phone, and its tile names it', () => {
   const client = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), 'utf8');
   assert.match(client, /const navSide = typeof window\.useBSNavSide === 'function' \? window\.useBSNavSide\(\) : 'bottom';/);
-  assert.match(client, /tr\('settings:pref\.navSide', \{ defaultValue: 'Nav bar' \}\), segmented: \['bottom', 'left', 'right'\],/);
+  assert.match(client, /const navSideRow = typeof window\.bsSetNavSide === 'function' \? \{ l: tr\('settings:pref\.navSide', \{ defaultValue: 'Nav bar' \}\), segmented: \['bottom', 'left', 'right'\],/);
   assert.match(client, /value: navSide, onPick: \(v\) => window\.bsSetNavSide\(v\),/);
+  // Customize's first row, straight under its header.
+  assert.match(client, /<DetailBack title=\{tr\('settings:section\.customize', \{ defaultValue: 'Customize' \}\)\} \/>\n(\s*\{\/\*[^]*?\*\/\}\n)?\s*\{navSideRow \? <div data-settings-nav-side="">\{renderRows\(\[navSideRow\]\)\}<\/div> : null\}/);
+  // Once: not also in Preferences.
+  assert.equal((client.match(/segmented: \['bottom', 'left', 'right'\]/g) || []).length, 1, 'the Nav bar row is offered twice');
+  // The Customize tile says where the bar is.
+  assert.match(client, /\}\) \+ \(navSideRow \? ` · \$\{tr\('settings:pref\.navSide', \{ defaultValue: 'Nav bar' \}\)\} \$\{navSideLabels\[\['bottom', 'left', 'right'\]\.indexOf\(navSide\)\] \|\| navSideLabels\[0\]\}` : ''\);/);
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs', loc, 'settings.json'), 'utf8'));
     for (const k of ['pref.navSide', 'pref.navBottom', 'pref.navLeft', 'pref.navRight', 'pref.navSideDesc']) assert.ok(typeof cat[k] === 'string' && cat[k].length > 0, `${loc}: ${k}`);

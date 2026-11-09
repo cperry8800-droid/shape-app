@@ -512,7 +512,7 @@ const BS_TABBAR_CSS = `calc(${BS_DOCK_TOP_GAP + BS_DOCK_H}px + ${BS_DOCK_BOTTOM_
 // nav bar. Either at bottom of screen, vertically displayed on right side of phone screen or left",
 // "on the app that is") ──────────────────────────────────────────────────────────────────────────
 // A choice of THIS PHONE, like the hand it is held in: kept in localStorage, never in the account,
-// set in Settings → Preferences → Nav bar. On a side it is the same bar, the same size, turned upright
+// set in Settings → Customize → Nav bar. On a side it is the same bar, the same size, turned upright
 // and centred on the screen's height, BS_DOCK_SIDE_GAP in from that edge (and a landscape notch).
 // ⚠ ONLY THE BAR MOVES (owner, 2026-11-08: "Stop creating a new screen/section for the nav on the page.
 // Just have it overlap, be transparent like it is now", then "dont change the layout on anything else on

@@ -32631,6 +32631,16 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [prefs, setPrefs] = useStateBSC(() => ({ ...PREF_DEFAULTS, dailyCheckin: bsDailyCheckinLabel(), onlineRail: bsOnlineRailLabel() }));
   // Where the nav bar sits, a choice of this phone (iosAppBroadsheet.jsx bsSetNavSide), not of the account.
   const navSide = typeof window.useBSNavSide === 'function' ? window.useBSNavSide() : 'bottom';
+  // Owner, 2026-11-08: "the ability for user to choose where they want the nav bar. Either at bottom of
+  // screen, vertically displayed on right side of phone screen or left". Kept on this phone. The first row
+  // of Customize, and named on its tile (owner, 2026-11-09: "I want to see setting option of selecting
+  // where I want the nav bar on app"; it was the last row of Training & nutrition, under the preview's
+  // banner).
+  const navSideLabels = [tr('settings:pref.navBottom', { defaultValue: 'Bottom' }), tr('settings:pref.navLeft', { defaultValue: 'Left' }), tr('settings:pref.navRight', { defaultValue: 'Right' })];
+  const navSideRow = typeof window.bsSetNavSide === 'function' ? { l: tr('settings:pref.navSide', { defaultValue: 'Nav bar' }), segmented: ['bottom', 'left', 'right'],
+    segLabels: navSideLabels,
+    value: navSide, onPick: (v) => window.bsSetNavSide(v),
+    desc: tr('settings:pref.navSideDesc', { defaultValue: 'Where the app’s tabs sit: along the bottom, or down the left or right side. Saved on this phone.' }) } : null;
   // Read again when the doc is changed from outside this pane (Nora's account setup or its Undo);
   // what the member has edited here still wins, as on the first read.
   const settingsRev = useBSUserGoalsRev(BS_SETTINGS_KINDS);
@@ -33813,12 +33823,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         { l: tr('settings:pref.nutritionPhase', { defaultValue: 'Nutrition phase' }), key: 'nutritionPhase', dropdown: PREF_OPTIONS.nutritionPhase },
         { l: tr('settings:pref.dailyCheckin', { defaultValue: 'Check-ins' }), key: 'dailyCheckin', segmented: PREF_OPTIONS.dailyCheckin, desc: tr('settings:pref.dailyCheckinDesc', { defaultValue: 'Check-in prompts on Home, and check-in notifications' }) },
         { l: tr('settings:pref.onlineRail', { defaultValue: 'Online members' }), key: 'onlineRail', segmented: PREF_OPTIONS.onlineRail, desc: tr('settings:pref.onlineRailDesc', { defaultValue: 'The “online now” row of members at the top of Community. Hiding it changes only your view — it never changes whether others can see you online.' }) },
-        // Owner, 2026-11-08: "the ability for user to choose where they want the nav bar. Either at bottom of
-        // screen, vertically displayed on right side of phone screen or left". Kept on this phone.
-        ...(typeof window.bsSetNavSide === 'function' ? [{ l: tr('settings:pref.navSide', { defaultValue: 'Nav bar' }), segmented: ['bottom', 'left', 'right'],
-          segLabels: [tr('settings:pref.navBottom', { defaultValue: 'Bottom' }), tr('settings:pref.navLeft', { defaultValue: 'Left' }), tr('settings:pref.navRight', { defaultValue: 'Right' })],
-          value: navSide, onPick: (v) => window.bsSetNavSide(v),
-          desc: tr('settings:pref.navSideDesc', { defaultValue: 'Where the app’s tabs sit: along the bottom, or down the left or right side. Saved on this phone.' }) }] : []),
+        // Nav bar is Customize's first row now (navSideRow, below), not the last of these.
       ],
     },
     {
@@ -33919,7 +33924,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }),
     size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }),
     defaultValue: '{paper} · {accent} · {size}',
-  });
+  }) + (navSideRow ? ` · ${tr('settings:pref.navSide', { defaultValue: 'Nav bar' })} ${navSideLabels[['bottom', 'left', 'right'].indexOf(navSide)] || navSideLabels[0]}` : '');
   const cardAccountActionsSummary = tr('settings:card.accountActionsSummary', { defaultValue: 'Export · pause · delete' });
   // The cycle door's reading, named once and used by BOTH the row inside Health &
   // devices and the card that still routes to the same pane — the `cardCustomizeSummary`
@@ -34569,6 +34574,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           rewrites is a move nobody can review. */}
       {detail === 'customize' && (<>
       <DetailBack title={tr('settings:section.customize', { defaultValue: 'Customize' })} />
+      {/* NAV BAR first: where the app's tabs sit (navSideRow). */}
+      {navSideRow ? <div data-settings-nav-side="">{renderRows([navSideRow])}</div> : null}
 
       {/* APPEARANCE */}
       <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
