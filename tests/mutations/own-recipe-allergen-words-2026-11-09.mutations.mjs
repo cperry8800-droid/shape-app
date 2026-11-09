@@ -44,6 +44,10 @@ export default {
     { name: 'pollock is not fish', file: WEEK, find: '|fish|catfish|pollock|', replace: '|fish|catfish|' },
     { name: '"Fish-free" is fish', file: WEEK, find: '|halibut|mackerel|haddock|snapper)\\b(?!-free)/i,', replace: '|halibut|mackerel|haddock|snapper)\\b/i,' },
     { name: '"Soy-free" is soy', file: WEEK, find: '|miso|tamari)\\w*\\b(?!-free)/i,', replace: '|miso|tamari)\\w*/i,' },
+    // ── One field at a time (Codex on 2a4ac12) ──
+    { name: 'a coach\'s ingredients run together', file: WEEK, find: '.join("\\n") : "");', replace: '.join(" ") : "");' },
+    { name: 'a coach\'s dish name runs into its first ingredient', file: WEEK, find: '    var text = String(food.name || "") + "\\n" +', replace: '    var text = String(food.name || "") + " " +' },
+    { name: 'a catalog recipe\'s lines run together', file: WEEK, find: '(l && l.m) || ""; }).join("\\n");', replace: '(l && l.m) || ""; }).join(" ");' },
     // ── The wording ──
     { name: 'the panel no longer says it is not a certified check', file: UI, find: 'const DMB_ALLERGEN_NOTE = "read from recipe names and ingredients, not a certified allergen check";', replace: 'const DMB_ALLERGEN_NOTE = "read from each recipe’s ingredients";' },
     { name: 'the Kitchen panel no longer says dairy and gluten are the catalog\'s lists', file: UI, find: '{listed.length ? " · " + listed.join(", ") + " " + DMB_LISTED_NOTE : ""}', replace: '' },

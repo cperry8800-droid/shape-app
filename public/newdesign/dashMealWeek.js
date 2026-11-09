@@ -232,7 +232,10 @@
   function ownContains(food, allergen) {
     var a = String(allergen).toLowerCase();
     if ((food.tags || []).indexOf(a) >= 0) return true;
-    var text = String(food.name || "") + " " + (Array.isArray(food.ingredients) ? food.ingredients.map(function (g) { return g && g.name ? g.name : ""; }).join(" ") : "");
+    // One line per field: the name, then each ingredient. The phrase exceptions ("corn tortillas",
+    // "courgette noodles", "butter lettuce", "water chestnuts") are written with a space, so they
+    // never read across two ingredients a coach listed apart (Codex on the PR after #2648).
+    var text = String(food.name || "") + "\n" + (Array.isArray(food.ingredients) ? food.ingredients.map(function (g) { return g && g.name ? g.name : ""; }).join("\n") : "");
     var re = OWN_WORDS[a] || ALLERGEN_WORDS[a];
     return re ? re.test(text) : text.toLowerCase().indexOf(a) >= 0;
   }
@@ -245,7 +248,7 @@
     if ((k.diet === "Vegetarian" || k.diet === "Plant-based") && (allergen === "fish" || allergen === "shellfish")) return false;
     var re = ALLERGEN_WORDS[allergen];
     if (!re) return String(food.name).toLowerCase().indexOf(String(allergen).toLowerCase()) >= 0;
-    return re.test(food.name + " " + k.text);
+    return re.test(food.name + "\n" + k.text);
   }
   var VEGETARIAN = ["Vegetarian", "Vegan", "Plant-based"];
   // A catalog recipe as a food the plan can hold. A recipe with no calories cannot be costed, and
@@ -260,7 +263,8 @@
     });
     var needs = typeof needsOf === "function" ? (needsOf(r) || []) : [];
     var mins = recipeMinutes(r.time);
-    var text = lines.map(function (l) { return typeof l === "string" ? l : (l && l.m) || ""; }).join(" ");
+    // One line per ingredient, so a phrase exception never reads across two of them (see ownContains).
+    var text = lines.map(function (l) { return typeof l === "string" ? l : (l && l.m) || ""; }).join("\n");
     return {
       id: "k-" + recipeId(r.title), recipeId: recipeId(r.title), name: String(r.title),
       kcal: Math.round(num(r.kcal)), p: Math.round(num(r.macros.p)), c: Math.round(num(r.macros.c)), f: Math.round(num(r.macros.f)),

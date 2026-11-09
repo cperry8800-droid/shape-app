@@ -540,6 +540,15 @@ test('the ingredient words: what the scan of the Kitchen\'s recipes added, and w
   assert.equal(has('fish', 'Fish-free curry', 'chickpeas'), false);
   assert.equal(has('soy', 'Soy-free stir-fry', 'coconut aminos'), false);
   assert.equal(has('soy', 'Dish', 'soybeans'), true);
+  // An exception is one phrase in one field: two ingredients listed apart are never read as one
+  // ("courgette" then "noodles" is still noodles), and nor are the name and the first ingredient
+  // (Codex on the PR after #2648).
+  assert.equal(has('gluten', 'Bowl', 'courgette', 'noodles'), true, 'courgette and noodles read as courgette noodles');
+  assert.equal(has('gluten', 'Bowl', 'corn', 'tortillas'), true, 'corn and tortillas read as corn tortillas');
+  assert.equal(has('gluten', 'Grilled corn', 'tortillas'), true, 'the name ran into the first ingredient');
+  assert.equal(has('dairy', 'Bowl', 'butter', 'lettuce'), true, 'butter and lettuce read as butter lettuce');
+  assert.equal(has('nuts', 'Bowl', 'water', 'chestnuts'), true, 'water and chestnuts read as water chestnuts');
+  assert.equal(has('dairy', 'Bowl', 'cream', 'of tartar'), true);
 });
 
 test('the catalog side: Catfish stew is fish and Chicken pesto pasta is nuts, so an exclusion keeps them out', () => {
@@ -552,6 +561,10 @@ test('the catalog side: Catfish stew is fish and Chicken pesto pasta is nuts, so
   // A recipe with neither keeps its place.
   assert.equal(left('fish').includes('One-pan chicken and rice'), true);
   assert.equal(left('nuts').includes('Curried butternut and chickpea stew'), true, 'butternut squash is not a nut');
+  // A catalog recipe's lines are read one at a time too: "water" then "chestnuts" is chestnuts (the
+  // app's catalog writes a line as { n, m }, and only the m is read).
+  const seam = W.kitchenFoods([{ title: 'Seam test', kcal: 300, macros: { p: 10, c: 30, f: 5 }, servings: 1, ingredients: [{ n: '1 cup', m: 'water' }, { n: '6', m: 'chestnuts' }] }], () => []);
+  assert.equal(W.searchKitchen(seam, '', {}, { exclusions: ['nuts'] }).length, 0, 'water and chestnuts read as water chestnuts');
 });
 
 test('a recipe lands in the meal it is put on, and the day says the new total first: 1,370 → 1,710', async () => {
