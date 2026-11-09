@@ -70,7 +70,7 @@ test('the coach pages and the member Home share the one clean type', () => {
   const open = body.indexOf('<BSCleanType t={t}>');
   const close = body.indexOf('</BSCleanType>');
   // The deck (Shape Radio, the climb, the week) is the clean area's first piece (owner, 2026-11-03).
-  assert.ok(open > body.indexOf('<BSTicker') && open < body.indexOf('<BSHomeDeck radio={<BSNowPlaying'), 'the clean area starts under the ticker, with the deck');
+  assert.ok(open > body.indexOf('<BSHomeScoreQuote') && open < body.indexOf('<BSHomeDeck radio={<BSNowPlaying'), 'the clean area starts under the score quote, with the deck');
   assert.ok(close > body.indexOf('<BSHomeShortcutList') && close < body.indexOf('<BSFooter'), 'the clean area ends before the footer');
 });
 

@@ -47,3 +47,22 @@ export function bsPeakCheckpoint(tiers, tierName, total) {
     laneFrac: span > 0 ? (BS_PEAK_CHECKPOINT - st.curThr) / span : 0,
   };
 }
+
+// ── Home's score line (owner, 2026-11-09: the ticker under Home's masthead gives way to the Shape
+// Score, as one slim line with no box, "B1") ─────────────────────────────────────────────────────
+// Signed out it is the preview's sample (the app's preview banner labels it); signed in only the
+// member's or coach's own score once it has been read (`live`), never a sample, an unread zero or a
+// coach score still loading.
+export function bsScoreQuoteShown(score, { signedIn } = {}) {
+  if (!score || typeof score.total !== 'number' || !Number.isFinite(score.total)) return false;
+  return signedIn ? score.live === true : true;
+}
+// The figures the line prints: the score, the week's gain (a member's `week`, '+36'; a coach score has
+// none; nothing for a week of no change) and the standing in the tier.
+export function bsScoreQuote(score, tiers) {
+  const total = Number(score && score.total) || 0;
+  const raw = score && score.week != null ? Number(String(score.week).replace('+', '')) : NaN;
+  const weekN = Number.isFinite(raw) && raw !== 0 ? raw : null;
+  const tier = String((score && score.tier) || (Array.isArray(tiers) && tiers[0] && tiers[0].name) || '');
+  return { total, weekN, tier, st: bsScoreStanding(tiers, tier, total) };
+}

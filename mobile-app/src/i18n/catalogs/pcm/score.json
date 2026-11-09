@@ -283,5 +283,9 @@
   "coach.sub.completion": "{n}% · last 90 days",
   "coach.sub.programs": "{n, number} dey live",
   "coach.fixNote": "For {date} we fix how Score dey count sessions and programs. Your score fit don change.",
-  "coach.fixNoteNutri": "For {date} we fix how Score dey count sessions. Your score fit don change."
+  "coach.fixNoteNutri": "For {date} we fix how Score dey count sessions. Your score fit don change.",
+  "quote.label": "Score",
+  "quote.toNext": "{toNext} reach {next}",
+  "quote.topTier": "Top level",
+  "quote.aria": "Shape Score {total}, {tier}. Open your score."
 }

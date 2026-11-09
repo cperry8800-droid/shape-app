@@ -3,7 +3,8 @@
 // Member Home's top, spaced (owner, 2026-11-04):
 // - "there is some overlap with new home design and shape radio box, can we move the graph down a little"
 // - "the week calendar can be condensed a little to create more space"
-// - of the stats ticker under the masthead, "thin this bar slightly, make a little more narrow"
+// - of the stats ticker under the masthead, "thin this bar slightly, make a little more narrow" (the
+//   ticker gave way to the score quote, 2026-11-09)
 // - of the calendar page Month opens, "remove this from month calendar page" (the "Section · Calendar"
 //   eyebrow) and "condense these tabs" (Month | Weeks)
 import test from 'node:test';
@@ -44,13 +45,6 @@ test('the week is condensed: 52px days, 11px bars, the head\'s Month a 44px tap 
   assert.ok(Number(week.match(/minHeight: (\d+), padding: '4px 0 5px'/)[1]) >= 44);
 });
 
-test('the stats ticker is thin: 5px above and below its line, a 9px notch', () => {
-  const ticker = between(CHROME, 'function BSTicker(', '\n}\n');
-  assert.match(ticker, /clipPath: 'polygon\(0 0, calc\(100% - 9px\) 0, 100% 9px, 100% 100%, 0 100%\)'/);
-  assert.match(ticker, /padding: '5px 0', overflow: 'hidden'/);
-  assert.match(ticker, /fontSize: 10, letterSpacing: '0\.12em'/);
-});
-
 test('the calendar: no Section · Calendar eyebrow on your own; Month | Weeks two quiet words beside ← Back', () => {
   // A coach reading a client's calendar keeps whose it is; your own has no eyebrow.
   assert.match(CAL, /kicker=\{forClient\s*\? tr\('calendar:client\.kicker'[^]*?\)\s*: null\}/);
@@ -82,10 +76,12 @@ test('coach Today: the deck\'s sessions follow the day picked in the strip', () 
 });
 
 // Owner, 2026-11-04: "make this ticker box the same width as the boxes below it on all home pages. also
-// make the club shape a littile larger on home pages".
-test('the ticker is 10px in from each side, as the deck and panels under it on every Home', () => {
-  const ticker = between(CHROME, 'function BSTicker(', '\n}\n');
-  assert.match(ticker, /<div data-bs-ticker="" style=\{\{\n\s+position: 'relative', margin: '0 10px',/);
+// make the club shape a littile larger on home pages". The ticker gave way to the score line (2026-11-09).
+test('the boxes under the masthead are 10px in from each side on every Home', () => {
+  // The score line that took the ticker's place (owner, 2026-11-09, "B1") is no box: it keeps the page's
+  // gutter, as the masthead row over it does.
+  const QUOTE = readFileSync(new URL('../mobile-app/src/broadsheet/BSHomeScoreQuote.jsx', import.meta.url), 'utf8');
+  assert.match(QUOTE, /padding: `0 \$\{t\.padX\}px`, border: 0, background: 'transparent',/);
   // The boxes it lines up with: member Home's deck and morning panel, coach Today's deck.
   assert.match(DECK, /margin: radio \? '10px 10px 0' : '6px 10px 0'/);
   const CHECKIN = readFileSync(new URL('../mobile-app/src/broadsheet/BSCheckinCard.jsx', import.meta.url), 'utf8');
@@ -93,7 +89,7 @@ test('the ticker is 10px in from each side, as the deck and panels under it on e
   const INSTR = readFileSync(new URL('../mobile-app/src/broadsheet/BSProInstrument.jsx', import.meta.url), 'utf8');
   // 10px in on both sides, dense or not (coach Today's dense deck stands 16px under Shape Radio, 2026-11-04).
   assert.match(INSTR, /<section data-pro-deck="" data-glass=""[^>]*margin: dense \? '16px 10px 0' : '6px 10px 0'/);
-  // Coach Today's Shape Radio box, between the ticker and the deck, is 10px in too (its own 8 and 2).
+  // Coach Today's Shape Radio box, between the score line and the deck, is 10px in too (its own 8 and 2).
   const PROS = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx', import.meta.url), 'utf8');
   assert.match(PROS, /<div style=\{\{ margin: '12px 2px 0' \}\}>\n\s+<BSNowPlaying onOpen=\{goRadio\} \/>/);
   const RADIO = readFileSync(new URL('../mobile-app/src/broadsheet/iosAppBroadsheetRadio.jsx', import.meta.url), 'utf8');

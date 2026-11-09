@@ -283,5 +283,9 @@
   "coach.sub.completion": "{n} % · letzte 90 Tage",
   "coach.sub.programs": "{n, number} live",
   "coach.fixNote": "Am {date} haben wir korrigiert, wie der Score Sitzungen und Programme zählt. Deine Punkte können sich verändert haben.",
-  "coach.fixNoteNutri": "Am {date} haben wir korrigiert, wie der Score Sitzungen zählt. Deine Punkte können sich verändert haben."
+  "coach.fixNoteNutri": "Am {date} haben wir korrigiert, wie der Score Sitzungen zählt. Deine Punkte können sich verändert haben.",
+  "quote.label": "Score",
+  "quote.toNext": "noch {toNext} bis {next}",
+  "quote.topTier": "Höchste Stufe",
+  "quote.aria": "Shape-Score {total}, {tier}. Deinen Score öffnen."
 }

@@ -283,5 +283,9 @@
   "coach.sub.completion": "{n}% · ultimi 90 giorni",
   "coach.sub.programs": "{n, plural, one {# attivo} other {# attivi}}",
   "coach.fixNote": "Il {date} abbiamo corretto il modo in cui il punteggio conta le sessioni e i programmi. Il tuo punteggio potrebbe essere cambiato.",
-  "coach.fixNoteNutri": "Il {date} abbiamo corretto il modo in cui il punteggio conta le sessioni. Il tuo punteggio potrebbe essere cambiato."
+  "coach.fixNoteNutri": "Il {date} abbiamo corretto il modo in cui il punteggio conta le sessioni. Il tuo punteggio potrebbe essere cambiato.",
+  "quote.label": "Punti",
+  "quote.toNext": "{toNext} a {next}",
+  "quote.topTier": "Livello massimo",
+  "quote.aria": "Punteggio Shape {total}, {tier}. Apri il tuo punteggio."
 }

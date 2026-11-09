@@ -85,6 +85,7 @@ import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_C
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSections.jsx';
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
+import { BSHomeScoreQuote } from './BSHomeScoreQuote.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
@@ -106,7 +107,7 @@ import { BSTPullQuote, BSProfileDock, BSPhotoViewer } from './BSProfileMagazine.
 import { BSGroceryShareCard, bsGroceryListsAppStore } from './BSGroceryShare.jsx';
 import { bsGroceryListsApply, bsGroceryListsPageBase } from '../services/groceryLists.mjs';
 import { bsGroceryFromMetadata, bsGroceryShareMessage, bsGroceryGroupByAisle } from '../services/groceryShare.mjs';
-import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners, bsHomeTickerShown } from '../services/homeWeek.mjs';
+import { bsHomeCoachesOf, bsHomeCoachesKnown, bsHomeSessionsPlanned, bsHomeSessionsPlannedDays, bsHomePaidBanners } from '../services/homeWeek.mjs';
 import { bsPlanPartRead, bsPlanCheckinParts } from '../services/planRead.mjs';
 import { BSYourMornings, BSMorningsDoor } from './BSYourMornings.jsx';
 import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
@@ -133,7 +134,7 @@ const bsApi = { fetch: (path, init) => (window.ShapeApi ? window.ShapeApi.fetch(
 const { useState: useStateBSC } = React;
 const {
   useBS, BSBackRow, BSPage, BSMasthead, BSPageHeader, BSAvatar, BSEyebrow, BSSection,
-  BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSTicker, BSHalftone,
+  BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
   BSTabBar, BSFooter, BSLogo, BSPlate, BSSettingsCorner, BSMastToolPill,
   BSSheetProvider, useBSSheet, BSCalendarScreen, BSEventSheet,
   BSRadioProvider, useBSRadio, BSRadioPrompt, BSRadioScreen, BSNowPlaying,
@@ -1823,19 +1824,6 @@ function BSHomeCards({ t, todayLabel, ctx, openers = {} }) {
 // ═══════════════════════════════════════════════════════════
 // HOME — "The Shape Daily" front page
 // ═══════════════════════════════════════════════════════════
-// Home ticker metrics — keys match the labels built in BSClientHome; the
-// Settings editor toggles/reorders these (saved to user_goals 'client_ticker').
-const BS_TICKER_METRICS = [
-  // Shape Score's points lead Home's ticker, so a member can move or hide them as any other (#2583).
-  { key: 'PTS', name: 'Shape Score' },
-  { key: 'CAL', name: 'Calories' },
-  { key: 'PRO', name: 'Protein' },
-  { key: 'HAB', name: 'Habits' },
-  { key: 'SLP', name: 'Sleep' },
-  { key: 'HRV', name: 'HRV' },
-  { key: 'RHR', name: 'Resting HR' },
-  { key: 'WGT', name: 'Weight' },
-];
 
 // Full read-only preview of an upcoming workout — opened from the home
 // "Up next" workout card's Preview button.
@@ -3581,16 +3569,6 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   const [showMood, setShowMood] = useStateBSC(false);
   const [coachFeed, setCoachFeed] = useStateBSC({ banners: [], items: [] });
   const [ticker, setTicker] = useStateBSC(null);
-  // Which ticker metrics to show + their order — edited in Settings, saved to profile.
-  const [tickerPrefs, setTickerPrefs] = useStateBSC({ hidden: [], order: null });
-  React.useEffect(() => {
-    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
-    let alive = true;
-    window.shapeDb.getUserGoals('client_ticker').then(s => {
-      if (alive && s && typeof s === 'object') setTickerPrefs({ hidden: Array.isArray(s.hidden) ? s.hidden : [], order: Array.isArray(s.order) ? s.order : null });
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
   const [analytics, setAnalytics] = useStateBSC(null);
   // The Energy card reads the user's active goal (nutrition + training prefs)
   // and reframes the same balance into one of three states. Default 'maintain'.
@@ -3980,70 +3958,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
       {/* Once per device: a note under the ✦ saying it opens Nora (BSNoraHint.jsx). */}
       <BSNoraHint t={t} />
 
-      {/* DATELINE — the same one-row band both coach Todays carry (BSProToday
-          §A.2): edition label in the accent, then day/date in ink-80, with the
-          live clock right-aligned. Same markup, sizes and rule, so the three
-          home pages read as one masthead treatment.
-          ⚠ Two deliberate differences, neither cosmetic. (1) The day and month
-          come from the LOCALE formatters this page already uses, not the coach
-          module's hardcoded English _BS_DOW/_BS_MON arrays — a header must not
-          print English weekday tokens on a Spanish screen. (2) The clock is
-          derived from bsNowMin, the minute ticker already running for the
-          slate's NOW tick, so it advances while Home stays open instead of
-          freezing at the render that painted it.
-          The program phase + ISO week rode the masthead kickers this replaces;
-          they ride the ink-80 run now so nothing is lost. The masthead draws it
-          (its dateline prop, above). */}
-
-      <BSTicker items={(() => {
-        const tk = ticker || {};
-        const fmtSleep = (h) => {
-          if (h == null) return null;
-          const whole = Math.floor(h);
-          const min = Math.round((h - whole) * 60);
-          return `${whole}H${String(min).padStart(2, '0')}M`;
-        };
-        const fmtDelta = (n, suffix) => {
-          if (n == null) return '';
-          const sign = n > 0 ? '+' : n < 0 ? '-' : '';
-          return `${sign}${Math.abs(n)}${suffix}`;
-        };
-        const pct = tk.cal != null && tk.cal_target ? Math.round((tk.cal / tk.cal_target - 1) * 100) : null;
-        const proColor = tk.protein_g != null && tk.protein_g >= 120 ? '#a3e09a' : undefined;
-        // Today's habits — live from the user's set (real date key, independent
-        // of the week-strip selection); demo numbers when no live habits yet.
-        const tkHab = (() => {
-          if (!_homeHabitsDec.length) return null;
-          const d = new Date();
-          const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          const ptsOf = (h) => (typeof window !== 'undefined' && window._bsHabitPts) ? window._bsHabitPts(h) : (h.pts || 5);
-          const done = _homeHabitsDec.filter(h => (h.history || []).includes(k));
-          return { done: done.length, total: _homeHabitsDec.length, pts: done.reduce((a, h) => a + Math.round(ptsOf(h)), 0) };
-        })();
-        const scoreLive = !!((!bsHomeSignedIn || (homeScore && homeScore.live)) && homeScore && typeof homeScore.total === 'number');
-        // `live`: the member's own figure, not the preview's sample (bsHomeTickerShown shows only these
-        // signed in). The score in the reader's number format.
-        const all = [
-          ...(scoreLive
-            ? [{ label: 'PTS', live: true, value: homeScore.total.toLocaleString(bsCkLocale()), note: homeScore.week && homeScore.week !== '+0' ? `${homeScore.week} WK` : '' }] : []),
-          { label: 'CAL', live: tk.cal != null, value: tk.cal != null ? `${tk.cal}/${tk.cal_target}` : '1568/2100', note: pct != null ? `${pct >= 0 ? '+' : ''}${pct}% TGT` : '-25% TGT' },
-          { label: 'PRO', live: tk.protein_g != null, value: tk.protein_g != null ? `${tk.protein_g}G` : '118G', note: tk.protein_g != null && tk.protein_g >= 120 ? tr('home:ticker.onPace', { defaultValue: 'ON PACE' }) : tr('home:ticker.buildUp', { defaultValue: 'BUILD UP' }), color: proColor },
-          { label: 'HAB', live: !!tkHab, value: tkHab ? `${tkHab.done}/${tkHab.total}` : '3/5', note: tkHab ? `+${tkHab.pts} PTS` : '+12 PTS', color: tkHab && tkHab.total > 0 && tkHab.done >= tkHab.total ? '#a3e09a' : undefined },
-          { label: 'SLP', live: tk.sleep_hours != null, value: fmtSleep(tk.sleep_hours) || '7H24M', note: fmtDelta(tk.sleep_delta_min, 'M VS YEST') || '+28M VS AVG', color: '#a3e09a' },
-          { label: 'HRV', live: tk.hrv_ms != null, value: tk.hrv_ms != null ? `${Math.round(tk.hrv_ms)}MS` : '62MS', note: tk.hrv_ms != null && tk.hrv_ms >= 50 ? tr('home:ticker.good', { defaultValue: 'GOOD' }) : tr('home:ticker.low', { defaultValue: 'LOW' }), color: tk.hrv_ms != null && tk.hrv_ms >= 50 ? '#a3e09a' : '#ffc56a' },
-          { label: 'RHR', live: tk.resting_hr != null, value: tk.resting_hr != null ? `${Math.round(tk.resting_hr)}BPM` : '54BPM', note: tk.resting_hr != null && tk.resting_hr > 60 ? tr('home:ticker.elev', { defaultValue: 'ELEV' }) : tr('home:ticker.steady', { defaultValue: 'STEADY' }), color: tk.resting_hr != null && tk.resting_hr > 60 ? '#ffc56a' : undefined },
-          { label: 'WGT', live: tk.weight_lb != null, value: tk.weight_lb != null ? `${t.convWeight(tk.weight_lb).toFixed(1)}${t.weightUnit.toUpperCase()}` : (t.isMetric ? '80.8KG' : '178.2LB'), note: tk.weight_delta_7d != null ? fmtDelta(Math.round(t.convWeight(tk.weight_delta_7d) * 10) / 10, ' 7D') : (t.isMetric ? '-0.2 7D' : '-0.4 7D') },
-        ];
-        const order = (tickerPrefs.order && tickerPrefs.order.length) ? tickerPrefs.order : all.map(i => i.label);
-        // Append metrics added after the user's prefs were saved (e.g. HAB) so
-        // new live metrics show up without re-toggling in Settings.
-        const ordered = order.map(k => all.find(i => i.label === k)).filter(Boolean);
-        const extras = all.filter(i => !order.includes(i.label));
-        const out = [...ordered, ...extras].filter(it => !(tickerPrefs.hidden || []).includes(it.label));
-        // Signed in: only the member's live figures (bsHomeTickerShown), so nothing live is no ticker
-        // (BSTicker hides on []). The sample numbers are the signed-out preview only.
-        return bsHomeTickerShown(out, all, { signedIn: bsHomeSignedIn });
-      })()} />
+      {/* THE SCORE LINE (owner, 2026-11-09: the ticker gave way to the Shape Score, as one slim line with no
+          box, "B1", so Shape Radio is the only box up top; BSHomeScoreQuote.jsx). Signed in, only the
+          member's own score once read. It opens the Score page. */}
+      <BSHomeScoreQuote score={homeScore} tiers={SHAPE_SCORE_TIERS} signedIn={bsHomeSignedIn} onOpen={() => goScore && goScore()} locale={bsCkLocale()} />
 
       {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
           pages Home opens keep their own type: they return above, and the steps history sits outside. */}
@@ -31143,6 +31061,8 @@ Object.assign(window, {
   BSFacetAvatar,
   bsAmLive,
   SHAPE_SCORE_PROFILES,
+  SHAPE_SCORE_TIERS,
+  SHAPE_SCORE_TIERS_COACH,
   _bsUseLiveScore,
   bsTierColor,
   bsCoachTier,
@@ -33009,37 +32929,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     }
   };
 
-  // Home ticker editor — which metrics show + order (saved to user_goals).
-  const [tickerPrefs, setTickerPrefs] = useStateBSC({ hidden: [], order: BS_TICKER_METRICS.map(m => m.key) });
-  React.useEffect(() => {
-    if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
-    let alive = true;
-    window.shapeDb.getUserGoals('client_ticker').then(s => {
-      if (!alive || !s || typeof s !== 'object') return;
-      const order = Array.isArray(s.order) && s.order.length ? s.order : BS_TICKER_METRICS.map(m => m.key);
-      // Metrics added after the prefs were saved (e.g. HAB) join at the end.
-      BS_TICKER_METRICS.forEach(m => { if (!order.includes(m.key)) order.push(m.key); });
-      setTickerPrefs({ hidden: Array.isArray(s.hidden) ? s.hidden : [], order });
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-  const saveTicker = (next) => {
-    setTickerPrefs(next);
-    try { window.shapeDb && window.shapeDb.saveUserGoals && window.shapeDb.saveUserGoals('client_ticker', next); } catch (e) {}
-  };
-  const tickerToggle = (key) => {
-    const hidden = tickerPrefs.hidden.includes(key) ? tickerPrefs.hidden.filter(k => k !== key) : [...tickerPrefs.hidden, key];
-    saveTicker({ ...tickerPrefs, hidden });
-  };
-  const tickerMove = (key, dir) => {
-    const order = [...(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key))];
-    const i = order.indexOf(key);
-    const j = i + dir;
-    if (i < 0 || j < 0 || j >= order.length) return;
-    [order[i], order[j]] = [order[j], order[i]];
-    saveTicker({ ...tickerPrefs, order });
-  };
-
   // Coach-only "pause new bookings" (at_capacity). null until loaded / for
   // non-coach accounts (no provider row), in which case the block is hidden.
   const [capacity, setCapacityState] = useStateBSC(null);
@@ -34556,7 +34445,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           last, and the customization section keeps EVERYTHING it offered — the
           Paper · Texture · Accent · Ink picker with its tiles and display weight,
           text size, language, Shape Radio, the four light-effect modes with their
-          colour row, and the Home ticker. Nothing is trimmed; it moved.
+          colour row (the Home ticker's editor left with the ticker, owner 2026-11-09). Nothing else is
+          trimmed; it moved.
           ⚠ MEASURED, NOT ESTIMATED: these blocks were 1,420 px of a 2,376 px root —
           the member's own account, privacy and billing began 1.7 screens BELOW the
           theme picker. This is what puts them back on top.
@@ -34897,29 +34787,6 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           <RadioEffects mode={fxPreview} label={tr('settings:fx.previewChip', { defaultValue: 'PREVIEW' })} tint={bsFxTint(r.fxColor, t)} isLight={!!t.isLight} floor={0} preview />
         </div>
       ), document.getElementById('bs-phone-surface') || document.body)}
-
-      {/* Home ticker — choose which stats show on the home strip + reorder. */}
-      <SectionHead title={tr('settings:ticker.title', { defaultValue: 'Home ticker' })} meta={tr('settings:ticker.shownMeta', { shown: BS_TICKER_METRICS.length - tickerPrefs.hidden.length, total: BS_TICKER_METRICS.length, defaultValue: '{shown} of {total} shown' })} />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {(tickerPrefs.order || BS_TICKER_METRICS.map(m => m.key)).map((key, idx, arr) => {
-          const m = BS_TICKER_METRICS.find(x => x.key === key);
-          if (!m) return null;
-          const shown = !tickerPrefs.hidden.includes(key);
-          return (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: `${t.rowY}px 0`, borderBottom: idx === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: shown ? t.INK : t.INK50 }}>{m.name}</div>
-                <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', color: t.INK50, textTransform: 'uppercase', marginTop: 2 }}>{m.key}</div>
-              </div>
-              <button onClick={() => tickerMove(key, -1)} disabled={idx === 0} title={tr('settings:ticker.moveUp', { defaultValue: 'Move up' })} style={{ background: 'transparent', border: 0, color: idx === 0 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↑</button>
-              <button onClick={() => tickerMove(key, 1)} disabled={idx === arr.length - 1} title={tr('settings:ticker.moveDown', { defaultValue: 'Move down' })} style={{ background: 'transparent', border: 0, color: idx === arr.length - 1 ? t.HAIR : t.INK50, fontSize: 15, cursor: idx === arr.length - 1 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}>↓</button>
-              <button onClick={() => tickerToggle(key)} title={shown ? tr('settings:ticker.hide', { defaultValue: 'Hide' }) : tr('settings:ticker.show', { defaultValue: 'Show' })} style={{ width: 34, height: 20, borderRadius: 999, padding: 2, flexShrink: 0, border: 0, background: shown ? sTeal : t.RULE, cursor: 'pointer', display: 'flex', justifyContent: shown ? 'flex-end' : 'flex-start' }}>
-                <span style={{ width: 14, height: 14, borderRadius: 999, background: shown ? t.PAPER : t.INK50, display: 'block' }} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
 
       </>)}
 
