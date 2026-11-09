@@ -769,7 +769,9 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
       {/* With unsaved hours there is no corner: it opens the profile and unmounts this page with
           no ask (Codex on #2483). Back and See your calendar ask first; noCorner takes the pinned
           strip's corner off too. */}
-      <BSDetailHeader onBack={back} noCorner={dirty && live && load === 'ready'} kicker={tr('coach:hours.kicker', { defaultValue: 'Your practice' })} title={tr('coach:hours.title', { defaultValue: 'Your hours.' })} />
+      {/* No kicker over the title, as on every Settings page (owner, 2026-11-09, of "02 · SETTINGS":
+          "remove this", "everywhere in settings"). */}
+      <BSDetailHeader onBack={back} noCorner={dirty && live && load === 'ready'} title={tr('coach:hours.title', { defaultValue: 'Your hours.' })} />
       <div data-coach-hours="" style={{ padding: `0 ${t.padX}px ${dirty ? 110 : 24}px` }}>
         <Note t={t}>{tr('coach:hours.blurb', { defaultValue: 'When members can book you. Your hours repeat every week; time off and your rules close times inside them.' })}</Note>
         {load === 'preview' ? <Note t={t} style={{ marginTop: 6, fontSize: 12.5, color: t.INK50 }}>{tr('coach:hours.preview', { defaultValue: 'A preview with sample hours. Sign in as a coach to set yours.' })} {tr('coach:hours.previewTry', { defaultValue: 'Try it: your changes show here until you leave.' })}</Note> : null}

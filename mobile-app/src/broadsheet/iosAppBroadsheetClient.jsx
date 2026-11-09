@@ -67,7 +67,7 @@ import { BS_LEVER_HEADS, bsSleepLeadOk } from '../services/dailyWire.mjs';
 import { useBSNavHistory, bsNavStepTab, useBSNavGestureHandler, useBSNavSlide } from './bsNavShell.js';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { BSIntegrationsPage, BSReconcile } from './BSIntegrationsPage.jsx';
-import { BSSettingsRoot } from './BSSettingsRoot.jsx';
+import { BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate, bsSetTeal, bsSetTealInk } from './BSSettingsRoot.jsx';
 import { BSGroceryBuilder } from './BSGroceryBuilder.jsx';
 import { BSGrocery } from './BSGroceryList.jsx';
 import { BSMealPreview } from './BSMealPage.jsx';
@@ -85,7 +85,7 @@ import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_C
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSections.jsx';
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
-import { BSHomeScoreQuote } from './BSHomeScoreQuote.jsx';
+import { BSHomeScoreQuote, bsQuoteInk } from './BSHomeScoreQuote.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
@@ -26178,7 +26178,7 @@ function BSNoraThreadCard() {
 // CAS path, the same contract as Nora's own server tools.
 function BSNoraMemoryPage({ onBack }) {
   const t = useBS();
-  const { BSPage, BSDetailHeader } = window;
+  const { BSPage } = window;
   const [notes, setNotes] = useStateBSC(null);
   const load = () => Promise.resolve(window.ShapeNoraMemory?.list?.()).then((n) => setNotes(Array.isArray(n) ? n : [])).catch(() => setNotes([]));
   React.useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -26195,29 +26195,30 @@ function BSNoraMemoryPage({ onBack }) {
   const when = (iso) => { try { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); } catch (e) { return ''; } };
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Memory" title={<>What Nora<br/>remembers.</>} />
-      <div style={{ padding: `4px ${t.padX}px 30px` }}>
+      <BSSetPageHead title="What Nora remembers." onBack={onBack} />
+      <div style={{ padding: `0 ${t.padX}px 30px` }}>
         <BSNoraThreadCard />
         {notes === null ? (
           <div style={{ padding: '16px 0', fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
         ) : notes.length === 0 ? (
-          <div style={{ padding: '14px 0', fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>Nothing yet — tell Nora “remember …” in Support chat and it lands here.</div>
+          <div data-settings-plate="" style={{ ...bsSetPlate(t), marginTop: 14, padding: '14px', fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>Nothing yet — tell Nora “remember …” in Support chat and it lands here.</div>
         ) : (
           <React.Fragment>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0 2px' }}>
-              <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{notes.length} note{notes.length === 1 ? '' : 's'}</div>
-              <button type="button" onClick={clearAll} style={{ background: 'transparent', border: 0, color: t.RUST, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>Clear all</button>
+            <div style={{ paddingTop: 20 }}>
+              <BSSetLabel t={t} meta={<button type="button" onClick={clearAll} style={{ ...bsSetLed(t, t.RUST), minHeight: 30, cursor: 'pointer' }}>Clear all</button>}>{notes.length} note{notes.length === 1 ? '' : 's'}</BSSetLabel>
             </div>
+            <div data-settings-plate="" style={{ ...bsSetPlate(t), overflow: 'hidden' }}>
             {notes.map((n, i) => (
-              <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: i < notes.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
+              <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK, lineHeight: 1.35 }}>{n.text}</div>
                   {n.at ? <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{when(n.at)}</div> : null}
                 </div>
-                <button type="button" onClick={async () => { if (await window.bsAskConfirm({ title: 'Forget this note?', name: n.text.slice(0, 60), message: 'Nora will no longer know this.', confirmLabel: 'Forget note' })) del(n); }} aria-label={`Forget note: ${n.text.slice(0, 40)}`} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 15, cursor: 'pointer', lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+                <button type="button" onClick={async () => { if (await window.bsAskConfirm({ title: 'Forget this note?', name: n.text.slice(0, 60), message: 'Nora will no longer know this.', confirmLabel: 'Forget note' })) del(n); }} aria-label={`Forget note: ${n.text.slice(0, 40)}`} style={{ background: 'transparent', border: 0, color: t.INK50, fontFamily: t.MONO, fontSize: 16, cursor: 'pointer', lineHeight: 1, minWidth: 32, minHeight: 32, padding: 0, flexShrink: 0 }}>×</button>
               </div>
             ))}
-            <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>Nora reads these to personalize her answers. Deleting a note here removes it from her memory immediately.</div>
+            </div>
+            <div style={{ marginTop: 12, fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.5 }}>Nora reads these to personalize her answers. Deleting a note here removes it from her memory immediately.</div>
           </React.Fragment>
         )}
       </div>
@@ -26227,7 +26228,7 @@ function BSNoraMemoryPage({ onBack }) {
 // Phone notifications on this device (client-onboarding review, L5): signing in no longer asks, so
 // this is where anyone (a coach too: coaches set no reminders) turns them on. Hidden where push does
 // not exist (the website, a build without the plugin).
-function BSPushPermissionRow() {
+function BSPushPermissionRow({ inset = false } = {}) {
   const t = useBS();
   const tr = useShapeTr();
   const [perm, setPerm] = useStateBSC(null);
@@ -26241,7 +26242,7 @@ function BSPushPermissionRow() {
     try { const next = await window.ShapePush?.ask?.(); if (next) setPerm(next); } catch (e) {}
   };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: `1px solid ${t.HAIR}` }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: inset ? '12px 14px' : '12px 0', borderBottom: `1px solid ${t.HAIR}` }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{tr('settings:push.title', { defaultValue: 'Phone notifications' })}</div>
         <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>
@@ -26258,7 +26259,7 @@ function BSPushPermissionRow() {
 function BSNotifyPrefs({ onBack, role }) {
   const t = useBS();
   const tr = useShapeTr();
-  const { BSPage, BSDetailHeader } = window;
+  const { BSPage } = window;
   const isCoach = role === 'trainer' || role === 'nutritionist' || role === 'dietitian';
   const [settings, setSettings] = useStateBSC(null);
   const [matrix, setMatrix] = useStateBSC({});
@@ -26331,13 +26332,19 @@ function BSNotifyPrefs({ onBack, role }) {
     ? [['client_red', 'Clients in the red', 'Crosses red on your triage'], ['client_amber', 'Clients edging amber', 'An early heads-up'], ['client_message', 'Client messages', 'When a client or their care team writes'], ['direct_message', 'Messages', 'When a member writes to you'], ['new_client', 'New clients', 'When someone signs up with you'], ['shared_client', 'Shared clients', 'When a client of yours also hires another coach'], ['sessions', 'Sessions', 'Requests, payments and cancellations'], ['payments', 'Payments', 'Sales and monthly renewals'], ['waitlist_join', 'Waiting list', 'When someone joins your waiting list'], ['credentials', 'Credentials', 'Verified, a fix needed, or a renewal due'], ['follows', 'Followers', 'New followers and follow requests'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"], ['account', 'From Shape', 'Notes about your account']]
     : [['directive', 'Your move', 'The one thing to do today'], ['coach_message', 'Coach messages', 'When your coach writes'], ['direct_message', 'Messages', 'When another member writes to you'], ['coach_content', 'From your coach', 'New workouts, programs, meal plans and grocery lists'], ['sessions', 'Sessions', 'Bookings, changes and cancellations'], ['checkin_due', 'Check-in reminders', 'Your weekly check-in is ready'], ['goal_slip', 'Goal pace', 'When your projected date slips'], ['score_drop', 'Shape Score', 'When it dips, and your weekly commitment'], ['tier_up', 'Tier ups', 'When you reach a new Shape Score tier'], ['coach_cosign', 'Co-signs', 'When a coach co-signs your work'], ['follows', 'Followers', 'New followers and follow requests'], ['streak_broken', 'Streak restarts', 'A gentle nudge — never shaming'], ['waitlist_invite', 'Waitlist invites', 'When a coach has room for you'], ['habit_reminder', 'Habit reminders', 'Set per-habit on the Habits page'], ['meal_prep', 'Prep reminders', 'The night before a meal that needs it'], ['friend_habit', "Friends' habits", "When a friend hasn't done a habit they shared with you"], ['payments', 'Receipts', 'When a payment goes through'], ['account', 'From Shape', 'Your welcome, and notes about your account']];
 
+  // The Settings look (owner, 2026-11-09: "make sure every other screen in settings is being looked
+  // at"): the switch is Settings' lit track, a group is a lit-dot label over a glass plate, a choice is
+  // a lit slot.
+  const teal = bsSetTeal(t);
+  const tealInk = bsSetTealInk(t);
+  const plate = { ...bsSetPlate(t), overflow: 'hidden' };
   const Toggle = ({ on, onClick }) => (
-    <button onClick={onClick} aria-pressed={on} style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? t.ACCENT : 'transparent', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
-      <span style={{ position: 'absolute', top: 2, left: on ? 21 : 2, width: 21, height: 21, borderRadius: 999, background: on ? '#fff' : t.INK50 }} />
+    <button type="button" onClick={onClick} aria-pressed={on} style={{ width: 46, height: 28, borderRadius: 999, padding: 3, boxSizing: 'border-box', border: `1px solid ${on ? bsTHexA(teal, t.isLight ? 0.55 : 0.6) : bsTHexA(t.INK, 0.18)}`, background: t.isLight ? bsTHexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start', cursor: 'pointer', flexShrink: 0 }}>
+      <span style={{ width: 20, height: 20, borderRadius: 999, display: 'block', background: on ? teal : bsTHexA(t.INK, 0.32), boxShadow: on && !t.isLight ? `0 0 10px ${bsTHexA(teal, 0.85)}` : 'none' }} />
     </button>
   );
   const Row = ({ label, sub, right, border = true }) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 0', borderBottom: border ? `1px solid ${t.HAIR}` : 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: border ? `1px solid ${t.HAIR}` : 0 }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{label}</div>
         {sub && <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{sub}</div>}
@@ -26345,14 +26352,14 @@ function BSNotifyPrefs({ onBack, role }) {
       {right}
     </div>
   );
-  const Head = (txt) => <div style={{ marginTop: 18, marginBottom: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{txt}</div>;
+  const Head = (txt) => <div style={{ paddingTop: 22 }}><BSSetLabel t={t}>{txt}</BSSetLabel></div>;
   const Pill = ({ value, opts, fmt, onChange }) => (
-    <select value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ background: 'transparent', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 9px', fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+    <select value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ background: t.isLight ? bsTHexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)', color: tealInk, border: `1px solid ${bsTHexA(teal, t.isLight ? 0.5 : 0.55)}`, borderRadius: 8, padding: '6px 9px', minHeight: 34, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
       {opts.map(o => <option key={o} value={o} style={{ color: '#000' }}>{fmt(o)}</option>)}
     </select>
   );
   const ChannelChip = ({ on, label, onClick }) => (
-    <button onClick={onClick} aria-pressed={on} style={{ width: 44, padding: '5px 0', borderRadius: 8, border: `1px solid ${on ? t.ACCENT : t.RULE}`, background: on ? `${t.ACCENT}22` : 'transparent', color: on ? t.ACCENT : t.INK50, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: 'pointer' }}>{label}</button>
+    <button type="button" onClick={onClick} aria-pressed={on} style={{ ...bsSetLed(t, tealInk, on), width: 44, minHeight: 30, justifyContent: 'center', padding: '5px 0', borderRadius: 8, fontSize: 8, letterSpacing: '0.04em', cursor: 'pointer' }}>{label}</button>
   );
   // An hour in the reader's language ('7 AM', '07 Uhr'), as their other times are.
   const hourLabel = (h) => { try { return new Date(2000, 0, 1, h).toLocaleTimeString(bsDateLocale(), { hour: 'numeric' }); } catch (e) { return _NP_HOURS.find(x => x.v === h)?.l || `${h}:00`; } };
@@ -26360,27 +26367,32 @@ function BSNotifyPrefs({ onBack, role }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker={tr('settings:section.notifications', { defaultValue: 'Notifications' })} title={<>{tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })}<br/>{tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}</>} />
+      <BSSetPageHead title={`${tr('settings:notifyPrefs.titleA', { defaultValue: 'What reaches' })} ${tr('settings:notifyPrefs.titleB', { defaultValue: 'you.' })}`} onBack={onBack} />
       {settings === null ? (
-        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:notifyPrefs.loading', { defaultValue: 'Loading…' })}</div>
+        <div style={{ padding: `4px ${t.padX}px 20px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:notifyPrefs.loading', { defaultValue: 'Loading…' })}</div>
       ) : (
-        <div style={{ padding: `4px ${t.padX}px 30px` }}>
-          <BSPushPermissionRow />
+        <div style={{ padding: `0 ${t.padX}px 30px` }}>
+          <div data-settings-plate="" style={plate}>
+          <BSPushPermissionRow inset />
           <Row label={tr('settings:notifyPrefs.mute', { defaultValue: 'Mute everything' })} sub={settings.muted ? tr('settings:notifyPrefs.muteOn', { defaultValue: 'All notifications paused' }) : tr('settings:notifyPrefs.muteOff', { defaultValue: 'Real events only — never spam' })} border={false} right={<Toggle on={settings.muted} onClick={() => saveSettings({ muted: !settings.muted })} />} />
+          </div>
           {!settings.muted && (
             <React.Fragment>
               {Head(tr('settings:notifyPrefs.quietHours', { defaultValue: 'Quiet hours' }))}
+              <div data-settings-plate="" style={plate}>
               <Row label={tr('settings:notifyPrefs.from', { defaultValue: 'From' })} sub={tr('settings:notifyPrefs.fromSub', { defaultValue: 'Held until quiet hours end' })} right={<Pill value={settings.quiet_start} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_start: v })} />} />
               <Row label={tr('settings:notifyPrefs.to', { defaultValue: 'To' })} sub={tr('settings:notifyPrefs.toSub', { defaultValue: "Uses your account's time zone" })} right={<Pill value={settings.quiet_end} opts={_NP_HOURS.map(h => h.v)} fmt={hourLabel} onChange={(v) => saveSettings({ quiet_end: v })} />} />
               <Row label={tr('settings:notifyPrefs.dailyLimit', { defaultValue: 'Daily limit' })} sub={tr('settings:notifyPrefs.dailyLimitSub', { defaultValue: 'Extra items batch into a digest' })} border={false} right={<Pill value={settings.daily_cap} opts={_NP_CAPS} fmt={(n) => tr('settings:notifyPrefs.perDay', { n, defaultValue: '{n}/day' })} onChange={(v) => saveSettings({ daily_cap: v })} />} />
+              </div>
 
               {Head(tr('settings:notifyPrefs.perChannel', { defaultValue: 'What you hear about · per channel' }))}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, padding: '0 0 6px' }}>
+              <div data-settings-plate="" style={plate}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, padding: '10px 14px 4px' }}>
                 {_NP_CHANNELS.map(([k, l]) => <span key={k} style={{ width: 44, textAlign: 'center', fontFamily: t.MONO, fontSize: 7, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: t.INK50 }}>{channelLabel(k, l)}</span>)}
               </div>
               {TYPES.map(([type, label, sub], i) => (
                 <React.Fragment key={type}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 0', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 14px', borderBottom: i < TYPES.length - 1 ? `1px solid ${t.HAIR}` : 0 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 500, color: t.INK }}>{tr(`settings:notifyPrefs.${side}.${type}`, { defaultValue: label })}</div>
                     {sub && <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{tr(`settings:notifyPrefs.${side}.${type}.sub`, { defaultValue: sub })}</div>}
@@ -26396,7 +26408,7 @@ function BSNotifyPrefs({ onBack, role }) {
                 </div>
                 {/* The prep reminder's hour, next to its switch (Phase 2). */}
                 {type === 'meal_prep' && prepHour != null && (
-                  <div data-prep-hour="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 0 10px 12px', borderLeft: `2px solid ${t.ACCENT}`, borderBottom: `1px solid ${t.HAIR}` }}>
+                  <div data-prep-hour="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 14px 10px 24px', boxShadow: `inset 2px 0 0 ${teal}`, borderBottom: `1px solid ${t.HAIR}` }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK }}>{tr('settings:notifyPrefs.prepHour', { defaultValue: 'Reminder time' })}</div>
                       <div style={{ marginTop: 1, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.04em', textTransform: 'uppercase', color: t.INK50 }}>{inQuiet(prepHour)
@@ -26404,15 +26416,16 @@ function BSNotifyPrefs({ onBack, role }) {
                         : tr('settings:notifyPrefs.prepHourSub', { defaultValue: 'The evening before, your time' })}</div>
                     </div>
                     <select value={prepHour} aria-label={tr('settings:notifyPrefs.prepHour', { defaultValue: 'Reminder time' })} onChange={(e) => savePrepHour(Number(e.target.value))}
-                      style={{ background: 'transparent', color: t.ACCENT, border: `1px solid ${t.RULE}`, borderRadius: 999, padding: '6px 9px', minHeight: 36, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
+                      style={{ background: t.isLight ? bsTHexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)', color: tealInk, border: `1px solid ${bsTHexA(teal, t.isLight ? 0.5 : 0.55)}`, borderRadius: 8, padding: '6px 9px', minHeight: 36, fontFamily: t.MONO, fontSize: 10, fontWeight: 800, cursor: 'pointer' }}>
                       {BS_PREP_HOURS.map((h) => <option key={h} value={h} style={{ color: '#000' }}>{hourLabel(h)}</option>)}
                     </select>
                   </div>
                 )}
                 </React.Fragment>
               ))}
+              </div>
               {!isCoach && <BSReminderManager />}
-              <div style={{ marginTop: 14, fontFamily: t.DISPLAY, fontSize: 12, fontWeight: 500, color: t.INK70, lineHeight: 1.5 }}>{tr('settings:notifyPrefs.footer', { defaultValue: 'Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.' })}</div>
+              <div style={{ marginTop: 14, fontFamily: t.BODY, fontSize: 12, color: t.INK50, lineHeight: 1.5 }}>{tr('settings:notifyPrefs.footer', { defaultValue: 'Push also needs your device’s system permission. Shape only notifies on a real event — never a guilt-trip; each one deep-links you in, nothing changes your data.' })}</div>
             </React.Fragment>
           )}
         </div>
@@ -26456,7 +26469,7 @@ function BSVideoCall({ url, onClose, title = 'Live call' }) {
 
 function BSSessionsScreen({ onBack }) {
   const t = useBS();
-  const { BSPage, BSDetailHeader } = window;
+  const { BSPage } = window;
   const [sessions, setSessions] = useStateBSC(null);
   const [busyId, setBusyId] = useStateBSC(null);
   const [call, setCall] = useStateBSC(null); // { url, title } when in a call
@@ -26496,13 +26509,13 @@ function BSSessionsScreen({ onBack }) {
   const SESSION_ICON = { video: '🎥', phone: '📞', inperson: '📍', message: '💬' };
   const statusColor = (st) => st === 'confirmed' ? t.GREEN : st === 'requested' ? t.AMBER : st === 'completed' ? t.BLUE : t.INK50;
 
+  // The Settings look (owner, 2026-11-09): the lit button, filled for the step to take, rust-framed for a
+  // cancel, drawn as Sign out is otherwise; each session on a glass plate, its state in a lit slot.
   const Btn = ({ onClick, label, kind = 'ghost', disabled }) => (
-    <button onClick={onClick} disabled={disabled} style={{
-      flex: kind === 'solid' ? 1 : 'none', padding: '11px 16px', borderRadius: 999, cursor: disabled ? 'wait' : 'pointer',
-      border: kind === 'solid' ? 0 : `1px solid ${kind === 'danger' ? t.RUST : t.RULE}`,
-      background: kind === 'solid' ? t.GREEN : 'transparent',
-      color: kind === 'solid' ? '#031f1c' : kind === 'danger' ? t.RUST : t.INK70,
-      fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+    <button type="button" onClick={onClick} disabled={disabled} style={{
+      ...bsSetBtn(t, kind === 'solid'), width: 'auto', minHeight: 40, padding: '9px 14px',
+      flex: kind === 'solid' ? 1 : 'none', cursor: disabled ? 'wait' : 'pointer',
+      ...(kind === 'danger' ? { border: `1px solid ${bsTHexA(t.RUST, 0.55)}`, color: t.RUST } : null),
       opacity: disabled ? 0.55 : 1,
     }}>{label}</button>
   );
@@ -26513,7 +26526,7 @@ function BSSessionsScreen({ onBack }) {
     const joinable = s.type === 'video' && s.meetingUrl && (s.status === 'confirmed');
     const sc = statusColor(s.status);
     return (
-      <div style={{ marginBottom: 10, borderRadius: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, overflow: 'hidden' }}>
+      <div data-settings-plate="" style={{ ...bsSetPlate(t), marginBottom: 10, overflow: 'hidden' }}>
         {/* status accent strip */}
         <div style={{ height: 3, background: sc }} />
         <div style={{ padding: '13px 15px 14px' }}>
@@ -26521,14 +26534,14 @@ function BSSessionsScreen({ onBack }) {
             <div style={{ display: 'flex', gap: 11, minWidth: 0 }}>
               <span style={{ fontSize: 22, lineHeight: 1.1, flexShrink: 0 }}>{SESSION_ICON[s.type] || '🗓'}</span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{who}</div>
+                <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{who}</div>
                 <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>
                   {_bsFormatSessionWhen(s.scheduledAt)} · {s.durationMin}m
                 </div>
                 {s.topic ? <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13, color: t.INK70, fontWeight: 500, lineHeight: 1.3 }}>{s.topic}</div> : null}
               </div>
             </div>
-            <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: sc, border: `1px solid ${sc}`, borderRadius: 999, padding: '3px 8px', whiteSpace: 'nowrap' }}>{s.status}</span>
+            <span style={{ ...bsSetLed(t, bsQuoteInk(sc, t.isLight, t.PAPER)), flexShrink: 0 }}>{s.status}</span>
           </div>
           <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {joinable && <Btn kind="solid" label="Join video call →" onClick={() => setCall({ url: s.meetingUrl, title: who })} />}
@@ -26545,8 +26558,8 @@ function BSSessionsScreen({ onBack }) {
 
   const Group = ({ title, kicker, items }) => items.length ? (
     <>
-      <BSSection title={title} kicker={kicker} meta={`${items.length}`} />
-      <div style={{ padding: `12px ${t.padX}px 4px` }}>
+      <BSSetSection title={title} meta={`${kicker} · ${items.length}`} />
+      <div style={{ padding: `0 ${t.padX}px 4px` }}>
         {items.map(s => <Card key={s.id} s={s} />)}
       </div>
     </>
@@ -26554,15 +26567,15 @@ function BSSessionsScreen({ onBack }) {
 
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Coaching" title={<>Your<br/>sessions.</>} />
+      <BSSetPageHead title="Your sessions." onBack={onBack} />
       {sessions === null && (
-        <div style={{ padding: `20px ${t.padX}px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
+        <div style={{ padding: `4px ${t.padX}px 20px`, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50 }}>Loading…</div>
       )}
       {sessions !== null && all.length === 0 && (
         <div style={{ padding: `0 ${t.padX}px 18px` }}>
-          <div style={{ borderTop: `2px solid ${t.INK}`, paddingTop: 14 }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 700, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>No sessions yet.</div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.45 }}>When a client books a consultation or session, it shows up here to confirm — and video calls happen right inside Shape.</div>
+          <div data-settings-plate="" style={{ ...bsSetPlate(t, 18, true), padding: '16px 14px' }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 600, color: t.INK, lineHeight: 1.15, letterSpacing: '-0.02em', marginBottom: 8 }}>No sessions yet.</div>
+            <div style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>When a client books a consultation or session, it shows up here to confirm — and video calls happen right inside Shape.</div>
           </div>
         </div>
       )}
@@ -31111,6 +31124,33 @@ Object.assign(window, {
 });
 
 // ═══════════════════════════════════════════════════════════
+// THE SETTINGS LOOK FOR THE PAGES A SETTINGS ROW OPENS (owner, 2026-11-09: "make sure every other
+// screen in settings is being looked at"): Notification center, What Nora remembers, Pricing, Help,
+// Contact, the legal summaries and Sessions open on the Settings head (BSSettingsHead, no kicker),
+// a group is the root's lit-dot label, a list sits on a glass plate, and an action is the lit button.
+// ═══════════════════════════════════════════════════════════
+function BSSetSection({ title, meta }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `22px ${t.padX}px 0` }}>
+      <BSSetLabel t={t} meta={meta ? <span style={bsSetLed(t, t.INK70, false)}>{meta}</span> : null}>{title}</BSSetLabel>
+    </div>
+  );
+}
+// The page's own head, then room before its first plate.
+function BSSetPageHead({ title, onBack }) {
+  return (<><BSSettingsHead title={title} onBack={onBack} /><div style={{ height: 16 }} /></>);
+}
+// A lit button: filled in the deeper teal (white words on a light paper, 5.2:1), or drawn as Sign out is.
+const bsSetBtn = (t, fill = false) => ({
+  width: '100%', minHeight: 46, padding: '12px 16px', boxSizing: 'border-box', borderRadius: 10, cursor: 'pointer',
+  border: `1px solid ${fill ? bsSetTealInk(t) : t.RULE}`, background: fill ? bsSetTealInk(t) : 'transparent',
+  color: fill ? (t.isLight ? '#ffffff' : '#04201d') : t.INK,
+  boxShadow: fill && !t.isLight ? `0 0 16px ${bsTHexA(bsSetTeal(t), 0.35)}` : 'none',
+  fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase',
+});
+
+// ═══════════════════════════════════════════════════════════
 // SHARED: detail page back-header
 // ═══════════════════════════════════════════════════════════
 function bsNoDetailBar() { return null; }
@@ -32228,16 +32268,15 @@ function BSLanguageSetting({ t }) {
     } catch (e) {}
     return l.nativeName;
   };
-  // Compact row (matches the Shape Radio row): label + a native dropdown — the full
-  // language list lives in the <select> popup instead of taking a screen of space.
+  // A row on Customize's Language & time plate: the name, then a native dropdown in the lit slot's
+  // well — the full language list lives in the <select> popup instead of taking a screen of space.
   // The dropdown itself shows the current selection, so no redundant subtitle.
+  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
   return (
-    <div style={{ padding: `14px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:language.row', { defaultValue: 'Language' })}</div>
-      </div>
+    <div data-bs-language="setting" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{tr('settings:language.row', { defaultValue: 'Language' })}</div>
       <select value={cur} onChange={(e) => window.ShapeLocale?.set?.(e.target.value)} aria-label={tr('settings:language.row', { defaultValue: 'Language' })}
-        style={{ flexShrink: 0, maxWidth: 170, padding: '10px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${bsTHexA(t.INK, 0.3)}`, background: bsTHexA(t.INK, 0.05), color: t.INK, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
+        style={{ flexShrink: 0, maxWidth: 170, minHeight: 40, padding: '8px 12px', borderRadius: 10, border: `1px solid ${bsTHexA(teal, t.isLight ? 0.5 : 0.55)}`, background: t.isLight ? bsTHexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
         {langs.map((l) => <option key={l.code} value={l.code} lang={cur}>{bsLangLabel(l)}</option>)}
       </select>
     </div>
@@ -32287,9 +32326,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // collapsed picker is a page whose entire body is a button saying "Customize",
   // and the thing they came for is two taps away instead of one. The toggle still
   // closes it; only the state it starts in changed.
-  const [showAppearance, setShowAppearance] = useStateBSC(true);
   const [appearTab, setAppearTab] = useStateBSC('paper');
-  const [showLightFx, setShowLightFx] = useStateBSC(false);
   // Light-fx tap-to-preview: picking a mode flashes the REAL overlay for a few
   // seconds so the choice is visible even while radio is off. When radio is
   // actively playing, BSRadioFx already renders it live — no second overlay.
@@ -32411,8 +32448,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // is the only reason to believe the next flag added won't quietly reopen this.
   // Deliberately NOT reset: `editing` (the inline identity edit ON the root — it
   // holds an unsaved draft, and discarding it is the very thing this PR exists to
-  // stop), and showAppearance/showLightFx/showCycleOptIn (inline sections, not
-  // takeovers — they render no early return, so they never hide the root).
+  // stop), and showCycleOptIn (an inline sheet, not a takeover — it renders no
+  // early return, so it never hides the root).
   // Declared here, below every flag, so the closure can never read a TDZ binding.
   React.useEffect(() => {
     const toRoot = () => {
@@ -33305,176 +33342,174 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     setEditField(null);
   };
 
-  // ── THE SETTINGS LOOK: A · INDEX (owner, 2026-10-27, from a preview of two options:
-  // "go with A, but make sure these are rounded not so square", "keep the teal coloring",
-  // "dont need the perfect square toggle") ─────────────────────────────────────────────
-  // Every page opens on a headline over a double ink rule; a setting is a ruled row, never
-  // a box; the doors are a numbered index; and what is still a control is rounded: pill
-  // switches, pill pickers and 12px tiles. It replaces the Passport's squared, chamfered
-  // boxes (owner, 2026-09-14: "give the boxes a more square edgy look").
+  // ── THE SETTINGS LOOK: THE LIT PANEL, ON EVERY PANE (owner, 2026-11-09: "need to improve every
+  // other page in app settings with updated look"; the root has been the lit panel since 2026-11-04,
+  // "option C for settings page") ──────────────────────────────────────────────────────────────────
+  // Every pane opens on the root's head (BSSettingsHead: the title over a teal hairline, no kicker,
+  // owner: "remove this", "everywhere in settings"); a group is a lit-dot label over a glass plate; a
+  // setting is a row on the plate, its reading in a lit slot; a choice is a row of lit slots, the
+  // chosen one lit; a switch is a lit track. The parts are BSSettingsRoot.jsx's, so a pane and the root
+  // cannot drift apart. What stays from the A · Index look (owner, 2026-10-27): "rounded not so square",
+  // "keep the teal coloring", "dont need the perfect square toggle".
   // ⚠ THE ONE COLOUR IS THE THEME'S TEAL, NOT `t.ACCENT`. The member's accent defaults to
   // blue, and the preview the owner chose was teal throughout. Small teal TEXT takes the
   // deeper teal, because #0a8f87 reads 3.7:1 on the Cream paper and the deeper one 4.6:1;
-  // a selected pill fills with the deeper teal too, so its white label reads 5.2:1.
+  // a filled teal button takes the deeper teal too, so its white label reads 5.2:1.
   const sTeal = t.isLight ? '#0a8f87' : '#34d6c5';
   const sTealInk = t.isLight ? '#0a7a72' : '#34d6c5';
   const sOnTeal = t.isLight ? '#ffffff' : '#04201d';
+  const led = (c, on = true) => bsSetLed(t, c, on);
+  const lamp = (c, on = true) => <BSSetLamp t={t} c={c} on={on} />;
+  const plate = (radius = 16, grid = false) => bsSetPlate(t, radius, grid);
+  // A colour as small text reads on this paper: mixed toward the ink only as far as 4.5:1 needs (the
+  // tier's gold read about 2:1 on the Cream paper), so a lit slot's words stay legible on every paper.
+  const slotInk = (c) => bsQuoteInk(c, t.isLight, t.PAPER);
+  const ell = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+  // The words on a plate: a row's name, its line of explanation, and a mono sub-label inside a group.
+  const rowName = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', lineHeight: 1.2 };
+  const rowDesc = { marginTop: 5, fontFamily: t.BODY, fontSize: 12, lineHeight: 1.45, color: t.INK50 };
+  const subLabel = { fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50 };
+  // The inset a field or a select sits in: the lit slot's well, larger.
+  const well = (focus) => ({ background: t.isLight ? bsTHexA(t.INK, 0.04) : 'rgba(0,0,0,0.38)', border: `1px solid ${focus ? sTeal : bsTHexA(t.INK, 0.14)}`, boxShadow: focus && !t.isLight ? `0 0 0 3px ${bsTHexA(sTeal, 0.16)}` : 'none' });
 
-  // A swatch tile (Paper, Texture, Accent, Ink, weight, size, light colour): the swatch is a
-  // rounded 12px tile with the label under it, and the chosen one carries a teal ring and ✓.
+  // A swatch tile (Paper, Texture, Accent, Ink, weight, size): the swatch is a rounded 12px
+  // tile with the label under it; the chosen one carries a teal frame, its glow and a ✓.
   const OptGrid = ({ children }) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px 9px' }}>{children}</div>
   );
   const OptCell = ({ on, onClick, label, title, children }) => (
-    <button onClick={onClick} aria-pressed={on} title={title || label} style={{
+    <button type="button" onClick={onClick} aria-pressed={on} title={title || label} style={{
       padding: 0, cursor: 'pointer', textAlign: 'left', border: 0, background: 'transparent',
       display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0,
     }}>
       <span aria-hidden="true" style={{ position: 'relative', display: 'block', width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 12, overflow: 'hidden', flexShrink: 0,
-        border: on ? `2px solid ${sTeal}` : `1px solid ${t.RULE}`, background: t.PAPER2 }}>
+        border: on ? `2px solid ${sTeal}` : `1px solid ${bsTHexA(t.INK, 0.14)}`, background: t.PAPER2,
+        boxShadow: on ? (t.isLight ? `0 0 0 3px ${bsTHexA(sTeal, 0.14)}` : `0 0 12px ${bsTHexA(sTeal, 0.45)}`) : 'none' }}>
         {children}
         {on && (
           <span style={{ position: 'absolute', top: 4, right: 4, width: 15, height: 15, borderRadius: 999, background: sTeal, color: sOnTeal, fontSize: 9, lineHeight: '15px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
         )}
       </span>
       <span style={{ display: 'block', width: '100%', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-        color: on ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        color: on ? sTealInk : t.INK70, ...ell }}>{label}</span>
     </button>
   );
 
-  // The pill switch, as the app draws it everywhere else: teal when on.
+  // The switch, lit: the slot's well as its track, a 1px teal frame and a teal knob that glows on a dark
+  // paper when on; an ink knob on a plain frame when off.
   const Toggle = ({ on, onClick }) => (
-    <button onClick={onClick} aria-pressed={!!on} style={{
-      width: 44, height: 26, borderRadius: 999, padding: 3, cursor: 'pointer', flexShrink: 0, boxSizing: 'border-box',
-      border: 0, background: on ? sTeal : bsTHexA(t.INK, 0.18),
+    <button type="button" onClick={onClick} aria-pressed={!!on} style={{
+      width: 46, height: 28, borderRadius: 999, padding: 3, cursor: 'pointer', flexShrink: 0, boxSizing: 'border-box',
+      border: `1px solid ${on ? bsTHexA(sTeal, t.isLight ? 0.55 : 0.6) : bsTHexA(t.INK, 0.18)}`,
+      background: t.isLight ? bsTHexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)',
       display: 'flex', alignItems: 'center', justifyContent: on ? 'flex-end' : 'flex-start',
-      transition: 'background 140ms ease',
     }}>
-      <span style={{ width: 20, height: 20, borderRadius: 999, background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }} />
+      <span style={{ width: 20, height: 20, borderRadius: 999, display: 'block', background: on ? sTeal : bsTHexA(t.INK, 0.32), boxShadow: on && !t.isLight ? `0 0 10px ${bsTHexA(sTeal, 0.85)}` : 'none', transition: 'background 140ms ease' }} />
     </button>
   );
 
-  // A pill picker: one rounded track, the chosen option a teal pill inside it.
-  const PillPicker = ({ options, value, onPick, labels }) => (
-    <div role="radiogroup" style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 999, background: bsTHexA(t.INK, 0.07) }}>
+  // A choice of a few: a row of lit slots, the chosen one lit, as the root's Preview as draws it.
+  const SlotPicker = ({ options, value, onPick, labels }) => (
+    <div role="radiogroup" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(1, options.length)}, minmax(0, 1fr))`, gap: 6 }}>
       {options.map((opt, j) => {
         const on = value === opt;
         return (
-          <button key={opt} role="radio" aria-checked={on} onClick={() => onPick(opt)} style={{
-            flex: 1, minWidth: 0, minHeight: 32, padding: '7px 10px', borderRadius: 999, border: 0, cursor: 'pointer',
-            background: on ? sTealInk : 'transparent', color: on ? sOnTeal : t.INK70,
-            fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'background 140ms ease',
-          }}>{(labels && labels[j]) || opt}</button>
+          <button key={opt} type="button" role="radio" aria-checked={on} onClick={() => onPick(opt)} style={{
+            ...led(sTealInk, on), justifyContent: 'center', minWidth: 0, minHeight: 44, borderRadius: 8, cursor: 'pointer', fontSize: 9,
+          }}>{lamp(sTeal, on)}<span style={ell}>{(labels && labels[j]) || opt}</span></button>
         );
       })}
     </div>
   );
 
-  // A section's head inside a page: the display face over a 2px ink rule.
+  // A group inside a pane: its label, a lit dot and mono capitals, as on the root.
   const SectionHead = ({ title, meta }) => (
-    <div style={{ padding: `30px ${t.padX}px 0` }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingBottom: 8, borderBottom: `2px solid ${t.INK}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 23, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em', lineHeight: 1.1 }}>{title}</div>
-        {meta ? <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, flexShrink: 0 }}>{meta}</span> : null}
-      </div>
+    <div style={{ padding: `22px ${t.padX}px 0` }}>
+      <BSSetLabel t={t} meta={meta ? <span style={led(t.INK70, false)}>{meta}</span> : null}>{title}</BSSetLabel>
     </div>
   );
 
-  // A page's own title: an optional teal kicker, the headline, and the double ink rule.
-  const SettingsTitle = ({ kicker, title }) => (
-    <div style={{ padding: `14px ${t.padX}px 0` }}>
-      {kicker ? <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: sTealInk }}>{kicker}</div> : null}
-      <div role="heading" aria-level={1} style={{ marginTop: kicker ? 6 : 0, fontFamily: t.DISPLAY, fontSize: 40, fontWeight: 600, color: t.INK, letterSpacing: '-0.035em', lineHeight: 1.02, textWrap: 'balance' }}>{title}</div>
-      <div aria-hidden="true" style={{ marginTop: 12, borderTop: `3px solid ${t.INK}`, paddingTop: 2 }}><div style={{ borderTop: `1px solid ${t.INK}` }} /></div>
-    </div>
-  );
-
-  // The Edit profile page's Cancel · Save: rounded, Save filled teal. `tall` is the 44px
-  // row, the review's comfortable-row height, above the 24px floor.
-  const PassportBtn = ({ label, onClick, fill, tall, grow = true }) => (
-    <button onClick={onClick} style={{
-      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: tall ? 44 : undefined, padding: tall ? '10px 20px' : '10px 14px',
-      borderRadius: 999, cursor: 'pointer',
-      border: `1.5px solid ${fill ? sTealInk : t.RULE}`, background: fill ? sTealInk : 'transparent',
-      color: fill ? sOnTeal : t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
-      letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  // Cancel · Save (the Edit profile page): Cancel drawn as Sign out is, Save filled with the deeper teal.
+  const PassportBtn = ({ label, onClick, fill, grow = true }) => (
+    <button type="button" onClick={onClick} style={{
+      flex: grow ? 1 : '0 0 auto', minWidth: 0, minHeight: 44, padding: '10px 20px', borderRadius: 10, cursor: 'pointer',
+      border: `1px solid ${fill ? sTealInk : t.RULE}`, background: fill ? sTealInk : 'transparent',
+      boxShadow: fill && !t.isLight ? `0 0 16px ${bsTHexA(sTeal, 0.35)}` : 'none',
+      color: fill ? sOnTeal : t.INK70, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800,
+      letterSpacing: '0.16em', textTransform: 'uppercase', ...ell,
     }}>{label}</button>
   );
 
   // ⚠ `onBack` IS WHERE THE ROW RETURNS TO, AND IT DEFAULTS TO THE SETTINGS ROOT. The
   // tile panes are `detail` values and close with setDetail(''); the Edit profile page
-  // is keyed on `editing` (see there for why) and passes cancelEdit. Either way the row
-  // reads "← Settings" and lands ON Settings — never on the shell's own onBack, which
-  // closes Settings and lands on Home.
-  // The kicker numbers the page as the root's index does ("01 · Settings"); a page the
-  // index does not list (Cycle, Edit profile) reads "Settings".
-  const DetailBack = ({ title, onBack: back = () => setDetail('') }) => {
-    const at = passportTiles.findIndex((p) => p.detail === detail);
-    const settingsWord = tr('settings:head.title', { defaultValue: 'Settings' });
-    return (
-      <>
-        {/* Masthead row first (the one inset), then ← Settings on its own row,
-            flush left — the house rule for every drill-in pane. */}
-        <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 2px` }}>
-          {window.BSMastRow && <window.BSMastRow trailing={<BSMeCorner />} />}
-          {/* The shared back row: a full-height tap target with its ← on the gutter (it was a 13px
-              row padded to 29px; BSBackRow, owner 2026-10-31). Every pane renders this one row. */}
-          <BSBackRow onBack={back} />
-        </div>
-        <SettingsTitle kicker={at >= 0 ? `${String(at + 1).padStart(2, '0')} · ${settingsWord}` : settingsWord} title={title} />
-        <div style={{ height: 6 }} />
-      </>
-    );
-  };
+  // is keyed on `editing` (see there for why) and passes cancelEdit. Either way the ←
+  // lands ON Settings — never on the shell's own onBack, which closes Settings and lands
+  // on Home. The head is the root's own (BSSettingsHead), with no kicker over the title.
+  const DetailBack = ({ title, onBack: back = () => setDetail('') }) => (
+    <>
+      <BSSettingsHead title={title} onBack={back} />
+      <div style={{ height: 16 }} />
+    </>
+  );
 
-  // Shared row renderer (dropdown / segmented / link rows) for the detail panes.
+  // A pane's rows: one glass plate, a setting to a row, its reading in a lit slot at the right. A
+  // setting the member chose reads lit in teal (dark when it is Off); a door, a link or a value to
+  // edit reads in an unlit slot with its →. A segmented row draws its choices as lit slots under
+  // its name. The whole row is the control, so every row is a full-height tap.
   const renderRows = (rows) => (
-    <div style={{ padding: `4px ${t.padX}px` }}>
-      {rows.map((s, i, arr) => {
-        const rowBorder = i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`;
-        if (s.dropdown) {
-          return (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-              <button onClick={(e) => openDropdown(e, s)} style={{
-                maxWidth: '64%', background: 'transparent', border: 0, outline: 'none', padding: 0, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 6, color: sTealInk, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
-              }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prefs[s.key]}</span>
-                <span style={{ fontSize: 8, opacity: 0.7, flexShrink: 0 }}>▾</span>
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+        {rows.map((s, i) => {
+          const rowBox = { display: 'block', width: '100%', boxSizing: 'border-box', minHeight: 52, padding: '13px 14px', border: 0, borderTop: i ? `1px solid ${t.HAIR}` : 0, background: 'transparent', textAlign: 'left', color: t.INK };
+          const line = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 };
+          const desc = s.desc ? <span style={{ ...rowDesc, display: 'block' }}>{s.desc}</span> : null;
+          if (s.dropdown) {
+            return (
+              <button key={i} type="button" onClick={(e) => openDropdown(e, s)} style={{ ...rowBox, cursor: 'pointer' }}>
+                <span style={line}>
+                  <span style={{ ...rowName, flexShrink: 0 }}>{s.l}</span>
+                  <span style={{ ...led(sTealInk), maxWidth: '58%' }}><span style={ell}>{prefs[s.key]}</span><span aria-hidden="true" style={{ fontSize: 8, opacity: 0.8 }}>▾</span></span>
+                </span>
+                {desc}
               </button>
-            </div>
-          );
-        }
-        if (s.segmented) {
-          return (
-            <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-              <div style={{ marginTop: 10 }}>
-                <PillPicker options={s.segmented} labels={s.segLabels}
-                  value={s.value !== undefined ? s.value : prefs[s.key]}
-                  onPick={(opt) => (s.onPick ? s.onPick(opt) : setPref(s.key, opt))} />
+            );
+          }
+          if (s.segmented) {
+            return (
+              <div key={i} style={rowBox}>
+                <span style={{ ...rowName, display: 'block' }}>{s.l}</span>
+                <div style={{ marginTop: 10 }}>
+                  <SlotPicker options={s.segmented} labels={s.segLabels}
+                    value={s.value !== undefined ? s.value : prefs[s.key]}
+                    onPick={(opt) => (s.onPick ? s.onPick(opt) : setPref(s.key, opt))} />
+                </div>
+                {desc}
               </div>
-              {s.desc && <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
-            </div>
+            );
+          }
+          const value = s.key ? prefs[s.key] : s.r;
+          const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
+          const lit = !!s.key && value !== 'Off';
+          const inner = (
+            <>
+              <span style={line}>
+                <span style={{ ...rowName, minWidth: 0, color: s.alert ? t.RUST : t.INK }}>{s.l}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, maxWidth: '58%', minWidth: 0 }}>
+                  {/* A reading with nothing to do (the account's email, its phone) is plain text, as
+                      typed: never capitals in a slot, which would print an address in upper case. */}
+                  {value && !onTap ? <span style={{ fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, ...ell }}>{value}</span> : null}
+                  {value && onTap ? <span style={{ ...led(s.alert ? t.RUST : (s.key ? sTeal : t.INK70), lit || !!s.alert), minWidth: 0, flexShrink: 1 }}>{s.key ? lamp(sTeal, lit) : null}<span style={ell}>{value}</span></span> : null}
+                  {s.action ? <span aria-hidden="true" style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1 }}>→</span> : null}
+                </span>
+              </span>
+              {desc}
+            </>
           );
-        }
-        const value = s.key ? prefs[s.key] : s.r;
-        const onTap = s.key ? () => cyclePref(s.key, s.l) : (s.action || undefined);
-        return (
-          <div key={i} style={{ padding: `${t.rowY + 12}px 0`, borderBottom: rowBorder }}>
-            <div onClick={onTap} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-              cursor: (s.action || (s.key && !s.segmented && !s.dropdown)) ? 'pointer' : 'default',
-            }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em', flexShrink: 0 }}>{s.l}</span>
-              {value && <BSEyebrow color={s.key ? sTealInk : undefined}>{value}</BSEyebrow>}
-            </div>
-            {s.desc && <div style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{s.desc}</div>}
-          </div>
-        );
-      })}
+          return onTap
+            ? <button key={i} type="button" onClick={onTap} style={{ ...rowBox, cursor: 'pointer' }}>{inner}</button>
+            : <div key={i} style={rowBox}>{inner}</div>;
+        })}
+      </div>
     </div>
   );
 
@@ -33906,23 +33941,19 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           : tr('settings:plan.renewsMonthly', { defaultValue: 'Renews monthly' });
         const cornerLabel = hasSub ? renewsLabel : (signedIn ? tr('settings:plan.inactive', { defaultValue: 'Membership inactive' }) : tr('settings:plan.notMember', { defaultValue: 'Not a member' }));
         const btnLabel = hasSub ? tr('settings:plan.manage', { defaultValue: 'Manage →' }) : (signedIn ? tr('settings:plan.activate', { defaultValue: 'Activate membership →' }) : tr('settings:plan.join', { defaultValue: 'Join now →' }));
-        // The plan as a pulled-out line (the Settings look, owner 2026-10-27): no box, a
-        // teal quote mark, and the action as an underlined link.
+        // The plan on the lit panel: the dotted plate the root's profile sits on, the plan's state in a
+        // lit slot (amber until it is active), and its action as the plate's foot, as Edit profile is
+        // the profile plate's.
+        const planC = hasSub ? sTeal : (t.AMBER || '#d8a23a');
         return (
-          <div style={{ padding: `0 ${t.padX}px` }}>
-            <div style={{ padding: '16px 0 18px', borderBottom: `1px solid ${t.HAIR}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                <BSEyebrow color={t.AMBER}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSEyebrow>
-                <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{cornerLabel}</span>
+          <div style={{ padding: `0 ${t.padX}px 14px` }}>
+            <div data-settings-plan="" style={{ ...plate(18, true), overflow: 'hidden' }}>
+              <div style={{ padding: '13px 14px 14px' }}>
+                <BSSetLabel t={t} meta={<span style={led(planC, hasSub)}>{lamp(planC, hasSub)}{cornerLabel}</span>}>{tr('settings:plan.your', { defaultValue: 'Your plan' })}</BSSetLabel>
+                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 22, fontWeight: 600, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15 }}>Shape {hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</div>
+                <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
               </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                <span aria-hidden="true" style={{ flexShrink: 0, fontFamily: t.DISPLAY, fontSize: 50, fontWeight: 700, lineHeight: 0.8, color: sTeal }}>“</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 24, fontWeight: 500, color: t.INK, letterSpacing: '-0.02em', lineHeight: 1.15 }}>Shape {hasSub ? tr('settings:plan.member', { defaultValue: 'Member.' }) : tr('settings:plan.membership', { defaultValue: 'Membership.' })}</div>
-                  <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{hasSub ? tr('settings:plan.subActive', { price: priceLabel, defaultValue: '{price} · Radio · Community · Marketplace' }) : tr('settings:plan.subInactive', { defaultValue: 'Become a member to join the community' })}</div>
-                  <button onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ marginTop: 6, padding: '6px 0', border: 0, background: 'transparent', cursor: 'pointer', color: t.INK, fontFamily: t.BODY, fontSize: 14, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 4, textDecorationThickness: 2, textDecorationColor: sTeal }}>{btnLabel}</button>
-                </div>
-              </div>
+              <button type="button" onClick={hasSub ? openBillingPortal : openUpgradeCheckout} style={{ width: '100%', minHeight: 46, border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', color: sTealInk, textShadow: t.isLight ? 'none' : `0 0 8px ${bsTHexA(sTeal, 0.6)}`, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{btnLabel}</button>
             </div>
           </div>
         );
@@ -34107,11 +34138,10 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           exactly as its card was: a coach has no cycle to track. */}
       {detail === 'health' && (<>
         <DetailBack title={tr('settings:section.health', { defaultValue: 'Health integrations' })} />
-        {renderRows(findSec('Health integrations').rows)}
-        {/* ⚠ NO SECTION HEAD ABOVE IT. One read it "Cycle / Cycle · Off · phase,
+        {/* ⚠ NO SECTION HEAD ABOVE THE CYCLE ROW. One read it "Cycle / Cycle · Off · phase,
             patterns & calendar" — the heading saying the row's own name back to it.
-            The row is self-describing; a head here is a word printed twice. */}
-        {!isCoachRole && renderRows([{ l: tr('cycle:settings.card', { defaultValue: 'Cycle' }), r: cycleSummary, action: () => setDetail('cycle') }])}
+            The row is self-describing, so it is the last row on the same plate. */}
+        {renderRows([...findSec('Health integrations').rows, ...(!isCoachRole ? [{ l: tr('cycle:settings.card', { defaultValue: 'Cycle' }), r: cycleSummary, action: () => setDetail('cycle') }] : [])])}
       </>)}
       {/* Nora's voice joins Notifications because it is the same question — how
           the app speaks to you — and because it was defined in `sections` and
@@ -34144,53 +34174,51 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           pref-cycle/action) can't express. Plain cycle language is allowed
           HERE (a cycle surface); the Home lever stays neutral. */}
       {detail === 'cycle' && (() => {
-        const rowPad = { padding: `${t.rowY + 12}px 0`, borderBottom: `1px solid ${t.HAIR}` };
-        const rowTitle = { fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' };
-        const rowDesc = { marginTop: 9, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 };
+        const rowBox = (i) => ({ padding: '13px 14px', borderTop: i ? `1px solid ${t.HAIR}` : 0 });
         return (<>
           <DetailBack title={tr('cycle:settings.card', { defaultValue: 'Cycle' })} />
-          <div style={{ padding: `4px ${t.padX}px` }}>
-            {/* Tracking — OFF→ON opens the consent sheet; ON→OFF routes to the
-                confirmed delete (never a silent flag flip). */}
-            <div style={rowPad}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={rowTitle}>{tr('cycle:settings.tracking', { defaultValue: 'Cycle tracking' })}</span>
-                <Toggle on={cycle.optIn} onClick={() => { if (cycleBusy) return; setCycleErr(''); if (cycle.optIn) doCycleOptOut(); else setShowCycleOptIn(true); }} />
+          <div style={{ padding: `0 ${t.padX}px` }}>
+            <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+              {/* Tracking — OFF→ON opens the consent sheet; ON→OFF routes to the
+                  confirmed delete (never a silent flag flip). */}
+              <div style={rowBox(0)}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={rowName}>{tr('cycle:settings.tracking', { defaultValue: 'Cycle tracking' })}</span>
+                  <Toggle on={cycle.optIn} onClick={() => { if (cycleBusy) return; setCycleErr(''); if (cycle.optIn) doCycleOptOut(); else setShowCycleOptIn(true); }} />
+                </div>
+                <div style={rowDesc}>{tr('cycle:settings.trackingDesc', { defaultValue: 'Log the first day of your period; Shape reads your phase and the patterns that come with it. Private to you unless you share it.' })}</div>
               </div>
-              <div style={rowDesc}>{tr('cycle:settings.trackingDesc', { defaultValue: 'Log the first day of your period; Shape reads your phase and the patterns that come with it. Private to you unless you share it.' })}</div>
+
+              {/* Share — disabled until opted in (absence, not a padlock: the row
+                  simply can't move, and says why in plain language). */}
+              <div style={{ ...rowBox(1), opacity: cycle.optIn ? 1 : 0.45 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={rowName}>{tr('cycle:settings.share', { defaultValue: 'Share with your coach' })}</span>
+                  <Toggle on={cycle.share} onClick={toggleCycleShare} />
+                </div>
+                <div style={rowDesc}>{cycle.optIn
+                  ? tr('cycle:settings.shareDesc', { defaultValue: 'Your linked coach(es) see your phase and recent start dates — so training and food can follow your week. Turn it off any time.' })
+                  : tr('cycle:settings.shareOffDesc', { defaultValue: 'Available once cycle tracking is on.' })}</div>
+              </div>
+
+              {cycle.optIn ? (
+                <button type="button" onClick={() => { setDetail(''); onBack && onBack(); try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
+                  style={{ ...rowBox(1), width: '100%', boxSizing: 'border-box', minHeight: 52, border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, textAlign: 'left', color: t.INK }}>
+                  <span style={rowName}>{tr('cycle:settings.openCalendar', { defaultValue: 'Open cycle calendar' })}</span>
+                  <span style={led(sTealInk)}>{tr('cycle:settings.open', { defaultValue: 'Open' })} →</span>
+                </button>
+              ) : null}
             </div>
 
-            {/* Share — disabled until opted in (absence, not a padlock: the row
-                simply can't move, and says why in plain language). */}
-            <div style={{ ...rowPad, opacity: cycle.optIn ? 1 : 0.45 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={rowTitle}>{tr('cycle:settings.share', { defaultValue: 'Share with your coach' })}</span>
-                <Toggle on={cycle.share} onClick={toggleCycleShare} />
-              </div>
-              <div style={rowDesc}>{cycle.optIn
-                ? tr('cycle:settings.shareDesc', { defaultValue: 'Your linked coach(es) see your phase and recent start dates — so training and food can follow your week. Turn it off any time.' })
-                : tr('cycle:settings.shareOffDesc', { defaultValue: 'Available once cycle tracking is on.' })}</div>
-            </div>
+            {cycleErr ? <div role="alert" style={{ padding: '12px 2px 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{cycleErr}</div> : null}
 
             {cycle.optIn ? (
-              <div style={rowPad}>
-                <button onClick={() => { setDetail(''); onBack && onBack(); try { window.dispatchEvent(new CustomEvent('shape:openCycle')); } catch (e) {} }}
-                  style={{ width: '100%', background: 'transparent', border: 0, padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 24 }}>
-                  <span style={rowTitle}>{tr('cycle:settings.openCalendar', { defaultValue: 'Open cycle calendar' })}</span>
-                  <span style={{ fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: sTealInk }}>{tr('cycle:settings.open', { defaultValue: 'Open' })} →</span>
+              <div style={{ padding: '18px 0 8px' }}>
+                <button type="button" onClick={doCycleOptOut} disabled={!!cycleBusy}
+                  style={{ width: '100%', minHeight: 44, borderRadius: 10, border: `1px solid ${bsTHexA(t.RUST, 0.55)}`, background: 'transparent', cursor: cycleBusy ? 'default' : 'pointer', opacity: cycleBusy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.RUST }}>
+                  {cycleBusy === 'optout' ? tr('cycle:settings.stopping', { defaultValue: 'Stopping…' }) : tr('cycle:settings.stop', { defaultValue: 'Stop tracking & delete' })}
                 </button>
-              </div>
-            ) : null}
-
-            {cycleErr ? <div style={{ padding: '12px 0 0', fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.RUST }}>{cycleErr}</div> : null}
-
-            {cycle.optIn ? (
-              <div style={{ padding: `${t.rowY + 14}px 0 8px` }}>
-                <button onClick={doCycleOptOut} disabled={!!cycleBusy}
-                  style={{ background: 'transparent', border: 0, padding: '10px 0', minHeight: 44, cursor: cycleBusy ? 'default' : 'pointer', opacity: cycleBusy ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST }}>
-                  <span style={{ borderBottom: `2px solid ${bsTHexA(t.RUST, 0.4)}`, paddingBottom: 2 }}>{cycleBusy === 'optout' ? tr('cycle:settings.stopping', { defaultValue: 'Stopping…' }) : tr('cycle:settings.stop', { defaultValue: 'Stop tracking & delete' })}</span>
-                </button>
-                <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 12.5, fontWeight: 500, lineHeight: 1.45, color: t.INK50 }}>{tr('cycle:settings.stopDesc', { defaultValue: 'Deletes every date you logged and stops sharing. This cannot be undone.' })}</div>
+                <div style={{ ...rowDesc, marginTop: 8, padding: '0 2px' }}>{tr('cycle:settings.stopDesc', { defaultValue: 'Deletes every date you logged and stops sharing. This cannot be undone.' })}</div>
               </div>
             ) : null}
           </div>
@@ -34208,7 +34236,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         {isCoachRole && myListing && !myListing.ready && window.BSListingNotice && (() => {
           const Notice = window.BSListingNotice;
           return (
-            <div style={{ padding: `12px ${t.padX}px 0` }}>
+            <div style={{ padding: `0 ${t.padX}px 14px` }}>
               <Notice listing={myListing} onRates={() => setShowRates(true)} onPhotos={() => setListingSheet('photos')} onPayouts={startPayoutSetup} />
             </div>
           );
@@ -34226,71 +34254,72 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             listing of the role in use; at capacity a coach's current clients still book and buy,
             and new ones join the waiting list (task #10). */}
         {capacity && isCoachRole && (
-          <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}`, background: capacity.atCapacity ? t.PAPER2 : 'transparent' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ minWidth: 0 }}>
-                <BSEyebrow color={capacity.atCapacity ? t.RUST : t.GREEN}>{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Taking new clients' })}</BSEyebrow>
-                <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new clients' })}</div>
-                <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
-                  {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients can join your waiting list. Your current clients still book and buy.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on when you are full. New clients join your waiting list instead.' })}
-                </div>
-                {capacity.atCapacity && capacity.resumeAt ? (
-                  <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK70 }}>
-                    {tr('settings:capacity.resumes', { date: (capacity.resumeOn ? new Date(capacity.resumeOn + 'T12:00:00') : new Date(capacity.resumeAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Reopens {date}' })}
-                  </div>
-                ) : null}
-              </div>
-              <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
-            </div>
-            {capacity.atCapacity && (
-              <div data-intros-at-capacity="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.HAIR}` }}>
+          <div style={{ padding: `14px ${t.padX}px 0` }}>
+            <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 14px' }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{tr('settings:capacity.introsTitle', { defaultValue: 'Free intros while full' })}</div>
-                  <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, lineHeight: 1.35 }}>
-                    {capacity.introsAtCapacity ? tr('settings:capacity.introsOn', { defaultValue: 'Members can still book a free intro with you.' }) : tr('settings:capacity.introsOff', { defaultValue: 'Closed until you reopen. Members you invite off the list can still book one.' })}
+                  <span style={led(slotInk(capacity.atCapacity ? t.RUST : t.GREEN))}>{lamp(slotInk(capacity.atCapacity ? t.RUST : t.GREEN))}{capacity.atCapacity ? tr('settings:capacity.atCapacity', { defaultValue: 'At capacity' }) : tr('settings:capacity.open', { defaultValue: 'Taking new clients' })}</span>
+                  <div style={{ ...rowName, marginTop: 8 }}>{tr('settings:capacity.pause', { defaultValue: 'Pause new clients' })}</div>
+                  <div style={rowDesc}>
+                    {capacity.atCapacity ? tr('settings:capacity.descOn', { defaultValue: 'New clients can join your waiting list. Your current clients still book and buy.' }) : tr('settings:capacity.descOff', { defaultValue: 'Turn on when you are full. New clients join your waiting list instead.' })}
                   </div>
+                  {capacity.atCapacity && capacity.resumeAt ? (
+                    <div style={{ ...subLabel, marginTop: 6, color: t.INK70 }}>
+                      {tr('settings:capacity.resumes', { date: (capacity.resumeOn ? new Date(capacity.resumeOn + 'T12:00:00') : new Date(capacity.resumeAt)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), defaultValue: 'Reopens {date}' })}
+                    </div>
+                  ) : null}
                 </div>
-                <Toggle on={capacity.introsAtCapacity} onClick={toggleIntros} />
+                <Toggle on={capacity.atCapacity} onClick={toggleCapacity} />
               </div>
-            )}
+              {capacity.atCapacity && (
+                <div data-intros-at-capacity="" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 14px', borderTop: `1px solid ${t.HAIR}` }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={rowName}>{tr('settings:capacity.introsTitle', { defaultValue: 'Free intros while full' })}</div>
+                    <div style={rowDesc}>
+                      {capacity.introsAtCapacity ? tr('settings:capacity.introsOn', { defaultValue: 'Members can still book a free intro with you.' }) : tr('settings:capacity.introsOff', { defaultValue: 'Closed until you reopen. Members you invite off the list can still book one.' })}
+                    </div>
+                  </div>
+                  <Toggle on={capacity.introsAtCapacity} onClick={toggleIntros} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Coach-only — the waiting room roster (Task 11). A quiet management
-            list (not a live instrument plate) under the capacity toggle. */}
+        {/* Coach-only — the waiting room roster (Task 11): its own group under the
+            capacity switch, each member a row on the plate. */}
         {capacity && isCoachRole && (() => {
           const activeEntries = (waitRoom.entries || []).filter(e => e.position);
           return (
-            <div style={{ padding: `10px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-              <BSEyebrow color={t.INK50}>{tr('settings:waitroom.title', { n: activeEntries.length, defaultValue: 'Waiting room ({n})' })}</BSEyebrow>
-              {activeEntries.length === 0 ? (
-                <div style={{ marginTop: 6, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{tr('settings:waitroom.empty', { defaultValue: "No one waiting yet — when you're at capacity, clients can join here." })}</div>
-              ) : (
-                <div style={{ marginTop: 4 }}>
-                  {activeEntries.map((e) => (
-                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: `1px solid ${t.HAIR}` }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>
-                          {tr('settings:waitroom.entry', { position: e.position, name: e.clientName || tr('settings:waitroom.member', { defaultValue: 'Member' }), defaultValue: '#{position} · {name}' })}
-                        </div>
-                        {e.note ? <div style={{ marginTop: 1, fontFamily: t.BODY, fontSize: 12, color: t.INK50 }}>{e.note}</div> : null}
-                        <div style={{ marginTop: 2, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50 }}>
-                          {e.status === 'invited' ? tr('settings:waitroom.invited', { defaultValue: 'Invited' }) : e.status === 'waiting' ? tr('settings:waitroom.waiting', { defaultValue: 'Waiting' }) : e.status}
-                        </div>
+            <div style={{ padding: `22px ${t.padX}px 0` }}>
+              <BSSetLabel t={t}>{tr('settings:waitroom.title', { n: activeEntries.length, defaultValue: 'Waiting room ({n})' })}</BSSetLabel>
+              <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+                {activeEntries.length === 0 ? (
+                  <div style={{ ...rowDesc, marginTop: 0, padding: '13px 14px' }}>{tr('settings:waitroom.empty', { defaultValue: "No one waiting yet — when you're at capacity, clients can join here." })}</div>
+                ) : activeEntries.map((e, i) => (
+                  <div key={e.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 14px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={rowName}>
+                        {tr('settings:waitroom.entry', { position: e.position, name: e.clientName || tr('settings:waitroom.member', { defaultValue: 'Member' }), defaultValue: '#{position} · {name}' })}
                       </div>
-                      {e.status === 'waiting' && (
-                        <button
-                          onClick={() => inviteWaitEntry(e.id)}
-                          disabled={waitInviteBusy === e.id}
-                          style={{ flexShrink: 0, padding: '7px 13px', borderRadius: 9, border: `1px solid ${bsTHexA(sTeal, 0.5)}`, background: bsTHexA(sTeal, 0.06), color: sTealInk, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
-                        >
-                          {waitInviteBusy === e.id ? tr('settings:waitroom.inviting', { defaultValue: 'Inviting…' }) : tr('settings:waitroom.invite', { defaultValue: 'Invite' })}
-                        </button>
-                      )}
+                      {e.note ? <div style={{ ...rowDesc, marginTop: 2 }}>{e.note}</div> : null}
+                      <div style={{ ...subLabel, marginTop: 4 }}>
+                        {e.status === 'invited' ? tr('settings:waitroom.invited', { defaultValue: 'Invited' }) : e.status === 'waiting' ? tr('settings:waitroom.waiting', { defaultValue: 'Waiting' }) : e.status}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {e.status === 'waiting' && (
+                      <button
+                        type="button"
+                        onClick={() => inviteWaitEntry(e.id)}
+                        disabled={waitInviteBusy === e.id}
+                        style={{ ...led(sTealInk), flexShrink: 0, minHeight: 36, padding: '0 12px', borderRadius: 8, cursor: waitInviteBusy === e.id ? 'default' : 'pointer', opacity: waitInviteBusy === e.id ? 0.6 : 1 }}
+                      >
+                        {waitInviteBusy === e.id ? tr('settings:waitroom.inviting', { defaultValue: 'Inviting…' }) : tr('settings:waitroom.invite', { defaultValue: 'Invite' })}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })()}
@@ -34302,25 +34331,20 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {detail === 'about' && (<><DetailBack title={tr('settings:section.about', { defaultValue: 'About' })} />{renderRows(findSec('About').rows)}</>)}
       {detail === 'admin' && (<>
         <DetailBack title={tr('settings:section.admin', { defaultValue: 'Shape admin' })} />
-        <div style={{ padding: `8px ${t.padX}px 24px`, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontFamily: t.BODY || t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK }}>
-            {tr('settings:admin.body', { defaultValue: 'The admin console opens in your browser. Sign in there with your Shape account and the code from your authenticator app.' })}
+        <div style={{ padding: `0 ${t.padX}px 24px` }}>
+          <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+            <div style={{ padding: '14px 14px 13px', fontFamily: t.BODY || t.DISPLAY, fontSize: 14, lineHeight: 1.5, color: t.INK }}>
+              {tr('settings:admin.body', { defaultValue: 'The admin console opens in your browser. Sign in there with your Shape account and the code from your authenticator app.' })}
+            </div>
+            <button type="button" onClick={() => window.ShapeStaff && window.ShapeStaff.openConsole()} style={{ width: '100%', minHeight: 48, border: 0, borderTop: `1px solid ${t.HAIR}`, background: 'transparent', color: sTealInk, cursor: 'pointer', textShadow: t.isLight ? 'none' : `0 0 8px ${bsTHexA(sTeal, 0.6)}`,
+              fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700,
+            }}>{tr('settings:admin.open', { defaultValue: 'Open the admin console' })} ↗</button>
           </div>
-          <button type="button" onClick={() => window.ShapeStaff && window.ShapeStaff.openConsole()} style={{ borderRadius: 5, width: '100%', minHeight: 44, padding: '14px', background: bsTHexA(sTeal, 0.07), color: sTealInk, border: `1px solid ${sTeal}`, cursor: 'pointer',
-            fontFamily: t.MONO, fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700,
-          }}>{tr('settings:admin.open', { defaultValue: 'Open the admin console' })} ↗</button>
         </div>
       </>)}
       {detail === 'accountactions' && (<>
         <DetailBack title={tr('settings:section.accountActions', { defaultValue: 'Account actions' })} />
-        <div style={{ padding: `4px ${t.padX}px` }}>
-          {accountActionRows.map((s, i, arr) => (
-            <div key={i} onClick={() => requestAccountAction(s.act)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${t.rowY + 12}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, cursor: 'pointer' }}>
-              <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: s.alert ? t.RUST : t.INK, letterSpacing: '-0.01em' }}>{s.l}</span>
-              {s.r && <BSEyebrow>{s.r}</BSEyebrow>}
-            </div>
-          ))}
-        </div>
+        {renderRows(accountActionRows.map((s) => ({ l: s.l, r: s.r, alert: s.alert, action: () => requestAccountAction(s.act) })))}
       </>)}
 
       {/* ── EDIT PROFILE ── its own page, the Passport's registered next step. It used
@@ -34335,96 +34359,96 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
         <DetailBack title={tr('settings:passport.edit', { defaultValue: 'Edit profile' })} onBack={cancelEdit} />
         {(() => {
           const acc = bsMyTierColor(); // the avatar follows my Shape Score tier, as on the card
-          // The Settings look (A · Index, owner 2026-10-27): a mono eyebrow over each
-          // field, rounded 12px boxes, rounded pill cells for the choices, and the teal
-          // for focus and selection — the tier colour stays on the avatar, where the
-          // byline keeps it. Values at 16px display; labels at 70% ink, the review's
-          // floor for a form.
-          const eyebrow = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK70, marginBottom: 6 };
-          const section = (txt, first) => <div style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, margin: first ? '6px 0 9px' : '20px 0 9px' }}>{txt}</div>;
-          const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '11px 14px', borderRadius: 12, border: `1px solid ${t.RULE}`, background: t.PAPER2, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s' };
-          const onFocus = (e) => { e.target.style.borderColor = sTeal; };
-          const onBlur = (e) => { e.target.style.borderColor = t.RULE; };
-          // A cell is the quick switch's box as a radio: the whole cell is the control.
-          const cell = (on) => ({ flex: 1, minWidth: 0, minHeight: 44, padding: '9px 12px', borderRadius: 999, cursor: 'pointer', textAlign: 'center', border: `1.5px solid ${on ? sTeal : t.RULE}`, background: on ? bsTHexA(sTeal, 0.1) : 'transparent', color: on ? sTealInk : t.INK70, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' });
+          // The lit panel (owner, 2026-11-09, of this page: "this page looks outdated"): the root's
+          // head, a lit-dot label over each group, each group a glass plate; the photo on the dotted
+          // plate the root's profile sits on, with its tier in a lit slot; the fields in the slot's
+          // well, framed in teal with a glow while typing; the choices as lit slots; Cancel drawn as
+          // Sign out is and Save filled in the deeper teal. Labels at 70% ink, the review's floor
+          // for a form; values at 16px display.
+          const eyebrow = { display: 'block', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK70, marginBottom: 6 };
+          const group = (txt, first) => <div style={{ paddingTop: first ? 0 : 22 }}><BSSetLabel t={t}>{txt}</BSSetLabel></div>;
+          const field = { width: '100%', boxSizing: 'border-box', minHeight: 44, padding: '11px 14px', borderRadius: 12, ...well(false), fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em', outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s' };
+          const onFocus = (e) => { Object.assign(e.target.style, well(true)); };
+          const onBlur = (e) => { Object.assign(e.target.style, well(false)); };
+          // A cell is the root's Preview as button: a lit slot as a radio, the whole cell the control.
+          const cell = (on) => ({ ...led(sTealInk, on), flex: 1, justifyContent: 'center', minWidth: 0, minHeight: 44, borderRadius: 8, cursor: 'pointer', fontSize: 9 });
+          const card = { ...plate(16), padding: 14 };
           const pronounOpts = ['She/Her', 'He/Him', 'They/Them'];
           const bioLen = (draft.bio || '').length;
           return (
-            <div style={{ padding: `2px ${t.padX}px 24px` }}>
-              {section(tr('settings:edit.photoAvatar', { defaultValue: 'Photo & avatar' }), true)}
-              {/* The avatar card — the identity card's own box. The ✎ badge is the one
-                  control here: a real <button> named "Change photo" inside BSFacetAvatar.
-                  The tier line reads the same role-aware `scoreProfile` as the card. */}
-              <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: '4px 0 14px', borderBottom: `1px solid ${t.HAIR}` }}>
-                <BSFacetAvatar size={54} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name || identity.name}</div>
-                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <span aria-hidden="true" style={{ flexShrink: 0, width: 7, height: 7, borderRadius: 999, background: settingsTierC, display: 'inline-block' }} />
-                    {tr('settings:edit.tierColor', { tier: scoreProfile.tier, defaultValue: '{tier} tier color' })}
+            <div style={{ padding: `0 ${t.padX}px 8px` }}>
+              {group(tr('settings:edit.photoAvatar', { defaultValue: 'Photo & avatar' }), true)}
+              {/* The photo plate — the root's profile plate opened up. The ✎ badge is the one
+                  control on the avatar: a real <button> named "Change photo" inside BSFacetAvatar.
+                  The tier line reads the same role-aware `scoreProfile` as the plate. */}
+              <div data-settings-edit-photo="" style={{ ...plate(18, true), overflow: 'hidden' }}>
+                <div style={{ display: 'flex', gap: 13, alignItems: 'center', padding: 14 }}>
+                  <BSFacetAvatar size={54} c={acc} initial={(draft.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(draft.name)} name={draft.name} photo={(draft.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null)} editable onEdit={() => bsPickProfilePhoto(() => setTweak && setTweak('identityVersion', Date.now()))} BG={t.PAPER} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: t.DISPLAY, fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: t.INK, lineHeight: 1.1, ...ell }}>{draft.name || identity.name}</div>
+                    <span style={{ ...led(slotInk(settingsTierC)), marginTop: 7, maxWidth: '100%' }}>{lamp(slotInk(settingsTierC))}<span style={ell}>{tr('settings:edit.tierColor', { tier: scoreProfile.tier, defaultValue: '{tier} tier color' })}</span></span>
                   </div>
                 </div>
-              </div>
-
-              {/* Show in avatar — two cells, exactly one on (app-wide: photo or the initials gem) */}
-              <div style={{ marginTop: 12 }}>
-                <span style={eyebrow}>{tr('settings:edit.showInAvatar', { defaultValue: 'Show in avatar' })}</span>
-                <div role="radiogroup" style={{ display: 'flex', gap: 7 }}>
-                  {[['photo', tr('settings:edit.photo', { defaultValue: 'Photo' })], ['initials', tr('settings:edit.initials', { defaultValue: 'Initials' })]].map(([val, label]) => {
-                    const on = (draft.avatarMode || 'photo') === val;
-                    return <button key={val} role="radio" aria-checked={on} onClick={() => edit('avatarMode', val)} style={cell(on)}>{label}</button>;
-                  })}
+                <div style={{ padding: '12px 14px 14px', borderTop: `1px solid ${t.HAIR}` }}>
+                  {/* Show in avatar — two cells, exactly one on (app-wide: photo or the initials gem) */}
+                  <span style={eyebrow}>{tr('settings:edit.showInAvatar', { defaultValue: 'Show in avatar' })}</span>
+                  <div role="radiogroup" style={{ display: 'flex', gap: 6 }}>
+                    {[['photo', tr('settings:edit.photo', { defaultValue: 'Photo' })], ['initials', tr('settings:edit.initials', { defaultValue: 'Initials' })]].map(([val, label]) => {
+                      const on = (draft.avatarMode || 'photo') === val;
+                      return <button key={val} type="button" role="radio" aria-checked={on} onClick={() => edit('avatarMode', val)} style={cell(on)}>{lamp(sTeal, on)}{label}</button>;
+                    })}
+                  </div>
+                  {/* Custom avatar initials — optional override, max 2 characters */}
+                  <label style={{ display: 'block', marginTop: 12 }}>
+                    <span style={eyebrow}>{tr('settings:edit.avatarInitials', { defaultValue: 'Avatar initials' })} <span style={{ color: t.INK50 }}>{tr('settings:edit.max2', { defaultValue: '· max 2' })}</span></span>
+                    <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
+                      onChange={(e) => edit('initials', e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2))}
+                      onFocus={onFocus} onBlur={onBlur}
+                      style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
+                  </label>
                 </div>
               </div>
 
-              {/* Custom avatar initials — optional override, max 2 characters */}
-              <label style={{ display: 'block', marginTop: 12 }}>
-                <span style={eyebrow}>{tr('settings:edit.avatarInitials', { defaultValue: 'Avatar initials' })} <span style={{ color: t.INK50 }}>{tr('settings:edit.max2', { defaultValue: '· max 2' })}</span></span>
-                <input value={draft.initials || ''} placeholder={bsInitials(draft.name) || 'AB'} maxLength={2}
-                  onChange={(e) => edit('initials', e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 2))}
-                  onFocus={onFocus} onBlur={onBlur}
-                  style={{ ...field, width: 110, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }} />
-              </label>
+              {group(tr('settings:edit.identity', { defaultValue: 'Identity' }))}
+              <div style={card}>
+                {[
+                  { k: 'name',     label: tr('settings:edit.displayName', { defaultValue: 'Display name' }), ph: tr('settings:edit.displayNamePh', { defaultValue: 'Your name' }) },
+                  { k: 'handle',   label: tr('settings:edit.handle', { defaultValue: 'Handle' }),       ph: '@handle' },
+                  { k: 'location', label: tr('settings:edit.location', { defaultValue: 'Location' }),     ph: tr('settings:edit.locationPh', { defaultValue: 'City, State' }) },
+                  { k: 'link',     label: tr('settings:edit.link', { defaultValue: 'Website / link' }), ph: tr('settings:edit.linkPh', { defaultValue: 'instagram.com/you' }) },
+                ].map((f, i) => (
+                  <label key={f.k} style={{ display: 'block', marginTop: i ? 12 : 0 }}>
+                    <span style={eyebrow}>{f.label}</span>
+                    <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => edit(f.k, e.target.value)}
+                      onFocus={onFocus} onBlur={onBlur} style={field} />
+                  </label>
+                ))}
+              </div>
 
-              {section(tr('settings:edit.identity', { defaultValue: 'Identity' }))}
-              {[
-                { k: 'name',     label: tr('settings:edit.displayName', { defaultValue: 'Display name' }), ph: tr('settings:edit.displayNamePh', { defaultValue: 'Your name' }) },
-                { k: 'handle',   label: tr('settings:edit.handle', { defaultValue: 'Handle' }),       ph: '@handle' },
-                { k: 'location', label: tr('settings:edit.location', { defaultValue: 'Location' }),     ph: tr('settings:edit.locationPh', { defaultValue: 'City, State' }) },
-                { k: 'link',     label: tr('settings:edit.link', { defaultValue: 'Website / link' }), ph: tr('settings:edit.linkPh', { defaultValue: 'instagram.com/you' }) },
-              ].map(f => (
-                <label key={f.k} style={{ display: 'block', marginBottom: 10 }}>
-                  <span style={eyebrow}>{f.label}</span>
-                  <input value={draft[f.k] || ''} placeholder={f.ph} onChange={(e) => edit(f.k, e.target.value)}
-                    onFocus={onFocus} onBlur={onBlur} style={field} />
-                </label>
-              ))}
-
-              {section(tr('settings:edit.aboutYou', { defaultValue: 'About you' }))}
-              {/* Pronouns — three cells; tapping the lit one clears it */}
-              <div>
+              {group(tr('settings:edit.aboutYou', { defaultValue: 'About you' }))}
+              <div style={card}>
+                {/* Pronouns — three cells; tapping the lit one clears it */}
                 <span style={eyebrow}>{tr('settings:edit.pronouns', { defaultValue: 'Pronouns' })}</span>
-                <div style={{ display: 'flex', gap: 7 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
                   {pronounOpts.map(p => {
                     const on = draft.pronouns === p;
-                    return <button key={p} aria-pressed={on} onClick={() => edit('pronouns', on ? '' : p)} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? sTealInk : t.INK }}>{p}</button>;
+                    return <button key={p} type="button" aria-pressed={on} onClick={() => edit('pronouns', on ? '' : p)} style={{ ...cell(on), textTransform: 'none', letterSpacing: 0, fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, color: on ? sTealInk : t.INK70 }}>{p}</button>;
                   })}
                 </div>
+
+                {/* Bio + counter */}
+                <label style={{ display: 'block', marginTop: 12 }}>
+                  <span style={{ ...eyebrow, display: 'flex', justifyContent: 'space-between' }}><span>{tr('settings:edit.bio', { defaultValue: 'Bio' })}</span><span style={{ color: bioLen > 160 ? t.RUST : t.INK50, letterSpacing: '0.06em' }}>{bioLen}/160</span></span>
+                  <textarea value={draft.bio || ''} maxLength={180} onChange={(e) => edit('bio', e.target.value)} rows={3}
+                    onFocus={onFocus} onBlur={onBlur}
+                    style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
+                </label>
               </div>
 
-              {/* Bio + counter */}
-              <label style={{ display: 'block', marginTop: 12 }}>
-                <span style={{ ...eyebrow, display: 'flex', justifyContent: 'space-between' }}><span>{tr('settings:edit.bio', { defaultValue: 'Bio' })}</span><span style={{ color: bioLen > 160 ? t.RUST : t.INK50, letterSpacing: '0.06em' }}>{bioLen}/160</span></span>
-                <textarea value={draft.bio || ''} maxLength={180} onChange={(e) => edit('bio', e.target.value)} rows={3}
-                  onFocus={onFocus} onBlur={onBlur}
-                  style={{ ...field, fontSize: 15, resize: 'vertical', lineHeight: 1.45 }} />
-              </label>
-
-              {/* Cancel · Save — the identity card's own two buttons at the 44px row, so
-                  the page reads as the card opened up. */}
+              {/* Cancel · Save at the 44px row: Cancel as Sign out is, Save filled. */}
               <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-                <PassportBtn label={tr('settings:action.cancel', { defaultValue: 'Cancel' })} onClick={cancelEdit} tall grow={false} />
-                <PassportBtn label={tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })} onClick={saveEdit} fill tall />
+                <PassportBtn label={tr('settings:action.cancel', { defaultValue: 'Cancel' })} onClick={cancelEdit} grow={false} />
+                <PassportBtn label={tr('settings:edit.saveChanges', { defaultValue: 'Save changes' })} onClick={saveEdit} fill />
               </div>
             </div>
           );
@@ -34444,7 +34468,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
             initial: (identity.initials || '').trim().toUpperCase().slice(0, 2) || bsInitials(identity.name),
             photo: (identity.avatarMode === 'initials') ? null : (bsMyPhotoRaw() || null),
             ring: bsMyTierColor(),
-            tierColor: settingsTierC,
+            tierColor: slotInk(settingsTierC),
             // ⚠ ITS OWN KEY, NOT `edit.tierColor` WITH THE WORD "color" STRIPPED: German's "Stufenfarbe"
             // has no trailing " color" to cut. Each locale's value is built from its OWN word for a tier.
             tierLine: tr('settings:passport.tierLine', { tier: scoreProfile.tier, defaultValue: '{tier} tier' }),
@@ -34479,228 +34503,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* NAV BAR first: where the app's tabs sit (navSideRow). */}
       {navSideRow ? <div data-settings-nav-side="">{renderRows([navSideRow])}</div> : null}
 
-      {/* APPEARANCE */}
-      <button onClick={() => setShowAppearance(v => !v)} aria-expanded={showAppearance} style={{
-        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        padding: `12px ${t.padX}px 11px`, borderBottom: `1px solid ${t.RULE}`,
-        background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
-      }}>
-        <div>
-          <BSEyebrow color={sTealInk}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSEyebrow>
-          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:appearance.title', { defaultValue: 'Theme & texture' })}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode || 'light') }), accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }), defaultValue: '{paper} · {accent}' })}</div>
-        </div>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${sTeal}`, background: `${sTeal}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showAppearance ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
-        </span>
-      </button>
-      {showAppearance && (
-      <div style={{ padding: `14px ${t.padX}px` }}>
-        {/* Paper / Texture / Accent / Ink — an underline tab bar, deliberately
-            distinct from the bordered option chips/swatches below so it reads
-            as section navigation (not another row of choices). */}
-        <div style={{ display: 'flex', gap: 22, marginBottom: 16, borderBottom: `1px solid ${t.RULE}` }}>
-          {[['paper', tr('settings:appearance.tabPaper', { defaultValue: 'Paper' })], ['texture', tr('settings:appearance.tabTexture', { defaultValue: 'Texture' })], ['accent', tr('settings:appearance.tabAccent', { defaultValue: 'Accent' })], ['ink', tr('settings:appearance.tabInk', { defaultValue: 'Ink' })]].map(([k, l]) => {
-            const on = appearTab === k;
-            return (
-              <button key={k} onClick={() => setAppearTab(k)} style={{
-                position: 'relative', padding: '0 1px 11px', cursor: 'pointer',
-                border: 0, background: 'transparent', WebkitTapHighlightColor: 'transparent',
-                color: on ? t.INK : t.INK50,
-                fontFamily: t.DISPLAY, fontSize: 16, fontWeight: on ? 700 : 500, letterSpacing: '-0.01em',
-              }}>{l}
-                <span style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? sTeal : 'transparent' }} />
-              </button>
-            );
-          })}
-        </div>
-
-        {appearTab === 'paper' && (
-        <OptGrid>
-          {BS_PAPER_OPTS.map(([k, l, paperHex, inkHex]) => (
-            <OptCell key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}
-              label={tr('settings:paper.' + k, { defaultValue: l })}>
-              <span style={{ position: 'absolute', inset: 0, background: paperHex, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: inkHex, letterSpacing: '-0.01em' }}>Aa</span>
-              </span>
-            </OptCell>
-          ))}
-        </OptGrid>
-        )}
-
-        {appearTab === 'texture' && (
-        <OptGrid>
-          {BS_TEXTURE_OPTS.map(([k, l]) => {
-            // Live pattern tile — the REAL makeTexture CSS over the current
-            // paper, so a pattern is visible before it's applied. Honors the
-            // texture-tint override (Tweaks panel) the same way BSProvider does.
-            const txHex = tweaks.textureColor && tweaks.textureColor !== 'auto' && /^#[0-9a-fA-F]{6}$/.test(tweaks.textureColor) ? tweaks.textureColor : null;
-            const txRGB = txHex ? [1, 3, 5].map(i => parseInt(txHex.slice(i, i + 2), 16)).join(',') : t.inkRGB;
-            const tex = k !== 'none' && typeof window.bsMakeTexture === 'function'
-              ? window.bsMakeTexture(k, txRGB, t.isLight) : null;
-            return (
-              <OptCell key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}
-                label={tr('settings:texture.' + k, { defaultValue: l })}>
-                <span style={{ position: 'absolute', inset: 0, background: tex ? `${tex}, ${t.PAPER}` : t.PAPER }}>
-                  {k === 'none' && (
-                    <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>—</span>
-                  )}
-                </span>
-              </OptCell>
-            );
-          })}
-        </OptGrid>
-        )}
-
-        {appearTab === 'accent' && (
-        <OptGrid>
-          {BS_ACCENT_OPTS.map(([k, l]) => {
-            const sw = BS_ACCENT_SWATCH[k] || BS_ACCENT_SWATCH.blue;
-            return (
-              <OptCell key={k} on={tweaks.accentKey === k} onClick={() => setTweak('accentKey', k)}
-                label={tr('settings:accent.' + k, { defaultValue: l })}>
-                <span style={{ position: 'absolute', inset: 0, background: sw[t.isLight ? 0 : 1] }} />
-              </OptCell>
-            );
-          })}
-        </OptGrid>
-        )}
-
-        {appearTab === 'ink' && (() => {
-          const paperEntry = BS_PAPER_OPTS.find(([pk]) => pk === (tweaks.paperMode || 'light')) || BS_PAPER_OPTS[0];
-          const inkPresets = [
-            ['default', null,        'Default',  'ink.default'],
-            ['#0f0e0c', '#0f0e0c',   'Charcoal', 'ink.charcoal'],
-            ['#f5f0e6', '#f5f0e6',   'Cream',    'ink.cream'],
-            ['#1c4ed8', '#1c4ed8',   'Blue',     'ink.blue'],
-            ['#0a8f87', '#0a8f87',   'Teal',     'ink.teal'],
-            ['#a8331b', '#a8331b',   'Rust',     'ink.rust'],
-            ['#2f6b3a', '#2f6b3a',   'Green',    'ink.green'],
-            ['#c8881a', '#c8881a',   'Amber',    'ink.amber'],
-            ['#5a2b8a', '#5a2b8a',   'Plum',     'ink.plum'],
-          ];
-          const customOn = !!tweaks.inkOverride && !inkPresets.some(([k]) => k === tweaks.inkOverride);
-          const customLabel = tr('settings:ink.custom', { defaultValue: 'Custom' });
-          return (
-            <>
-              <OptGrid>
-                {inkPresets.map(([k, sw, lbl, ik]) => (
-                  <OptCell key={k} on={!customOn && (tweaks.inkOverride || 'default') === k} onClick={() => setTweak('inkOverride', k)}
-                    label={tr('settings:' + ik, { defaultValue: lbl })}>
-                    <span style={{ position: 'absolute', inset: 0, background: paperEntry[2], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: bsInkPreviewHex(sw, paperEntry[2], paperEntry[3]) }}>Aa</span>
-                    </span>
-                  </OptCell>
-                ))}
-                {/* Custom hex — same cell footprint; the whole tile IS the color input */}
-                <label title={customLabel} style={{
-                  position: 'relative', cursor: 'pointer', overflow: 'hidden', textAlign: 'center',
-                  borderRadius: t.RADIUS_SM, border: `1px solid ${customOn ? t.INK : t.RULE}`,
-                  boxShadow: customOn ? `inset 0 0 0 1px ${t.INK}` : 'none',
-                  display: 'flex', flexDirection: 'column', minWidth: 0, background: 'transparent',
-                }}>
-                  <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 38, background: paperEntry[2], overflow: 'hidden', flexShrink: 0 }}>
-                    <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: customOn ? bsInkPreviewHex(tweaks.inkOverride, paperEntry[2], paperEntry[3]) : paperEntry[3], opacity: customOn ? 1 : 0.45 }}>Aa</span>
-                    {customOn && (
-                      <span style={{ position: 'absolute', top: 4, right: 4, width: 14, height: 14, borderRadius: 999, background: sTeal, color: t.PAPER, fontSize: 9, lineHeight: '14px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
-                    )}
-                  </span>
-                  <span style={{ display: 'block', width: '100%', padding: '5px 3px 6px', borderTop: `1px solid ${customOn ? t.INK : t.HAIR}`,
-                    fontFamily: t.MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                    color: customOn ? t.INK : t.INK70, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customLabel}</span>
-                  <input
-                    type="color"
-                    aria-label={customLabel}
-                    value={(tweaks.inkOverride && tweaks.inkOverride !== 'default') ? tweaks.inkOverride : (t.isLight ? '#0f0e0c' : '#f5f0e6')}
-                    onChange={(e) => setTweak('inkOverride', e.target.value)}
-                    style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-                  />
-                </label>
-              </OptGrid>
-              <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.4 }}>
-                {tr('settings:ink.contrastNote', { defaultValue: "An ink that can't be read on this paper falls back automatically." })}
-              </div>
-            </>
-          );
-        })()}
-
-        <div style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK70, marginTop: 14, marginBottom: 7, fontWeight: 800 }}>{tr('settings:appearance.displayWeight', { defaultValue: 'Display weight' })}</div>
-        <OptGrid>
-          {[['regular', 300], ['bold', 650]].map(([k, w]) => (
-            <OptCell key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}
-              label={tr('settings:weight.' + k, { defaultValue: k })}>
-              <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: w, color: t.INK }}>Aa</span>
-              </span>
-            </OptCell>
-          ))}
-        </OptGrid>
-
-      </div>
-      )}
-
-      {/* TEXT SIZE — its own section: the app-wide reading scale (moved out of the
-          collapsed Appearance block for discoverability; scales the whole UI via the
-          surface `zoom`, so layout stays proportional at every size). */}
-      <div style={{ padding: `12px ${t.padX}px 14px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={sTealInk}>{tr('settings:a11y.eyebrow', { defaultValue: 'Accessibility' })}</BSEyebrow>
-        <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:a11y.textSize', { defaultValue: 'Text size' })}</div>
-        <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{tr('settings:a11y.textSizeSub', { size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }), defaultValue: 'Scales the whole app · {size}' })}</div>
-        <div style={{ marginTop: 12 }}>
-          <OptGrid>
-            {BS_TEXT_SIZE_OPTS.map(([k, l], i) => (
-              <OptCell key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}
-                label={tr('settings:textsize.' + k, { defaultValue: l })}>
-                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: [11, 13.5, 16][i] || 13.5, fontWeight: t.W.display, color: t.INK }}>Aa</span>
-                </span>
-              </OptCell>
-            ))}
-          </OptGrid>
-        </div>
-      </div>
-
-      {/* LANGUAGE — app-wide UI locale (i18n) */}
-      <BSLanguageSetting t={t} />
-      {/* TIME ZONE — the account's one clock (P9; BSTimezone.jsx), every role: BSSettings is the
-          coach apps' Settings too. Hidden until the migration runs and when signed out. */}
-      <BSTimezoneSetting t={t} coach={isCoachRole} />
-
-      {/* SHAPE RADIO — a heading and a reading, no switch. The station is always
-          on air and has no off (owner, 2026-10-18: "remove the radio toggle");
-          the sound is the speaker on the radio bar. "Playing" is the MEASURED
-          clock, never what was asked for, so a refused play reads Paused. */}
-      <div style={{ padding: `14px ${t.padX}px 4px` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</div>
-        <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{r.playingSince != null ? tr('settings:radio.playing', { defaultValue: 'Playing while browsing' }) : tr('settings:radio.paused', { defaultValue: 'Paused' })}</div>
-      </div>
-
-      {/* LIGHT EFFECTS — music-reactive overlays while Shape Radio is on */}
-      <button onClick={() => setShowLightFx(v => !v)} aria-expanded={showLightFx} style={{
-        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-        padding: `12px ${t.padX}px 11px`, borderBottom: `1px solid ${t.RULE}`,
-        background: 'transparent', border: 0, cursor: 'pointer', color: t.INK, textAlign: 'left',
-      }}>
-        <div>
-          <BSEyebrow color={sTealInk}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSEyebrow>
-          <div style={{ marginTop: 2, fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{tr('settings:fx.title', { defaultValue: 'Reactive overlay' })}</div>
-          <div style={{ marginTop: 4, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{(() => {
-            // The subtitle interpolates the LOCALIZED mode label (never the raw
-            // key), and only claims "Active" when effects are actually on.
-            const fxModeLabel = {
-              subtle: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),
-              immersive: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }),
-              hologram: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),
-            }[r.fxMode];
-            if (fxModeLabel) return tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' });
-            return tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' });
-          })()}</div>
-        </div>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ padding: '5px 11px', borderRadius: 999, border: `1px solid ${sTeal}`, background: `${sTeal}1f`, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.INK }}>{showLightFx ? tr('settings:appearance.close', { defaultValue: 'Close ▾' }) : tr('settings:appearance.customize', { defaultValue: 'Customize ▸' })}</span>
-        </span>
-      </button>
-      {showLightFx && (() => {
+      {/* LIGHT EFFECTS — second, under Nav bar (owner, 2026-11-09, of this block at the foot of
+          Customize: "this needs to be moved towards top of customize page in settings and displayed
+          better"). Open on the page, never behind a "Customize ▸" (a page called Customize whose body
+          is a button saying Customize): the four modes as lit tiles with their intensity, the colour as
+          a row of dots, and Shape Radio's state, since the effects run while it plays. Tap a mode =
+          apply + a ~6s live preview overlay (visible even with radio off). */}
+      {(() => {
         // Reduced motion outranks the fx opt-in (BSRadioFx returns null too) —
         // the picker says so honestly instead of applying a dead setting.
         const fxReduced = bsSdReduced();
@@ -34716,88 +34525,291 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           const radioLive = !r.paused;
           if (r.fxMode !== 'off' && !radioLive && !fxReduced) setFxPreview(r.fxMode);
         };
+        // The state reads the LOCALIZED mode label (never the raw key), and only
+        // claims "Active" when effects are actually on.
+        const fxModeLabel = {
+          subtle: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),
+          immersive: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }),
+          hologram: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),
+        }[r.fxMode];
+        // The intensity ladder: a glyph and a 3-bar meter per mode.
+        const fxModes = [
+          { k: 'off',       glyph: '○', lvl: 0, title: tr('settings:fx.modeOff', { defaultValue: 'Off' }),       sub: tr('settings:fx.subOff', { defaultValue: 'Clean · no animation' }) },
+          { k: 'subtle',    glyph: '◐', lvl: 1, title: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),    sub: tr('settings:fx.subSubtle', { defaultValue: 'Edge glow · island EQ' }) },
+          { k: 'immersive', glyph: '◉', lvl: 2, title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Stage lights · beams' }) },
+          { k: 'hologram',  glyph: '⟠', lvl: 3, title: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),  sub: tr('settings:fx.subHologram', { defaultValue: 'DJ overlay · scanlines' }) },
+        ];
+        // Color — the fx tint (owner add 2026-07-14): cycle (the drifting palette) · accent
+        // (follows the app accent) · fixed tints. Labels reuse existing catalog keys.
+        const fxColors = [
+          ['cycle', tr('settings:fx.colorCycle', { defaultValue: 'Cycle' }), 'linear-gradient(90deg, #0ac5a8, #e37a5a 35%, #d9b26a 65%, #8c6fa8)'],
+          ['accent', tr('settings:appearance.tabAccent', { defaultValue: 'Accent' }), t.ACCENT],
+          ['#0ac5a8', tr('settings:accent.teal', { defaultValue: 'Teal' }), '#0ac5a8'],
+          ['#e37a5a', tr('settings:accent.rust', { defaultValue: 'Rust' }), '#e37a5a'],
+          ['#d9b26a', tr('settings:accent.amber', { defaultValue: 'Amber' }), '#d9b26a'],
+          ['#8c6fa8', tr('settings:accent.violet', { defaultValue: 'Violet' }), '#8c6fa8'],
+          ['#5b8df9', tr('settings:accent.blue', { defaultValue: 'Blue' }), '#5b8df9'],
+          ['#f2749f', tr('settings:accent.rose', { defaultValue: 'Rose' }), '#f2749f'],
+          ['#f2ede4', tr('settings:ink.cream', { defaultValue: 'Cream' }), '#f2ede4'],
+        ];
+        const fxColorKey = r.fxColor || 'cycle';
+        const fxColorName = (fxColors.find(([k]) => k === fxColorKey) || fxColors[0])[1];
+        const colorWord = tr('settings:fx.color', { defaultValue: 'Color' });
+        // SHAPE RADIO — a reading, no switch. The station is always on air and has no off
+        // (owner, 2026-10-18: "remove the radio toggle"); the sound is the speaker on the
+        // radio bar. "Playing" is the MEASURED clock, never what was asked for, so a refused
+        // play reads Paused.
+        const radioOn = r.playingSince != null;
         return (
-      <div style={{ padding: `14px ${t.padX}px 18px` }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10, fontWeight: 700 }}>
-          {tr('settings:fx.syncsToBpm', { defaultValue: 'Syncs to BPM' })}
-        </div>
+          <div data-settings-fx="" style={{ padding: `22px ${t.padX}px 0` }}>
+            <BSSetLabel t={t}>{tr('settings:fx.eyebrow', { defaultValue: 'Light effects' })}</BSSetLabel>
+            <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '13px 14px 0' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ ...rowName, fontSize: 17, fontWeight: 600 }}>{tr('settings:fx.title', { defaultValue: 'Reactive overlay' })}</div>
+                  <div style={{ ...subLabel, marginTop: 5, lineHeight: 1.45 }}>{fxModeLabel ? tr('settings:fx.syncsToBpm', { defaultValue: 'Syncs to BPM' }) : tr('settings:fx.offHint', { defaultValue: 'Effects off — tap a mode to preview' })}</div>
+                </div>
+                <span data-settings-fx-state={fxModeLabel ? 'on' : 'off'} style={{ ...led(sTealInk, !!fxModeLabel), flexShrink: 0, maxWidth: '50%' }}>{lamp(sTeal, !!fxModeLabel)}<span style={ell}>{fxModeLabel ? tr('settings:fx.active', { mode: fxModeLabel, defaultValue: 'Active · {mode}' }) : fxModes[0].title}</span></span>
+              </div>
 
-        {/* Intensity ladder — 4 uniform cells in the appearance option-cell
-            grammar: glyph + a 3-bar intensity meter over a label bar. Tap =
-            apply + a ~6s live preview overlay (visible even with radio off). */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-          {[
-            { k: 'off',       glyph: '○', lvl: 0, title: tr('settings:fx.modeOff', { defaultValue: 'Off' }),       sub: tr('settings:fx.subOff', { defaultValue: 'Clean · no animation' }) },
-            { k: 'subtle',    glyph: '◐', lvl: 1, title: tr('settings:fx.modeSubtle', { defaultValue: 'Subtle' }),    sub: tr('settings:fx.subSubtle', { defaultValue: 'Edge glow · island EQ' }) },
-            { k: 'immersive', glyph: '◉', lvl: 2, title: tr('settings:fx.modeImmersive', { defaultValue: 'Immersive' }), sub: tr('settings:fx.subImmersive', { defaultValue: 'Stage lights · beams' }) },
-            { k: 'hologram',  glyph: '⟠', lvl: 3, title: tr('settings:fx.modeHologram', { defaultValue: 'Hologram' }),  sub: tr('settings:fx.subHologram', { defaultValue: 'DJ overlay · scanlines' }) },
-          ].map(m => {
-            const active = r.fxMode === m.k;
-            return (
-              <button key={m.k} onClick={() => pickFx(m.k)} aria-pressed={active} style={{
-                position: 'relative', padding: 0, cursor: 'pointer', overflow: 'hidden', textAlign: 'left',
-                borderRadius: t.RADIUS_SM, border: `1px solid ${active ? t.INK : t.RULE}`,
-                boxShadow: active ? `inset 0 0 0 1px ${t.INK}` : 'none',
-                background: 'transparent', display: 'flex', flexDirection: 'column', minWidth: 0,
-              }}>
-                <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: 38, background: t.PAPER2, padding: '0 10px', boxSizing: 'border-box', flexShrink: 0 }}>
-                  <span style={{ fontFamily: t.MONO, fontSize: 14, color: active ? sTealInk : t.INK }}>{m.glyph}</span>
-                  <span style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 16 }}>
-                    {[0, 1, 2].map(i => (
-                      <span key={i} style={{ width: 4, height: 6 + i * 5, borderRadius: 1, boxSizing: 'border-box',
-                        background: i < m.lvl ? sTeal : 'transparent',
-                        border: i < m.lvl ? 0 : `1px solid ${t.RULE}` }} />
-                    ))}
-                  </span>
-                </span>
-                <span style={{ display: 'block', width: '100%', padding: '6px 10px 8px', borderTop: `1px solid ${active ? t.INK : t.HAIR}`, boxSizing: 'border-box' }}>
-                  <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
-                    <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK }}>{m.title}</span>
-                    {active && <span style={{ fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.14em', color: sTealInk, flexShrink: 0 }}>{tr('settings:fx.on', { defaultValue: '● ON' })}</span>}
-                  </span>
-                  <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.sub}</span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, padding: '12px 14px 0' }}>
+                {fxModes.map((m) => {
+                  const active = r.fxMode === m.k;
+                  return (
+                    <button key={m.k} type="button" data-settings-fx-mode={m.k} onClick={() => pickFx(m.k)} aria-pressed={active} style={{
+                      minWidth: 0, minHeight: 76, padding: '10px 11px', boxSizing: 'border-box', borderRadius: 12, cursor: 'pointer', textAlign: 'left', color: t.INK,
+                      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 6,
+                      background: t.isLight ? bsTHexA(t.INK, active ? 0.06 : 0.03) : (active ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.28)'),
+                      border: `1px solid ${active ? bsTHexA(sTeal, t.isLight ? 0.6 : 0.7) : bsTHexA(t.INK, 0.12)}`,
+                      boxShadow: active ? (t.isLight ? `0 0 0 3px ${bsTHexA(sTeal, 0.12)}` : `0 0 16px ${bsTHexA(sTeal, 0.28)}, inset 0 0 14px ${bsTHexA(sTeal, 0.1)}`) : 'none',
+                    }}>
+                      <span aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontFamily: t.MONO, fontSize: 15, lineHeight: 1, color: active ? sTealInk : t.INK70, textShadow: active && !t.isLight ? `0 0 8px ${bsTHexA(sTeal, 0.7)}` : 'none' }}>{m.glyph}</span>
+                        <span style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 16 }}>
+                          {[0, 1, 2].map((i) => (
+                            <span key={i} style={{ width: 4, height: 6 + i * 5, borderRadius: 1, background: i < m.lvl ? (active ? sTeal : bsTHexA(t.INK, 0.5)) : bsTHexA(t.INK, 0.14), boxShadow: active && i < m.lvl && !t.isLight ? `0 0 6px ${sTeal}` : 'none' }} />
+                          ))}
+                        </span>
+                      </span>
+                      <span style={{ display: 'block', minWidth: 0 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                          {lamp(sTeal, active)}
+                          <span style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: active ? sTealInk : t.INK, ...ell }}>{m.title}</span>
+                        </span>
+                        <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.04em', color: t.INK50, ...ell }}>{m.sub}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
 
-        {/* Color — the fx tint (owner add 2026-07-14): cycle (the drifting
-            palette) · accent (follows the app accent) · fixed tints. Same
-            uniform option-cell grammar; labels reuse existing catalog keys. */}
-        <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: t.INK50, marginTop: 14, marginBottom: 8, fontWeight: 700 }}>
-          {tr('settings:fx.color', { defaultValue: 'Color' })}
-        </div>
-        <OptGrid>
-          {[
-            ['cycle', tr('settings:fx.colorCycle', { defaultValue: 'Cycle' }), 'linear-gradient(90deg, #0ac5a8, #e37a5a 35%, #d9b26a 65%, #8c6fa8)'],
-            ['accent', tr('settings:appearance.tabAccent', { defaultValue: 'Accent' }), t.ACCENT],
-            ['#0ac5a8', tr('settings:accent.teal', { defaultValue: 'Teal' }), '#0ac5a8'],
-            ['#e37a5a', tr('settings:accent.rust', { defaultValue: 'Rust' }), '#e37a5a'],
-            ['#d9b26a', tr('settings:accent.amber', { defaultValue: 'Amber' }), '#d9b26a'],
-            ['#8c6fa8', tr('settings:accent.violet', { defaultValue: 'Violet' }), '#8c6fa8'],
-            ['#5b8df9', tr('settings:accent.blue', { defaultValue: 'Blue' }), '#5b8df9'],
-            ['#f2749f', tr('settings:accent.rose', { defaultValue: 'Rose' }), '#f2749f'],
-            ['#f2ede4', tr('settings:ink.cream', { defaultValue: 'Cream' }), '#f2ede4'],
-          ].map(([k, label, swatch]) => (
-            <OptCell key={k} on={(r.fxColor || 'cycle') === k} onClick={() => pickFxColor(k)} label={label}>
-              <span style={{ position: 'absolute', inset: 0, background: swatch }} />
-            </OptCell>
-          ))}
-        </OptGrid>
+              <div style={{ padding: '15px 14px 0' }}>
+                <div style={subLabel}>{colorWord} <span style={{ color: t.INK70 }}>· {fxColorName}</span></div>
+                {/* One row on every phone: nine columns, each dot up to 28px and smaller only where
+                    the plate is narrower than that. */}
+                <div role="radiogroup" aria-label={colorWord} style={{ display: 'grid', gridTemplateColumns: `repeat(${fxColors.length}, minmax(0, 1fr))`, gap: 6, marginTop: 9 }}>
+                  {fxColors.map(([k, label, swatch]) => {
+                    const on = fxColorKey === k;
+                    return (
+                      <button key={k} type="button" role="radio" aria-checked={on} aria-label={label} title={label} data-settings-fx-color={k} onClick={() => pickFxColor(k)} style={{
+                        width: '100%', maxWidth: 28, aspectRatio: '1 / 1', boxSizing: 'border-box', padding: 0, borderRadius: 99, cursor: 'pointer', background: swatch,
+                        border: `1px solid ${bsTHexA(t.INK, 0.2)}`,
+                        boxShadow: on ? `0 0 0 2px ${t.PAPER}, 0 0 0 4px ${sTeal}${t.isLight ? '' : `, 0 0 14px ${bsTHexA(sTeal, 0.6)}`}` : 'none',
+                      }} />
+                    );
+                  })}
+                </div>
+              </div>
 
-        <div style={{ marginTop: 12, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, lineHeight: 1.5 }}>
-          {fxReduced
-            ? tr('settings:fx.footReduced', { defaultValue: '— reduced motion is on, so effects stay off' })
-            : fxPreview
-              ? tr('settings:fx.footPreview', { defaultValue: '— previewing for a few seconds' })
-              : !r.paused
-                ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
-                : tr('settings:fx.footTapPreview', { defaultValue: '— tap a mode to preview it · runs whenever radio plays' })}
-        </div>
-      </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 15, padding: '11px 14px', borderTop: `1px solid ${t.HAIR}` }}>
+                <span style={rowName}>{tr('settings:radio.title', { defaultValue: 'Shape Radio' })}</span>
+                <span data-settings-radio-state={radioOn ? 'playing' : 'paused'} style={{ ...led(sTealInk, radioOn), maxWidth: '62%' }}>{lamp(sTeal, radioOn)}<span style={ell}>{radioOn ? tr('settings:radio.playing', { defaultValue: 'Playing while browsing' }) : tr('settings:radio.paused', { defaultValue: 'Paused' })}</span></span>
+              </div>
+              <div style={{ ...subLabel, letterSpacing: '0.1em', lineHeight: 1.5, padding: '0 14px 13px' }}>
+                {fxReduced
+                  ? tr('settings:fx.footReduced', { defaultValue: '— reduced motion is on, so effects stay off' })
+                  : fxPreview
+                    ? tr('settings:fx.footPreview', { defaultValue: '— previewing for a few seconds' })
+                    : !r.paused
+                      ? tr('settings:fx.footRadioOn', { defaultValue: '— effects render on top of every screen while radio plays' })
+                      : tr('settings:fx.footTapPreview', { defaultValue: '— tap a mode to preview it · runs whenever radio plays' })}
+              </div>
+            </div>
+          </div>
         );
       })()}
+
+      {/* APPEARANCE — the Paper · Texture · Accent · Ink picker and the display weight, open on
+          the page: the tabs as lit slots, the swatches as 12px tiles. */}
+      <div data-settings-appearance="" style={{ padding: `22px ${t.padX}px 0` }}>
+        <BSSetLabel t={t} meta={<span style={{ ...led(t.INK70, false), maxWidth: '55%' }}><span style={ell}>{tr('settings:appearance.subtitle', { paper: tr('settings:paper.' + (tweaks.paperMode || 'light'), { defaultValue: bsPaperLabel(tweaks.paperMode || 'light') }), accent: tr('settings:accent.' + (tweaks.accentKey || 'blue'), { defaultValue: bsAccentLabel(tweaks.accentKey || 'blue') }), defaultValue: '{paper} · {accent}' })}</span></span>}>{tr('settings:appearance.eyebrow', { defaultValue: 'Appearance' })}</BSSetLabel>
+        <div data-settings-plate="" style={{ ...plate(16), padding: 14 }}>
+          <div style={{ ...rowName, fontSize: 17, fontWeight: 600 }}>{tr('settings:appearance.title', { defaultValue: 'Theme & texture' })}</div>
+          <div role="tablist" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, margin: '12px 0 14px' }}>
+            {[['paper', tr('settings:appearance.tabPaper', { defaultValue: 'Paper' })], ['texture', tr('settings:appearance.tabTexture', { defaultValue: 'Texture' })], ['accent', tr('settings:appearance.tabAccent', { defaultValue: 'Accent' })], ['ink', tr('settings:appearance.tabInk', { defaultValue: 'Ink' })]].map(([k, l]) => {
+              const on = appearTab === k;
+              return (
+                <button key={k} type="button" role="tab" aria-selected={on} onClick={() => setAppearTab(k)} style={{ ...led(sTealInk, on), justifyContent: 'center', minWidth: 0, minHeight: 36, borderRadius: 8, cursor: 'pointer', fontSize: 8.5 }}>
+                  <span style={ell}>{l}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {appearTab === 'paper' && (
+          <OptGrid>
+            {BS_PAPER_OPTS.map(([k, l, paperHex, inkHex]) => (
+              <OptCell key={k} on={tweaks.paperMode === k} onClick={() => setTweak('paperMode', k)}
+                label={tr('settings:paper.' + k, { defaultValue: l })}>
+                <span style={{ position: 'absolute', inset: 0, background: paperHex, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: inkHex, letterSpacing: '-0.01em' }}>Aa</span>
+                </span>
+              </OptCell>
+            ))}
+          </OptGrid>
+          )}
+
+          {appearTab === 'texture' && (
+          <OptGrid>
+            {BS_TEXTURE_OPTS.map(([k, l]) => {
+              // Live pattern tile — the REAL makeTexture CSS over the current
+              // paper, so a pattern is visible before it's applied. Honors the
+              // texture-tint override (Tweaks panel) the same way BSProvider does.
+              const txHex = tweaks.textureColor && tweaks.textureColor !== 'auto' && /^#[0-9a-fA-F]{6}$/.test(tweaks.textureColor) ? tweaks.textureColor : null;
+              const txRGB = txHex ? [1, 3, 5].map(i => parseInt(txHex.slice(i, i + 2), 16)).join(',') : t.inkRGB;
+              const tex = k !== 'none' && typeof window.bsMakeTexture === 'function'
+                ? window.bsMakeTexture(k, txRGB, t.isLight) : null;
+              return (
+                <OptCell key={k} on={(tweaks.textureKey || 'none') === k} onClick={() => setTweak('textureKey', k)}
+                  label={tr('settings:texture.' + k, { defaultValue: l })}>
+                  <span style={{ position: 'absolute', inset: 0, background: tex ? `${tex}, ${t.PAPER}` : t.PAPER }}>
+                    {k === 'none' && (
+                      <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 11, color: t.INK50 }}>—</span>
+                    )}
+                  </span>
+                </OptCell>
+              );
+            })}
+          </OptGrid>
+          )}
+
+          {appearTab === 'accent' && (
+          <OptGrid>
+            {BS_ACCENT_OPTS.map(([k, l]) => {
+              const sw = BS_ACCENT_SWATCH[k] || BS_ACCENT_SWATCH.blue;
+              return (
+                <OptCell key={k} on={tweaks.accentKey === k} onClick={() => setTweak('accentKey', k)}
+                  label={tr('settings:accent.' + k, { defaultValue: l })}>
+                  <span style={{ position: 'absolute', inset: 0, background: sw[t.isLight ? 0 : 1] }} />
+                </OptCell>
+              );
+            })}
+          </OptGrid>
+          )}
+
+          {appearTab === 'ink' && (() => {
+            const paperEntry = BS_PAPER_OPTS.find(([pk]) => pk === (tweaks.paperMode || 'light')) || BS_PAPER_OPTS[0];
+            const inkPresets = [
+              ['default', null,        'Default',  'ink.default'],
+              ['#0f0e0c', '#0f0e0c',   'Charcoal', 'ink.charcoal'],
+              ['#f5f0e6', '#f5f0e6',   'Cream',    'ink.cream'],
+              ['#1c4ed8', '#1c4ed8',   'Blue',     'ink.blue'],
+              ['#0a8f87', '#0a8f87',   'Teal',     'ink.teal'],
+              ['#a8331b', '#a8331b',   'Rust',     'ink.rust'],
+              ['#2f6b3a', '#2f6b3a',   'Green',    'ink.green'],
+              ['#c8881a', '#c8881a',   'Amber',    'ink.amber'],
+              ['#5a2b8a', '#5a2b8a',   'Plum',     'ink.plum'],
+            ];
+            const customOn = !!tweaks.inkOverride && !inkPresets.some(([k]) => k === tweaks.inkOverride);
+            const customLabel = tr('settings:ink.custom', { defaultValue: 'Custom' });
+            return (
+              <>
+                <OptGrid>
+                  {inkPresets.map(([k, sw, lbl, ik]) => (
+                    <OptCell key={k} on={!customOn && (tweaks.inkOverride || 'default') === k} onClick={() => setTweak('inkOverride', k)}
+                      label={tr('settings:' + ik, { defaultValue: lbl })}>
+                      <span style={{ position: 'absolute', inset: 0, background: paperEntry[2], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: bsInkPreviewHex(sw, paperEntry[2], paperEntry[3]) }}>Aa</span>
+                      </span>
+                    </OptCell>
+                  ))}
+                  {/* Custom hex — OptCell's own footprint (the 44px, 12px tile and its label under it);
+                      the whole cell IS the colour input. */}
+                  <label title={customLabel} style={{ position: 'relative', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                    <span aria-hidden="true" style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: 44, boxSizing: 'border-box', borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: paperEntry[2],
+                      border: customOn ? `2px solid ${sTeal}` : `1px solid ${bsTHexA(t.INK, 0.14)}`,
+                      boxShadow: customOn ? (t.isLight ? `0 0 0 3px ${bsTHexA(sTeal, 0.14)}` : `0 0 12px ${bsTHexA(sTeal, 0.45)}`) : 'none' }}>
+                      <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 650, color: customOn ? bsInkPreviewHex(tweaks.inkOverride, paperEntry[2], paperEntry[3]) : paperEntry[3], opacity: customOn ? 1 : 0.45 }}>Aa</span>
+                      {customOn && (
+                        <span style={{ position: 'absolute', top: 4, right: 4, width: 15, height: 15, borderRadius: 999, background: sTeal, color: sOnTeal, fontSize: 9, lineHeight: '15px', fontWeight: 800, fontFamily: t.MONO, textAlign: 'center' }}>✓</span>
+                      )}
+                    </span>
+                    <span style={{ display: 'block', width: '100%', fontFamily: t.MONO, fontSize: 8, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                      color: customOn ? sTealInk : t.INK70, ...ell }}>{customLabel}</span>
+                    <input
+                      type="color"
+                      aria-label={customLabel}
+                      value={(tweaks.inkOverride && tweaks.inkOverride !== 'default') ? tweaks.inkOverride : (t.isLight ? '#0f0e0c' : '#f5f0e6')}
+                      onChange={(e) => setTweak('inkOverride', e.target.value)}
+                      style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                    />
+                  </label>
+                </OptGrid>
+                <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 8, letterSpacing: '0.06em', color: t.INK50, lineHeight: 1.45 }}>
+                  {tr('settings:ink.contrastNote', { defaultValue: "An ink that can't be read on this paper falls back automatically." })}
+                </div>
+              </>
+            );
+          })()}
+
+
+          <div style={{ ...subLabel, marginTop: 16, marginBottom: 8 }}>{tr('settings:appearance.displayWeight', { defaultValue: 'Display weight' })}</div>
+          <OptGrid>
+            {[['regular', 300], ['bold', 650]].map(([k, w]) => (
+              <OptCell key={k} on={tweaks.weightKey === k} onClick={() => setTweak('weightKey', k)}
+                label={tr('settings:weight.' + k, { defaultValue: k })}>
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: w, color: t.INK }}>Aa</span>
+                </span>
+              </OptCell>
+            ))}
+          </OptGrid>
+
+        </div>
+      </div>
+
+      {/* TEXT SIZE — its own group: the app-wide reading scale (scales the whole UI via the
+          surface `zoom`, so layout stays proportional at every size). */}
+      <div data-settings-textsize="" style={{ padding: `22px ${t.padX}px 0` }}>
+        <BSSetLabel t={t}>{tr('settings:a11y.eyebrow', { defaultValue: 'Accessibility' })}</BSSetLabel>
+        <div data-settings-plate="" style={{ ...plate(16), padding: 14 }}>
+          <div style={{ ...rowName, fontSize: 17, fontWeight: 600 }}>{tr('settings:a11y.textSize', { defaultValue: 'Text size' })}</div>
+          <div style={{ ...subLabel, marginTop: 5 }}>{tr('settings:a11y.textSizeSub', { size: tr('settings:textsize.' + (tweaks.textScaleKey || 'medium'), { defaultValue: bsTextSizeLabel(tweaks.textScaleKey) }), defaultValue: 'Scales the whole app · {size}' })}</div>
+          <div style={{ marginTop: 12 }}>
+          <OptGrid>
+            {BS_TEXT_SIZE_OPTS.map(([k, l], i) => (
+              <OptCell key={k} on={(tweaks.textScaleKey || 'medium') === k} onClick={() => setTweak('textScaleKey', k)}
+                label={tr('settings:textsize.' + k, { defaultValue: l })}>
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: [11, 13.5, 16][i] || 13.5, fontWeight: t.W.display, color: t.INK }}>Aa</span>
+                </span>
+              </OptCell>
+            ))}
+          </OptGrid>
+          </div>
+        </div>
+      </div>
+
+      {/* LANGUAGE and TIME ZONE — one plate, a row each: the app-wide UI locale (i18n), then the
+          account's one clock (P9; BSTimezone.jsx), every role: BSSettings is the coach apps'
+          Settings too. The time zone row hides until the migration runs and when signed out. */}
+      <div data-settings-region="" style={{ padding: `22px ${t.padX}px 0` }}>
+        <BSSetLabel t={t}>{tr('settings:language.group', { defaultValue: 'Language & time' })}</BSSetLabel>
+        <div data-settings-plate="" style={{ ...plate(16), overflow: 'hidden' }}>
+          <BSLanguageSetting t={t} />
+          <BSTimezoneSetting t={t} coach={isCoachRole} />
+        </div>
+      </div>
 
       {/* Light-fx tap-to-preview overlay — the REAL RadioEffects for a beat,
           portaled over the phone surface. Decorative only; cleared by the 6s
@@ -34812,6 +34824,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
 
       </>)}
 
+      {/* Room under a pane's last plate before the footer (the root keeps its own under Sign out). */}
+      {detail || editing ? <div aria-hidden="true" style={{ height: 28 }} /> : null}
       <BSRadioPrompt />
       <div style={{ marginTop: 'auto' }}>
         <BSFooter />
@@ -34829,17 +34843,17 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Shape-styled dropdown menu (replaces the native select picker) */}
       {dropdown && (
         <div onClick={() => setDropdown(null)} style={{ position: 'fixed', inset: 0, zIndex: 6000 }}>
-          <div onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${t.INK}`, borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,0.3)' }}>
-            <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.RULE}`, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{dropdown.label}</div>
+          <div onClick={(e) => e.stopPropagation()} className="bs-hide-scroll" style={{ position: 'fixed', top: dropdown.top, right: dropdown.right, zIndex: 6001, width: 220, maxHeight: '56vh', overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', background: t.PAPER, border: `1px solid ${bsTHexA(t.INK, 0.14)}`, borderRadius: 14, boxShadow: t.isLight ? '0 16px 40px rgba(15,14,12,0.22)' : '0 18px 44px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+            <div style={{ padding: '11px 12px 9px' }}><BSSetLabel t={t}>{dropdown.label}</BSSetLabel></div>
             {dropdown.options.map((opt) => {
               const on = prefs[dropdown.key] === opt;
               return (
                 <button key={opt} onClick={() => { setPref(dropdown.key, opt); setDropdown(null); }} style={{
                   width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-                  padding: '12px 12px', border: 0, borderTop: `1px solid ${t.HAIR}`, background: on ? `${sTeal}14` : 'transparent', cursor: 'pointer', textAlign: 'left',
+                  minHeight: 44, padding: '11px 12px', border: 0, borderTop: `1px solid ${t.HAIR}`, background: on ? bsTHexA(sTeal, 0.08) : 'transparent', cursor: 'pointer', textAlign: 'left',
                 }}>
-                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, color: t.INK }}>{opt}</span>
-                  {on && <span style={{ color: sTealInk, fontSize: 13, fontWeight: 800, flexShrink: 0 }}>✓</span>}
+                  <span style={{ fontFamily: t.DISPLAY, fontSize: 14, fontWeight: on ? 600 : 500, color: on ? sTealInk : t.INK }}>{opt}</span>
+                  {lamp(sTeal, on)}
                 </button>
               );
             })}
@@ -34850,12 +34864,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
       {/* Account field editor — in-app sheet */}
       {editField && createPortal((
         <div onClick={() => setEditField(null)} style={{ position: 'absolute', inset: 0, zIndex: 6000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'flex-end' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${t.RULE}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, marginBottom: 10 }}>{tr('settings:editField.editLabel', { label: editField.label, defaultValue: 'Edit {label}' })}</div>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', boxSizing: 'border-box', background: t.PAPER, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTop: `1px solid ${bsTHexA(t.INK, 0.14)}`, padding: `20px ${t.padX}px calc(22px + env(safe-area-inset-bottom, 0px))`, boxShadow: '0 -16px 40px rgba(0,0,0,0.35)' }}>
+            <BSSetLabel t={t}>{tr('settings:editField.editLabel', { label: editField.label, defaultValue: 'Edit {label}' })}</BSSetLabel>
             {editField.options && editField.options.length > 0 && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {editField.options.map((opt) => { const id = (opt && opt.id != null) ? opt.id : opt; const on = bsPrefOptionToken(editField.key, editField.value, tr) === String(id); return (
-                  <button key={id} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ padding: '6px 11px', borderRadius: 999, border: `1px solid ${on ? sTeal : t.RULE}`, background: on ? `${sTeal}1c` : 'transparent', color: on ? sTealInk : t.INK70, cursor: 'pointer', fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{bsPrefOptionLabel(editField.key, id, tr)}</button>
+                  <button key={id} type="button" aria-pressed={on} onClick={() => setEditField(f => ({ ...f, value: id }))} style={{ ...led(sTealInk, on), minHeight: 34, padding: '0 10px', borderRadius: 8, cursor: 'pointer', fontSize: 9 }}>{lamp(sTeal, on)}{bsPrefOptionLabel(editField.key, id, tr)}</button>
                 ); })}
               </div>
             )}
@@ -34869,11 +34883,11 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
               placeholder={editField.placeholder}
               onChange={(e) => setEditField(f => ({ ...f, value: e.target.value }))}
               onKeyDown={(e) => { if (e.key === 'Enter') saveEditField(); }}
-              style={{ width: '100%', padding: '13px 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' }}
+              style={{ width: '100%', boxSizing: 'border-box', minHeight: 46, padding: '12px 14px', borderRadius: 12, ...well(true), color: t.INK, fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, outline: 'none' }}
             />
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <button onClick={() => setEditField(null)} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('settings:action.cancel', { defaultValue: 'Cancel' })}</button>
-              <button onClick={saveEditField} style={{ flex: 1, padding: '13px', borderRadius: t.RADIUS_SM, border: 0, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}>{tr('settings:action.save', { defaultValue: 'Save' })}</button>
+              <PassportBtn label={tr('settings:action.cancel', { defaultValue: 'Cancel' })} onClick={() => setEditField(null)} />
+              <PassportBtn label={tr('settings:action.save', { defaultValue: 'Save' })} onClick={saveEditField} fill />
             </div>
           </div>
         </div>
@@ -34894,12 +34908,15 @@ function BSContactPage({ onBack }) {
   });
   const [sent, setSent] = useStateBSC(false);
   const update = (k, v) => setForm(prev => ({ ...prev, [k]: v }));
+  // The fields sit in the lit slot's well, as Settings' own do.
   const inputStyle = {
-    borderRadius: t.RADIUS_SM,
+    borderRadius: 12,
     width: '100%',
-    padding: '12px 12px',
-    border: `1px solid ${t.RULE}`,
-    background: t.PAPER,
+    boxSizing: 'border-box',
+    minHeight: 44,
+    padding: '11px 12px',
+    border: `1px solid ${bsTHexA(t.INK, 0.14)}`,
+    background: t.isLight ? bsTHexA(t.INK, 0.04) : 'rgba(0,0,0,0.38)',
     color: t.INK,
     fontFamily: t.DISPLAY,
     fontSize: 14,
@@ -34909,13 +34926,14 @@ function BSContactPage({ onBack }) {
   const labelStyle = {
     display: 'block',
     fontFamily: t.MONO,
-    fontSize: 9,
-    fontWeight: 800,
-    letterSpacing: '0.22em',
+    fontSize: 8.5,
+    fontWeight: 700,
+    letterSpacing: '0.14em',
     textTransform: 'uppercase',
-    color: t.INK50,
+    color: t.INK70,
     marginBottom: 6,
   };
+  const plateList = { ...bsSetPlate(t), overflow: 'hidden' };
   const contactActions = [
     { label: 'Call', value: '(203) 526-3314', action: () => { window.location.href = 'tel:+12035263314'; } },
     { label: 'Email', value: 'info@theshapecommunity.com', action: () => { window.location.href = 'mailto:info@theshapecommunity.com'; } },
@@ -34928,31 +34946,28 @@ function BSContactPage({ onBack }) {
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker="Contact"
-        title={<>Get in<br/>touch.</>}
-        trailing={<BSAvatar init="S" size={36} fill={t.ACCENT} ink={t.PAPER} />}
-      />
+      <BSSetPageHead title="Get in touch." onBack={onBack} />
 
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 500, lineHeight: 1.4, color: t.INK70 }}>
           Questions, partnerships, billing, coach support, or technical issues. Shape replies within one business day.
         </div>
       </div>
 
-      <BSSection title="Reach us directly" meta="Support desk" />
+      <BSSetSection title="Reach us directly" meta="Support desk" />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {contactActions.map((item, i, arr) => (
-          <button key={item.label} onClick={item.action} style={{
+       <div data-settings-plate="" style={plateList}>
+        {contactActions.map((item, i) => (
+          <button key={item.label} type="button" onClick={item.action} style={{
             borderRadius: 0,
             width: '100%',
+            minHeight: 52,
             border: 0,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            borderTop: i ? `1px solid ${t.HAIR}` : 0,
             background: 'transparent',
             color: t.INK,
             cursor: 'pointer',
-            padding: `${t.rowY + 6}px 0`,
+            padding: '12px 14px',
             textAlign: 'left',
             display: 'grid',
             gridTemplateColumns: '1fr auto',
@@ -34960,35 +34975,40 @@ function BSContactPage({ onBack }) {
             alignItems: 'center',
           }}>
             <span>
-              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, letterSpacing: '-0.01em' }}>{item.label}</span>
-              <span style={{ display: 'block', marginTop: 3, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.08em', color: t.INK50 }}>{item.value}</span>
+              <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, letterSpacing: '-0.01em' }}>{item.label}</span>
+              <span style={{ display: 'block', marginTop: 3, fontFamily: t.BODY, fontSize: 12.5, color: t.INK50 }}>{item.value}</span>
             </span>
-            <BSEyebrow color={t.ACCENT}>Open</BSEyebrow>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}><span style={bsSetLed(t, t.INK70, false)}>Open</span><span aria-hidden="true" style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1 }}>→</span></span>
           </button>
         ))}
+       </div>
       </div>
 
-      <BSSection title="Hours of operation" meta="Eastern time" />
+      <BSSetSection title="Hours of operation" meta="Eastern time" />
       <div style={{ padding: `0 ${t.padX}px` }}>
+       <div data-settings-plate="" style={plateList}>
         {[
           ['Mon - Fri', '6am - 10pm'],
           ['Saturday', '7am - 8pm'],
           ['Sunday', '8am - 6pm'],
-        ].map((row, i, arr) => (
+        ].map((row, i) => (
           <div key={row[0]} style={{
             display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            padding: `${t.rowY + 4}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
+            padding: '12px 14px',
+            borderTop: i ? `1px solid ${t.HAIR}` : 0,
           }}>
-            <span style={{ fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{row[0]}</span>
-            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 600 }}>{row[1]}</span>
+            <span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>{row[0]}</span>
+            <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK, fontWeight: 500 }}>{row[1]}</span>
           </div>
         ))}
+       </div>
       </div>
 
-      <BSSection title="Send us a message" meta={sent ? 'Queued' : '24h reply'} />
-      <div style={{ padding: `14px ${t.padX}px 18px` }}>
+      <BSSetSection title="Send us a message" meta={sent ? 'Queued' : '24h reply'} />
+      <div style={{ padding: `0 ${t.padX}px 26px` }}>
+       <div data-settings-plate="" style={{ ...bsSetPlate(t), padding: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <label>
             <span style={labelStyle}>First name</span>
@@ -35035,20 +35055,8 @@ function BSContactPage({ onBack }) {
           />
         </label>
 
-        <button onClick={submit} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%',
-          marginTop: 12,
-          padding: '14px',
-          border: `1px solid ${t.INK}`,
-          background: sent ? t.GREEN : t.INK,
-          color: t.PAPER,
-          cursor: 'pointer',
-          fontFamily: t.MONO,
-          fontSize: 10.5,
-          fontWeight: 800,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-        }}>{sent ? 'Message queued' : 'Send message'}</button>
+        <button type="button" onClick={submit} style={{ ...bsSetBtn(t, !sent), marginTop: 14 }}>{sent ? 'Message queued' : 'Send message'}</button>
+       </div>
       </div>
 
       <BSFooter right="Contact" />
@@ -36078,6 +36086,8 @@ function BSClientProgress({ onBack, initialTab = 'overall' }) {
 function BSPricingPage({ onBack }) {
   const t = useBS();
   const teal = t.isLight ? '#0a8f87' : '#34d6c5';
+  const tealInk = bsSetTealInk(t);
+  const plateList = { ...bsSetPlate(t), overflow: 'hidden' };
   const [open, setOpen] = useStateBSC(0);
   const features = [
     'Browse all trainers & nutritionists',
@@ -36105,38 +36115,33 @@ function BSPricingPage({ onBack }) {
   const browseCoaches = () => { try { window.dispatchEvent(new CustomEvent('shape:openMarket')); } catch (e) {} };
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker="Membership"
-        title={<>Five dollars<br/>a month.</>}
-        trailing={<BSAvatar init="$" size={36} fill={t.INK} ink={t.PAPER} />}
-      />
-      <div style={{ padding: `16px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, lineHeight: 1.42, color: t.INK }}>
+      <BSSetPageHead title="Five dollars a month." onBack={onBack} />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 500, lineHeight: 1.42, color: t.INK70 }}>
           One flat platform fee. Browse every trainer and nutritionist before paying anything, message your pros, track progress, log meals, listen to Shape Radio. Coaches set their own rates — you pay them directly, cancel any time.
         </div>
       </div>
 
-      {/* $5/mo card */}
-      <div style={{ padding: `16px ${t.padX}px 4px` }}>
-        <div style={{ border: `1px solid ${t.RULE}`, borderRadius: 16, overflow: 'hidden', background: t.PAPER2 }}>
-          <div style={{ position: 'relative', padding: '20px 18px 18px', borderBottom: `1px solid ${t.RULE}` }}>
-            <div style={{ position: 'absolute', top: 18, right: 16, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 7.5, fontWeight: 800, letterSpacing: '0.1em', padding: '5px 8px', borderRadius: 999 }}>INCL. SHAPE RADIO</div>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Platform</div>
+      {/* $5/mo — the dotted plate, its inclusion in a lit slot. */}
+      <div style={{ padding: `16px ${t.padX}px 0` }}>
+        <div data-settings-plate="" style={{ ...bsSetPlate(t, 18, true), overflow: 'hidden' }}>
+          <div style={{ position: 'relative', padding: '16px 14px 16px', borderBottom: `1px solid ${t.HAIR}` }}>
+            <span style={{ ...bsSetLed(t, tealInk), position: 'absolute', top: 14, right: 14 }}><BSSetLamp t={t} c={teal} />INCL. SHAPE RADIO</span>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700 }}>Shape Platform</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 6 }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 60, fontWeight: 700, lineHeight: 0.85, letterSpacing: '-0.05em', color: t.INK }}>$5</span>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>/month</span>
             </div>
             <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>What every Shape client pays to use the platform. Your coach's rate is separate and paid directly to them.</div>
-            <button onClick={bsStartPlatformCheckout} style={{ marginTop: 16, width: '100%', padding: '13px', borderRadius: 999, border: 0, background: teal, color: '#04201d', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Get started →</button>
+            <button type="button" onClick={bsStartPlatformCheckout} style={{ ...bsSetBtn(t, true), marginTop: 16 }}>Get started →</button>
             <div style={{ marginTop: 9, textAlign: 'center', fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', color: t.INK50 }}>Cancel any time · no commitments</div>
           </div>
-          <div style={{ padding: '16px 18px 18px' }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: teal, fontWeight: 700, marginBottom: 12 }}>What's included</div>
+          <div style={{ padding: '14px 14px 16px' }}>
+            <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: t.INK50, fontWeight: 700, marginBottom: 12 }}>What's included</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
               {features.map((f, i) => (
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: '16px 1fr', gap: 10, alignItems: 'start' }}>
-                  <span style={{ color: teal, fontSize: 12, fontWeight: 800 }}>✓</span>
+                  <span style={{ color: tealInk, fontSize: 12, fontWeight: 800, textShadow: t.isLight ? 'none' : `0 0 8px ${bsTHexA(teal, 0.6)}` }}>✓</span>
                   <span style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK, lineHeight: 1.35 }}>{f}</span>
                 </div>
               ))}
@@ -36146,11 +36151,12 @@ function BSPricingPage({ onBack }) {
       </div>
 
       {/* Coaches price themselves */}
-      <BSSection title="Coaches price themselves" meta="Pay them directly" />
-      <div style={{ padding: `2px ${t.padX}px 0` }}>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45, marginBottom: 8 }}>Subscribe monthly for ongoing programming, or buy one-off plans and sessions à la carte. Every rate is visible on the coach's profile before you commit.</div>
-        {coaches.map((c, i, arr) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: `${t.rowY + 6}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
+      <BSSetSection title="Coaches price themselves" meta="Pay them directly" />
+      <div style={{ padding: `0 ${t.padX}px` }}>
+        <div style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK70, lineHeight: 1.45, marginBottom: 10 }}>Subscribe monthly for ongoing programming, or buy one-off plans and sessions à la carte. Every rate is visible on the coach's profile before you commit.</div>
+        <div data-settings-plate="" style={plateList}>
+        {coaches.map((c, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 14px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: c.role === 'Nutritionist' ? '#a07a2e' : '#c0533b', fontWeight: 800 }}>{c.role}</div>
               <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em', marginTop: 1 }}>{c.name}</div>
@@ -36162,33 +36168,81 @@ function BSPricingPage({ onBack }) {
             </div>
           </div>
         ))}
-        <button onClick={browseCoaches} style={{ marginTop: 12, width: '100%', padding: '12px', borderRadius: 999, border: `1px solid ${t.RULE}`, background: 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>Browse all coaches →</button>
+        </div>
+        <button type="button" onClick={browseCoaches} style={{ ...bsSetBtn(t), marginTop: 10 }}>Browse all coaches →</button>
       </div>
 
       {/* FAQ */}
-      <BSSection title="Things people actually ask" meta="FAQ" />
+      <BSSetSection title="Things people actually ask" meta="FAQ" />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {faq.map((f, i, arr) => (
-          <div key={i} style={{ borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`, padding: `${t.rowY + 4}px 0` }}>
-            <button onClick={() => setOpen(open === i ? -1 : i)} style={{ width: '100%', textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
+        <div data-settings-plate="" style={plateList}>
+        {faq.map((f, i) => (
+          <div key={i} style={{ borderTop: i ? `1px solid ${t.HAIR}` : 0, padding: '13px 14px' }}>
+            <button type="button" aria-expanded={open === i} onClick={() => setOpen(open === i ? -1 : i)} style={{ width: '100%', minHeight: 24, textAlign: 'left', background: 'transparent', border: 0, cursor: 'pointer', padding: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
               <span style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.01em' }}>{f.q}</span>
-              <span style={{ fontFamily: t.MONO, fontSize: 16, color: teal, transition: 'transform .2s', transform: open === i ? 'rotate(45deg)' : 'none', lineHeight: 1 }}>+</span>
+              <span aria-hidden="true" style={{ fontFamily: t.MONO, fontSize: 16, color: tealInk, transition: 'transform .2s', transform: open === i ? 'rotate(45deg)' : 'none', lineHeight: 1 }}>+</span>
             </button>
-            {open === i && <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{f.a}</div>}
+            {open === i && <div style={{ marginTop: 8, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{f.a}</div>}
           </div>
         ))}
+        </div>
       </div>
 
       <div style={{ padding: `22px ${t.padX}px 30px` }}>
-        <button onClick={bsStartPlatformCheckout} style={{ width: '100%', padding: '14px', borderRadius: 999, border: 0, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.2em', textTransform: 'uppercase', cursor: 'pointer' }}>$5 / mo — Get started →</button>
+        <button type="button" onClick={bsStartPlatformCheckout} style={bsSetBtn(t, true)}>$5 / mo — Get started →</button>
       </div>
       <BSFooter right="Pricing" />
     </BSPage>
   );
 }
 
-function BSTermsPage({ onBack, onContact }) {
+// The legal summaries (Terms, Privacy, Data & compliance, Code of conduct, Consumer health data,
+// Subprocessors), one look: the Settings head; the date in a lit slot over the page's own lede on the
+// dotted plate; the clauses as numbered rows on one glass plate, each number in a lit slot; then
+// Open full ↗ filled and Contact support drawn as Sign out is.
+// `meta` (the date) and `note` (a warning) are props the i18n inventory reads as copy, so these literals
+// stay counted where each page passes them.
+function BSLegalIntro({ meta, note, children }) {
   const t = useBS();
+  return (
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      <div data-settings-plate="" style={{ ...bsSetPlate(t, 18, true), padding: '14px 14px 15px' }}>
+        <span style={bsSetLed(t, bsSetTealInk(t))}><BSSetLamp t={t} c={bsSetTeal(t)} />{meta}</span>
+        <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 500, lineHeight: 1.38, color: t.INK }}>{children}</div>
+        {note ? <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 7, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: t.RUST, lineHeight: 1.5, fontWeight: 800 }}><span aria-hidden="true" style={{ flexShrink: 0, marginTop: 4, width: 6, height: 6, borderRadius: 99, background: t.RUST }} />{note}</div> : null}
+      </div>
+    </div>
+  );
+}
+function BSLegalSections({ sections }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `0 ${t.padX}px` }}>
+      <div data-settings-plate="" style={{ ...bsSetPlate(t), overflow: 'hidden' }}>
+        {sections.map(([num, title, body], i) => (
+          <div key={num} style={{ display: 'grid', gridTemplateColumns: '40px 1fr', gap: 10, padding: '14px 14px 15px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <span style={{ ...bsSetLed(t, bsSetTealInk(t)), justifyContent: 'center', alignSelf: 'start', padding: '2px 5px' }}>{num}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em', lineHeight: 1.25 }}>{title}</div>
+              <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function BSLegalActions({ url, onContact, label }) {
+  const t = useBS();
+  return (
+    <div style={{ padding: `18px ${t.padX}px 26px`, display: 'grid', gap: 8 }}>
+      <button type="button" onClick={() => { window.location.href = url; }} style={bsSetBtn(t, true)}>{label}<span aria-hidden="true"> ↗</span></button>
+      {onContact && <button type="button" onClick={onContact} style={bsSetBtn(t)}>Contact support</button>}
+    </div>
+  );
+}
+
+function BSTermsPage({ onBack, onContact }) {
   const terms = [
     ['01', 'Acceptance & eligibility', 'Shape is for users who are at least 18 and legally able to use the platform. Business users must be authorized to accept terms for that business.'],
     ['02', 'Accounts', 'Each person should keep one accurate account, protect login credentials, and notify Shape if account access appears compromised.'],
@@ -36208,78 +36262,19 @@ function BSTermsPage({ onBack, onContact }) {
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker="Terms of service"
-        title={<>Terms of<br/>service.</>}
-        trailing={<BSAvatar init="T" size={36} fill={t.INK} ink={t.PAPER} />}
-      />
-
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
-          These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
-        </div>
-        <div style={{ marginTop: 10, fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.RUST, lineHeight: 1.45, fontWeight: 800 }}>
-          Includes arbitration and class-action waiver terms.
-        </div>
-      </div>
-
-      <BSSection title="Contents" meta="Summary" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {terms.map(([num, title, body], i, arr) => (
-          <div key={num} style={{
-            display: 'grid',
-            gridTemplateColumns: '34px 1fr',
-            gap: 12,
-            padding: `${t.rowY + 7}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
-        <button onClick={() => { window.location.href = 'https://www.theshapecommunity.com/terms.html'; }} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%',
-          padding: '14px',
-          border: `1px solid ${t.INK}`,
-          background: t.INK,
-          color: t.PAPER,
-          cursor: 'pointer',
-          fontFamily: t.MONO,
-          fontSize: 10.5,
-          fontWeight: 800,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-        }}>Open full terms</button>
-        <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM,
-          width: '100%',
-          padding: '14px',
-          border: `1px solid ${t.INK}`,
-          background: 'transparent',
-          color: t.INK,
-          cursor: 'pointer',
-          fontFamily: t.MONO,
-          fontSize: 10.5,
-          fontWeight: 800,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-        }}>Contact support</button>
-      </div>
-
+      <BSSetPageHead title="Terms of service" onBack={onBack} />
+      <BSLegalIntro meta="Last updated - June 22, 2026" note="Includes arbitration and class-action waiver terms.">
+        These terms govern use of Shape, including memberships, coach services, marketplace activity, rewards, content, and account conduct.
+      </BSLegalIntro>
+      <BSSetSection title="Contents" meta="Summary" />
+      <BSLegalSections sections={terms} />
+      <BSLegalActions url="https://www.theshapecommunity.com/terms.html" onContact={onContact} label="Open full terms" />
       <BSFooter right="Terms" />
     </BSPage>
   );
 }
 
 function BSPrivacyPage({ onBack, onContact }) {
-  const t = useBS();
   const sections = [
     ['01', 'What we collect', 'Account details (name, email), your profile and goals, the workouts, meals, and habits you log, messages with your coach, payment info processed by Stripe, and basic device/usage data.'],
     ['02', 'Health & medical data', 'Coaching involves sensitive consumer health data: your PAR-Q screening, prescription medications, allergies, pregnancy status, medical conditions, injuries, emergency contact, body measurements, progress photos, weigh-ins, weekly check-ins, and wearable recovery data (HR, HRV, sleep). You decide by choosing to provide it, and we treat it as sensitive — per-user row-level access and private signed-URL storage for photos/voice. Only you and your linked coach(es) see it; your safety screening is shared so a coach can work with you safely. Shape is a fitness platform, not a healthcare provider — this is consumer health data, not HIPAA PHI — but we still protect it. View, download, or delete it any time in Settings. Full detail is in our Consumer Health Data Privacy Policy at theshapecommunity.com/health-data-privacy.html.'],
@@ -36297,51 +36292,19 @@ function BSPrivacyPage({ onBack, onContact }) {
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker="Privacy policy"
-        title={<>Privacy<br/>policy.</>}
-        trailing={<BSAvatar init="P" size={36} fill={t.INK} ink={t.PAPER} />}
-      />
-
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
-          How Shape collects, uses, and protects your data — across training, nutrition, recovery, payments, and the coaches you work with.
-        </div>
-      </div>
-
-      <BSSection title="Summary" meta="At a glance" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {sections.map(([num, title, body], i, arr) => (
-          <div key={num} style={{
-            display: 'grid',
-            gridTemplateColumns: '34px 1fr',
-            gap: 12,
-            padding: `${t.rowY + 7}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
-        <button onClick={() => { window.location.href = 'https://www.theshapecommunity.com/privacy.html'; }} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Open full policy</button>
-        {onContact && <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Contact support</button>}
-      </div>
-
+      <BSSetPageHead title="Privacy policy" onBack={onBack} />
+      <BSLegalIntro meta="Last updated - June 22, 2026">
+        How Shape collects, uses, and protects your data — across training, nutrition, recovery, payments, and the coaches you work with.
+      </BSLegalIntro>
+      <BSSetSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/privacy.html" onContact={onContact} label="Open full policy" />
       <BSFooter right="Privacy" />
     </BSPage>
   );
 }
 
 function BSDataCompliancePage({ onBack, onContact }) {
-  const t = useBS();
   const sections = [
     ['01', 'Where your data lives', 'Shape runs on Supabase (managed Postgres database, authentication, and file storage) hosted in the United States. Files like progress photos and voice notes are kept in private storage buckets, served only through short-lived signed URLs.'],
     ['02', 'Subprocessors', 'Supabase (database, authentication, file storage), Stripe (payments and payouts), Vercel (web hosting and product analytics), Cloudflare (DNS, network security, and the Turnstile bot check), OpenAI (the "Nora" assistant, voice transcription, and text-to-speech — see "AI features" below), Google Firebase Cloud Messaging (push notifications), Resend (email), and Instacart (only if you send a grocery list to it). You can also connect wearable and audio services (Apple Health, Strava, Garmin, Whoop, Oura, Spotify). Each is engaged to use your data only to provide its service to Shape — for most that is a contract we have signed, and for a few it currently rests on the provider’s own published terms. The full list — with the data each receives, where it is processed, and which basis applies to it — is at theshapecommunity.com/subprocessors.html.'],
@@ -36356,80 +36319,19 @@ function BSDataCompliancePage({ onBack, onContact }) {
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker="Data & compliance"
-        title={<>Data &amp;<br/>compliance.</>}
-        trailing={<BSAvatar init="D" size={36} fill={t.INK} ink={t.PAPER} />}
-      />
-
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
-          Where your Shape data lives, who processes it, how we secure it, and how we handle privacy & compliance.
-        </div>
-      </div>
-
-      <BSSection title="Summary" meta="At a glance" />
-      <div style={{ padding: `0 ${t.padX}px` }}>
-        {sections.map(([num, title, body], i, arr) => (
-          <div key={num} style={{
-            display: 'grid',
-            gridTemplateColumns: '34px 1fr',
-            gap: 12,
-            padding: `${t.rowY + 7}px 0`,
-            borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}`,
-          }}>
-            <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
-            <div>
-              <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
-              <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
-        <button onClick={() => { window.location.href = 'https://www.theshapecommunity.com/data-compliance.html'; }} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Open full</button>
-        {onContact && <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Contact support</button>}
-      </div>
-
+      <BSSetPageHead title="Data & compliance" onBack={onBack} />
+      <BSLegalIntro meta="Last updated - June 22, 2026">
+        Where your Shape data lives, who processes it, how we secure it, and how we handle privacy & compliance.
+      </BSLegalIntro>
+      <BSSetSection title="Summary" meta="At a glance" />
+      <BSLegalSections sections={sections} />
+      <BSLegalActions url="https://www.theshapecommunity.com/data-compliance.html" onContact={onContact} label="Open full" />
       <BSFooter right="Data" />
     </BSPage>
   );
 }
 
-// Shared render helpers for the in-app legal summary pages (Code of Conduct,
-// Consumer health data, Subprocessors) — same look as Terms/Privacy/Data.
-function BSLegalSections({ sections }) {
-  const t = useBS();
-  return (
-    <div style={{ padding: `0 ${t.padX}px` }}>
-      {sections.map(([num, title, body], i, arr) => (
-        <div key={num} style={{ display: 'grid', gridTemplateColumns: '34px 1fr', gap: 12, padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-          <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', color: t.ACCENT, fontWeight: 900 }}>{num}</div>
-          <div>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{title}</div>
-            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{body}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-function BSLegalActions({ url, onContact }) {
-  const t = useBS();
-  const btn = { borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' };
-  return (
-    <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
-      <button onClick={() => { window.location.href = url; }} style={{ ...btn, border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER }}>Open full</button>
-      {onContact && <button onClick={onContact} style={{ ...btn, border: `1px solid ${t.INK}`, background: 'transparent', color: t.INK }}>Contact support</button>}
-    </div>
-  );
-}
-
 function BSCodeOfConductPage({ onBack, onContact }) {
-  const t = useBS();
   const sections = [
     ['01', 'Who it applies to', 'The Code applies to everyone on Shape — members, trainers, nutritionists, and dietitians — and is incorporated into the Terms of Service.'],
     ['02', 'Community standards', "Be respectful and honest. No harassment, hate, threats, sexual misconduct, spam, scams, impersonation, or sharing someone else's private information. Keep it lawful and safe."],
@@ -36440,23 +36342,22 @@ function BSCodeOfConductPage({ onBack, onContact }) {
     ['07', 'Enforcement & ban tiers', 'Most issues follow warning → temporary restriction → removal. Threats, sexual misconduct, fraud, illegal activity, abuse, and credential fraud are zero-tolerance — immediate ban, no refund. No ban evasion or re-registration.'],
     ['08', 'A living document', 'We update the Code as the community grows; it is reviewed by counsel before launch. Full text on the web.'],
   ];
+
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Code of conduct" title={<>Code of<br/>conduct.</>} trailing={<BSAvatar init="C" size={36} fill={t.INK} ink={t.PAPER} />} />
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.</div>
-      </div>
-      <BSSection title="Summary" meta="At a glance" />
+      <BSSetPageHead title="Code of conduct" onBack={onBack} />
+      <BSLegalIntro meta="Last updated - June 22, 2026">
+        The standard for how everyone behaves on Shape — fair, respectful, honest, and safe. Incorporated into the Terms.
+      </BSLegalIntro>
+      <BSSetSection title="Summary" meta="At a glance" />
       <BSLegalSections sections={sections} />
-      <BSLegalActions url="https://www.theshapecommunity.com/code-of-conduct.html" onContact={onContact} />
+      <BSLegalActions url="https://www.theshapecommunity.com/code-of-conduct.html" onContact={onContact} label="Open full" />
       <BSFooter right="Conduct" />
     </BSPage>
   );
 }
 
 function BSConsumerHealthPage({ onBack, onContact }) {
-  const t = useBS();
   const sections = [
     ['01', 'Scope & who this covers', "Covers \"consumer health data\" under Washington's My Health My Data Act and similar state laws. It supplements our Privacy Policy."],
     ['02', 'Health data we collect', 'PAR-Q screening, medications, allergies, pregnancy status, medical conditions, injuries, emergency contact, body measurements, weigh-ins, progress photos, weekly check-ins, and wearable recovery data (HR, HRV, sleep).'],
@@ -36469,23 +36370,22 @@ function BSConsumerHealthPage({ onBack, onContact }) {
     ['09', 'No sale · no geofencing', 'We do not sell health data and do not use geofencing around health facilities. We recognize the Global Privacy Control signal.'],
     ['10', 'Changes & contact', 'Material changes are announced in advance. Questions go to privacy@theshapecommunity.com.'],
   ];
+
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Consumer health data" title={<>Consumer<br/>health data.</>} trailing={<BSAvatar init="H" size={36} fill={t.INK} ink={t.PAPER} />} />
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.</div>
-      </div>
-      <BSSection title="Summary" meta="At a glance" />
+      <BSSetPageHead title="Consumer health data" onBack={onBack} />
+      <BSLegalIntro meta="Last updated - June 22, 2026">
+        How Shape handles your consumer health data under Washington's My Health My Data Act and similar laws.
+      </BSLegalIntro>
+      <BSSetSection title="Summary" meta="At a glance" />
       <BSLegalSections sections={sections} />
-      <BSLegalActions url="https://www.theshapecommunity.com/health-data-privacy.html" onContact={onContact} />
+      <BSLegalActions url="https://www.theshapecommunity.com/health-data-privacy.html" onContact={onContact} label="Open full" />
       <BSFooter right="Health" />
     </BSPage>
   );
 }
 
 function BSSubprocessorsPage({ onBack, onContact }) {
-  const t = useBS();
   const sections = [
     ['01', 'What a subprocessor is', 'A third party that processes some of your data to help Shape run. Each is engaged to use your data only to provide its service to Shape — for most that restriction is a contract we have signed, and for a few (including the public video-calling service) it currently rests on the provider’s own published terms. The Subprocessors page states which applies to each one.'],
     ['02', 'Infrastructure', 'Supabase (database, authentication, file storage), Vercel (web hosting and product analytics), and Cloudflare (DNS, network security, and the Turnstile bot check).'],
@@ -36495,16 +36395,16 @@ function BSSubprocessorsPage({ onBack, onContact }) {
     ['06', 'International transfers', 'Shape is hosted in the United States, so your data is processed there. For the EEA and the UK the safeguard we intend for each recipient is the EU-US Data Privacy Framework where it is certified, or Standard Contractual Clauses (with the UK Addendum) and a transfer impact assessment where it is not. That work is not finished, and we would rather say so: for several recipients the current basis is the provider’s own published terms. The Subprocessors page states the basis we hold for each one.'],
     ['07', 'Changes', 'We announce material changes to the subprocessor list in advance. The full list — with the data each receives — is on the web.'],
   ];
+
   return (
     <BSPage>
-      <BSDetailHeader onBack={onBack} kicker="Subprocessors" title={<>Subprocessors.</>} trailing={<BSAvatar init="S" size={36} fill={t.INK} ink={t.PAPER} />} />
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Last updated - June 22, 2026</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>The third parties that help run Shape — each engaged to use your data only to provide its service, on the basis stated for it.</div>
-      </div>
-      <BSSection title="Summary" meta="At a glance" />
+      <BSSetPageHead title="Subprocessors" onBack={onBack} />
+      <BSLegalIntro meta="Last updated - June 22, 2026">
+        The third parties that help run Shape — each engaged to use your data only to provide its service, on the basis stated for it.
+      </BSLegalIntro>
+      <BSSetSection title="Summary" meta="At a glance" />
       <BSLegalSections sections={sections} />
-      <BSLegalActions url="https://www.theshapecommunity.com/subprocessors.html" onContact={onContact} />
+      <BSLegalActions url="https://www.theshapecommunity.com/subprocessors.html" onContact={onContact} label="Open full" />
       <BSFooter right="Subprocessors" />
     </BSPage>
   );
@@ -36530,35 +36430,35 @@ function BSHelpPage({ onBack, onContact, onAskNora }) {
 
   return (
     <BSPage>
-      <BSDetailHeader
-        onBack={onBack}
-        kicker="Help center"
-        title={<>Help<br/>center.</>}
-        trailing={<BSAvatar init="?" size={36} fill={t.ACCENT} ink={t.INK} />}
-      />
+      <BSSetPageHead title="Help center" onBack={onBack} />
 
-      <div style={{ padding: `18px ${t.padX}px`, borderBottom: `1px solid ${t.RULE}` }}>
-        <BSEyebrow color={t.ACCENT}>Quick answers</BSEyebrow>
-        <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 500, lineHeight: 1.35, color: t.INK }}>
+      {/* Quick answers: the dotted plate, Nora first. */}
+      <div style={{ padding: `0 ${t.padX}px` }}>
+       <div data-settings-plate="" style={{ ...bsSetPlate(t, 18, true), padding: '14px 14px 15px' }}>
+        <span style={bsSetLed(t, bsSetTealInk(t))}><BSSetLamp t={t} c={bsSetTeal(t)} />Quick answers</span>
+        <div style={{ marginTop: 11, fontFamily: t.DISPLAY, fontSize: 16.5, fontWeight: 500, lineHeight: 1.38, color: t.INK }}>
           The fastest way to get help: ask <b>Nora</b> — tap ✦ at the top of any screen. She answers most questions instantly. The basics are below.
         </div>
         {onAskNora && (
-          <button onClick={onAskNora} style={{ marginTop: 14, borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: 0, background: t.ACCENT, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>✦ Ask Nora</button>
+          <button onClick={onAskNora} type="button" style={{ ...bsSetBtn(t, true), marginTop: 14 }}>✦ Ask Nora</button>
         )}
+       </div>
       </div>
 
-      <BSSection title="Common questions" meta="FAQ" />
+      <BSSetSection title="Common questions" meta="FAQ" />
       <div style={{ padding: `0 ${t.padX}px` }}>
-        {faqs.map(([q, a], i, arr) => (
-          <div key={q} style={{ padding: `${t.rowY + 7}px 0`, borderBottom: i === arr.length - 1 ? 0 : `1px solid ${t.HAIR}` }}>
-            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 700, color: t.INK, letterSpacing: '-0.015em' }}>{q}</div>
-            <div style={{ marginTop: 5, fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 500, color: t.INK70, lineHeight: 1.4 }}>{a}</div>
+        <div data-settings-plate="" style={{ ...bsSetPlate(t), overflow: 'hidden' }}>
+        {faqs.map(([q, a], i) => (
+          <div key={q} style={{ padding: '13px 14px 14px', borderTop: i ? `1px solid ${t.HAIR}` : 0 }}>
+            <div style={{ fontFamily: t.DISPLAY, fontSize: 15.5, fontWeight: 600, color: t.INK, letterSpacing: '-0.015em' }}>{q}</div>
+            <div style={{ marginTop: 5, fontFamily: t.BODY, fontSize: 13.5, color: t.INK70, lineHeight: 1.5 }}>{a}</div>
           </div>
         ))}
+        </div>
       </div>
 
-      <div style={{ padding: `18px ${t.padX}px 22px`, display: 'grid', gap: 8 }}>
-        {onContact && <button onClick={onContact} style={{ borderRadius: t.RADIUS_SM, width: '100%', padding: '14px', border: `1px solid ${t.INK}`, background: t.INK, color: t.PAPER, cursor: 'pointer', fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>Contact support</button>}
+      <div style={{ padding: `18px ${t.padX}px 26px`, display: 'grid', gap: 8 }}>
+        {onContact && <button type="button" onClick={onContact} style={bsSetBtn(t)}>Contact support</button>}
       </div>
 
       <BSFooter right="Help" />

@@ -1478,7 +1478,6 @@
   "hours.loading": "Leyendo tu horario…",
   "hours.error": "No pudimos leer tu horario ahora. No se perdió nada.",
   "hours.notCoach": "Tu horario se abre cuando aprueben tu solicitud de coach.",
-  "hours.kicker": "Tu práctica",
   "hours.title": "Tu horario.",
   "hours.blurb": "Cuándo pueden reservarte los miembros. Tu horario se repite cada semana; tus ausencias y reglas cierran horas dentro de él.",
   "hours.preview": "Una vista previa con horas de ejemplo. Inicia sesión como coach para poner las tuyas.",

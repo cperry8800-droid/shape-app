@@ -1478,7 +1478,6 @@
   "hours.loading": "Saatlerin okunuyor…",
   "hours.error": "Saatlerin şu an okunamadı. Hiçbir şey kaybolmadı.",
   "hours.notCoach": "Saatlerin koç başvurun onaylanınca açılır.",
-  "hours.kicker": "Pratiğin",
   "hours.title": "Saatlerin.",
   "hours.blurb": "Üyelerin seni ne zaman alabileceği. Saatlerin her hafta tekrarlanır; izinlerin ve kuralların bunların içindeki saatleri kapatır.",
   "hours.preview": "Örnek saatlerle bir önizleme. Kendi saatlerini ayarlamak için koç olarak giriş yap.",

@@ -638,7 +638,8 @@ test('L5: signing in never runs the system prompt; asking does, once, and the an
   // was deleted with it (2026-10-17).
   assert.match(read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx'), /Object\.assign\(window, \{ BSPushPermissionRow \}\);/);
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
-  assert.match(client, /<div style=\{\{ padding: `4px \$\{t\.padX\}px 30px` \}\}>\s*<BSPushPermissionRow \/>/);
+  // First on Notification center's first plate (the Settings look, owner 2026-11-09), inset as a plate's rows are.
+  assert.match(client, /<div style=\{\{ padding: `0 \$\{t\.padX\}px 30px` \}\}>\s*<div data-settings-plate="" style=\{plate\}>\s*<BSPushPermissionRow inset \/>/);
   for (const loc of fs.readdirSync(join(ROOT, 'mobile-app/src/i18n/catalogs'))) {
     const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${loc}/settings.json`));
     for (const k of ['push.title', 'push.on', 'push.off', 'push.notYet', 'push.turnOn', 'push.askTitle', 'push.askBody', 'push.askYes', 'push.notNow', 'push.askTitleCoach', 'push.askBodyCoach']) assert.ok(cat[k], `${loc}: settings:${k}`);

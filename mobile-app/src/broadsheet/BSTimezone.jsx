@@ -247,11 +247,12 @@ export function BSTimezoneSetting({ t, coach = false }) {
   if (!uid || read.kind === 'loading' || read.kind === 'hidden') return null;
 
   const label = tr('settings:timezone.row', { defaultValue: 'Time zone' });
-  const rowStyle = { padding: `14px ${t.padX}px 8px`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 };
+  // A row on Customize's Language & time plate, under Language: the hairline between the two, the
+  // name, and the select in the lit slot's well.
+  const rowStyle = { padding: '12px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 };
+  const wrapStyle = { borderTop: `1px solid ${hexA(t.INK, 0.1)}` };
   const labelEl = (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontFamily: t.DISPLAY, fontSize: 20, fontWeight: 700, color: t.INK, letterSpacing: '-0.025em' }}>{label}</div>
-    </div>
+    <div style={{ minWidth: 0, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, color: t.INK, letterSpacing: '-0.01em' }}>{label}</div>
   );
   const small = { fontFamily: t.DISPLAY, fontSize: 12.5, lineHeight: 1.45, color: t.INK70 };
   const status = { fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' };
@@ -259,15 +260,15 @@ export function BSTimezoneSetting({ t, coach = false }) {
   if (read.kind === 'failed' || read.kind === 'retrying') {
     const retrying = read.kind === 'retrying';
     return (
-      <div data-bs-timezone="setting">
+      <div data-bs-timezone="setting" style={wrapStyle}>
         <div style={rowStyle}>
           {labelEl}
           <button type="button" disabled={retrying} onClick={() => { setRead({ kind: 'retrying', zone: null }); setAttempt((n) => n + 1); }}
-            style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: t.RADIUS_SM, border: `1px solid ${teal}`, background: 'transparent', color: t.INK, cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 10, border: `1px solid ${teal}`, background: 'transparent', color: t.INK, cursor: retrying ? 'default' : 'pointer', opacity: retrying ? 0.6 : 1, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
             {tr('settings:timezone.retry', { defaultValue: 'Try again' })}
           </button>
         </div>
-        <div role={retrying ? 'status' : 'alert'} style={{ ...small, padding: `0 ${t.padX}px 10px` }}>
+        <div role={retrying ? 'status' : 'alert'} style={{ ...small, padding: '0 14px 12px' }}>
           {retrying
             ? tr('settings:timezone.reading', { defaultValue: 'Reading your time zone…' })
             : tr('settings:timezone.readFailed', { defaultValue: 'Couldn’t read your time zone.' })}
@@ -292,16 +293,16 @@ export function BSTimezoneSetting({ t, coach = false }) {
   const value = saving ? save.to : (read.zone || '');
   const offerDevice = !!device && device !== read.zone && !saving;
   return (
-    <div data-bs-timezone="setting">
+    <div data-bs-timezone="setting" style={wrapStyle}>
       <div style={rowStyle}>
         {labelEl}
         <select value={value} disabled={saving} onChange={(e) => choose(e.target.value)} aria-label={label}
-          style={{ flexShrink: 0, maxWidth: 190, padding: '10px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${hexA(t.INK, 0.3)}`, background: hexA(t.INK, 0.05), color: t.INK, fontFamily: t.DISPLAY, fontSize: 14.5, fontWeight: 600, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+          style={{ flexShrink: 0, maxWidth: 190, minHeight: 40, padding: '8px 12px', borderRadius: 10, border: `1px solid ${hexA(teal, t.isLight ? 0.5 : 0.55)}`, background: t.isLight ? hexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)', color: t.INK, fontFamily: t.DISPLAY, fontSize: 14, fontWeight: 600, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1 }}>
           {!read.zone && !saving && <option value="" disabled>{tr('settings:common.notSet', { defaultValue: 'Not set' })}</option>}
           {options.map((o) => <option key={o.zone} value={o.zone}>{o.label}</option>)}
         </select>
       </div>
-      <div style={{ padding: `0 ${t.padX}px 10px`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ padding: '0 14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {save.kind !== 'idle' && (
           <div role={save.kind === 'failed' ? 'alert' : 'status'} style={{ ...status, color: save.kind === 'failed' ? t.RUST : save.kind === 'saved' ? teal : t.INK50 }}>
             {save.kind === 'saving' ? tr('settings:timezone.saving', { defaultValue: 'Saving…' })

@@ -122,9 +122,42 @@ test('the door exists for both roles and routes to the pane', () => {
   }
 });
 
-test('the picker opens with the pane, because the pane is named after it', () => {
-  assert.match(src, /const \[showAppearance, setShowAppearance\] = useStateBSC\(true\)/,
-    'a collapsed picker inside a page called Customize is a page whose body is a button saying Customize');
+test('nothing on Customize is folded away: no "Customize ▸" inside a page called Customize', () => {
+  // The appearance picker opened with the pane already (a collapsed picker inside a page called Customize
+  // is a page whose body is a button saying Customize). Owner, 2026-11-09, of Light effects, which was
+  // still folded behind one at the foot of the page: "this needs to be moved towards top of customize
+  // page in settings and displayed better". Every group is open on the page now.
+  const pane = src.slice(...paneSpan('customize'));
+  for (const gone of ['showAppearance', 'showLightFx', 'settings:appearance.customize', 'settings:appearance.close']) {
+    assert.ok(!src.includes(gone), `${gone} is back: a group on Customize folds away again`);
+  }
+  assert.ok(!/aria-expanded=/.test(pane), 'a group on Customize opens and closes again');
+});
+
+test('Light effects sits second, under Nav bar and above Appearance, with its modes, colours and Shape Radio', () => {
+  const pane = src.slice(...paneSpan('customize'));
+  const at = (needle) => { const i = pane.indexOf(needle); assert.ok(i > 0, `${needle} is not on Customize`); return i; };
+  const nav = at('data-settings-nav-side=""');
+  const fx = at('data-settings-fx=""');
+  const look = at('data-settings-appearance=""');
+  const size = at('data-settings-textsize=""');
+  const region = at('data-settings-region=""');
+  assert.ok(nav < fx && fx < look && look < size && size < region,
+    'Customize is not Nav bar, Light effects, Appearance, Text size, Language & time, in that order');
+  // From the block's own code (its modes and colours are named above its markup) to the next group.
+  const fxBlock = pane.slice(pane.lastIndexOf('const fxReduced = bsSdReduced();', fx), look);
+  assert.ok(pane.lastIndexOf('const fxReduced = bsSdReduced();', fx) > nav, 'the Light effects code is not under Nav bar');
+  // The four modes, each a tile with its intensity, the colour as one row of dots, the radio's state
+  // and the foot line, all on the one plate.
+  assert.match(fxBlock, /data-settings-fx-mode=\{m\.k\} onClick=\{\(\) => pickFx\(m\.k\)\} aria-pressed=\{active\}/);
+  for (const k of ['off', 'subtle', 'immersive', 'hologram']) assert.match(fxBlock, new RegExp(`\\{ k: '${k}',\\s+glyph: `), `${k} is not a mode`);
+  assert.match(fxBlock, /role="radio" aria-checked=\{on\} aria-label=\{label\} title=\{label\} data-settings-fx-color=\{k\} onClick=\{\(\) => pickFxColor\(k\)\}/,
+    'a colour dot is not a named radio that picks its colour');
+  assert.match(fxBlock, /gridTemplateColumns: `repeat\(\$\{fxColors\.length\}, minmax\(0, 1fr\)\)`/, 'the colours wrap onto a second row on a narrow phone');
+  assert.match(fxBlock, /data-settings-radio-state=\{radioOn \? 'playing' : 'paused'\}/, 'the radio\'s state is not beside its effects');
+  // "Playing" is the MEASURED clock, never what was asked for.
+  assert.match(fxBlock, /const radioOn = r\.playingSince != null;/);
+  assert.ok(!/setRadio|r\.setPaused|r\.play\(/.test(fxBlock), 'the radio reading became a switch (owner, 2026-10-18: "remove the radio toggle")');
 });
 
 test('every pane that hides the root is still reset when Settings is re-opened', () => {
