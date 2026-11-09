@@ -1024,7 +1024,7 @@ function NutritionistPlansPage() {
         title="Plans"
         subtitle={view ? "Editing — autosaves as you build; Assign publishes a scaled snapshot to the client's meals + grocery." : "Your meal-plan library and who needs a plan next. Assign pre-fills the plan queue."}
       >
-        {targetClient && <p role="status">Choose a plan for {targetClient.profile.name}. The assignment will have this client selected.{pickFor && <> <button type="button" style={dmbBtn(false)} onClick={() => setPickFor(null)}>Not now</button></>}</p>}
+        {targetClient && <p role="status">Choose a plan for {targetClient.profile.name}{/\.$/.test(targetClient.profile.name) ? "" : "."} The assignment will have this client selected.{pickFor && <> <button type="button" style={dmbBtn(false)} onClick={() => setPickFor(null)}>Not now</button></>}</p>}
         {view ? (
           <DmbBuilder
             key={view.template.id || view.template.name}
@@ -1082,7 +1082,7 @@ function NutritionistPlansPage() {
                 const variants = b.days.reduce((s, d) => s + Object.keys(d.variants || {}).length, 0);
                 return (
                   <DashLibCard key={t.id || t.name} name={t.name} onOpen={() => setView({ template: t })} openTitle={"Open " + t.name + " in the builder"}
-                    cover={{ color: ph.c, kind: ph.label }}
+                    cover={{ color: ph.c, tone: dashLibKind(b.goalPhase), kind: ph.label }}
                     meta={dmbCount(b.days.length, "day", "days") + " rotation · " + b.targets.kcal + " kcal · " + b.targets.p + " g protein" + (variants ? " · " + dmbCount(variants, "variant", "variants") : "")}
                     primary={<button type="button" onClick={() => { setWalk(null); setAssignFor({ template: t, clientId: targetClient ? forClient : null }); }} style={dmbBtn(true)}>Assign</button>}
                     menu={<DashLibMenu label={"More for " + t.name} items={[

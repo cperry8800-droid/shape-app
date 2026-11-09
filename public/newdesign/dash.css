@@ -1066,6 +1066,8 @@ html .dash-plate.dash-lib-card:hover { box-shadow:var(--lift-2); }
 .dash-lib-cover { --lib-c:var(--sh-ink3, #75706a); position:relative; display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
   min-height:64px; padding:12px 14px; box-sizing:border-box; border-radius:11px 11px 0 0; border-top:4px solid var(--lib-c);
   background:linear-gradient(135deg, color-mix(in srgb, var(--lib-c) 30%, var(--sh-card, #25211d)), color-mix(in srgb, var(--lib-c) 10%, var(--sh-card, #25211d))); }
+.dash-lib-cover[data-kind-tone] { --lib-c:var(--lib-cl); }
+html:is([data-paper="dark"],[data-paper="carbon"],[data-paper="night"],[data-paper="glass"]) .dash-lib-cover[data-kind-tone] { --lib-c:var(--lib-cd); }
 .dash-lib-kind { font-family:var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', monospace); font-size:10.5px; font-weight:700; letter-spacing:.14em;
   text-transform:uppercase; color:var(--sh-ink, #f2ede4); }
 .dash-lib-badges { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }

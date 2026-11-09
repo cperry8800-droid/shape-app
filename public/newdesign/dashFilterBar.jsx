@@ -350,7 +350,7 @@ function DashLibPeople({ people, max = 3, extra = 0 }) {
           <span>{p.name}</span>
         </span>
       ))}
-      {more > 0 && <span className="dash-lib-person-more">+{more} more</span>}
+      {more > 0 && <span className="dash-lib-person-more">{"+" + more + " more"}</span>}
     </span>
   );
 }
@@ -359,6 +359,8 @@ function DashLibPeople({ people, max = 3, extra = 0 }) {
 // words, the name, its facts, then ONE primary and the ⋯. A click on the card opens it (the
 // builder); the name is the keyboard's way in, a button of its own inside the heading. ⚠ THE
 // CARD IS NOT A BUTTON: it holds buttons, and a button never holds another (#2628).
+// `cover.tone` ({ light, dark }) is a plan type's colour for each paper tone (dashLibKind), which
+// dash.css picks by the paper; `cover.color` is one colour for every paper.
 function DashLibCard({ name, cover, meta, children, primary, menu, onOpen, openTitle }) {
   const click = (e) => {
     if (!onOpen || e.defaultPrevented) return;
@@ -366,9 +368,11 @@ function DashLibCard({ name, cover, meta, children, primary, menu, onOpen, openT
     if (t && typeof t.closest === "function" && t.closest("button, a, input, select, textarea, label, [role='menu']")) return;
     onOpen();
   };
+  const tone = cover.tone || null;
   return (
     <article className="dash-plate dash-lib-card" data-lib-card="" onClick={click}>
-      <div className="dash-lib-cover" style={{ "--lib-c": cover.color }}>
+      <div className="dash-lib-cover" data-kind-tone={tone ? "" : undefined}
+        style={tone ? { "--lib-cl": tone.light, "--lib-cd": tone.dark } : { "--lib-c": cover.color }}>
         <span className="dash-lib-kind">{cover.kind}</span>
         {cover.badges && <span className="dash-lib-badges">{cover.badges}</span>}
       </div>
@@ -380,6 +384,17 @@ function DashLibCard({ name, cover, meta, children, primary, menu, onOpen, openT
       <div className="dash-lib-actions">{primary}{menu}</div>
     </article>
   );
+}
+
+// A plan type's own colour (clientColors.mjs PROGRAM_TYPES: Cut tangerine, Maintain mint, Build
+// violet, Race azure, Intake slate), as { light, dark }, or null for a type it does not name.
+// Read at call time: the module script may land after this file.
+function dashLibKind(type) {
+  try {
+    const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
+    const t = CC && CC.PROGRAM_TYPES ? CC.PROGRAM_TYPES[String(type || "").trim().toLowerCase()] : null;
+    return t ? { light: t.light, dark: t.dark } : null;
+  } catch (e) { return null; }
 }
 
 // The sentence for a roster the page needed and could not read (useDashboard's `unread`).
@@ -412,4 +427,4 @@ function dashLibWeekEnd(now) {
 }
 
 Object.assign(window, { DashFilterBar, DashFacetMenu, DashTagChips, DFB_EMPTY, dfbRun, dfbToggle, dfbClearFacet, dfbSelected, dfbCountLabel, dfbPopShift, useDfbPopShift,
-  DashLibSort, DashLibStatus, DashLibMenu, DashLibTopLine, DashLibDrawer, DashLibPeople, DashLibCard, DASH_LIB_ROSTER_UNREAD, dashLibRosterState, dashLibWeekEnd });
+  DashLibSort, DashLibStatus, DashLibMenu, DashLibTopLine, DashLibDrawer, DashLibPeople, DashLibCard, DASH_LIB_ROSTER_UNREAD, dashLibRosterState, dashLibWeekEnd, dashLibKind });
