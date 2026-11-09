@@ -1390,7 +1390,7 @@ function MobileDrawer({ open, onClose, active, authUser, staffLevel, onLogout })
             <a href="#" onClick={onLogout} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Sign out</a>
             <a href={dashShellHref(authUser.role === 'trainer' ? 'TrainerDashboard.html' : authUser.role === 'nutritionist' ? 'NutritionistDashboard.html' : 'ClientDashboard.html')} onClick={onClose} style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Dashboard</a>
           </>
-        ) : (
+        ) : (window.ShapeDashExample && window.ShapeDashExample.on) ? null : (
           <>
             <a href="Login.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.2)", color: INK, fontFamily: navSans, fontSize: 14, fontWeight: 500, textDecoration: "none" }}>Log in</a>
             <a href="Landing.html" style={{ flex: 1, textAlign: "center", padding: "14px 18px", borderRadius: 6, background: TEAL_BRIGHT, color: "var(--sh-deep, #06231f)", fontFamily: navSans, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Get started</a>
@@ -1705,8 +1705,10 @@ function Header({ active }) {
             </>
           ) : (
             <>
-              <a href="/newdesign/Login.html" style={quietLink}>Log in</a>
-              <a href="/newdesign/Landing.html" style={ctaBtn}>Get started</a>
+              {/* The example dashboard's tab reads as signed out on purpose (dashExample.js), but its
+                  coach is signed in: no Log in or Get started there, and the band is the way back. */}
+              {!(window.ShapeDashExample && window.ShapeDashExample.on) && <a href="/newdesign/Login.html" style={quietLink}>Log in</a>}
+              {!(window.ShapeDashExample && window.ShapeDashExample.on) && <a href="/newdesign/Landing.html" style={ctaBtn}>Get started</a>}
               <RadioWordmark />
             </>
           )}

@@ -1304,7 +1304,9 @@ function dashRosterGroups(rows) {
 // selection through the list as it is drawn, groups included.
 // `unread`: the roster couldn't be read (useDashboard's source "unread"): the empty list says so, never
 // "No clients yet".
-function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss, selectedId, onSelect, docked = false, joint, sessions, unread = false }) {
+// `live`: the roster was read (useDashboard's source "live"), so an empty one is the coach's own and
+// the example (DashExampleLink) is offered beside it.
+function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss, selectedId, onSelect, docked = false, joint, sessions, unread = false, live = false }) {
   const controlled = typeof onSelect === "function";
   const [ownId, setOwnId] = React.useState(null);
   const selId = controlled ? (selectedId == null ? null : selectedId) : ownId;
@@ -1406,7 +1408,7 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
       </div>
       {rows.length === 0 && (
         <div data-roster-empty={unread ? "unread" : triage.length === 0 ? "none" : "filtered"} style={{ padding: "34px 4px", textAlign: "center", color: ink50, fontSize: 13.5 }}>
-          {unread ? "Your roster couldn't be read just now · reload to try again" : triage.length === 0 ? "No clients yet. Share your public profile to start getting subscribers." : "No clients match this search or filter."}
+          {unread ? "Your roster couldn't be read just now · reload to try again" : triage.length === 0 ? <React.Fragment>No clients yet. Share your public profile to start getting subscribers.{live && typeof DashExampleLink === "function" && <>{" "}<DashExampleLink>See the example dashboard →</DashExampleLink></>}</React.Fragment> : "No clients match this search or filter."}
         </div>
       )}
       {groups.map((g) => (

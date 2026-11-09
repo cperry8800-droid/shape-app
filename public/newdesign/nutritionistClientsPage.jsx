@@ -104,7 +104,7 @@ function NutritionistClientsPage() {
                 </div>
                 {loading
                   ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
-                  : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={dismiss} unread={unread}
+                  : <DashRosterTable triage={triage} role="nutritionist" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={dismiss} unread={unread} live={source === "live"}
                       selectedId={peek.selectedId} onSelect={peek.select} docked={peek.docked} />}
               </Card>
             )}
