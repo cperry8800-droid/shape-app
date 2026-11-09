@@ -490,20 +490,6 @@ const DWK_EYEBROW = { fontFamily: DWK_MONO, fontSize: 9.5, fontWeight: 700, lett
 const DWK_CHIP = { display: "inline-block", fontFamily: DWK_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" };
 const DWK_FILLED = { fontFamily: DWK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DWK_TEAL, border: 0, borderRadius: 6, padding: "9px 14px", minHeight: 34, cursor: "pointer", boxShadow: "var(--lift-key-fill, 0 0 0 transparent)" };
 const DWK_REVIEW_INK = { reviewed: "var(--sh-green, #7bbf5a)", waiting: DWK_AMBER, unknown: "rgba(var(--sh-ink-rgb, 242,237,228),0.22)" };
-// The layout lives in classes, not inline grids: pageShell's phone rules collapse any inline
-// `repeat(…)` or `1fr 1fr` grid to one column at 900px, which would stack the table's columns.
-const DWK_CSS = [
-  ".dwk-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:stretch;margin-bottom:16px}",
-  ".dwk-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,390px);gap:16px;align-items:start}",
-  ".dwk-heat-scroll{overflow-x:auto;margin:0 -6px;padding:0 6px 6px}",
-  ".dwk-heat{min-width:600px}",
-  ".dwk-heat-row{display:grid;grid-template-columns:minmax(128px,1.5fr) repeat(6,minmax(50px,1fr)) minmax(86px,0.9fr);gap:6px;align-items:center}",
-  ".dwk-heat-row[role=button]:focus-visible{outline:2px solid var(--sh-accent, #2ee0c4);outline-offset:1px}",
-  ".dwk-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}",
-  "@media (max-width:1180px){.dwk-split{grid-template-columns:minmax(0,1fr)}}",
-  "@media (max-width:980px){.dwk-top{grid-template-columns:minmax(0,1fr)}}",
-  "@media (max-width:480px){.dwk-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}",
-].join("\n");
 
 function DwkChip({ color, children }) { return <span style={{ ...DWK_CHIP, color }}>{children}</span>; }
 
@@ -957,7 +943,21 @@ function CoachWeekPage({ role }) {
         title={"Week of " + dwkFmt(weekOf)}
         subtitle="Every client's check-in in one table, what stands out across them, and the one you are reading beside it. Reply, mark it reviewed, and go on to the next."
       >
-        <style>{DWK_CSS}</style>
+        {/* The layout lives in classes, not inline grids: pageShell's phone rules collapse any inline
+            repeat() or "1fr 1fr" grid to one column at 900px, which would stack the table's columns.
+            One plain template literal, with no backtick in it (tests/site-nav.test.mjs). */}
+        <style>{`
+.dwk-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:stretch;margin-bottom:16px}
+.dwk-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(330px,390px);gap:16px;align-items:start}
+.dwk-heat-scroll{overflow-x:auto;margin:0 -6px;padding:0 6px 6px}
+.dwk-heat{min-width:600px}
+.dwk-heat-row{display:grid;grid-template-columns:minmax(128px,1.5fr) repeat(6,minmax(50px,1fr)) minmax(86px,0.9fr);gap:6px;align-items:center}
+.dwk-heat-row[role=button]:focus-visible{outline:2px solid var(--sh-accent, #2ee0c4);outline-offset:1px}
+.dwk-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+@media (max-width:1180px){.dwk-split{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:980px){.dwk-top{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:480px){.dwk-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+`}</style>
         <div className="dwk-top">
           <DwkHead model={head} onStart={startReview} canStart={!!firstWaiting && !rosterUnread && !pending} onMarkAll={markAll} canMarkAll={canMarkAll && !rosterUnread && !pending} />
           {!rosterUnread && !pending ? <DwkPatterns lines={patterns} empty={patternsEmpty} /> : <div />}
