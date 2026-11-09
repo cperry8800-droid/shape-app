@@ -22,7 +22,8 @@ globalThis.BSFacetAvatar = function BSFacetAvatar() { return null; };
 const REG = { registry: new Map([['react', SHIM], ['react-dom', { createPortal: (n) => n }]]) };
 const R = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSSettingsRoot.jsx'), REG);
 
-const TEAL = THEME.isLight ? '#0a8f87' : '#34d6c5';
+// A lit slot's words take the deeper teal, the one small text needs (4.6:1 on the Cream paper).
+const TEAL = THEME.isLight ? '#0a7a72' : '#34d6c5';
 const DOORS = [
   ['account', 'Account', 'Email · password · 2FA'],
   ['notifications', 'Notifications', '3 of 4 active'],
@@ -72,18 +73,26 @@ const tap = (n) => n.props.onClick({ preventDefault() {}, stopPropagation() {} }
 test('the panel opens on the masthead, ← Back and Settings, then who you are with the tier in its lit slot', () => {
   const m = member();
   const d = m.mount();
-  const fnNode = (name) => d.nodes().find((n) => typeof n.type === 'function' && n.type.name === name);
-  assert.ok(fnNode('BSMastRow'), 'no masthead row');
-  const back = fnNode('BSBackRow');
+  const fnNode = (tree, name) => tree.nodes().find((n) => typeof n.type === 'function' && n.type.name === name);
+  // The head is the one every Settings page draws (BSSettingsHead, owner 2026-11-09: "need to improve
+  // every other page in app settings with updated look"): the masthead row, ← Back, the title.
+  const head = fnNode(d, 'BSSettingsHead');
+  assert.ok(head, 'the panel does not open on the shared Settings head');
+  assert.equal(head.props.title, 'Settings');
+  const h = drive(R.BSSettingsHead, head.props);
+  assert.ok(fnNode(h, 'BSMastRow'), 'no masthead row');
+  const back = fnNode(h, 'BSBackRow');
   assert.equal(back.props.label, 'Back');
   back.props.onBack();
   assert.deepEqual(m.calls.pop(), ['back'], 'the shell’s Back does not close Settings');
-  assert.match(d.text, /^Settings/);
+  assert.match(h.text, /^Settings$/, 'the head carries more than its title: a kicker over it is back');
+  const rule = h.nodes().find((n) => n.props && n.props['aria-hidden'] === 'true' && /linear-gradient\(90deg, #/.test(String(n.props.style && n.props.style.background)));
+  assert.ok(rule, 'the title lost its teal hairline');
   const tier = one(d, 'data-settings-tier');
   assert.equal(textOf(tier), 'Tempo tier');
   assert.match(tier.props.style.border, /216, 162, 58/, 'the tier slot is not framed in the tier’s colour');
   assert.match(d.text, /Quinn Harper@quinn · Brooklyn, NYTempo tierNot a member/);
-  assert.equal(fnNode('BSFacetAvatar').props.initial, 'QH');
+  assert.equal(fnNode(d, 'BSFacetAvatar').props.initial, 'QH');
   d.click('Edit profile');
   d.click('Public profile');
   assert.deepEqual(m.calls.splice(0), [['edit'], ['public']]);

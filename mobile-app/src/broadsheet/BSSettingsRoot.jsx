@@ -38,6 +38,64 @@ const hexA = (hex, a) => {
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 };
 
+// ─── THE LIT PANEL'S PARTS, SHARED WITH EVERY PANE ───────────────────────────────────────────────
+// Owner, 2026-11-09: "need to improve every other page in app settings with updated look". The panes
+// (BSSettings in iosAppBroadsheetClient.jsx: Account, Notifications, Customize, Edit profile and the
+// rest) draw with these same parts, so a pane and the root cannot drift apart: the head, a group's
+// label, the glass plate, the lit slot and its lamp.
+
+// The Settings teal (the theme's, whatever accent the member chose) and its deeper pair for small text.
+export const bsSetTeal = (t) => (t && t.isLight ? '#0a8f87' : '#34d6c5');
+export const bsSetTealInk = (t) => (t && t.isLight ? '#0a7a72' : '#34d6c5');
+// The lit slot: a dark inset on a dark paper (a faint ink wash on a light one), a 1px frame in its colour
+// and figures that glow on a dark paper only. Unlit, the frame and the words fall back to the ink.
+export function bsSetLed(t, c, on = true) {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 5, boxSizing: 'border-box', padding: '3px 7px', borderRadius: 6,
+    background: t.isLight ? hexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)',
+    border: `1px solid ${on ? hexA(c, t.isLight ? 0.5 : 0.6) : hexA(t.INK, 0.16)}`,
+    color: on ? c : t.INK50, textShadow: on && !t.isLight ? `0 0 8px ${hexA(c, 0.75)}` : 'none',
+    fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+  };
+}
+export function BSSetLamp({ t, c, on = true }) {
+  return <span aria-hidden="true" style={{ flexShrink: 0, width: 6, height: 6, borderRadius: 99, background: on ? c : hexA(t.INK, 0.25), boxShadow: on && !t.isLight ? `0 0 6px ${c}` : 'none' }} />;
+}
+// The glass plate every group sits on (the profile plate takes its dots, `grid`).
+export const bsSetPlate = (t, radius = 16, grid = false) => bsMpGlass(t, t.INK, { radius, grid });
+// A group's label: a lit dot, the words in mono capitals, and anything it carries on the right.
+export function BSSetLabel({ t, children, meta = null }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingBottom: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}><BSSetLamp t={t} c={bsSetTeal(t)} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{children}</span></span>{meta}
+    </div>
+  );
+}
+// The head of the root and of every pane: the masthead row and ← as every page has them, then the title
+// over a teal hairline. No kicker over the title (owner, 2026-11-09, of "02 · SETTINGS" over a pane's
+// title: "remove this", "everywhere in settings").
+export function BSSettingsHead({ title, onBack }) {
+  const t = window.useBS();
+  const tr = useShapeTr();
+  const MastRow = window.BSMastRow;
+  const BackRow = window.BSBackRow;
+  const MeCorner = window.BSMeCorner;
+  const mastTop = window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
+  const teal = bsSetTeal(t);
+  return (
+    <>
+      <div style={{ padding: `${mastTop} ${t.padX}px 2px` }}>
+        {MastRow && <MastRow trailing={MeCorner ? <MeCorner /> : null} />}
+        {BackRow && <BackRow onBack={onBack} label={tr('settings:head.back', { defaultValue: 'Back' })} />}
+      </div>
+      <div data-settings-head="" style={{ padding: `6px ${t.padX}px 0` }}>
+        <div role="heading" aria-level={1} style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.05, color: t.INK, overflowWrap: 'anywhere' }}>{title}</div>
+        <div aria-hidden="true" style={{ marginTop: 10, height: 1, background: `linear-gradient(90deg, ${teal}, ${hexA(teal, 0.25)} 45%, transparent)`, boxShadow: t.isLight ? 'none' : `0 0 8px ${hexA(teal, 0.6)}` }} />
+      </div>
+    </>
+  );
+}
+
 // identity: { name, sub, initial, photo, ring (the avatar's tier colour), tierColor, tierLine, statusLine }
 // switches: [{ k, label, on, value, onToggle }]
 // modes:    [{ key, title, meta, label, opts: [[role, label]], value, hint }]  (Preview as, Profile mode)
@@ -45,46 +103,22 @@ const hexA = (hex, a) => {
 export function BSSettingsRoot({ onBack, identity = {}, onEdit, onPublicProfile, switches = [], modes = [], onPickRole, tiles = [], also = [], onOpen, onLogout }) {
   const t = window.useBS();
   const tr = useShapeTr();
-  const MastRow = window.BSMastRow;
-  const BackRow = window.BSBackRow;
-  const MeCorner = window.BSMeCorner;
   const Avatar = window.BSFacetAvatar;
-  const mastTop = window.BS_MAST_TOP_CSS || 'max(44px, calc(env(safe-area-inset-top, 0px) + 12px), var(--bs-notch-floor, 0px))';
-  // The Settings teal (the theme's, whatever accent the member chose), its deeper pair for small text,
-  // and the amber the demo-data slot takes.
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const tealInk = t.isLight ? '#0a7a72' : '#34d6c5';
+  const teal = bsSetTeal(t);
+  const tealInk = bsSetTealInk(t);
   const amber = t.AMBER || '#d8a23a';
   const ell = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-  // The lit slot: a dark inset on a dark paper (a faint ink wash on a light one), a 1px frame in its colour
-  // and figures that glow on a dark paper only. Unlit, the frame and the words fall back to the ink.
-  const led = (c, on = true) => ({
-    display: 'inline-flex', alignItems: 'center', gap: 5, boxSizing: 'border-box', padding: '3px 7px', borderRadius: 6,
-    background: t.isLight ? hexA(t.INK, 0.05) : 'rgba(0,0,0,0.45)',
-    border: `1px solid ${on ? hexA(c, t.isLight ? 0.5 : 0.6) : hexA(t.INK, 0.16)}`,
-    color: on ? c : t.INK50, textShadow: on && !t.isLight ? `0 0 8px ${hexA(c, 0.75)}` : 'none',
-    fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
-  });
-  const lamp = (c, on) => <span aria-hidden="true" style={{ flexShrink: 0, width: 6, height: 6, borderRadius: 99, background: on ? c : hexA(t.INK, 0.25), boxShadow: on && !t.isLight ? `0 0 6px ${c}` : 'none' }} />;
-  // A group's label: a lit dot, the words in mono capitals, and anything it carries on the right.
-  const label = (txt, meta = null) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingBottom: 8, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: t.INK50 }}>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>{lamp(teal, true)}<span style={ell}>{txt}</span></span>{meta}
-    </div>
-  );
-  const plate = (radius = 16, grid = false) => bsMpGlass(t, t.INK, { radius, grid });
+  const led = (c, on = true) => bsSetLed(t, c, on);
+  // The lamp and the label are called, not mounted: plain parts with no state of their own, drawn
+  // inline in this panel's own tree.
+  const lamp = (c, on) => BSSetLamp({ t, c, on });
+  const label = (txt, meta = null) => BSSetLabel({ t, meta, children: txt });
+  const plate = (radius = 16, grid = false) => bsSetPlate(t, radius, grid);
   const open = (detail) => { if (typeof onOpen === 'function') onOpen(detail); };
 
   return (
     <div data-bs-settings-root="">
-      <div style={{ padding: `${mastTop} ${t.padX}px 2px` }}>
-        {MastRow && <MastRow trailing={MeCorner ? <MeCorner /> : null} />}
-        {BackRow && <window.BSBackRow onBack={onBack} label={tr('settings:head.back', { defaultValue: 'Back' })} />}
-      </div>
-      <div style={{ padding: `6px ${t.padX}px 0` }}>
-        <div role="heading" aria-level={1} style={{ fontFamily: t.DISPLAY, fontSize: 28, fontWeight: 600, letterSpacing: '-0.03em', lineHeight: 1.05, color: t.INK }}>{tr('settings:head.title', { defaultValue: 'Settings' })}</div>
-        <div aria-hidden="true" style={{ marginTop: 10, height: 1, background: `linear-gradient(90deg, ${teal}, ${hexA(teal, 0.25)} 45%, transparent)`, boxShadow: t.isLight ? 'none' : `0 0 8px ${hexA(teal, 0.6)}` }} />
-      </div>
+      <BSSettingsHead title={tr('settings:head.title', { defaultValue: 'Settings' })} onBack={onBack} />
 
       {/* Who you are: the avatar, the name, the handle and city only when they are the member's own, the
           tier in its colour's lit slot and the membership or role beside it; then Edit profile and
@@ -115,7 +149,7 @@ export function BSSettingsRoot({ onBack, identity = {}, onEdit, onPublicProfile,
           {switches.map((s, i) => (
             <button key={s.k} type="button" data-settings-switch={s.k} onClick={s.onToggle} aria-pressed={!!s.on} style={{ minWidth: 0, minHeight: 60, padding: '10px 14px', border: 0, borderLeft: i ? `1px solid ${t.HAIR}` : 0, background: 'transparent', cursor: 'pointer', textAlign: 'left', color: t.INK, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center', gap: 6 }}>
               <span style={{ maxWidth: '100%', fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.1, ...ell }}>{s.label}</span>
-              <span data-settings-switch-slot={s.on ? 'on' : 'off'} style={led(teal, !!s.on)}>{lamp(teal, !!s.on)}{s.value}</span>
+              <span data-settings-switch-slot={s.on ? 'on' : 'off'} style={led(tealInk, !!s.on)}>{lamp(teal, !!s.on)}{s.value}</span>
             </button>
           ))}
         </div>
@@ -132,7 +166,7 @@ export function BSSettingsRoot({ onBack, identity = {}, onEdit, onPublicProfile,
               const on = m.value === key;
               return (
                 <button key={key} type="button" role="radio" aria-checked={on} data-settings-role={key} onClick={() => { if (typeof onPickRole === 'function') onPickRole(key); }}
-                  style={{ ...led(teal, on), justifyContent: 'center', minWidth: 0, minHeight: 44, borderRadius: 8, cursor: 'pointer', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  style={{ ...led(tealInk, on), justifyContent: 'center', minWidth: 0, minHeight: 44, borderRadius: 8, cursor: 'pointer', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {lamp(teal, on)}{text}
                 </button>
               );
@@ -150,7 +184,7 @@ export function BSSettingsRoot({ onBack, identity = {}, onEdit, onPublicProfile,
           {tiles.map((c, i) => (
             <button key={c.detail} type="button" data-settings-door={c.detail} onClick={() => open(c.detail)} style={{ ...plate(14), minWidth: 0, minHeight: 88, padding: '10px 12px 11px', cursor: 'pointer', textAlign: 'left', color: t.INK, display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
               <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ ...led(teal), padding: '2px 6px' }}>{String(i + 1).padStart(2, '0')}</span>
+                <span style={{ ...led(tealInk), padding: '2px 6px' }}>{String(i + 1).padStart(2, '0')}</span>
                 <span aria-hidden="true" style={{ fontFamily: t.DISPLAY, fontSize: 14, color: t.INK50, lineHeight: 1 }}>→</span>
               </span>
               <span style={{ marginTop: 9, fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 500, letterSpacing: '-0.01em', lineHeight: 1.15, overflowWrap: 'anywhere' }}>{c.title}</span>

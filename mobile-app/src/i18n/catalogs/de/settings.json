@@ -1,5 +1,6 @@
 {
   "language.row": "Sprache",
+  "language.group": "Sprache & Zeit",
   "language.current": "{name}",
   "timezone.row": "Zeitzone",
   "timezone.reading": "Deine Zeitzone wird geladen…",
@@ -251,8 +252,6 @@
   "appearance.eyebrow": "Erscheinungsbild",
   "appearance.title": "Design & Textur",
   "appearance.subtitle": "{paper} · {accent}",
-  "appearance.customize": "Anpassen ▸",
-  "appearance.close": "Schließen ▾",
   "appearance.tabPaper": "Papier",
   "appearance.tabTexture": "Textur",
   "appearance.tabAccent": "Akzent",
@@ -337,7 +336,6 @@
   "fx.active": "Aktiv · {mode}",
   "fx.previewOnly": "Radio aus — nur Vorschau",
   "fx.syncsToBpm": "Synchron zu BPM",
-  "fx.on": "● AN",
   "fx.modeOff": "Aus",
   "fx.modeSubtle": "Dezent",
   "fx.modeImmersive": "Immersiv",

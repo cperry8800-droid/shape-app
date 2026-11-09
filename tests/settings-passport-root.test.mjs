@@ -222,15 +222,20 @@ test('the identity card prints a city only when the member supplied one', () => 
   assert.match(hydrate, /'location' in d/, 'nothing learns whether the saved identity actually carried a location');
 });
 
-test('Settings\' panes: ruled rows, rounded controls, one teal (owner, 2026-10-27)', () => {
-  // Owner, 2026-10-27, choosing A from a preview of two: "go with A, but make sure these
-  // are rounded not so square", "keep the teal coloring", "dont need the perfect square
-  // toggle". It replaces the squared, chamfered Passport boxes of 2026-09-14. The root is
-  // the lit panel since 2026-11-04 (BSSettingsRoot.jsx, its own test below); the panes keep this.
+test('Settings\' panes are the lit panel the root is, from its own parts (owner, 2026-11-09)', () => {
+  // Owner, 2026-11-09: "need to improve every other page in app settings with updated look", "this page
+  // looks outdated" (Edit profile), and of "02 · SETTINGS" over a pane's title: "remove this", "everywhere
+  // in settings". The root has been the lit panel since 2026-11-04; every pane now draws with its parts
+  // (BSSettingsRoot.jsx's head, label, plate, lit slot and lamp). What stays from 2026-10-27's A · Index:
+  // "rounded not so square", "keep the teal coloring", "dont need the perfect square toggle".
   const clean = stripComments(src);
   const start = clean.indexOf('function BSSettings(');
   const settings = clean.slice(start, clean.indexOf('\nfunction ', start + 10));
   assert.ok(!/BS_CHAMFER|clipPath/.test(settings), 'a chamfered box is back in Settings');
+  // The parts are the root's, imported, never copied.
+  assert.match(src, /import \{ BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate \} from '\.\/BSSettingsRoot\.jsx';/);
+  assert.match(settings, /const led = \(c, on = true\) => bsSetLed\(t, c, on\);/);
+  assert.match(settings, /const plate = \(radius = 16, grid = false\) => bsSetPlate\(t, radius, grid\);/);
   // The one colour is the theme's teal, whatever accent the member chose.
   assert.match(settings, /const sTeal = t\.isLight \? '#0a8f87' : '#34d6c5';/, 'the Settings teal is not the theme teal');
   assert.match(settings, /const sTealInk = t\.isLight \? '#0a7a72' : '#34d6c5';/, 'small teal text lost its deeper teal');
@@ -240,22 +245,29 @@ test('Settings\' panes: ruled rows, rounded controls, one teal (owner, 2026-10-2
   assert.equal(accents, 1, `Settings reads the member's accent at ${accents} sites; only the Accent swatch may`);
   assert.match(settings, /\['accent', tr\('settings:appearance\.tabAccent', \{ defaultValue: 'Accent' \}\), t\.ACCENT\]/, 'the Accent swatch no longer shows the member\'s accent');
   const body = (c, len = 1400) => { const i = settings.indexOf(`const ${c} = `); assert.ok(i > 0, `${c} is gone`); return settings.slice(i, i + len); };
-  // The root's old row helpers went with its old markup.
-  for (const c of ['PassportTile', 'QuickSwitch', 'HubCard', 'RootLabel', 'PassportLink']) {
-    assert.ok(!settings.includes(`const ${c} = `), `${c} is back: the root is BSSettingsRoot.jsx's`);
+  // The root's old row helpers went with its old markup, and the panes' old ones with theirs.
+  for (const c of ['PassportTile', 'QuickSwitch', 'HubCard', 'RootLabel', 'PassportLink', 'SettingsTitle', 'PillPicker']) {
+    assert.ok(!settings.includes(`const ${c} = `), `${c} is back`);
   }
-  // The controls are rounded: the pill switch in the panes, the pill picker, Cancel · Save,
-  // and the 12px swatch tiles.
-  assert.match(body('Toggle'), /borderRadius: 999/, 'the switch is not a pill');
-  assert.match(body('PillPicker'), /borderRadius: 999[\s\S]*borderRadius: 999/, 'the picker or its pill is not rounded');
-  assert.match(body('PassportBtn'), /borderRadius: 999/, 'Cancel · Save are not rounded');
-  assert.match(body('OptCell'), /borderRadius: 12/, 'the swatch tile is not rounded');
-  // Segmented rows draw the pill picker, choosing through the same writer as before.
-  assert.match(body('renderRows', 4000), /<PillPicker options=\{s\.segmented\} labels=\{s\.segLabels\}/, 'a segmented row is not a pill picker');
+  // Every pane opens on the root's own head: no numbered kicker, no double rule.
+  assert.match(body('DetailBack', 600), /<BSSettingsHead title=\{title\} onBack=\{back\} \/>/, 'a pane does not open on the Settings head');
+  assert.ok(!/padStart\(2, '0'\)\} · \$\{/.test(settings), 'a pane\'s title carries its "NN · Settings" kicker again');
+  assert.ok(!/borderTop: `3px solid \$\{t\.INK\}`/.test(settings), 'the double ink rule is back under a pane\'s title');
+  // A group is the root's label over a glass plate; a pane's rows sit on the plate.
+  assert.match(body('SectionHead'), /<BSSetLabel t=\{t\}/, 'a group inside a pane is not the root\'s label');
+  assert.match(body('renderRows', 4000), /data-settings-plate="" style=\{\{ \.\.\.plate\(16\), overflow: 'hidden' \}\}/, 'a pane\'s rows are not on a plate');
+  // A choice is a row of lit slots, the chosen one lit, choosing through the same writer as before.
+  assert.match(body('SlotPicker'), /role="radio" aria-checked=\{on\}[\s\S]{0,200}\.\.\.led\(sTealInk, on\)/, 'a choice is not a lit slot');
+  assert.match(body('renderRows', 4000), /<SlotPicker options=\{s\.segmented\} labels=\{s\.segLabels\}/, 'a segmented row is not the lit picker');
   assert.match(body('renderRows', 4000), /onPick=\{\(opt\) => \(s\.onPick \? s\.onPick\(opt\) : setPref\(s\.key, opt\)\)\}/, 'the picker no longer writes through setPref');
-  // Every pane opens on its numbered headline over the double rule.
-  assert.match(body('DetailBack', 3000), /<SettingsTitle kicker=\{at >= 0 \?/, 'a pane lost its numbered headline');
-  assert.match(body('SettingsTitle'), /borderTop: `3px solid \$\{t\.INK\}`[\s\S]*borderTop: `1px solid \$\{t\.INK\}`/, 'the double rule is gone');
+  // A setting's reading is a lit slot; a door's reading an unlit one with its →; a plain reading (an email)
+  // plain text, never capitals in a slot.
+  assert.match(body('renderRows', 4000), /value && !onTap \? <span style=\{\{ fontFamily: t\.BODY/, 'a plain reading is printed in a capitals slot');
+  // Still rounded: the switch is a pill, Cancel · Save 10px, the swatch tiles 12px.
+  assert.match(body('Toggle'), /borderRadius: 999/, 'the switch is not a pill');
+  assert.match(body('Toggle'), /background: on \? sTeal : bsTHexA\(t\.INK, 0\.32\)/, 'the switch\'s knob is not lit when on');
+  assert.match(body('PassportBtn'), /borderRadius: 10,/, 'Cancel · Save are not rounded');
+  assert.match(body('OptCell'), /borderRadius: 12/, 'the swatch tile is not rounded');
   // Nothing on the root is red: Account actions is ink.
   assert.ok(!/accent: t\.RUST/.test(settings), 'an Also row is rust again');
 });
@@ -266,24 +278,38 @@ test('the root is the lit panel, in its own module (owner, 2026-11-04: "option C
   // chrome's globals read at call time inside the component, never captured at module top.
   assert.deepEqual([...root.matchAll(/from '([^']+)'/g)].map((m) => m[1]).sort(), ['./BSMemberBento.jsx', 'react']);
   assert.match(root, /function useShapeTr\(\)/);
-  const top = root.slice(0, root.indexOf('export function BSSettingsRoot('));
-  assert.doesNotMatch(top, /window\.(BS|useBS)/, 'a window global is read at module top');
-  assert.match(src, /import \{ BSSettingsRoot \} from '\.\/BSSettingsRoot\.jsx';/);
+  // Outside every function: the module's top level, where a window global would be read at import.
+  const parsed = babelParser.parse(ROOT_SRC, { sourceType: 'module', plugins: ['jsx'] });
+  let outside = ROOT_SRC;
+  (function blank(n) {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(blank); return; }
+    if (/^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(n.type)) {
+      outside = outside.slice(0, n.body.start) + ' '.repeat(n.body.end - n.body.start) + outside.slice(n.body.end);
+      return;
+    }
+    for (const k of Object.keys(n)) if (k !== 'loc') blank(n[k]);
+  })(parsed.program);
+  assert.doesNotMatch(stripComments(outside), /window\.(BS|useBS)/, 'a window global is read at module top');
+  assert.match(src, /import \{ BSSettingsRoot, BSSettingsHead, BSSetLabel, BSSetLamp, bsSetLed, bsSetPlate \} from '\.\/BSSettingsRoot\.jsx';/);
   // One teal, the theme's, whatever accent the member chose; never the accent itself.
-  assert.match(root, /const teal = t\.isLight \? '#0a8f87' : '#34d6c5';/);
-  assert.match(root, /const tealInk = t\.isLight \? '#0a7a72' : '#34d6c5';/);
+  assert.match(root, /export const bsSetTeal = \(t\) => \(t && t\.isLight \? '#0a8f87' : '#34d6c5'\);/);
+  assert.match(root, /export const bsSetTealInk = \(t\) => \(t && t\.isLight \? '#0a7a72' : '#34d6c5'\);/);
+  assert.match(root, /const teal = bsSetTeal\(t\);/);
+  assert.match(root, /const tealInk = bsSetTealInk\(t\);/);
   assert.doesNotMatch(root, /t\.ACCENT/, 'the root reads the member\'s accent');
   // The lit slot: a dark inset on a dark paper, a faint ink wash on a light one, glowing only on dark.
-  const led = root.slice(root.indexOf('const led = '), root.indexOf('const lamp = '));
+  const led = root.slice(root.indexOf('export function bsSetLed('), root.indexOf('export function BSSetLamp('));
+  assert.match(root, /const led = \(c, on = true\) => bsSetLed\(t, c, on\);/, 'the root draws its own lit slot again');
   assert.match(led, /t\.isLight \? hexA\(t\.INK, 0\.05\) : 'rgba\(0,0,0,0\.45\)'/);
   assert.match(led, /textShadow: on && !t\.isLight \?/);
   // The tier in its colour's lit slot on the dotted plate; each switch state a lit slot; the doors a
   // two-column grid of numbered tiles.
   assert.match(root, /<span data-settings-tier="" style=\{led\(identity\.tierColor\)\}>/);
   assert.match(root, /data-settings-identity="" style=\{\{ \.\.\.plate\(18, true\)/, 'the profile plate lost its dots');
-  assert.match(root, /<span data-settings-switch-slot=\{s\.on \? 'on' : 'off'\} style=\{led\(teal, !!s\.on\)\}>/);
+  assert.match(root, /<span data-settings-switch-slot=\{s\.on \? 'on' : 'off'\} style=\{led\(tealInk, !!s\.on\)\}>/);
   assert.match(root, /gridTemplateColumns: 'repeat\(2, minmax\(0, 1fr\)\)'/);
-  assert.match(root, /\.\.\.led\(teal\), padding: '2px 6px' \}\}>\{String\(i \+ 1\)\.padStart\(2, '0'\)\}/, 'the doors are not numbered');
+  assert.match(root, /\.\.\.led\(tealInk\), padding: '2px 6px' \}\}>\{String\(i \+ 1\)\.padStart\(2, '0'\)\}/, 'the doors are not numbered');
   // Every control is a full tap target.
   const heights = [];
   (function walk(n) {
@@ -498,7 +524,9 @@ test('Edit profile is its own page whose Back returns to Settings, never to Home
   const db = src.slice(i, i + 1400);
   assert.match(db, /const DetailBack = \(\{ title, onBack: back = \(\) => setDetail\(''\) \}\)/,
     'DetailBack no longer takes a back target that defaults to the root');
-  assert.match(db, /<BSBackRow onBack=\{back\}/, 'DetailBack ignores the back target it was given');
+  assert.match(db, /<BSSettingsHead title=\{title\} onBack=\{back\} \/>/, 'DetailBack ignores the back target it was given');
+  // And the shared head hands its Back to the shared row.
+  assert.match(ROOT_SRC, /\{BackRow && <BackRow onBack=\{onBack\} label=\{tr\('settings:head\.back'/, 'the Settings head does not draw its Back through the shared row');
 });
 
 test('the root, its own Back and the doors are hidden while editing', () => {
@@ -516,7 +544,7 @@ test('the root, its own Back and the doors are hidden while editing', () => {
   assert.equal(s.split('onBack={onBack}').length - 1, 1, 'the shell’s Back is handed to more than the root');
   assert.ok(el.includes('onBack={onBack}'), 'the root does not carry the shell’s Back');
   assert.ok(!s.includes('<BSBackRow onBack={onBack}'), 'BSSettings draws the shell’s Back itself again');
-  assert.equal(ROOT_SRC.split('<window.BSBackRow onBack={onBack}').length - 1, 1, 'the root does not draw its Back through the shared row');
+  assert.equal(ROOT_SRC.split("<BSSettingsHead title={tr('settings:head.title', { defaultValue: 'Settings' })} onBack={onBack} />").length - 1, 1, 'the root does not hand the shell\'s Back to the Settings head');
   // The doors open their panes; the picks and Sign out go to their writers.
   assert.ok(el.includes('tiles={passportTiles}') && el.includes('also={alsoRows}') && el.includes('onOpen={(d) => setDetail(d)}'), 'the doors do not open their panes');
   assert.ok(el.includes("onPickRole={(key) => setTweak('role', key)}"), 'Preview as / Profile mode no longer switch the role');
@@ -524,29 +552,33 @@ test('the root, its own Back and the doors are hidden while editing', () => {
   assert.ok(el.includes('onLogout={onLogout}'), 'Sign out lost its handler');
 });
 
-test('the edit page is in the Settings look: rounded fields, pill cells, no box', () => {
+test('the edit page is the lit panel: plates, lit cells, fields in the slot\'s well (owner, 2026-11-09)', () => {
+  // Owner, 2026-11-09, of this page: "this page looks outdated".
   const pane = editPane();
-  // Every control cell in the form is one pill cell; every text box is rounded.
+  // Every control cell in the form is a lit slot as a radio; every text box sits in the slot's well.
   const lines = pane.split('\n').filter(l => l.includes('<button '));
   assert.equal(lines.length, 2, `expected the two cell rows (avatar source, pronouns), found ${lines.length} <button> lines`);
   for (const l of lines) assert.match(l, /style=\{(cell\(on\)|\{ \.\.\.cell\(on\))/, `a control in the form is not a Settings cell: ${l.trim().slice(0, 80)}`);
   const cellAt = pane.indexOf('const cell = ');
   assert.ok(cellAt > 0, 'the cell style is gone');
-  assert.match(pane.slice(cellAt, cellAt + 400), /borderRadius: 999,/, 'the cell is not a pill');
+  assert.match(pane.slice(cellAt, cellAt + 400), /\.\.\.led\(sTealInk, on\)/, 'the cell is not a lit slot');
   const fieldAt = pane.indexOf('const field = ');
   assert.ok(fieldAt > 0, 'the field style is gone');
-  assert.match(pane.slice(fieldAt, fieldAt + 300), /borderRadius: 12,/, 'the text boxes are not rounded');
-  // No chamfer and no squared box anywhere in the form. The 7px tier dot is a dot.
-  const noDot = pane.replace(/width: 7, height: 7, borderRadius: 999/g, '');
-  const radii = [...noDot.matchAll(/borderRadius: ([^,}\n]+)/g)].map(m => m[1].trim());
-  assert.ok(radii.length >= 2, `expected the field and the cell to set a radius; found ${radii.length}`);
-  assert.deepEqual([...new Set(radii)].filter(r => r !== '12' && r !== '999'), [], `a squared box came back into the form: ${radii.join(', ')}`);
-  assert.ok(!/clipPath/.test(noDot), 'the form clips a cell again');
-  // The avatar sits on a rule, with the ✎ control on the avatar.
+  assert.match(pane.slice(fieldAt, fieldAt + 300), /borderRadius: 12, \.\.\.well\(false\)/, 'the text boxes are not in the slot\'s well');
+  assert.match(pane, /const onFocus = \(e\) => \{ Object\.assign\(e\.target\.style, well\(true\)\); \};/, 'a field is not lit while typing');
+  // Each group is the root's label over a plate; the photo on the dotted plate the root's profile sits on.
+  assert.equal(pane.split('{group(tr(').length - 1, 3, 'Photo & avatar, Identity and About you are not each a labelled group');
+  assert.match(pane, /data-settings-edit-photo="" style=\{\{ \.\.\.plate\(18, true\)/, 'the photo is not on the dotted plate');
+  // No chamfer and no squared box anywhere in the form.
+  const radii = [...pane.matchAll(/borderRadius: ([^,}\n]+)/g)].map(m => m[1].trim());
+  assert.deepEqual([...new Set(radii)].filter(r => r !== '12' && r !== '8'), [], `a squared box came back into the form: ${radii.join(', ')}`);
+  assert.ok(!/clipPath/.test(pane), 'the form clips a cell again');
+  // The avatar keeps its ✎ control, and its tier reads in its colour's lit slot.
   assert.match(pane, /<BSFacetAvatar [^\n]*editable onEdit=/, 'the avatar lost its ✎ control');
-  // Cancel · Save are the page's two rounded buttons.
+  assert.match(pane, /\.\.\.led\(slotInk\(settingsTierC\)\)/, 'the tier is not in its lit slot, held to 4.5:1 on its paper');
+  // Cancel · Save are the page's two buttons, Save filled.
   assert.equal(pane.split('<PassportBtn ').length - 1, 2, 'Cancel and Save are not PassportBtn');
-  assert.match(pane, /<PassportBtn label=\{tr\('settings:edit\.saveChanges'[^\n]*onClick=\{saveEdit\} fill tall \/>/, 'Save is not the filled, 44px PassportBtn');
+  assert.match(pane, /<PassportBtn label=\{tr\('settings:edit\.saveChanges'[^\n]*onClick=\{saveEdit\} fill \/>/, 'Save is not the filled PassportBtn');
   // The root's profile plate carries the two actions, each half of its foot.
   assert.ok(src.indexOf('const sub = [handleKnown ? identity.handle') > 0, 'the byline is gone');
   assert.match(ROOT_SRC, /<button type="button" onClick=\{onEdit\} style=\{\{ flex: 1/, 'Edit profile is not half the plate\'s foot');

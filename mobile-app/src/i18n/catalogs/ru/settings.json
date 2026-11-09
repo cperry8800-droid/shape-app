@@ -1,5 +1,6 @@
 {
   "language.row": "Язык",
+  "language.group": "Язык и время",
   "language.current": "{name}",
   "timezone.row": "Часовой пояс",
   "timezone.reading": "Читаем ваш часовой пояс…",
@@ -251,8 +252,6 @@
   "appearance.eyebrow": "Оформление",
   "appearance.title": "Тема и текстура",
   "appearance.subtitle": "{paper} · {accent}",
-  "appearance.customize": "Настроить ▸",
-  "appearance.close": "Закрыть ▾",
   "appearance.tabPaper": "Бумага",
   "appearance.tabTexture": "Текстура",
   "appearance.tabAccent": "Акцент",
@@ -337,7 +336,6 @@
   "fx.active": "Активно · {mode}",
   "fx.previewOnly": "Radio выключено — только предпросмотр",
   "fx.syncsToBpm": "Синхронизируется с BPM",
-  "fx.on": "● ВКЛ",
   "fx.modeOff": "Выкл.",
   "fx.modeSubtle": "Тонкий",
   "fx.modeImmersive": "Погружающий",

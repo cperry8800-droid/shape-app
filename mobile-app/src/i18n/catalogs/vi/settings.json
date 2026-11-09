@@ -1,5 +1,6 @@
 {
   "language.row": "Ngôn ngữ",
+  "language.group": "Ngôn ngữ & thời gian",
   "language.current": "{name}",
   "timezone.row": "Múi giờ",
   "timezone.reading": "Đang đọc múi giờ của bạn…",
@@ -251,8 +252,6 @@
   "appearance.eyebrow": "Giao diện",
   "appearance.title": "Chủ đề & họa tiết",
   "appearance.subtitle": "{paper} · {accent}",
-  "appearance.customize": "Tùy chỉnh ▸",
-  "appearance.close": "Đóng ▾",
   "appearance.tabPaper": "Giấy",
   "appearance.tabTexture": "Họa tiết",
   "appearance.tabAccent": "Màu nhấn",
@@ -337,7 +336,6 @@
   "fx.active": "Đang bật · {mode}",
   "fx.previewOnly": "Radio đã tắt — chỉ xem trước",
   "fx.syncsToBpm": "Đồng bộ theo BPM",
-  "fx.on": "● ON",
   "fx.modeOff": "Tắt",
   "fx.modeSubtle": "Tinh tế",
   "fx.modeImmersive": "Đắm chìm",

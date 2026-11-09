@@ -1,5 +1,6 @@
 {
   "language.row": "Dil",
+  "language.group": "Dil ve saat",
   "language.current": "{name}",
   "timezone.row": "Saat dilimi",
   "timezone.reading": "Saat dilimin okunuyor…",
@@ -251,8 +252,6 @@
   "appearance.eyebrow": "Görünüm",
   "appearance.title": "Tema ve doku",
   "appearance.subtitle": "{paper} · {accent}",
-  "appearance.customize": "Özelleştir ▸",
-  "appearance.close": "Kapat ▾",
   "appearance.tabPaper": "Kağıt",
   "appearance.tabTexture": "Doku",
   "appearance.tabAccent": "Vurgu",
@@ -337,7 +336,6 @@
   "fx.active": "Etkin · {mode}",
   "fx.previewOnly": "Radio kapalı — yalnızca önizleme",
   "fx.syncsToBpm": "BPM ile senkronize olur",
-  "fx.on": "● AÇIK",
   "fx.modeOff": "Kapalı",
   "fx.modeSubtle": "İnce",
   "fx.modeImmersive": "Sürükleyici",

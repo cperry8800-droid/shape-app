@@ -1,5 +1,6 @@
 {
   "language.row": "Harshe",
+  "language.group": "Harshe da lokaci",
   "language.current": "{name}",
   "timezone.row": "Yankin lokaci",
   "timezone.reading": "Ana karanta yankin lokacinka…",
@@ -251,8 +252,6 @@
   "appearance.eyebrow": "Kamanni",
   "appearance.title": "Jigo da laushi",
   "appearance.subtitle": "{paper} · {accent}",
-  "appearance.customize": "Keɓance ▸",
-  "appearance.close": "Rufe ▾",
   "appearance.tabPaper": "Takarda",
   "appearance.tabTexture": "Laushi",
   "appearance.tabAccent": "Haske",
@@ -337,7 +336,6 @@
   "fx.active": "Yana aiki · {mode}",
   "fx.previewOnly": "Radio a kashe — dubawa kawai",
   "fx.syncsToBpm": "Yana daidaitawa da BPM",
-  "fx.on": "● KUNNE",
   "fx.modeOff": "A kashe",
   "fx.modeSubtle": "Mai laushi",
   "fx.modeImmersive": "Mai nutsewa",

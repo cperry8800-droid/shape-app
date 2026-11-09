@@ -1,5 +1,6 @@
 {
   "language.row": "Lingua",
+  "language.group": "Lingua e ora",
   "language.current": "{name}",
   "timezone.row": "Fuso orario",
   "timezone.reading": "Lettura del tuo fuso orario…",
@@ -251,8 +252,6 @@
   "appearance.eyebrow": "Aspetto",
   "appearance.title": "Tema e texture",
   "appearance.subtitle": "{paper} · {accent}",
-  "appearance.customize": "Personalizza ▸",
-  "appearance.close": "Chiudi ▾",
   "appearance.tabPaper": "Carta",
   "appearance.tabTexture": "Texture",
   "appearance.tabAccent": "Accento",
@@ -337,7 +336,6 @@
   "fx.active": "Attivo · {mode}",
   "fx.previewOnly": "Radio spenta — solo anteprima",
   "fx.syncsToBpm": "Si sincronizza ai BPM",
-  "fx.on": "● ON",
   "fx.modeOff": "Spento",
   "fx.modeSubtle": "Delicato",
   "fx.modeImmersive": "Immersivo",
