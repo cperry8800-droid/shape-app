@@ -85,6 +85,7 @@ import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_C
 import { BSWaterLine, bsWaterLineFocus } from './BSWaterLine.jsx';
 import { BSHomeHabitsRow, BSHomeShortcutList, BSHomeMoveRow } from './BSHomeSections.jsx';
 import { BSHomeDeck, BSHomeClimb, BSHomeWeekBars } from './BSHomeDeck.jsx';
+import { BSHomeTopIdea, bsHomeTopIdea } from './BSHomeTopIdeas.jsx';
 import { BSHomeTeam } from './BSHomeTeam.jsx';
 import { bsGlassFill, bsGlassBorder, BSGlassEdge } from './BSProInstrument.jsx';
 import { useBSClean, BSCleanType, bsCleanSheet, BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
@@ -3995,6 +3996,9 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
           they ride the ink-80 run now so nothing is lost. The masthead draws it
           (its dateline prop, above). */}
 
+      {/* PROTOTYPE: ideas for this band (BSHomeTopIdeas.jsx); the ticker unless one is switched on. */}
+      {bsHomeTopIdea() ? (bsHomeTopIdea() === 'none' ? null : <BSHomeTopIdea idea={bsHomeTopIdea()} score={homeScore} tk={ticker || {}} name={bsMyName()}
+        hab={(() => { if (!_homeHabitsDec.length) return null; const d = new Date(); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; return { done: _homeHabitsDec.filter(h => (h.history || []).includes(k)).length, total: _homeHabitsDec.length }; })()} />) :
       <BSTicker items={(() => {
         const tk = ticker || {};
         const fmtSleep = (h) => {
@@ -4043,7 +4047,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
         // Signed in: only the member's live figures (bsHomeTickerShown), so nothing live is no ticker
         // (BSTicker hides on []). The sample numbers are the signed-out preview only.
         return bsHomeTickerShown(out, all, { signedIn: bsHomeSignedIn });
-      })()} />
+      })()} />}
 
       {/* Below the top bars, Home is set in the clean type (bsCleanType.jsx), as the coach's Today. The
           pages Home opens keep their own type: they return above, and the steps history sits outside. */}

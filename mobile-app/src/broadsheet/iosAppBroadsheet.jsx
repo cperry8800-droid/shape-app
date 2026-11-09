@@ -1389,63 +1389,32 @@ function BSMastLayout({ layout, title, trailing, onBack }) {
   // at the right (BSMastWordRow, the pinned bar's row too), and nothing under it: no dateline and no
   // hairlines (owner, 2026-11-09, of the day between double rules: "also just remove this"). No rule
   // closes it: the ticker under it follows straight on (owner, 2026-11-04: "remove this border line abobe
-  // the ticker on home page for all profiles"); 8px under the row keeps the ticker off the tools' pill.
-  const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
+  // the ticker on home page for all profiles"); 8px under the row keeps the ticker off the tools' pill. No
+  // background either: the row stands on the page's own paper (owner, 2026-11-09: "if theres a background
+  // in the top part of screen/masthead lets remove that"; it was a diagonal pinstripe fading down).
   return (
     <div data-bs-mast-layout="flag" style={{ position: 'relative', overflow: 'hidden', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 8px` }}>
-      <div aria-hidden style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        backgroundImage: `repeating-linear-gradient(135deg, rgba(${inkRgb},0.035) 0, rgba(${inkRgb},0.035) 1px, transparent 1px, transparent 7px)`,
-        WebkitMaskImage: 'linear-gradient(180deg, black 0%, transparent 100%)', maskImage: 'linear-gradient(180deg, black 0%, transparent 100%)',
-      }} />
       <BSMastWordRow word={wordEl} tools={trailing || null} />
       {onBack && <BSBackRow onBack={onBack} />}
     </div>
   );
 }
 
-function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDotTexture = true, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false, layout = null }) {
+function BSMasthead({ vol = 'Vol. 1', no = 'No. 1', title, leftKicker, rightKicker, trailing, onBack = null, showDoubleRule = true, thinRule = false, noRule = false, noTopRule = false, titleSize = 36, compact = false, layout = null }) {
   const t = useBS();
   useBSReportBareMast(trailing == null);
   if (layout) return <BSMastLayout layout={layout} title={title} trailing={trailing} onBack={onBack} />;
   const inkRgb = t.inkRGB || (t.isLight ? '15,14,12' : '244,237,224');
-  // Hero background — only when there's a title (i.e. home pages).
-  // Layered: subtle halftone dot wash + faint pinstripes + side vignette + double rule.
-  const dotsBg = `radial-gradient(rgba(${inkRgb},0.22) 0.8px, transparent 1.3px)`;
-  const stripesBg = `repeating-linear-gradient(135deg,
-      rgba(${inkRgb},0.03) 0, rgba(${inkRgb},0.03) 1px,
-      transparent 1px, transparent 7px)`;
+  // No background behind a title masthead: no pinstripes, dot wash, vignette or tint (owner, 2026-11-09: "if
+  // theres a background in the top part of screen/masthead lets remove that"). Its rules stay.
   return (
     <div style={{
       padding: `${BS_MAST_TOP_CSS} ${t.padX}px ${title ? (compact ? 11 : 18) : 14}px`,
       borderBottom: noRule ? 0 : (thinRule ? `1px solid ${t.INK}` : (title ? `3px solid ${t.INK}` : `2px solid ${t.INK}`)),
       position: 'relative', overflow: 'hidden',
-      backgroundColor: title ? `rgba(${inkRgb},0.012)` : 'transparent',
     }}>
-      {/* Hero bg layer — only on title mastheads */}
       {title && (
         <>
-          {/* Diagonal pinstripes — engraving feel */}
-          <div aria-hidden style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            backgroundImage: stripesBg,
-            WebkitMaskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.5) 65%, transparent 100%)',
-            maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.5) 65%, transparent 100%)',
-          }} />
-          {/* Halftone dot wash — soft, fades top → bottom */}
-          {showDotTexture && (
-            <div aria-hidden style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              backgroundImage: dotsBg, backgroundSize: '7px 7px',
-              WebkitMaskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.55) 50%, transparent 100%)',
-              maskImage: 'linear-gradient(180deg, black 0%, rgba(0,0,0,0.55) 50%, transparent 100%)',
-            }} />
-          )}
-          {/* Side vignette — light, just darkens edges a touch */}
-          <div aria-hidden style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: `radial-gradient(ellipse 80% 90% at 50% 50%, transparent 35%, rgba(${inkRgb},0.05) 100%)`,
-          }} />
           {/* Top hairline — single thin rule (suppressed when noRule/noTopRule, e.g. the feed + home) */}
           {!noRule && !noTopRule && <div aria-hidden style={{
             position: 'absolute', left: 0, right: 0, top: 23, height: 1,
