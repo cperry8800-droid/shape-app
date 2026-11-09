@@ -976,18 +976,19 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); if (raf && window.cancelAnimationFrame) window.cancelAnimationFrame(raf); };
   }, [campKeys, headH, wide]);
-  // On a phone the row keeps the camp that is on in view, scrolled sideways (never the page).
+  // On a phone (owner, 2026-11-09: "need a new way to organize these on coaches profile, no side
+  // scrolling"): the bar names the camp that is on; a tap opens every camp as a grid under it, and a camp,
+  // Escape or a tap off the bar closes it.
   const campNavRef = React.useRef(null);
+  const [campPick, setCampPick] = React.useState(false);
   React.useEffect(() => {
-    const nav = campNavRef.current;
-    if (!nav || !campOn) return;
-    const btn = nav.querySelector(`[data-camp-link="${campOn}"]`);
-    if (!btn) return;
-    const left = btn.offsetLeft - 12, right = btn.offsetLeft + btn.offsetWidth + 12;
-    if (left < nav.scrollLeft || right > nav.scrollLeft + nav.clientWidth) {
-      try { nav.scrollTo({ left: Math.max(0, left), behavior: cpwReducedMotion() ? "auto" : "smooth" }); } catch (e) { nav.scrollLeft = Math.max(0, left); }
-    }
-  }, [campOn]);
+    if (!campPick || typeof document === "undefined") return undefined;
+    const off = (e) => { const nav = campNavRef.current; if (nav && e.target && !nav.contains(e.target)) setCampPick(false); };
+    const key = (e) => { if (e.key === "Escape") setCampPick(false); };
+    document.addEventListener("pointerdown", off, true);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("pointerdown", off, true); document.removeEventListener("keydown", key); };
+  }, [campPick]);
   const toCamp = (k) => { const el = campRefs.current[k]; setCampOn(k); if (el && el.scrollIntoView) { try { el.scrollIntoView({ behavior: cpwReducedMotion() ? "auto" : "smooth", block: "start" }); } catch (e) {} } };
 
   // ── The first screen's readouts, each only from what was read ──
@@ -1230,8 +1231,14 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-wire:hover .cpw-wire-run,.cpw-wire:focus-within .cpw-wire-run{animation-play-state:paused}
     .cpw-wire-it{font-size:15px}
     @keyframes cpw-wire{to{transform:translateX(-50%)}}
-    .cpw-campnav{position:sticky;z-index:20;display:flex;overflow-x:auto;gap:2px;margin-top:18px;padding:0 12px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
-    .cpw-campnav button{flex:none;min-height:46px;padding:0 10px;border:0;background:transparent;cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
+    .cpw-campnav{position:sticky;z-index:20;margin-top:18px;background:rgba(6,9,15,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid rgba(238,243,240,.1)}
+    .cpw-campnav button{cursor:pointer;font-family:${CPW_MONO};font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
+    .cpw-campnav-pick{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 16px;border:0;background:transparent;text-align:left}
+    .cpw-campnav-pick [data-camp-here]{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .cpw-campnav-pick svg{flex:none}
+    .cpw-campnav-grid{position:absolute;left:0;right:0;top:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 16px 14px;background:#06090f;border-bottom:1px solid rgba(238,243,240,.1);box-shadow:0 14px 28px rgba(0,0,0,.45)}
+    .cpw-campnav-grid[hidden]{display:none}
+    .cpw-campnav-grid button{min-width:0;min-height:44px;padding:0 6px;border:1px solid;border-radius:8px;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .cpw-camps{position:relative;padding:36px 0 24px}
     .cpw-camps::before{content:"";position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,${drawA(0.1)},${DRAW} 60px,${DRAW} calc(100% - 60px),${drawA(0.1)});box-shadow:0 0 12px ${drawA(0.35)}}
     .cpw-camp{position:relative;display:grid;grid-template-columns:210px minmax(0,1fr);padding:30px 0 40px}
@@ -1480,11 +1487,23 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
 
       {/* ── The spine: the camps, one after another; on a phone their names pin as a row ── */}
       {!wide && camps.length > 1 ? (
-        <nav ref={campNavRef} aria-label="Profile sections" className="cpw-tabs cpw-campnav" data-camp-nav="" style={{ top: headH }}>
-          {camps.map((c) => (
-            <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => toCamp(c.key)}
-              style={{ color: campOn === c.key ? ACC : ink(0.72), boxShadow: campOn === c.key ? `inset 0 -2px 0 ${ACC}` : "none" }}>{c.name}</button>
-          ))}
+        <nav ref={campNavRef} aria-label="Profile sections" className="cpw-campnav" data-camp-nav="" style={{ top: headH }}>
+          {(() => {
+            const i = Math.max(0, camps.findIndex((c) => c.key === campOn));
+            const here = camps[i];
+            return (
+              <button type="button" className="cpw-campnav-pick" data-camp-pick="" aria-expanded={campPick ? "true" : "false"} aria-controls="cpw-camp-grid" onClick={() => setCampPick((v) => !v)}>
+                <span data-camp-here="" style={{ color: ACC }}>{here.label === here.name ? here.name : `${here.label} · ${here.name}`}</span>
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" style={{ transform: campPick ? "rotate(180deg)" : "none" }}><path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke={ink(0.55)} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              </button>
+            );
+          })()}
+          <div id="cpw-camp-grid" className="cpw-campnav-grid" data-camp-grid="" hidden={!campPick}>
+            {camps.map((c) => (
+              <button key={c.key} type="button" data-camp-link={c.key} aria-current={campOn === c.key ? "true" : undefined} onClick={() => { setCampPick(false); toCamp(c.key); }}
+                style={{ color: campOn === c.key ? ACC : "#eef3f0", borderColor: campOn === c.key ? cpwA(ACC, 0.6) : "rgba(238,243,240,.14)", background: campOn === c.key ? cpwA(ACC, 0.12) : "transparent" }}>{c.name}</button>
+            ))}
+          </div>
         </nav>
       ) : null}
       <div className="cpw-wrap">

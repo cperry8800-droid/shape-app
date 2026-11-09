@@ -944,7 +944,7 @@ test('their activity: a camp of its own, Posts, with what they posted that the o
   m = await mount(page({ isSelf: true }));
   assert.deepEqual(campKeys(), ['base', 'day', 'range', 'replays', 'proof', 'words', 'about', 'find', 'posts', 'summit'], 'every camp on their own page');
   const nav = document.querySelector('[data-climb-camps]');
-  assert.equal(nav.style.overflowX, 'auto', 'the row scrolls');
+  assert.notEqual(nav.style.overflowX, 'auto', 'nothing scrolls sideways (owner, 9 Nov)');
   for (const b of nav.querySelectorAll('button')) assert.ok(parseFloat(b.style.minHeight) >= 44, 'a 44px target');
   assert.ok(camp('posts').querySelector('[data-activity] [data-log-activity]'), 'Log activity on their own page');
   await m.unmount();
@@ -1366,23 +1366,46 @@ test('About me: a visitor sees no tab with nothing in it; the coach does, with a
   await m.unmount();
 });
 
-test('the camps pin under the condensed masthead as one row, each a 44px target, filling as you climb', async () => {
-  // Owner, 2026-11-09 (the Climb): the old tabs, which set smaller until the row held them, are the
-  // route's camps now. The row sticks under BSPage's pinned bar and scrolls sideways; the camp you are at
-  // is marked, and the dotted route under the row fills to it.
+test('the camps pin under the condensed masthead as one bar naming where you are; a tap opens them all as a grid, nothing scrolls sideways', async () => {
+  // Owner, 2026-11-09 (the Climb): the old tabs are the route's camps. Then, of their row, "need a new way
+  // to organize these on coaches profile, no side scrolling": the bar sticks under BSPage's pinned bar and
+  // names the camp you are at, the dotted route under it fills to it, and a tap opens every camp at once.
   reset({ me: 'u-maya', stored: { look: { paper: 'dark', accent: 'teal' } } });
   const m = await mount(page({ isSelf: true }));
   const nav = document.querySelector('[data-climb-camps]');
   assert.equal(nav.style.position, 'sticky');
-  assert.equal(nav.style.overflowX, 'auto');
-  const tabs = [...nav.querySelectorAll('[data-climb-camp-tab]')];
+  assert.notEqual(nav.style.overflowX, 'auto', 'the bar does not scroll sideways');
+  const pick = nav.querySelector('[data-climb-camp-pick]');
+  assert.equal(pick.getAttribute('aria-expanded'), 'false');
+  assert.ok(parseFloat(pick.style.minHeight) >= 44, 'a 44px target');
+  const current = () => nav.querySelector('[data-climb-camp-tab][aria-current="location"]');
+  assert.ok(nav.querySelector('[data-climb-camp-here]').textContent.includes(current().textContent), 'the bar names the camp you are at');
+  assert.doesNotMatch(pick.textContent, /\d+ \/ \d+/, 'no count beside it: Base is not a numbered camp, so it read one ahead');
+  assert.ok(nav.querySelector('[data-climb-fill]'), 'the route under the bar, filled as you climb');
+  const grid = nav.querySelector('[data-climb-camp-grid]');
+  assert.equal(grid.hidden, true, 'the camps are closed at first');
+  await click(pick);
+  assert.equal(pick.getAttribute('aria-expanded'), 'true');
+  assert.equal(grid.hidden, false);
+  assert.equal(grid.style.display, 'grid');
+  assert.match(grid.style.gridTemplateColumns, /repeat\(3/, 'three to a row, wrapping');
+  assert.equal(grid.style.position, 'absolute', 'opened over the page, not pushing it down');
+  const tabs = [...grid.querySelectorAll('[data-climb-camp-tab]')];
   assert.deepEqual(tabs.map((b) => b.textContent), ['Base', 'Book', 'Programs', 'Replays', 'Proof', 'Words', 'About', 'Find me', 'Posts', 'Summit']);
-  assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.whiteSpace === 'nowrap'));
+  assert.ok(tabs.every((b) => parseFloat(b.style.minHeight) >= 44 && b.style.textOverflow === 'ellipsis'));
   assert.equal(tabs.filter((b) => b.getAttribute('aria-current') === 'location').length, 1, 'one camp is where you are');
-  assert.ok(nav.querySelector('[data-climb-fill]'), 'the route under the row, filled as you climb');
-  // Tapping a camp marks it at once.
-  await click(tabs[6]);
-  assert.equal(tabs[6].getAttribute('aria-current'), 'location');
+  // Tapping a camp marks it at once, names it on the bar and closes the grid.
+  await click(tabs[7]);
+  assert.equal(tabs[7].getAttribute('aria-current'), 'location');
+  assert.match(nav.querySelector('[data-climb-camp-here]').textContent, /Find me/);
+  assert.equal(grid.hidden, true, 'a camp closes the grid');
+  // Escape closes it; so does a tap off the bar.
+  await click(pick);
+  await act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  assert.equal(grid.hidden, true, 'Escape closes it');
+  await click(pick);
+  await act(async () => { document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true })); });
+  assert.equal(grid.hidden, true, 'a tap off the bar closes it');
   await m.unmount();
 });
 
