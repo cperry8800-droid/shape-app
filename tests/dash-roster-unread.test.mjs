@@ -375,6 +375,10 @@ test('Today before its first read lands: neither the sample nor a failure, each 
     assert.equal(cardText(m.div, 'glance'), 'Programs due—loadingCheck-ins reviewed—loadingRoster logging—loading');
     assert.match(cardText(m.div, 'money'), /^Recurring revenue—loading/);
     assert.doesNotMatch(cardText(m.div, 'upnext') + cardText(m.div, 'timeline') + cardText(m.div, 'glance'), /couldn't be read/, 'a page still reading said its reads failed');
+    // The brief and Needs you: nobody has been read yet, so neither "nobody" nor a failure.
+    assert.match(cardText(m.div, 'brief'), /Reading who needs your attention…/);
+    assert.doesNotMatch(cardText(m.div, 'brief') + cardText(m.div, 'needsyou'), /Nobody needs|couldn't be read/);
+    assert.equal(m.div.querySelector('[data-card="needsyou"] [data-dash-needs]').getAttribute('data-dash-needs'), 'loading');
   } finally { await m.unmount(); }
 });
 

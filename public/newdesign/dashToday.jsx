@@ -2178,12 +2178,13 @@ function dashBriefModel(needNow, next, day) {
     return { id: p.id != null ? p.id : null, name: p.name || "A client", points: dashRecordTier(r && r.client) };
   });
   const unit = day && typeof day.unit === "string" && day.unit ? day.unit : "session";
-  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit };
+  return { count: read ? rows.length : null, names, more: rows.length - names.length, next: next && next.who ? next : null, dayRead: !!(day && day.read), unit, loading: !!(day && day.loading) };
 }
 function dashBriefPieces(model) {
   const out = [];
   const n = model ? model.count : 0;
-  if (n == null) out.push({ t: "Who needs your attention couldn't be read just now." });
+  // Before the page's first read lands nothing has been read: neither "nobody" nor a failure.
+  if (n == null) out.push({ t: model && model.loading ? "Reading who needs your attention…" : "Who needs your attention couldn't be read just now." });
   else if (!n) out.push({ t: "Nobody needs your attention right now." });
   else {
     out.push({ t: (n === 1 ? "1 client needs" : n + " clients need") + " your attention: " });
@@ -2218,11 +2219,11 @@ function dashRowKeyOpen(e, canOpen, open) {
 
 // The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
 // day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
-function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek }) {
+function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek, loading = false }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
   const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
-  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit });
+  const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit, loading });
   return <DashBriefCard model={model} role={role} peek={peek} />;
 }
 // With a `role`, each named client is a name that opens the client panel (`peek`), or their file.
@@ -2420,12 +2421,13 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss, peek, joint }) {
 
 // The widget: the engine's split (null when the pulse could not be read), the roster's wins, in the
 // reader's units, and the shared clients' joint attention (useDashboard's `joint`).
-function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss, peek }) {
+// `loading`: the page's first read hasn't landed (source null), so nobody has been read yet.
+function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss, peek, loading = false }) {
   const units = useDashUnits();
   if (!split) {
-    return <section aria-label="Needs you" data-dash-lift="2" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
+    return <section aria-label="Needs you" data-dash-lift="2" data-dash-needs={loading ? "loading" : "unread"} style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
       <h2 style={{ margin: "0 0 6px", fontSize: 14, fontWeight: 600 }}>Needs you</h2>
-      <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Who needs you couldn't be read just now. Reload to try again.</p>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>{loading ? "Reading who needs you…" : "Who needs you couldn't be read just now. Reload to try again."}</p>
     </section>;
   }
   return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units), joint)} feed={feed} role={role} prefs={prefs} dismiss={dismiss} peek={peek} joint={joint} />;
@@ -2916,7 +2918,8 @@ function CoachDashboardPage({ role }) {
   // signals module predates it; the day's rows are the day column's; the three figures and the
   // money are the KPI pool's, so each says why when it cannot be read.
   // A roster that couldn't be read is a pulse nobody read (null): the brief and Needs you say so.
-  const needSplit = !rosterUnread && Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
+  // Before the first read lands (`waiting`) the empty list is nobody read, not nobody: null, said as loading.
+  const needSplit = !rosterUnread && !waiting && Array.isArray(triage) && typeof DashSignals.coachNeeds === "function" ? DashSignals.coachNeeds(triage) : null;
   // The sample's day is the preview's only: an unread roster, or a page still loading, has none.
   const dayDemoRows = nowRows ? null : sample ? cfg.mockSchedule : [];
   const glance = dashGlanceCells(role, kpiCtx, glanceChosen);
@@ -2973,7 +2976,7 @@ function CoachDashboardPage({ role }) {
     // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
     // the Business overview and summary) stays in the catalogue as an optional card.
     { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", group: "clients", size: "wide",
-      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} /> },
+      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} loading={waiting} /> },
     { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", group: "schedule", size: "narrow",
       render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={dayUnread} peek={peek} rosterUnread={rosterUnread} /> },
     { key: "glance", title: "At a glance", blurb: "Three figures: " + (role === "nutritionist" ? "plans" : "programs") + " due, check-ins reviewed and roster logging, or pick your own with ⚙.", group: "clients", size: "wide",
@@ -2982,7 +2985,7 @@ function CoachDashboardPage({ role }) {
     { key: "money", title: "Money", blurb: "Recurring revenue, and your next payout from Stripe.", group: "money", size: "narrow",
       render: () => <DashMoneyCard model={money} role={role} /> },
     { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", group: "clients", size: "wide",
-      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} peek={peek} /> },
+      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} peek={peek} loading={waiting} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", group: "schedule", size: "narrow",
       render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={dayUnread} /> },
     // ── Optional (off until added) ──

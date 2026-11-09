@@ -47,7 +47,7 @@ export default {
     { name: 'today: unread is a sample', file: TODAY,
       find: 'const sample = source === "demo";', replace: 'const sample = source !== "live";' },
     { name: 'today: the brief and Needs you read an unread roster as nobody', file: TODAY,
-      find: 'const needSplit = !rosterUnread && Array.isArray(triage)', replace: 'const needSplit = Array.isArray(triage)' },
+      find: 'const needSplit = !rosterUnread && !waiting && Array.isArray(triage)', replace: 'const needSplit = !waiting && Array.isArray(triage)' },
     { name: 'today: the sample\'s day stands in for an unread roster', file: TODAY,
       find: 'const dayDemoRows = nowRows ? null : sample ? cfg.mockSchedule : [];', replace: 'const dayDemoRows = nowRows ? null : source === "live" ? [] : cfg.mockSchedule;' },
     { name: 'today: a roster card shows its empty sentence', file: TODAY,
