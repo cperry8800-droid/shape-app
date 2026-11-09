@@ -60,7 +60,7 @@ test('the slot has one geometry, owned by the chrome', () => {
   // old row when there is no masthead above it.
   const row = fnSrc(CHROME, 'BSBackRow');
   assert.match(row, /const slot = bsMastBackSlotFor\(anchorRef\.current, owner\);/);
-  assert.match(row, /BS_BACK_SLOTS\.get\(slot\)\(\{ onBack, label, ink, disabled, buttonStyle \}\);/);
+  assert.match(row, /BS_BACK_SLOTS\.get\(slot\)\(hidden \? null : \{ onBack, label, ink, disabled, buttonStyle \}\);/, 'a hidden Back leaves the slot empty');
   assert.match(row, /data-bs-back-row="" data-bs-back-in-mast=""/);
   assert.match(row, /minHeight: BS_BACK_ROW_H, marginTop: BS_BACK_ROW_GAP, \.\.\.style,/, 'the old row, with no masthead above');
   assert.match(fnSrc(CHROME, 'bsMastBackSlotFor'), /const BS_BACK_SLOT_DEPTH = 4;|BS_BACK_SLOT_DEPTH/);
@@ -331,6 +331,32 @@ test('a Back deep in a section of its page still lands in the page\'s masthead r
     assert.equal(document.querySelector('[data-bs-back-in-mast]').textContent, 'Spotify');
     await tap(arrow);
     assert.equal(backs, 1);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+// Codex on #2637: the check-in's first step has nowhere to go back to and hides its Back
+// (buttonStyle visibility: hidden). A hidden Back is no Back in the masthead: the slot stays empty, so the
+// logo does not move, and the row's right-hand words stay. Once there is a step behind, the ← is back.
+test('a Back its page hides leaves the masthead slot empty, and comes back when shown', async () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = ReactDOMClient.createRoot(host);
+  const render = (hasBack) => act(async () => {
+    root.render(h(window.BSProvider, { paperMode: 'light', accentKey: 'teal' }, h(window.BSPage, null,
+      h('div', { style: { padding: '0 22px' } }, h(window.BSMastRow, { trailing: null }),
+        h(window.BSBackRow, { onBack: () => {}, disabled: !hasBack, buttonStyle: { visibility: hasBack ? 'visible' : 'hidden' }, trailing: h('span', null, 'Morning check-in') })))));
+  });
+  try {
+    await render(false);
+    await flush();
+    const slot = scroller().querySelector('[data-bs-mast-row] [data-bs-mast-back-slot]');
+    assert.ok(slot, 'no slot in the masthead row');
+    assert.equal(slot.childElementCount, 0, 'a hidden Back still takes room ahead of the logo');
+    assert.ok(!document.querySelector('[data-bs-back-row]:not([data-bs-back-in-mast])'), 'the hidden Back fell back to its own row');
+    assert.equal(document.querySelector('[data-bs-back-in-mast]').textContent, 'Morning check-in');
+    await render(true);
+    await flush();
+    assert.ok(slot.querySelector('[data-bs-back-compact]'), 'a shown Back is not in the masthead');
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
 

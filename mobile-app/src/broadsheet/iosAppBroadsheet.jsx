@@ -2572,6 +2572,7 @@ function BSBackRow({ onBack, label = null, trailing = null, ink = null, disabled
   if (!ownerRef.current) ownerRef.current = {};
   const slotRef = useRefBS(null);
   const [inMast, setInMast] = useStateBS(false);
+  const hidden = !!(buttonStyle && buttonStyle.visibility === 'hidden');
   // After every render, before the paint: find the slot (the masthead row above can remount, or draw its
   // slot after this row) and hand it this Back as it is now. setInMast bails out when nothing changed.
   React.useLayoutEffect(() => {
@@ -2586,7 +2587,9 @@ function BSBackRow({ onBack, label = null, trailing = null, ink = null, disabled
     slotRef.current = slot;
     if (slot) {
       BS_BACK_SLOT_OWNER.set(slot, owner);
-      BS_BACK_SLOTS.get(slot)({ onBack, label, ink, disabled, buttonStyle });
+      // A Back its page hides (the check-in's first step: nowhere to go back to) is no Back here: the slot
+      // stays empty, so the logo sits where it does on a page without one (Codex on #2637).
+      BS_BACK_SLOTS.get(slot)(hidden ? null : { onBack, label, ink, disabled, buttonStyle });
     }
     setInMast(!!slot);
   });
