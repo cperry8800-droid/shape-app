@@ -624,6 +624,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Agents: the support reviewer finds known gaps in the War Room; ui-ux-pro-max and framer-motion drop retired build steps; a test holds agent files to the repo (#2650). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09: "i want to make my agents better", with softaworks/agent-toolkit\'s marketplace and dhruvjainin/absolute\'s eleven skills to review', status: 'done' },
+        { label: '#2650 support-reviewer: known gaps are the War Room\'s pending items, grepped with \'pending\' on the same line (the file is 1.2 MB, never read whole), not a WORKLOG "Known gaps" section that went on 2026-10-30', status: 'done' },
+        { label: '#2650 ui-ux-pro-max: Saira display (not serif), PAPERS instead of "14 papers", no public/m republish (gitignored, built at deploy), the ?v= rule without CodeRabbit\'s 50-file reason, WORKLOG\'s Branch and merge instead of "open a PR only when asked"; Back through BSBackRow and app copy through useShapeTr() added; the accent-coloured title period kept', status: 'done' },
+        { label: '#2650 framer-motion: no public/m republish; the website has no bundler, so npm imports don\'t resolve there', status: 'done' },
+        { label: '#2650 tests/agent-files.test.mjs: every agent and skill has a matching name and a description, names only repo paths that exist and WORKLOG headings or bold labels that exist, never republishes public/m, and the support reviewer\'s two Microsoft 365 tool spellings stay in step. It fails on the files as they were', status: 'done' },
+        { label: '#2650 review: Codex\'s two P2s on 1eb1747 fixed in ab1ac23 (useShapeTr is app copy only; the test reads "WORKLOG\'s Theme line" too, and a renamed label fails it). Codex clean on ab1ac23. Copilot could not review (quota). npm test 10,462/10,463, one skipped', status: 'done' },
+        { label: 'OWNER DECISION — agent-toolkit\'s skill-judge, command-creator and plugin-forge (skills only: no hooks, no MCP servers): enable them in .claude/settings.json for every session (refused in-session as third-party code), or install per session with /plugin install', status: 'pending' },
+        { label: 'OWNER DECISION — dhruvjainin/absolute: nothing installed. Its "never commit" and confirm-every-change defaults fight Branch and merge, absolute-ui is Tailwind, and 17 reference paths in 7 skills point at files that aren\'t there; absolute-deflake and absolute-prune are worth a try once those are fixed upstream', status: 'pending' },
+        { label: 'Left by #2650: the test holds names and paths, not facts in prose; a wrong font, count or rule written in words still needs a reader (skill-judge, if enabled)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Coach pages: a signed-in coach\'s failed roster read is unread, never the sample (#2642). No migration',
       items: [
         { label: 'Owner, 2026-11-09, of #2641\'s note that useDashboard showed a signed-in coach the sample when the roster read failed: "fix this", once, as its own PR', status: 'done' },
