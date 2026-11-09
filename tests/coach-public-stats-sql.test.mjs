@@ -50,7 +50,7 @@ test('the migration: one pinned definer, granted by name, idempotent, guarded', 
 // ── The database half ───────────────────────────────────────────────────────────────────────
 const U = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const A = U(1), Z = U(2), N = U(3), PV = U(4), FR = U(5), FRIEND = U(6), STRANGER = U(7), B = U(8), TZ = U(9);
-const C1 = U(101), C2 = U(102), C3 = U(103), C4 = U(104), C5 = U(105), C6 = U(106), C7 = U(107);
+const C1 = U(101), C2 = U(102), C3 = U(103), C4 = U(104), C5 = U(105), C6 = U(106), C7 = U(107), C8 = U(108);
 const P1 = U(201), P2 = U(202), P3 = U(203), P4 = U(204), M1 = U(205), BP = U(206);
 const ALL = ['sessions', 'clients', 'since', 'programClients'];
 
@@ -96,12 +96,13 @@ insert into public.sessions (client_id, client_name, provider_id, provider_role,
   ('${C1}', 'Priya', 3, 'trainer', '2019-01-01T10:00Z', 'completed'),
   ('${C1}', 'Priya', 1, 'nutritionist', '2018-01-01T10:00Z', 'completed');
 -- Subscriptions: C1 pays A as trainer and as nutritionist (one person), C2 trialing, C3 past_due;
--- C4 cancelled (a client once: counts for since, June 2022); C5 incomplete and C6 pending never started.
+-- C8 active as nutritionist; C4 cancelled (a client once: counts for since, June 2022); C5 incomplete and C6 pending never started.
 insert into public.subscriptions (client_id, provider_id, provider_role, status, created_at) values
   ('${C1}', 1, 'trainer', 'active', '2024-01-01T00:00Z'),
   ('${C1}', 2, 'nutritionist', 'active', '2024-02-01T00:00Z'),
   ('${C2}', 1, 'trainer', 'trialing', '2025-01-01T00:00Z'),
   ('${C3}', 2, 'nutritionist', 'past_due', '2025-03-01T00:00Z'),
+  ('${C8}', 2, 'nutritionist', 'active', '2025-04-01T00:00Z'),
   ('${C4}', 1, 'trainer', 'canceled', '2022-06-15T00:00Z'),
   ('${C5}', 1, 'trainer', 'incomplete', '2020-01-01T00:00Z'),
   ('${C6}', 2, 'nutritionist', 'pending', '2019-01-01T00:00Z'),
@@ -128,11 +129,13 @@ insert into public.client_workouts (trainer_id, client_id, status, scheduled_dat
   (1, '${C2}', 'published', current_date - 5, '{"template":{"id":"${P4}"}}'),
   (1, '${C2}', 'published', current_date + 1, '{"template":{"id":"${P2}"}}'),
   (3, '${C7}', 'published', current_date + 1, '{"template":{"id":"${BP}"}}');
--- On M1: C3 and C1 (published); C1's older archived one does not add.
+-- On M1: C3 and C1 (published); C1's older archived one does not add, and C8, a client now whose
+-- only M1 plan is archived, is not on it.
 insert into public.client_meal_plans (nutritionist_id, client_id, status, payload) values
   (2, '${C3}', 'published', '{"template":{"id":"${M1}"}}'),
   (2, '${C1}', 'published', '{"template":{"id":"${M1}"}}'),
   (2, '${C1}', 'archived', '{"template":{"id":"${M1}"}}'),
+  (2, '${C8}', 'archived', '{"template":{"id":"${M1}"}}'),
   (1, '${C7}', 'published', '{"template":{"id":"${M1}"}}');
 -- PV is private, FR friends-only with FRIEND a DM friend; each coached one session.
 insert into public.user_goals values ('${PV}', 'client_settings', '{"profileVisibility":"Private"}'), ('${FR}', 'client_settings', '{"profileVisibility":"Friends"}');
@@ -161,7 +164,7 @@ const as = async (role, uid, owner) => {
   } finally { await db.query('reset role'); }
 };
 const NULLS = { sessions_coached: null, active_clients: null, coaching_since: null, program_clients: null };
-const A_FIGURES = { sessions_coached: 5, active_clients: 3, coaching_since: 2022, program_clients: { [P1]: 2, [P4]: 0, [M1]: 2 } };
+const A_FIGURES = { sessions_coached: 5, active_clients: 4, coaching_since: 2022, program_clients: { [P1]: 2, [P4]: 0, [M1]: 2 } };
 
 test('on PostgreSQL 16: the migration applies, twice, as the house rules ask', { skip: NO_DB }, async () => {
   db = new PGlite();

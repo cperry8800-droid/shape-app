@@ -65,7 +65,10 @@ export default {
     // ── Make it yours
     { name: 'What\'s public is no change to save', file: MIY,
       find: '|| filmChanged || statsChanged || publicChanged || pinnedChanged', replace: '|| filmChanged || statsChanged || pinnedChanged' },
-    { name: 'an emptied What\'s public keeps its key', file: MIY,
+    // A proven no-op: every write of the editor's doc goes through bsNormalizeProfileCustom (the save,
+    // and the demo's onSaved), which drops an empty publicStats; and an empty list and no key read the
+    // same everywhere (bsProfilePublicStats([]) is [], and the SQL finds no key in []).
+    { name: 'an emptied What\'s public keeps its key', file: MIY, expectSurvive: true,
       find: 'if (p.length) doc.publicStats = p; else delete doc.publicStats; }', replace: 'doc.publicStats = p; }' },
     { name: 'What\'s public is not written', file: MIY,
       find: '    if (publicChanged) { const p = bsProfilePublicStats(publicStats); if (p.length) doc.publicStats = p; else delete doc.publicStats; }\n', replace: '' },
