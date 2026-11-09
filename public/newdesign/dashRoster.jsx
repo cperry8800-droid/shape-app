@@ -1399,9 +1399,11 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
                 data-roster-row={String(rec.profile.id)}
                 onClick={() => select(rec.profile.id)}
                 onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") return step(e, 1);
+                  if (e.key === "ArrowUp") return step(e, -1);
+                  // Enter and Space are the row's own keys only (dashToday.jsx dashRowKeyOpen, #2628).
+                  if (typeof dashRowKeyOpen === "function") return dashRowKeyOpen(e, true, () => select(rec.profile.id));
                   if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(rec.profile.id); }
-                  else if (e.key === "ArrowDown") step(e, 1);
-                  else if (e.key === "ArrowUp") step(e, -1);
                 }}
                 role="button"
                 tabIndex={0}

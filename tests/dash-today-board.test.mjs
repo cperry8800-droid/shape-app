@@ -165,11 +165,13 @@ test('Up next, the timeline and the brief\'s next appointment mark the client\'s
     await m.render(React.createElement(t.DashBriefWidget, { needNow: [], rows: null, demoRows: [{ time: '14:00', who: 'Sam O.', status: 'NEXT' }], zone: null, clients, unit: 'session' }));
     assert.equal(m.text().includes('Next up today: Sam O. at 14:00.'), true);
     assert.deepEqual(tiers(), ['tempo:Sam']);
-    // A Needs you row the coach can open says the tier in its name for assistive tech.
+    // A Needs you row the coach can open says the tier in its name for assistive tech: on the name,
+    // which is the row's opener since step 5a (a link beside the action, never a button around it).
     m.dom.window.DashClientDrawer = () => null;
     const r = row('s', 'Sam O.', 'red', 'Reason', null, 800);
     await m.render(React.createElement(t.DashNeedsBoard, { items: T.dashNeedsItems({ now: [r], week: [] }, []), feed: [r], role: 'trainer', prefs: null, dismiss: null }));
-    assert.equal(document.querySelector('[data-dash-need]').getAttribute('aria-label'), 'Open Sam O., Tempo tier');
+    assert.equal(document.querySelector('[data-dash-need] [data-dash-peek-name]').getAttribute('aria-label'), 'Open Sam O., Tempo tier');
+    assert.equal(document.querySelector('[data-dash-need]').hasAttribute('role'), false, 'the row is a button around its action again');
   } finally { await m.done(); }
 });
 
