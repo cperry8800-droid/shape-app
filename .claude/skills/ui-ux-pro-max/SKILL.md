@@ -78,7 +78,9 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
   WORKLOG's Theme line names take Geist/Inter Tight through `useBSClean` (imported
   as `useBSProClean` in the coach apps).
   Squared radii (≈4–9), and the **2px ink→accent gradient** rule under section
-  heads (`linear-gradient(90deg, ${t.INK}, <accent> 58%, transparent)`).
+  heads (`linear-gradient(90deg, ${t.INK}, <accent> 58%, transparent)`). A title
+  ends in an accent-colored period:
+  `{title}<span aria-hidden="true" style={{ color: c }}>.</span>`.
 - **Sheets/overlays** must `createPortal` into `#bs-phone-surface` (so they don't
   overhang the phone frame in desktop preview).
 - **Back** is the ← in the masthead's `BSMastBackSlot`, filled by `BSBackRow`
