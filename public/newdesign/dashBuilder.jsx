@@ -1672,6 +1672,19 @@ function DbuFutureUpdates({template,clients,onClose}) {
 // `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
 // could not be read says so, and only a read, empty roster reads "No clients yet."
 function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onClose, emptyNote }) {
+  // ⚠ ONE CLOSE PER SHEET (Codex on #2645). A finished assign closes itself a moment later; a coach
+  // who closes it first (Cancel, the scrim, Esc) used to get a second close when the timer fired, and
+  // the library's Assign all stepped past the next client. The first close wins, and the timer goes
+  // with the sheet.
+  const closedRef = React.useRef(false);
+  const closeTimer = React.useRef(null);
+  React.useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+  const close = () => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    onClose();
+  };
   const [picked, setPicked] = React.useState(() => preselectId ? { [preselectId]: true } : {});
   React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [startDate, setStartDate] = React.useState(() => {
@@ -1743,7 +1756,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
         localStorage.setItem(key, JSON.stringify([...done]));
       } catch (e) {}
       setState("done");
-      setTimeout(onClose, 1100);
+      closeTimer.current = setTimeout(close, 1100);
     } catch (e) {
       const reason = (e && e.message ? String(e.message) : "").trim();
       // Name what actually landed. Silence here reads as "nothing was written",
@@ -1758,7 +1771,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
   };
 
   return (
-    <DbuDialog title="Assign workout" onClose={onClose} busy={state === "working"}>
+    <DbuDialog title="Assign workout" onClose={close} busy={state === "working"}>
         <div style={{ fontFamily: DBU_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DBU_RUST }}>Assign · {template.name}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
         <div style={{ fontSize: 12, color: DBU_INK50, marginBottom: 14 }}>{doc.weeks.length} week{doc.weeks.length === 1 ? "" : "s"} · {dayCount} days · snapshot v{doc.version} — your later template edits won't change what they get.</div>
@@ -1784,7 +1797,7 @@ function DbuAssignModal({ template, doc, clients, queue, live, preselectId, onCl
           <button onClick={assign} disabled={!ids.length || state === "working"} style={{ ...dbuBtn(true, DBU_RUST), color: "#fff", padding: "11px 18px", opacity: !ids.length || state === "working" ? 0.6 : 1 }}>
             {state === "working" ? "Assigning…" : state === "done" ? "Assigned ✓" : "Publish to " + (ids.length || 0) + " client" + (ids.length === 1 ? "" : "s")}
           </button>
-          <button disabled={state === "working"} onClick={onClose} style={dbuBtn(false)}>Cancel</button>
+          <button disabled={state === "working"} onClick={close} style={dbuBtn(false)}>Cancel</button>
           {!live && <span style={{ fontFamily: DBU_MONO, fontSize: 8.5, color: DBU_INK50 }}>DEMO · marks the queue only</span>}
         </div>
         {state === "error" && (

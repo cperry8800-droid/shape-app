@@ -403,6 +403,19 @@ function DmbGroceryPanel({ plan, edits, onEdits }) {
 // `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
 // could not be read says so, and only a read, empty roster reads "No clients yet."
 function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose, emptyNote }) {
+  // ⚠ ONE CLOSE PER SHEET (Codex on #2645). A finished assign closes itself a moment later; a coach
+  // who closes it first (Cancel, the scrim, Esc) used to get a second close when the timer fired, and
+  // the library's Assign all stepped past the next client. The first close wins, and the timer goes
+  // with the sheet.
+  const closedRef = React.useRef(false);
+  const closeTimer = React.useRef(null);
+  React.useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+  const close = () => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    onClose();
+  };
   const [picked, setPicked] = React.useState(() => (preselectId ? { [preselectId]: true } : {}));
   React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [scales, setScales] = React.useState({});
@@ -451,13 +464,13 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
         localStorage.setItem(key, JSON.stringify([...done]));
       } catch (e) {}
       setState("done");
-      setTimeout(onClose, 1100);
+      closeTimer.current = setTimeout(close, 1100);
     } catch (e) { setState("error"); }
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 250 }}>
-      <button type="button" aria-label="Close assignment" onClick={onClose} style={{ position: "absolute", inset: 0, width: "100%", border: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
+      <button type="button" aria-label="Close assignment" onClick={close} style={{ position: "absolute", inset: 0, width: "100%", border: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(480px, 94vw)", maxHeight: "86vh", overflowY: "auto", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         <div style={{ fontFamily: DMB_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DMB_GOLD }}>Assign · {template.name}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
@@ -505,7 +518,7 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
           <button onClick={assign} disabled={!ids.length || state === "working"} style={{ ...dmbBtn(true), padding: "11px 18px", opacity: !ids.length || state === "working" ? 0.6 : 1 }}>
             {state === "working" ? "Assigning…" : state === "done" ? "Assigned ✓" : "Publish to " + (ids.length || 0) + " client" + (ids.length === 1 ? "" : "s")}
           </button>
-          <button onClick={onClose} style={dmbBtn(false)}>Cancel</button>
+          <button onClick={close} style={dmbBtn(false)}>Cancel</button>
           {state === "error" && <span style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_RED }}>Couldn't assign — try again</span>}
           {!live && <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50 }}>DEMO · marks the queue only</span>}
         </div>

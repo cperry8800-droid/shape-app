@@ -60,7 +60,7 @@ const KIT = ['DashFilterBar', 'DashFacetMenu', 'DashTagChips', 'DFB_EMPTY', 'dfb
   'DashLibSort', 'DashLibStatus', 'DashLibMenu', 'DashLibTopLine', 'DashLibDrawer', 'DashLibPeople', 'DashLibCard', 'DASH_LIB_ROSTER_UNREAD', 'dashLibRosterState', 'dashLibWeekEnd', 'dashLibKind'];
 Object.assign(globalThis, new Function(compile(read('dashFilterBar.jsx')) + ';return {' + KIT.join(',') + '};')());
 Object.assign(globalThis, new Function(compile(read('coachBuilderLayouts.jsx')) + ';return { coachTemplateCopy, CoachBuilderNav, CoachBuilderFooter, COACH_BUILDER_LAYOUTS };')());
-const { TrainerProgramsPage } = new Function(compile(read('dashBuilder.jsx')) + ';return { TrainerProgramsPage };')();
+const { TrainerProgramsPage, DbuAssignModal } = new Function(compile(read('dashBuilder.jsx')) + ';return { TrainerProgramsPage, DbuAssignModal };')();
 const { NutritionistPlansPage, DmbAssignModal, DmbBuilder } = new Function(compile(read('dashMealBuilder.jsx')) + ';return { NutritionistPlansPage, DmbAssignModal, DmbBuilder };')();
 const UNREAD = DASH_LIB_ROSTER_UNREAD;
 
@@ -786,6 +786,43 @@ test('Meal plans: Assign sends the library plan it came from, and the library re
   await settle();
   assert.equal(usageCalls().length, 1, 'read again after the send');
   assert.equal(whoOf('Lean Week'), 'On it Priya S.');
+});
+
+// Codex on #2645: a finished assign closes itself a moment later, and a coach who closed it first got a
+// second close when the timer fired, so Assign all stepped past the next client.
+test('Meal plans: a sheet closed by hand after it published closes once, and Assign all goes on to the next client', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS });
+  await mount(React.createElement(NutritionistPlansPage));
+  await click(button('Assign all 2', top()));
+  assert.match(text(), /Assign · Lean Week/);
+  await click(button('Publish to 1 client'));
+  await settle();
+  assert.ok(!!button('Assigned ✓'), 'published');
+  await click(button('Cancel'));
+  assert.match(text(), /Assign all · 1 of 2 opened\. Next: Tess B\. → Steady Maintain/);
+  await pause(1300);
+  await settle();
+  assert.match(text(), /Assign all · 1 of 2 opened\. Next: Tess B\. → Steady Maintain/, 'the timer closed the sheet a second time and skipped Tess');
+});
+
+test('Both assign sheets close once: by hand after publishing, the timer adds no second close', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS });
+  let meal = 0;
+  await mount(React.createElement(DmbAssignModal, { template: { id: 'm1', name: 'Lean Week' }, doc: MEALS[0].detail.mealBuilder, groceryEdits: {}, clients: NUTRI(), queue: [], lifecycle: null, live: true, preselectId: uid(1), onClose: () => { meal++; } }));
+  await click(button('Publish to 1 client'));
+  await settle();
+  await click(button('Cancel'));
+  await pause(1300);
+  assert.equal(meal, 1, 'the meal sheet closed twice');
+  // The Programs sheet, in the preview (no write): publish, close by hand, and the timer adds nothing.
+  dashboard('live', ROSTER()); stubFetch();
+  let program = 0;
+  await mount(React.createElement(DbuAssignModal, { template: { id: 'p1', name: 'Strength Block 3', revision: 1 }, doc: DashBuilder.newProgram(), clients: ROSTER(), queue: [], live: false, preselectId: ROSTER()[0].profile.id, onClose: () => { program++; } }));
+  await click(button('Publish to 1 client'));
+  await settle();
+  await click(button('Cancel'));
+  await pause(1300);
+  assert.equal(program, 1, 'the Programs sheet closed twice');
 });
 
 test('Meal plans: a plan with no library id sends none', async () => {
