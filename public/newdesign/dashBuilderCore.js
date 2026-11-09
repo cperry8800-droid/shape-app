@@ -1520,7 +1520,8 @@
           if (!labels[kit.muscle]) labels[kit.muscle] = lib && lib.muscle.toLowerCase() === kit.muscle ? lib.muscle : tagText(row.muscle) || kit.muscle;
           if (has(REGION_OF, kit.muscle)) regions[REGION_OF[kit.muscle]] = true;
         } else out.untagged += sets;
-        var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" ? "" : "kg";
+        // RPE is an effort, not a weight: an RPE row (or a per-set entry on one) adds no volume.
+        var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" || row.loadType === "rpe" ? "" : "kg";
         var counted = 0;
         for (var i = 0; unit && WorkoutDoc && i < Math.min(sets, WorkoutDoc.LADDER_MAX || 20); i++) {
           var t = WorkoutDoc.setTarget(row, i);

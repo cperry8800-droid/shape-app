@@ -349,13 +349,17 @@
   // against the plan's rest-day target (scaled like the training one), the coach's note on a meal as
   // `coachNote` (the client's Kitchen card prints it, labelled COACH), and a Kitchen meal's recipe id.
   // Which weekday is a rest day is the core's call (its `tag`), never re-derived here.
+  // ⚠ A REST DAY IS ANY WEEKDAY THE CLIENT DOES NOT TRAIN ON, whether or not the plan wrote a rest
+  // version of its meals: the core tags a day REST only when it serves a rest version, so a plan with
+  // a rest-day target and no rest versions used to send every weekday the training target.
   function buildAssignment(core, plan, opts) {
     var o = opts || {};
     var out = core.buildMealAssignment(plan, o);
     var scale = o.scale || 1;
     var n = (plan.days || []).length;
+    var training = Array.isArray(o.trainingDows) ? o.trainingDows : [0, 2, 4];
     out.days.forEach(function (d) {
-      if (d.tag === "REST" && validTargets(plan.restTargets)) {
+      if ((d.tag === "REST" || training.indexOf(d.dow) < 0) && validTargets(plan.restTargets)) {
         var r = plan.restTargets;
         d.targets = { cal: Math.round(num(r.kcal) * scale), p: Math.round(num(r.p) * scale), c: Math.round(num(r.c) * scale), f: Math.round(num(r.f) * scale) };
       }

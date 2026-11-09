@@ -299,6 +299,10 @@ test('the assignment sends a rest day its own target, a meal\'s note as coachNot
   const out = W.buildAssignment(DashMeals, doc, { trainingDows: [0, 2, 3, 4], scale: 1.1 });
   assert.equal(out.days[0].tag, 'TRAIN'); assert.equal(out.days[0].targets.cal, Math.round(1900 * 1.1));
   assert.equal(out.days[1].tag, 'TRAIN', 'no rest version: the core serves the training day');
+  // …but it is still a rest weekday for this client, so it is measured against the rest-day target
+  // (scaled), not the training one: a plan with a rest target and no rest versions sent 1,900 every day.
+  assert.deepEqual(out.days[1].targets, { cal: Math.round(1700 * 1.1), p: Math.round(165 * 1.1), c: Math.round(150 * 1.1), f: Math.round(55 * 1.1) });
+  assert.equal(out.days[2].targets.cal, Math.round(1900 * 1.1), 'a training weekday took the rest target');
   // A day with a rest version is a rest day on the client's rest weekdays, measured against 1,700.
   doc.days[1].variants = { rest: { overrides: {}, extras: [] } };
   const rest = W.buildAssignment(DashMeals, doc, { trainingDows: [0, 2, 3, 4] });

@@ -145,6 +145,9 @@ test('the session adds itself up from its rows: working sets, volume per unit, m
   assert.deepEqual(mixed.muscles.map((m) => m.label), ['Quads', 'Chest', 'Core']);
   assert.deepEqual(mixed.volume, { lb: 0, kg: 4000 }, 'a rep range or a per cent of 1RM was counted as volume');
   assert.equal(mixed.unweighed, 3);
+  // RPE is an effort, not a weight: a per-set entry on an RPE row adds no kg.
+  const effort = DashBuilder.sessionTotals({ blocks: [{ kind: 'main', rows: [row('Back squat', 3, '5', 'rpe', 8, { perSet: [{ reps: '5', load: 8 }, { reps: '5', load: 8 }, { reps: '5', load: 9 }] })] }] });
+  assert.deepEqual(effort.volume, { lb: 0, kg: 0 }, 'an RPE was counted as kilograms');
 });
 
 test('a card\'s change is on the same move in the same unit', () => {
