@@ -585,7 +585,7 @@ function DbuCover({ value, onChange, onBusy }) {
   };
   const has = typeof value === "string" && /^https:\/\//i.test(value);
   return <div className="cb-cover" data-dbu-cover="">
-    <p><strong>Cover photo · Optional.</strong> The picture on this program's card on your profile, its weeks drawn over it as peaks.</p>
+    <p><strong>Cover photo · Optional.</strong> The picture on this program's card on your profile.</p>
     <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden onChange={(e) => { const f = e.target.files[0]; e.target.value = ""; pick(f); }} />
     <div className="drow">
       {has ? <img data-dbu-cover-img="" src={value} alt="" style={{ width: 120, height: 68, objectFit: "cover", borderRadius: 6 }} /> : null}

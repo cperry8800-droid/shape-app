@@ -573,6 +573,7 @@ test('the builder: Add a cover photo uploads it, Publish saves it as the first i
     const box = document.querySelector('[data-dbu-cover]');
     assert.equal(!!box, true, 'the cover photo control is in Program details');
     assert.match(document.querySelector('.cb-details summary').textContent, /cover photo/);
+    assert.doesNotMatch(box.textContent, /peak/i, 'no promise of peaks drawn over the photo (Codex, #2660)');
     const input = box.querySelector('input[type="file"]');
     const file = new window.File(['x'], 'peak.png', { type: 'image/png' });
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
