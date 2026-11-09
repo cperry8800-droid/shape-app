@@ -335,13 +335,29 @@ export function BSProCatalog({ t, model: m }) {
   const photo = bsProCatalogPhotos(m.role);
   const withFacts = (it) => ({ ...it, facts: bsProCatalogFacts(it.meta, tr) });
   // The most popular plan is the first row of the list under it, marked ★: one list, not a card and a list.
+  // The signed-out sample's top pick of a list is the same row there too, when the list holds it (its
+  // Edit is the row's tap, its Duplicate the row's Copy); a top pick the list does not hold keeps its tile.
   const sections = [];
   let lead = null;
+  let pick = null;
+  const bare = (x) => String(x || '').trim().replace(/\.$/, '').toLowerCase();
   (m.sections || []).forEach((s) => {
     if (s.kind === 'featured') { lead = s.item; return; }
+    if (s.kind === 'lead') { pick = s; return; }
     if (s.kind === 'list' && lead) { sections.push({ ...s, items: [lead, ...(s.items || [])], empty: null }); lead = null; return; }
+    if (s.kind === 'list' && pick) {
+      const items = s.items || [];
+      const at = items.findIndex((it) => bare(it.name) === bare(pick.lead.title));
+      if (at >= 0) {
+        const hit = { ...items[at], badge: pick.lead.badge };
+        sections.push({ ...s, items: [hit, ...items.slice(0, at), ...items.slice(at + 1)] });
+      } else { sections.push(pick, s); }
+      pick = null;
+      return;
+    }
     sections.push(s);
   });
+  if (pick) sections.push(pick);
   if (lead) sections.unshift({ kind: 'list', key: 'featured', head: lead.badge, items: [{ ...lead, badge: null }] });
   let lists = 0;
   const out = sections.map((s, si) => {
@@ -367,7 +383,7 @@ export function BSProCatalog({ t, model: m }) {
   return (
     <div data-pro-catalog="" data-pro-role={m.role} style={{ '--pc-teal': tealOf(t), padding: `12px ${t.padX}px 28px`, overflowX: 'clip' }}>
       <style>{PC_CSS}</style>
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '4px 12px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '4px 12px', minHeight: 44 }}>
         <h1 data-tour="hero-plans" style={{ flex: '1 1 120px', margin: 0, minWidth: 0, fontFamily: HEAD, fontSize: 28, fontWeight: 700, letterSpacing: '-0.035em', lineHeight: 1.05, color: t.INK, overflowWrap: 'break-word' }}>
           {m.title}<span aria-hidden="true" style={{ color: heatOf(t, m.role) }}>.</span>
         </h1>
