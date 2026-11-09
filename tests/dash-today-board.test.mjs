@@ -474,9 +474,11 @@ test('the Money card says each payout state, and links to setting payouts up whe
     await m.render(React.createElement(t.DashMoneyCard, { model: t.dashMoneyModel({ kpis: {} }, { live: { kpis: {} }, clients: [] }, false, { state: 'setup' }), role: 'nutritionist' }));
     assert.equal(document.querySelector('[data-dash-payout="setup"] a').getAttribute('href'), 'NutritionistApp.html#business?section=money');
   } finally { await m.done(); }
-  // The page reads it on a live page only, and the preview is its own source, never `live` null.
+  // The page reads it on any page that is not the preview (live, or a roster unread:
+  // tests/dash-roster-unread.test.mjs), and the preview is its own source, never `live` null.
   const page = TODAY.slice(TODAY.indexOf('function CoachDashboardPage('));
-  assert.equal(/const payoutRead = useDashNextPayout\(role, source === "live"\);/.test(page), true);
+  assert.equal(/const ownReads = source === "live" \|\| rosterUnread;/.test(page), true);
+  assert.equal(/const payoutRead = useDashNextPayout\(role, ownReads\);/.test(page), true);
   assert.equal(/const money = dashMoneyModel\(live, kpiCtx, source === "demo", /.test(page), true);
   assert.equal(/return live \? \(read \|\| \{ state: "loading" \}\) : null;/.test(TODAY), true, 'the preview is handed a read');
 });

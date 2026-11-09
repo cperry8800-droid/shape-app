@@ -138,7 +138,10 @@ test('a live client count or net the dashboard couldn\'t read says so under its 
   assert.deepEqual(S.dashKpiValue('monthlyNet', zero), { value: 0, unit: 'money', sub: 'after the platform fee' });
   // The strip's own cell (dashToday.jsx): a dash with the reason under it, and $0 for a measured zero.
   const pick = (re) => { const m = re.exec(TODAY); assert.ok(m, re + ' moved'); return m[0]; };
-  const cell = new Function('DashSignals', pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/) + '\n' + pick(/function dashKpiCell\(key, role, ctx\) \{[\s\S]*?\n\}/) + '\nreturn dashKpiCell;')(S);
+  // (With the gate it reads the pool through: an unread roster's figures, tests/dash-roster-unread.test.mjs.)
+  const cell = new Function('DashSignals', pick(/function dashMoney\(cents\) \{[\s\S]*?\n\}/) + '\n' + pick(/const DASH_KPI_FROM_ROSTER = [^\n]*/) + '\n'
+    + pick(/function dashKpiFromRoster\(key, ctx\) \{[\s\S]*?\n\}/) + '\n' + pick(/function dashKpiOut\(key, ctx\) \{[\s\S]*?\n\}/) + '\n'
+    + pick(/function dashKpiCell\(key, role, ctx\) \{[\s\S]*?\n\}/) + '\nreturn dashKpiCell;')(S);
   assert.deepEqual(cell('activeClients', 'trainer', unread), { k: '—', l: 'Active clients', sub: "couldn't be read" });
   assert.deepEqual(cell('monthlyNet', 'nutritionist', unread), { k: '—', l: 'Monthly (net)', sub: "couldn't be read" });
   assert.deepEqual(cell('activeClients', 'trainer', zero), { k: '0', l: 'Active clients', sub: null });

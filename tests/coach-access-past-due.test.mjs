@@ -411,12 +411,13 @@ test('the Clients pages count people on a plan, as the badge does, and say "—"
     const src = stripComments(readFileSync(join(ROOT, 'public/newdesign', page), 'utf8'));
     // (Step 5a: the page also reads the day feed, for the panel's next session, and the joint list.)
     assert.match(src, /const \{ loading, clients, triage, source, planCount(?:, today, joint)?(?:, dismissable, setDismissal, clearDismissal)? \} = useDashboard\("(?:trainer|nutritionist)"\);/, page);
-    assert.match(src, /const activeCount = dashPlanClientCount\(clients, planCount\);/, page);
+    // (A roster that couldn't be read, useDashboard's "unread", counts nobody: tests/dash-roster-unread.test.mjs.)
+    assert.match(src, /const activeCount = unread \? null : dashPlanClientCount\(clients, planCount\);/, page);
     assert.doesNotMatch(src, /const activeCount = clients\.length;/, page);
     assert.match(src, /const activeWord = activeCount == null \? "\\u2014" : String\(activeCount\);/, page);
     assert.match(src, /eyebrow=\{activeWord \+ " ACTIVE CLIENT" \+ \(activeCount === 1 \? "" : "S"\)/, page);
     assert.match(src, /\{ key: "all", label: "Your clients", count: loading \? null : activeCount \}/, page);
     // The list itself, its search and its export still say how many rows there are.
-    assert.match(src, /placeholder=\{`Search \$\{clients\.length\} clients`\}/, page);
+    assert.match(src, /placeholder=\{unread \? "Search clients" : `Search \$\{clients\.length\} clients`\}/, page);
   }
 });
