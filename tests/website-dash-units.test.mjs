@@ -60,7 +60,7 @@ async function setup() {
   const D = await load('dashData.jsx', ['dashUnitsApi', 'dashUnitPrefs', 'dashGoalText', 'dashMilestonesIn', 'dashWeighIn', 'dashWeighInDelta', 'dashCheckinReviewed']);
   const T = await load('dashToday.jsx', ['dashContextLine', 'DashWinsPanel', 'ExpandableSchedule']);
   const R = await load('dashRoster.jsx', ['DashSecWeighIns', 'DashSecNutritionSummary', 'DashSecMilestones']);
-  const W = await load('dashWeek.jsx', ['DwkRow']);
+  const W = await load('dashWeek.jsx', ['DwkCheckinPanel']);
   const B = await load('dashBusiness.jsx', ['DbzOutcomesZone']);
   // The client file's host loads the shared live-workout panel before it.
   const clw = readFileSync(ND('coachLiveWorkout.jsx'), 'utf8');
@@ -300,7 +300,7 @@ test('coach pages: roster drawer, week review, business outcomes and Today read 
       text(React.createElement(R.DashSecWeighIns, { rec })),
       text(React.createElement(R.DashSecNutritionSummary, { rec })),
       text(React.createElement(R.DashSecMilestones, { rec })),
-      text(React.createElement(W.DwkRow, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-09-28', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })),
+      text(React.createElement(W.DwkCheckinPanel, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-09-28', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })),
       text(React.createElement(B.DbzOutcomesZone, { role: 'trainer', cp: { roster: [{ name: 'Alex', weightChangeLb: -6.2, workouts30d: 3 }] } })),
       T.dashContextLine(rec, units),
       text(React.createElement(T.DashWinsPanel, { clients: [rec], role: 'trainer' })),
@@ -312,7 +312,7 @@ test('coach pages: roster drawer, week review, business outcomes and Today read 
     const change = system === METRIC ? '-1.8 since' : '-4 since';
     assert.ok(text(React.createElement(R.DashSecWeighIns, { rec })).includes(change), 'the drawer’s weigh-ins');
     assert.ok(text(React.createElement(R.DashSecNutritionSummary, { rec })).includes(change), 'the drawer’s nutrition summary');
-    assert.ok(text(React.createElement(W.DwkRow, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-09-28', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })).includes(change + ' the one before'), 'the week review');
+    assert.ok(text(React.createElement(W.DwkCheckinPanel, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-09-28', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })).includes(change + ' the one before'), 'the week review');
     assert.ok(!other.test(out), `${system}: no figure in the other system — ${out.match(other)}`);
   }
 });
@@ -339,7 +339,7 @@ test('Today’s schedule opens on a context line in the coach’s units, from a 
 test('the week review reads a check-in’s own weight when no weigh-in is shared', async () => {
   const { React, W, as, text } = await setup();
   const rec = { profile: { id: 'c-1', name: 'Ada L' }, weighIns: [], checkins: [{ week_of: '2026-09-28', weight: 80, unit: 'kg', ratings: {} }] };
-  const row = (system) => { as(system); return text(React.createElement(W.DwkRow, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-10-05', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })); };
+  const row = (system) => { as(system); return text(React.createElement(W.DwkCheckinPanel, { row: { severity: 'green', flags: [], client: rec }, role: 'trainer', weekOf: '2026-09-28', thisMonday: '2026-10-05', live: true, review: null, adherence: null, readout: null, onReview() {}, onNote() {}, canPersist: false, editable: false })); };
   assert.match(row(IMPERIAL), /Weigh-in 176 lb/);
   assert.match(row(METRIC), /Weigh-in 80 kg/);
 });
