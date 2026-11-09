@@ -45,8 +45,10 @@ export default {
     { name: '"Fish-free" is fish', file: WEEK, find: '|halibut|mackerel|haddock|snapper)\\b(?!-free)/i,', replace: '|halibut|mackerel|haddock|snapper)\\b/i,' },
     { name: '"Soy-free" is soy', file: WEEK, find: '|miso|tamari)\\w*\\b(?!-free)/i,', replace: '|miso|tamari)\\w*/i,' },
     // ── The wording ──
-    { name: 'the panel no longer says it is not a certified check', file: UI, find: 'const DMB_ALLERGEN_NOTE = "read from ingredient names, not a certified allergen check";', replace: 'const DMB_ALLERGEN_NOTE = "read from each recipe’s ingredients";' },
+    { name: 'the panel no longer says it is not a certified check', file: UI, find: 'const DMB_ALLERGEN_NOTE = "read from recipe names and ingredients, not a certified allergen check";', replace: 'const DMB_ALLERGEN_NOTE = "read from each recipe’s ingredients";' },
+    { name: 'the Kitchen panel no longer says dairy and gluten are the catalog\'s lists', file: UI, find: '{listed.length ? " · " + listed.join(", ") + " " + DMB_LISTED_NOTE : ""}', replace: '' },
+    { name: 'Mine says its exclusions come from the catalog\'s lists', file: UI, find: '  const listed = tab === "kitchen" ? ((constraints && constraints.exclusions) || []).filter((a) => readOff.indexOf(a) < 0) : [];', replace: '  const listed = ((constraints && constraints.exclusions) || []).filter((a) => W.readFromIngredients(constraints).indexOf(a) < 0);' },
     { name: 'Mine says only the catalog\'s ingredient-read allergens', file: UI, find: 'const readOff = tab === "kitchen" ? W.readFromIngredients(constraints) : ((constraints && constraints.exclusions) || []);', replace: 'const readOff = W.readFromIngredients(constraints);' },
-    { name: 'the plan\'s rules say nothing of how exclusions are read', file: UI, find: '                <p className="dmb-quiet" data-allergen-note="">Exclusions are {DMB_ALLERGEN_NOTE}.</p>\n', replace: '' },
+    { name: 'the plan\'s rules say nothing of how exclusions are read', file: UI, find: '                <p className="dmb-quiet" data-allergen-note="">Exclusions are {DMB_ALLERGEN_NOTE}; Shape Kitchen’s dairy and gluten come from its own lists.</p>\n', replace: '' },
   ],
 };

@@ -497,13 +497,16 @@ test('the plan\'s exclusions filter the Kitchen, and say which ones are read fro
   await mount(builder({ template: t }));
   const K = W.kitchenFoods(RECIPES, window.recipeNeeds);
   assert.equal(cards().length, W.searchKitchen(K, '', {}, { exclusions: ['dairy', 'nuts'] }).length);
-  // The words say what the check is: read from ingredient names, never a certified allergen check.
-  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts · nuts read from ingredient names, not a certified allergen check/);
+  // The words say what each check is (Codex on the PR after #2648): a Kitchen recipe's dairy comes
+  // from the catalog's own lists, and the rest is read from recipe names and ingredients, never a
+  // certified allergen check.
+  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts · dairy from Shape Kitchen’s own lists · nuts read from recipe names and ingredients, not a certified allergen check/);
   // A dish of the coach's own has no catalog lists, so every exclusion on Mine is read that way.
   await click([...document.querySelectorAll('[data-kitchen] [role="tab"]')][1]);
-  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts · dairy, nuts read from ingredient names, not a certified allergen check/);
+  assert.match(words(document.querySelector('[data-kitchen]')), /Filtered · no dairy, nuts · dairy, nuts read from recipe names and ingredients, not a certified allergen check/);
+  assert.doesNotMatch(words(document.querySelector('[data-kitchen]')), /own lists/, 'a coach\'s own recipe has no catalog lists');
   // …and the plan's rules, where the exclusions are picked, say it once too.
-  assert.match(line(document.querySelector('details.dmb-settings')), /Exclusions are read from ingredient names, not a certified allergen check\./);
+  assert.match(line(document.querySelector('details.dmb-settings')), /Exclusions are read from recipe names and ingredients, not a certified allergen check; Shape Kitchen’s dairy and gluten come from its own lists\./);
 });
 
 // The scan of every Kitchen recipe (the catalog's 100, which the sample kitchens copy) against the
