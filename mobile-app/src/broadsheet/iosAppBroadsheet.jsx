@@ -1754,44 +1754,6 @@ function BSHeadlineNumber({ sign = '', value, unit, color, size }) {
 
 // Ticker — black bar with scrolling content. Thin (owner, 2026-11-04: "thin this bar slightly, make a
 // little more narrow"): 5px above and below the line (from 8), its notch 9px.
-function BSTicker({ items, speedSec = 30, fg = '#7ed4ff' }) {
-  const t = useBS();
-  const rows = Array.isArray(items) ? items : [];
-  if (!rows.length) return null; // no metrics → no ticker strip (e.g. signed-in, no live data)
-  return (
-    // 10px in from each side, the width of the deck and the panels under it on every Home (owner,
-    // 2026-11-04: "make this ticker box the same width as the boxes below it on all home pages").
-    <div data-bs-ticker="" style={{
-      position: 'relative', margin: '0 10px',
-      background: t.INK, color: t.PAPER,
-      clipPath: 'polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)',
-      borderLeft: `3px solid ${t.ACCENT}`,
-      padding: '5px 0', overflow: 'hidden', whiteSpace: 'nowrap',
-      fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em',
-    }}>
-      {/* fixed live tick — a solid cap the marquee scrolls beneath */}
-      <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 20, background: t.INK, zIndex: 1, display: 'grid', placeItems: 'center' }}>
-        <span style={{ width: 6, height: 6, borderRadius: 1.5, background: t.ACCENT, boxShadow: `0 0 8px ${t.ACCENT}`, animation: 'bstickerPulse 2.6s ease-in-out infinite' }} />
-      </span>
-      <div style={{ display: 'inline-block', animation: `bsticker ${speedSec}s linear infinite`, paddingLeft: '100%' }}>
-        {Array(2).fill(null).map((_, n) => (
-          <span key={n}>
-            {rows.map((it, i) => (
-              <span key={i}>
-                {it.label} <span style={{ color: it.color || fg }}>{it.value}</span>
-                {it.note && <span style={{ opacity: 0.7 }}> · {it.note}</span>}
-                &nbsp;&nbsp;·&nbsp;&nbsp;
-              </span>
-            ))}
-            ◆ &nbsp;&nbsp;
-          </span>
-        ))}
-      </div>
-      <style>{`@keyframes bsticker { from { transform: translateX(0); } to { transform: translateX(-50%); } } @keyframes bstickerPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }`}</style>
-    </div>
-  );
-}
-
 // Halftone "image placeholder" — duotone CSS pattern, no real photo needed
 function BSHalftone({ height = 180, accent, pattern = 'dots' }) {
   const t = useBS();
@@ -2816,7 +2778,7 @@ function BSNavGestures() {
 Object.assign(window, {
   BSContext, BSProvider, useBS, bsLookTheme, BSBackButton, BSBackRow, BSMastBackSlot, BSPinBackButton, BSPinnedBar, BS_MAST_ROW_H, BS_MAST_LOGO, BS_BACK_ROW_GAP, BS_BACK_ROW_H, BSSettingsCorner, BSNavGestures, BSToastHost, BSConfirmHost,
   BSPage, useBSDetailBar, bsTitleText, bsMastCondenseAt, BSMasthead, BSMastRow, BSPageHeader, BSAvatar, BSEyebrow, BSSection, BSSlab, BSCell, BSTag, BSRow,
-  BSHeadlineNumber, BSTicker, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BS_SIDE_NAV_TAB, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
+  BSHeadlineNumber, BSHalftone, BSTabBar, BS_NAV_SIDES, bsNavSide, bsSetNavSide, useBSNavSide, bsSideNavLength, BS_SIDE_NAV_TAB, BSFooter, BSPhone, BSLogo, BSWordmark, BSPlate, BSMastToolPill,
   DISPLAY_BS, BODY_BS, MONO_BS, makePalette, ShapeUnits, BS_TABBAR_H, BS_TABBAR_CSS, useBSTabbarH, BS_MAST_TOP, BS_MAST_TOP_CSS, BS_BACK_SLOT_TOP_CSS, BS_CORNER_GAP,
   // The settings texture picker paints live pattern-preview tiles with this.
   bsMakeTexture: makeTexture,

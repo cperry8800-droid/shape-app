@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { startTour } from '../../../public/newdesign/spotlightTour.js';
 import { bsProMin, bsProDurationFromSub, bsProDayShape, bsProTodoFor, bsProFoldTodos } from '../services/proLedger.mjs';
 import { BSShortcuts, BSShortcutTile } from './BSShortcuts.jsx';
+import { BSHomeScoreQuote } from './BSHomeScoreQuote.jsx';
 import { bsAssignExercise, bsAssignDayLine, bsAssignWeekLine, bsWeekUnits, bsWeekSpan, bsAssignMeal, bsAssignIso, bsAssignMonday, bsAssignKey, bsAssignSeed, bsAssignWeeks, bsPlanWeek, bsCanonicalDays, bsBlockIsSession, bsPlannedMinutes, bsPlannedRpe, bsDraftMode, bsDraftFromResponse, bsMealPlanTemplate, BS_LENGTH_CHIPS, BS_EFFORT_CHIPS } from '../services/planOutline.mjs';
 import { normalizeWorkoutDetail, normalizeWorkoutPlan, builderToAssignmentRows } from '../../../public/newdesign/workoutDocument.mjs';
 import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, coachWorkoutVideos, workoutAssignmentsHaveExercises } from '../services/coachWorkoutLibrary.mjs';
@@ -90,8 +91,8 @@ const {
   BSSlab, BSCell, BSTag, BSRow, BSHeadlineNumber, BSHalftone,
   BSTabBar, BSFooter,
   BSSheetProvider, useBSSheet, BSCalendarScreen,
-  BSRadioPrompt, BSRadioScreen, BSNowPlaying, BSTicker,
-  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, _bsUseLiveScore,
+  BSRadioPrompt, BSRadioScreen, BSNowPlaying,
+  BSClientChat, BSSettings, BSShapeScorePage, BSShapeStorePage, BSContactPage, BSTermsPage, SHAPE_SCORE_PROFILES, SHAPE_SCORE_TIERS_COACH, _bsUseLiveScore,
   BSPublicProfile, BSFacetAvatar,
 } = window;
 
@@ -1334,6 +1335,9 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
   // holds, Up next, the week, To do, the day's schedule, then Shortcuts. The header, Up next and
   // To do read TODAY's bookings whichever day the week strip shows; the schedule reads that day.
   const loc = coachLocale();
+  // The coach score for the score quote under the masthead (BSHomeScoreQuote.jsx): the coach ladder, read
+  // as the Store's Score page reads it; signed in, nothing draws until it has been read.
+  const coachScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES && SHAPE_SCORE_PROFILES[role]);
   const nowD = new Date();
   const nowMin = nowD.getHours() * 60 + nowD.getMinutes();
   const fmtClock = (min) => {
@@ -1341,9 +1345,6 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
     catch (e) { return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`; }
   };
   const fmtAt = (hhmm) => { const m = bsProMin(hhmm); return m == null ? (hhmm || '—') : fmtClock(m); };
-  const fmtFor = (d) => (d < 60
-    ? tr('coach:today.forMin', { defaultValue: '{count} min', count: d })
-    : tr('coach:today.forHrMin', { defaultValue: '{h} h {m} min', h: Math.floor(d / 60), m: d % 60 }));
   const dayWord = (d, opts) => { try { return d.toLocaleDateString(loc, opts); } catch (e) { return d.toDateString(); } };
   // The booking's type in words, not the rail's four-letter codes.
   const TAG_WORDS = {
@@ -1507,26 +1508,10 @@ function BSProToday({ role = 'trainer', onProfile, sheet, goCalendar, goRadio, o
       />
       <style>{`@keyframes bsLivePulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
 
-      {/* The ticker (owner, 2026-10-25: "I still want the ticker bar. The stock market bar"): the member
-          Home's black strip, carrying today's figures. Only what is known shows; signed in with
-          nothing read yet, the strip hides (BSTicker draws nothing for []). */}
-      <BSTicker items={(() => {
-        const up = (s) => { try { return String(s).toLocaleUpperCase(loc); } catch (e) { return String(s).toUpperCase(); } };
-        const GOOD = '#a3e09a', WARM = '#e98a73';
-        const items = [];
-        if (calendarReady && todayBookings.length) {
-          items.push({ label: isNutri ? tr('coach:today.consults', { defaultValue: 'CONSULTS' }) : tr('coach:today.sessions', { defaultValue: 'SESSIONS' }), value: `${doneToday}/${todayBookings.length}`, note: tr('coach:ticker.done', { defaultValue: 'DONE' }), color: doneToday === todayBookings.length ? GOOD : undefined });
-        }
-        if (upB) items.push({ label: up(tr('coach:rail.nextTag', { defaultValue: 'Next' })), value: up(fmtAt(upB.time)), note: upIn != null ? up(tr('coach:today.inDur', { defaultValue: 'in {dur}', dur: fmtFor(upIn) })) : null });
-        if (rosterReady) {
-          items.push({ label: tr('coach:today.needYou', { defaultValue: 'NEED YOU' }), value: String(todoCount), color: todoCount ? WARM : GOOD });
-          items.push({ label: up(tr('coach:shortcut.clients', { defaultValue: 'Clients' })), value: String(activeCount), note: tr('coach:ticker.active', { defaultValue: 'ACTIVE' }) });
-        }
-        if (toScheduleList.length) items.push({ label: tr('coach:ticker.toBook', { defaultValue: 'TO BOOK' }), value: String(toScheduleList.length), note: tr('coach:ticker.paid', { defaultValue: 'PAID' }), color: WARM });
-        if (isToday && calendarReady && dayShape.openHours != null) items.push({ label: tr('coach:today.openHrs', { defaultValue: 'OPEN HRS' }), value: String(dayShape.openHours) });
-        return items;
-      })()} />
-      {/* 2px out from its own 8, so Shape Radio is 10px in, as the ticker above and the deck below. */}
+      {/* THE SCORE QUOTE, as on member Home (owner, 2026-11-09: the ticker gave way to "A2", the score beside
+          its tier ring; BSHomeScoreQuote.jsx), on the coach ladder. It opens the coach's Score page. */}
+      <BSHomeScoreQuote score={coachScore} tiers={SHAPE_SCORE_TIERS_COACH} signedIn={coachSignedIn} onOpen={() => onOpenScore()} locale={loc} />
+      {/* 2px out from its own 8, so Shape Radio is 10px in, as the score quote above and the deck below. */}
       <div style={{ margin: '12px 2px 0' }}>
         <BSNowPlaying onOpen={goRadio} />
       </div>

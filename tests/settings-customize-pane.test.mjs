@@ -29,7 +29,7 @@ const SECTION = {
   'shape radio': 'settings:radio.title',
   'the light-effect modes': 'settings:fx.eyebrow',
   'the effect colour row': 'settings:fx.color',
-  'the home ticker': 'settings:ticker.title',
+  // The Home ticker's editor left with the ticker (owner, 2026-11-09: Home's score quote took its place).
 };
 
 // ⚠ MATCHED WITH ITS CLOSING QUOTE, because a catalog key is a PREFIX of its own
@@ -83,7 +83,7 @@ test('and nothing it carries was left on the root, or duplicated on the way', ()
 test('the pane ends where it should, so the root keeps its own furniture', () => {
   // ⚠ THIS CHANGE IS TWO FRAGMENT BOUNDARIES, AND GETTING THE SECOND ONE WRONG IS
   // SILENT: the customization span closes the root's `{!detail && (<>` and reopens
-  // it after the ticker. Drop the reopen and the hub cards and Sign out fall INSIDE
+  // it after the effects. Drop the reopen and the hub cards and Sign out fall INSIDE
   // the Customize pane — the page still renders, the section still moved, and every
   // assertion above still passes. Mutation-proven: removing that boundary survived
   // the first round.

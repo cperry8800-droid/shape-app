@@ -283,5 +283,10 @@
   "coach.sub.completion": "%{n} · son 90 gün",
   "coach.sub.programs": "{n, number} yayında",
   "coach.fixNote": "{date} tarihinde puanın seansları ve programları sayma biçimini düzelttik. Puanın değişmiş olabilir.",
-  "coach.fixNoteNutri": "{date} tarihinde puanın seansları sayma biçimini düzelttik. Puanın değişmiş olabilir."
+  "coach.fixNoteNutri": "{date} tarihinde puanın seansları sayma biçimini düzelttik. Puanın değişmiş olabilir.",
+  "quote.label": "Shape puanı",
+  "quote.toNext": "{next} için {toNext}",
+  "quote.topTier": "En üst seviye",
+  "quote.week": "hf",
+  "quote.aria": "Shape puanı {total}, {tier}. Puanını aç."
 }
