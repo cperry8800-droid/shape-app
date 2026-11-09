@@ -21,11 +21,21 @@ if (typeof window !== 'undefined') { window.SHAPE_TURNSTILE_SITEKEY = window.SHA
     return;
   }
 
+  // ⚠ THE EXAMPLE DASHBOARD'S TAB GETS A CLIENT WITH NO SESSION (newdesign/dashExample.js). While a
+  // coach looks at the example, this tab must read as signed out, so its client keeps a session in
+  // memory only, under its own key: it never reads, refreshes or removes the coach's stored
+  // `shape.auth`, which their other tabs and their next visit still use.
+  var dashExample = !!(window.ShapeDashExample && window.ShapeDashExample.on);
   var client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    auth: {
+    auth: !dashExample ? {
       persistSession: true,
       autoRefreshToken: true,
       storageKey: 'shape.auth'
+    } : {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storageKey: 'shape.auth.example'
     }
   });
 
