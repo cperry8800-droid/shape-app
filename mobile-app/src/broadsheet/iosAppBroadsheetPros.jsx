@@ -3221,7 +3221,7 @@ function BSProAssignPage({ role = 'trainer', plan: planProp, client: clientProp,
         const days = builderDoc ? bsMealBuilderWeek(window.DashMeals, builderDoc) : bsPlanWeek(plan.detail).days.map(({ dow, blocks: dayBlocks }) => ({
           dow, title: plan.name, tag: 'PLAN', coachLine: planNote, targets, meals: mealsFrom(dayBlocks),
         }));
-        const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days });
+        const res = await window.ShapeAssign.mealPlan({ clientId: uid, title: plan.name, weekStart: bsAssignIso(monday), days, templateId: plan.id });
         // NC1 — show the individualized-care / scope disclaimer the server returns.
         if (res && res.disclaimer) { setDisclaimer(String(res.disclaimer)); gotDisclaimer = true; }
       } else {

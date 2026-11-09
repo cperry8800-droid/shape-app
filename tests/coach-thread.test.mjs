@@ -518,7 +518,8 @@ test('website: a coach\'s Message with the client id opens the thread the client
     ['public/newdesign/dashToday.jsx', 'return dashMessageClient(name, role, kind === "message" ? action.draft || null : null, id);'],
     ['public/newdesign/dashToday.jsx', 'dashMessageClient(c.profile.name, role, null, c.profile.id)'],
     ['public/newdesign/dashWeek.jsx', 'dashMessageDraft(row) : null, rec.profile.id)'],
-    ['public/newdesign/dashMealBuilder.jsx', 'build your first week.", c.profile.id)'],
+    // Step 6a: the intake row of the meal library's to-do drawer.
+    ['public/newdesign/dashMealBuilder.jsx', 'build your first week.", r.id)'],
     ['public/newdesign/dashToday.jsx', 'dashCongratsDraft(r.client, r.hit), r.client.profile.id)'],
     ['public/newdesign/dashToday.jsx', 'Well done!" : undefined, m.id)'],
     ['public/newdesign/dashToday.jsx', 'proudest of so far?", h.id)'],

@@ -37,7 +37,8 @@ function assigned({ id = 'tpl-1', name = 'Strength Block 3', weeks = 12, start =
 test('a program assigned on the website reads its name and week x of y', () => {
   const p = bsWorkoutProgramLeg(assigned(), NOW);
   // 5 Oct to 5 Nov is four weeks and three days: week 5 of 12.
-  assert.deepEqual(p, { name: 'Strength Block 3', week: 5, weeks: 12, status: 'active', estimatedEndAt: '2026-12-28T00:00:00.000Z', overdue: false, nextAssigned: null });
+  // templateId: the program the run came from, so the library can tell whose week is whose (step 6a).
+  assert.deepEqual(p, { name: 'Strength Block 3', templateId: 'tpl-1', week: 5, weeks: 12, status: 'active', estimatedEndAt: '2026-12-28T00:00:00.000Z', overdue: false, nextAssigned: null });
 });
 
 test('the week counts from the start the coach chose, a mid-week one included', () => {

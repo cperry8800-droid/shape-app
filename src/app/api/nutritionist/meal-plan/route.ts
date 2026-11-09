@@ -2,9 +2,10 @@
 // client_meal_plans. RLS enforces nutritionist ownership; this route resolves
 // the caller's nutritionist row and validates the payload shape.
 //
-// POST { clientId, title, weekStart?, days:[...] } -> { ok, id }
+// POST { clientId, title, weekStart?, days:[...], templateId? } -> { ok, id }
 //   Replaces (archives) the client's current published plan from this
-//   nutritionist, then inserts the new one.
+//   nutritionist, then inserts the new one. `templateId` is the library plan it
+//   was sent from, kept only when it is the caller's own (below).
 //
 // Auth: cookie session OR Bearer token (native coach app sends Bearer).
 
@@ -21,6 +22,9 @@ import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// A library plan's id is a coach_plans uuid: anything else can't be one, and never reaches the read.
+const PLAN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: Request) {
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -33,6 +37,9 @@ export async function POST(request: Request) {
   const title = String(body.title ?? '').trim();
   const weekStart = body.weekStart ? String(body.weekStart) : null;
   const days = Array.isArray(body.days) ? body.days : null;
+  // Optional and trimmed: a uuid (36 characters, well inside the 64 allowed) or it is ignored, never refused.
+  const sentTemplateId = typeof body.templateId === 'string' ? body.templateId.trim() : '';
+  const requestedTemplateId = PLAN_ID.test(sentTemplateId) ? sentTemplateId : null;
 
   if (!clientId) return NextResponse.json({ error: 'clientId is required.' }, { status: 400 });
   if (!title) return NextResponse.json({ error: 'title is required.' }, { status: 400 });
@@ -79,6 +86,25 @@ export async function POST(request: Request) {
     );
   }
 
+  // ⚠ WHICH LIBRARY PLAN IT CAME FROM, ONLY WHEN THAT PLAN IS THE CALLER'S OWN (the meal library's
+  // "who's on it", /api/coach/plans/usage?role=nutritionist). It rides as `payload.template.id`,
+  // where client_workouts keeps a program's, so no migration. One owner-scoped read of coach_plans:
+  // an id that is not one of theirs, or a read that fails, is dropped, and the plan is still sent.
+  // Nothing shows it to anyone else: the member's readers take `payload.days` and nothing more, a
+  // shared client's other coach gets a payload rebuilt from `days` alone
+  // (get_shared_client_meal_plan), and the id names no one (coach_plans is owner-only).
+  let templateId: string | null = null;
+  if (requestedTemplateId) {
+    const { data: ownPlan, error: ownPlanError } = await supabase
+      .from('coach_plans')
+      .select('id')
+      .eq('id', requestedTemplateId)
+      .eq('owner_id', user.id)
+      .maybeSingle();
+    if (ownPlanError) console.warn('[shape-api] meal plan: the library plan was not checked, so it is not recorded:', ownPlanError.message);
+    else if (ownPlan?.id) templateId = String(ownPlan.id);
+  }
+
   // Retire the client's current published plan from this nutritionist.
   await supabase
     .from('client_meal_plans')
@@ -95,7 +121,7 @@ export async function POST(request: Request) {
       title,
       week_start: weekStart,
       status: 'published',
-      payload: { days },
+      payload: templateId ? { days, template: { id: templateId } } : { days },
     })
     .select('id')
     .single();

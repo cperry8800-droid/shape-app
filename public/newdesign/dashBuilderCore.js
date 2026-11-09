@@ -1202,6 +1202,118 @@
     };
   }
 
+  // ── The library's week and who is on what (the owner's coach review, step 6a) ──
+  // ⚠ ONLY WHAT THE READS STORE. A client's program is the roster read's leg of it: the program
+  // YOUR calendar holds for them (coach-client-legs.mjs bsWorkoutProgramLeg: name, week, weeks,
+  // status, overdue, nextAssigned, templateId), read per client with their overview. An assignment
+  // publishes every week of a program at once, so "next week is ready" is a fact the leg already
+  // holds: weeks are left after this one, or another program is assigned after it. Nothing here
+  // drafts a week or sends one; there is no unsent week in the store to send.
+  // A client's program read: "ready" (their overview answered), "loading" (not yet), or "unread"
+  // (it failed). The preview's cast carries no read state and is read by construction.
+  function programReadState(c) {
+    var r = c && c.progressRead;
+    if (!r || typeof r !== "object") return "ready";
+    return r.state === "ready" ? "ready" : r.state === "loading" ? "loading" : "unread";
+  }
+  // The trainer's own program for a client: the role's leg, else the one program the record names.
+  function trainerProgramOf(c) {
+    if (!c) return null;
+    if (c.programs && typeof c.programs === "object") return c.programs.trainer || null;
+    return c.program || null;
+  }
+  function posInt(v) { var n = Number(v); return v != null && v !== "" && isFinite(n) && n > 0 ? Math.floor(n) : null; }
+  // One client's next week: { state, … } with state "ready", "need", "unknown" or "paused".
+  function programNextWeek(p) {
+    var week = posInt(p.week), weeks = posInt(p.weeks);
+    var next = typeof p.nextAssigned === "string" && p.nextAssigned.trim() ? p.nextAssigned.trim() : null;
+    if (p.paused || p.status === "paused") return { state: "paused" };
+    if (week == null && p.status === "assigned") return { state: "ready", why: "starts", weeks: weeks };
+    if (week == null || weeks == null) return { state: "unknown" };
+    if (weeks - week >= 1 && !p.overdue) return { state: "ready", why: "next-week", nextWeek: week + 1, weeks: weeks };
+    if (next) return { state: "ready", why: "next-program", next: next };
+    return { state: "need", why: p.overdue ? "ended" : "final", endsAt: typeof p.estimatedEndAt === "string" ? p.estimatedEndAt : null };
+  }
+  var NEXT_WEEK_RANK = { need: 0, unknown: 1, ready: 2, paused: 3 };
+  function programWeekAhead(clients) {
+    var list = Array.isArray(clients) ? clients : [];
+    var out = { rows: [], ready: 0, need: 0, unknown: 0, paused: 0, off: 0, pending: 0, unread: 0, total: list.length };
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (!c || !c.profile) continue;
+      var read = programReadState(c);
+      if (read === "loading") { out.pending += 1; continue; }
+      if (read === "unread") { out.unread += 1; continue; }
+      var p = trainerProgramOf(c);
+      if (!p || typeof p !== "object" || !tagText(p.name)) { out.off += 1; continue; }
+      var n = programNextWeek(p);
+      out[n.state] += 1;
+      out.rows.push({
+        id: c.profile.id, name: tagText(c.profile.name) || "A client", rankPoints: c.rankPoints, client: c,
+        program: tagText(p.name), templateId: typeof p.templateId === "string" ? p.templateId : null,
+        week: posInt(p.week), weeks: posInt(p.weeks), next: n,
+      });
+    }
+    out.rows.sort(function (a, b) {
+      return NEXT_WEEK_RANK[a.next.state] - NEXT_WEEK_RANK[b.next.state] || a.name.localeCompare(b.name);
+    });
+    return out;
+  }
+  // Who is on one program: the usage read's entry for it ({ clients, clientIds }) matched to the
+  // roster by id. ⚠ An id the roster does not hold is still a person on the program, counted as
+  // `elsewhere`, never dropped; an entry without ids (an older server) says how many and not who.
+  function programWho(entry, clients) {
+    var count = entry && Number(entry.clients) > 0 ? Math.floor(Number(entry.clients)) : 0;
+    var ids = entry && Array.isArray(entry.clientIds) ? entry.clientIds.filter(function (x) { return typeof x === "string" && x; }) : null;
+    if (!ids) return { count: count, people: null, elsewhere: 0 };
+    var byId = Object.create(null);
+    (Array.isArray(clients) ? clients : []).forEach(function (c) { if (c && c.profile && c.profile.id != null) byId[String(c.profile.id)] = c; });
+    var people = [], elsewhere = 0, seen = Object.create(null);
+    for (var i = 0; i < ids.length; i++) {
+      if (seen[ids[i]]) continue;
+      seen[ids[i]] = true;
+      var c = byId[ids[i]];
+      if (c) people.push({ id: c.profile.id, name: tagText(c.profile.name) || "A client", rankPoints: c.rankPoints, client: c });
+      else elsewhere += 1;
+    }
+    people.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return { count: Math.max(count, people.length + elsewhere), people: people, elsewhere: elsewhere };
+  }
+  // The one program most clients are on: a single top count of at least two, from a read that
+  // was not capped (a capped read under-counts, so it cannot rank). A tie names nobody.
+  function mostUsedProgram(usageMap, capped) {
+    if (!usageMap || typeof usageMap !== "object" || capped) return null;
+    var best = null, top = 0, tie = false;
+    for (var id in usageMap) {
+      if (!Object.prototype.hasOwnProperty.call(usageMap, id)) continue;
+      var n = usageMap[id] && Number(usageMap[id].clients) > 0 ? Math.floor(Number(usageMap[id].clients)) : 0;
+      if (n > top) { best = id; top = n; tie = false; }
+      else if (n === top && n > 0) tie = true;
+    }
+    return best && top >= 2 && !tie ? { id: best, clients: top } : null;
+  }
+  // The programs on exactly one client's calendar, with that client's week on it where their
+  // current program IS this one (the leg's templateId). Not ready first.
+  function oneClientPrograms(templates, usageMap, capped, clients) {
+    if (!usageMap || typeof usageMap !== "object" || capped) return null;
+    var ahead = programWeekAhead(clients);
+    var byClient = Object.create(null);
+    ahead.rows.forEach(function (r) { if (r.id != null) byClient[String(r.id)] = r; });
+    var rows = [];
+    (Array.isArray(templates) ? templates : []).forEach(function (t) {
+      var e = t && Object.prototype.hasOwnProperty.call(usageMap, t.id) ? usageMap[t.id] : null;
+      if (!e || Number(e.clients) !== 1) return;
+      var who = programWho(e, clients);
+      var person = who.people && who.people[0] ? who.people[0] : null;
+      var r = person ? byClient[String(person.id)] : null;
+      var current = !!(r && r.templateId && r.templateId === t.id);
+      rows.push({ template: t, person: person, week: current ? r.week : null, weeks: current ? r.weeks : null, next: current ? r.next : null });
+    });
+    var rank = function (x) { return x.next ? NEXT_WEEK_RANK[x.next.state] : 1; };
+    rows.sort(function (a, b) { return rank(a) - rank(b) || tagText(a.template.name).localeCompare(tagText(b.template.name)); });
+    return rows;
+  }
+
   // ── Demo templates + performance (signed-out / API-down fallback) ─────────
   function demoTemplates() {
     var mk = function (name, goalTag, weeks) {
@@ -1370,5 +1482,7 @@
     normalizeTag: normalizeTag, normalizeTags: normalizeTags, tagInfo: tagInfo, programTags: programTags,
     customTagsFromTemplates: customTagsFromTemplates, rowKit: rowKit, programFacts: programFacts,
     PROGRAM_FACETS: PROGRAM_FACETS, programTagFacet: programTagFacet,
+    programReadState: programReadState, trainerProgramOf: trainerProgramOf, programNextWeek: programNextWeek,
+    programWeekAhead: programWeekAhead, programWho: programWho, mostUsedProgram: mostUsedProgram, oneClientPrograms: oneClientPrograms,
   };
 });

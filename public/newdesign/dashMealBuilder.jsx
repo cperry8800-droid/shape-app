@@ -1,5 +1,5 @@
-// Nutritionist Plans v2 — library + lifecycle zones and the meal-plan builder
-// (dashboard-v2 final step). Logic lives in dashMealCore.js (pure, tested);
+// Nutritionist Plans v2 — the library (its to-do line, filters and cards; the owner's coach
+// review, step 6a) and the meal-plan builder (dashboard-v2 final step). Logic lives in dashMealCore.js (pure, tested);
 // this file is UI. Templates persist to /api/coach/plans (detail.mealBuilder);
 // assignment snapshots into client_meal_plans via /api/nutritionist/meal-plan
 // — the same store the client today-rail, mobile Eat tab, and auto-grocery
@@ -9,7 +9,8 @@
 //
 // Load order: pageShell → trainerDashboard → coachNav → clientNav →
 // dashSignals → dashData → dashToday → dashClient (DashMealLedgerCard) →
-// dashMealCore → dashFilterBar (the library's filters) → this file.
+// dashMealCore → dashFilterBar (the library's filters and shared pieces) → this file. The tier
+// gems (DashClientGem) are dashToday's, read at render.
 
 const DMB_INK50 = "var(--sh-ink2, #a09b94)";
 const DMB_MONO = "'JetBrains Mono', monospace";
@@ -399,7 +400,24 @@ function DmbGroceryPanel({ plan, edits, onEdits }) {
 }
 
 // ── Assign modal — per-client portion scale + training days + start date ────
-function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose }) {
+// `emptyNote` is what an empty client list means, from the library page (step 6a): a roster that
+// could not be read says so, and only a read, empty roster reads "No clients yet."
+// `onAssigned(ids)`: the clients a plan was sent to, so the library reads who is on what and who is
+// still due again (Codex on #2645); it fires on a partial send too, since those plans are live.
+function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle, live, preselectId, onClose, emptyNote, onAssigned }) {
+  // ⚠ ONE CLOSE PER SHEET (Codex on #2645). A finished assign closes itself a moment later; a coach
+  // who closes it first (Cancel, the scrim, Esc) used to get a second close when the timer fired, and
+  // the library's Assign all stepped past the next client. The first close wins, and the timer goes
+  // with the sheet.
+  const closedRef = React.useRef(false);
+  const closeTimer = React.useRef(null);
+  React.useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+  const close = () => {
+    if (closedRef.current) return;
+    closedRef.current = true;
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    onClose();
+  };
   const [picked, setPicked] = React.useState(() => (preselectId ? { [preselectId]: true } : {}));
   React.useEffect(() => { if (preselectId) setPicked((prev) => ({ ...prev, [preselectId]: true })); }, [preselectId]);
   const [scales, setScales] = React.useState({});
@@ -424,6 +442,7 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
   const assign = async () => {
     if (!ids.length || state === "working" || state === "done") return;
     setState("working");
+    const sent = [];
     try {
       for (const id of ids) {
         const scale = Number(scales[id]) > 0 ? Number(scales[id]) : 1;
@@ -432,9 +451,12 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
           const res = await fetch("/api/nutritionist/meal-plan", {
             method: "POST", credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clientId: id, title: template.name + (scale !== 1 ? " · ×" + scale : ""), weekStart: startDate, days: out.days }),
+            // The library plan it came from, so the library can say who is on it (the route keeps it
+            // only when the plan is this coach's own). A brand-new unsaved plan has none.
+            body: JSON.stringify({ clientId: id, title: template.name + (scale !== 1 ? " · ×" + scale : ""), weekStart: startDate, days: out.days, ...(template.id ? { templateId: String(template.id) } : {}) }),
           });
           if (!res.ok) throw new Error("HTTP " + res.status);
+          sent.push(id);
         }
       }
       // Plan written → those clients leave the plan queue for this week.
@@ -446,13 +468,17 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
         localStorage.setItem(key, JSON.stringify([...done]));
       } catch (e) {}
       setState("done");
-      setTimeout(onClose, 1100);
-    } catch (e) { setState("error"); }
+      if (live && typeof onAssigned === "function") onAssigned(sent);
+      closeTimer.current = setTimeout(close, 1100);
+    } catch (e) {
+      if (live && sent.length && typeof onAssigned === "function") onAssigned(sent);
+      setState("error");
+    }
   };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 250 }}>
-      <button type="button" aria-label="Close assignment" onClick={onClose} style={{ position: "absolute", inset: 0, width: "100%", border: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
+      <button type="button" aria-label="Close assignment" onClick={close} style={{ position: "absolute", inset: 0, width: "100%", border: 0, background: "rgba(10,10,8,0.65)", backdropFilter: "blur(3px)" }} />
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(480px, 94vw)", maxHeight: "86vh", overflowY: "auto", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
         <div style={{ fontFamily: DMB_MONO, fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DMB_GOLD }}>Assign · {template.name}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>Put clients on it.</div>
@@ -494,13 +520,13 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
               </label>
             );
           })}
-          {!clients.length && <div style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>No clients loaded.</div>}
+          {!clients.length && <div role="status" style={{ fontSize: 12, color: DMB_INK50, padding: 8 }}>{emptyNote || "No clients loaded."}</div>}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button onClick={assign} disabled={!ids.length || state === "working"} style={{ ...dmbBtn(true), padding: "11px 18px", opacity: !ids.length || state === "working" ? 0.6 : 1 }}>
             {state === "working" ? "Assigning…" : state === "done" ? "Assigned ✓" : "Publish to " + (ids.length || 0) + " client" + (ids.length === 1 ? "" : "s")}
           </button>
-          <button onClick={onClose} style={dmbBtn(false)}>Cancel</button>
+          <button onClick={close} style={dmbBtn(false)}>Cancel</button>
           {state === "error" && <span style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_RED }}>Couldn't assign — try again</span>}
           {!live && <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50 }}>DEMO · marks the queue only</span>}
         </div>
@@ -542,7 +568,7 @@ function DmbClientPreview({ doc, day, variant }) {
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
-function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId }) {
+function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, onBack, onSaved, assignClientId, customFoods, ownerId, emptyNote, onAssigned }) {
   const prefs = useRememberedChoices(!!live);
   const [layout, setLayout] = useRememberedChoice(prefs, "mealBuilderLayout", COACH_BUILDER_LAYOUTS, "guided");
   const [step, setStep] = React.useState(0);
@@ -769,59 +795,137 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
       {guided && <CoachBuilderFooter step={step} onStep={setStep} steps={steps}/>}
       {assigning && (
         <DmbAssignModal
-          template={{ id: idRef.current, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
+          template={{ id: persisted.current ? idRef.current : null, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
           clients={clients} queue={queue} lifecycle={lifecycle} live={live}
-          preselectId={assignClientId || preselectId}
+          preselectId={assignClientId || preselectId} emptyNote={emptyNote} onAssigned={onAssigned}
           onClose={() => setAssigning(false)} />
       )}
     </div>
   );
 }
 
-// ── Lifecycle zone — expiring / phase change / intake pending ───────────────
-function DmbLifecyclePanel({ lifecycle, onWritePlan }) {
-  const groups = [
-    { key: "expiring", label: "Expiring this week", c: DMB_RED, sub: "Check-in reviewed — this week's plan isn't written yet", action: "Write plan" },
-    { key: "phaseChange", label: "Ready for phase change", c: DMB_GOLD, sub: "At or past 50% to goal — consider the next phase's targets", action: "Write plan" },
-    { key: "intake", label: "Intake pending", c: "var(--sh-accent, #2ee0c4)", sub: "No first check-in yet — chase the intake before assigning", action: null },
-  ];
-  return (
-    <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DMB_GOLD, paddingLeft: 24 }}>
-      <div className="dash-eyebrow" style={{ color: DMB_GOLD }}>Plan lifecycle · who needs one</div>
-      <div className="dash-ledger" style={{ "--dac": DMB_GOLD, marginTop: 9 }} />
-      <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-        {groups.map((g) => {
-          const list = lifecycle[g.key] || [];
-          return (
-            <div key={g.key}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 13, fontWeight: 600, minHeight: 36, color: g.c }}>{g.label}</span>
-                <span style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_INK50 }}>{list.length}</span>
-              </div>
-              <div style={{ fontSize: 11, color: DMB_INK50, lineHeight: 1.45, margin: "4px 0 8px" }}>{g.sub}</div>
-              {list.map((c) => (
-                <div key={c.profile.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)" }}>
-                  <span style={{ flex: 1, fontSize: 12.5, fontWeight: 500, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.profile.name}</span>
-                  {g.action
-                    ? <button onClick={() => onWritePlan(c.profile.id)} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>{g.action} →</button>
-                    : <button onClick={() => dashMessageClient(c.profile.name, "nutritionist", "Quick nudge — your intake form is still open. Two minutes and I can build your first week.", c.profile.id)} style={{ ...dmbBtn(false), padding: "4px 9px", fontSize: 8 }}>Message</button>}
-                </div>
-              ))}
-              {!list.length && <div style={{ fontSize: 11.5, color: DMB_INK50, padding: "6px 0" }}>Nobody — clear.</div>}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+// ── The library's to-do (the owner's coach review, step 6a: "the calmer library") ──
+// "Two gold primaries on every card, and the whole roster as a to-do list." The lifecycle block
+// listed 9 of 10 clients for a phase change and 8 of them again as expiring: 17 identical "Write
+// plan →" buttons. It is one line now, each client counted once with every reason they have, a
+// plan named only where one in their own phase exists (DashMeals.planTodo), and "Assign all"
+// opening each one's own assign sheet in turn: the existing assign path, one client at a time,
+// with the sheet's start day, training days and portion scale still the coach's to set.
+const DMB_REASONS = { "checked-in": "Checked in this week", phase: "Near their goal · time for the next phase" };
+const DMB_NOBODY = Object.freeze([]);
+const DMB_SORTS = [
+  { key: "newest", label: "Newest" },
+  { key: "name", label: "Name A–Z" },
+  { key: "kcal", label: "Calories, low to high" },
+];
+const dmbCount = (n, one, many) => n + " " + (n === 1 ? one : many);
+function DmbPerson({ p }) {
+  return <span className="dash-lib-person">{typeof DashClientGem === "function" && <DashClientGem points={p.rankPoints} title={p.name} />}<b>{p.name}</b></span>;
+}
+function dmbTodoModel(roster, clients, queue, templates, sent) {
+  if (roster === "loading" || roster === "unread") return { roster, todo: null };
+  return { roster, todo: DashMeals.planTodo(clients, queue, templates, sent) };
+}
+function DmbTodoLine({ model, onAssignAll, onReview }) {
+  const label = "Plans due this week";
+  const by = dashLibWeekEnd();
+  if (!model.todo) return <DashLibTopLine label={label} figure="—" line={"need a new plan by " + by} note={model.roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"} />;
+  const t = model.todo;
+  const n = t.rows.length;
+  const settling = t.pending > 0 && !n && !t.intake.length;
+  const notes = [];
+  if (t.pending) notes.push(dmbCount(t.pending, "client is", "clients are") + " still loading");
+  if (t.unread) notes.push(dmbCount(t.unread, "client’s check-ins", "clients’ check-ins") + " couldn’t be read");
+  if (t.intake.length) notes.push(dmbCount(t.intake.length, "client is", "clients are") + " waiting on their first check-in");
+  if (!settling && !n && !t.pending && !t.unread) notes.push(t.total ? "Nobody needs a new plan this week." : "No clients on your roster yet.");
+  const shown = t.rows.slice(0, 3);
+  const chips = n ? <ul className="dash-lib-todos">
+    {shown.map((r) => <li key={r.id} className="dash-lib-todo">
+      <DmbPerson p={r} />
+      <span className="dash-lib-todo-plan">{r.suggestion ? "→ " + r.suggestion.name : "→ no plan in their phase yet"}</span>
+      <span className="dash-lib-todo-why">{r.reasons.map((k) => DMB_REASONS[k] || k).join(" · ")}</span>
+    </li>)}
+    {n > shown.length && <li className="dash-lib-todo-more">{"+" + (n - shown.length) + " more in Review"}</li>}
+  </ul> : null;
+  return <DashLibTopLine label={label} figure={settling ? "—" : n} line={(n === 1 && !settling ? "needs a new plan by " : "need a new plan by ") + by}
+    chips={chips} note={notes.length ? notes.join(" · ") : null}
+    actions={<>
+      {t.assignable > 0 && <button type="button" onClick={onAssignAll} style={dmbBtn(true)}>Assign all {t.assignable}</button>}
+      <button type="button" onClick={onReview} disabled={!n && !t.intake.length} style={dmbBtn(false)}>Review</button>
+    </>} />;
+}
+// A client with no plan named: "Choose a plan" from the library, or, on a library with none yet,
+// "Start a plan" in the builder in their own phase (a button that does nothing on an empty
+// library is a dead one).
+function DmbTodoDrawer({ todo, hasPlans, onAssign, onPick, onNew, onClose }) {
+  return <DashLibDrawer title="Plans due this week" onClose={onClose}
+    sub="Each client once, with every reason they have. A plan is named where your library holds one in their phase; the assign sheet still asks for the start day, training days and portions.">
+    <ul className="dash-lib-rows">
+      {todo.rows.map((r) => <li key={r.id} className="dash-lib-row">
+        <div className="dash-lib-row-main">
+          <DmbPerson p={r} />
+          <span className="dash-lib-row-what">{r.suggestion ? "→ " + r.suggestion.name : "No plan in their phase yet"}</span>
+        </div>
+        <div className="dash-lib-row-side">
+          {r.reasons.map((k) => <DashLibStatus key={k} tone="need">{DMB_REASONS[k] || k}</DashLibStatus>)}
+          {r.suggestion
+            ? <button type="button" style={dmbBtn(false)} onClick={() => onAssign(r)}>Assign</button>
+            : hasPlans
+              ? <button type="button" style={dmbBtn(false)} onClick={() => onPick(r.id)}>Choose a plan</button>
+              : <button type="button" style={dmbBtn(false)} onClick={() => onNew(r)}>Start a plan</button>}
+        </div>
+      </li>)}
+      {todo.intake.map((r) => <li key={r.id} className="dash-lib-row">
+        <div className="dash-lib-row-main"><DmbPerson p={r} /><span className="dash-lib-row-what">No first check-in yet</span></div>
+        <div className="dash-lib-row-side">
+          <DashLibStatus>Intake pending</DashLibStatus>
+          <button type="button" style={dmbBtn(false)} onClick={() => dashMessageClient(r.name, "nutritionist", "Quick nudge — your intake form is still open. Two minutes and I can build your first week.", r.id)}>Message</button>
+        </div>
+      </li>)}
+    </ul>
+  </DashLibDrawer>;
+}
+
+// ── Who is on a plan (the owner's rule, 2026-11-09: "only the coaches see who's on what plan or
+// program") ──
+// The usage read (/api/coach/plans/usage?role=nutritionist): this nutritionist's own clients'
+// current plans, by the library plan each was sent from, matched to their own roster
+// (DashMeals.planWho). The same states as Programs' DbuWho. ⚠ UNREAD IS NOT EMPTY: a current plan
+// that names no library plan (sent before Shape recorded one, or from the app, which does not send
+// one yet) counts toward `untracked`, so while any such plan exists a card with none recorded says
+// that, never "No clients yet" (the page says why once, above the cards).
+function DmbWho({ entry, usage, roster, clients, preview }) {
+  let body;
+  if (preview) body = <span className="dash-lib-quiet">Preview · no client plans to read</span>;
+  else if (usage.state !== "ready") body = <span className="dash-lib-quiet">{usage.state === "error" ? "Couldn’t read who’s on it" : "Checking who’s on it…"}</span>;
+  else {
+    const who = DashMeals.planWho(entry, clients);
+    // ⚠ A CAPPED READ CAN ONLY UNDER-COUNT: "5+ clients", and never "No clients yet".
+    const many = who.count + (usage.capped ? "+ clients" : who.count === 1 ? " client" : " clients");
+    const partly = usage.capped ? <span className="dash-lib-quiet">· not every plan was read</span> : null;
+    if (!who.count) body = <span className="dash-lib-quiet">{usage.capped ? "None found on the plans read" : usage.untracked > 0 ? "None recorded yet" : "No clients yet"}</span>;
+    else if (roster !== "live" && roster !== "demo") body = <span className="dash-lib-quiet">{many} · {roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"}</span>;
+    else if (!who.people) body = <><span>{many}</span>{partly}</>;
+    else body = <><DashLibPeople people={who.people} extra={who.count - who.people.length} />{partly}</>;
+  }
+  return <div className="dash-lib-who"><span className="dash-lib-who-label">On it</span>{body}</div>;
+}
+// The page's one line for plans Shape can't place: how many current plans name no library plan.
+function dmbUntrackedNote(n) {
+  return n === 1
+    ? "1 current plan doesn’t say which library plan it came from (sent before Shape kept track, or from the app), so it isn’t counted on these cards."
+    : n + " current plans don’t say which library plan they came from (sent before Shape kept track, or from the app), so they aren’t counted on these cards.";
 }
 
 // ── The page ────────────────────────────────────────────────────────────────
 // The facts line on a library card, in the filters' own words so a nutritionist can see
 // why a card matched — and what the page could NOT check, said as such.
+// ⚠ THE ALLERGEN LINE NAMES THE PLAN'S OWN MEALS (planOwnDiet), never an alternate: "Summer Cut
+// contains shellfish" was one swap's shrimp tacos. The Diet filter still holds a "free of" claim
+// to every meal a client can be served, alternates included (its help says so).
 function dmbCardFacts(info) {
   const parts = [];
-  const d = info.diet, p = info.prep;
+  const d = info.ownDiet, p = info.prep;
   // "None of the N allergens Shape checks", never a bare "allergen-free": sesame, for one, is
   // not on the list, and the count is read from the list so it cannot drift from it.
   if (d.known) parts.push(d.contains.length ? "Contains " + d.contains.join(", ") : "None of the " + DashMeals.ALLERGENS.length + " allergens Shape checks");
@@ -835,8 +939,9 @@ function dmbCardFacts(info) {
 
 function NutritionistPlansPage() {
   const { clients, queue, today: live, source } = useDashboard("nutritionist");
-  const forClient = typeof dashRouteParam === "function" ? dashRouteParam("client") : null;
-  const targetClient = clients.find((c) => c.profile.id === forClient);
+  // The client a plan is being chosen for: the link's (?client=), or the one the to-do picked.
+  const [pickFor, setPickFor] = React.useState(null);
+  const forClient = pickFor || (typeof dashRouteParam === "function" ? dashRouteParam("client") : null);
   const [templates, setTemplates] = React.useState(null);
   const [view, setView] = React.useState(null); // null = library, else { template, assignClientId? }
   const [filters, setFilters] = React.useState(DFB_EMPTY);
@@ -849,8 +954,42 @@ function NutritionistPlansPage() {
   // loading, and the first answer is not an account CHANGE — treating it as one closed the
   // builder under the coach's hands and took what they had typed with it.
   const resolved = React.useRef(false);
-  const isLive = !!live;
-  const lifecycle = React.useMemo(() => DashMeals.buildPlanLifecycle(clients || [], queue || []), [clients, queue]);
+  // ⚠ WHO IS ON EACH PLAN IS ITS OWN READ, and an unread one is not "nobody" (as Programs reads
+  // its own). A failed REFRESH keeps the reading the page already had, because a stale count is
+  // still a count and a blank is a claim. A current plan is published, whatever its week, so no
+  // `today` rides on this read. An answer without a real `untracked` count is not the meal
+  // library's, and is read as a failure.
+  const [usage, setUsage] = React.useState({ state: "idle" });
+  const usageRead = React.useRef(0);
+  const loadUsage = React.useCallback(async () => {
+    const read = ++usageRead.current;
+    setUsage((u) => (u.state === "ready" ? u : { state: "loading" }));
+    try {
+      const res = await fetch("/api/coach/plans/usage?role=nutritionist", { credentials: "same-origin" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.usage || typeof data.usage !== "object" || !Number.isInteger(data.untracked) || data.untracked < 0) throw new Error("usage");
+      // `sentAt`: when each client's current plan was sent, so a client sent one this week is not due.
+      const sentAt = data.sentAt && typeof data.sentAt === "object" ? data.sentAt : {};
+      if (read === usageRead.current) setUsage({ state: "ready", map: data.usage, capped: !!data.capped, untracked: data.untracked, sentAt });
+    } catch (e) { if (read === usageRead.current) setUsage((u) => (u.state === "ready" ? u : { state: "error" })); }
+  }, []);
+  // ⚠ THE PREVIEW IS THE SIGNED-OUT LIBRARY, NOTHING ELSE (dashLibRosterState): until the library
+  // has answered, a visitor and a coach whose roster read failed look alike, so neither the band
+  // nor a sample person shows; once it has, a signed-in library never names the sample cast.
+  const signedIn = !!libraryOwner.current;
+  const roster = source === "demo" && !resolved.current ? "loading" : dashLibRosterState(source, signedIn);
+  const preview = roster === "demo";
+  // ⚠ LIVE IS "NOT THE PREVIEW", NOT "THE DAY FEED ANSWERED". A signed-in coach whose roster read
+  // failed (unread) may have no feed either, and on `!!live` alone the assign sheet said "DEMO ·
+  // marks the queue only", the builder kept drafts on the device and the remembered choices stayed
+  // shut (as Schedule now gates).
+  const isLive = !!live || roster === "live" || roster === "unread";
+  const people = roster === "live" || roster === "demo" ? clients : DMB_NOBODY;
+  // What an empty client list in the assign sheet means: unread is not "no clients".
+  const emptyNote = roster === "unread" ? DASH_LIB_ROSTER_UNREAD : roster === "loading" ? "Reading your roster…" : "No clients yet.";
+  const peopleQueue = people === clients ? queue : DMB_NOBODY;
+  const targetClient = people.find((c) => c.profile.id === forClient);
+  const lifecycle = React.useMemo(() => DashMeals.buildPlanLifecycle(people || [], peopleQueue || []), [people, peopleQueue]);
 
   // ⚠ SHAPE'S EXAMPLE PLANS ARE THE PREVIEW'S, NEVER A SIGNED-IN LIBRARY'S. This page used
   // to fall back to them whenever the read came back empty or failed — so a nutritionist
@@ -869,9 +1008,12 @@ function NutritionistPlansPage() {
         const rows = all.filter((p) => p && p.detail && p.detail.mealBuilder);
         if (!on) return;
         // A different account is a different library: nothing from the last one — the
-        // open plan, the assign sheet, the filters — may carry across.
+        // open plan, the assign sheet, the filters, who was on what — may carry across.
         const owner = d.ownerId || null;
-        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); }
+        // Everything this page holds for one account goes with it (Codex on #2645): an Assign all walk
+        // still on the last account's clients and plans, this visit's sends, the drawer's pick, the
+        // open review and the last notice, as well as the open plan, the sheet and who was on what.
+        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); setWalk(null); setSentNow(new Set()); setPickFor(null); setReviewing(false); setNotice(""); }
         resolved.current = true;
         libraryOwner.current = owner;
         setTemplates(rows);
@@ -879,6 +1021,7 @@ function NutritionistPlansPage() {
         // open them — it says how many rather than pretending they do not exist.
         setAppOnly(all.length - rows.length);
         setError("");
+        if (owner) loadUsage();
       } catch (e) {
         if (!on) return;
         // Until the dashboard knows whether anyone is signed in, a failure means nothing
@@ -912,26 +1055,78 @@ function NutritionistPlansPage() {
     return () => { window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
   }, []);
 
-  // Every filter reads the plan's own facts (DashMeals.mealPlanFacts).
-  const phaseFacet = React.useMemo(() => DashMeals.mealPhaseFacet(), []);
+  // Every filter reads the plan's own facts (DashMeals.mealPlanFacts); the search finds a recipe
+  // inside a plan too. ⚠ ONE ROW: search, the plan's type (its phase) with counts, and sort; the
+  // four other filters wait behind More filters instead of a row of dropdowns and chips.
+  const phaseFacet = React.useMemo(() => ({ ...DashMeals.mealPhaseFacet(), label: "Type", help: "The plan’s goal phase." }), []);
   const items = React.useMemo(() => (templates || []).map((t) => ({ t, ...DashMeals.mealPlanFacts(t) })), [templates]);
-  const run = dfbRun(items, [...DashMeals.MEAL_FACETS, phaseFacet], filters);
+  const run = dfbRun(items, [phaseFacet, ...DashMeals.MEAL_FACETS], filters);
+  const [sort, setSort] = React.useState("newest");
+  const kcalOf = (t) => { const k = Number(t.detail.mealBuilder.targets && t.detail.mealBuilder.targets.kcal); return isFinite(k) && k > 0 ? k : Infinity; };
+  const shown = sort === "name" ? [...run.shown].sort((a, b) => String(a.t.name).localeCompare(String(b.t.name)))
+    : sort === "kcal" ? [...run.shown].sort((a, b) => kcalOf(a.t) - kcalOf(b.t)) : run.shown;
   // Every dish this nutritionist has written that Shape does not list.
   const customFoods = DashMeals.customFoodsFromTemplates(templates || []);
   const newPlan = (phaseKey) => ({ id: null, name: "New meal plan", detail: { mealBuilder: DashMeals.newPlan("New meal plan", phaseKey || "maintain") } });
-  // "Write plan" from the lifecycle: pre-fill the assign modal with that client on the
-  // matching-phase template (else the first one). With no template yet it opens a new plan
-  // in the client's phase — a button that does nothing on an empty library is a dead one.
-  const writePlanFor = (clientId) => {
-    const c = (clients || []).find((x) => x.profile.id === clientId);
-    const tpl = (templates || []).find((t) => c && c.goalPhase && t.detail.mealBuilder.goalPhase === c.goalPhase) || (templates || [])[0];
-    if (tpl) setAssignFor({ template: tpl, clientId });
-    else setView({ template: newPlan(c && c.goalPhase) });
+  // ⚠ A CLIENT SENT A PLAN THIS WEEK IS NOT DUE ONE (Codex on #2645). The usage read says when each
+  // client's current plan from this nutritionist was sent (`sentAt`, any device), and this visit's own
+  // sends count at once, before that read lands: so the line never offers Assign all again to the
+  // clients it was just sent to (a second send archives the first and notifies the client again).
+  const [sentNow, setSentNow] = React.useState(() => new Set());
+  // dashFilterBar.jsx's helpers, read at call time like the page's other shared globals.
+  const weekStart = typeof dashLibWeekStartKey === "function" ? dashLibWeekStartKey() : "";
+  const sentThisWeek = new Set(sentNow);
+  if (usage.state === "ready" && usage.sentAt && weekStart && typeof dashLibDayKey === "function") for (const [id, at] of Object.entries(usage.sentAt)) { if (dashLibDayKey(at) >= weekStart) sentThisWeek.add(id); }
+  // The week's job: each client who is due a plan, once.
+  const todoModel = dmbTodoModel(roster, people, peopleQueue, templates || [], sentThisWeek);
+  const [reviewing, setReviewing] = React.useState(false);
+  // "Assign all": each client's own assign sheet in turn. The page holds the list and where it is;
+  // each sheet is the existing one, preselected, and closing it offers the next.
+  const [walk, setWalk] = React.useState(null); // { rows, at } | null
+  const openWalk = (rows, at) => { const r = rows[at]; if (r) setAssignFor({ template: r.suggestion.template, clientId: r.id }); };
+  const assignAll = () => {
+    const rows = todoModel.todo ? todoModel.todo.rows.filter((r) => r.suggestion) : [];
+    if (!rows.length) return;
+    setWalk({ rows, at: 0 });
+    openWalk(rows, 0);
+  };
+  const closeAssign = () => {
+    setAssignFor(null);
+    setWalk((w) => (w ? (w.at + 1 < w.rows.length ? { ...w, at: w.at + 1 } : null) : null));
+  };
+  // A plan sent changes who is on what and who is still due: those clients leave the line at once, the
+  // usage is read again (the last reading stays meanwhile), and their overviews are read again.
+  const assigned = (ids) => {
+    if (!ids || !ids.length) return;
+    setSentNow((prev) => { const next = new Set(prev); ids.forEach((id) => next.add(String(id))); return next; });
+    if (libraryOwner.current) loadUsage();
+    for (const id of ids) { try { window.dispatchEvent(new CustomEvent("shape:coach-progress-refresh", { detail: { clientId: id } })); } catch (e) {} }
+  };
+  // Who is on each card's plan, and the one most clients are on (a chip, not a bigger card).
+  const entryOf = (t) => (usage.state === "ready" && t.id && Object.prototype.hasOwnProperty.call(usage.map, t.id) ? usage.map[t.id] : null);
+  const most = usage.state === "ready" ? DashMeals.mostUsedPlan(usage.map, usage.capped, usage.untracked) : null;
+  const untrackedNote = !preview && usage.state === "ready" && usage.untracked > 0 ? dmbUntrackedNote(usage.untracked) : null;
+  const [notice, setNotice] = React.useState("");
+  // Delete: the plans route's own DELETE (the app's coach Plans uses it), behind ShapeConfirm. A
+  // plan sent to a client is a snapshot on their Eat page, and stays.
+  const canDelete = signedIn && typeof window !== "undefined" && !!(window.ShapeConfirm && window.ShapeConfirm.open);
+  const remove = async (t) => {
+    const ok = await window.ShapeConfirm.open({ title: "Delete this meal plan?", name: t.name, confirmLabel: "Delete plan",
+      message: "It leaves your library for good. A client you already sent it to keeps the plan they have." });
+    if (!ok) return;
+    setNotice("");
+    try {
+      const res = await fetch("/api/coach/plans", { method: "DELETE", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: t.id }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && data.error) || "Couldn’t delete that plan. Retry.");
+      setTemplates((prev) => (prev || []).filter((x) => x.id !== t.id));
+      setNotice(t.name + " is deleted.");
+    } catch (e) { setNotice(e.message || "Couldn’t delete that plan. Retry."); }
   };
 
   return (
     <React.Fragment>
-      {source === "demo" && <DashDemoBand />}
+      {preview && <DashDemoBand />}
       <DashPage
         tourHero="hero-plans"
         navItems={nutriNavItems("plans")}
@@ -940,13 +1135,13 @@ function NutritionistPlansPage() {
         title="Plans"
         subtitle={view ? "Editing — autosaves as you build; Assign publishes a scaled snapshot to the client's meals + grocery." : "Your meal-plan library and who needs a plan next. Assign pre-fills the plan queue."}
       >
-        {targetClient && <p role="status">Choose a plan for {targetClient.profile.name}. The assignment will have this client selected.</p>}
+        {targetClient && <p role="status">Choose a plan for {targetClient.profile.name}{/\.$/.test(targetClient.profile.name) ? "" : "."} The assignment will have this client selected.{pickFor && <> <button type="button" style={dmbBtn(false)} onClick={() => setPickFor(null)}>Not now</button></>}</p>}
         {view ? (
           <DmbBuilder
             key={view.template.id || view.template.name}
             template={view.template} ownerId={libraryOwner.current}
-            clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
-            assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null}
+            clients={people} queue={peopleQueue} lifecycle={lifecycle} live={isLive}
+            assignClientId={view.assignClientId} preselectId={targetClient ? forClient : null} emptyNote={emptyNote} onAssigned={assigned}
             customFoods={customFoods}
             onBack={() => { setView(null); setRefresh((n) => n + 1); }}
             onSaved={({ id, name, doc, revision }) => {
@@ -961,6 +1156,14 @@ function NutritionistPlansPage() {
               <button onClick={() => setView({ template: newPlan("maintain") })} style={dmbBtn(true)}>+ New meal plan</button>
               <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Refresh</button>
             </div>
+            {/* The week's job, the page's highest block (Lift 2). */}
+            <DmbTodoLine model={todoModel} onAssignAll={assignAll} onReview={() => setReviewing(true)} />
+            {walk && !assignFor && <p role="status" className="dash-lib-walk">
+              Assign all · {walk.at} of {walk.rows.length} opened. Next: {walk.rows[walk.at].name} → {walk.rows[walk.at].suggestion.name}{" "}
+              <button type="button" style={dmbBtn(true)} onClick={() => openWalk(walk.rows, walk.at)}>Open</button>{" "}
+              <button type="button" style={dmbBtn(false)} onClick={() => setWalk(null)}>Stop</button>
+            </p>}
+            {notice && <p role="status" className="dash-lib-quiet">{notice}</p>}
             {error && <p role="alert" style={{ fontSize: 13.5, color: "var(--sh-ink, #f2ede4)" }}>{error} <button onClick={() => setRefresh((n) => n + 1)} style={dmbBtn(false)}>Retry</button></p>}
             {templates == null && !error && <p role="status" style={{ color: DMB_INK50, fontSize: 13 }}>Loading plans…</p>}
             {templates && templates.length === 0 && (
@@ -972,53 +1175,59 @@ function NutritionistPlansPage() {
             {appOnly > 0 && <p style={{ fontFamily: DMB_MONO, fontSize: 9, lineHeight: 1.6, letterSpacing: "0.06em", color: DMB_INK50, margin: "0 0 14px" }}>
               {appOnly === 1 ? "1 meal plan you wrote in the app isn’t listed here" : appOnly + " meal plans you wrote in the app aren’t listed here"} — the website builder can’t open {appOnly === 1 ? "it" : "them"} yet. You’ll find {appOnly === 1 ? "it" : "them"} in the app.
             </p>}
-            {!!(templates && templates.length) && <>
+            {!!(templates && templates.length) && <div className="dbu-library-filters">
               {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
                   two filters narrow each other, and the count beside Clear is the result. */}
-              <DashFilterBar facets={DashMeals.MEAL_FACETS} run={run} state={filters} setState={setFilters} one="plan" many="plans" placeholder="Find a plan…" />
-              <DashTagChips facet={phaseFacet} run={run} onToggle={(k) => setFilters((s) => dfbToggle(s, "phase", k))} onClear={() => setFilters((s) => dfbClearFacet(s, "phase"))} />
-            </>}
+              <DashFilterBar facets={[phaseFacet, ...DashMeals.MEAL_FACETS]} primaryFacetKeys={["phase"]} run={run} state={filters} setState={setFilters} one="plan" many="plans"
+                placeholder="Find a plan or a recipe…" searchLabel="Find a plan by its name or a recipe in it"
+                extra={<DashLibSort value={sort} onChange={setSort} options={DMB_SORTS} />} />
+            </div>}
             {!!(templates && templates.length) && !run.shown.length && <p role="status" style={{ fontSize: 13.5, color: DMB_INK50 }}>No plans match these filters. <button onClick={() => setFilters(DFB_EMPTY)} style={dmbBtn(false)}>Clear filters</button></p>}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 14, marginBottom: 22 }}>
-              {run.shown.map(({ t, info }) => {
+            {untrackedNote && !!(templates && templates.length) && <p role="status" className="dash-lib-quiet" data-untracked="">{untrackedNote}</p>}
+            {/* ⚠ ONE ACTION PER CARD: Assign. Edit and Use as template live in the ⋯, and a click
+                on the card opens the builder. The cover is the plan's type in its colour, and the
+                type in words. */}
+            <div className="dash-lib-grid">
+              {shown.map(({ t, info }) => {
                 const b = t.detail.mealBuilder;
-                const ph = dmbPhase(b.goalPhase);
+                const ph = DashMeals.GOAL_PHASES.find((g) => g.key === b.goalPhase) || { label: "No phase", c: DMB_INK50 };
                 const variants = b.days.reduce((s, d) => s + Object.keys(d.variants || {}).length, 0);
                 return (
-                  <div key={t.id || t.name} className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": ph.c, paddingLeft: 22 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                      <span className="dash-eyebrow" style={{ color: ph.c }}>{ph.label}</span>
-                      <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50 }}>v{b.version}</span>
-                    </div>
-                    <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 21, letterSpacing: "-0.015em", margin: "7px 0 3px" }}>{t.name}</div>
-                    <div style={{ fontFamily: DMB_MONO, fontSize: 9, color: DMB_INK50 }}>{b.targets.kcal} kcal · {b.targets.p}P · {b.days.length}-day rotation{variants ? " · " + variants + " variant" + (variants === 1 ? "" : "s") : ""}</div>
-                    <div style={{ fontFamily: DMB_MONO, fontSize: 8.5, lineHeight: 1.6, color: DMB_INK50, marginTop: 6 }}>{dmbCardFacts(info)}</div>
-                    <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                      <button onClick={() => setAssignFor({ template: t, clientId: targetClient ? forClient : null })} style={dmbBtn(true)}>Assign to client</button>
-                      <button onClick={() => setView({ template: coachTemplateCopy(t) })} style={dmbBtn(true)}>Use as template</button>
-                      <button onClick={() => setView({ template: t })} style={dmbBtn(false)}>Edit template</button>
-                    </div>
-                  </div>
+                  <DashLibCard key={t.id || t.name} name={t.name} onOpen={() => setView({ template: t })} openTitle={"Open " + t.name + " in the builder"}
+                    cover={{ color: ph.c, tone: dashLibKind(b.goalPhase), kind: ph.label, badges: most && t.id && most.id === t.id ? <span className="dash-lib-badge" data-most="">Most used · {dmbCount(most.clients, "client", "clients")}</span> : null }}
+                    meta={b.days.length + "-day rotation · " + b.targets.kcal + " kcal · " + b.targets.p + " g protein" + (variants ? " · " + dmbCount(variants, "variant", "variants") : "")}
+                    primary={<button type="button" onClick={() => { setWalk(null); setAssignFor({ template: t, clientId: targetClient ? forClient : null }); }} style={dmbBtn(true)}>Assign</button>}
+                    menu={<DashLibMenu label={"More for " + t.name} items={[
+                      { key: "edit", label: "Edit", onSelect: () => setView({ template: t }) },
+                      { key: "copy", label: "Use as template", onSelect: () => setView({ template: coachTemplateCopy(t) }) },
+                      canDelete && t.id && { key: "delete", label: "Delete", danger: true, onSelect: () => remove(t) },
+                    ]} />}>
+                    <p className="dash-lib-facts">{dmbCardFacts(info)}</p>
+                    <DmbWho entry={entryOf(t)} usage={usage} roster={roster} clients={people} preview={preview} />
+                  </DashLibCard>
                 );
               })}
             </div>
-
-            {/* Zone 2 — Lifecycle */}
-            <DmbLifecyclePanel lifecycle={lifecycle} onWritePlan={writePlanFor} />
           </React.Fragment>
         )}
       </DashPage>
+      {reviewing && todoModel.todo && (
+        <DmbTodoDrawer todo={todoModel.todo} hasPlans={!!(templates && templates.length)} onClose={() => setReviewing(false)}
+          onNew={(r) => { setReviewing(false); setPickFor(r.id); setView({ template: newPlan(r.phase) }); }}
+          onAssign={(r) => { setReviewing(false); setWalk(null); setAssignFor({ template: r.suggestion.template, clientId: r.id }); }}
+          onPick={(id) => { setReviewing(false); setPickFor(id); }} />
+      )}
       {assignFor && (
         <DmbAssignModal
           template={{ id: assignFor.template.id, name: assignFor.template.name }}
           doc={assignFor.template.detail.mealBuilder}
           groceryEdits={assignFor.template.detail.mealBuilder.groceryEdits || {}}
-          clients={clients} queue={queue} lifecycle={lifecycle} live={isLive}
-          preselectId={assignFor.clientId || (targetClient ? forClient : null)}
-          onClose={() => setAssignFor(null)} />
+          clients={people} queue={peopleQueue} lifecycle={lifecycle} live={isLive}
+          preselectId={assignFor.clientId || (targetClient ? forClient : null)} emptyNote={emptyNote} onAssigned={assigned}
+          onClose={closeAssign} />
       )}
     </React.Fragment>
   );
 }
 
-Object.assign(window, { NutritionistPlansPage, DmbBuilder, DmbAssignModal, DmbLifecyclePanel, DmbClientPreview, DmbTotalsBar });
+Object.assign(window, { NutritionistPlansPage, DmbBuilder, DmbAssignModal, DmbClientPreview, DmbTotalsBar });

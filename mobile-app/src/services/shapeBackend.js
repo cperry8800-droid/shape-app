@@ -6010,12 +6010,15 @@ async function listAssignableClients(role, { strict = false } = {}) {
   // the roster with full access, and the roster row marks it.
   return list.filter((c) => c.id).map((c) => ({ userId: c.id, name: c.name || 'Client', sessions: c.sessions || 0, isNew: !!c.isNew, joinedAt: c.joinedAt || null, paymentRetrying: c.paymentRetrying === true }));
 }
-async function assignClientMealPlan({ clientId, title, weekStart, days }) {
+// `templateId`: the coach's library plan this was sent from, so their website library can say who
+// is on it (owner, 2026-11-09: only the coach sees who's on what). The route keeps it only when the
+// plan is the caller's own, and an older build that sends none still works.
+async function assignClientMealPlan({ clientId, title, weekStart, days, templateId }) {
   const res = await fetch(`${apiBaseUrl || ''}/api/nutritionist/meal-plan`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ clientId, title, weekStart: weekStart || null, days }),
+    body: JSON.stringify({ clientId, title, weekStart: weekStart || null, days, ...(templateId ? { templateId: String(templateId) } : {}) }),
   });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error || 'Could not assign the meal plan.');
