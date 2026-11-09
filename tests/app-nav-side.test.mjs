@@ -76,8 +76,8 @@ test('the tab bar stands upright on the side chosen, its gem sliding down it, an
   const nav = host.querySelector('[data-bs-tabbar]');
   assert.equal(nav.getAttribute('aria-orientation'), 'vertical');
   assert.equal(nav.style.height, '100%', 'the bar fills its dock');
-  // jsdom lays nothing out, so the dock takes its first-paint length: the bottom bar's width.
-  assert.equal(dock().style.height, 'calc(100vw - 48px)');
+  // jsdom lays nothing out, so the dock takes its first-paint length: 52px a tab, 208 for these four.
+  assert.equal(dock().style.height, '208px');
   assert.equal(dock().style.width, '44px', 'as thick as the bottom bar is tall');
   assert.match(nav.style.gridTemplateRows, /repeat\(4, 1fr\)/);
   const gem = host.querySelector('[data-bs-tab-mark]');
@@ -132,11 +132,15 @@ test('Settings → Customize opens on Nav bar: Bottom, Left, Right, kept on this
   }
 });
 
-// Owner, 2026-11-08: "make it the same size and look just going vertically on the side of the screen".
-test('on a side the bar is as long as the bottom bar is wide, shorter only on a screen too short for it', () => {
-  assert.equal(bsSideNavLength(390, 844, 5), 342, 'a 390 phone: 390 less 24 each side, the bottom bar\'s width');
-  assert.equal(bsSideNavLength(430, 932, 5), 382);
-  assert.equal(bsSideNavLength(844, 390, 5), 342, 'held sideways: the screen\'s height less 24 above and below');
+// Owner, 2026-11-08: "make it the same size and look just going vertically on the side of the screen"; then,
+// 2026-11-09, "make the nav bar on the sides shorter, not as long" (it ran the bottom bar's 342px on a 390 phone).
+test('on a side the bar is 52px a tab, never longer than the bottom bar is wide, shorter on a screen too short for it', () => {
+  assert.equal(window.BS_SIDE_NAV_TAB, 52);
+  assert.equal(bsSideNavLength(390, 844, 5), 260, 'a 390 phone: five tabs at 52, not the bottom bar\'s 342');
+  assert.equal(bsSideNavLength(430, 932, 5), 260, 'a bigger phone does not stretch it');
+  assert.equal(bsSideNavLength(390, 844, 4), 208, 'four tabs: 208');
+  assert.equal(bsSideNavLength(300, 844, 5), 252, 'never longer than the bottom bar: 300 less 24 each side');
+  assert.equal(bsSideNavLength(844, 290, 5), 242, 'held sideways: the screen\'s height less 24 above and below');
   assert.equal(bsSideNavLength(844, 200, 5), 220, 'never shorter than 44 a tab');
   assert.equal(bsSideNavLength(0, 844, 5), null, 'nothing measured: no length');
   assert.equal(bsSideNavLength(undefined, undefined, 5), null);
