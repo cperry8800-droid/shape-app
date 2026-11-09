@@ -209,8 +209,10 @@
   // ingredients' names (Codex on #2648: "Satay bowl" with peanuts passed a nuts exclusion when only
   // its name and tags were read). Dairy and gluten need words of their own here.
   var OWN_WORDS = {
-    // A plant milk or butter ("peanut butter", "oat milk", "coconut cream") is not dairy.
-    dairy: /(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(milk|butter|cream)\b|\b(cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr)\w*|\bmargarine\b/i,
+    // A plant milk or butter ("peanut butter", "oat milk", "coconut cream") is not dairy; a milk
+    // inside another word (buttermilk, a milkshake) is (Codex on #2648), and so are the cheeses and
+    // creams by name.
+    dairy: /(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(milk|butter|cream)\b|\b(cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr|mascarpone|halloumi|burrata|pecorino|gruy[eè]re|gouda|brie|camembert|custard|quark|lactose|curds?)\w*|\b(buttermilk|milkshakes?|half-and-half|cr[eè]me fra[iî]che|margarine)\b/i,
     // Oats count, as the core's own oat dishes are tagged gluten (Codex on #2648).
     // Breads, wraps and pasta by name too, as the core tags its sourdough toast, tortilla wrap and
     // oat dishes gluten (Codex on #2648). The catalog's ambiguous classes (recipes.jsx
