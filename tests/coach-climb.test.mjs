@@ -325,8 +325,31 @@ test('a nutritionist\'s Climb is gold, with Kitchen, Meal plans and Plate notes 
   assert.equal(camp('range').querySelector('h2').textContent, 'Meal plans.', 'her range is her meal plans');
   assert.ok(!camp('replays') && !$('[data-climb-camp-tab="range"]').textContent.includes('Programs'), 'no trainer camps');
   const probe = document.createElement('div'); probe.style.background = '#d8a23a';
-  assert.equal($('[data-climb-make]').style.background, probe.style.background, 'gold');
+  assert.equal($('[data-climb-make] span').style.background, probe.style.background, 'gold');
   await m.unmount();
+});
+
+test('the coach\'s own page: Your hours and Make it yours as a small pill in the head that scrolls away (owner, 9 Nov)', async () => {
+  reset();
+  const m = await mount(page({ isSelf: true }));
+  const own = $('[data-climb-console-self]');
+  assert.ok(own && own.closest('[data-climb-hero]'), 'in the head, under the quote and plates');
+  assert.notEqual(own.style.position, 'sticky', 'it does not follow the scroll');
+  assert.equal($$('[data-climb-console]').length, 1, 'no docked console on the coach\'s own page');
+  assert.ok(!/Members book you from here/.test(own.textContent), 'no line of text, only the two keys');
+  assert.equal(own.querySelector('[role="group"]').getAttribute('aria-label'), 'Members book you from here.');
+  for (const sel of ['[data-climb-hours]', '[data-climb-make]']) {
+    const b = $(sel);
+    assert.equal(b.style.minHeight, '44px', `${sel} keeps a 44px tap area`);
+    assert.equal(b.querySelector('span').style.height, '30px', `${sel} has a smaller face`);
+  }
+  await m.unmount();
+  // A visitor's console still docks above the tab bar.
+  reset();
+  const v = await mount(page());
+  assert.equal($('[data-climb-console]').style.position, 'sticky');
+  assert.ok(!$('[data-climb-console-self]'));
+  await v.unmount();
 });
 
 // ── The house rules ──────────────────────────────────────────────────────────────────────────

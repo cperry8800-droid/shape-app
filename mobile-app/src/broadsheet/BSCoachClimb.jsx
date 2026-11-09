@@ -363,6 +363,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
             </div>
           ) : null}
           {actions}
+          {dock && dock.kind === 'self' ? <Console dock={dock} who={who} ACC={ACC} nutri={nutri} tr={tr} tabbar={tabbar} /> : null}
         </div>
 
         {/* The wire: what is new, from real events only */}
@@ -408,8 +409,8 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
 
       <footer style={{ padding: `22px ${gutter}px 30px 44px`, ...mono(9, CLIMB.DIM) }}>{footer}</footer>
 
-      {/* ── The booking console, docked above the tab capsule ── */}
-      {dock ? <Console dock={dock} who={who} ACC={ACC} nutri={nutri} tr={tr} tabbar={tabbar} /> : null}
+      {/* ── A visitor's booking console, docked above the tab capsule (the coach's own sits in the head) ── */}
+      {dock && dock.kind !== 'self' ? <Console dock={dock} who={who} ACC={ACC} nutri={nutri} tr={tr} tabbar={tabbar} /> : null}
     </div>
   );
 }
@@ -473,17 +474,27 @@ function Wire({ items, ACC, reduced, tr }) {
 function Console({ dock, who, ACC, nutri, tr, tabbar }) {
   const cta = nutri ? CLIMB.GOLD : CLIMB.RUST;
   const onCta = nutri ? '#14100a' : '#ffffff';
+  // The coach's own page: a small pill in the head, under the quote and plates, that scrolls away with
+  // the page (owner, 9 Nov: "make much smaller", "shouldn't stay on screen as you scroll"). Each key
+  // keeps a 44px tap area round its smaller face; the line it replaced is the group's name.
+  if (dock.kind === 'self') {
+    const key = (filled) => ({ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 12px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
+      border: filled ? 0 : `1px solid ${CLIMB.LINE2}`, background: filled ? cta : 'transparent', color: filled ? onCta : CLIMB.INK });
+    const tap = { flex: 'none', minHeight: 44, padding: '0 2px', border: 0, background: 'transparent', display: 'inline-flex', alignItems: 'center' };
+    return (
+      <div data-climb-console="" data-climb-console-self="" style={{ marginTop: 14, display: 'flex' }}>
+        <div role="group" aria-label={tr('profile:climb.selfConsole', { defaultValue: 'Members book you from here.' })}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: '0 5px', borderRadius: 999, background: 'rgba(14,20,25,0.72)', border: `1px solid ${hexA(ACC, 0.35)}` }}>
+          <button type="button" data-climb-hours="" onClick={dock.onHours} style={{ ...tap, cursor: 'pointer' }}><span style={key(false)}>{tr('profile:trainer.yourHours', { defaultValue: 'Your hours' })}</span></button>
+          <button type="button" data-climb-make="" onClick={dock.onMake} disabled={!dock.makeReady} style={{ ...tap, cursor: dock.makeReady ? 'pointer' : 'default', opacity: dock.makeReady ? 1 : 0.55 }}><span style={key(true)}>{tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}</span></button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div data-climb-console="" style={{ position: 'sticky', bottom: `calc(${tabbar} + 8px)`, zIndex: 6, margin: '0 10px', pointerEvents: 'none' }}>
       <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px 10px 14px', borderRadius: 16, background: 'rgba(14,20,25,0.94)', border: `1px solid ${hexA(ACC, 0.35)}`, boxShadow: '0 14px 34px rgba(0,0,0,0.5)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
-        {dock.kind === 'self' ? (
-          <>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.35, color: CLIMB.MUTED }}>{tr('profile:climb.selfConsole', { defaultValue: 'Members book you from here.' })}</span>
-            <button type="button" data-climb-hours="" onClick={dock.onHours} style={{ flex: 'none', minHeight: 44, padding: '0 12px', borderRadius: 10, border: `1px solid ${CLIMB.LINE2}`, background: 'transparent', color: CLIMB.INK, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{tr('profile:trainer.yourHours', { defaultValue: 'Your hours' })}</button>
-            <button type="button" data-climb-make="" onClick={dock.onMake} disabled={!dock.makeReady} style={{ flex: 'none', minHeight: 44, padding: '0 14px', borderRadius: 10, border: 0, background: cta, color: onCta, fontSize: 14, fontWeight: 700, cursor: dock.makeReady ? 'pointer' : 'default', opacity: dock.makeReady ? 1 : 0.55 }}>{tr('profile:trainer.makeItYours', { defaultValue: 'Make it yours' })}</button>
-          </>
-        ) : (
-          <>
+        <>
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: CLIMB.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('profile:climb.freeIntro', { defaultValue: 'Free intro · {minutes} min', minutes: dock.introMin || 15 })}</span>
               {dock.nextOpen ? (
@@ -493,8 +504,7 @@ function Console({ dock, who, ACC, nutri, tr, tabbar }) {
               ) : dock.note ? <span style={{ fontSize: 12.5, color: CLIMB.MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{dock.note}</span> : null}
             </span>
             {dock.onBook ? <button type="button" data-climb-book="" onClick={dock.onBook} style={{ flex: 'none', minHeight: 46, padding: '0 16px', borderRadius: 11, border: 0, background: cta, color: onCta, fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: `0 6px 18px ${hexA(cta, 0.35)}` }}>{dock.bookLabel}</button> : null}
-          </>
-        )}
+        </>
       </div>
     </div>
   );
