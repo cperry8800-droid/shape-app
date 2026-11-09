@@ -489,7 +489,7 @@ const DWK_CARD = { background: "var(--sh-card, #25211d)", border: "1px solid var
 const DWK_EYEBROW = { fontFamily: DWK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DWK_INK50 };
 const DWK_CHIP = { display: "inline-block", fontFamily: DWK_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" };
 const DWK_FILLED = { fontFamily: DWK_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DWK_TEAL, border: 0, borderRadius: 6, padding: "9px 14px", minHeight: 34, cursor: "pointer", boxShadow: "var(--lift-key-fill, 0 0 0 transparent)" };
-const DWK_REVIEW_INK = { reviewed: DASH_SEV_COLORS.green, waiting: DWK_AMBER, unknown: "rgba(var(--sh-ink-rgb, 242,237,228),0.22)" };
+const DWK_REVIEW_INK = { reviewed: "var(--sh-green, #7bbf5a)", waiting: DWK_AMBER, unknown: "rgba(var(--sh-ink-rgb, 242,237,228),0.22)" };
 // The layout lives in classes, not inline grids: pageShell's phone rules collapse any inline
 // `repeat(…)` or `1fr 1fr` grid to one column at 900px, which would stack the table's columns.
 const DWK_CSS = [
@@ -544,9 +544,10 @@ function DwkRingKey({ segments }) {
 
 // The head (Lift 2: the one thing to act on stands highest).
 function DwkHead({ model, onStart, canStart, onMarkAll, canMarkAll }) {
+  const count = (k) => model.segments.filter((s) => s.state === k).length;
   const label = model.segments.length
-    ? model.segments.length + " checked in: " + model.facts.join(", ")
-    : model.facts.join(", ");
+    ? "Check-ins this week: " + [["waiting", "waiting"], ["reviewed", "reviewed"], ["unknown", "review not read"]].filter(([k]) => count(k)).map(([k, words]) => count(k) + " " + words).join(", ")
+    : "No check-ins to show";
   return (
     <section aria-label="To review" data-dash-lift="2" style={{ ...DWK_CARD, boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" }}>
       <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
@@ -639,7 +640,9 @@ function DwkHeatRow({ entry, picked, isCurrent, reviewsRead, onSelect, onStep })
       onKeyDown={(e) => {
         if (e.key === "ArrowDown") return onStep(e, 1);
         if (e.key === "ArrowUp") return onStep(e, -1);
-        return dashRowKeyOpen(e, true, open);
+        // Enter and Space are the row's own keys only (dashToday.jsx dashRowKeyOpen, #2628).
+        if (typeof dashRowKeyOpen === "function") return dashRowKeyOpen(e, true, open);
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); open(); }
       }}
       style={{ padding: "7px 8px", borderRadius: 8, cursor: "pointer", position: "relative", borderTop: "1px solid " + (picked ? "transparent" : "rgba(var(--sh-ink-rgb, 242,237,228),0.06)"), opacity: entry.reviewed && !picked ? 0.78 : 1,
         // ⚠ HEIGHT MEANS PRIORITY: the table rests, and the selected row lifts to its panel's height.
