@@ -1,15 +1,15 @@
-
-// The roster's status tiles, hoisted so their KEYS are derived rather than typed out a
-// second time at the useRememberedChoice call below: a tile added here is remembered
-// without anyone having to notice a second list exists. (2026-10-15: these six replace
+// The roster's status filters, hoisted so their KEYS are derived rather than typed out a
+// second time at the useRememberedChoice call below: a filter added here is remembered
+// without anyone having to notice a second list exists. (2026-10-15: these six replaced
 // the eight filter chips, whose "On track · all" / "On track" and "Needs attention" /
 // "Needs you" + "Watch" pairs said the same thing twice. A remembered "eyes" or "ontrack"
-// is no longer in the list, so it falls back to All.)
+// is no longer in the list, so it falls back to All. Since step 5a they are the parts of
+// the roster-health bar, DashRosterHealth, and a remembered filter still applies there.)
 const TCP_FILTERS = [["all", "All"], ["red", "Needs you"], ["amber", "Watch"], ["green", "On track"], ["new", "New"], ["unknown", "Progress unknown"]];
 const TCP_FILTER_KEYS = TCP_FILTERS.map((f) => f[0]);
 
 function TrainerClientsPage() {
-  const { loading, clients, triage, source, planCount, dismissable, setDismissal, clearDismissal } = useDashboard("trainer");
+  const { loading, clients, triage, source, planCount, today, joint, dismissable, setDismissal, clearDismissal } = useDashboard("trainer");
   const [sharedBadge, setSharedBadge] = React.useState(0);
   // ⚠ THE SEARCH BOX IS DELIBERATELY NOT REMEMBERED. A filter is a standing preference
   // about how you read your roster; a half-typed name is a moment. Restoring one would
@@ -28,6 +28,7 @@ function TrainerClientsPage() {
   const [sort, setSort] = useRememberedChoice(prefs, "rosterSort", DASH_ROSTER_SORT_KEYS, "triage");
   const [sortDir, setSortDir] = useRememberedChoice(prefs, "rosterSortDir", ["asc", "desc"], "desc");
   const onSort = (k, d) => { setSort(k); setSortDir(d); };
+  const dismiss = { ok: !!dismissable, set: setDismissal, clear: clearDismissal };
 
   // The people with an open plan, as the Clients badge counts them (dashData.jsx dashPlanClientCount);
   // null when the plans could not be read. The list below keeps everyone, people from recent
@@ -35,11 +36,22 @@ function TrainerClientsPage() {
   const activeCount = dashPlanClientCount(clients, planCount);
   const activeWord = activeCount == null ? "\u2014" : String(activeCount);
   const eyesCount = triage.filter((r) => r.severity === "red" || r.severity === "amber").length;
+  // The bar's counts (unread is "—", never 0), and check-ins reviewed as Today's At a glance
+  // reads it, over this page's roster: the same figure, never a second count of its own.
+  const health = dashRosterHealth(triage, loading);
+  const reviewed = typeof dashGlanceCells === "function"
+    ? dashGlanceCells("trainer", { live: source === "live" ? today || {} : null, clients, triage, role: "trainer", zone: today && today.dayZone }, ["reviewed"])[0]
+    : null;
+  // The panel's next session, from the schedule this page already reads (useDashboard's feed).
+  const sessions = dashPeekSessions(today, source, "trainer");
 
   // ── A FIXED PAGE, NOT A BOARD (owner, 2026-10-15: "least overwhelming as possible, easy
-  // to navigate", and the builder removed "like Programs"). The roster is the page: one
-  // switch between your clients and the ones shared with you, the status tiles (count and
-  // filter in one), then search and the table. The five roster cards this page offered as
+  // to navigate", and the builder removed "like Programs"; the step 5 review: Clients is a
+  // tool page and stays a fixed layout). The roster is the page: one switch between your
+  // clients and the ones shared with you, the roster-health bar (its counts are its
+  // filters), then search and the list, grouped by status. A client opens in the panel
+  // beside the list at desktop widths, and ↑ ↓ move through the list (DashRosterPeek);
+  // narrower, the panel is the slide-over. The five roster cards this page once offered as
   // optional widgets are still on Today, where the widget catalogue lives.
   return (
     <React.Fragment>
@@ -68,27 +80,32 @@ function TrainerClientsPage() {
         <Card><SharedClientsTab role="trainer" onCountChange={setSharedBadge} /></Card>
       ) : (
         <React.Fragment>
-          <DashRosterTiles triage={triage} filters={TCP_FILTERS} value={flt} onChange={setFlt} loading={loading} />
-          <Card>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
-              <div style={{ flex: "1 1 240px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", padding: "10px 14px" }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" strokeWidth="2" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
-                <input aria-label="Search clients" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${clients.length} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", color: INK, fontFamily: sans, fontSize: 14 }} />
-              </div>
-              {/* ⚠ THE EXPORT IS THE WHOLE ROSTER, NOT THE FILTERED VIEW, AND IT SAYS SO.
-                  A file that silently held whichever filter happened to be on is how a
-                  coach hands their accountant three of their clients — the CSV carries a
-                  Status column, so filtering belongs in the spreadsheet. */}
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                {source === "live" && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink3, #75706a)" }}>ALL {clients.length}</span>}
-                <DashExportButton kind="roster" label="your roster" live={source === "live"}
-                  build={() => window.DashExport.rosterCsv(clients, new Date())} />
-              </span>
-            </div>
-            {loading
-              ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
-              : <DashRosterTable triage={triage} role="trainer" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={{ ok: !!dismissable, set: setDismissal, clear: clearDismissal }} />}
-          </Card>
+          <DashRosterHealth health={health} filters={TCP_FILTERS} value={flt} onChange={setFlt} reviewed={reviewed} />
+          <DashRosterPeek triage={triage} role="trainer" prefs={prefs} dismiss={dismiss} joint={joint} sessions={sessions}>
+            {(peek) => (
+              <Card>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 240px", display: "flex", alignItems: "center", gap: 10, minWidth: 0, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", padding: "10px 14px" }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(var(--sh-ink-rgb, 242,237,228),0.5)" strokeWidth="2" style={{ flex: "none" }}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" /></svg>
+                    <input aria-label="Search clients" value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${clients.length} clients`} style={{ flex: 1, minWidth: 0, border: 0, background: "transparent", color: INK, fontFamily: sans, fontSize: 14 }} />
+                  </div>
+                  {/* ⚠ THE EXPORT IS THE WHOLE ROSTER, NOT THE FILTERED VIEW, AND IT SAYS SO.
+                      A file that silently held whichever filter happened to be on is how a
+                      coach hands their accountant three of their clients — the CSV carries a
+                      Status column, so filtering belongs in the spreadsheet. */}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    {source === "live" && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.1em", color: "var(--sh-ink3, #75706a)" }}>ALL {clients.length}</span>}
+                    <DashExportButton kind="roster" label="your roster" live={source === "live"}
+                      build={() => window.DashExport.rosterCsv(clients, new Date())} />
+                  </span>
+                </div>
+                {loading
+                  ? <div style={{ padding: "34px 4px", textAlign: "center", color: "var(--sh-ink2, #a09b94)", fontSize: 13.5 }}>Loading roster…</div>
+                  : <DashRosterTable triage={triage} role="trainer" filter={flt} query={q} sort={sort} sortDir={sortDir} onSort={onSort} prefs={prefs} dismiss={dismiss}
+                      selectedId={peek.selectedId} onSelect={peek.select} docked={peek.docked} />}
+              </Card>
+            )}
+          </DashRosterPeek>
         </React.Fragment>
       )}
     </DashPage>

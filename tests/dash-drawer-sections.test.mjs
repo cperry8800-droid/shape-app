@@ -54,8 +54,11 @@ test('hiding everything is allowed, and the drawer says so', () => {
   assert.equal(r.hiddenCount, 3);
   // ⚠ A control whose effect cannot be reversed from where you see it is the dead-control
   // class from the other direction, so the empty drawer names the way back.
-  assert.match(SRC, /secs\.shown\.length === 0 &&/);
-  assert.match(SRC, /Every section is hidden\. Open ⚙ above to bring one back\./);
+  // Since #2639 the empty state counts THIS client's list (`shown`, the coach's list less a joint note
+  // a client who isn't shared has no use for), and says which case it is.
+  assert.match(SRC, /\{shown\.length === 0 && \(/);
+  assert.match(SRC, /secs\.shown\.length === 0 \? "Every section is hidden\. Open ⚙ above to bring one back\."/);
+  assert.match(SRC, /"The only section you show is the joint note, which is for shared clients\. Open ⚙ above to show more\."/);
 });
 
 test('a malformed view yields nothing rather than throwing', () => {
@@ -93,7 +96,8 @@ test('the drawer stores what is HIDDEN, per account and per role', () => {
 test('the hooks run before the early return', () => {
   // A drawer that closes would otherwise render fewer hooks than the one that opened —
   // the rules-of-hooks class this repo already post-mortems, which no build step catches.
-  const at = SRC.indexOf('function DashClientDrawer(');
+  // Since #2639 the hooks live in DashClientPanel; DashClientDrawer is the wrapper that keys it by client.
+  const at = SRC.indexOf('function DashClientPanel(');
   const body = SRC.slice(at, SRC.indexOf('\n}\n', at));
   const bail = body.indexOf('if (!row) return null;');
   assert.ok(bail > 0, 'the drawer early return moved');

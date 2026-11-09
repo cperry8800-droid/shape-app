@@ -409,7 +409,8 @@ test('the Clients pages count people on a plan, as the badge does, and say "—"
   assert.match(data, /source: state\.source, tuning, planCount: state\.planCount,/);
   for (const page of ['trainerClientsPage.jsx', 'nutritionistClientsPage.jsx']) {
     const src = stripComments(readFileSync(join(ROOT, 'public/newdesign', page), 'utf8'));
-    assert.match(src, /const \{ loading, clients, triage, source, planCount(?:, dismissable, setDismissal, clearDismissal)? \} = useDashboard\("(?:trainer|nutritionist)"\);/, page);
+    // (Step 5a: the page also reads the day feed, for the panel's next session, and the joint list.)
+    assert.match(src, /const \{ loading, clients, triage, source, planCount(?:, today, joint)?(?:, dismissable, setDismissal, clearDismissal)? \} = useDashboard\("(?:trainer|nutritionist)"\);/, page);
     assert.match(src, /const activeCount = dashPlanClientCount\(clients, planCount\);/, page);
     assert.doesNotMatch(src, /const activeCount = clients\.length;/, page);
     assert.match(src, /const activeWord = activeCount == null \? "\\u2014" : String\(activeCount\);/, page);

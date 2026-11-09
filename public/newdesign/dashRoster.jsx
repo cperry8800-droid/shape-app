@@ -1,12 +1,14 @@
-// Roster v2 + the shared client drilldown drawer (dashboard-v2 steps 6 + 11).
+// Roster v2 + the shared client panel (dashboard-v2 steps 6 + 11; coach dashboard step 5a).
 //
 // DashRosterTable renders the triage feed with ROLE-CONFIGURED columns
 // (nutritionist: food-log columns; trainer: score/adherence/program/streak/
-// contact), and DashClientDrawer is the shared slide-over — opened from any
-// roster row OR the Client Pulse feed — whose section set is role-configured
-// (trainer: score history · adherence · coach notes · milestones · read-only
-// nutrition summary; nutritionist: logs · macros · weigh-ins · read-only
-// training context). Every value is real or a labelled honest empty state.
+// contact), in labelled groups (Needs you, Watch, Progress unknown, On track), and
+// DashClientDrawer is the shared client panel — opened from any roster row, Today's
+// names and the Schedule — whose section set is role-configured. On Clients at desktop
+// widths it DOCKS beside the list (DashRosterPeek: no modal, ↑ ↓ move through the
+// list); everywhere else, and below the width where two columns fit, it is the
+// slide-over. Every value is real or a labelled honest empty state, and loading,
+// unread and empty are three different sentences.
 //
 // Load order: pageShell → trainerDashboard.jsx → coachNav/clientNav →
 // dashSignals.js → dashData.jsx → dashToday.jsx (DashPill/helpers) → this.
@@ -310,6 +312,36 @@ const DASH_ROSTER_VIEWS = {
     ],
   },
 };
+// ⚠ THE COLUMNS A DOCKED LIST KEEPS (coach dashboard step 5a), by their index in `heads`. With the
+// panel beside it the list has about two thirds of the page, and the panel carries the rest of the
+// client, so the list keeps the three a coach scans by: the score and sessions kept with the last
+// contact, or the last food log and compliance with the last consult. The column the roster is
+// SORTED by always stays (dashRosterColumns), so a remembered sort never orders rows by a column
+// nobody can see.
+const DASH_ROSTER_COMPACT = { trainer: [0, 1, 4], nutritionist: [0, 1, 3] };
+// A grid template's tracks, split on the spaces outside a minmax(…).
+function dashGridTracks(cols) {
+  const out = [];
+  let depth = 0, cur = "";
+  for (const ch of String(cols || "")) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (/\s/.test(ch) && !depth) { if (cur) out.push(cur); cur = ""; } else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+// The columns a table draws: every head, or (docked) the compact ones and the sorted one, with the
+// grid template and the floor for that set. `keep` holds indices into `heads`, in their own order.
+function dashRosterColumns(view, role, docked, sort) {
+  const all = view.heads.map((h, i) => i);
+  if (!docked) return { keep: all, cols: view.cols, minWidth: view.minWidth };
+  const base = DASH_ROSTER_COMPACT[role === "trainer" ? "trainer" : "nutritionist"] || all;
+  const sorted = view.heads.findIndex((h) => h[1] && h[1] === sort);
+  const keep = all.filter((i) => base.includes(i) || i === sorted);
+  const tracks = dashGridTracks(view.cols);
+  return { keep, cols: ["minmax(140px, 1fr)"].concat(keep.map((i) => tracks[i + 1] || "1fr")).join(" "), minWidth: 0 };
+}
 
 // ── The shared drilldown drawer ──────────────────────────────────────────────
 function DashDrawerSection({ title, right, children }) {
@@ -327,6 +359,22 @@ function DashDrawerSection({ title, right, children }) {
 function DashDrawerEmpty({ children }) {
   return <div style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5 }}>{children}</div>;
 }
+// ⚠ LOADING, UNREAD AND EMPTY ARE THREE SENTENCES (coach dashboard step 5a). Most of the panel comes
+// from the client's overview, which a live roster reads after its first paint: until it lands a
+// field is absent because nobody has looked, and after a failed read because the look failed. Only a
+// READ overview's absence is "not shared" or "none yet". The preview's people carry no read state:
+// their records are whole, so they read as read.
+function dashPeekRead(rec) {
+  const s = rec && rec.progressRead && rec.progressRead.state;
+  return s === "loading" ? "loading" : s === "unavailable" ? "unavailable" : "ready";
+}
+// The sentence for a field the record does not hold yet, or null once the overview was read.
+function dashPeekWait(rec, what) {
+  const read = dashPeekRead(rec);
+  if (read === "loading") return "Reading their " + what + "…";
+  if (read === "unavailable") return "Their " + what + " couldn't be read just now.";
+  return null;
+}
 function DashDrawerSpark({ data, color = "var(--sh-accent, #2ee0c4)", w = 120, h = 34 }) {
   if (!Array.isArray(data) || data.length < 2) return null;
   const min = Math.min(...data), max = Math.max(...data), span = max - min || 1;
@@ -337,7 +385,7 @@ function DashDrawerSpark({ data, color = "var(--sh-accent, #2ee0c4)", w = 120, h
 // Section bodies — each handles its own honest empty state.
 function DashSecScore({ rec }) {
   const r = DashSignals.scoreWeekReading(rec.shapeScoreHistory);
-  if (!r) return <DashDrawerEmpty>Score history isn't shared to coaches yet.</DashDrawerEmpty>;
+  if (!r) return <DashDrawerEmpty>{dashPeekWait(rec, "Shape Score") || "Score history isn't shared to coaches yet."}</DashDrawerEmpty>;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
       <DashDrawerSpark data={r.series} />
@@ -353,7 +401,7 @@ function DashSecScore({ rec }) {
 }
 function DashSecAdherence({ rec }) {
   const a = rec.trainingAdherence;
-  if (!a) return <DashDrawerEmpty>Session data isn't shared yet.</DashDrawerEmpty>;
+  if (!a) return <DashDrawerEmpty>{dashPeekWait(rec, "sessions") || "Session data isn't shared yet."}</DashDrawerEmpty>;
   return (
     <div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
@@ -390,7 +438,7 @@ function DashSecNotes({ rec }) {
 function DashSecMilestones({ rec }) {
   const units = useDashUnits();
   const ms = dashMilestonesIn(DashSignals.buildMilestones(rec), units);
-  if (!ms.recent.length && !ms.next.length) return <DashDrawerEmpty>Milestones appear as they log and share progress.</DashDrawerEmpty>;
+  if (!ms.recent.length && !ms.next.length) return <DashDrawerEmpty>{dashPeekWait(rec, "milestones") || "Milestones appear as they log and share progress."}</DashDrawerEmpty>;
   return (
     <div>
       {ms.recent.map((m, i) => (
@@ -416,7 +464,7 @@ function DashSecNutritionSummary({ rec }) {
   const weighIns = Array.isArray(rec.weighIns) ? rec.weighIns.filter((w) => w && w.weight != null) : [];
   const wDelta = weighIns.length >= 2 ? dashWeighInDelta(weighIns[0], weighIns[weighIns.length - 1], units) : null;
   const wNow = weighIns.length ? dashWeighIn(weighIns[weighIns.length - 1], units) : null;
-  if (!f && !weighIns.length) return <DashDrawerEmpty>Nothing shared from the nutrition side yet.</DashDrawerEmpty>;
+  if (!f && !weighIns.length) return <DashDrawerEmpty>{dashPeekWait(rec, "food logs") || "Nothing shared from the nutrition side yet."}</DashDrawerEmpty>;
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: weighIns.length ? 12 : 0 }}>
@@ -457,13 +505,15 @@ function DashSecLogs({ rec }) {
       </div>
     );
   }
+  const wait = dashPeekWait(rec, "food logs");
+  if (wait) return <DashDrawerEmpty>{wait}</DashDrawerEmpty>;
   return rec.recentLogs
     ? <DashDrawerEmpty>No logs in the window — matches the flag above.</DashDrawerEmpty>
     : <DashDrawerEmpty>Per-day log detail isn't shared to the web yet — weekly compliance is in the roster column.</DashDrawerEmpty>;
 }
 function DashSecMacros({ rec }) {
   const n = rec.nutrition;
-  if (!n || (n.avgCalories == null && n.avgProtein == null)) return <DashDrawerEmpty>No intake averages shared yet.</DashDrawerEmpty>;
+  if (!n || (n.avgCalories == null && n.avgProtein == null)) return <DashDrawerEmpty>{dashPeekWait(rec, "intake averages") || "No intake averages shared yet."}</DashDrawerEmpty>;
   const row = (label, avg, target, overBad) => {
     if (avg == null) return null;
     const pct = target ? Math.round((avg / target) * 100) : null;
@@ -485,7 +535,7 @@ function DashSecMacros({ rec }) {
 function DashSecWeighIns({ rec }) {
   const units = useDashUnits();
   const weighIns = Array.isArray(rec.weighIns) ? rec.weighIns.filter((w) => w && w.weight != null) : [];
-  if (!weighIns.length) return <DashDrawerEmpty>No shared weigh-ins yet.</DashDrawerEmpty>;
+  if (!weighIns.length) return <DashDrawerEmpty>{dashPeekWait(rec, "weigh-ins") || "No shared weigh-ins yet."}</DashDrawerEmpty>;
   const wDelta = weighIns.length >= 2 ? dashWeighInDelta(weighIns[0], weighIns[weighIns.length - 1], units) : null;
   const wNow = dashWeighIn(weighIns[weighIns.length - 1], units);
   return (
@@ -509,7 +559,7 @@ function DashSecTrainingContext({ rec }) {
   // DashSecScore carry. Adopting the shared reading without its `partial` flag
   // is how a number ends up disagreeing with its own caption.
   const wkPartial = !!(wk && wk.partial);
-  if (!adh && wkPts == null) return <DashDrawerEmpty>Training data isn't shared to coaches on the web yet.</DashDrawerEmpty>;
+  if (!adh && wkPts == null) return <DashDrawerEmpty>{dashPeekWait(rec, "training") || "Training data isn't shared to coaches on the web yet."}</DashDrawerEmpty>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
       <div style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, padding: "12px 14px" }}>
@@ -536,6 +586,258 @@ function DashSecGoals({ rec, role }) {
   return <DashDrawerEmpty>Goal cards live on pages that load dashGoals.jsx.</DashDrawerEmpty>;
 }
 
+// ── The calmer panel's parts (the owner's coach review, step 5a) ─────────────
+// Three facts at the top: the program (the plan, for a nutritionist), how they are keeping to it
+// (sessions kept, or days logged), and their streak. Each is a value, or says which of loading,
+// unread or empty it is: "…" while the overview reads, "—" when it couldn't be read, and the
+// roster's own words ("Not set", "Not shared") for a read overview that holds nothing.
+function dashPeekFacts(rec, role) {
+  const read = dashPeekRead(rec);
+  const nutri = role === "nutritionist" || role === "dietitian";
+  const miss = (empty) => read === "loading" ? { v: "…", sub: "reading", state: "loading" }
+    : read === "unavailable" ? { v: "—", sub: "couldn't be read", state: "unread" }
+    : { v: empty, sub: null, state: "empty" };
+  const pr = dashProgramOf(rec, role);
+  // No program of this role's own, but a goal phase: the phase, as the panel's header said before.
+  const program = pr && pr.name
+    ? { v: pr.name, sub: pr.status === "paused" ? "paused" : pr.week ? "week " + pr.week + (pr.weeks ? " of " + pr.weeks : "") : null, state: "value" }
+    : rec.goalPhase ? { v: rec.goalPhase + " phase", sub: nutri ? "no plan set" : "no program set", state: "value" }
+    : miss("Not set");
+  let keeping;
+  if (nutri) {
+    const f = rec.foodLogs;
+    const d = f && f.daysLogged7d != null ? Math.min(7, f.daysLogged7d) : null;
+    keeping = d != null ? { v: Math.round((d / 7) * 100) + "%", sub: d + " of 7 days logged", state: "value" } : miss("Not shared");
+  } else {
+    const a = rec.trainingAdherence;
+    keeping = a && a.pct != null
+      ? { v: a.pct + "%", sub: (a.done != null && a.planned != null ? a.done + " of " + a.planned + " · " : "") + "42 days", state: "value" }
+      : miss("Not shared");
+  }
+  const st = rec.streaks;
+  const streak = st && st.current != null
+    ? { v: st.current + (st.current === 1 ? " day" : " days"), sub: st.best != null ? "best " + st.best : null, state: "value" }
+    : miss("Not shared");
+  return [
+    { key: "program", label: nutri ? "Plan" : "Program", ...program },
+    { key: "keeping", label: nutri ? "Logging · 7d" : "Sessions kept", ...keeping },
+    { key: "streak", label: "Streak", ...streak },
+  ];
+}
+function DashPeekFacts({ rec, role }) {
+  const facts = dashPeekFacts(rec, role);
+  return (
+    // ⚠ NOT `repeat(3, …)`: pageShell's phone rules collapse any inline repeat(3 grid to one column
+    // with a 20px gap, which stacked the three facts into a tower in the 900px slide-over. The
+    // program takes the wider third, and a long name wraps rather than losing its end.
+    <div data-peek-facts="" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)", gap: 1, background: "var(--sh-line, #302c27)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+      {facts.map((f) => (
+        <div key={f.key} data-peek-fact={f.key} data-state={f.state} style={{ background: "var(--sh-card, #25211d)", padding: "11px 12px", minWidth: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{f.label}</div>
+          <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: f.state === "value" ? 16 : 14, marginTop: 5, lineHeight: 1.2, color: f.state === "value" ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50, overflowWrap: "anywhere" }}>{f.v}</div>
+          {f.sub && <div style={{ fontSize: 10.5, lineHeight: 1.35, color: DASH_ROSTER_INK50, marginTop: 3 }}>{f.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// An instant's day on the account's clock, "YYYY-MM-DD" (shapeZone.mjs, read at call time), else
+// this browser's; and today's.
+function dashPeekDayKey(ms) {
+  try {
+    const Z = typeof window !== "undefined" ? window.ShapeZone : null;
+    if (Z && typeof Z.dayKey === "function") { const k = Z.dayKey(ms); if (k) return k; }
+  } catch (e) { /* this browser's day below */ }
+  const d = new Date(ms);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function dashPeekTodayKey() { return dashPeekDayKey(Date.now()); }
+function dashDaysBetweenKeys(fromKey, toKey) {
+  const day = (k) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(k || "")); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null; };
+  const a = day(fromKey), b = day(toKey);
+  return a == null || b == null ? null : Math.round((b - a) / 86400000);
+}
+// The Monday of a "YYYY-MM-DD" day as a UTC-noon instant, or null; whole weeks between two days.
+function dashMondayOf(key) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(key || ""));
+  if (!m) return null;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.getTime();
+}
+function dashWeeksBetween(fromKey, toKey) {
+  const a = dashMondayOf(fromKey), b = dashMondayOf(toKey);
+  return a == null || b == null ? null : Math.round((b - a) / (7 * 86400000));
+}
+const DASH_CHECKIN_RATINGS = [["trainingAdherence", "Training"], ["nutritionAdherence", "Nutrition"], ["sleep", "Sleep"], ["energy", "Energy"], ["stress", "Stress"], ["hunger", "Hunger"]];
+
+// The week's check-in: whose week it is, the ratings and what they wrote, and whether the coach has
+// reviewed it. `checkIn` is the engine's summary (latest: weekOf, ratings, reviewed); `checkins` the
+// rows themselves, for the words. A review state nobody could read (`reviewed` null on a read
+// check-in) says so; the preview reads no reviews and claims none.
+function DashSecCheckin({ rec, role }) {
+  const ci = rec.checkIn;
+  if (!ci) return <DashDrawerEmpty>{dashPeekWait(rec, "check-ins") || "Check-ins aren't shared to the web yet."}</DashDrawerEmpty>;
+  const latest = ci.latest && typeof ci.latest === "object" ? ci.latest : null;
+  const weekOf = (latest && latest.weekOf) || ci.lastWeekOf || null;
+  if (!weekOf) return <DashDrawerEmpty>{rec.profile && rec.profile.isNew ? "No first check-in yet. They're new, so it isn't late." : "No check-in yet."}</DashDrawerEmpty>;
+  const ago = dashWeeksBetween(weekOf, dashPeekTodayKey());
+  const when = ago === 0 ? "This week's check-in is in."
+    : ago === 1 ? "Last week's check-in. This week's isn't in yet."
+    : ago != null && ago > 1 ? "Their last check-in was " + ago + " weeks ago."
+    : "Their last check-in is for the week of " + weekOf + ".";
+  const row = Array.isArray(rec.checkins) ? rec.checkins.find((c) => c && String(c.week_of || c.weekOf || "").slice(0, 10) === weekOf) || null : null;
+  const ratings = (row && row.ratings) || (latest && latest.ratings) || null;
+  const rated = ratings && typeof ratings === "object"
+    ? DASH_CHECKIN_RATINGS.filter(([k]) => typeof ratings[k] === "number" && Number.isFinite(ratings[k])).map(([k, l]) => l + " " + ratings[k] + "/10")
+    : [];
+  // The review state is said for this week's or last week's check-in only, the window the engine
+  // treats as a to-do (ruleCheckinWaiting); an older one is Week's history, not a nag.
+  const review = !latest || ago == null || ago < 0 || ago > 1 ? null
+    : latest.reviewed === true ? { t: "Reviewed", c: DASH_SEV_COLORS.green }
+    : latest.reviewed === false ? { t: "Waiting on your review", c: DASH_SEV_COLORS.amber }
+    : { t: "Review status couldn't be read", c: DASH_SEV_COLORS.unknown };
+  const label = { fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginRight: 8 };
+  const week = typeof dashTabHref === "function" && ago != null && ago <= 1 ? dashTabHref("week", role) : null;
+  return (
+    <div data-peek-checkin={ago === 0 ? "this-week" : ago === 1 ? "last-week" : "older"} style={{ display: "grid", gap: 7 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13 }}>
+        <span>{when}</span>
+        {review && <DashPill c={review.c}>{review.t}</DashPill>}
+      </div>
+      {rated.length > 0 && <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: DASH_ROSTER_INK50, lineHeight: 1.6 }}>{rated.join(" · ")}</div>}
+      {row && row.wins && <div style={{ fontSize: 12.5, lineHeight: 1.45 }}><span style={label}>Win</span>{row.wins}</div>}
+      {row && row.struggles && <div style={{ fontSize: 12.5, lineHeight: 1.45 }}><span style={label}>Struggle</span>{row.struggles}</div>}
+      {row && row.question && <div style={{ fontSize: 12.5, lineHeight: 1.45 }}><span style={label}>Asked you</span>{row.question}</div>}
+      {week && <a href={week} style={{ fontSize: 12, color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none" }}>Read it on Week →</a>}
+    </div>
+  );
+}
+
+// ── The next session: from the schedule the page already reads, never a fetch per client ──────
+// `sessions` is what the host hands the panel (dashPeekSessions): { state: "loading" | "unread" |
+// "read", rows: [{ at, clientId, who, status, sub }] }, or nothing on a page that holds no schedule.
+// A row is this client's by its client id; one booked without an account link (no id) by their name.
+// A cancelled, declined or completed booking is not a next session, and neither is one that started.
+const DASH_PEEK_OPEN_STATUSES = ["requested", "confirmed"];
+function dashNextSessionFor(rec, sessions, now) {
+  if (!sessions || typeof sessions !== "object") return { state: "elsewhere" };
+  if (sessions.state === "loading") return { state: "loading" };
+  if (sessions.state !== "read" || !Array.isArray(sessions.rows)) return { state: "unread" };
+  const p = rec && rec.profile ? rec.profile : {};
+  const id = p.id != null ? String(p.id) : null;
+  const name = String(p.name || "").trim().toLowerCase();
+  const t = Number.isFinite(now) ? now : Date.now();
+  let best = null;
+  for (const s of sessions.rows) {
+    if (!s || !Number.isFinite(s.at) || s.at <= t) continue;
+    if (s.status != null && DASH_PEEK_OPEN_STATUSES.indexOf(s.status) === -1) continue;
+    const mine = s.clientId != null ? id != null && String(s.clientId) === id : !!name && String(s.who || "").trim().toLowerCase() === name;
+    if (mine && (!best || s.at < best.at)) best = s;
+  }
+  return best ? { state: "booked", session: best } : { state: "none" };
+}
+// The page's schedule for the panel. `today` is useDashboard's role dashboard feed, whose calendar
+// holds the coach's own bookings (kind SESSION, with their client id and status) and the other
+// coach's (sharedCoach), which are not this coach's to name. The preview reads its own sample
+// calendar, under the demo band. ⚠ AN OLDER FEED SENT NO STATUS, and a cancelled booking must not
+// read as the next one, so a calendar whose own rows carry none is unread, never "nothing booked".
+function dashPeekSessions(today, source, role) {
+  if (source == null) return { state: "loading" };
+  if (source === "demo") {
+    const cfg = typeof DASH_TODAY_ROLES !== "undefined" && DASH_TODAY_ROLES ? DASH_TODAY_ROLES[role === "nutritionist" ? "nutritionist" : "trainer"] : null;
+    const cal = cfg && typeof dashDemoCalendar === "function" ? dashDemoCalendar(cfg.mockCalendar) : null;
+    if (!Array.isArray(cal)) return { state: "unread" };
+    const kind = role === "nutritionist" ? "CONSULT" : "SESSION";
+    const rows = cal.filter((e) => e && e.kind === kind && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "") && /^\d{2}:\d{2}$/.test(e.time || "")).map((e) => {
+      const d = e.date.split("-").map(Number), hm = e.time.split(":").map(Number);
+      const parts = String(e.title || "").split(" · ");
+      return { at: new Date(d[0], d[1] - 1, d[2], hm[0], hm[1]).getTime(), clientId: null, who: parts[0], status: null, sub: parts.slice(1).join(" · ") || e.sub || null };
+    });
+    return { state: "read", rows };
+  }
+  if (source !== "live") return { state: "unread" };
+  // The route's sessions read failed: its calendar is empty because nobody could read it (Codex on #2639).
+  if (today && today.sessionsRead === false) return { state: "unread" };
+  const cal = today && Array.isArray(today.calendar) ? today.calendar : null;
+  if (!cal) return { state: "unread" };
+  const own = cal.filter((e) => e && !e.sharedCoach && e.kind === "SESSION");
+  if (own.length && !own.some((e) => typeof e.status === "string")) return { state: "unread" };
+  return { state: "read", rows: own.map((e) => ({ at: Date.parse(e.at), clientId: e.clientId != null ? e.clientId : null, who: e.title || "", status: typeof e.status === "string" ? e.status : null, sub: e.sub || null })) };
+}
+// A booking's day and time on the account's clock (shapeZone.mjs), else this browser's.
+function dashPeekWhen(ms) {
+  try {
+    const Z = typeof window !== "undefined" ? window.ShapeZone : null;
+    if (Z && typeof Z.formatDateTime === "function") { const s = Z.formatDateTime(ms); if (s) return s; }
+  } catch (e) { /* this browser's clock below */ }
+  try { return new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch (e) { return ""; }
+}
+function DashSecNext({ rec, role, ctx }) {
+  const unit = role === "nutritionist" ? "consult" : "session";
+  const r = dashNextSessionFor(rec, ctx && ctx.sessions, Date.now());
+  const sched = typeof dashTabHref === "function" ? dashTabHref("schedule", role) : null;
+  const link = sched ? <a href={sched} style={{ color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none", whiteSpace: "nowrap" }}>Open Schedule →</a> : null;
+  if (r.state === "booked") {
+    const s = r.session;
+    // Calendar days on the account's clock: "today", "tomorrow", "in 4 days".
+    const days = dashDaysBetweenKeys(dashPeekTodayKey(), dashPeekDayKey(s.at));
+    const rel = days == null ? null : days <= 0 ? "today" : days === 1 ? "tomorrow" : "in " + days + " days";
+    return (
+      <div data-peek-next="booked">
+        <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 18 }}>{dashPeekWhen(s.at)}</div>
+        <div style={{ fontSize: 11.5, color: DASH_ROSTER_INK50, marginTop: 3 }}>{[rel, s.sub].filter(Boolean).join(" · ")}</div>
+      </div>
+    );
+  }
+  const say = r.state === "loading" ? "Reading your schedule…"
+    : r.state === "unread" ? "Your schedule couldn't be read just now."
+    : r.state === "none" ? "No " + unit + " booked with them."
+    : "This page doesn't hold your bookings.";
+  return <DashDrawerEmpty><span data-peek-next={r.state}>{say}</span>{link && r.state !== "loading" ? <> {link}</> : null}</DashDrawerEmpty>;
+}
+
+// ── The joint note: only for a shared client (#2629's Shared mark) ─────────────
+// The client is on the joint list (useDashboard's `joint`, DashSignals.findJointAttention: a co-coach
+// of the other discipline, and slipping in training and in nutrition). The note is the two coaches'
+// own, in their private care-team thread (dashOpenCareTeam), which the client never sees, and it says
+// so when the thread can't be opened rather than doing nothing.
+function dashPeekJoint(joint, rec) {
+  if (!Array.isArray(joint) || !rec || !rec.profile || rec.profile.id == null) return null;
+  return joint.find((j) => j && j.client && j.client.profile && j.client.profile.id === rec.profile.id && j.coCoach && j.coCoach.role) || null;
+}
+function DashSecJoint({ rec, role, ctx }) {
+  const [fail, setFail] = React.useState(null);
+  const j = ctx && ctx.joint;
+  if (!j) return null;
+  const other = j.coCoach.role;
+  const who = "their " + other + (j.coCoach.name ? ", " + j.coCoach.name : "");
+  const words = (fs) => (Array.isArray(fs) ? fs : []).map((f) => String((f && f.label) || "").toLowerCase()).filter(Boolean).join(", ");
+  const reason = typeof dashJointReason === "function" ? dashJointReason(j) : "Slipping on both sides: " + words(j.trainingFlags) + " and " + words(j.nutritionFlags) + ".";
+  const real = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(rec.profile.id || "")) && !!j.coCoach.userId;
+  const open = () => {
+    setFail(null);
+    const say = "Your private thread with " + rec.profile.name + "'s " + other + (real ? " couldn't be opened just now." : " opens on a live account.");
+    const go = typeof dashOpenCareTeam === "function" ? dashOpenCareTeam(j, role) : false;
+    Promise.resolve(go).then((ok) => { if (!ok) setFail(say); }, () => setFail(say));
+  };
+  return (
+    <div data-peek-joint={other}>
+      <div style={{ fontSize: 13, lineHeight: 1.45 }}>Shared with {who}.</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.45, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.85)", marginTop: 4 }}>{reason}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+        <button type="button" className="sh-key" onClick={open} title={"Opens your private thread with " + who + ". The client doesn't see it."}
+          style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", background: "var(--sh-card, #25211d)", border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.35)", borderRadius: 6, padding: "8px 11px", minHeight: 32, cursor: "pointer" }}>
+          {(j.action && j.action.label) || "Start joint note"}
+        </button>
+        <span style={{ fontSize: 11, color: DASH_ROSTER_INK50 }}>A private thread. The client doesn't see it.</span>
+      </div>
+      <div role="status" style={{ marginTop: fail ? 6 : 0, fontSize: 12, color: DASH_ROSTER_INK50 }}>{fail || ""}</div>
+    </div>
+  );
+}
+
 // Role section sets. The drawer is ONE component; the role decides the lens.
 //
 // ⚠ EVERY SECTION CARRIES A STABLE KEY, AND THE TITLE IS NOT IT (review 2026-09-09,
@@ -543,25 +845,37 @@ function DashSecGoals({ rec, role }) {
 // these keys, and a title is user-facing copy: keying on it would mean rewording a
 // heading silently un-hides that section for everyone who had hidden it, and renaming it
 // back re-hides it. The key never changes; the title is free to.
+//
+// ⚠ THE REVIEW'S SECTIONS LEAD, IN ITS ORDER (coach dashboard step 5a): the joint note (a shared
+// client only), the week's check-in, the score trend, food logs and the next session, under the
+// three facts (DashPeekFacts). Each role's own sections follow, and every one stays hideable with
+// the ⚙. `score` joins the nutrition lens as the same concept, the same key (as `goals` is).
 const DASH_DRAWER_VIEWS = {
   trainer: {
     eyebrow: "Client drilldown",
     sections: [
+      ["joint", "Joint note · shared client", DashSecJoint],
+      ["checkin", "This week's check-in", DashSecCheckin],
       ["score", "Shape Score · 8 weeks", DashSecScore],
-      ["goals", "Goals · projections", DashSecGoals],
+      ["nutrition", "From the nutritionist side · food logs", DashSecNutritionSummary],
+      ["next", "Next session", DashSecNext],
       ["adherence", "Sessions kept · 42 days", DashSecAdherence],
+      ["goals", "Goals · projections", DashSecGoals],
       ["notes", "Coach notes", DashSecNotes],
       ["milestones", "Milestones", DashSecMilestones],
-      ["nutrition", "From the nutritionist side · read-only", DashSecNutritionSummary],
     ],
   },
   nutritionist: {
     eyebrow: "Quick consult",
     sections: [
+      ["joint", "Joint note · shared client", DashSecJoint],
+      ["checkin", "This week's check-in", DashSecCheckin],
+      ["score", "Shape Score · 8 weeks", DashSecScore],
       ["logs", "Last 3 days · food logs", DashSecLogs],
-      ["goals", "Goals · projections", DashSecGoals],
+      ["next", "Next consult", DashSecNext],
       ["macros", "Macros vs targets · 7d avg", DashSecMacros],
       ["weighins", "Weigh-in trend", DashSecWeighIns],
+      ["goals", "Goals · projections", DashSecGoals],
       ["training", "From the trainer side · read-only", DashSecTrainingContext],
     ],
   },
@@ -646,7 +960,22 @@ function DashDrawerMove({ row, dismiss }) {
   );
 }
 
-function DashClientDrawer({ row, role, onClose, prefs, dismiss }) {
+// ⚠ TWO SHAPES, ONE PANEL (coach dashboard step 5a). `docked` is Clients at desktop widths: the panel
+// sits beside the list, on the page, so NOTHING is inert, the page keeps its scroll, focus is free to
+// go back to the list (↑ ↓ move the selection there, DashRosterTable), and Esc closes it. Otherwise it
+// is the slide-over it always was: a modal over the page, the rest inert, scroll locked, focus held,
+// and Esc closes it with focus back on its opener. The content is the same in both.
+// `joint` is useDashboard's joint list (a shared client's note) and `sessions` the host's schedule
+// (dashPeekSessions); a host without one gets no joint section and "not on this page".
+// ⚠ ONE PANEL PER CLIENT (Codex on #2639). The panel holds per-client state (a joint note that couldn't
+// be opened, a move in flight, the ⚙ list being open), and ↑ ↓ or another row reused the same tree, so
+// client A's failure showed in client B's panel. The wrapper keys the panel by the client, so every
+// mount (Clients, Today, Schedule) gets a fresh one for each.
+function DashClientDrawer(props) {
+  const p = props && props.row && props.row.client && props.row.client.profile;
+  return <DashClientPanel key={p && p.id != null ? String(p.id) : "none"} {...props} />;
+}
+function DashClientPanel({ row, role, onClose, prefs, dismiss, docked = false, joint, sessions }) {
   const dialogRef = React.useRef(null);
   const overlayRef = React.useRef(null);
   const closeRef = React.useRef(onClose);
@@ -654,6 +983,17 @@ function DashClientDrawer({ row, role, onClose, prefs, dismiss }) {
   const headingId = React.useId();
   React.useEffect(() => {
     if (!row || !dialogRef.current) return undefined;
+    if (docked) {
+      // Docked, Esc is the only key the panel takes, and not from a modal opened over the page.
+      const onEsc = (e) => {
+        if (e.key !== "Escape" || e.defaultPrevented) return;
+        if (document.querySelector('[aria-modal="true"]')) return;
+        e.preventDefault();
+        closeRef.current();
+      };
+      document.addEventListener("keydown", onEsc);
+      return () => document.removeEventListener("keydown", onEsc);
+    }
     const origin = document.activeElement;
     const bodyOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -684,7 +1024,7 @@ function DashClientDrawer({ row, role, onClose, prefs, dismiss }) {
       document.body.style.overflow = bodyOverflow;
       if (origin && origin.isConnected && origin.focus) origin.focus();
     };
-  }, [!!row]);
+  }, [!!row, !!docked]);
   // ⚠ THE CONTROL LIVES IN THE DRAWER, NOT ON A CARD'S ⚙, because the drawer opens from
   // FOUR places — the roster table, the pulse, the schedule and the roster page — so any
   // one card's gear would be the wrong home for a preference about the drawer itself.
@@ -711,121 +1051,204 @@ function DashClientDrawer({ row, role, onClose, prefs, dismiss }) {
   const rec = row.client;
   const view = DASH_DRAWER_VIEWS[role] || DASH_DRAWER_VIEWS.trainer;
   const secs = dashDrawerSections(view, hiddenSections);
-  const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity];
-  const ownProgram = dashProgramOf(rec, role);
-  const programLine = ownProgram && ownProgram.name
-    ? dashProgramLabel(rec, role).text
-    : rec.goalPhase ? rec.goalPhase + " phase" : null;
+  // The joint note is drawn for a shared client only; hidden or not, it is never "empty" elsewhere.
+  const jointRow = dashPeekJoint(joint, rec);
+  const shown = secs.shown.filter(([key]) => key !== "joint" || !!jointRow);
+  const ctx = { joint: jointRow, sessions };
+  const sevColor = row.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[row.severity] || DASH_SEV_COLORS.unknown;
+  // ⚠ THE STATUS IS A LABELLED CHIP, NEVER A BARE COLOUR (owner, #2630): the group's word, then what
+  // put them there in the page's ink. The square before the name is their tier, as on the roster.
+  const status = row.severity === "red" ? "Needs you" : row.severity === "amber" ? "Watch" : row.severity === "green" ? (rec.profile.isNew ? "New" : "On track") : "Progress unknown";
+  const why = row.flags.length ? row.flags.map((f) => f.label).join(" · ") : row.severity === "unknown" ? (row.progress || DashSignals.progressStatus(rec)).label : null;
+  const tier = dashClientTierMark(rec.rankPoints);
+  const ground = docked ? "var(--sh-card, #25211d)" : "var(--sh-ground2, #14110e)";
+  const pad = docked ? 22 : 26;
+  const href = dashClientHref(rec, role);
 
+  const panel = (
+    <div ref={dialogRef} role={docked ? "region" : "dialog"} aria-modal={docked ? undefined : "true"} aria-labelledby={headingId} tabIndex={-1} data-peek={docked ? "docked" : "sheet"}
+      style={docked
+        ? { position: "sticky", top: 16, boxSizing: "border-box", maxHeight: "calc(100vh - 32px)", background: ground, border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))", overflowY: "auto", overscrollBehavior: "contain", padding: "0 " + pad + "px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }
+        : { position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: ground, borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }}>
+      <div style={{ position: "sticky", top: docked ? 0 : -26, zIndex: 2, background: ground, padding: docked ? "18px 0 12px" : "16px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{view.eyebrow}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 5, minWidth: 0 }}>
+            {tier
+              ? <span className="sh-tier-mark" data-tier={tier.tier} role="img" aria-label={tier.title} title={tier.title} style={{ ...tier.style, width: 10, height: 10, flexShrink: 0, borderRadius: 3 }} />
+              : <span aria-hidden="true" data-tier-unknown="" style={{ width: 10, height: 10, flexShrink: 0, borderRadius: 3, boxShadow: "inset 0 0 0 1px var(--sh-line2, #413d38)" }} />}
+            <div id={headingId} style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: docked ? 24 : 28, letterSpacing: "-0.02em", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.profile.name}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <button
+            type="button"
+            aria-label="Choose sections"
+            aria-expanded={showSettings}
+            title="Choose which sections this drawer shows"
+            onClick={() => setShowSettings((v) => !v)}
+            style={{ background: "transparent", border: 0, color: secs.hiddenCount ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_INK50, fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "4px 6px" }}
+          >⚙</button>
+          <button onClick={onClose} aria-label="Close" title={docked ? "Close (Esc)" : undefined} style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1, minWidth: 44, minHeight: 44 }}>×</button>
+        </div>
+      </div>
+      <div data-peek-status={row.severity} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <DashPill c={sevColor}>{status}</DashPill>
+        {jointRow && <span data-dash-shared={jointRow.coCoach.role} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid currentColor", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap", color: "var(--sh-rust, #e0644b)" }}>{"Shared · " + jointRow.coCoach.role}</span>}
+        {dashPaymentRetrying(rec) && <DashPill c={DASH_SEV_COLORS.unknown}>Payment retrying</DashPill>}
+        {why && <span style={{ fontSize: 12, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.8)" }}>{why}</span>}
+      </div>
+      <DashPeekFacts rec={rec} role={role} />
+      <DashProgressReadout row={row} />
+      <DashDrawerMove row={row} dismiss={dismiss} />
+      {showSettings && (
+        <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
+            Sections · {view.eyebrow}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {secs.all.map(([key, title]) => {
+              const on = !hiddenSections.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleSection(key)}
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", padding: "7px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
+                    border: "1px solid " + (on ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_HAIR),
+                    background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent",
+                    color: on ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50 }}
+                >{on ? "\u2713 " : ""}{title}</button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {shown.map(([key, title, Body]) => (
+        <DashDrawerSection key={key} title={title}><Body rec={rec} role={role} ctx={ctx} /></DashDrawerSection>
+      ))}
+      {shown.length === 0 && (
+        /* ⚠ AN EMPTY DRAWER SAYS WHY IT IS EMPTY AND HOW TO UNDO IT. A coach who hides
+           every section gets what they asked for — but a name and two buttons reads as
+           broken, and a control whose effect cannot be reversed from where you see it is
+           the dead-control class from the other direction. It reads THIS client's list
+           (Codex on #2639): with only the joint note shown, a client who isn't shared has
+           nothing in it either. */
+        <div data-peek-empty="" style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5, marginBottom: 22 }}>
+          {secs.shown.length === 0 ? "Every section is hidden. Open ⚙ above to bring one back."
+            : "The only section you show is the joint note, which is for shared clients. Open ⚙ above to show more."}
+        </div>
+      )}
+      <div style={{ position: "sticky", bottom: docked ? 0 : -40, background: ground, padding: "16px 0", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+        <button onClick={() => { onClose(); const act = row.lead && row.lead.action; if (act && typeof dashCoachActionGo === "function") dashCoachActionGo(act, row, role); else dashMessageClient(rec.profile.name, role, null, rec.profile.id); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>{row.lead && row.lead.action ? row.lead.action.label : "Message"}</button>
+        {/* The whole file, by its own address: a plain click goes there, ⌘/Ctrl-click opens a tab.
+            The preview's people have no file, so the link is not offered for them. */}
+        {href && <a href={href} data-peek-file="" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-accent-ink, #2ee0c4)", textDecoration: "none", padding: "10px 0" }}>Open full file →</a>}
+      </div>
+    </div>
+  );
+  if (docked) return panel;
   return ReactDOM.createPortal(
     <div ref={overlayRef} style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div aria-hidden="true" onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(440px, 100vw)", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "-24px 0 60px rgba(0,0,0,0.5)", overflowY: "auto", overscrollBehavior: "contain", padding: "26px 26px 40px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }}>
-        <div style={{ position: "sticky", top: -26, zIndex: 2, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
-          <div>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{view.eyebrow}</div>
-            <div id={headingId} style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 28, letterSpacing: "-0.02em", marginTop: 5 }}>{rec.profile.name}</div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-            <button
-              type="button"
-              aria-label="Choose sections"
-              aria-expanded={showSettings}
-              title="Choose which sections this drawer shows"
-              onClick={() => setShowSettings((v) => !v)}
-              style={{ background: "transparent", border: 0, color: secs.hiddenCount ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_INK50, fontSize: 15, cursor: "pointer", lineHeight: 1, padding: "4px 6px" }}
-            >⚙</button>
-            <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: 0, color: DASH_ROSTER_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1, minWidth: 44, minHeight: 44 }}>×</button>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 22 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 2, background: sevColor }} />
-          {row.flags.length
-            ? row.flags.map((f, i) => <DashPill key={i} c={sevColor}>{f.label}</DashPill>)
-            : <DashPill c={sevColor}>{row.severity === "unknown" ? (row.progress || DashSignals.progressStatus(rec)).label : rec.profile.isNew ? "New" : "On track"}</DashPill>}
-          {programLine && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: DASH_ROSTER_INK50 }}>{programLine}</span>}
-        </div>
-        <DashProgressReadout row={row} />
-        <DashDrawerMove row={row} dismiss={dismiss} />
-        {showSettings && (
-          <div style={{ marginBottom: 22, padding: "12px 14px", border: `1px solid ${DASH_ROSTER_HAIR}`, borderRadius: 6, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
-            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 8.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, marginBottom: 9 }}>
-              Sections · {view.eyebrow}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {secs.all.map(([key, title]) => {
-                const on = !hiddenSections.includes(key);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleSection(key)}
-                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.06em", padding: "7px 10px", minHeight: 24, borderRadius: 4, cursor: "pointer",
-                      border: "1px solid " + (on ? "var(--sh-accent, #2ee0c4)" : DASH_ROSTER_HAIR),
-                      background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.12)" : "transparent",
-                      color: on ? "var(--sh-ink, #f2ede4)" : DASH_ROSTER_INK50 }}
-                  >{on ? "\u2713 " : ""}{title}</button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {secs.shown.map(([key, title, Body]) => (
-          <DashDrawerSection key={key} title={title}><Body rec={rec} role={role} /></DashDrawerSection>
-        ))}
-        {secs.shown.length === 0 && (
-          /* ⚠ AN EMPTY DRAWER SAYS WHY IT IS EMPTY AND HOW TO UNDO IT. A coach who hides
-             every section gets what they asked for — but a name and two buttons reads as
-             broken, and a control whose effect cannot be reversed from where you see it is
-             the dead-control class from the other direction. */
-          <div style={{ fontSize: 12.5, color: DASH_ROSTER_INK50, lineHeight: 1.5, marginBottom: 22 }}>
-            Every section is hidden. Open ⚙ above to bring one back.
-          </div>
-        )}
-        <div style={{ position: "sticky", bottom: -40, background: "var(--sh-ground2, #14110e)", padding: "16px 0", display: "flex", gap: 10, alignItems: "center", marginTop: 4 }}>
-          <button onClick={() => { onClose(); const act = row.lead && row.lead.action; if (act && typeof dashCoachActionGo === "function") dashCoachActionGo(act, row, role); else dashMessageClient(rec.profile.name, role, null, rec.profile.id); }} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: "var(--sh-accent, #2ee0c4)", border: 0, borderRadius: 4, padding: "11px 18px", cursor: "pointer" }}>{row.lead && row.lead.action ? row.lead.action.label : "Message"}</button>
-          {dashClientHref(rec, role) && <a href={dashClientHref(rec, role)} style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: DASH_ROSTER_INK50, textDecoration: "none" }}>Open client file →</a>}
-        </div>
-      </div>
+      {panel}
     </div>, document.body
   );
 }
 // Back-compat alias (step 6 name).
 const DashConsultDrawer = DashClientDrawer;
 
-// Which roster rows a status filter keeps. One rule for the table and for the status
-// tiles that count it (Clients, 2026-10-15), so a tile can never promise a number the
-// table then disagrees with. Anything else (including "all") keeps every row.
+// Which roster rows a status filter keeps. One rule for the table and for the health bar
+// that counts it (Clients, 2026-10-15; the bar since step 5a), so a part can never promise
+// a number the table then disagrees with. Anything else (including "all") keeps every row.
 function dashRosterMatches(r, filter) {
   if (["red", "amber", "green", "unknown"].includes(filter)) return r.severity === filter;
   if (filter === "new") return !!r.client.profile.isNew;
   return true;
 }
 
-// The Clients page's status tiles: each tile is a count AND the filter it applies, so the
-// roster's summary, its "by status" card and its eight filter chips are one row of controls.
-// filters: [[key, label]] · `unknown` shows only while there is someone in it (or it is on).
-function DashRosterTiles({ triage, filters, value, onChange, loading }) {
-  const dot = { all: "var(--sh-ink2, #a09b94)", red: DASH_SEV_COLORS.red, amber: DASH_SEV_COLORS.amber, green: DASH_SEV_COLORS.green, new: DASH_SEV_COLORS.new, unknown: DASH_SEV_COLORS.unknown };
-  const shown = filters.filter(([k]) => k !== "unknown" || k === value || triage.some((r) => dashRosterMatches(r, k)));
+// ── The roster-health bar (coach dashboard step 5a: it replaces the five status tiles) ─────
+// "3 need you · 4 watch · 3 on track", each part a filter over the same rule the table uses
+// (dashRosterMatches), so the bar can never promise a number the list then disagrees with; the new
+// clients and those whose progress is unknown follow, while there is someone in them (or their
+// filter is on). Tapping the part that is on turns it off again.
+// ⚠ A COUNT NOBODY COULD READ IS "—", NEVER 0. While the roster loads every part is a dash; while
+// the clients' overviews are still on their way (the first paint has every severity "unknown") the
+// three status parts are dashes and the bar says it is reading, because "0 need you" then would be a
+// claim about people nobody has looked at. Once read, 0 is a measured 0, and the clients whose
+// progress couldn't be read are counted apart, as "N progress unknown", which is what is missing.
+const DASH_HEALTH_KEYS = ["red", "amber", "green", "new", "unknown"];
+const DASH_HEALTH_WORDS = {
+  red: (n) => (n === 1 ? "needs you" : "need you"),
+  amber: () => "watch",
+  green: () => "on track",
+  new: () => "new",
+  unknown: () => "progress unknown",
+};
+function dashRosterHealth(triage, loading) {
+  const none = { red: null, amber: null, green: null, new: null, unknown: null };
+  if (loading || !Array.isArray(triage)) return { state: "loading", counts: none, reading: null, total: null };
+  const rows = triage.filter((r) => r && r.client && r.client.profile);
+  const reading = rows.filter((r) => r.client.progressRead && r.client.progressRead.state === "loading").length;
+  const count = (k) => rows.filter((r) => dashRosterMatches(r, k)).length;
+  const settled = reading === 0;
+  return {
+    state: settled ? "read" : "reading",
+    counts: { red: settled ? count("red") : null, amber: settled ? count("amber") : null, green: settled ? count("green") : null, new: count("new"), unknown: settled ? count("unknown") : null },
+    reading,
+    total: rows.length,
+  };
+}
+// filters: the page's [[key, label]] set (the remembered `rosterFilter`'s allowlist is derived from
+// it); `reviewed` is Today's At a glance figure for check-ins reviewed ({ k, l, sub }), or null.
+function DashRosterHealth({ health, filters, value, onChange, reviewed }) {
+  const h = health || dashRosterHealth(null, true);
+  const words = Object.fromEntries((filters || []).map(([k, label]) => [k, label]));
+  const keys = DASH_HEALTH_KEYS.filter((k) => words[k] != null);
+  const shown = keys.filter((k) => k === "red" || k === "amber" || k === "green" || k === value || (h.counts[k] != null && h.counts[k] > 0));
+  const colour = { red: DASH_SEV_COLORS.red, amber: DASH_SEV_COLORS.amber, green: DASH_SEV_COLORS.green, new: DASH_SEV_COLORS.new, unknown: DASH_SEV_COLORS.unknown };
+  const sep = <span aria-hidden="true" style={{ color: "var(--sh-ink3, #75706a)" }}>·</span>;
   return (
-    <div role="group" aria-label="Filter the roster by status" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 10, marginBottom: 14 }}>
-      {shown.map(([k, label]) => {
-        const on = k === value;
-        const n = triage.filter((r) => dashRosterMatches(r, k)).length;
-        return (
-          <button key={k} type="button" aria-pressed={on} onClick={() => onChange(k)}
-            style={{ textAlign: "left", cursor: "pointer", font: "inherit", color: "var(--sh-ink, #f2ede4)", padding: "12px 14px", borderRadius: 10, minWidth: 0,
-              background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.08)" : "var(--sh-card, #25211d)",
-              border: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.55)" : "var(--sh-line, #302c27)") }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 7, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: on ? "var(--sh-accent-ink, #2ee0c4)" : "var(--sh-ink2, #a09b94)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-              <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 2, flex: "none", background: dot[k] }} />{label}
-            </span>
-            <span style={{ display: "block", fontSize: 24, fontWeight: 500, letterSpacing: "-0.01em", marginTop: 6, lineHeight: 1 }}>{loading ? "–" : n}</span>
+    <div data-roster-health={h.state} style={{ display: "flex", alignItems: "center", gap: "8px 14px", flexWrap: "wrap", marginBottom: 14, padding: "12px 16px", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12 }}>
+      <div role="group" aria-label="Roster health: filter the list by status" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
+        {shown.map((k, i) => {
+          const on = k === value;
+          const n = h.counts[k];
+          return (
+            <React.Fragment key={k}>
+              {i > 0 && sep}
+              <button type="button" data-health={k} aria-pressed={on} title={words[k]} onClick={() => onChange(on ? "all" : k)}
+                style={{ display: "inline-flex", alignItems: "baseline", gap: 6, minHeight: 32, padding: "4px 10px 4px 9px", borderRadius: 6, cursor: "pointer", font: "inherit", fontSize: 13.5, whiteSpace: "nowrap",
+                  color: "var(--sh-ink, #f2ede4)", background: on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.1)" : "transparent",
+                  // Four sides written apart: a shorthand beside borderLeft is a React styling trap on re-render.
+                  borderTop: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"),
+                  borderRight: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"),
+                  borderBottom: "1px solid " + (on ? "rgba(var(--sh-accent-rgb, 46,224,196),0.5)" : "transparent"),
+                  borderLeft: "3px solid " + colour[k] }}>
+                <b style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{n == null ? "\u2014" : n}</b>{" "}
+                <span style={{ color: on ? "var(--sh-ink, #f2ede4)" : "var(--sh-ink2, #a09b94)" }}>{DASH_HEALTH_WORDS[k](n)}</span>
+              </button>
+            </React.Fragment>
+          );
+        })}
+        {value && value !== "all" && (
+          <button type="button" data-health="all" onClick={() => onChange("all")}
+            style={{ minHeight: 32, padding: "4px 8px", border: 0, background: "transparent", cursor: "pointer", font: "inherit", fontSize: 12.5, fontWeight: 600, color: "var(--sh-accent-ink, #2ee0c4)" }}>
+            {"Show all" + (h.total != null ? " " + h.total : "")}
           </button>
-        );
-      })}
+        )}
+      </div>
+      <span role="status" style={{ fontSize: 12, color: "var(--sh-ink2, #a09b94)" }}>
+        {h.state === "loading" ? "Reading your roster…" : h.state === "reading" ? "Reading " + h.reading + (h.reading === 1 ? " client's" : " clients'") + " progress…" : ""}
+      </span>
+      {reviewed && (
+        <span data-health-reviewed="" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "baseline", gap: 8, flexWrap: "wrap", fontSize: 12.5, color: "var(--sh-ink2, #a09b94)" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase" }}>{reviewed.l || "Check-ins reviewed"}</span>{" "}
+          <b style={{ fontSize: 14, fontWeight: 600, color: reviewed.k === "\u2014" ? "var(--sh-ink2, #a09b94)" : "var(--sh-ink, #f2ede4)", fontVariantNumeric: "tabular-nums" }}>{reviewed.k}</b>
+          {reviewed.sub && <React.Fragment>{" "}<span>{reviewed.sub}</span></React.Fragment>}
+        </span>
+      )}
     </div>
   );
 }
@@ -844,13 +1267,44 @@ function dashClientTierMark(points) {
   return t && vars ? { tier: t.key, title: t.title, style: vars } : null;
 }
 
-// ── Roster table — triage-ordered rows + role-configured columns ─────────────
+// ── The list's groups (coach dashboard step 5a) ─────────────────────────────
+// Status is a labelled heading, never a bare colour: Needs you, Watch and On track, in the engine's
+// own order, and Progress unknown between Watch and On track, where the engine ranks it (a client
+// nobody can read is not on track). A NEW client is in the group their week puts them in, with a
+// New mark on the row, and the bar's "new" part lists all of them; a client whose progress couldn't
+// be read or isn't shared yet is under Progress unknown, which says why. A severity this build does
+// not know joins Progress unknown rather than leaving the list.
+const DASH_ROSTER_GROUPS = [
+  ["red", "Needs you", null],
+  ["amber", "Watch", null],
+  ["unknown", "Progress unknown", "Their progress couldn't be read, or they haven't shared enough of it yet."],
+  ["green", "On track", null],
+];
+function dashRosterGroups(rows) {
+  const known = new Set(DASH_ROSTER_GROUPS.map((g) => g[0]));
+  const keyOf = (r) => (known.has(r.severity) ? r.severity : "unknown");
+  return DASH_ROSTER_GROUPS
+    .map(([key, label, note]) => ({ key, label, note, rows: rows.filter((r) => keyOf(r) === key) }))
+    .filter((g) => g.rows.length > 0);
+}
+
+// ── Roster table — grouped, triage-ordered rows + role-configured columns ────
 // `sort`/`sortDir`/`onSort` are optional and default to the triage order, so a caller
 // that does not offer sorting gets exactly the table it had — and the headers render as
-// plain text rather than as buttons that lead nowhere.
-function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss }) {
-  const [selectedId, setSelectedId] = React.useState(null);
-  const open = triage.find((r) => r.client.profile.id === selectedId) || null;
+// plain text rather than as buttons that lead nowhere. A sort orders the rows WITHIN each
+// group: the groups are the status, and status always reads first.
+// `selectedId`/`onSelect` make the selection the host's (Clients' DashRosterPeek, which draws the
+// panel); without them the table keeps its own and opens the slide-over itself, as it always did.
+// `docked`: the panel is open beside the list, so the list keeps its compact columns
+// (dashRosterColumns), the selected row lifts to meet the panel, and ↑ ↓ on a row move the
+// selection through the list as it is drawn, groups included.
+function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, prefs, dismiss, selectedId, onSelect, docked = false, joint, sessions }) {
+  const controlled = typeof onSelect === "function";
+  const [ownId, setOwnId] = React.useState(null);
+  const selId = controlled ? (selectedId == null ? null : selectedId) : ownId;
+  const select = controlled ? onSelect : setOwnId;
+  const open = !controlled ? triage.find((r) => r.client.profile.id === selId) || null : null;
+  const listRef = React.useRef(null);
   const ink50 = DASH_ROSTER_INK50;
 
   // Client AGES (never birthdates) — a coach always sees them for their own
@@ -897,7 +1351,9 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
   // Sorting is applied AFTER the filter and the search, so the three compose the way a
   // coach expects: narrow to who matters, then order what is left.
   const rows = dashRosterSorted(filtered, sort, sortDir, role);
+  const groups = dashRosterGroups(rows);
   const activeSort = DASH_ROSTER_SORTS[sort] ? sort : "triage";
+  const columns = dashRosterColumns(view, role, docked, activeSort);
   // Clicking the column you are already on flips the direction; a new column starts in
   // ITS OWN natural direction — revenue and tenure open highest-first, score and
   // adherence lowest-first, "last contact" stalest-first. A single default would make
@@ -921,66 +1377,161 @@ function DashRosterTable({ triage, role, filter, query, sort, sortDir, onSort, p
       </button>
     );
   };
+  // ↑ ↓ from a row, docked: the next row as drawn (the DOM's order is the groups' order), focused and
+  // opened. Only the row's own keys: an arrow in a control inside it is that control's.
+  const step = (e, by) => {
+    if (!docked || e.target !== e.currentTarget || !listRef.current) return;
+    const all = Array.from(listRef.current.querySelectorAll("[data-roster-row]"));
+    const at = all.indexOf(e.currentTarget);
+    const next = at < 0 ? null : all[at + by];
+    e.preventDefault();
+    if (!next) return;
+    const id = next.getAttribute("data-roster-row");
+    const row = rows.find((r) => String(r.client.profile.id) === id);
+    if (row) select(row.client.profile.id);
+    next.focus();
+  };
 
   return (
-    <div className="dash-roster-scroll">
-    <div style={{ minWidth: view.minWidth }}>
-      <div style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
-        {headCell("CLIENT", "name")}{view.heads.map(([h, k]) => headCell(h, k))}
+    <div className={"dash-roster-scroll" + (docked ? " is-docked" : "")} style={docked ? { overflow: "visible" } : undefined}>
+    <div ref={listRef} style={{ minWidth: columns.minWidth }}>
+      <div style={{ display: "grid", gridTemplateColumns: columns.cols, gap: 12, padding: "6px 4px 14px", fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50, borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)" }}>
+        {headCell("CLIENT", "name")}{columns.keep.map((j) => headCell(view.heads[j][0], view.heads[j][1]))}
       </div>
       {rows.length === 0 && (
         <div style={{ padding: "34px 4px", textAlign: "center", color: ink50, fontSize: 13.5 }}>
           {triage.length === 0 ? "No clients yet. Share your public profile to start getting subscribers." : "No clients match this search or filter."}
         </div>
       )}
-      {rows.map((r, i) => {
-        const rec = r.client;
-        const sevColor = r.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[r.severity];
-        const tier = dashClientTierMark(rec.rankPoints);
-        return (
-          <div
-            key={rec.profile.id || i}
-            onClick={() => setSelectedId(rec.profile.id)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(rec.profile.id); } }}
-            role="button"
-            tabIndex={0}
-            aria-label={"Open " + rec.profile.name + " drilldown" + (tier ? ", " + tier.title : "")}
-            data-track="Open client drilldown"
-            style={{ display: "grid", gridTemplateColumns: view.cols, gap: 12, padding: "14px 4px", alignItems: "center", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)", cursor: "pointer" }}
-          >
-            {/* The pill WRAPS under the name rather than squeezing it: at the table's
-                minimum width the name column is ~130px, and a "STREAK BROKEN" pill beside
-                it cut "Marcus T." to "M…" (measured at 390px, 2026-10-15). */}
-            <div style={{ display: "flex", gap: 10, rowGap: 4, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
-              {/* ⚠ THE SQUARE BEFORE THE NAME IS THE CLIENT'S TIER, NOT THEIR STATUS (owner,
-                  2026-11-06). Red, gold and green are tiers now, so the status is the labelled
-                  pill after the name and never a colour alone; a row with nothing flagged has no
-                  pill. An unknown tier is a hollow square that claims nothing. The name keeps
-                  the row's ink: Peak and Legend would not read as text on White. */}
-              {tier
-                ? <span className="sh-tier-mark" data-tier={tier.tier} role="img" aria-label={tier.title} title={tier.title} style={{ ...tier.style, width: 8, height: 8, flexShrink: 0, borderRadius: 2 }} />
-                : <span aria-hidden="true" data-tier-unknown="" style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, boxShadow: "inset 0 0 0 1px var(--sh-line2, #413d38)" }} />}
-              <span title={tier ? tier.title : undefined} style={{ fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.profile.name}</span>
-              {/* ⚠ typeof, not truthiness — 0 is a real age. Absence renders as
-                  nothing, never as a placeholder or "private". */}
-              {typeof ages[rec.profile.id] === "number" && (
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: ink50, flexShrink: 0 }}>{ages[rec.profile.id]}</span>
-              )}
-              {/* The first flag that colours the row; the engine's quiet payment flag (P2) is the mark
-                  below, said once. */}
-              {r.flags.some((f) => f.key !== "payment_retrying") && <DashPill c={sevColor}>{r.flags.find((f) => f.key !== "payment_retrying").label}</DashPill>}
-              {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(rec)).label}</DashPill>}
-              {rec.profile.isNew && r.severity === "green" && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
-              {dashPaymentRetrying(rec) && <DashPill c={DASH_SEV_COLORS.unknown}>Payment retrying</DashPill>}
-            </div>
-            {view.cells(rec, role).map((cell, j) => <React.Fragment key={j}>{cell}</React.Fragment>)}
+      {groups.map((g) => (
+        <div key={g.key} data-roster-group={g.key}>
+          {/* The group's status, in words, on a rule of its colour: a heading, never a bare swatch. */}
+          <div role="heading" aria-level={3} style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", margin: "16px 0 4px", padding: "2px 0 2px 9px", borderLeft: "3px solid " + (DASH_SEV_COLORS[g.key] || DASH_SEV_COLORS.unknown) }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{g.label}</span>{" "}
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, letterSpacing: "0.08em", color: ink50 }}>{g.rows.length}</span>
+            {g.note && <React.Fragment>{" "}<span style={{ fontSize: 11.5, color: ink50 }}>{g.note}</span></React.Fragment>}
           </div>
-        );
-      })}
-      {open && <DashClientDrawer row={open} role={role} onClose={() => setSelectedId(null)} prefs={prefs} dismiss={dismiss} />}
+          {g.rows.map((r, i) => {
+            const rec = r.client;
+            const sevColor = r.severity === "green" ? (rec.profile.isNew ? DASH_SEV_COLORS.new : DASH_SEV_COLORS.green) : DASH_SEV_COLORS[r.severity] || DASH_SEV_COLORS.unknown;
+            const tier = dashClientTierMark(rec.rankPoints);
+            const cells = view.cells(rec, role);
+            const picked = selId != null && rec.profile.id === selId;
+            return (
+              <div
+                key={rec.profile.id || i}
+                data-roster-row={String(rec.profile.id)}
+                onClick={() => select(rec.profile.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") return step(e, 1);
+                  if (e.key === "ArrowUp") return step(e, -1);
+                  // Enter and Space are the row's own keys only (dashToday.jsx dashRowKeyOpen, #2628).
+                  if (typeof dashRowKeyOpen === "function") return dashRowKeyOpen(e, true, () => select(rec.profile.id));
+                  if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(rec.profile.id); }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-current={picked ? "true" : undefined}
+                aria-label={"Open " + rec.profile.name + " drilldown" + (tier ? ", " + tier.title : "")}
+                data-track="Open client drilldown"
+                style={{ display: "grid", gridTemplateColumns: columns.cols, gap: 12, padding: "14px 8px 14px 4px", alignItems: "center", cursor: "pointer", position: "relative",
+                  borderTop: i === 0 || picked ? "1px solid transparent" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.05)",
+                  // ⚠ HEIGHT MEANS PRIORITY: the list rests and the selected row lifts to the panel's
+                  // own height (Lift 2), on the card's fill; nothing about its colour changes.
+                  ...(picked ? { zIndex: 1, borderRadius: 10, background: "var(--sh-card, #25211d)", boxShadow: "var(--lift-2, 0 4px 14px rgba(0,0,0,0.14))" } : null) }}
+              >
+                {/* The pill WRAPS under the name rather than squeezing it: at the table's
+                    minimum width the name column is ~130px, and a "STREAK BROKEN" pill beside
+                    it cut "Marcus T." to "M…" (measured at 390px, 2026-10-15). */}
+                <div style={{ display: "flex", gap: 10, rowGap: 4, flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
+                  {/* ⚠ THE SQUARE BEFORE THE NAME IS THE CLIENT'S TIER, NOT THEIR STATUS (owner,
+                      2026-11-06). Red, gold and green are tiers now, so the status is the group's
+                      heading and the labelled pill after the name, never a colour alone; a row
+                      with nothing flagged has no pill. An unknown tier is a hollow square that
+                      claims nothing. The name keeps the row's ink: Peak and Legend would not read
+                      as text on White. */}
+                  {tier
+                    ? <span className="sh-tier-mark" data-tier={tier.tier} role="img" aria-label={tier.title} title={tier.title} style={{ ...tier.style, width: 8, height: 8, flexShrink: 0, borderRadius: 2 }} />
+                    : <span aria-hidden="true" data-tier-unknown="" style={{ width: 8, height: 8, flexShrink: 0, borderRadius: 2, boxShadow: "inset 0 0 0 1px var(--sh-line2, #413d38)" }} />}
+                  <span title={tier ? tier.title : undefined} style={{ fontSize: 13.5, fontWeight: picked ? 600 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{rec.profile.name}</span>
+                  {/* ⚠ typeof, not truthiness — 0 is a real age. Absence renders as
+                      nothing, never as a placeholder or "private". */}
+                  {typeof ages[rec.profile.id] === "number" && (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: ink50, flexShrink: 0 }}>{ages[rec.profile.id]}</span>
+                  )}
+                  {/* The first flag that colours the row; the engine's quiet payment flag (P2) is the mark
+                      below, said once. */}
+                  {r.flags.some((f) => f.key !== "payment_retrying") && <DashPill c={sevColor}>{r.flags.find((f) => f.key !== "payment_retrying").label}</DashPill>}
+                  {r.severity === "unknown" && <DashPill c={DASH_SEV_COLORS.unknown}>{(r.progress || DashSignals.progressStatus(rec)).label}</DashPill>}
+                  {rec.profile.isNew && <DashPill c={DASH_SEV_COLORS.new}>New</DashPill>}
+                  {dashPaymentRetrying(rec) && <DashPill c={DASH_SEV_COLORS.unknown}>Payment retrying</DashPill>}
+                </div>
+                {columns.keep.map((j) => <React.Fragment key={j}>{cells[j]}</React.Fragment>)}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      {open && <DashClientDrawer row={open} role={role} onClose={() => setOwnId(null)} prefs={prefs} dismiss={dismiss} joint={joint} sessions={sessions} />}
     </div>
     </div>
   );
 }
 
-Object.assign(window, { DashRosterTable, DashRosterTiles, dashRosterMatches, dashPaymentRetrying, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted });
+// ── The peek beside the list (Clients, coach dashboard step 5a) ─────────────
+// The review: "Every client is a page away". The selected client opens on the right of the list, on
+// the same page, and ↑ ↓ move through everyone without leaving it. It docks only where two columns
+// fit (DASH_PEEK_DOCK_QUERY); narrower, the same panel is the slide-over. `children` is the list,
+// drawn as a function of the selection: ({ selectedId, select, docked }).
+// ⚠ ESC FROM INSIDE THE DOCKED PANEL PUTS FOCUS BACK ON THE ROW it was showing, so a keyboard coach
+// can carry on down the list; from the list itself focus stays where it is.
+const DASH_PEEK_DOCK_QUERY = "(min-width: 1180px)";
+function useDashMedia(query) {
+  const read = () => {
+    try { return typeof window !== "undefined" && typeof window.matchMedia === "function" && !!window.matchMedia(query).matches; }
+    catch (e) { return false; }
+  };
+  const [on, setOn] = React.useState(read);
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
+    let mq;
+    try { mq = window.matchMedia(query); } catch (e) { return undefined; }
+    const fn = () => setOn(!!mq.matches);
+    fn();
+    if (mq.addEventListener) mq.addEventListener("change", fn); else if (mq.addListener) mq.addListener(fn);
+    return () => { if (mq.removeEventListener) mq.removeEventListener("change", fn); else if (mq.removeListener) mq.removeListener(fn); };
+  }, [query]);
+  return on;
+}
+function DashRosterPeek({ triage, role, prefs, dismiss, joint, sessions, children }) {
+  const wide = useDashMedia(DASH_PEEK_DOCK_QUERY);
+  const [selectedId, setSelectedId] = React.useState(null);
+  const wrapRef = React.useRef(null);
+  const backTo = React.useRef(null);
+  const openRow = selectedId != null && Array.isArray(triage) ? triage.find((r) => r && r.client && r.client.profile && r.client.profile.id === selectedId) || null : null;
+  const docked = wide && !!openRow;
+  const close = () => {
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    const panel = wrapRef.current ? wrapRef.current.querySelector('[data-peek="docked"]') : null;
+    if (docked && (!active || active === document.body || (panel && panel.contains(active)))) backTo.current = selectedId;
+    setSelectedId(null);
+  };
+  React.useEffect(() => {
+    if (selectedId != null || backTo.current == null || !wrapRef.current) return;
+    const id = String(backTo.current);
+    backTo.current = null;
+    const el = Array.from(wrapRef.current.querySelectorAll("[data-roster-row]")).find((n) => n.getAttribute("data-roster-row") === id);
+    if (el) el.focus();
+  }, [selectedId]);
+  const panel = openRow ? <DashClientDrawer row={openRow} role={role} onClose={close} prefs={prefs} dismiss={dismiss} joint={joint} sessions={sessions} docked={docked} /> : null;
+  return (
+    <div ref={wrapRef} className={"dash-peek" + (docked ? " is-docked" : "")} data-peek-layout={docked ? "docked" : "list"}
+      style={{ display: "grid", gridTemplateColumns: docked ? "minmax(0, 1fr) minmax(340px, 400px)" : "minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+      <div style={{ minWidth: 0 }}>{children({ selectedId: openRow ? selectedId : null, select: setSelectedId, docked })}</div>
+      {docked ? panel : null}
+      {!docked ? panel : null}
+    </div>
+  );
+}
+
+Object.assign(window, { DashRosterTable, DashRosterHealth, dashRosterHealth, DashRosterPeek, dashRosterGroups, dashRosterColumns, dashRosterMatches, dashPaymentRetrying, DashClientDrawer, DashConsultDrawer, DASH_DRAWER_VIEWS, dashDrawerSections, DASH_ROSTER_VIEWS, DASH_ROSTER_SORTS, DASH_ROSTER_SORT_KEYS, dashRosterSorted, dashPeekSessions, dashNextSessionFor, dashPeekFacts, dashPeekJoint });

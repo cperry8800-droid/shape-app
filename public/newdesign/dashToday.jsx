@@ -501,10 +501,20 @@ function dashContextLine(rec, units) {
   return parts.length ? parts.slice(0, 2).join(" · ") : null;
 }
 
-function dashFindRecord(clients, who) {
+// ⚠ BY ID WHEN THE ROW HAS ONE, AND A NAME ONLY WHEN IT IS ONE CLIENT'S (Codex on #2639). Two clients
+// can share a display name, and the first match opened the other one's panel and file from Up next.
+// A row that carries its client's id (the dashboard routes send it) finds that client or nobody; a
+// row with none (the preview, an older feed) finds a name only when exactly one client has it.
+function dashFindRecord(clients, who, id) {
+  const list = clients || [];
+  const prof = (c) => (c && c.client ? c.client.profile : c && c.profile) || null;
+  if (id != null && id !== "") {
+    return list.find((c) => { const p = prof(c); return !!p && p.id != null && String(p.id) === String(id); }) || null;
+  }
   const key = String(who || "").trim().toLowerCase();
   if (!key) return null;
-  return (clients || []).find((c) => String(c.client ? c.client.profile.name : c.profile.name).trim().toLowerCase() === key) || null;
+  const hits = list.filter((c) => { const p = prof(c); return !!p && String(p.name || "").trim().toLowerCase() === key; });
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // The per-client deep dive — the REAL coach client page, by id. Only a live
@@ -1888,10 +1898,11 @@ const DASH_NOW_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 
 
 // Up next: the session the coach is in or goes to next, what they know about the client, and a
 // way to reach them. `single` is the board's widget: one action (Message), the name opens the file.
-function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false }) {
+// `peek` (the board's card): the name opens the client panel, and keeps the file's address.
+function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false, peek }) {
   const units = useDashUnits();
   const { now, items, next } = state;
-  const rec = next ? dashFindRecord(clients, next.who) : null;
+  const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
   const context = rec ? dashContextLine(rec, units) : "";
   const fileHref = rec ? dashClientHref(rec, role) : null;
   const lead = !next ? null
@@ -1911,7 +1922,7 @@ function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false
             <span style={{ fontFamily: mono, fontSize: 11, color: "var(--sh-ink3, #75706a)" }}>{next.time}</span>
           </div>
           <div style={{ fontFamily: serif, fontSize: single ? 22 : 24, fontWeight: 650, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 112", marginTop: single ? 8 : 10, lineHeight: 1.1 }}>
-            {single && fileHref ? <a href={fileHref} style={{ color: "inherit", textDecoration: "none" }}>{name}</a> : name}
+            {single && rec ? <DashPeekLink id={rec.profile ? rec.profile.id : null} rec={rec} role={role} peek={peek}>{name}</DashPeekLink> : name}
           </div>
           {next.sub && <div style={{ fontSize: 13, color: "var(--sh-ink2, #a09b94)", marginTop: 4 }}>{next.sub}</div>}
           <div style={{ fontSize: 12.5, color: "var(--sh-ink2, #a09b94)", marginTop: single ? 10 : 12, paddingTop: single ? 10 : 12, borderTop: "1px solid var(--sh-line, #302c27)" }}>{context || "No shared history yet"}</div>
@@ -2019,17 +2030,45 @@ function DashTierDot({ points, size = 8 }) {
   return <span className="sh-tier-mark" data-tier={m.tier} role="img" aria-label={m.title} title={m.title}
     style={{ ...m.style, display: "inline-block", width: size, height: size, borderRadius: "50%", flexShrink: 0, verticalAlign: "0.08em", marginRight: Math.round(size * 0.7) }} />;
 }
+// ⚠ ANY CLIENT NAME OPENS THE SAME PANEL (the owner's coach review, step 5a): a plain click on a name
+// opens the client panel on this page (DashClientDrawer) rather than leaving it, and the name keeps
+// its own address (dashClientHref), so ⌘/Ctrl-click, Shift-click and a middle click still open the
+// full client file in a tab or a window, as any link does. `peek` is the page's { can(id), open(id) }.
+// A name with no address (the preview's people have no file) is a button that opens the panel; one
+// the panel can't open (not on the roster) keeps its plain link, or is just the name.
+function dashPeekClick(e, open) {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  open();
+  return true;
+}
+function DashPeekLink({ id, rec, role, peek, label, style, children }) {
+  const href = rec ? dashClientHref(rec, role) : id != null ? dashClientHref({ profile: { id } }, role) : null;
+  const can = !!(peek && typeof peek.can === "function" && typeof peek.open === "function" && id != null && peek.can(id));
+  const base = { color: "inherit", textDecoration: "none", ...(style || {}) };
+  if (href) {
+    return <a href={href} data-dash-peek-name={can ? "" : undefined} aria-label={label} onClick={can ? (e) => dashPeekClick(e, () => peek.open(id)) : undefined} style={base}>{children}</a>;
+  }
+  if (can) {
+    return <button type="button" data-dash-peek-name="" aria-label={label} onClick={(e) => { e.stopPropagation(); peek.open(id); }}
+      style={{ ...base, font: "inherit", letterSpacing: "inherit", background: "none", border: 0, padding: 0, margin: 0, cursor: "pointer", textAlign: "inherit" }}>{children}</button>;
+  }
+  return <React.Fragment>{children}</React.Fragment>;
+}
 // A client's name in the page's ink, their tier's dot before it, the tier in words on hover. The
 // dot is held to the name's first word, so a narrow card wraps the name but never strands the dot.
-function DashClientName({ points, size, weight = 600, children }) {
+// `link` ({ id, rec, role, peek }) makes the name open the client panel (DashPeekLink).
+function DashClientName({ points, size, weight = 600, children, link }) {
   const m = dashTierMark(points);
   const text = typeof children === "string" ? children : null;
   const cut = text ? text.indexOf(" ") : -1;
   const head = cut > 0 ? text.slice(0, cut) : children;
   const tail = cut > 0 ? text.slice(cut) : null;
+  const inner = <React.Fragment>{m ? <span style={{ whiteSpace: "nowrap" }}><DashTierDot points={points} size={size} />{head}</span> : head}{tail}</React.Fragment>;
   return (
     <span title={m ? m.title : undefined} style={weight == null ? undefined : { fontWeight: weight }}>
-      {m ? <span style={{ whiteSpace: "nowrap" }}><DashTierDot points={points} size={size} />{head}</span> : head}{tail}
+      {link ? <DashPeekLink {...link}>{inner}</DashPeekLink> : inner}
     </span>
   );
 }
@@ -2077,9 +2116,9 @@ function dashNextToday(rows, demoRows, now, zone) {
     if (!Number.isFinite(at)) continue;
     if (r.status && (DASH_NOW_STATUSES.indexOf(r.status) === -1 || r.status === "completed")) continue;
     if (at <= now || dayOf(at) !== today) continue;
-    if (!best || at < best.at) best = { at, who: r.who };
+    if (!best || at < best.at) best = { at, who: r.who, clientId: r.clientId != null ? r.clientId : null };
   }
-  return best ? { who: best.who, time: dashBriefTime(new Date(best.at).toISOString(), zone) } : null;
+  return best ? { who: best.who, clientId: best.clientId, time: dashBriefTime(new Date(best.at).toISOString(), zone) } : null;
 }
 
 // ⚠ THE BRIEF NAMES WHO NEEDS THE COACH, NEVER A TIME (owner, 2026-11-06): "3 clients need your
@@ -2139,19 +2178,22 @@ function dashRowKeyOpen(e, canOpen, open) {
 
 // The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
 // day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
-function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit }) {
+function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
-  const rec = next ? dashFindRecord(clients, next.who) : null;
+  const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
   const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit });
-  return <DashBriefCard model={model} />;
+  return <DashBriefCard model={model} role={role} peek={peek} />;
 }
-function DashBriefCard({ model }) {
+// With a `role`, each named client is a name that opens the client panel (`peek`), or their file.
+function DashBriefCard({ model, role, peek }) {
   return (
     <section aria-label="Brief" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 22px" }}>
       <div style={{ ...DASH_MONO_EYEBROW, marginBottom: 10 }}>Brief</div>
       <p data-dash-brief="" style={{ margin: 0, fontFamily: serif, fontSize: 22, lineHeight: 1.35, fontWeight: 500, letterSpacing: "-0.01em", fontVariationSettings: "'wdth' 108" }}>
-        {dashBriefPieces(model).map((p, i) => p.name ? <DashClientName key={i} points={p.points} size={10}>{p.t}</DashClientName> : <React.Fragment key={i}>{p.t}</React.Fragment>)}
+        {dashBriefPieces(model).map((p, i) => p.name
+          ? <DashClientName key={i} points={p.points} size={10} link={role && p.id != null ? { id: p.id, role, peek } : null}>{p.t}</DashClientName>
+          : <React.Fragment key={i}>{p.t}</React.Fragment>)}
       </p>
     </section>
   );
@@ -2239,14 +2281,17 @@ function dashNeedsFoldText(fold) {
   return parts.join(" · ");
 }
 
-function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
+// `peek` is the page's client panel ({ can, open }: Today's one panel for every name on it); without
+// one the board opens its own, as it did before step 5a.
+function DashNeedsBoard({ items, feed, role, prefs, dismiss, peek, joint }) {
   const [all, setAll] = React.useState(false);
   const [selectedId, setSelectedId] = React.useState(null);
   const fold = dashNeedsFold(items);
   const rows = all ? items : fold.shown;
   const Drawer = typeof window !== "undefined" && typeof window.DashClientDrawer === "function" ? window.DashClientDrawer : null;
   const rowOf = (id) => (Array.isArray(feed) ? feed.find((r) => r && r.client && r.client.profile && r.client.profile.id === id) : null) || null;
-  const openRow = selectedId != null ? rowOf(selectedId) : null;
+  const pk = peek || { can: (id) => !!(Drawer && id != null && rowOf(id)), open: setSelectedId };
+  const openRow = !peek && selectedId != null ? rowOf(selectedId) : null;
   // ⚠ THE JOINT NOTE NEVER FAILS IN SILENCE. dashOpenCareTeam answers false when the thread can't be
   // opened (the route refused, the network) and for a client who is not a real account (the
   // preview's): the row then says so, instead of a button that did nothing.
@@ -2274,20 +2319,26 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
     <span data-dash-shared={it.shared} title={it.sharedWith && it.sharedWith.name ? "Shared with their " + it.shared + ", " + it.sharedWith.name : undefined}
       style={{ ...chipStyle, color: "var(--sh-rust, #e0644b)" }}>{"Shared · " + it.shared}</span>
   );
+  // ⚠ THE NAME IS THE ROW'S OPENER, BESIDE ITS ACTION, NEVER AROUND IT (step 5a). The row used to be
+  // a role="button" holding the action button; a name that is a link could not sit inside it as
+  // well. The name now opens the panel (a plain click) or the file (⌘/Ctrl or a middle click), the
+  // keyboard reaches it with Tab, and a click on the rest of the row still opens the panel.
   const renderRow = (it, i) => {
-    const canOpen = !!(Drawer && it.id != null && rowOf(it.id));
+    const canOpen = !!(it.id != null && pk.can(it.id));
     const points = dashRecordTier(it.client);
     const tier = dashTierMark(points);
     return (
       <div key={(it.id != null ? it.id : "x") + ":" + i} data-dash-need={it.kind}
-        onClick={() => { if (canOpen) setSelectedId(it.id); }}
-        onKeyDown={(e) => dashRowKeyOpen(e, canOpen, () => setSelectedId(it.id))}
-        role={canOpen ? "button" : undefined} tabIndex={canOpen ? 0 : undefined} aria-label={canOpen ? "Open " + it.name + (tier ? ", " + tier.title : "") : undefined}
+        // A click on the row's own surface opens the panel; one on the name or the action is theirs,
+        // so a ⌘/Ctrl-click on the name opens the file in a tab and nothing here.
+        onClick={(e) => { if (!canOpen || (e.target && e.target.closest && e.target.closest("a, button"))) return; pk.open(it.id); }}
         style={{ display: "grid", gridTemplateColumns: "10px minmax(0,1fr) auto", gap: 12, alignItems: "center", padding: "11px 2px", borderTop: i === 0 ? "none" : "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", cursor: canOpen ? "pointer" : "default" }}>
         <DashClientGem points={points} />
         <div style={{ minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span title={tier ? tier.title : undefined} style={{ fontSize: 14, fontWeight: 600 }}>{it.name}</span>
+            <span title={tier ? tier.title : undefined} style={{ fontSize: 14, fontWeight: 600 }}>
+              <DashPeekLink id={it.id} rec={it.client} role={role} peek={pk} label={canOpen ? "Open " + it.name + (tier ? ", " + tier.title : "") : undefined}>{it.name}</DashPeekLink>
+            </span>
             {chip(it.kind)}
             {it.shared && sharedChip(it)}
           </div>
@@ -2322,14 +2373,14 @@ function DashNeedsBoard({ items, feed, role, prefs, dismiss }) {
         </button>
       )}
       {all && items.length > DASH_NEEDS_SHOWN && <button type="button" aria-expanded={true} onClick={() => setAll(false)} style={{ ...DASH_WIDGET_BUTTON, marginTop: 8 }}>Show fewer</button>}
-      {openRow && Drawer && <Drawer row={openRow} role={role} onClose={() => setSelectedId(null)} prefs={prefs} dismiss={dismiss} />}
+      {openRow && Drawer && <Drawer row={openRow} role={role} onClose={() => setSelectedId(null)} prefs={prefs} dismiss={dismiss} joint={joint} />}
     </section>
   );
 }
 
 // The widget: the engine's split (null when the pulse could not be read), the roster's wins, in the
 // reader's units, and the shared clients' joint attention (useDashboard's `joint`).
-function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss }) {
+function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss, peek }) {
   const units = useDashUnits();
   if (!split) {
     return <section aria-label="Needs you" data-dash-lift="2" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 20px" }}>
@@ -2337,13 +2388,13 @@ function DashNeedsWidget({ split, clients, feed, joint, role, prefs, dismiss }) 
       <p style={{ margin: 0, fontSize: 13, color: "var(--sh-ink2, #a09b94)" }}>Who needs you couldn't be read just now. Reload to try again.</p>
     </section>;
   }
-  return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units), joint)} feed={feed} role={role} prefs={prefs} dismiss={dismiss} />;
+  return <DashNeedsBoard items={dashNeedsItems(split, dashWinRows(clients, units), joint)} feed={feed} role={role} prefs={prefs} dismiss={dismiss} peek={peek} joint={joint} />;
 }
 // `unread`: a signed-in coach's day feed failed (rows null on a live page). Neither card may then
 // say the day is clear or done; that is a claim about a day nobody read.
-function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone, unread = false }) {
+function DashUpNextWidget({ rows, demoRows, clients, role, unit, zone, unread = false, peek }) {
   const state = useDashNowState(rows, demoRows);
-  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single unread={unread} />;
+  return <DashUpNextCard rows={rows} state={state} clients={clients} role={role} unit={unit} zone={zone} single unread={unread} peek={peek} />;
 }
 function DashTimelineWidget({ rows, demoRows, clients, role, unit, zone, onOpenCalendar, unread = false }) {
   const state = useDashNowState(rows, demoRows);
@@ -2702,6 +2753,16 @@ function CoachDashboardPage({ role }) {
   const prefs = useRememberedChoices(source === "live");
   const [pinned, togglePin] = useRememberedSet(prefs, "pulsePinned:" + role, 12);
 
+  // ── The client panel (coach dashboard step 5a: "any client name opens the same side panel the
+  // Clients page uses"). The Brief's, Up next's and Needs you's names open this one panel, the
+  // slide-over here, over the engine's own row for the client, with the page's store (the drawer's
+  // ⚙ rule), the joint list and this page's schedule. A name the panel can't open keeps its link.
+  const [peekId, setPeekId] = React.useState(null);
+  const peekRowOf = (id) => (Array.isArray(triage) ? triage.find((r) => r && r.client && r.client.profile && r.client.profile.id === id) : null) || null;
+  const peekReady = typeof window !== "undefined" && typeof window.DashClientDrawer === "function";
+  const peek = { can: (id) => peekReady && id != null && !!peekRowOf(id), open: (id) => setPeekId(id) };
+  const peekRow = peekReady && peekId != null ? peekRowOf(peekId) : null;
+
   // Which four figures each strip shows (review 2026-09-09, R15) — per account AND per
   // role, because one auth user can own a trainer row and a nutritionist row and the two
   // Todays measure different practices. `useRememberedChoice` deletes a key whose value
@@ -2717,7 +2778,9 @@ function CoachDashboardPage({ role }) {
   const sample = source !== "live";
   const firstName = live ? live.user.firstName : sample ? cfg.mockName : "";
 
-  const todayRows = live && Array.isArray(live.today) ? live.today : null;
+  // ⚠ A FAILED SESSIONS READ IS UNREAD, NOT AN EMPTY DAY (Codex on #2639): the route says so with
+  // sessionsRead false, and the day then reads "couldn't be read", as a failed feed does.
+  const todayRows = live && Array.isArray(live.today) && live.sessionsRead !== false ? live.today : null;
   // The zone the route cut Today in, so its clocks print in it (dashFmtTime's note).
   const dayZone = live && typeof live.dayZone === "string" && live.dayZone ? live.dayZone : null;
   // ⚠ THE SAMPLE'S SESSIONS ARE FOR THE PREVIEW ONLY: a signed-in coach whose day feed failed gets
@@ -2739,6 +2802,7 @@ function CoachDashboardPage({ role }) {
     ? todayRows.map((s) => {
         const at = new Date(s.scheduledAt);
         return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt, dayZone), status: s.status,
+          clientId: s.clientId != null ? String(s.clientId) : null,
           who: s.clientName || "Client", sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · ") };
       })
     : null;
@@ -2848,16 +2912,16 @@ function CoachDashboardPage({ role }) {
     // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
     // the Business overview and summary) stays in the catalogue as an optional card.
     { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", group: "clients", size: "wide",
-      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} /> },
+      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} /> },
     { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", group: "schedule", size: "narrow",
-      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} /> },
+      render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={!scheduleRead} peek={peek} /> },
     { key: "glance", title: "At a glance", blurb: "Three figures: " + (role === "nutritionist" ? "plans" : "programs") + " due, check-ins reviewed and roster logging, or pick your own with ⚙.", group: "clients", size: "wide",
       render: () => <DashGlanceCard cells={glance} />,
       settings: dashGlanceSettings(glanceChosen, role, setGlanceKpis) },
     { key: "money", title: "Money", blurb: "Recurring revenue, and your next payout from Stripe.", group: "money", size: "narrow",
       render: () => <DashMoneyCard model={money} role={role} /> },
     { key: "needsyou", title: "Needs you", blurb: "Who needs you now, who to look at this week, and good news: three rows, the rest folded.", group: "clients", size: "wide",
-      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} /> },
+      render: () => <DashNeedsWidget split={needSplit} clients={clients} feed={triage} joint={joint} role={role} prefs={prefs} dismiss={dismiss} peek={peek} /> },
     { key: "timeline", title: "Today", blurb: "Today's " + cfg.unit + "s in order, marked where the day is.", group: "schedule", size: "narrow",
       render: () => <DashTimelineWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} onOpenCalendar={calendarEvents ? openCalendar : null} unread={!scheduleRead} /> },
     // ── Optional (off until added) ──
@@ -2973,8 +3037,10 @@ function CoachDashboardPage({ role }) {
         },
       ]}
     />
+    {peekRow && <DashClientDrawer row={peekRow} role={role} onClose={() => setPeekId(null)} prefs={prefs} dismiss={dismiss} joint={joint}
+      sessions={typeof dashPeekSessions === "function" ? dashPeekSessions(live, source, role) : undefined} />}
     </React.Fragment>
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime, useDashNextPayout, dashPayoutSidebarCard, dashPayoutView, dashPayoutAmount, dashPayoutWhen, dashGlanceCells, dashLogTrend, DashLogTrendPanel, dashRecordTier, dashTierMark, DashTierDot, DashClientGem, DashClientName, dashRowKeyOpen, dashLinkedTab });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime, useDashNextPayout, dashPayoutSidebarCard, dashPayoutView, dashPayoutAmount, dashPayoutWhen, dashGlanceCells, dashLogTrend, DashLogTrendPanel, dashRecordTier, dashTierMark, DashTierDot, DashClientGem, DashClientName, dashRowKeyOpen, dashLinkedTab, dashPeekClick, DashPeekLink });
