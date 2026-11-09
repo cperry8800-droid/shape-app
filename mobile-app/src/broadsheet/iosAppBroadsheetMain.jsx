@@ -560,12 +560,12 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
   // dark ground (owner call 2026-07-13: the ticker/waveform/static pattern behind
   // the mark is gone; 2026-07-20: the ON AIR tuning dial is gone too).
   if (style === 'wire-beat') {
-    const beatMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
     return (
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: beatMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
-          <span>{tr('launch.masthead')}</span>
-        </div>
+        {/* No masthead over the mark (owner, 2026-11-09: "Remove shape community in the top part of splash
+            page screen"; it read THE SHAPE COMMUNITY over a hairline). Its height stays, so the mark sits where it
+            did and the beat and the hold still match. */}
+        <div aria-hidden="true" data-bs-splash-top="" style={{ flex: 'none', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px' }}><div style={{ height: 11 }} /></div>
         <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 26px' }}>
           <div className="bs-wire-mark-float">
             <span className="bs-wire-mark-halo" aria-hidden="true" />
@@ -1292,14 +1292,14 @@ function BSAskNoraDoor({ onAsk }) {
 
 function BSWireHold() {
   const { tr } = useTr('onboarding');
-  const holdMono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   // Mirrors the beat's composition (plate top · floating haloed mark · loading,
   // clean dark ground) so a beat→hold transition never jumps.
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ position: 'relative', zIndex: 1, margin: '0 26px', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px', borderBottom: '1px solid rgba(242,237,228,0.2)', display: 'flex', justifyContent: 'space-between', fontFamily: holdMono, fontSize: 8, fontWeight: 600, letterSpacing: '0.22em', textTransform: 'uppercase', color: 'rgba(242,237,228,0.45)' }}>
-        <span>{tr('launch.masthead')}</span>
-      </div>
+      {/* No masthead over the mark (owner, 2026-11-09: "Remove shape community in the top part of splash
+          page screen"; it read THE SHAPE COMMUNITY over a hairline). Its height stays, so the mark sits where it
+          did and the beat and the hold still match. */}
+      <div aria-hidden="true" data-bs-splash-top="" style={{ flex: 'none', padding: 'max(54px, calc(16px + env(safe-area-inset-top, 0px))) 0 10px' }}><div style={{ height: 11 }} /></div>
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div className="bs-wire-mark-float">
           <span className="bs-wire-mark-halo" aria-hidden="true" />

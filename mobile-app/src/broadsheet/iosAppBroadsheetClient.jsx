@@ -24240,16 +24240,18 @@ function BSNoraSheet({ onClose }) {
   // ⚠ THE CONCIERGE DESK (owner, 2026-10-31: "we need to update this design, dont use a previously used
   // one"). It is neither earlier look: not the round teal bubbles with a teal pill (to 2026-10-30), nor the
   // magazine's "Nora." over an ink rule with square notes, faces on both sides and an index (#2535).
-  //   · Her desk: an inverted band that stays put while the talk scrolls (her portrait in a ring, Talk to
+  //   · Her desk: a band that stays put while the talk scrolls (her portrait in a ring, Talk to
   //     Nora, Talk to a person, Clear, ×). The × is a cell of its row, so nothing can run under it.
   //   · A transcript: her words on the paper with no box, her face and name once over each turn; yours in
   //     an ink bubble with no face. Suggestions are tiles; a follow-up is a row ending in an ink →.
   //   · The screen she is told rides over the composer, the thing it goes with; the composer is one tray.
   //   · Talk to a person opens at the foot of the talk, where the eye already is.
-  // On the band the paper and the ink trade places, so its teal is the other theme's.
+  // Her desk is on the sheet's own paper, the same colour as the talk under it, a hairline between (owner,
+  // 2026-11-09, of the cream band over the dark talk: "remove the white color from the top part of chat
+  // screen. Make it all same color"); it was an inverted band, the paper and the ink traded.
   const noraTint = bsWsAccent(t);
-  const deskTeal = t.isLight ? '#34d6c5' : '#0a7a72';
-  const deskMuted = bsTHexA(t.PAPER, 0.64);
+  const deskTeal = t.isLight ? '#0a7a72' : '#34d6c5';
+  const deskMuted = bsTHexA(t.INK, 0.64);
   const screenName = !screenOff && (_bsNoraOpen.label || _bsNoraOpen.page);
   const thread = supportBusy && supportLive ? [...supportMsgs, { who: 'Nora', t: supportLive, time: 'now', me: false, bot: true, live: true }] : supportMsgs;
   // A face that will not load is asked for once more, then her N mark stands in (noraFace.mjs).
@@ -24261,14 +24263,14 @@ function BSNoraSheet({ onClose }) {
       <div onClick={onClose} aria-hidden style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.46)' }} />
       <div role="dialog" aria-label="Nora" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '88%', background: t.PAPER, borderRadius: '22px 22px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -18px 48px rgba(0,0,0,0.3)' }}>
         {/* Her desk. */}
-        <div data-nora-desk style={{ flex: 'none', background: t.INK, color: t.PAPER, padding: `8px ${t.padX}px 16px` }}>
-          <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: bsTHexA(t.PAPER, 0.26), margin: '0 auto 10px' }} />
+        <div data-nora-desk style={{ flex: 'none', background: t.PAPER, color: t.INK, padding: `8px ${t.padX}px 16px`, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}` }}>
+          <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: bsTHexA(t.INK, 0.26), margin: '0 auto 10px' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {/* Her portrait and name open her profile: a button of its own, so Talk and × are never inside it. */}
             <button type="button" onClick={() => setShowNora(true)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 13, padding: 0, border: 0, background: 'transparent', color: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
-              <span style={{ position: 'relative', flex: 'none', width: 48, height: 48, borderRadius: '50%', boxShadow: `0 0 0 2px ${t.INK}, 0 0 0 3.5px ${deskTeal}` }}>
+              <span style={{ position: 'relative', flex: 'none', width: 48, height: 48, borderRadius: '50%', boxShadow: `0 0 0 2px ${t.PAPER}, 0 0 0 3.5px ${deskTeal}` }}>
                 {face(48)}
-                <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 13, height: 13, borderRadius: '50%', background: deskTeal, border: `2.5px solid ${t.INK}`, boxSizing: 'border-box' }} />
+                <span aria-hidden style={{ position: 'absolute', right: -2, bottom: -2, width: 13, height: 13, borderRadius: '50%', background: deskTeal, border: `2.5px solid ${t.PAPER}`, boxSizing: 'border-box' }} />
               </span>
               <span style={{ minWidth: 0 }}>
                 <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 25, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em' }}>Nora</span>
@@ -24282,20 +24284,21 @@ function BSNoraSheet({ onClose }) {
             {supportMsgs.length > 1 && (
               <button type="button" onClick={clearThread} style={{ flex: 'none', minHeight: 40, padding: '0 8px', border: 0, background: 'transparent', color: deskMuted, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}>{tr('feed:support.thread.clearShort', { defaultValue: 'Clear' })}</button>
             )}
-            <button type="button" onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0, background: bsTHexA(t.PAPER, 0.12), color: t.PAPER, fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>×</button>
+            <button type="button" onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ flex: 'none', width: 40, height: 40, borderRadius: '50%', border: 0, background: bsTHexA(t.INK, 0.12), color: t.INK, fontSize: 20, lineHeight: 1, cursor: 'pointer', display: 'grid', placeItems: 'center' }}>×</button>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {/* Talk to Nora: starts inside this tap (the mic and her player unlock only for
                 work a tap starts), then her face takes the sheet. */}
-            <button type="button" data-nora-talk-button onClick={() => talk.start()} style={{ flex: 1, minWidth: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '0 12px', border: 0, borderRadius: 12, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            <button type="button" data-nora-talk-button onClick={() => talk.start()} style={{ flex: 1, minWidth: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 9, padding: '0 12px', border: 0, borderRadius: 12, background: t.INK, color: t.PAPER, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
               <span aria-hidden style={{ display: 'inline-flex', alignItems: 'center', gap: 2, height: 14 }}>
-                {[0.45, 0.85, 0.6, 1, 0.5].map((h, n) => <span key={n} style={{ width: 2.5, height: Math.round(14 * h), borderRadius: 2, background: noraTint }} />)}
+                {/* On the ink key the bars take the other theme's teal, so they read on it. */}
+                {[0.45, 0.85, 0.6, 1, 0.5].map((h, n) => <span key={n} style={{ width: 2.5, height: Math.round(14 * h), borderRadius: 2, background: t.isLight ? '#34d6c5' : '#0a7a72' }} />)}
               </span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.talk', { defaultValue: 'Talk to Nora' })}</span>
             </button>
             {/* "Talk to a person" (the Ask Nora plan, step 5): the second key, an outline, never the first. */}
             {personOk && (
-              <button type="button" data-nora-person aria-expanded={!!personForm} disabled={!!(personForm && personForm.busy)} onClick={() => (personForm ? setPersonForm(null) : openPersonForm())} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 12px', border: `1px solid ${bsTHexA(t.PAPER, personForm ? 0.7 : 0.3)}`, borderRadius: 12, background: personForm ? bsTHexA(t.PAPER, 0.12) : 'transparent', color: t.PAPER, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</button>
+              <button type="button" data-nora-person aria-expanded={!!personForm} disabled={!!(personForm && personForm.busy)} onClick={() => (personForm ? setPersonForm(null) : openPersonForm())} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 12px', border: `1px solid ${bsTHexA(t.INK, personForm ? 0.7 : 0.3)}`, borderRadius: 12, background: personForm ? bsTHexA(t.INK, 0.12) : 'transparent', color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tr('feed:support.person.button', { defaultValue: 'Talk to a person' })}</button>
             )}
           </div>
         </div>
@@ -25402,14 +25405,16 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   }, [thread.channelId, thread.conversationId]);
 
   // ── IN NORA'S SHEET'S DESIGN (owner, 2026-11-01, on a screenshot of her sheet: "also use this chat
-  // design for the rest of messaging on chat page"). The desk: an ink band holding the masthead, ←,
-  // their round face in a teal ring and their name; on it the paper and the ink trade places, so its
-  // teal is the other theme's. The talk: your words in an ink bubble on the right with no face (it is
+  // design for the rest of messaging on chat page"). The desk: a band holding the masthead, ←, their
+  // round face in a teal ring and their name, on the page's own paper. The talk: your words in an ink bubble on the right with no face (it is
   // you); theirs on the paper with no box, under their face and name, once for a run of messages from
   // the same person. The tray composer docks under it.
-  const DESK = t.INK, DESK_INK = t.PAPER;
-  const deskTeal = t.isLight ? '#34d6c5' : '#0a7a72';
-  const deskMuted = bsTHexA(t.PAPER, 0.64);
+  // The desk is on the page's own paper now, the same colour as the talk, a hairline under it (owner,
+  // 2026-11-09, of the cream band over a dark thread: "remove the white color from the top part of chat
+  // screen. Make it all same color"). It was an ink band, the paper and the ink traded.
+  const DESK = t.PAPER, DESK_INK = t.INK;
+  const deskTeal = t.isLight ? '#0a7a72' : '#34d6c5';
+  const deskMuted = bsTHexA(t.INK, 0.64);
   const counterpartId = !thread.group ? (thread.userId || thread.counterpartId || null) : null;
   // A round face: their photo, or their initials when there is none or it will not load.
   const roundFace = (size, photo, initials, ring = null) => (
@@ -25562,8 +25567,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   // which pins past 64px, would only lay a second masthead over the ink band (Codex P2 on #2556).
   return (
     <BSPage tabBarHeight={0} mast={false}>
-      {/* The desk: the masthead and ← on the ink band, then who you are talking to. */}
-      <div data-thread-desk="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 16px`, background: DESK, color: DESK_INK, position: 'sticky', top: 0, zIndex: 2 }}>
+      {/* The desk: the masthead and ←, then who you are talking to, on the page's own paper. */}
+      <div data-thread-desk="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 16px`, background: DESK, color: DESK_INK, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, position: 'sticky', top: 0, zIndex: 2 }}>
         {window.BSMastRow && <window.BSMastRow ink={DESK_INK} trailing={<BSMeCorner ink={DESK_INK} />} />}
         <BSBackRow onBack={onBack} ink={DESK_INK} style={{ marginBottom: 2 }}
           trailing={<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: deskMuted }}>{eyebrow}</span>} />

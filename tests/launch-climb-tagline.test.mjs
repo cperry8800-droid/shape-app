@@ -42,3 +42,21 @@ test('every language has both lines, and the website says the same English words
   assert.equal(plain(/<div class="iline">([\s\S]*?)<\/div>/.exec(site)[1]), words.en[0]);
   assert.equal(plain(/<div class="isub">([\s\S]*?)<\/div>/.exec(site)[1]), words.en[1]);
 });
+
+// Owner, 2026-11-09: "Remove shape community in the top part of splash page screen". The beat and the hold
+// draw no masthead over the mark, only the space it took, so the mark stays where it was on both.
+test('the splash has no masthead over the mark, on the beat and on the hold', () => {
+  const beat = MAIN.slice(MAIN.indexOf("if (style === 'wire-beat') {"), MAIN.indexOf("if (style === 'classified') {"));
+  const hold = fnBody(MAIN, 'BSWireHold');
+  for (const [name, src] of [['beat', beat], ['hold', hold]]) {
+    assert.doesNotMatch(src, /launch\.masthead/, `the ${name} prints the masthead again`);
+    assert.doesNotMatch(src, /borderBottom: '1px solid rgba\(242,237,228,0\.2\)'/, `the ${name} draws the masthead's rule again`);
+    const top = src.indexOf('data-bs-splash-top=""');
+    assert.ok(top > 0 && top < src.indexOf('<BSShapeMark size={112} calm />'), `the ${name} lost the space over the mark`);
+    assert.match(src, /<div aria-hidden="true" data-bs-splash-top="" style=\{\{ flex: 'none', padding: 'max\(54px, calc\(16px \+ env\(safe-area-inset-top, 0px\)\)\) 0 10px' \}\}><div style=\{\{ height: 11 \}\} \/><\/div>/);
+  }
+  for (const l of LOCALES) {
+    const cat = JSON.parse(read(`mobile-app/src/i18n/catalogs/${l}/onboarding.json`));
+    assert.equal(cat['launch.masthead'], undefined, `${l} still carries the masthead's words`);
+  }
+});

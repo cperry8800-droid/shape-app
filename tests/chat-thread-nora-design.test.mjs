@@ -23,15 +23,18 @@ const talk = [
   { who: MAYA, t: 'Great.', time: 'now', me: false },
 ];
 
-test('the desk: the masthead and Back on the ink band, then their name', () => {
+// Owner, 2026-11-09, of the cream band over a dark thread: "remove the white color from the top part of chat
+// screen. Make it all same color". The desk is on the page's own paper, a hairline under it.
+test('the desk: the masthead and Back on the page\'s own paper, then their name', () => {
   const d = drive(BSChatThread, { thread: thread(talk), eyebrow: 'Coach', onBack() {} });
   const nodes = d.nodes();
   const [desk] = withAttr(nodes, 'data-thread-desk');
   assert.ok(desk, 'the desk is drawn');
-  assert.equal(desk.props.style.background, THEME.INK);
-  assert.equal(desk.props.style.color, THEME.PAPER);
+  assert.equal(desk.props.style.background, THEME.PAPER, 'the desk is an inverted band again');
+  assert.equal(desk.props.style.color, THEME.INK);
+  assert.match(String(desk.props.style.borderBottom), /^1px solid /, 'no hairline between the desk and the talk');
   const back = nodes.find(named('BSBackRow'));
-  assert.ok(back && back.props.ink === THEME.PAPER, 'Back reads in the band\'s ink');
+  assert.ok(back && back.props.ink === THEME.INK, 'Back reads in the page\'s ink');
   const [name] = withAttr(nodes, 'data-thread-name');
   assert.equal(textOf(name), MAYA);
 });
