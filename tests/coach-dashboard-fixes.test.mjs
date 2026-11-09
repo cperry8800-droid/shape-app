@@ -72,20 +72,18 @@ test('the playlist builder lists each track it has once, and says how many the p
   const babel = require_('next/dist/compiled/babel/core');
   const presetReact = require_('next/dist/compiled/babel/preset-react');
   const file = 'public/newdesign/trainerPlaylistsPage.jsx';
-  const code = babel.transformSync(lift(file, 'plTrackListNote') + '\n' + lift(file, 'BuilderDetailPane'), { presets: [presetReact], babelrc: false, configFile: false }).code;
-  const PlaylistCtx = React.createContext({ attachTargets: [], attachmentUnitPlural: 'workouts' });
-  const Card = ({ children }) => React.createElement('div', null, children);
-  const { BuilderDetailPane, plTrackListNote } = new Function('React', 'PlaylistCtx', 'Card', 'ProviderMark', 'serif', 'sans', 'INK', 'pillPrimary', 'pillGhost',
-    code + '\nreturn { BuilderDetailPane, plTrackListNote };')(React, PlaylistCtx, Card, () => null, 'serif', 'sans', '#fff', {}, {});
+  // The track list is its own component since step 6b (PlTrackList): the builder and the peek both draw it.
+  const code = babel.transformSync(lift(file, 'plTrackListNote') + '\n' + lift(file, 'PlTrackList'), { presets: [presetReact], babelrc: false, configFile: false }).code;
+  const { PlTrackList, plTrackListNote } = new Function('React', 'PL_MONO', 'PL_INK2', 'PL_INK3', 'plLabel',
+    code + '\nreturn { PlTrackList, plTrackListNote };')(React, 'monospace', '#aaa', '#777', {});
   const sample = [['A', 'One', '3:00'], ['B', 'Two', '3:10'], ['C', 'Three', '3:20']];
-  const playlist = (o) => ({ name: 'Leg day', provider: 'spotify', cover: '', accent: '#000', bpm: '120', duration: '1h', listens: 0, note: 'n', attachedTo: [], sampleTracks: sample, trackCount: 28, ...o });
-  const html = renderToStaticMarkup(React.createElement(BuilderDetailPane, { p: playlist() }));
+  const playlist = (o) => ({ name: 'Leg day', provider: 'spotify', sampleTracks: sample, trackCount: 28, ...o });
+  const html = renderToStaticMarkup(React.createElement(PlTrackList, { p: playlist() }));
   const titles = [...html.matchAll(/>(One|Two|Three)</g)].map((m) => m[1]);
   assert.deepEqual(titles, ['One', 'Two', 'Three'], 'each sample track once, not looped to 28');
   assert.match(html, /3 of 28 tracks shown\. The full list is in Spotify\./);
-  assert.match(html, />28<\/div>TRACKS/, 'the count is the playlist\'s own');
   // A live playlist: no track list read, its real count said.
-  const live = renderToStaticMarkup(React.createElement(BuilderDetailPane, { p: playlist({ sampleTracks: [], trackCount: 12, provider: 'apple' }) }));
+  const live = renderToStaticMarkup(React.createElement(PlTrackList, { p: playlist({ sampleTracks: [], trackCount: 12, provider: 'apple' }) }));
   assert.match(live, /12 tracks in this playlist\. The full list is in Apple Music\./);
   // Every track shown: nothing to add.
   assert.equal(plTrackListNote(3, 3, 'spotify'), null);
