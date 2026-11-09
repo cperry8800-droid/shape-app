@@ -145,8 +145,8 @@ function ScoreHero() {
               </defs>
               <circle cx="140" cy="140" r={R} stroke="rgba(242,237,228,0.08)" strokeWidth="14" fill="none" />
               <circle cx="140" cy="140" r={R} stroke="url(#ring-grad)" strokeWidth="14" fill="none" strokeLinecap="round" strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 140 140)" />
-              <text x="140" y="128" textAnchor="middle" fontFamily="Fraunces, serif" fontSize="72" fontWeight="400" fill={INK} letterSpacing="-3">{SCORE_TOTAL}</text>
-              <text x="140" y="152" textAnchor="middle" fontFamily="Space Grotesk, sans-serif" fontSize="13" fill="rgba(242,237,228,0.5)">of {SCORE_GOAL}</text>
+              <text x="140" y="128" textAnchor="middle" fontFamily="'Anybody', 'Anybody Fallback', system-ui, sans-serif" fontSize="72" fontWeight="400" fill={INK} letterSpacing="-3">{SCORE_TOTAL}</text>
+              <text x="140" y="152" textAnchor="middle" fontFamily="'Schibsted Grotesk', 'Schibsted Fallback', system-ui, sans-serif" fontSize="13" fill="rgba(242,237,228,0.5)">of {SCORE_GOAL}</text>
               <text x="140" y="176" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="10" fill={TEAL} letterSpacing="1.5">{STREAK}-DAY STREAK</text>
             </svg>
             <ScExample style={{ marginTop: 10 }} />
