@@ -345,7 +345,11 @@ test('the assignment sends a rest day its own target, a meal\'s note as coachNot
   doc.days[2].slots[1].recipeId = 'chickpea-shakshuka';
   const out = W.buildAssignment(DashMeals, doc, { trainingDows: [0, 2, 3, 4], scale: 1.1 });
   assert.equal(out.days[0].tag, 'TRAIN'); assert.equal(out.days[0].targets.cal, Math.round(1900 * 1.1));
-  assert.equal(out.days[1].tag, 'TRAIN', 'no rest version: the core serves the training day');
+  // No rest version: the training meals are served, but the weekday is still sent as a rest day,
+  // since the member's Eat marks rest days by tag (Codex on #2648).
+  assert.equal(out.days[1].tag, 'REST', 'a weekday the client doesn\'t train on was sent as a training day');
+  assert.match(out.days[1].title, / · rest$/);
+  assert.equal(out.days[2].tag, 'TRAIN');
   // …but it is still a rest weekday for this client, so it is measured against the rest-day target
   // (scaled), not the training one: a plan with a rest target and no rest versions sent 1,900 every day.
   assert.deepEqual(out.days[1].targets, { cal: Math.round(1700 * 1.1), p: Math.round(165 * 1.1), c: Math.round(150 * 1.1), f: Math.round(55 * 1.1) });
@@ -367,10 +371,13 @@ test('the assignment sends a rest day its own target, a meal\'s note as coachNot
   const shifted = W.buildAssignment(DashMeals, doc, { trainingDows: [0] });
   assert.equal(shifted.days[1].meals[0].title, doc.days[1].slots[1].name);
   assert.equal(shifted.days[1].meals[0].coachNote, 'Pack this one');
-  // No rest-day target: exactly the core's snapshot.
+  // No rest-day target: the core's snapshot, with every weekday the client doesn't train on sent as a
+  // rest day (its meals and targets unchanged).
   const plain = weekDoc(); delete plain.restTargets; plain.days[1].variants = { rest: { overrides: {}, extras: [] } };
   for (const m of plain.days[2].slots) delete m.note;
-  assert.deepEqual(W.buildAssignment(DashMeals, plain, { trainingDows: [0] }), DashMeals.buildMealAssignment(plain, { trainingDows: [0] }));
+  const core = DashMeals.buildMealAssignment(plain, { trainingDows: [0] });
+  core.days.forEach((d) => { if (d.dow !== 0 && d.tag !== 'REST') { d.tag = 'REST'; d.title += ' · rest'; } });
+  assert.deepEqual(W.buildAssignment(DashMeals, plain, { trainingDows: [0] }), core);
   assert.equal(W.targetsFor(plain, 'rest').kcal, 1900); assert.equal(W.hasRestTargets(plain), false);
   const g = W.groceryTop([{ name: 'B', meals: ['x'] }, { name: 'A', meals: ['x', 'y'] }, { name: 'C', meals: [] }, { name: 'D', meals: ['x'] }], 3);
   assert.deepEqual(g.top.map((x) => x.name), ['A', 'B', 'D']); assert.equal(g.more, 1);

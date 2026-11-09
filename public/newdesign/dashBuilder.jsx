@@ -2313,7 +2313,7 @@ function DbuProgressionChart({ doc, rule, now = [] }) {
     if (!pick && W.progressionStatus(doc, 0, di, bi, ri) === "source") pick = { name: String(r.name || "").trim(), di };
   })));
   if (!pick || weeks.length < 2) return null;
-  const series = DashBuilder.progressionSeries(doc, pick.name, pick.di);
+  const series = DashBuilder.progressionSeries(doc, pick.name, pick.di, rule.unit);
   const pts = series.filter((p) => p.load != null);
   if (pts.length < 2) return null;
   const unit = rule.unit === "pct" ? "% 1RM" : " " + dbuUnitLabel(rule.unit);

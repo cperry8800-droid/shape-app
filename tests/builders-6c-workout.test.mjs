@@ -193,6 +193,9 @@ test('a card\'s loads change on last week\'s same day, and the series follows on
   assert.deepEqual(DashBuilder.sessionLoadLines(doc, 0, 0).map((l) => l.delta), [null, null], 'week 1 has no last week to change on');
   assert.deepEqual(DashBuilder.sessionLoadLines(doc, 3, 0).map((l) => l.delta), [0, 0], 'a deload week holds its loads');
   assert.deepEqual(DashBuilder.progressionSeries(doc, 'Back squat', 0).map((p) => [p.load, p.deload]), [[255, false], [260, false], [265, false], [265, true]]);
+  // A week whose row is in another unit isn't plotted in the rule's unit (Codex on #2648).
+  doc.weeks[2].days[0].blocks.forEach((b) => (b.rows || []).forEach((r) => { if (r.name === 'Back squat') { r.loadType = 'kg'; } }));
+  assert.deepEqual(DashBuilder.progressionSeries(doc, 'Back squat', 0, 'lb').map((p) => p.load), [255, 260, null, 265], 'a kg week was plotted as pounds');
 });
 
 test('a ladder\'s loads are the card\'s and the chart\'s, not the row\'s base load (Codex on #2648)', () => {

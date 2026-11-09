@@ -370,7 +370,8 @@
   // The core's snapshot (DashMeals.buildMealAssignment) with what the week adds: a rest day measured
   // against the plan's rest-day target (scaled like the training one), the coach's note on a meal as
   // `coachNote` (the client's Kitchen card prints it, labelled COACH), and a Kitchen meal's recipe id.
-  // Which weekday is a rest day is the core's call (its `tag`), never re-derived here.
+  // Which MEALS a weekday serves is the core's call (a rest version where it has one), never
+  // re-derived here; whether the weekday is a rest day is the client's training days.
   // ⚠ A REST DAY IS ANY WEEKDAY THE CLIENT DOES NOT TRAIN ON, whether or not the plan wrote a rest
   // version of its meals: the core tags a day REST only when it serves a rest version, so a plan with
   // a rest-day target and no rest versions used to send every weekday the training target.
@@ -381,12 +382,20 @@
     var n = (plan.days || []).length;
     var training = Array.isArray(o.trainingDows) ? o.trainingDows : [0, 2, 4];
     out.days.forEach(function (d) {
+      // The version of the meals the core served, read before the tag below changes.
+      var served = d.tag === "REST" ? "rest" : "training";
+      // A weekday the client doesn't train on is sent as a rest day (Codex on #2648): the member's
+      // Eat marks rest days by `tag === "REST"`, and the core tags only days with a rest version.
+      if (training.indexOf(d.dow) < 0 && d.tag !== "REST") {
+        d.tag = "REST";
+        if (!/ · rest$/.test(d.title || "")) d.title = (d.title || "") + " · rest";
+      }
       if ((d.tag === "REST" || training.indexOf(d.dow) < 0) && validTargets(plan.restTargets)) {
         var r = plan.restTargets;
         d.targets = { cal: Math.round(num(r.kcal) * scale), p: Math.round(num(r.p) * scale), c: Math.round(num(r.c) * scale), f: Math.round(num(r.f) * scale) };
       }
       if (!n) return;
-      var src = core.resolveDay(plan.days[d.dow % n], d.tag === "REST" ? "rest" : "training");
+      var src = core.resolveDay(plan.days[d.dow % n], served);
       d.meals.forEach(function (m, i) {
         var s = src[i];
         if (!s) return;

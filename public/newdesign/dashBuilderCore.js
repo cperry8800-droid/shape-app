@@ -1604,8 +1604,9 @@
   }
   // One move's load in every week, for the progression chart: the move named `name` on week 1's
   // day `di`, found week by week on the same weekday. [{ week, load, deload }]; a week without
-  // the move, or without a weight for it, has load null.
-  function progressionSeries(builder, name, di) {
+  // the move, or without a weight for it, has load null. Given `unit`, a week whose row is in
+  // another unit has load null too, so a chart captioned in kg never plots pounds (Codex on #2648).
+  function progressionSeries(builder, name, di, unit) {
     var weeks = (builder && builder.weeks) || [];
     var first = weeks[0] && weeks[0].days[di || 0];
     var wd = first && Number.isInteger(first.weekday) ? first.weekday : null;
@@ -1616,7 +1617,7 @@
       var d = at >= 0 ? days[at] : days[di || 0];
       var hit = null;
       ((d && d.blocks) || []).forEach(function (b) { ((b && b.rows) || []).forEach(function (r) { if (!hit && r && tagText(r.name).toLowerCase() === key) hit = r; }); });
-      var n = hit ? topLoad(hit) : NaN;
+      var n = hit && (!unit || hit.loadType === unit) ? topLoad(hit) : NaN;
       return { week: wi + 1, load: Number.isFinite(n) && n > 0 ? n : null, deload: !!(w && w.deload) };
     });
   }
