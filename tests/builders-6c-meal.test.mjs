@@ -435,8 +435,15 @@ test('rest days are measured against the plan\'s rest-day target, and say so whe
   assert.match(words(document.querySelector('[data-week]')), /rest days use the training target until you set one/);
   // Setting one in the fold measures them against it, and it saves.
   await click(document.querySelector('details.dmb-settings input[type="checkbox"]'));
+  // Clearing the kcal to type a new one keeps the editor open and the other figures (Codex on #2648).
+  await typeInto(document.querySelector('[aria-label="Rest-day Protein g target"]'), '150');
+  await typeInto(document.querySelector('[aria-label="Rest-day kcal target"]'), '');
+  assert.ok(document.querySelector('[aria-label="Rest-day kcal target"]'), 'clearing the kcal closed the rest-target editor');
+  assert.equal(document.querySelector('[aria-label="Rest-day Protein g target"]').value, '150', 'the other rest figures were lost');
+  assert.equal(document.querySelector('[aria-label="Rest-day kcal target"]').value, '');
   await typeInto(document.querySelector('[aria-label="Rest-day kcal target"]'), '1650');
   assert.equal(head('Sunday'), 'Sunday Sun 1,370 / 1,650 Under');
+  assert.equal(document.querySelector('[aria-label="Rest-day Protein g target"]').value, '150');
   await click(button('← Library'));
   assert.equal(lastSave()[2].detail.mealBuilder.restTargets.kcal, 1650);
 });

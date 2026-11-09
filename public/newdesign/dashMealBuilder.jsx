@@ -853,7 +853,9 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
 
   const setDay = (i, next) => setDoc({ ...doc, days: doc.days.map((d, j) => (j === i ? next : d)) });
   const setTargets = (k, v) => setDoc({ ...doc, targets: { ...doc.targets, [k]: Math.max(0, Number(v) || 0) } });
-  const setRest = (k, v) => setDoc({ ...doc, restTargets: { ...(doc.restTargets || doc.targets), [k]: Math.max(0, Number(v) || 0) } });
+  // A field the coach has just cleared stays empty while they type (Codex on #2648): as 0 it read as
+  // no rest target, which closed the editor and lost the other three.
+  const setRest = (k, v) => setDoc({ ...doc, restTargets: { ...(doc.restTargets || doc.targets), [k]: v === "" ? "" : Math.max(0, Number(v) || 0) } });
   const setConstraint = (k, v) => setDoc({ ...doc, constraints: { ...doc.constraints, [k]: v } });
   const duplicateDay = (i) => {
     const copy = JSON.parse(JSON.stringify(doc.days[i]));
@@ -928,6 +930,8 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
   const phase = dmbPhase(doc.goalPhase);
   const warnings = day ? DashMeals.checkConstraints(doc, col.meals) : [];
   const restOwn = W.hasRestTargets(doc);
+  // The editor is open while the plan has a rest target at all; it measures only once its kcal is set.
+  const restOn = !!(doc.restTargets && typeof doc.restTargets === "object");
 
   return (
     <div className="dmb-tool" data-builder="meal">
@@ -1139,10 +1143,10 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
               </div>
               <div>
                 <label style={{ ...dmbLabel, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                  <input type="checkbox" checked={restOwn} onChange={(e) => setDoc(e.target.checked ? { ...doc, restTargets: { ...doc.targets } } : (() => { const next = { ...doc }; delete next.restTargets; return next; })())} />
+                  <input type="checkbox" checked={restOn} onChange={(e) => setDoc(e.target.checked ? { ...doc, restTargets: { ...doc.targets } } : (() => { const next = { ...doc }; delete next.restTargets; return next; })())} />
                   Rest days have their own target
                 </label>
-                {restOwn ? (
+                {restOn ? (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {[["kcal", "kcal"], ["p", "Protein g"], ["c", "Carbs g"], ["f", "Fat g"]].map(([k, l]) => (
                       <div key={k}><span style={dmbLabel}>{l}</span><input aria-label={"Rest-day " + l + " target"} type="number" value={doc.restTargets[k]} onChange={(e) => setRest(k, e.target.value)} style={{ ...dmbField, width: "100%" }} /></div>
