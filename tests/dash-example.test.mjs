@@ -9,7 +9,7 @@
 // is empty and in Settings.
 //
 // Compares booleans and strings, never DOM nodes (tests/assert-dom-value.test.mjs).
-import test from 'node:test';
+import test, { afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -217,14 +217,21 @@ const CLIENTS = {
 share();
 
 const settle = async (n = 6) => { for (let i = 0; i < n; i++) await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
+// ⚠ EVERY PAGE IS UNMOUNTED AFTER ITS TEST, A FAILED ONE INCLUDED. A page left mounted keeps its clock
+// timers running, so a failed assertion before its unmount hung the file instead of failing it.
+const mounted = new Set();
 async function mount(el) {
   const div = document.createElement('div');
   document.body.appendChild(div);
   const root = createRoot(div);
+  let gone = false;
+  const unmount = async () => { if (gone) return; gone = true; mounted.delete(unmount); await React.act(async () => { root.unmount(); div.remove(); }); };
+  mounted.add(unmount);
   await React.act(async () => root.render(el));
   await settle();
-  return { div, text: () => div.textContent.replace(/\s+/g, ' ').trim(), unmount: () => React.act(async () => { root.unmount(); div.remove(); }) };
+  return { div, text: () => div.textContent.replace(/\s+/g, ' ').trim(), unmount };
 }
+afterEach(async () => { for (const u of [...mounted]) await u(); });
 const json = (body, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 const ROLE_KEY = { trainer: 'isTrainer', nutritionist: 'isNutritionist' };
 const uid = (i) => String(i).padStart(8, '0') + '-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
