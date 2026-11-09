@@ -25415,6 +25415,22 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   const DESK = t.PAPER, DESK_INK = t.INK;
   const deskTeal = t.isLight ? '#0a7a72' : '#34d6c5';
   const deskMuted = bsTHexA(t.INK, 0.64);
+  // The page's own background under the desk (Codex P2 on #2651): BSPage paints its scroller with the
+  // paper's background (Steel's metal) and the member's texture, sized to the screen; a flat DESK would
+  // still read as a band on those. The desk holds a layer of that same background, as tall as the screen
+  // and clipped to the desk, so the desk (always at the screen's top) shows exactly what is behind it.
+  const pageBg = t.TEXTURE ? `${t.TEXTURE}, ${t.PAPER_BG}` : t.PAPER_BG;
+  const deskRef = React.useRef(null);
+  const [deskPaperH, setDeskPaperH] = useStateBSC(null);
+  React.useLayoutEffect(() => {
+    const sc = deskRef.current && deskRef.current.closest('.bs-scroll');
+    if (!sc) return undefined;
+    const measure = () => setDeskPaperH(sc.clientHeight || null);
+    measure();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    if (ro) ro.observe(sc);
+    return () => { if (ro) ro.disconnect(); };
+  }, []);
   const counterpartId = !thread.group ? (thread.userId || thread.counterpartId || null) : null;
   // A round face: their photo, or their initials when there is none or it will not load.
   const roundFace = (size, photo, initials, ring = null) => (
@@ -25568,7 +25584,8 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
   return (
     <BSPage tabBarHeight={0} mast={false}>
       {/* The desk: the masthead and ←, then who you are talking to, on the page's own paper. */}
-      <div data-thread-desk="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 16px`, background: DESK, color: DESK_INK, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, position: 'sticky', top: 0, zIndex: 2 }}>
+      <div ref={deskRef} data-thread-desk="" style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 16px`, background: DESK, color: DESK_INK, borderBottom: `1px solid ${bsTHexA(t.INK, 0.1)}`, position: 'sticky', top: 0, zIndex: 2, overflow: 'hidden', isolation: 'isolate' }}>
+        {pageBg ? <div aria-hidden data-thread-desk-paper="" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: deskPaperH || '100%', background: pageBg, zIndex: -1, pointerEvents: 'none' }} /> : null}
         {window.BSMastRow && <window.BSMastRow ink={DESK_INK} trailing={<BSMeCorner ink={DESK_INK} />} />}
         <BSBackRow onBack={onBack} ink={DESK_INK} style={{ marginBottom: 2 }}
           trailing={<span style={{ fontFamily: t.MONO, fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: deskMuted }}>{eyebrow}</span>} />

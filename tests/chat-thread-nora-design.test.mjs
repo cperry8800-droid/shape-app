@@ -35,6 +35,15 @@ test('the desk: the masthead and Back on the page\'s own paper, then their name'
   assert.match(String(desk.props.style.borderBottom), /^1px solid /, 'no hairline between the desk and the talk');
   const back = nodes.find(named('BSBackRow'));
   assert.ok(back && back.props.ink === THEME.INK, 'Back reads in the page\'s ink');
+  // Codex P2 on #2651: on Steel's metal or a texture the desk shows the page's own background, a layer of
+  // it as tall as the screen, clipped to the desk, under its content.
+  const [paper] = withAttr(nodes, 'data-thread-desk-paper');
+  assert.ok(paper, 'the desk lays the page\'s background under itself');
+  assert.equal(paper.props.style.background, `${THEME.TEXTURE}, ${THEME.PAPER_BG}`);
+  assert.equal(paper.props.style.zIndex, -1);
+  assert.equal(paper.props.style.top, 0);
+  assert.equal(desk.props.style.overflow, 'hidden', 'the layer runs past the desk');
+  assert.equal(desk.props.style.isolation, 'isolate', 'the layer falls behind the page');
   const [name] = withAttr(nodes, 'data-thread-name');
   assert.equal(textOf(name), MAYA);
 });
