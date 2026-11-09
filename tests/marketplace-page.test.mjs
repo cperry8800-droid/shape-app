@@ -346,6 +346,11 @@ test('the filters: city and open intro this week first, the city picked from a l
   const list = document.getElementById(box.getAttribute('aria-controls'));
   assert.ok(list && list.getAttribute('role') === 'listbox', 'the list opens');
   assert.match(SRC, /\.mk-city-l\{[^}]*overflow-y:auto;scrollbar-width:none[^}]*\}\n\s+\.mk-city-l::-webkit-scrollbar\{display:none\}/, 'it scrolls with no bar');
+  // The hero clips what leaves it and its matcher is its last row: there the list opens upward (Codex P2 on #2658;
+  // measured in Chromium at 1440 and 390, the open list inside the hero).
+  assert.match(SRC, /\.mk-hero\{[^}]*overflow:hidden/);
+  assert.match(SRC, /\.mk-city\.hero \.mk-city-l\{top:auto;bottom:calc\(100% \+ 6px\);/, 'the hero list opens upward');
+  assert.ok(document.querySelector('.mk-hero .mk-city.hero [role="combobox"]'), 'the hero uses the same list');
   const opts = [...list.querySelectorAll('[role="option"]')];
   assert.equal(opts[0].textContent, 'Anywhere✓');
   const city = opts[1];

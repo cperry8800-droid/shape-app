@@ -1467,6 +1467,8 @@ function Marketplace() {
         .mk-city.hero .mk-city-b{min-height:0;padding:2px 0;border:0;background:transparent;box-shadow:none;font:600 15px var(--sans)}
         .mk-city-l{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 4px);min-width:180px;max-height:240px;overflow-y:auto;scrollbar-width:none;margin:0;padding:4px;list-style:none;border-radius:10px;border:1px solid var(--line);background:#0c131d;box-shadow:var(--elev-2, 0 18px 40px -12px rgba(0,0,0,.8))}
         .mk-city-l::-webkit-scrollbar{display:none}
+        /* The hero clips what leaves it (overflow:hidden) and its matcher is its last row, so there the list opens upward (Codex P2 on #2658). */
+        .mk-city.hero .mk-city-l{top:auto;bottom:calc(100% + 6px);min-width:220px}
         .mk-city-l li{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:0 10px;border-radius:6px;font-size:13px;color:var(--fg-2);cursor:pointer}
         .mk-city-l li.hi{background:rgba(255,255,255,.06);color:var(--fg)}
         .mk-city-l li.on{color:var(--teal);font-weight:600}
