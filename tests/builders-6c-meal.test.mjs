@@ -312,6 +312,10 @@ test('Codex on #2648: oats are gluten in a coach\'s own dish, an ingredient with
   const oats = W.ownRecipeFood({ id: 'o1', t: 'Morning bowl', kcal: 400, p: 20, c: 60, f: 9, ing: [{ n: '80 g', m: 'rolled oats' }] });
   const soup = W.ownRecipeFood({ id: 'o2', t: 'Lentil soup', kcal: 410, p: 24, c: 52, f: 9, ing: [{ n: '2 cups', m: 'red lentils' }] });
   assert.deepEqual(W.searchKitchen([oats, soup], '', {}, { exclusions: ['gluten'] }).map((f) => f.name), ['Lentil soup'], 'rolled oats passed a gluten exclusion');
+  // …and sourdough, wraps and pasta by name, as the core's own toast, wrap and tacos are tagged gluten.
+  const own = (id, t, m) => W.ownRecipeFood({ id, t, kcal: 400, p: 20, c: 40, f: 10, ing: [{ n: '1', m }] });
+  const glutenOwn = [own('g1', 'Eggs on toast', 'sourdough'), own('g2', 'Lunch roll-up', 'tortilla wrap'), own('g3', 'Mac', 'macaroni'), own('g4', 'Bowl', 'jasmine rice')];
+  assert.deepEqual(W.searchKitchen(glutenOwn, '', {}, { exclusions: ['gluten'] }).map((f) => f.name), ['Bowl'], 'sourdough, a wrap or macaroni passed a gluten exclusion');
   // No amount: "to taste sriracha" on a dish served all week is one line with no amount, never "7 ×".
   const doc = weekDoc();
   doc.days.forEach((d) => { d.slots[0].ingredients = [...(d.slots[0].ingredients || []), { name: 'to taste sriracha', qty: null, unit: '' }]; });

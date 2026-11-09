@@ -212,7 +212,9 @@
     // A plant milk or butter ("peanut butter", "oat milk", "coconut cream") is not dairy.
     dairy: /(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(milk|butter|cream)\b|\b(cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr)\w*/i,
     // Oats count, as the core's own oat dishes are tagged gluten (Codex on #2648).
-    gluten: /\b(wheat|flour|bread|pasta|noodles?|barley|rye|couscous|seitan|bulgur|semolina|spelt|farro|tortillas?|pita|crackers?|breadcrumbs?|panko|oats?|oatmeal|granola|muesli)\b/i,
+    // Breads, wraps and pasta by name too, as the core tags its sourdough toast, tortilla wrap and
+    // oat dishes gluten (Codex on #2648).
+    gluten: /\b(wheat|flour|bread|breads|sourdough|toast|bagels?|baguettes?|brioche|croissants?|buns?|muffins?|pancakes?|waffles?|naan|ciabatta|focaccia|pizza|pastry|crumpets?|wraps?|pasta|noodles?|spaghetti|macaroni|penne|fusilli|rigatoni|linguine|fettuccine|lasagne|lasagna|orzo|gnocchi|ramen|udon|dumplings?|barley|rye|malt|couscous|seitan|bulgur|semolina|spelt|farro|tortillas?|pita|crackers?|breadcrumbs?|panko|oats?|oatmeal|granola|muesli)\b/i,
   };
   function ownContains(food, allergen) {
     var a = String(allergen).toLowerCase();
