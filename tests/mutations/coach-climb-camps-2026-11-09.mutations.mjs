@@ -25,6 +25,8 @@ export default {
       find: "    // The week's open times: the website's \"Book\" camp, right after Base, always (the coach books here).\n    ['day',", replace: "    // The week's open times: the website's \"Book\" camp, right after Base, always (the coach books here).\n    null && ['day'," },
     { name: 'page: Base without the photo posts', file: PAGE,
       find: "  const photoPosts = activity.filter((a) => a && typeof a.photo === 'string' && /^(https:\\/\\/|\\/[^/\\\\])/.test(a.photo)).slice(0, 6)", replace: '  const photoPosts = [].slice(0, 6)' },
+    { name: 'climb: a photo post with no title has no name', file: CLIMB,
+      find: " aria-label={ph.title ? undefined : tr('profile:climb.posts', { defaultValue: 'Posts' })}", replace: '' },
     // ── a read that failed ──
     { name: 'page: a failed posts read is quiet', file: PAGE,
       find: '    }).catch(() => { if (on) setPostsErr(true); });', replace: '    }).catch(() => {});' },

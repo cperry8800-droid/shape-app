@@ -733,7 +733,7 @@ export function BSClimbStart({ highlight = null, film = null, videos = [], photo
               </button>
             ))}
             {photos.map((ph) => (
-              <button key={ph.key} type="button" data-climb-photo-post="" onClick={() => onPhoto && onPhoto(ph)} style={{ flex: 'none', width: 118, padding: 0, border: 0, background: 'transparent', color: CLIMB.INK, textAlign: 'left', cursor: 'pointer' }}>
+              <button key={ph.key} type="button" data-climb-photo-post="" aria-label={ph.title ? undefined : tr('profile:climb.posts', { defaultValue: 'Posts' })} onClick={() => onPhoto && onPhoto(ph)} style={{ flex: 'none', width: 118, padding: 0, border: 0, background: 'transparent', color: CLIMB.INK, textAlign: 'left', cursor: 'pointer' }}>
                 <span style={{ position: 'relative', display: 'block', width: 118, height: 148, background: '#1b252c', clipPath: cut(12), overflow: 'hidden', border: `1px solid ${CLIMB.LINE}` }}>
                   <img src={ph.photo} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                 </span>

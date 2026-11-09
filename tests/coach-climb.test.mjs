@@ -513,3 +513,13 @@ test('the Climb itself draws only a #rrggbb accent; anything else is the role co
     await m.unmount();
   }
 });
+
+test('a photo post with no title still names its Base tile (review, 9 Nov)', async () => {
+  const m = await mount(React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
+    React.createElement(climbMod.BSClimbStart, { photos: [{ key: 'a', photo: PHOTO, title: '' }, { key: 'b', photo: PHOTO, title: 'Morning lift' }] })));
+  const [bare, named] = $$('[data-climb-photo-post]');
+  assert.equal(bare.getAttribute('aria-label'), 'Posts');
+  assert.equal(named.hasAttribute('aria-label'), false, 'a titled tile is named by its title');
+  assert.match(named.textContent, /Morning lift/);
+  await m.unmount();
+});
