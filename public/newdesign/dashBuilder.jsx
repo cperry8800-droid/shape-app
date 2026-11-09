@@ -3069,9 +3069,10 @@ function dbuWeekModel(roster, clients) {
   if (roster === "loading" || roster === "unread") return { roster, ahead: null };
   return { roster, ahead: DashBuilder.programWeekAhead(clients) };
 }
+// One program per client, their current one: "due" is its next week, ready or not.
 function DbuWeekLine({ model, onReview }) {
-  const label = "Due next week";
-  if (!model.ahead) return <DashLibTopLine label={label} figure="—" line="clients on a program" note={model.roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"} />;
+  const label = "Next week";
+  if (!model.ahead) return <DashLibTopLine label={label} figure="—" line="programs due" note={model.roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"} />;
   const a = model.ahead;
   const on = a.ready + a.need + a.unknown;
   const settling = a.pending > 0 && !a.rows.length;
@@ -3085,7 +3086,7 @@ function DbuWeekLine({ model, onReview }) {
     {a.unknown > 0 && <DashLibStatus>{dbuCount(a.unknown, "length", "lengths")} not recorded</DashLibStatus>}
     {a.paused > 0 && <DashLibStatus>{a.paused} paused</DashLibStatus>}
   </>;
-  return <DashLibTopLine label={label} figure={settling ? "—" : on} line={on === 1 && !settling ? "client on a program" : "clients on a program"}
+  return <DashLibTopLine label={label} figure={settling ? "—" : on} line={on === 1 && !settling ? "program due" : "programs due"}
     chips={chips} note={notes.length ? notes.join(" · ") : null}
     actions={<button type="button" style={dbuLibBtn(false)} disabled={!a.rows.length} onClick={onReview}>Review</button>} />;
 }

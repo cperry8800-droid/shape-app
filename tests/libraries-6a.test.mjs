@@ -166,10 +166,10 @@ test('Programs: the top line says who is on a program next week, how many are re
   dashboard('live', ROSTER()); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
   const t = topText();
-  assert.equal(t, 'Due next week 4 clients on a program ✓ 2 ready ! 2 need you 1 client’s program couldn’t be read Review');
+  assert.equal(t, 'Next week 4 programs due ✓ 2 ready ! 2 need you 1 client’s program couldn’t be read Review');
   assert.equal(top().querySelector('[data-tone="need"]').getAttribute('title'), 'Their program ends with nothing assigned after it', 'a status in words, not a bare colour');
   assert.doesNotMatch(t, /Send/, 'nothing here sends a week: assigning already published it');
-  assert.equal(top().getAttribute('aria-label'), 'Due next week');
+  assert.equal(top().getAttribute('aria-label'), 'Next week');
 });
 
 test('Programs: Review opens the drawer, the ones that need you first, and Choose a program sets the client', async () => {
@@ -209,18 +209,18 @@ test('Programs: Escape closes the drawer', async () => {
 test('Programs: unread is "—", loading is "—", and empty is said in words', async () => {
   dashboard(null, []); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
-  assert.equal(topText(), 'Due next week — clients on a program Reading your roster…');
+  assert.equal(topText(), 'Next week — programs due Reading your roster…');
   dashboard('unread', ROSTER()); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
-  assert.equal(topText(), 'Due next week — clients on a program ' + UNREAD);
+  assert.equal(topText(), 'Next week — programs due ' + UNREAD);
   // A roster still loading its overviews: "—", and how many are still loading.
   dashboard('live', ROSTER().map((c) => ({ ...c, progressRead: { state: 'loading' } }))); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
-  assert.equal(topText(), 'Due next week — clients on a program 6 clients are still loading Review');
+  assert.equal(topText(), 'Next week — programs due 6 clients are still loading Review');
   // Read, and nobody on a program: a measured 0, said in words.
   dashboard('live', [person(5, 'Elena R.', { programs: { trainer: null, nutritionist: null } })]); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
-  assert.equal(topText(), 'Due next week 0 clients on a program None of your clients is on one of your programs. Review');
+  assert.equal(topText(), 'Next week 0 programs due None of your clients is on one of your programs. Review');
   dashboard('live', []); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
   assert.match(topText(), /No clients on your roster yet\./);
@@ -357,14 +357,15 @@ test('Programs: who is on it while unread says so, never nobody', async () => {
 
 test('Programs: the programs on one client\'s calendar are a plain list, the ones that need you first', async () => {
   dashboard('live', ROSTER());
-  stubFetch({ usage: { usage: { p1: { clients: 1, clientIds: [uid(1)] }, p2: { clients: 1, clientIds: [uid(2)] }, p3: { clients: 1, clientIds: [uid(5)] } }, capped: false } });
+  stubFetch({ usage: { usage: { p1: { clients: 1, clientIds: [uid(1)] }, p2: { clients: 1, clientIds: [uid(2)] }, p3: { clients: 1, clientIds: [uid(4)] } }, capped: false } });
   await mount(React.createElement(TrainerProgramsPage));
   const list = document.querySelector('[aria-label="On one client only"]');
   assert.ok(!!list);
   const rows = [...list.querySelectorAll('.dash-lib-row')].map(words);
   assert.deepEqual(rows, [
     'Home Sweat Tess B. · Week 4 of 4 ! Needs you Final week · nothing assigned after it',
-    'Quick Mobility Elena R. Not their current program',
+    // Sam's current program is Glute Builder (with Block 2 after it): his week is not this one's.
+    'Quick Mobility Sam R. Not their current program',
     'Glute Builder Priya S. · Week 3 of 8 ✓ Ready Week 4 of 8 is on their calendar',
   ]);
   await click(button('Quick Mobility', list));
@@ -402,15 +403,16 @@ test('Programs: the preview shows its sample under the band; a signed-in coach n
   dashboard('demo', DashSignals.buildMockClients(NOW)); stubFetch({ libraryOk: false });
   await mount(React.createElement(TrainerProgramsPage));
   assert.ok(!!document.querySelector('.dash-demo-band'), 'the band');
-  assert.equal(topText(), 'Due next week 10 clients on a program ✓ 10 ready Review');
+  assert.equal(topText(), 'Next week 10 programs due ✓ 10 ready Review');
   assert.ok(!!cardOf('Strength Block 3'), 'the preview\'s programs');
   assert.equal(whoOf('Strength Block 3'), 'On it Preview · no client calendars to read');
   assert.ok(!calls.some(([u]) => u.includes('/usage')), 'no account, no read');
+  assert.deepEqual(await openMenu(cardOf('Strength Block 3')), ['Edit', 'Use as template'], 'an example is not the visitor\'s to delete or update');
   // A signed-in coach whose roster came back as the demo: the library is theirs, the roster unread.
   dashboard('demo', DashSignals.buildMockClients(NOW)); stubFetch();
   await mount(React.createElement(TrainerProgramsPage));
   assert.ok(!document.querySelector('.dash-demo-band'));
-  assert.equal(topText(), 'Due next week — clients on a program ' + UNREAD);
+  assert.equal(topText(), 'Next week — programs due ' + UNREAD);
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), 'a sample person on a signed-in page: ' + n);
   assert.ok(!cardOf('Strength Block 3'), 'no sample program');
   // And "unread" itself: no band, no sample.
@@ -420,6 +422,21 @@ test('Programs: the preview shows its sample under the band; a signed-in coach n
   for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), n);
   await click(button('Assign', cardOf('Glute Builder')));
   assert.match(text(), /No clients loaded\./, 'the assign sheet lists nobody it could not read');
+});
+
+test('Programs: who is on it counts an id the roster does not hold, and never drops one', () => {
+  const who = DashBuilder.programWho({ clients: 1, clientIds: [uid(1), uid(9), uid(1)] }, ROSTER());
+  assert.deepEqual([who.count, who.people.map((p) => p.name), who.elsewhere], [2, ['Priya S.'], 1]);
+  assert.deepEqual(DashBuilder.programWho({ clients: 4 }, ROSTER()), { count: 4, people: null, elsewhere: 0 }, 'an older server: how many, not who');
+});
+
+test('Programs: before the library answers, a roster that came back as the demo shows no band and no sample', async () => {
+  dashboard('demo', DashSignals.buildMockClients(NOW));
+  globalThis.fetch = (url) => (String(url).includes('kind=program') ? new Promise(() => {}) : Promise.resolve({ ok: true, json: async () => ({ soundtracks: [] }) }));
+  await mount(React.createElement(TrainerProgramsPage));
+  assert.ok(!document.querySelector('.dash-demo-band'), 'not yet known to be the preview');
+  assert.equal(topText(), 'Next week — programs due Reading your roster…');
+  for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), n);
 });
 
 // ── Meal plans ────────────────────────────────────────────────────────────────
@@ -629,6 +646,18 @@ test('Meal plans: the preview shows its sample under the band; a signed-in nutri
   assert.ok(!mealCard('Summer Cut · 1900'));
   await click(button('Assign', mealCard('Lean Week')));
   assert.match(text(), /No clients loaded\./);
+});
+
+test('Meal plans: before the library answers, a roster that came back as the demo shows no band and no sample; an example is not the visitor\'s to delete', async () => {
+  dashboard('demo', DashSignals.buildMockClients(NOW), 'nutritionist');
+  globalThis.fetch = () => new Promise(() => {});
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.ok(!document.querySelector('.dash-demo-band'));
+  assert.equal(topText(), 'Plans due this week — need a new plan by ' + dashLibWeekEnd() + ' Reading your roster…');
+  for (const n of SAMPLE_NAMES) assert.ok(!text().includes(n), n);
+  dashboard('demo', DashSignals.buildMockClients(NOW), 'nutritionist'); stubFetch({ libraryOk: false }); stubConfirm(true);
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.deepEqual(await openMenu(mealCard('Summer Cut · 1900')), ['Edit', 'Use as template']);
 });
 
 test('the week ends on Sunday, on the account\'s clock', () => {

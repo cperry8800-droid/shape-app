@@ -1073,7 +1073,7 @@ function NutritionistPlansPage() {
               {/* ⚠ EVERY FILTER SAYS WHAT IT WOULD LEAVE. Options inside one filter widen it,
                   two filters narrow each other, and the count beside Clear is the result. */}
               <DashFilterBar facets={[phaseFacet, ...DashMeals.MEAL_FACETS]} primaryFacetKeys={["phase"]} run={run} state={filters} setState={setFilters} one="plan" many="plans"
-                placeholder="Find a plan or a recipe in one…" searchLabel="Find a plan by its name or a recipe in it"
+                placeholder="Find a plan or a recipe…" searchLabel="Find a plan by its name or a recipe in it"
                 extra={<DashLibSort value={sort} onChange={setSort} options={DMB_SORTS} />} />
             </div>}
             {!!(templates && templates.length) && !run.shown.length && <p role="status" style={{ fontSize: 13.5, color: DMB_INK50 }}>No plans match these filters. <button onClick={() => setFilters(DFB_EMPTY)} style={dmbBtn(false)}>Clear filters</button></p>}
