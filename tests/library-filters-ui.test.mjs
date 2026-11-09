@@ -511,6 +511,8 @@ function stubMeals({ ok = true, plans = MEALS, status = 200 } = {}) {
   mealCalls = [];
   globalThis.fetch = async (url, opts) => {
     mealCalls.push([String(url), opts && opts.method || 'GET']);
+    // A signed-in nutritionist's builder saves to the library (step 6a: live is "not the preview", not "the day feed answered").
+    if (opts && (opts.method === 'POST' || opts.method === 'PATCH')) { const b = JSON.parse(opts.body); return { ok: true, json: async () => ({ plan: { ...b, id: b.id || 'saved-1', detail: { ...b.detail, revision: 1 } } }) }; }
     if (!ok) return { ok: false, status, json: async () => ({ error: 'Authentication required.' }) };
     return { ok: true, json: async () => ({ ownerId: 'nutri-a', plans }) };
   };
