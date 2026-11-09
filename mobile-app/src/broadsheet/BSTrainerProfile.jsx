@@ -231,8 +231,8 @@ export function BSTrainerProfile(props) {
     ? (() => { const c = { ...demo.custom }; if (demo.mode === 'self') for (const [k, v] of Object.entries(demoOwn || {})) { if (v === null) delete c[k]; else c[k] = v; } return c; })()
     : isSelf ? own : (live && live.custom) || null);
   // The Climb is dark throughout, in Shape's teal (a nutritionist's gold), for every coach (owner,
-  // 2026-11-09: "the climb", one layout): the colours a coach picked in Make it yours stay in their doc
-  // but no longer paint the page.
+  // 2026-11-09: "the climb", one layout): of the colours a coach picked in Make it yours, only the accent
+  // reaches the page, and only its drawing (bsClimbAccent); the paper stays in their doc.
   const page = demo
     ? <TrainerPage {...props} role={role} demo={demo} live={demo.mode === 'self' ? demo.live : null} custom={custom} setOwn={saveDemo} ownState="ready" ownFor={null} />
     : <TrainerPage {...props} role={role} live={live} custom={custom} setOwn={setOwn} ownState={isSelf ? ownState : 'ready'} ownFor={ownFor} onRetryOwn={() => setOwnEpoch((n) => n + 1)} />;
@@ -809,7 +809,8 @@ function TrainerPage({ person, role = 'trainer', onBack, onMessage, isSelf = fal
   // sees it (owner, 2026-10-28: "anyone with a shape membership can read them"), nor does a sample, whose
   // reviews are the sample's own, as on the website.
   const winsShown = isPrivate || demo || (reviews && reviews.locked) ? [] : wins;
-  const quotesRest = quotes.filter((r) => !r.pinned);
+  // Words leaves out what Proof shows; with no Proof (a sample), the pinned ones stay in Words.
+  const quotesRest = winsShown.length ? quotes.filter((r) => !r.pinned) : quotes;
   const rangePrograms = !nutri && studioModel ? studioModel.programs.map((p) => ({ key: p.key, id: p.id, name: p.name, price: p.pr && p.pr.sample ? null : p.price, paid: p.paid && !(p.pr && p.pr.sample), weeks: p.weeks, perWeek: p.perWeek, desc: p.desc, forSaid: bsStudioForLabel(tr, p.forWho), poster: p.pr ? p.pr.poster : null, pr: p.pr })) : [];
   const mealPlans = nutri && Array.isArray(sheetPlans) ? sheetPlans.filter((pl) => pl && pl.name).map((pl, i) => ({ key: `m:${pl.id || i}`, id: String(pl.id || i), name: pl.name, price: demo ? null : bsWorkPrice(pl.price), paid: false, weeks: Number.isInteger(pl.weeks) ? pl.weeks : null, perWeek: null, forSaid: '', poster: null, pr: pl })) : [];
   // Base's row after the workout videos: the newest posts with a photo, each opening the Posts camp.

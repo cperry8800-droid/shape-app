@@ -260,7 +260,7 @@ test('Start on the range and in the program sheet buys through ShapeCoachPlans.b
   world.bought = undefined;
   await click($('[data-program-open]'));
   const sheet = $('[data-program-sheet]');
-  assert.equal(sheet.parentElement, document.body, 'portalled out of the page (onto #bs-phone-surface in the app; the body here)');
+  assert.ok(sheet.parentElement === document.body, 'portalled out of the page (onto #bs-phone-surface in the app; the body here)');
   assert.match(sheet.textContent, /Strength Block 3\..*12 weeks · 2 days a week.*Barbells, machines and cables\./);
   assert.deepEqual($$('[data-climb-sheet-plate]').map((p) => p.getAttribute('data-climb-sheet-plate')), ['weeks', 'perWeek', 'sessions']);
   assert.match($('[data-climb-sheet-plate="sessions"]').textContent, /24/, '12 weeks × 2 days');
@@ -285,6 +285,14 @@ test('a sample coach is a sample, under its note: times asked for, never booked,
   assert.ok(!$('[data-climb-start]') && !$('[data-climb-price]'), 'no Start and no price on a sample');
   assert.ok(!camp('proof'), 'no Proof on a sample: its reviews are the sample\'s own');
   await m.unmount();
+  // Even with a review pinned on the sample (Make it yours on the signed-out demo): no Proof, and the
+  // pinned one stays in Words.
+  reset({ me: null });
+  const m2 = await mount(page({ person: { who: 'Maya Okafor', kind: 'TRAINER' }, previewCustom: { pinnedReviews: ['demo-r1'] } }));
+  assert.ok($('[data-sample-note]') || $('[data-climb]'), 'the demo');
+  assert.ok(!camp('proof'), 'no Proof on the demo');
+  assert.match(camp('words').textContent, /\+60 lb on my deadlift/, 'the pinned sample review in Words');
+  await m2.unmount();
 });
 
 // ── Reviews: what they say is for members ─────────────────────────────────────────────────────
@@ -490,6 +498,9 @@ test('the accent keys draw the hexes bsCoachPalette paints on a dark stock; the 
     }
   }
   assert.equal(bsClimbAccent('black'), '#ffffff', 'black reads as white on the dark');
+  // Every accent Shape offers shows on the Climb's ground, so the contrast floor holds back none today.
+  for (const hex of Object.values(CLIMB_ACCENTS)) assert.ok(climbMod.bsClimbContrast(hex, '#0a0e11') >= 1.6, hex);
+  assert.ok(climbMod.bsClimbContrast('#000000', '#0a0e11') < 1.6, 'black on the dark would not show');
   assert.equal(bsClimbAccent('amber', 'trainer'), CLIMB_ACCENTS.amber, 'amber is a trainer\'s real pick');
   for (const bad of [null, undefined, '', 'chartreuse', '#123456', 'constructor', '__proto__']) assert.equal(bsClimbAccent(bad), null, String(bad));
 });

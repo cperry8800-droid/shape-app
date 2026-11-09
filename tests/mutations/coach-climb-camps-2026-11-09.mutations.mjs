@@ -41,12 +41,17 @@ export default {
       find: "  const DRAW = /^#[0-9a-f]{6}$/i.test(String(accent || '')) ? accent : ACC;", replace: '  const DRAW = accent || ACC;' },
     { name: 'climb: the full stop keeps the role colour', file: CLIMB,
       find: '<span aria-hidden="true" data-climb-stop="" style={{ color: DRAW }}>', replace: '<span aria-hidden="true" data-climb-stop="" style={{ color: ACC }}>' },
+    { name: 'page: a sample\'s pinned review left out of Words', file: PAGE,
+      find: '  const quotesRest = winsShown.length ? quotes.filter((r) => !r.pinned) : quotes;', replace: '  const quotesRest = quotes.filter((r) => !r.pinned);' },
     { name: 'climb: a camp title\'s full stop keeps the role colour', file: CLIMB,
       find: 'data-climb-camp-stop="" style={{ color: DRAW }}', replace: 'data-climb-camp-stop="" style={{ color: ACC }}' },
     { name: 'climb: the role\'s own key is a pick', file: CLIMB,
       find: "  if (key === (role === 'nutritionist' ? 'amber' : 'teal')) return null;\n", replace: '' },
     { name: 'climb: an accent that does not show is drawn', file: CLIMB,
-      find: "  return bsClimbContrast(hex, '#0a0e11') >= 1.6 ? hex : null;", replace: '  return hex;' },
+      find: "  return bsClimbContrast(hex, '#0a0e11') >= 1.6 ? hex : null;", replace: '  return hex;',
+      // A proven no-op today: every accent in CLIMB_ACCENTS clears 1.6 on the Climb's ground (black is
+      // read as white), which coach-climb.test.mjs asserts; the floor guards a future accent.
+      expectSurvive: true },
     { name: 'climb: the eyebrow takes the accent', file: CLIMB,
       find: "{who.eyebrow ? <div data-climb-eyebrow=\"\" style={{ ...mono(10, ACC), lineHeight: 1.5 }}>", replace: "{who.eyebrow ? <div data-climb-eyebrow=\"\" style={{ ...mono(10, DRAW), lineHeight: 1.5 }}>" },
     { name: 'climb: the tab you are at takes the accent', file: CLIMB,
