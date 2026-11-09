@@ -55,7 +55,7 @@ Object.assign(globalThis, {
   Card: ({ style, children }) => React.createElement('div', { style }, children),
 });
 const P = await loadRealModule(ND('trainerPlaylistsPage.jsx'), {
-  appendExports: 'export { PlaylistPage, plDupNames, plClearPlaylist, plDaySlots, plSetDayPlaylist, plDayHas, plMusicCoverage, plProgramsModel, plProgramDays, plWhoHears, plWhoHearsText, plToggleSent, plRosterFrom, plTrackListNote, soundtrackToWeb };',
+  appendExports: 'export { PlaylistPage, plSafeUrl, plDupNames, plClearPlaylist, plDaySlots, plSetDayPlaylist, plDayHas, plMusicCoverage, plProgramsModel, plProgramDays, plWhoHears, plWhoHearsText, plToggleSent, plRosterFrom, plTrackListNote, soundtrackToWeb };',
 });
 const { TRAINER_PLAYLISTS, TRAINER_WORKOUTS, NUTRI_PLAYLISTS, NUTRI_ATTACH_TARGETS } = globalThis;
 // window.confirm is never the delete gate.
@@ -744,4 +744,31 @@ test('a delete that fails partway puts back the programs it already changed (P2)
   await stuck.click(stuck.q('[data-pl-more]'));
   await stuck.click(stuck.q('[data-pl-delete]'));
   assert.equal(stuck.text(stuck.q('[data-pl-save-msg]')).includes("couldn't be put back on “Strength Block”"), true);
+});
+
+test('only https Spotify and Apple Music links are links; anything else is refused on save (P2)', async () => {
+  for (const ok_ of ['https://open.spotify.com/playlist/x', 'https://music.apple.com/us/playlist/y', 'https://spotify.link/abc']) assert.equal(P.plSafeUrl(ok_), ok_);
+  for (const bad of ['javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'http://open.spotify.com/playlist/x', 'https://evil.example/spotify.com', 'https://spotify.com.evil.example/', 'data:text/html,x', '', null]) assert.equal(P.plSafeUrl(bad), null, String(bad));
+  window.ShapeConfirm = undefined;
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/soundtracks': () => ok({ soundtracks: [{ ...LEG, url: 'javascript:alert(1)' }] }) }) });
+  await p.tab('builder');
+  assert.equal([...p.div.querySelectorAll('a')].some((a) => /javascript/i.test(a.getAttribute('href') || '')), false, 'no javascript: link');
+  assert.equal([...p.div.querySelectorAll('a')].some((a) => /Open in/.test(a.textContent)), false);
+  const url = [...p.q('[data-pl-builder="st-1"]').querySelectorAll('input')][4];
+  await p.type(url, 'javascript:alert(2)');
+  await p.click(p.q('[data-pl-save]'));
+  assert.equal(p.reqs('PATCH', '/api/coach/soundtracks').length, 0);
+  assert.equal(p.text(p.q('[data-pl-save-msg]')), 'Paste a Spotify or Apple Music link that starts with https://.');
+});
+
+test('with the programs unread, a playlist is never "not playing anywhere" (P2)', async () => {
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/plans': () => ({ status: 500, body: {} }) }) });
+  assert.equal(p.text(p.card('st-1').querySelector('[data-pl-who]')), "program days couldn't be read");
+  assert.equal(p.page().includes('Not playing anywhere yet'), false);
+  await p.click(p.card('st-1').querySelector('[data-pl-peek]'));
+  assert.equal(p.text(p.q('[data-pl-programs-unknown]')), "Program days couldn't be read.");
+  await p.close();
+  // A nutritionist has no program days: nothing unknown there.
+  const n = await page({ role: 'nutritionist' });
+  assert.equal(p.text(n.card('st-2').querySelector('[data-pl-who]')), 'Not playing anywhere yet');
 });

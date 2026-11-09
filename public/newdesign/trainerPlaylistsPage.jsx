@@ -42,6 +42,17 @@ const PL_LINE = "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
 // matrix is a box capped to the window that scrolls both ways: the playlists' row pins at its top,
 // the day names at its left.
 const PL_MATRIX_MAX_H = "calc(100vh - 96px)";
+// ⚠ A LINK ONLY TO SPOTIFY OR APPLE MUSIC, OVER HTTPS (Codex P2 on #2644). A playlist's `url` is a
+// string the coach typed and the server stores as given, so a `javascript:` or any other URL would
+// run or open from "Open in Spotify". Anything else is shown as no link at all. Null when unsafe.
+const PL_LINK_HOSTS = /(^|\.)(spotify\.com|spotify\.link|music\.apple\.com)$/i;
+function plSafeUrl(url) {
+  if (typeof url !== "string" || !url.trim()) return null;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === "https:" && PL_LINK_HOSTS.test(u.hostname) ? u.href : null;
+  } catch (e) { return null; }
+}
 const plProviderName = (provider) => (provider === "apple" ? "Apple Music" : "Spotify");
 
 // Map a coach_soundtracks row (shared with the mobile app) into the shape this page renders. A
@@ -250,20 +261,24 @@ function plMusicCoverage(programs) {
   return { usageRead, total: days.length, covered: days.length - missing.length, missing };
 }
 // Who hears a playlist: the clients on the programs whose days carry it, and who it was sent to.
-// { programs: [{ program, days }], programClients: number|null, all: boolean, clients: [ids] }.
+// { programs: [{ program, days }], programClients: number|null, programsUnknown, all, clients }.
+// ⚠ `programs` null is NOT "on no program" (Codex P2 on #2644): a trainer's programs still being read,
+// or unread, leave which days play it unknown, and the words say so rather than "not playing".
 function plWhoHears(p, programs, dupNames) {
+  const programsUnknown = programs == null;
   const on = (Array.isArray(programs) ? programs : []).map((prog) => ({ program: prog, days: prog.days.filter((d) => plDayHas(d, p, dupNames)) })).filter((x) => x.days.length);
   const counts = on.map((x) => x.program.clients);
   const programClients = counts.some((c) => c == null) ? null : counts.reduce((s, c) => s + c, 0);
   const attached = Array.isArray(p.attached) ? p.attached : [];
   return {
-    programs: on, programClients,
+    programs: on, programClients, programsUnknown,
     all: attached.some((a) => a.kind === "all_clients"),
     clients: attached.filter((a) => a.kind === "client" && a.clientId).map((a) => a.clientId),
   };
 }
 // "Who hears it" in words, from plWhoHears. Program counts can overlap (a client on two programs).
-function plWhoHearsText(w, role) {
+const PL_NOT_PLAYING = "Not playing anywhere yet";
+function plWhoHearsText(w, role, programsState) {
   const parts = [];
   if (w.all) parts.push("Every client");
   else if (w.clients.length) parts.push("Sent to " + w.clients.length + (w.clients.length === 1 ? " client" : " clients"));
@@ -272,7 +287,8 @@ function plWhoHearsText(w, role) {
     const on = days + (days === 1 ? " program day" : " program days");
     parts.push(w.programClients == null ? on : on + " · " + w.programClients + (w.programClients === 1 ? " client" : " clients"));
   }
-  return parts.length ? parts.join(" · ") : "Not playing anywhere yet";
+  if (role !== "nutritionist" && w.programsUnknown) parts.push(programsState === "loading" ? "reading program days…" : "program days couldn't be read");
+  return parts.length ? parts.join(" · ") : PL_NOT_PLAYING;
 }
 // A client's entry in a playlist's `attached`, as the app writes it (iosAppBroadsheetPros).
 const plAllClientsEntry = () => ({ id: "all_clients", kind: "all_clients", name: "All my clients" });
@@ -622,8 +638,8 @@ function plFacts(p) {
 function PlaylistCard({ p, onPeek }) {
   const c = React.useContext(PlaylistCtx);
   const who = plWhoHears(p, c.programs, c.dupNames);
-  const heard = plWhoHearsText(who, c.role);
-  const quiet = heard === "Not playing anywhere yet";
+  const heard = plWhoHearsText(who, c.role, c.programsState);
+  const quiet = heard === PL_NOT_PLAYING;
   const facts = plFacts(p);
   return (
     <div data-pl-card={p.id} style={{ display: "flex", flexDirection: "column", minWidth: 0 }}><Card style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: 1 }}>
@@ -674,13 +690,14 @@ function PlaylistDetail({ p, onClose }) {
             {who.all && <div>Every client · their {c.role === "nutritionist" ? "Eat" : "Train"} page</div>}
             {!who.all && who.clients.length > 0 && <div>Sent to {names(who.clients).filter(Boolean).join(", ") || who.clients.length + " clients"}{names(who.clients).some((n) => !n) && names(who.clients).some(Boolean) ? " and others" : ""}</div>}
             {who.programs.map((x) => <div key={x.program.id}>{x.program.name} · {x.days.map((d) => d.name).join(", ")}{x.program.clients == null ? "" : " · " + x.program.clients + (x.program.clients === 1 ? " client" : " clients")}</div>)}
-            {!who.all && !who.clients.length && !who.programs.length && <div style={{ color: PL_INK3 }}>Not playing anywhere yet.</div>}
+            {c.role !== "nutritionist" && who.programsUnknown && <div data-pl-programs-unknown style={{ color: PL_INK2 }}>{c.programsState === "loading" ? "Reading program days…" : "Program days couldn't be read."}</div>}
+            {!who.all && !who.clients.length && !who.programs.length && !(c.role !== "nutritionist" && who.programsUnknown) && <div style={{ color: PL_INK3 }}>{PL_NOT_PLAYING}.</div>}
           </div>
           <PlTrackList p={p} />
           <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
             <button type="button" onClick={() => { onClose(); c.openAttach({ playlistId: p.id }); }} style={{ ...pillPrimary, flex: 1 }}>Attach</button>
             <button type="button" onClick={() => { onClose(); c.openBuilder(p.id); }} style={pillGhost}>Edit</button>
-            {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ ...pillGhost, textDecoration: "none" }}>Open in {plProviderName(p.provider)} ↗</a>}
+            {plSafeUrl(p.url) && <a href={plSafeUrl(p.url)} target="_blank" rel="noopener noreferrer" style={{ ...pillGhost, textDecoration: "none" }}>Open in {plProviderName(p.provider)} ↗</a>}
           </div>
         </div>
       </div>
@@ -757,6 +774,7 @@ function NewPlaylistDialog({ onClose }) {
   }, [onClose]);
   const doImport = async () => {
     if (!url.trim() && !name.trim()) { setErr("Paste a playlist link or give it a name."); return; }
+    if (url.trim() && !plSafeUrl(url)) { setErr("Paste a Spotify or Apple Music link that starts with https://."); return; }
     setBusy(true); setErr("");
     const r = await ctx.importSoundtrack({ name, url, note, provider: pickProvider, tracks: pickTracks });
     setBusy(false);
@@ -1105,6 +1123,7 @@ function BuilderDetailPane({ p }) {
   const renamed = draft.name.trim() && draft.name.trim() !== p.name && dayCount > 0;
   const save = async () => {
     if (!draft.name.trim()) { setState({ busy: false, msg: "A playlist needs a name.", error: true }); return; }
+    if (draft.url.trim() && !plSafeUrl(draft.url)) { setState({ busy: false, msg: "Paste a Spotify or Apple Music link that starts with https://.", error: true }); return; }
     setState({ busy: true, msg: "", error: false });
     const r = await c.savePlaylist(p, { name: draft.name.trim(), bpm: draft.bpm.trim(), duration: draft.duration.trim(), tag: draft.note.trim(), url: draft.url.trim() });
     setState(r.ok ? { busy: false, msg: c.demo ? "Changed in the preview only. Sign in to save." : "Saved.", error: false } : { busy: false, msg: r.error, error: true });
@@ -1128,7 +1147,7 @@ function BuilderDetailPane({ p }) {
           </div>
           <div style={{ fontFamily: serif, fontSize: 26, fontWeight: 400, letterSpacing: "-0.02em", color: "#f2ede4", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
         </div>
-        {p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ color: "#f2ede4", fontSize: 12.5, textDecoration: "none", background: "rgba(0,0,0,0.4)", padding: "7px 12px", borderRadius: 999, whiteSpace: "nowrap" }}>Open in {plProviderName(p.provider)} ↗</a>}
+        {plSafeUrl(p.url) && <a href={plSafeUrl(p.url)} target="_blank" rel="noopener noreferrer" style={{ color: "#f2ede4", fontSize: 12.5, textDecoration: "none", background: "rgba(0,0,0,0.4)", padding: "7px 12px", borderRadius: 999, whiteSpace: "nowrap" }}>Open in {plProviderName(p.provider)} ↗</a>}
       </div>
 
       <div style={{ padding: 22 }}>
@@ -1152,7 +1171,7 @@ function BuilderDetailPane({ p }) {
           <div>
             <div style={{ ...plLabel, marginBottom: 8 }}>PLAYS ON</div>
             <div data-pl-plays-on style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 10 }}>
-              {plWhoHearsText(who, c.role)}
+              {plWhoHearsText(who, c.role, c.programsState)}
               {who.programs.map((x) => <div key={x.program.id} style={{ color: PL_INK2, fontSize: 12.5 }}>{x.program.name} · {x.days.map((d) => d.name).join(", ")}</div>)}
             </div>
             <button type="button" onClick={() => c.openAttach({ playlistId: p.id })} style={{ ...plLinkBtn, marginBottom: 18 }}>Change where it plays →</button>
