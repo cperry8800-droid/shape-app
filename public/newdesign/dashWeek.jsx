@@ -828,13 +828,13 @@ function CoachWeekPage({ role }) {
   const [onlyOpen, setOnlyOpen] = React.useState(false);
   const reviews = useWeekReviews(live);
   // ⚠ LIVE OR SAMPLE: THE SAMPLE ROSTER IS THE SIGNED-OUT PREVIEW'S ONLY (#2628 to #2638).
-  // useDashboard falls back to its demo whenever the roster read fails, signed out and outage alike,
-  // so the demo's people are shown, under the band, only to a viewer the session says is signed out
-  // (`accountId` null, the reviews store's own useSignedIn). A signed-in coach whose roster could not
-  // be read is told so, never shown sample people; until the session has answered, the page loads.
-  const preview = source === "demo" && reviews.accountId === null;
-  const rosterUnread = source === "demo" && typeof reviews.accountId === "string";
-  const pending = source == null || (source === "demo" && reviews.accountId === undefined) || (!!loading && !(triage || []).length);
+  // useDashboard resolves its demo only for the preview (the roster route answered 401, or 200 without
+  // this role), so the demo's people are shown under the band; a roster read that failed any other way
+  // is its "unread", and a coach is told so, never shown sample people. (This page asked the session
+  // itself, `reviews.accountId`, while the hook still fell back to the demo on an outage.)
+  const preview = source === "demo";
+  const rosterUnread = source === "unread";
+  const pending = source == null || (!!loading && !(triage || []).length);
   const rows = live || preview ? (triage || []).filter((r) => r && r.client && r.client.profile) : [];
   const ids = rows.map((r) => r.client.profile.id).filter((id) => id && !/^demo-/.test(String(id)));
   const adherence = useRosterAdherence(ids, live);
@@ -998,7 +998,7 @@ function CoachWeekPage({ role }) {
           <section aria-label="The roster's check-ins" data-dash-lift="0" style={{ ...DWK_CARD, padding: "16px 16px 10px", boxShadow: "var(--lift-0, 0 1px 2px rgba(0,0,0,0.04))" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div>
-                <span className="dash-eyebrow" style={{ "--dac": DWK_TEAL }}>The roster · {rows.length} client{rows.length === 1 ? "" : "s"}</span>
+                <span className="dash-eyebrow" style={{ "--dac": DWK_TEAL }}>{rosterUnread ? "The roster · —" : "The roster · " + rows.length + " client" + (rows.length === 1 ? "" : "s")}</span>
                 {storeLine ? <div style={{ fontFamily: DWK_MONO, fontSize: 9.5, color: DWK_INK50, marginTop: 6 }}>{storeLine}</div> : null}
               </div>
               {rows.length ? <button type="button" onClick={() => setOnlyOpen(!onlyOpen)} style={chip(onlyOpen)}>{onlyOpen ? "Showing unreviewed" : "Unreviewed only"}</button> : null}
