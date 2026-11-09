@@ -55,7 +55,7 @@ Object.assign(globalThis, {
   Card: ({ style, children }) => React.createElement('div', { style }, children),
 });
 const P = await loadRealModule(ND('trainerPlaylistsPage.jsx'), {
-  appendExports: 'export { PlaylistPage, plSetDayPlaylist, plDayHas, plMusicCoverage, plProgramsModel, plProgramDays, plWhoHears, plWhoHearsText, plToggleSent, plRosterFrom, plTrackListNote, soundtrackToWeb };',
+  appendExports: 'export { PlaylistPage, plDaySlots, plSetDayPlaylist, plDayHas, plMusicCoverage, plProgramsModel, plProgramDays, plWhoHears, plWhoHearsText, plToggleSent, plRosterFrom, plTrackListNote, soundtrackToWeb };',
 });
 const { TRAINER_PLAYLISTS, TRAINER_WORKOUTS, NUTRI_PLAYLISTS, NUTRI_ATTACH_TARGETS } = globalThis;
 // window.confirm is never the delete gate.
@@ -66,8 +66,8 @@ const id = (n) => '0f8fad5b-d9cb-469f-a165-70867728950' + n;
 const ADA = { profile: { id: id(1), name: 'Ada L.' }, rankPoints: 5180 };
 const BEN = { profile: { id: id(2), name: 'Ben K.' }, rankPoints: null };
 const SAMPLE_CLIENTS = ['Sample Sam', 'Demo Dana'];
-const LEG = { id: 'st-1', name: 'Leg Day', provider: 'spotify', tag: 'Heavy', url: 'https://open.spotify.com/playlist/leg', tracks: 24, duration: '1h 30m', bpm: '120–140', attached: [], role: 'trainer' };
-const QUIET = { id: 'st-2', name: 'Quiet', provider: 'apple', tag: '', url: '', tracks: 0, duration: '—', bpm: '—', attached: [], role: 'trainer' };
+const LEG = { id: 'st-1', name: 'Leg Day', provider: 'spotify', tag: 'Heavy', url: 'https://open.spotify.com/playlist/leg', tracks: 24, duration: '1h 30m', bpm: '120–140', attached: [], role: null };
+const QUIET = { id: 'st-2', name: 'Quiet', provider: 'apple', tag: '', url: '', tracks: 0, duration: '—', bpm: '—', attached: [], role: null };
 const day = (dayId, name, playlist) => ({ id: dayId, name, playlist: playlist || null, blocks: [] });
 // "Strength Block": two weeks of Lower (Leg Day every week) and Upper (no music). "Unused": nobody on it.
 const STRENGTH = () => ({ id: 'p1', kind: 'program', name: 'Strength Block', detail: { revision: 3, builder: { tags: ['strength'], weeks: [0, 1].map(() => ({ days: [day('d-lo', 'Lower', { name: 'Leg Day', meta: '24 tracks' }), day('d-up', 'Upper', null)] })) } } });
@@ -337,14 +337,16 @@ test('one write per program at a time: a second day of the same program waits', 
   assert.deepEqual(w[1].body.detail.builder.weeks[0].days[1].playlist, { name: 'Leg Day', meta: '24 tracks' }, 'and keeps the first write');
 });
 
-test('a send cell writes the entry members read, with the role', async () => {
+test('a send cell writes the entry members read, and leaves the row\'s role alone', async () => {
   for (const role of ['trainer', 'nutritionist']) {
-    const p = await page({ role });
+    const rows = () => ok({ soundtracks: [LEG, QUIET].map((r) => ({ ...r, role })) });
+    const p = await page({ role, handlers: trainerLive({ 'GET /api/coach/soundtracks': rows }) });
     await p.tab('matrix');
     await p.click(p.cell('all:st-1'));
     let w = p.reqs('PATCH', '/api/coach/soundtracks');
     assert.equal(w.length, 1);
-    assert.deepEqual(w[0].body, { id: 'st-1', attached: [{ id: 'all_clients', kind: 'all_clients', name: 'All my clients' }], role });
+    // No role: an edit never re-stamps the row's own role (Codex P2 on #2644).
+    assert.deepEqual(w[0].body, { id: 'st-1', attached: [{ id: 'all_clients', kind: 'all_clients', name: 'All my clients' }] });
     assert.equal(p.on('all:st-1'), '1');
     // A second send, after the first landed, keeps both entries.
     await p.click(p.cell(id(1) + ':st-1'));
@@ -427,7 +429,7 @@ test('Builder: Save waits for a change, then sends the edited fields', async () 
   await p.click(save());
   const w = p.reqs('PATCH', '/api/coach/soundtracks');
   assert.equal(w.length, 1);
-  assert.deepEqual(w[0].body, { id: 'st-1', name: 'Leg Day II', bpm: '130', duration: '1h 10m', tag: 'Go hard', url: 'https://open.spotify.com/playlist/leg2', role: 'trainer' });
+  assert.deepEqual(w[0].body, { id: 'st-1', name: 'Leg Day II', bpm: '130', duration: '1h 10m', tag: 'Go hard', url: 'https://open.spotify.com/playlist/leg2' });
   assert.equal(p.text(p.q('[data-pl-save-msg]')), 'Saved.');
   assert.equal(save().disabled, true, 'saved: nothing left to save');
   // A field changed back is no change.
@@ -511,23 +513,23 @@ test('the Builder lists a sample playlist\'s five tracks once each, and says it 
 // ── 9. Pure helpers ──────────────────────────────────────────────────────────
 test('plSetDayPlaylist sets the day in every week, and returns null when nothing changes', () => {
   const plan = STRENGTH();
-  const b = P.plSetDayPlaylist(plan, 1, { name: 'Quiet', meta: '' });
+  const b = P.plSetDayPlaylist(plan, 'name:upper', { name: 'Quiet', meta: '' });
   assert.deepEqual(b.weeks.map((w) => w.days[1].playlist), [{ name: 'Quiet', meta: '' }, { name: 'Quiet', meta: '' }]);
   assert.deepEqual(b.weeks.map((w) => w.days[0].playlist.name), ['Leg Day', 'Leg Day']);
   assert.deepEqual(b.tags, ['strength']);
   assert.equal(plan.detail.builder.weeks[0].days[1].playlist, null, 'the plan read is not changed in place');
   // Replaces the one a day had; clears with null.
-  assert.deepEqual(P.plSetDayPlaylist(plan, 0, { name: 'Quiet' }).weeks.map((w) => w.days[0].playlist), [{ name: 'Quiet', meta: '' }, { name: 'Quiet', meta: '' }]);
-  assert.deepEqual(P.plSetDayPlaylist(plan, 0, null).weeks.map((w) => w.days[0].playlist), [null, null]);
+  assert.deepEqual(P.plSetDayPlaylist(plan, 'name:lower', { name: 'Quiet' }).weeks.map((w) => w.days[0].playlist), [{ name: 'Quiet', meta: '' }, { name: 'Quiet', meta: '' }]);
+  assert.deepEqual(P.plSetDayPlaylist(plan, 'name:lower', null).weeks.map((w) => w.days[0].playlist), [null, null]);
   // Set in only one week: the write fills the other.
   const half = STRENGTH();
   half.detail.builder.weeks[1].days[0].playlist = null;
-  assert.deepEqual(P.plSetDayPlaylist(half, 0, { name: 'Leg Day', meta: '24 tracks' }).weeks.map((w) => w.days[0].playlist && w.days[0].playlist.name), ['Leg Day', 'Leg Day']);
+  assert.deepEqual(P.plSetDayPlaylist(half, 'name:lower', { name: 'Leg Day', meta: '24 tracks' }).weeks.map((w) => w.days[0].playlist && w.days[0].playlist.name), ['Leg Day', 'Leg Day']);
   // Nothing to change.
-  assert.equal(P.plSetDayPlaylist(plan, 0, { name: 'Leg Day', meta: 'x' }), null);
-  assert.equal(P.plSetDayPlaylist(plan, 1, null), null);
-  assert.equal(P.plSetDayPlaylist(plan, 9, { name: 'Leg Day' }), null, 'no such day');
-  assert.equal(P.plSetDayPlaylist({ detail: {} }, 0, { name: 'Leg Day' }), null);
+  assert.equal(P.plSetDayPlaylist(plan, 'name:lower', { name: 'Leg Day', meta: 'x' }), null);
+  assert.equal(P.plSetDayPlaylist(plan, 'name:upper', null), null);
+  assert.equal(P.plSetDayPlaylist(plan, 'name:nope', { name: 'Leg Day' }), null, 'no such day');
+  assert.equal(P.plSetDayPlaylist({ detail: {} }, 'name:lower', { name: 'Leg Day' }), null);
 });
 
 test('plDayHas: every week, some weeks, or not at all', () => {
@@ -581,4 +583,39 @@ test('a day with music in only some weeks says how many, never "No music"', asyn
   assert.equal(p.text(p.q('[data-pl-day="p1:0"] [data-pl-no-music]')), 'Music in 1 of 2 weeks · 4 clients');
   assert.equal(p.text(p.q('[data-pl-day="p1:1"] [data-pl-no-music]')), 'No music · 4 clients');
   assert.equal(p.text(p.cell('p1:0:st-1')), '✓ some weeks');
+});
+
+// ── Codex on #2644 ───────────────────────────────────────────────────────────
+test('a day is matched across weeks by its slot, never its position (P1)', async () => {
+  // Week 2 lost its Lower day: its first day is Upper. Writing Lower must not touch it.
+  const shifted = () => { const s = STRENGTH(); s.detail.builder.weeks[1].days = [day('d-up2', 'Upper', null)]; return s; };
+  const rows = P.plProgramDays(shifted());
+  assert.deepEqual(rows.map((r) => [r.name, r.weeks]), [['Lower', 1], ['Upper', 2]]);
+  const b = P.plSetDayPlaylist(shifted(), 'name:upper', { name: 'Quiet', meta: '' });
+  assert.deepEqual(b.weeks.map((w) => w.days.map((d) => d.name + '=' + (d.playlist ? d.playlist.name : '-'))), [['Lower=Leg Day', 'Upper=Quiet'], ['Upper=Quiet']]);
+  // A weekday is the slot when there is one; a repeat in one week is its second occurrence.
+  assert.deepEqual(P.plDaySlots([{ name: 'A', weekday: 1 }, { name: 'B', weekday: 1 }, { name: 'Lower' }, { name: 'lower ' }]), ['wd:1', 'wd:1#2', 'name:lower', 'name:lower#2']);
+  // Through the page: the matrix cell writes Upper in both weeks, Lower untouched.
+  const p = await page({ handlers: trainerLive({ 'GET /api/coach/plans': () => ok({ plans: [shifted()] }) }) });
+  await p.tab('matrix');
+  await p.click(p.cell('p1:1:st-2'));
+  const w = p.reqs('PATCH', '/api/coach/plans')[0].body.detail.builder.weeks;
+  assert.deepEqual(w.map((wk) => wk.days.map((d) => d.name + '=' + (d.playlist ? d.playlist.name : '-'))), [['Lower=Leg Day', 'Upper=Quiet'], ['Upper=Quiet']]);
+});
+
+test('each page lists only its own role\'s playlists, and legacy ones with none (P2)', async () => {
+  const rows = () => ok({ soundtracks: [{ ...LEG, role: 'trainer' }, { ...QUIET, id: 'st-n', name: 'Cooking', role: 'nutritionist' }, { ...QUIET, id: 'st-old', name: 'Old', role: null }] });
+  for (const [role, want] of [['trainer', ['st-1', 'st-old']], ['nutritionist', ['st-n', 'st-old']]]) {
+    const p = await page({ role, handlers: trainerLive({ 'GET /api/coach/soundtracks': rows }) });
+    assert.deepEqual(p.all('[data-pl-card]').map((c) => c.getAttribute('data-pl-card')), want);
+    await p.close();
+  }
+});
+
+test('the usage read asks for today on the account\'s clock (P2)', async () => {
+  window.ShapeZone = { ...ShapeZone, dayKey: () => '2031-02-03' };
+  try {
+    const p = await page();
+    assert.match(p.reqs('GET', '/api/coach/plans/usage')[0].url, /\?today=2031-02-03$/);
+  } finally { window.ShapeZone = ShapeZone; }
 });

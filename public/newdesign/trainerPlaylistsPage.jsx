@@ -43,13 +43,13 @@ const PL_LINE = "rgba(var(--sh-ink-rgb, 242,237,228),0.08)";
 // the day names at its left.
 const PL_MATRIX_MAX_H = "calc(100vh - 96px)";
 const plProviderName = (provider) => (provider === "apple" ? "Apple Music" : "Spotify");
-// A provider's kind colour: always said in words beside it (plProviderName).
-const plProviderAccent = (provider) => (provider === "apple" ? "#c4566a" : "#3f8f5f");
 
 // Map a coach_soundtracks row (shared with the mobile app) into the shape this page renders. A
 // field the row doesn't hold stays empty (null), never a made-up default.
 function soundtrackToWeb(row) {
-  const accent = plProviderAccent(row.provider);
+  // A provider's kind colour, always said in words beside it (plProviderName). A hex literal:
+  // the matrix and covers append alpha to it (tests/newdesign-paper-pairs.test.mjs).
+  const accent = row.provider === "apple" ? "#c4566a" : "#3f8f5f";
   const n = Number(row.tracks);
   return {
     id: row.id, name: row.name || "Untitled playlist", provider: row.provider === "apple" ? "apple" : "spotify",
@@ -100,23 +100,42 @@ function plProgramType(plan) {
     return info && info.label ? { label: info.label, color: info.c } : null;
   } catch (e) { return null; }
 }
-// A program's days as the Attach view lists them: one row per day of the week, named from the
-// first week that has it. A program repeats its days across weeks, so a row's playlist is the
-// one its day carries in EVERY week (`weeksWith` of `weeks`); a day set in only some weeks says so.
+// ⚠ A DAY IS MATCHED ACROSS WEEKS BY ITS SLOT, NEVER BY ITS POSITION (Codex P1 on #2644). The
+// builder deletes, inserts and copies days in one week only, so week 2's second day need not be
+// week 1's second day. A day's slot is its weekday when it has one, else its name; a second day
+// with the same slot in one week is that slot's second occurrence ("…#2").
+function plDaySlots(days) {
+  const seen = Object.create(null);
+  return (Array.isArray(days) ? days : []).map((day, di) => {
+    const wd = day && Number.isInteger(day.weekday) && day.weekday >= 0 && day.weekday <= 6 ? day.weekday : null;
+    const base = wd != null ? "wd:" + wd : "name:" + String((day && day.name) || "Day " + (di + 1)).trim().toLowerCase();
+    seen[base] = (seen[base] || 0) + 1;
+    return seen[base] > 1 ? base + "#" + seen[base] : base;
+  });
+}
+// A program's days as the Attach view lists them: one row per slot, named from the first week
+// that has it, in the order the slots first appear. A program repeats its days across weeks, so a
+// row's playlist is the one its slot carries in EVERY week that has it (`weeksWith` of `weeks`);
+// a day set in only some weeks says so.
 function plProgramDays(plan) {
   const builder = plan && plan.detail && plan.detail.builder;
   const weeks = builder && Array.isArray(builder.weeks) ? builder.weeks : [];
-  const rows = [];
-  weeks.forEach((week) => (week && Array.isArray(week.days) ? week.days : []).forEach((day, di) => {
-    if (!rows[di]) rows[di] = { index: di, id: (day && day.id) || "day-" + di, name: (day && day.name) || "Day " + (di + 1), weeks: 0, byName: Object.create(null) };
-    const row = rows[di];
-    row.weeks += 1;
-    const name = day && day.playlist && typeof day.playlist.name === "string" ? day.playlist.name : "";
-    if (name) row.byName[name] = (row.byName[name] || 0) + 1;
-  }));
-  return rows.filter(Boolean).map((r) => {
+  const rows = new Map();
+  weeks.forEach((week) => {
+    const days = week && Array.isArray(week.days) ? week.days : [];
+    const slots = plDaySlots(days);
+    days.forEach((day, di) => {
+      const key = slots[di];
+      if (!rows.has(key)) rows.set(key, { index: rows.size, key, id: (day && day.id) || key, name: (day && day.name) || "Day " + (di + 1), weeks: 0, byName: Object.create(null) });
+      const row = rows.get(key);
+      row.weeks += 1;
+      const name = day && day.playlist && typeof day.playlist.name === "string" ? day.playlist.name : "";
+      if (name) row.byName[name] = (row.byName[name] || 0) + 1;
+    });
+  });
+  return [...rows.values()].map((r) => {
     const names = Object.keys(r.byName);
-    return { index: r.index, id: r.id, name: r.name, weeks: r.weeks, playlists: names.map((n) => ({ name: n, weeksWith: r.byName[n] })) };
+    return { index: r.index, key: r.key, id: r.id, name: r.name, weeks: r.weeks, playlists: names.map((n) => ({ name: n, weeksWith: r.byName[n] })) };
   });
 }
 // The programs as the page reads them: { id, name, type, clients, revision, days, plan }.
@@ -147,21 +166,24 @@ function plDayHas(day, name) {
   if (!hit) return false;
   return hit.weeksWith >= day.weeks ? true : "some";
 }
-// The program with one day's playlist set (or cleared) in every week. A day plays one playlist,
-// so setting one replaces the one it had. Returns the new builder, or null when nothing changes.
-function plSetDayPlaylist(plan, dayIndex, playlist) {
+// The program with one slot's playlist set (or cleared) in every week that has that slot
+// (plDaySlots). A day plays one playlist, so setting one replaces the one it had. Returns the new
+// builder, or null when nothing changes.
+function plSetDayPlaylist(plan, slot, playlist) {
   const builder = plan && plan.detail && plan.detail.builder;
   if (!builder || !Array.isArray(builder.weeks)) return null;
   let changed = false;
+  const next = playlist ? { name: playlist.name, meta: playlist.meta || "" } : null;
   const weeks = builder.weeks.map((week) => {
     const days = week && Array.isArray(week.days) ? week.days : [];
-    if (!days[dayIndex]) return week;
-    const day = days[dayIndex];
+    const slots = plDaySlots(days);
+    const at = slots.indexOf(slot);
+    if (at < 0) return week;
+    const day = days[at];
     const had = day.playlist && day.playlist.name ? day.playlist.name : "";
-    const next = playlist ? { name: playlist.name, meta: playlist.meta || "" } : null;
     if ((next ? next.name : "") === had) return week;
     changed = true;
-    return { ...week, days: days.map((d, i) => (i === dayIndex ? { ...d, playlist: next } : d)) };
+    return { ...week, days: days.map((d, i) => (i === at ? { ...d, playlist: next } : d)) };
   });
   return changed ? { ...builder, weeks } : null;
 }
@@ -271,7 +293,11 @@ function PlaylistPage({ ctx }) {
         const d = await plJson(r);
         if (cancelled) return;
         if (!Array.isArray(d.soundtracks)) { setRead({ state: "unread", rows: [] }); return; }
-        setRead({ state: "live", rows: d.soundtracks.map(soundtrackToWeb) });
+        // ⚠ ONLY THIS PAGE'S PLAYLISTS (Codex P2 on #2644). A coach who is both a trainer and a
+        // nutritionist has both kinds in one table; the member's Train page reads the trainer's and
+        // the Eat page the nutritionist's (get_my_coach_playlists). A row saved before roles (null)
+        // shows on both pages, as the function reads it, and an edit never re-stamps a row's role.
+        setRead({ state: "live", rows: d.soundtracks.filter((r) => r && (r.role == null || r.role === role)).map(soundtrackToWeb) });
       })
       .catch(() => { if (!cancelled) setRead({ state: "unread", rows: [] }); });
     return () => { cancelled = true; };
@@ -284,8 +310,12 @@ function PlaylistPage({ ctx }) {
     fetch("/api/coach/plans?kind=program", { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => { const d = await plJson(r); if (cancelled) return; setPlans(r.ok && Array.isArray(d.plans) ? { state: "ready", list: d.plans } : { state: "unread", list: null }); })
       .catch(() => { if (!cancelled) setPlans({ state: "unread", list: null }); });
+    // Today on the account's own clock (one zone per account, printed through ShapeZone), as the
+    // usage route takes it; this device's clock only when ShapeZone isn't there.
     const t = new Date();
-    const today = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
+    let today = "";
+    try { const Z = window.ShapeZone; if (Z && typeof Z.dayKey === "function") today = Z.dayKey(Date.now()) || ""; } catch (e) { today = ""; }
+    if (!today) today = t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0");
     fetch("/api/coach/plans/usage?today=" + today, { credentials: "same-origin", cache: "no-store" })
       .then(async (r) => { const d = await plJson(r); if (cancelled) return; setUsage(r.ok && d.usage && typeof d.usage === "object" ? { byId: d.usage, capped: !!d.capped } : null); })
       .catch(() => { if (!cancelled) setUsage(null); });
@@ -331,7 +361,7 @@ function PlaylistPage({ ctx }) {
   const savePlaylist = async (p, patch) => {
     if (demo) { setDemoPlaylists((list) => list.map((x) => (x.id === p.id ? { ...x, ...patch } : x))); return { ok: true }; }
     try {
-      const res = await fetch("/api/coach/soundtracks", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, ...patch, role }) });
+      const res = await fetch("/api/coach/soundtracks", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, ...patch }) });
       const d = await plJson(res);
       if (res.ok && d.soundtrack) { replaceRow(soundtrackToWeb(d.soundtrack)); return { ok: true }; }
       return { error: d.error || "Couldn't save. Try again." };
@@ -367,7 +397,8 @@ function PlaylistPage({ ctx }) {
       setDemoPrograms((list) => list.map((g) => (g.id !== program.id ? g : { ...g, days: g.days.map((d) => (d.index !== dayIndex ? d : { ...d, playlists: playlist ? [{ name: playlist.name, weeksWith: d.weeks }] : [] })) })));
       return { ok: true };
     }
-    const builder = plSetDayPlaylist(program.plan, dayIndex, playlist ? { name: playlist.name, meta: plPlaylistMeta(playlist) } : null);
+    const slot = (program.days.find((d) => d.index === dayIndex) || {}).key;
+    const builder = slot ? plSetDayPlaylist(program.plan, slot, playlist ? { name: playlist.name, meta: plPlaylistMeta(playlist) } : null) : null;
     if (!builder) return { ok: true };
     try {
       const res = await fetch("/api/coach/plans", { method: "PATCH", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: program.id, detail: { builder }, expectedRevision: program.revision }) });
