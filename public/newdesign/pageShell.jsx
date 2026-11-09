@@ -51,7 +51,7 @@ const mono = "var(--sh-font-mono, 'JetBrains Mono', 'JetBrains Mono Fallback', m
     "@font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}" +
     "@font-face{font-family:'Schibsted Fallback';src:local('Arial');size-adjust:101%;ascent-override:95%;descent-override:25%;line-gap-override:0%}" +
     ":root{--sh-font-display:'Anybody','Anybody Fallback',system-ui,sans-serif;--sh-font-body:'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif}" +
-    ":where(body){font-family:var(--sh-font-body)}";
+    ":where(body){font-family:var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)}";
   (document.head || document.documentElement).appendChild(link);
   (document.head || document.documentElement).appendChild(style);
 })();
@@ -1874,7 +1874,7 @@ function ShapeMobileStyles() {
          tests/homepage-font-axes.test.mjs was written for, and it now derives from
          this file too. @import must come first in a stylesheet, hence its position
          above the @font-face rules. */
-      @import url('https://fonts.googleapis.com/css2?family=Anybody:ital,wdth,wght@0,50..150,100..900;1,50..150,100..900&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap');
       /* Metrics-matched fallback fonts — the local fallback is scaled (size-adjust +
          ascent/descent overrides) to occupy the SAME space as the web font, so the swap
          on load doesn't reflow headers (Fraunces), sub-heads (JetBrains Mono) or body
