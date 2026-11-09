@@ -493,5 +493,8 @@ test('"today" is the day in the zone the bookings are read in', () => {
   assert.equal(H.dscTodayIn(null), H.dscIso(new Date()));
   // And the grids are handed it: the highlight follows the route's zone, not this browser's.
   assert.match(SCHEDULE_SRC, /const todayIso = dscTodayIn\(calZone\);/);
-  assert.equal((SCHEDULE_SRC.match(/todayIso=\{todayIso\}/g) || []).length, 2, 'both grids take the zone\'s today');
+  // Both grids take the zone's today (and since step 5c the request card too, for "wants Sat").
+  assert.match(SCHEDULE_SRC, /<DscTimeGrid [^>]*todayIso=\{todayIso\}/, 'the week grid does not take the zone\'s today');
+  assert.match(SCHEDULE_SRC, /<DscMonth [^>]*todayIso=\{todayIso\}/, 'the month grid does not take the zone\'s today');
+  assert.match(SCHEDULE_SRC, /<DscRequests [^>]*todayIso=\{todayIso\}/, 'the request card does not take the zone\'s today');
 });

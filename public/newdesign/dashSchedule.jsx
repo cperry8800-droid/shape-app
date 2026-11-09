@@ -1,7 +1,8 @@
 // Schedule v2 — the pro PLANNING view (dashboard-v2 gap step). A dedicated
 // page (NOT the Today summary) for both coach roles, sessions + consults
-// color-coded BY CLIENT, and an availability-blocks editor that feeds the
-// marketplace profile. Today's schedule stays the daily summary.
+// coloured by KIND with each client's tier mark (step 5c, below), and an
+// availability-blocks editor that feeds the marketplace profile. Today's
+// schedule stays the daily summary.
 //
 // ⚠ STEP 2 OF THE OWNER-APPROVED UPGRADE (2026-10-07, "I like everything that is proposed for
 // schedule"): the week is a TIME GRID now, not seven lists of chips. Hours run down the side
@@ -11,7 +12,7 @@
 // (15-minute steps, pointer events so a finger works too) with the clash and open-hours
 // verdicts drawn on the drop target. Day view is one wide column plus the day's agenda with
 // each client's prep; under 760px the week becomes the day view with a day strip. Month keeps
-// its chips and its day-only drag.
+// its chips and its day-only drag. (Since step 5c the requests are one card above the week.)
 //
 // Data: /api/calendar, a month range at a time with `tz` + `role`, so bookings come back on
 // the coach's own clock and the response names the zone (sessions carry clientId + name +
@@ -27,6 +28,17 @@
 // host page) — the SAME file /api/sessions/manage, /api/sessions/request and /api/consultation
 // import, so a red drop target here and a 409 there are one decision.
 //
+// ⚠ STEP 5C OF THE OWNER'S COACH REVIEW (2026-11-09): Schedule is a TOOL PAGE and stays a fixed
+// layout ("a calendar is a tool, and making it draggable would make it harder to use"). The week
+// takes the full width: open hours are a light teal wash the blocks sit on, today's column is lifted
+// and carries a now-line on the account's clock, and a block is tinted and edged by its KIND
+// (session, consult, check-in, a pushed workout or meal, a note), said in words, with the client as
+// their tier mark beside their name (dscKind, DscTierMark: the per-client palette is retired, #2630).
+// The first waiting request is the page's highest card (DscRequests, Lift 2), and open hours, time
+// off and booking rules sit behind one tab on the page's edge, in a modal slide-over
+// (DscSettingsSheet). The client panel (DashClientDrawer) gets this page's own bookings and the
+// joint list, so its next session is this calendar's.
+//
 // Load order: pageShell → trainerDashboard → coachNav → dashSignals →
 // dashData → dashToday (DashDemoBand/helpers) → dashGoals → dashRoster
 // (DashClientDrawer) → this; scheduleRules.mjs as a module before any of them runs.
@@ -36,38 +48,6 @@ const DSC_MONO = "'JetBrains Mono', monospace";
 const DSC_TEAL = "var(--sh-accent, #2ee0c4)";
 const DSC_DAY = 86400000;
 const DSC_DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-// Client palette. The page builds a colorOf() that assigns palette colors by
-// the DISTINCT clients on the visible calendar (first → palette[0], …) so no
-// two clients on screen ever share a color until there are >10. dscClientColor
-// is the deterministic hash fallback (overflow + standalone callers).
-// ⚠ THESE STAY LITERAL, BY RULE RATHER THAN BY OVERSIGHT. A chip composes its
-// tint by APPENDING a hex-alpha suffix to the palette entry it was given
-// (`color + "22"` in DscChip), so a var() here is not a colour and CSS drops the
-// whole declaration — the chip loses its tint AND its left border. Turning these
-// into paper tokens means teaching DscChip to take a triplet, which is a change
-// of behaviour rather than a rename, and it belongs with the light-paper values
-// where the tint actually has to move. They are also a per-CLIENT identity
-// palette rather than the paper's own colours, so they do not follow the ground.
-// tests/newdesign-paper-tokens.test.mjs holds the rule.
-const DSC_PALETTE = ["#2ee0c4", "#d8a23a", "#c0533b", "#8a5cf6", "#7bbf5a", "#7ed4ff", "#e0644b", "#f5a0c8", "#9be3a8", "#ffb46b"];
-function dscClientColor(key) {
-  const s = String(key || "—");
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return DSC_PALETTE[h % DSC_PALETTE.length];
-}
-// Build an order-stable color map from the events' distinct client keys.
-function dscColorMap(events) {
-  const order = [];
-  const seen = new Set();
-  for (const e of events || []) {
-    const k = e.clientId || e.with || e.title;
-    if (k && !seen.has(k)) { seen.add(k); order.push(k); }
-  }
-  const map = new Map();
-  order.forEach((k, i) => map.set(k, i < DSC_PALETTE.length ? DSC_PALETTE[i] : dscClientColor(k)));
-  return (key) => map.get(key) || dscClientColor(key);
-}
 function dscIso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function dscRouteDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
@@ -350,7 +330,7 @@ function dscCopyTargets(to, from) {
 // cell to close it; a drag fills the rectangle between where it started and where it is, so
 // Monday 9:00 to Friday 5:00 opens the working week in one gesture. A cell is also a button:
 // click it, or Enter/Space. Nothing is saved until "Save hours".
-function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved }) {
+function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved, onDirty }) {
   const seed = React.useMemo(() => dscHoursModel(initial), [JSON.stringify(initial)]);
   const [cells, setCells] = React.useState(() => seed.cells.map((d) => d.slice()));
   const [saving, setSaving] = React.useState(false);
@@ -363,6 +343,9 @@ function DscHoursEditor({ role, live, initial, storedZone, onCancel, onSaved }) 
   cells.forEach((d) => d.forEach((on, i) => { if (on) { first = Math.min(first, i); last = Math.max(last, i + 1); } }));
   const rows = Array.from({ length: last - first }, (_, k) => first + k);
   const dirty = JSON.stringify(cells) !== JSON.stringify(seed.cells);
+  // An edit not saved yet, for the slide-over's close (DscSettingsSheet asks before dropping it).
+  React.useEffect(() => { if (onDirty) onDirty(dirty); }, [dirty]);
+  React.useEffect(() => () => { if (onDirty) onDirty(false); }, []);
   const openMin = cells.reduce((n, d) => n + d.filter(Boolean).length, 0) * DSC_HALF;
   const zoneLabel = dscZoneLabel(live, storedZone);
 
@@ -546,7 +529,7 @@ function dscOffLabel(b, zone) {
   if (ws && we) return dscDateFmt(s, zone) + " " + dscClock(ws.min) + " – " + dscDateFmt(e, zone) + " " + dscClock(we.min);
   return new Date(s).toLocaleString() + " – " + new Date(e).toLocaleString();
 }
-function DscTimeOffPlate({ list, zone, adding, onAdd, onRemove, busyId, error }) {
+function DscTimeOffPlate({ list, zone, adding, onAdd, onRemove, busyId, error, onDirty }) {
   const todayIso = dscTodayIn(zone);
   const [open, setOpen] = React.useState(false);
   const [allDay, setAllDay] = React.useState(true);
@@ -555,6 +538,10 @@ function DscTimeOffPlate({ list, zone, adding, onAdd, onRemove, busyId, error })
   const [fromMin, setFromMin] = React.useState(12 * 60);
   const [toMin, setToMin] = React.useState(17 * 60);
   const [note, setNote] = React.useState("");
+  // A form opened and changed but not added yet is an unsaved edit (DscSettingsSheet asks first).
+  const dirty = open && (note.trim() !== "" || from !== todayIso || to !== todayIso || !allDay || fromMin !== 12 * 60 || toMin !== 17 * 60);
+  React.useEffect(() => { if (onDirty) onDirty(dirty); }, [dirty]);
+  React.useEffect(() => () => { if (onDirty) onDirty(false); }, []);
   const submit = async (e) => {
     e.preventDefault();
     const ok = await onAdd({ allDay, from, to: to < from ? from : to, fromMin, toMin, note: note.trim() });
@@ -618,7 +605,7 @@ const dscNoticeText = (h) => (h === 0 ? "None" : h % 168 === 0 ? (h / 168) + (h 
 const DSC_INTRO_MIN = 5;
 const DSC_INTRO_MAX = 240;
 const dscIntroOk = (v) => { const n = Number(v); return String(v).trim() !== "" && Number.isInteger(n) && n >= DSC_INTRO_MIN && n <= DSC_INTRO_MAX; };
-function DscRulesPlate({ role, live, onToast }) {
+function DscRulesPlate({ role, live, onToast, onDirty }) {
   const [saved, setSaved] = React.useState({ bufferMin: 0, maxPerDay: null, minNoticeHours: 0, consultMin: 15 });
   const [draft, setDraft] = React.useState(saved);
   const [state, setState] = React.useState(live ? "loading" : "ready");   // loading | ready | notready | error | saving
@@ -638,6 +625,8 @@ function DscRulesPlate({ role, live, onToast }) {
     return () => { on = false; };
   }, [role, live]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  React.useEffect(() => { if (onDirty) onDirty(dirty); }, [dirty]);
+  React.useEffect(() => () => { if (onDirty) onDirty(false); }, []);
   // The intro length is typed, so it can be half-typed: saving waits for a whole number in range.
   const introOk = dscIntroOk(draft.consultMin);
   const save = async () => {
@@ -710,31 +699,286 @@ function DscRulesPlate({ role, live, onToast }) {
   );
 }
 
+// ── Hours & rules: the settings slide-over (coach dashboard step 5c) ────────
+// ⚠ THE SETTINGS LEFT THE PAGE (the owner's review: "a third of the width spent on settings"). Open
+// hours, time off and booking rules sit behind ONE tab on the page's edge, in a slide-over that is a
+// MODAL like the client panel's (DashClientDrawer): focus is held inside it, Esc closes it, the page
+// behind is inert and hidden from assistive tech until it does, and focus goes back to the tab. The
+// editors inside keep everything they did on the page (the hours open only on hours that arrived, a
+// save only when something changed), and closing never drops an unsaved edit silently: with hours,
+// time off or rules changed and not saved, Close, Esc and a click outside ask first.
+// Every surface outside `el`, up to the body, made inert and hidden; returns the undo. The toast is
+// left out, so a save's "Hours saved" is still read out while the sheet is open.
+function dscInertOutside(el) {
+  const out = [];
+  for (let node = el; node && node.parentElement && node !== document.body; node = node.parentElement) {
+    for (const sib of Array.from(node.parentElement.children)) {
+      if (sib === node || sib.tagName === "SCRIPT" || (sib.matches && sib.matches("[data-toast]"))) continue;
+      out.push([sib, sib.inert, sib.getAttribute("aria-hidden")]);
+      sib.inert = true;
+      sib.setAttribute("aria-hidden", "true");
+    }
+  }
+  return () => out.forEach(([n, inert, hidden]) => { n.inert = inert; if (hidden == null) n.removeAttribute("aria-hidden"); else n.setAttribute("aria-hidden", hidden); });
+}
+// A body child where ReactDOM is on the page (the browser), else in place.
+function dscPortal(node) {
+  return typeof ReactDOM !== "undefined" && ReactDOM && typeof ReactDOM.createPortal === "function" && typeof document !== "undefined" && document.body
+    ? ReactDOM.createPortal(node, document.body) : node;
+}
+// `unsaved()` names what is changed and not saved ([] when nothing is).
+function DscSettingsSheet({ onClose, unsaved, children }) {
+  const dialogRef = React.useRef(null);
+  const overlayRef = React.useRef(null);
+  const headingId = React.useId();
+  const [asking, setAsking] = React.useState(null);
+  const askingRef = React.useRef(asking);
+  askingRef.current = asking;
+  const tryClose = () => {
+    const words = unsaved ? unsaved() : [];
+    if (words.length) { setAsking(words); return; }
+    onClose();
+  };
+  const tryRef = React.useRef(tryClose);
+  tryRef.current = tryClose;
+  React.useEffect(() => {
+    if (!dialogRef.current) return undefined;
+    const origin = document.activeElement;
+    const bodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const restore = dscInertOutside(overlayRef.current);
+    const focusable = () => Array.from(dialogRef.current.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex="0"]')).filter((el) => !el.hidden && !el.closest('[hidden],[aria-hidden="true"]'));
+    const focusFirst = () => (focusable()[0] || dialogRef.current).focus();
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault(); e.stopPropagation();
+        if (askingRef.current) setAsking(null); else tryRef.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0], last = items[items.length - 1];
+      if (!first) { e.preventDefault(); dialogRef.current.focus(); }
+      else if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    const contain = (e) => { if (dialogRef.current && !dialogRef.current.contains(e.target)) focusFirst(); };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("focusin", contain);
+    dialogRef.current.focus();
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", contain);
+      restore();
+      document.body.style.overflow = bodyOverflow;
+      if (origin && origin.isConnected && origin.focus) origin.focus();
+    };
+  }, []);
+  const keepRef = React.useRef(null);
+  React.useEffect(() => { if (asking && keepRef.current) keepRef.current.focus(); }, [asking]);
+  const what = asking ? asking.join(" and ") : "";
+  return dscPortal(
+    <div ref={overlayRef} data-settings-overlay="" style={{ position: "fixed", inset: 0, zIndex: 240 }}>
+      <div aria-hidden="true" onPointerDown={(e) => { if (e.target === e.currentTarget) tryRef.current(); }} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.5)", backdropFilter: "blur(2px)" }} />
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1} data-settings-sheet=""
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, boxSizing: "border-box", width: "min(560px, 100vw)", outline: "none", background: "var(--sh-ground2, #14110e)", borderLeft: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.12)", boxShadow: "var(--lift-3, 0 12px 32px rgba(0,0,0,0.18))", overflowY: "auto", overscrollBehavior: "contain", padding: "0 24px 40px", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", color: "var(--sh-ink, #f2ede4)" }}>
+        <div style={{ position: "sticky", top: 0, zIndex: 2, background: "var(--sh-ground2, #14110e)", padding: "20px 0 12px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div className="dash-eyebrow" style={{ color: DSC_GOLD }}>Settings · what members can book</div>
+            <div id={headingId} style={{ fontFamily: serif, fontSize: 26, letterSpacing: "-0.02em", marginTop: 4 }}>Hours &amp; rules</div>
+          </div>
+          <button type="button" aria-label="Close" title="Close (Esc)" onClick={() => tryRef.current()} style={{ background: "transparent", border: 0, color: DSC_INK50, fontSize: 22, cursor: "pointer", lineHeight: 1, minWidth: 44, minHeight: 44 }}>×</button>
+        </div>
+        {asking && (
+          <div role="alertdialog" aria-label="Unsaved changes" data-settings-unsaved="" style={{ margin: "0 0 14px", padding: "12px 14px", border: "1px solid rgba(var(--sh-gold-rgb, 216,162,58),0.5)", borderRadius: 8, background: "rgba(var(--sh-gold-rgb, 216,162,58),0.08)" }}>
+            <div style={{ fontSize: 13, lineHeight: 1.45 }}>Your changes to {what} aren't saved.</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              <button type="button" ref={keepRef} data-keep-editing="" onClick={() => setAsking(null)} style={dscBtn("on")}>Keep editing</button>
+              <button type="button" data-leave-unsaved="" onClick={() => { setAsking(null); onClose(); }} style={dscBtn("warn")}>Leave without saving</button>
+            </div>
+          </div>
+        )}
+        <div style={{ display: "grid", gap: 16 }}>{children}</div>
+        <p data-settings-help="" style={{ margin: "18px 0 0", fontSize: 11.5, lineHeight: 1.5, color: DSC_INK50 }}>
+          <span aria-hidden="true" style={{ fontFamily: DSC_MONO, fontWeight: 700, marginRight: 6 }}>?</span>Members book only inside your open hours and rules, never in time off; you can still book and move clients yourself.
+        </p>
+      </div>
+    </div>
+  );
+}
+// The way in: one tab on the page's right edge, or (under 760px, where an edge tab would sit over
+// the day's column) a button in the toolbar.
+function DscSettingsTab({ open, narrow, onOpen, note }) {
+  const words = "Hours & rules";
+  const common = { type: "button", "data-settings-tab": narrow ? "toolbar" : "edge", "aria-haspopup": "dialog", "aria-expanded": open, onClick: onOpen, title: note ? words + " · " + note : words };
+  if (narrow) return <button {...common} style={{ fontFamily: DSC_MONO, fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "7px 12px", cursor: "pointer", whiteSpace: "nowrap" }}>⚙ {words}</button>;
+  return (
+    // Not `.sh-key`: its reduced-motion guard sets `transform: none !important`, which would undo the
+    // centring below.
+    <button {...common}
+      style={{ position: "fixed", right: 0, top: "50%", transform: "translateY(-50%)", zIndex: 60, writingMode: "vertical-rl", padding: "16px 9px", border: "1px solid var(--sh-line, #302c27)", borderRight: 0, borderRadius: "10px 0 0 10px", background: "var(--sh-card, #25211d)", boxShadow: "var(--lift-1, 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65))", color: "var(--sh-ink, #f2ede4)", fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer" }}>
+      <span aria-hidden="true" style={{ color: DSC_GOLD, marginBottom: 8 }}>⚙</span>{words}
+    </button>
+  );
+}
+
+// ── Kinds and tiers (coach dashboard step 5c) ──────────────────────────────
+// ⚠ A BLOCK IS COLOURED BY ITS KIND, NEVER BY ITS CLIENT (the owner's tier ruling, #2630). The
+// per-client palette this page drew (DSC_PALETTE, dscColorMap) is retired: a session, a consult
+// (gold), a check-in (azure), a pushed workout or meal, a calendar note and the coach's own booking
+// with another coach are each tinted and edged by what they ARE, and each says so in words, because
+// consult's gold is Tempo's tier colour and the azure sits near Peak's: the word, never the colour,
+// tells a consult from a Tempo client's session. The colours are clientColors.mjs's calendar kinds
+// (window.ShapeClientColors, read at call time, per paper); that map's `session` is the client's
+// tier, which on this page is the MARK, so a session's block takes the page's accent instead.
+// Without the module (a host page that does not load it), the paper's own gold and sky.
+const DSC_EVENT_WORDS = { REVIEW: "Review", PLAN: "Plan", ADMIN: "Admin", REST: "Rest" };
+function dscKindKey(ev) {
+  if (!ev) return "event";
+  if (ev.source === "booked") return "booked";
+  if (ev.kind === "CONSULT") return "consult";
+  if (ev.kind === "CHECKIN") return "checkin";
+  if (ev.kind === "SESSION") return "session";
+  if (ev.kind === "WORKOUT") return "workout";
+  if (ev.kind === "MEAL") return "meal";
+  return "event";
+}
+function dscPaperName() {
+  try { return document.documentElement.getAttribute("data-paper") || "white"; } catch (e) { return "white"; }
+}
+// What a block is: { key, label, edge, tint, text }. `edge` is the block's left rule (and a
+// request's dashed outline), `tint` its fill, `text` the colour its kind's word is set in.
+function dscKind(ev) {
+  const key = dscKindKey(ev);
+  const label = key === "session" ? "Session" : key === "consult" ? "Consult" : key === "checkin" ? "Check-in"
+    : key === "workout" ? "Workout" : key === "meal" ? "Meal" : key === "booked" ? "Your booking"
+    : DSC_EVENT_WORDS[ev && ev.kind] || "Note";
+  if (key === "session") return { key, label, edge: DSC_TEAL_INK, tint: "rgba(var(--sh-accent-rgb, 46,224,196),0.16)", text: DSC_TEAL_INK };
+  if (key === "consult" || key === "checkin") {
+    let c = null;
+    try {
+      const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
+      c = CC && typeof CC.calendarKindColor === "function" ? CC.calendarKindColor(key, dscPaperName()) : null;
+    } catch (e) { c = null; }
+    if (c && c.color) return { key, label, edge: c.color, tint: "color-mix(in srgb, " + c.color + " 16%, transparent)", text: c.color };
+    return key === "consult"
+      ? { key, label, edge: DSC_GOLD, tint: "rgba(var(--sh-gold-rgb, 216,162,58),0.16)", text: DSC_GOLD }
+      : { key, label, edge: "var(--sh-sky, #7ed4ff)", tint: "rgba(var(--sh-sky-rgb, 126,212,255),0.16)", text: "var(--sh-sky, #7ed4ff)" };
+  }
+  // A workout or a meal pushed from a plan, a note, the coach's own booking: read as the page's ink.
+  return { key, label, edge: "var(--sh-ink3, #75706a)", tint: "rgba(var(--sh-ink-rgb, 242,237,228),0.06)", text: DSC_INK50 };
+}
+// ⚠ THE CLIENT IS A TIER MARK BESIDE THE NAME, NEVER THE BLOCK'S FILL (#2630): their Shape Score
+// tier from the roster's `rankPoints`, through dashToday.jsx's dashRecordTier and dashTierMark
+// (window globals, read at call time), or the same reading of clientColors.mjs where the page runs
+// without them. An unknown tier (not read, a failed read, not on the roster) is a hollow mark that
+// claims nothing, never Raw.
+function dscRecordTier(rec) {
+  try { if (typeof window !== "undefined" && typeof window.dashRecordTier === "function") return window.dashRecordTier(rec); } catch (e) { /* the reading below */ }
+  const r = rec && rec.client && typeof rec.client === "object" ? rec.client : rec;
+  const v = r && typeof r === "object" ? r.rankPoints : null;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+}
+function dscTierMark(points) {
+  try {
+    if (typeof window !== "undefined" && typeof window.dashTierMark === "function") return window.dashTierMark(points);
+    const CC = typeof window !== "undefined" ? window.ShapeClientColors : null;
+    if (typeof points !== "number" || !Number.isFinite(points) || points < 0) return null;
+    if (!CC || typeof CC.clientTier !== "function" || typeof CC.clientTierVars !== "function") return null;
+    const t = CC.clientTier(points), vars = CC.clientTierVars(points);
+    return t && vars ? { tier: t.key, title: t.title, style: vars } : null;
+  } catch (e) { return null; }
+}
+// The mark: a small square in the tier's colour (dash.css `.sh-tier-mark`), the tier in words for
+// hover and assistive tech, ringed in the card's colour so it stands off a tinted block. `decorative`
+// inside a control that already names the tier in its own label.
+function DscTierMark({ points, size = 8, name, decorative = false }) {
+  const m = dscTierMark(points);
+  const box = { display: "inline-block", width: size, height: size, borderRadius: 2, flexShrink: 0, outline: "1.5px solid var(--sh-card, #25211d)" };
+  if (!m) return <span aria-hidden="true" data-tier-unknown="" title={name ? name + " · tier not known" : undefined} style={{ ...box, boxShadow: "inset 0 0 0 1px var(--sh-line2, #413d38)" }} />;
+  const words = (name ? name + " · " : "") + m.title;
+  return <span className="sh-tier-mark" data-tier={m.tier} title={words} {...(decorative ? { "aria-hidden": "true" } : { role: "img", "aria-label": m.title })} style={{ ...m.style, ...box }} />;
+}
+// A block's look without a page to ask: its kind, and no client.
+function dscLookAlone(ev) { return { kind: dscKind(ev), client: false, points: null }; }
+// The words a block says for assistive tech: the client and their tier, the kind, then the rest.
+function dscBlockWords(ev, look) {
+  const m = look.client ? dscTierMark(look.points) : null;
+  return [ev.with || ev.title, look.client ? (m ? m.title : "tier not known") : null, look.kind.label].filter(Boolean).join(", ");
+}
+
+// ── The client panel's bookings (coach dashboard step 5c) ───────────────────
+// DashClientDrawer's `sessions` (dashRoster.jsx dashPeekSessions' shape: { state, rows: [{ at,
+// clientId, who, status, sub }] }) for the client it is open on, built from the calendar THIS page
+// reads: its own bookings, fresh with any move, answer or booking made here, and never one the coach
+// made as a client (`events` is the page's calEvents, where those are "booked", not sessions).
+// ⚠ THE PAGE READS MONTHS, NOT EVERYTHING, and "nothing booked" is a claim: from this month on, the
+// months read without a gap answer alone; past them, the role dashboard's calendar (useDashboard's
+// `today`, the rows the Clients page's panel reads) does. Where neither can say, the panel's schedule
+// is unread ("couldn't be read"), never "none". The preview's bookings meet its people by name.
+function dscPanelSessions({ rec, cal, events, preview, calState, today, source, role, zone, BR, now }) {
+  const rowOf = (e, at) => ({ at, clientId: e.clientId != null ? e.clientId : null, who: e.with || "", status: typeof e.status === "string" ? e.status : null, sub: e.title || null });
+  const sessions = (events || []).filter((e) => e && e.source === "session" && /^\d{4}-\d{2}-\d{2}$/.test(e.date || "") && dscMin(e.time) != null);
+  if (!cal) {
+    if (!preview) return { state: calState === "failed" ? "unread" : "loading" };
+    const rows = sessions.map((e) => {
+      const d = e.date.split("-").map(Number), t = dscMin(e.time);
+      return { ...rowOf(e, new Date(d[0], d[1] - 1, d[2], Math.floor(t / 60), t % 60).getTime()), clientId: null };
+    });
+    return { state: "read", rows };
+  }
+  const at = (e) => {
+    const d = e.date.split("-").map(Number), t = dscMin(e.time);
+    if (BR && zone) { const v = BR.wallInstant(d[0], d[1], d[2], t, zone); if (Number.isFinite(v)) return v; }
+    const p = Date.parse(e.scheduledAt || "");
+    return Number.isFinite(p) ? p : NaN;
+  };
+  const own = sessions.map((e) => rowOf(e, at(e))).filter((r) => Number.isFinite(r.at));
+  // The first month this page has NOT read, counting on from this one, and its first instant.
+  const thisMonth = dscTodayIn(zone).slice(0, 7);
+  let gap = thisMonth;
+  for (let i = 0; i < 240 && cal.months && cal.months.has(gap); i++) gap = dscNextMonthKey(gap);
+  const gapAt = BR && zone ? BR.wallInstant(Number(gap.slice(0, 4)), Number(gap.slice(5, 7)), 1, 0, zone) : NaN;
+  const feed = typeof window !== "undefined" && typeof window.dashPeekSessions === "function" ? window.dashPeekSessions(today, source, role) : null;
+  const beyond = feed && feed.state === "read" && Array.isArray(feed.rows) && Number.isFinite(gapAt) ? feed.rows.filter((r) => r && Number.isFinite(r.at) && r.at >= gapAt) : null;
+  const rows = own.filter((r) => Number.isFinite(gapAt) && r.at < gapAt).concat(beyond || []);
+  const next = typeof window !== "undefined" && typeof window.dashNextSessionFor === "function" ? window.dashNextSessionFor : null;
+  if (!next || beyond) return { state: "read", rows };
+  // Without the dashboard's calendar, this page answers only for a booking inside its own months.
+  const r = next(rec, { state: "read", rows }, now);
+  return r.state === "booked" ? { state: "read", rows } : { state: "unread" };
+}
+
 // ── Event chip (draggable) ──────────────────────────────────────────────────
 // Month cells and the grid's all-day row. A REQUEST is dashed rather than filled: until the
-// coach answers it, it is a question, not an appointment, and it must not read like one.
-function DscChip({ ev, onClick, onDragStart, compact, colorOf, drag = true }) {
-  const color = (colorOf || dscClientColor)(ev.clientId || ev.with || ev.title);
+// coach answers it, it is a question, not an appointment, and it must not read like one. Its
+// kind's word and the client's tier mark ride on it, as on the week's blocks.
+function DscChip({ ev, onClick, onDragStart, compact, lookOf, drag = true }) {
+  const look = (lookOf || dscLookAlone)(ev);
+  const k = look.kind;
   const movable = ev.reschedulable || ev.editable;
   const requested = ev.status === "requested";
   return (
     <div
       draggable={drag && movable}
+      data-kind={k.key}
       onDragStart={(e) => { if (drag && movable) { e.dataTransfer.setData("text/plain", ev.id); onDragStart(ev); } }}
       onClick={(e) => { e.stopPropagation(); onClick(ev); }}
-      title={ev.title + (ev.with ? " · " + ev.with : "") + (requested ? " · requested" : "") + (movable ? "" : " · read-only")}
+      title={dscBlockWords(ev, look) + (ev.with ? " · " + ev.title : "") + (requested ? " · requested" : "") + (movable ? "" : " · read-only")}
       style={{
-        display: "flex", alignItems: "center", gap: 5, cursor: "pointer",
-        background: requested ? "transparent" : color + "22",
-        borderTop: requested ? "1px dashed " + color : "0 solid transparent",
-        borderRight: requested ? "1px dashed " + color : "0 solid transparent",
-        borderBottom: requested ? "1px dashed " + color : "0 solid transparent",
-        borderLeft: "3px " + (requested ? "dashed " : "solid ") + color, borderRadius: 3,
+        display: "flex", alignItems: "center", gap: 4, cursor: "pointer",
+        background: requested ? "transparent" : k.tint,
+        borderTop: requested ? "1px dashed " + k.edge : "0 solid transparent",
+        borderRight: requested ? "1px dashed " + k.edge : "0 solid transparent",
+        borderBottom: requested ? "1px dashed " + k.edge : "0 solid transparent",
+        borderLeft: "3px " + (requested ? "dashed " : "solid ") + k.edge, borderRadius: 3,
         padding: compact ? "2px 5px" : "4px 7px", marginBottom: 3, minWidth: 0,
         opacity: ev.status === "cancelled" ? 0.4 : 1,
       }}
     >
+      {look.client && <DscTierMark points={look.points} size={compact ? 6 : 7} name={ev.with} decorative />}
       {ev.time && <span style={{ fontFamily: DSC_MONO, fontSize: compact ? 7.5 : 9, color: DSC_INK50, flexShrink: 0 }}>{dscFmt12(ev.time)}</span>}
+      <span data-kind-word="" style={{ fontFamily: DSC_MONO, fontSize: compact ? 7 : 8, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: k.text, flexShrink: 0 }}>{k.label}</span>
       <span style={{ fontSize: compact ? 9.5 : 11.5, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev.with || ev.title}</span>
       {!movable && <span style={{ fontSize: 8, color: DSC_INK50, flexShrink: 0 }}>🔒︎</span>}
     </div>
@@ -744,7 +988,7 @@ function DscChip({ ev, onClick, onDragStart, compact, colorOf, drag = true }) {
 // ── Month grid ──────────────────────────────────────────────────────────────
 // Day-only moves, by HTML5 drag: a month cell has no clock to drop onto. The week and day
 // grids below are where a booking moves to a new TIME.
-function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf, offDates, todayIso = dscIso(new Date()) }) {
+function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, lookOf, offDates, todayIso = dscIso(new Date()) }) {
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const start = dscMonday(first);
   const cells = [];
@@ -767,7 +1011,7 @@ function DscMonth({ cursor, byDate, onPickEvent, onDrop, onDrag, dragId, colorOf
               style={{ minHeight: 92, borderRadius: 6, border: "1px solid " + (isToday ? "rgba(var(--sh-accent-rgb, 46,224,196),0.4)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.08)"), background: inMonth ? "rgba(var(--sh-ink-rgb, 242,237,228),0.02)" : "transparent", opacity: inMonth ? 1 : 0.4, padding: 5, overflow: "hidden" }}>
               <div style={{ fontFamily: DSC_MONO, fontSize: 9, color: isToday ? DSC_TEAL : DSC_INK50, marginBottom: 3 }}>{d.getDate()}</div>
               {offDates && offDates.has(iso) && <div data-time-off-day="" style={{ fontFamily: DSC_MONO, fontSize: 7.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_INK50, padding: "1px 4px", marginBottom: 3, borderRadius: 3, background: "repeating-linear-gradient(135deg, rgba(var(--sh-ink-rgb, 242,237,228),0.1) 0 5px, transparent 5px 10px)" }}>Time off</div>}
-              {evs.slice(0, 4).map((ev) => <DscChip key={ev.id} ev={ev} compact colorOf={colorOf} onClick={onPickEvent} onDragStart={onDrag} />)}
+              {evs.slice(0, 4).map((ev) => <DscChip key={ev.id} ev={ev} compact lookOf={lookOf} onClick={onPickEvent} onDragStart={onDrag} />)}
               {evs.length > 4 && <div style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50 }}>+{evs.length - 4} more</div>}
             </div>
           );
@@ -912,7 +1156,7 @@ function dscWhere(ev) {
 // on the block keeps a finger's drag from scrolling the page instead. The verdict (clash,
 // outside open hours, in the past) is asked for on every move, so the drop target is red
 // BEFORE the coach lets go, not a "couldn't move it" after.
-function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf, todayIso, nowMin, startHour, endHour, slot, onSlot, onBookSlot, onPick, onMove, verdictFor, onDayHead, rules }) {
+function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, lookOf, todayIso, nowMin, startHour, endHour, slot, onSlot, onBookSlot, onPick, onMove, verdictFor, onDayHead, rules }) {
   const colsRef = React.useRef(null);
   const dragRef = React.useRef(null);
   const suppressRef = React.useRef(false);
@@ -980,11 +1224,17 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
   // `grid-template-columns: repeat(7…` to a single column, which would stack a tablet's week
   // grid into one tall column of seven.
   const cols = Array.from({ length: isos.length }, () => "minmax(0, 1fr)").join(" ");
+  const look = (ev) => (lookOf || dscLookAlone)(ev);
+  // ⚠ TODAY IS LIFTED (step 5c, the owner's review: "today isn't obvious"). Height means priority:
+  // the request card stands highest (Lift 2), today's column next (Lift 1, on the card's ground),
+  // and the rest of the week rests flat on a slightly recessed grid. Today is the zone's today
+  // (`todayIso`), never this laptop's.
+  const lifted = { position: "relative", zIndex: 1, background: "var(--sh-card, #25211d)", boxShadow: "var(--lift-1, 0 1px 2px rgba(0,0,0,0.3), 0 14px 30px -12px rgba(0,0,0,0.65))" };
 
   return (
     <div>
       <div role="status" aria-live="polite" style={{ minHeight: 14, fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.04em", color: dragColor, marginBottom: 4 }}>{dragMsg}</div>
-      <div style={{ border: "1px solid " + DSC_HAIR, borderRadius: 8, overflow: "hidden", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.015)" }}>
+      <div style={{ border: "1px solid " + DSC_HAIR, borderRadius: 8, overflow: "hidden", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.03)" }}>
         {/* Day heads */}
         <div style={{ display: "grid", gridTemplateColumns: "44px " + cols, borderBottom: "1px solid " + DSC_HAIR }}>
           <span />
@@ -993,14 +1243,15 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
             const today = iso === todayIso;
             const head = (
               <React.Fragment>
-                <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: today ? DSC_TEAL : DSC_INK50 }}>{DSC_DOW[(d.getDay() + 6) % 7]}</span>
-                <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: today ? DSC_TEAL : "var(--sh-ink, #f2ede4)" }}>{d.getDate()}</span>
+                <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, fontWeight: today ? 700 : 400, letterSpacing: "0.08em", textTransform: "uppercase", color: today ? DSC_TEAL_INK : DSC_INK50 }}>{DSC_DOW[(d.getDay() + 6) % 7]}{today ? " · Today" : ""}</span>
+                <span style={{ display: "block", fontSize: 15, fontWeight: today ? 700 : 600, color: today ? DSC_TEAL_INK : "var(--sh-ink, #f2ede4)" }}>{d.getDate()}</span>
               </React.Fragment>
             );
-            const style = { textAlign: "center", padding: "6px 0 5px", background: "transparent", borderTop: 0, borderRight: 0, borderBottom: 0, borderLeft: "1px solid " + DSC_HAIR, color: "inherit", font: "inherit", minWidth: 0 };
+            const style = { textAlign: "center", padding: "6px 0 5px", background: "transparent", borderTop: 0, borderRight: 0, borderBottom: 0, borderLeft: "1px solid " + DSC_HAIR, color: "inherit", font: "inherit", minWidth: 0, ...(today ? lifted : {}) };
+            const mark = today ? { "data-today": "" } : {};
             return onDayHead && isos.length > 1
-              ? <button key={iso} type="button" data-day-head={iso} onClick={() => onDayHead(iso)} title={"Open " + dscDayLabel(iso, true)} style={{ ...style, cursor: "pointer" }}>{head}</button>
-              : <div key={iso} data-day-head={iso} style={style}>{head}</div>;
+              ? <button key={iso} type="button" data-day-head={iso} {...mark} onClick={() => onDayHead(iso)} title={"Open " + dscDayLabel(iso, true)} style={{ ...style, cursor: "pointer" }}>{head}</button>
+              : <div key={iso} data-day-head={iso} {...mark} style={style}>{head}</div>;
           })}
         </div>
         {/* All-day row: whatever has a date but no time — a program's workout, a menu day. */}
@@ -1009,7 +1260,7 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
             <span style={{ fontFamily: DSC_MONO, fontSize: 7.5, letterSpacing: "0.06em", textTransform: "uppercase", color: DSC_INK50, padding: "6px 4px 0", textAlign: "right" }}>All day</span>
             {untimed.map((list, i) => (
               <div key={isos[i]} style={{ borderLeft: "1px solid " + DSC_HAIR, padding: 3, minWidth: 0 }}>
-                {list.slice(0, 3).map((ev) => <DscChip key={ev.id} ev={ev} compact drag={false} colorOf={colorOf} onClick={onPick} onDragStart={() => {}} />)}
+                {list.slice(0, 3).map((ev) => <DscChip key={ev.id} ev={ev} compact drag={false} lookOf={lookOf} onClick={onPick} onDragStart={() => {}} />)}
                 {list.length > 3 && <div style={{ fontFamily: DSC_MONO, fontSize: 7.5, color: DSC_INK50 }}>+{list.length - 3} more</div>}
               </div>
             ))}
@@ -1025,10 +1276,11 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
               return (
                 <div key={iso} data-plans-day={iso} style={{ borderLeft: "1px solid " + DSC_HAIR, padding: 3, minWidth: 0, display: "grid", gap: 2, alignContent: "start" }}>
                   {list.slice(0, 3).map((p) => {
-                    const color = (colorOf || dscClientColor)(p.clientId || p.with);
+                    // The client's tier mark, as on their bookings (the plan is theirs, not a kind of block).
+                    const pl = look({ clientId: p.clientId, with: p.with || "Client", kind: "WORKOUT", source: "plan" });
                     const label = String(p.with || "Client").split(" ")[0] + " · " + p.title;
                     const style = { display: "flex", alignItems: "center", gap: 4, minWidth: 0, padding: "1px 4px", borderRadius: 3, border: 0, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.05)", color: "inherit", font: "inherit", fontSize: 10, lineHeight: 1.3, textAlign: "left", cursor: onPlan ? "pointer" : "default" };
-                    const inner = <React.Fragment><span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: color, flex: "0 0 auto" }} /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span></React.Fragment>;
+                    const inner = <React.Fragment><DscTierMark points={pl.points} size={6} name={p.with} decorative /><span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span></React.Fragment>;
                     return onPlan
                       ? <button key={p.id} type="button" data-plan={p.id} title={(p.with || "Client") + " · " + p.title + " (their program)"} onClick={() => onPlan(p)} style={style}>{inner}</button>
                       : <div key={p.id} data-plan={p.id} title={(p.with || "Client") + " · " + p.title + " (their program)"} style={style}>{inner}</div>;
@@ -1052,7 +1304,7 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
               const timed = (byDate.get(iso) || []).map((e) => ({ e, s: dscMin(e.time) })).filter((x) => x.s != null);
               const lanes = rules ? rules.layoutLanes(timed.map(({ e, s }) => ({ id: e.id, start: s, end: s + dscDur(e) }))) : new Map();
               return (
-                <div key={iso} data-col-date={iso}
+                <div key={iso} data-col-date={iso} {...(iso === todayIso ? { "data-today": "" } : {})}
                   onClick={(e) => {
                     if (e.target && e.target.closest && e.target.closest("[data-dsc-block],[data-dsc-ghost]")) return;
                     if (suppressRef.current) { suppressRef.current = false; return; }
@@ -1060,12 +1312,13 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
                     const raw = startHour * 60 + ((e.clientY - r.top) / DSC_HOUR_PX) * 60;
                     onSlot(iso, Math.max(0, Math.min(1425, Math.floor(raw / 15) * 15)));
                   }}
-                  style={{ position: "relative", borderLeft: "1px solid " + DSC_HAIR, cursor: "copy", minWidth: 0,
+                  style={{ position: "relative", borderLeft: "1px solid " + DSC_HAIR, cursor: "copy", minWidth: 0, ...(iso === todayIso ? lifted : {}),
                     backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent " + (DSC_HOUR_PX - 1) + "px, rgba(var(--sh-ink-rgb, 242,237,228),0.06) " + (DSC_HOUR_PX - 1) + "px, rgba(var(--sh-ink-rgb, 242,237,228),0.06) " + DSC_HOUR_PX + "px)" }}>
-                  {/* Open hours, faint, under everything */}
+                  {/* Open hours: a light teal wash the blocks sit on, under everything. Subtle on
+                      purpose (step 5c): the wash says "bookable", the blocks carry the colour. */}
                   {blocks && (blocks[wd] || []).map((b, k) => {
                     const s = Math.max(b.start, startHour * 60), en = Math.min(b.end, 1440, endHour * 60);
-                    return en > s ? <div key={k} aria-hidden data-open-band="" style={{ position: "absolute", left: 0, right: 0, top: yOf(s), height: yOf(en) - yOf(s), background: "rgba(var(--sh-accent-rgb, 46,224,196),0.07)", borderLeft: "2px solid rgba(var(--sh-accent-rgb, 46,224,196),0.4)", pointerEvents: "none" }} /> : null;
+                    return en > s ? <div key={k} aria-hidden data-open-band="" style={{ position: "absolute", left: 0, right: 0, top: yOf(s), height: yOf(en) - yOf(s), background: "rgba(var(--sh-accent-rgb, 46,224,196),0.08)", pointerEvents: "none" }} /> : null;
                   })}
                   {/* Time off, hatched over the hours; a click still reaches the column (booking asks first). */}
                   {offsFor && offsFor(iso).map((o, k) => {
@@ -1077,16 +1330,21 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
                     ) : null;
                   })}
                   {timed.map(({ e, s }) => {
-                    const color = (colorOf || dscClientColor)(e.clientId || e.with || e.title);
+                    // ⚠ ONE QUESTION PER BLOCK: who, and what kind. The tint and the edge are the
+                    // kind's (dscKind), said in words; the client is their tier mark beside their name
+                    // (or initials, where the block shares its hour); the time and title follow.
+                    const lk = look(e);
+                    const k = lk.kind;
                     const pos = lanes.get(e.id) || { lane: 0, lanes: 1 };
                     const h = (dscDur(e) / 60) * DSC_HOUR_PX;
                     const movable = !!(e.reschedulable || e.editable);
                     const requested = e.status === "requested";
                     const done = e.status === "completed";
                     const dragging = drag && drag.id === e.id;
+                    const who = lk.client && pos.lanes > 1 ? dscInitials(e.with) : (e.with || e.title);
                     return (
-                      <div key={e.id} data-dsc-block={e.id} role="button" tabIndex={0}
-                        aria-label={(e.with || e.title) + ", " + dscDayLabel(iso) + " " + dscClock(s) + (requested ? ", requested" : done ? ", done" : "")}
+                      <div key={e.id} data-dsc-block={e.id} data-kind={k.key} role="button" tabIndex={0}
+                        aria-label={dscBlockWords(e, lk) + ", " + dscDayLabel(iso) + " " + dscClock(s) + (requested ? ", requested" : done ? ", done" : "")}
                         onPointerDown={(pe) => startDrag(e, pe)}
                         onClick={() => { if (suppressRef.current) { suppressRef.current = false; return; } onPick(e); }}
                         onKeyDown={(k) => { if (k.key === "Enter" || k.key === " ") { k.preventDefault(); onPick(e); } }}
@@ -1095,23 +1353,34 @@ function DscTimeGrid({ days, byDate, blocks, offsFor, plansFor, onPlan, colorOf,
                           left: "calc(" + (pos.lane * 100) / pos.lanes + "% + 3px)", width: "calc(" + 100 / pos.lanes + "% - 6px)",
                           boxSizing: "border-box", borderRadius: 5, padding: "3px 6px", overflow: "hidden", zIndex: 2,
                           cursor: movable ? "grab" : "pointer", touchAction: movable ? "none" : "auto", userSelect: "none",
-                          background: requested ? "rgba(var(--sh-ground-rgb, 26,22,18),0.55)" : color + "29",
-                          borderTop: requested ? "1.5px dashed " + color : "0 solid transparent",
-                          borderRight: requested ? "1.5px dashed " + color : "0 solid transparent",
-                          borderBottom: requested ? "1.5px dashed " + color : "0 solid transparent",
-                          borderLeft: "3px " + (requested ? "dashed " : "solid ") + color,
+                          background: requested ? "rgba(var(--sh-ground-rgb, 26,22,18),0.55)" : k.tint,
+                          borderTop: requested ? "1.5px dashed " + k.edge : "0 solid transparent",
+                          borderRight: requested ? "1.5px dashed " + k.edge : "0 solid transparent",
+                          borderBottom: requested ? "1.5px dashed " + k.edge : "0 solid transparent",
+                          borderLeft: "3px " + (requested ? "dashed " : "solid ") + k.edge,
                           opacity: dragging ? 0.35 : done ? 0.62 : 1,
                         }}>
-                        <div style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{done ? "✓ " : ""}{e.with || e.title}</div>
-                        {h >= 30 && <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, color: DSC_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{dscFmt12(e.time)}{requested ? " · requested" : e.with ? " · " + e.title : ""}</div>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>
+                          {lk.client && <DscTierMark points={lk.points} size={7} name={e.with} decorative />}
+                          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }}>{done ? "✓ " : ""}{who}</span>
+                          {/* A block too short for a second line still says its kind. */}
+                          {h < 30 && <span data-kind-word="" style={{ fontFamily: DSC_MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: k.text, flexShrink: 0 }}>{k.label}</span>}
+                        </div>
+                        {h >= 30 && (
+                          <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, color: DSC_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <span data-kind-word="" style={{ fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: k.text }}>{k.label}</span>{" · " + dscFmt12(e.time)}{requested ? " · requested" : e.with ? " · " + e.title : ""}
+                          </div>
+                        )}
                         {!movable && h >= 44 && <div style={{ fontSize: 8, color: DSC_INK50 }}>🔒︎ read-only</div>}
                       </div>
                     );
                   })}
-                  {/* The now line, on the zone's clock */}
+                  {/* The now-line, across today on the account's clock (`nowMin` is the zone's, and
+                      the page's minute tick moves it), with the time it is in words. */}
                   {iso === todayIso && nowMin != null && nowMin >= startHour * 60 && nowMin <= endHour * 60 && (
-                    <div aria-hidden data-now-line="" style={{ position: "absolute", left: 0, right: 0, top: yOf(nowMin), borderTop: "2px solid " + DSC_RUST, zIndex: 3, pointerEvents: "none" }}>
+                    <div aria-hidden data-now-line="" data-now-min={nowMin} style={{ position: "absolute", left: 0, right: 0, top: yOf(nowMin), borderTop: "2px solid " + DSC_RUST, zIndex: 3, pointerEvents: "none" }}>
                       <span style={{ position: "absolute", left: -4, top: -5, width: 8, height: 8, borderRadius: "50%", background: DSC_RUST }} />
+                      <span style={{ position: "absolute", right: 3, top: -13, fontFamily: DSC_MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: "0.06em", color: DSC_RUST, background: "var(--sh-card, #25211d)", padding: "0 3px", borderRadius: 2 }}>{"Now " + dscFmt12(dscHHMM(nowMin))}</span>
                     </div>
                   )}
                   {/* "+ Book" on the empty time the coach clicked */}
@@ -1247,8 +1516,10 @@ function dscPrep({ row, ev, events, todayIso, nowMin, role }) {
 // ⚠ NO "NO-SHOW". `sessions.status` allows requested · confirmed · declined · completed ·
 // cancelled (2026-04-18-sessions-and-availability.sql) and nothing else, so a no-show could
 // only be faked as one of those. Registered for a migration rather than mislabelled.
-function DscBookingSheet({ ev, row, colorOf, prep, busy, startInMove, verdictFor, onAction, onMove, onOpenFile, onClose }) {
-  const color = (colorOf || dscClientColor)(ev.clientId || ev.with || ev.title);
+function DscBookingSheet({ ev, row, lookOf, prep, busy, startInMove, verdictFor, onAction, onMove, onOpenFile, onClose }) {
+  // The sheet's accent is the booking's kind; the client's tier is the mark beside their name.
+  const lk = (lookOf || dscLookAlone)(ev);
+  const color = lk.kind.edge;
   const s = dscMin(ev.time);
   const [moving, setMoving] = React.useState(!!startInMove);
   const [date, setDate] = React.useState(ev.date);
@@ -1262,9 +1533,12 @@ function DscBookingSheet({ ev, row, colorOf, prep, busy, startInMove, verdictFor
   return (
     <DscModal label={(ev.kind === "CONSULT" ? "Consult" : "Session") + " with " + (ev.with || "client")} accent={color} onClose={onClose}>
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <span aria-hidden style={{ width: 36, height: 36, flex: "0 0 auto", borderRadius: 8, display: "grid", placeItems: "center", fontFamily: DSC_MONO, fontWeight: 700, fontSize: 12, border: "1.5px solid " + color, color }}>{dscInitials(ev.with || ev.title)}</span>
+        <span aria-hidden style={{ width: 36, height: 36, flex: "0 0 auto", borderRadius: 8, display: "grid", placeItems: "center", fontFamily: DSC_MONO, fontWeight: 700, fontSize: 12, border: "1.5px solid " + color, color: lk.kind.text }}>{dscInitials(ev.with || ev.title)}</span>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color }}>{ev.kind === "CONSULT" ? "Consult" : "Session"}{ev.with ? " · " + ev.with : ""}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: lk.kind.text }}>
+            {lk.kind.label}
+            {ev.with ? <React.Fragment><span aria-hidden="true">·</span>{lk.client && <DscTierMark points={lk.points} size={8} name={ev.with} />}<span style={{ color: "var(--sh-ink, #f2ede4)" }}>{ev.with}</span></React.Fragment> : null}
+          </div>
           <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 21, marginTop: 2 }}>{ev.title}</div>
         </div>
       </div>
@@ -1538,27 +1812,122 @@ function DscScopeAsk({ ask, onPick, onNo }) {
   );
 }
 
-// ── Requests strip ──────────────────────────────────────────────────────────
-// Every upcoming request on the loaded calendar, answered where the coach is looking. A
-// request used to look exactly like a confirmed booking, and the website had no confirm or
-// decline anywhere.
-function DscRequests({ list, busyId, onAccept, onDecline, onOther, onPick }) {
-  if (!list.length) return null;
-  const shown = list.slice(0, 4);
+// ── The request: the page's highest card (coach dashboard step 5c) ──────────
+// Every upcoming request on the loaded calendar, answered where the coach is looking. A request
+// used to look exactly like a confirmed booking, and the website had no confirm or decline anywhere.
+// ⚠ HEIGHT MEANS PRIORITY (the owner's review): a client waiting on an answer is the one thing on
+// this page to act on, so the FIRST waiting request (soonest first) is the page's highest card,
+// Lift 2 above the week, as one sentence ("Sam R. wants Sat 9:00 AM") with Accept, Decline and ⋯
+// (another time, or the booking itself). The rest fold under it ("2 more"). Its states are the
+// strip's: an answer in flight disables that request's buttons and says so, and one that failed
+// says so on the request, which stays. The name opens the client panel when they are on the roster;
+// it sits beside the buttons, never inside one.
+// "Sat 9:00 AM" this week, "Sat, Oct 17 · 9:00 AM" further out (weekday names repeat after six days).
+function dscWantsWhen(ev, todayIso) {
+  const s = dscMin(ev.time);
+  const days = dscDaysBetween(todayIso, ev.date);
+  const d = dscRouteDate(ev.date);
+  const day = days >= 0 && days < 7 && d ? DSC_WD[d.getDay()] : dscDayLabel(ev.date);
+  return day + (s != null ? (days >= 0 && days < 7 ? " " : " · ") + dscClock(s) : "");
+}
+// ⋯: a small menu of the actions that are not the two answers. Esc or a click away closes it, and
+// focus goes back to the ⋯.
+function DscMore({ label, items, disabled }) {
+  const [open, setOpen] = React.useState(false);
+  const boxRef = React.useRef(null);
+  const btnRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const first = boxRef.current && boxRef.current.querySelector('[role="menuitem"]');
+    if (first && first.focus) first.focus();
+    const away = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    const key = (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault(); e.stopPropagation();
+      setOpen(false);
+      if (btnRef.current && btnRef.current.focus) btnRef.current.focus();
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", key, true);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", key, true); };
+  }, [open]);
   return (
-    <div role="region" aria-label="Requests to confirm" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", border: "1px dashed rgba(var(--sh-gold-rgb, 216,162,58),0.55)", borderRadius: 8, padding: "8px 10px", background: "rgba(var(--sh-gold-rgb, 216,162,58),0.06)", marginBottom: 12 }}>
-      <span style={{ fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_GOLD }}>{list.length} to confirm</span>
-      {shown.map((ev) => (
-        <span key={ev.id} data-request={ev.sessionId || ev.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, paddingLeft: 10, borderLeft: "1px solid " + DSC_HAIR, flexWrap: "wrap" }}>
-          <button type="button" onClick={() => onPick(ev)} style={{ background: "transparent", border: 0, padding: 0, color: "inherit", font: "inherit", fontWeight: 600, cursor: "pointer" }}>{ev.with || ev.title}</button>
-          <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>{dscDayLabel(ev.date).split(",")[0]} {ev.time ? dscClock(dscMin(ev.time)) : ""}</span>
-          <button type="button" disabled={busyId === ev.id} onClick={() => onAccept(ev)} style={{ ...dscBtn("on"), padding: "3px 7px", fontSize: 8.5 }}>Accept</button>
-          <button type="button" disabled={busyId === ev.id} onClick={() => onOther(ev)} style={{ ...dscBtn(), padding: "3px 7px", fontSize: 8.5 }}>Other time</button>
-          <button type="button" disabled={busyId === ev.id} onClick={() => onDecline(ev)} style={{ ...dscBtn("warn"), padding: "3px 7px", fontSize: 8.5 }}>Decline</button>
+    <span ref={boxRef} style={{ position: "relative", display: "inline-flex" }}>
+      <button ref={btnRef} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={label} title={label} disabled={disabled} data-request-more=""
+        // The body face, not the mono: JetBrains Mono draws ⋯ as a short rule.
+        onClick={() => setOpen((v) => !v)} style={{ ...dscBtn(), fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 16, lineHeight: 1, padding: "5px 10px 7px", minWidth: 36, letterSpacing: 0 }}>⋯</button>
+      {open && (
+        <span role="menu" aria-label={label} style={{ position: "absolute", right: 0, top: "calc(100% + 4px)", zIndex: 30, display: "grid", minWidth: 190, padding: 4, background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 8, boxShadow: "var(--lift-3, 0 12px 32px rgba(0,0,0,0.18))" }}>
+          {items.map(([text, fn]) => (
+            <button key={text} type="button" role="menuitem" onClick={() => { setOpen(false); fn(); }}
+              style={{ textAlign: "left", background: "transparent", border: 0, borderRadius: 5, padding: "8px 10px", color: "var(--sh-ink, #f2ede4)", font: "inherit", fontSize: 12.5, cursor: "pointer" }}>{text}</button>
+          ))}
         </span>
-      ))}
-      {list.length > shown.length && <span style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50 }}>+{list.length - shown.length} more on the calendar</span>}
+      )}
+    </span>
+  );
+}
+// One request: the sentence, what it is, and its answers. `lead` is the card's first, drawn larger.
+function DscRequestRow({ ev, lead, busy, failed, lookOf, todayIso, onAccept, onDecline, onOther, onPick, onClient }) {
+  const lk = (lookOf || dscLookAlone)(ev);
+  const who = ev.with || ev.title;
+  const s = dscMin(ev.time);
+  const what = [ev.with ? ev.title : null, s != null ? dscDur(ev) + " min" : null, ev.source === "session" ? dscWhere(ev) : null].filter((x) => x && x !== "—");
+  const name = onClient
+    ? <button type="button" data-request-name="" onClick={() => onClient(ev)} title={"Open " + who + "'s panel"}
+        style={{ background: "transparent", border: 0, padding: 0, margin: 0, color: "inherit", font: "inherit", fontWeight: 600, cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(var(--sh-ink-rgb, 242,237,228),0.3)", textUnderlineOffset: 3 }}>{who}</button>
+    : <span style={{ fontWeight: 600 }}>{who}</span>;
+  return (
+    <div data-request={ev.sessionId || ev.id} data-request-state={busy ? "busy" : failed ? "failed" : "waiting"}
+      style={{ display: "flex", alignItems: "center", gap: lead ? 14 : 10, flexWrap: "wrap", padding: lead ? 0 : "10px 0 0", borderTop: lead ? 0 : "1px solid " + DSC_HAIR, marginTop: lead ? 0 : 10 }}>
+      <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+        {/* The mark is held to the name (as DashClientName holds its dot), so a narrow card wraps the
+            sentence but never strands the mark on a line of its own. */}
+        <div data-request-line="" style={{ fontFamily: lead ? serif : "inherit", fontSize: lead ? 21 : 13.5, letterSpacing: lead ? "-0.01em" : 0, lineHeight: 1.25 }}>
+          <span style={{ whiteSpace: "nowrap" }}>{lk.client && <span style={{ display: "inline-block", marginRight: 8, verticalAlign: "0.08em" }}><DscTierMark points={lk.points} size={lead ? 10 : 8} name={ev.with} /></span>}{name}</span> wants {dscWantsWhen(ev, todayIso)}
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginTop: 4, fontSize: 11.5, color: DSC_INK50 }}>
+          <span data-kind-word="" style={{ fontFamily: DSC_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: lk.kind.text }}>{lk.kind.label}</span>
+          {what.length > 0 && <span>{what.join(" · ")}</span>}
+        </div>
+        {busy && <div role="status" style={{ fontFamily: DSC_MONO, fontSize: 9, color: DSC_INK50, marginTop: 5 }}>Answering…</div>}
+        {!busy && failed && <div role="alert" data-request-failed="" style={{ fontSize: 12, color: DSC_RUST, marginTop: 5 }}>{failed}</div>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        <button type="button" disabled={busy} onClick={() => onAccept(ev)} className="sh-key sh-key--fill" style={{ ...dscBtn("on"), padding: lead ? "9px 14px" : "6px 10px", opacity: busy ? 0.5 : 1 }}>Accept</button>
+        <button type="button" disabled={busy} onClick={() => onDecline(ev)} style={{ ...dscBtn("warn"), padding: lead ? "9px 14px" : "6px 10px", opacity: busy ? 0.5 : 1 }}>Decline</button>
+        <DscMore label={"More for " + who + "'s request"} disabled={busy}
+          items={[["Offer another time", () => onOther(ev)], ["Open the booking", () => onPick(ev)]]} />
+      </div>
     </div>
+  );
+}
+function DscRequests({ list, busyId, failed, lookOf, todayIso, onAccept, onDecline, onOther, onPick, canClient, onClient }) {
+  const [unfolded, setUnfolded] = React.useState(false);
+  if (!list.length) return null;
+  const [first, ...rest] = list;
+  const row = (ev, lead) => (
+    <DscRequestRow key={ev.id} ev={ev} lead={lead} busy={busyId === ev.id} failed={failed && failed.id === ev.id ? failed.msg : null}
+      lookOf={lookOf} todayIso={todayIso} onAccept={onAccept} onDecline={onDecline} onOther={onOther} onPick={onPick}
+      onClient={onClient && canClient && canClient(ev) ? onClient : null} />
+  );
+  return (
+    <section role="region" aria-label="Requests to confirm" data-requests={list.length}
+      style={{ position: "relative", background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderLeft: "3px dashed " + DSC_GOLD, borderRadius: 12, padding: "16px 20px", marginBottom: 16, boxShadow: "var(--lift-2, 0 2px 4px rgba(0,0,0,0.35), 0 26px 50px -16px rgba(0,0,0,0.75))" }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+        <span className="dash-eyebrow" style={{ color: DSC_GOLD }}>{list.length === 1 ? "A request · waiting on you" : list.length + " requests · waiting on you"}</span>
+      </div>
+      {row(first, true)}
+      {rest.length > 0 && (
+        <React.Fragment>
+          <button type="button" data-requests-fold="" aria-expanded={unfolded} onClick={() => setUnfolded((v) => !v)}
+            style={{ marginTop: 12, background: "transparent", border: 0, padding: 0, cursor: "pointer", fontFamily: DSC_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_TEAL_INK }}>
+            {unfolded ? "Fold the other " + rest.length : rest.length + " more"} {unfolded ? "▴" : "▾"}
+          </button>
+          {unfolded && <div data-requests-more="">{rest.map((ev) => row(ev, false))}</div>}
+        </React.Fragment>
+      )}
+    </section>
   );
 }
 
@@ -1585,7 +1954,7 @@ function DscToSchedule({ list, failed, onBook }) {
 }
 
 // ── The day's agenda (day view) ─────────────────────────────────────────────
-function DscAgenda({ iso, items, load, prepFor, colorOf, onPick }) {
+function DscAgenda({ iso, items, load, prepFor, lookOf, onPick }) {
   const sessions = items.filter((e) => e.source === "session");
   return (
     <div>
@@ -1597,13 +1966,15 @@ function DscAgenda({ iso, items, load, prepFor, colorOf, onPick }) {
       <div style={{ display: "grid", gap: 10 }}>
         {items.map((e) => {
           const s = dscMin(e.time);
-          const color = (colorOf || dscClientColor)(e.clientId || e.with || e.title);
+          const lk = (lookOf || dscLookAlone)(e);
           const prep = e.source === "session" ? prepFor(e).slice(0, 4) : [];
           return (
-            <button key={e.id} type="button" data-agenda={e.id} onClick={() => onPick(e)}
-              style={{ textAlign: "left", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)", color: "inherit", font: "inherit", cursor: "pointer", border: "1px solid " + DSC_HAIR, borderLeft: "3px " + (e.status === "requested" ? "dashed " : "solid ") + color, borderRadius: 6, padding: "9px 11px" }}>
+            <button key={e.id} type="button" data-agenda={e.id} data-kind={lk.kind.key} onClick={() => onPick(e)}
+              style={{ textAlign: "left", background: "rgba(var(--sh-ink-rgb, 242,237,228),0.02)", color: "inherit", font: "inherit", cursor: "pointer", border: "1px solid " + DSC_HAIR, borderLeft: "3px " + (e.status === "requested" ? "dashed " : "solid ") + lk.kind.edge, borderRadius: 6, padding: "9px 11px" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
                 <span style={{ fontFamily: DSC_MONO, fontSize: 10, color: DSC_INK50 }}>{s == null ? "All day" : dscClock(s) + "–" + dscClock(s + dscDur(e))}</span>
+                <span data-kind-word="" style={{ fontFamily: DSC_MONO, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: lk.kind.text }}>{lk.kind.label}</span>
+                {lk.client && <DscTierMark points={lk.points} size={8} name={e.with} decorative />}
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{e.with || e.title}</span>
                 {e.with && <span style={{ fontSize: 12, color: DSC_INK50 }}>{e.title}</span>}
                 {e.status === "requested" && <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.08em", textTransform: "uppercase", color: DSC_GOLD }}>requested</span>}
@@ -1628,13 +1999,14 @@ function DscAgenda({ iso, items, load, prepFor, colorOf, onPick }) {
 
 // Read-only event detail popover (for events without a roster client, or
 // read-only pushed workouts/meals).
-function DscEventSheet({ ev, onClose, colorOf }) {
-  const color = (colorOf || dscClientColor)(ev.clientId || ev.with || ev.title);
+function DscEventSheet({ ev, onClose, lookOf }) {
+  const lk = (lookOf || dscLookAlone)(ev);
+  const color = lk.kind.edge;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 240 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(10,10,8,0.6)", backdropFilter: "blur(3px)" }} />
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(380px, 92vw)", background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "4px solid " + color, borderRadius: 10, padding: 22, color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)" }}>
-        <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: color }}>{ev.kind}{ev.with ? " · " + ev.with : ""}</div>
+        <div style={{ fontFamily: DSC_MONO, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: lk.kind.text }}>{lk.kind.label}{ev.with ? " · " + ev.with : ""}</div>
         <div style={{ fontFamily: "var(--sh-font-display, 'Fraunces', 'Fraunces Fallback', 'Instrument Serif', serif)", fontSize: 23, margin: "6px 0 4px" }}>{ev.title}</div>
         <div style={{ fontSize: 12.5, color: DSC_INK50 }}>{[ev.date, ev.time ? dscFmt12(ev.time) : null, ev.durationMin ? ev.durationMin + " min" : null, ev.sub].filter(Boolean).join(" · ")}</div>
         {!(ev.reschedulable || ev.editable) && <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, marginTop: 10 }}>{ev.source === "booked"
@@ -1658,11 +2030,16 @@ const DSC_ROLES = {
 function CoachSchedulePage({ role }) {
   const cfg = DSC_ROLES[role];
   // Re-read when the coach comes back to the tab; the calendar's months re-read below.
-  const { triage, today: live, source } = useDashboard(role, { refreshOnFocus: true });
+  const { triage, today: live, source, joint } = useDashboard(role, { refreshOnFocus: true });
   const R = dscRules();
   const narrow = useDscNarrow();
+  // ⚠ SAMPLE DATA ONLY IN THE SIGNED-OUT PREVIEW, UNDER THE BAND (#2628 to #2639). The demo's
+  // bookings, hours, time off and plans show only when useDashboard says this is the preview; a
+  // signed-in coach whose calendar is still loading sees no bookings yet, and one whose read failed
+  // is told it couldn't be read, never shown someone else's week.
+  const preview = source === "demo";
   // What /api/calendar has answered so far: { zone, months: Set<"YYYY-MM">, events }, or null
-  // until the first answer (the demo shows until then). See dscMergeRange.
+  // until the first answer. See dscMergeRange.
   const [cal, setCal] = React.useState(null);
   // The demo set, held in state only so a drag in the preview visibly moves the chip
   // without the moved copy being mistaken for a live answer.
@@ -1712,6 +2089,8 @@ function CoachSchedulePage({ role }) {
   const [confirmMove, setConfirmMove] = React.useState(null);
   const [scopeAsk, setScopeAsk] = React.useState(null);   // { ev, date, time } — a run's move: this one or following
   const [busyId, setBusyId] = React.useState(null);
+  // The request whose answer failed, said on the request card: { id, msg }.
+  const [reqFail, setReqFail] = React.useState(null);
   const [toast, setToast] = React.useState(null);
   const dragRef = React.useRef(null);
   const [dragId, setDragId] = React.useState(null);
@@ -1726,8 +2105,15 @@ function CoachSchedulePage({ role }) {
       .catch(() => setToSchedule(false));
   }, [isLive, role]);
   React.useEffect(() => { loadToSchedule(); }, [loadToSchedule]);
-  // Editing the week's hours on the grid (Schedule step 3).
+  // Editing the week's hours (Schedule step 3), inside the Hours & rules slide-over since step 5c.
   const [editingHours, setEditingHours] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  // What the slide-over's editors hold unsaved, as they report it (DscSettingsSheet asks before
+  // closing over any of it).
+  const unsavedRef = React.useRef({ hours: false, off: false, rules: false });
+  const markUnsaved = (k) => (v) => { unsavedRef.current = { ...unsavedRef.current, [k]: !!v }; };
+  const unsavedWords = () => [["hours", "your open hours"], ["off", "your time off"], ["rules", "your booking rules"]].filter(([k]) => unsavedRef.current[k]).map(([, w]) => w);
+  const closeSettings = () => { unsavedRef.current = { hours: false, off: false, rules: false }; setEditingHours(false); setSettingsOpen(false); };
   // Time off: the coach's blocks, { id, startsAt, endsAt, note }. The demo shows one example.
   const [timeOff, setTimeOff] = React.useState([]);
   const [offBusy, setOffBusy] = React.useState(null);
@@ -1750,7 +2136,8 @@ function CoachSchedulePage({ role }) {
     return () => { on = false; };
   }, [role]);
   React.useEffect(() => {
-    if (!isLive) { setTimeOff(DSC_DEMO.timeOff); return undefined; }
+    // The example block is the preview's only; a signed-in coach waits for their own.
+    if (!isLive) { setTimeOff(preview ? DSC_DEMO.timeOff : []); return undefined; }
     let on = true;
     fetch("/api/my-time-off?role=" + role, { credentials: "same-origin", cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null)).catch(() => null)
@@ -1760,7 +2147,7 @@ function CoachSchedulePage({ role }) {
         else setOffErr("Your time off couldn't load. Reload to try again.");
       });
     return () => { on = false; };
-  }, [role, isLive]);
+  }, [role, isLive, preview]);
 
   // ── The calendar, a month at a time (see dscVisibleRange) ──
   // In-flight and failed months live in refs, not state: they gate requests and must not
@@ -1817,12 +2204,12 @@ function CoachSchedulePage({ role }) {
   }, isLive);
 
   const liveEvents = cal != null;
-  const allEvents = liveEvents ? cal.events : demoEvents;
+  const allEvents = liveEvents ? cal.events : preview ? demoEvents : [];
   const calZone = liveEvents ? cal.zone : null;
   const todayIso = dscTodayIn(calZone);
   const now = dscNowIn(calZone);
   const nowMin = now.date === todayIso ? now.min : null;
-  const availSlots = avail != null ? avail : (isLive ? [] : DSC_DEMO.availability);
+  const availSlots = avail != null ? avail : preview ? DSC_DEMO.availability : [];
   // ⚠ OPEN HOURS ARE SHADED ONLY ON THE CLOCK THEY WERE DECLARED ON. A stored start_minute is a
   // wall clock in the coach's stored zone; the grid is in the zone /api/calendar named. Those
   // are the same zone for a coach who has saved hours (the route prefers the stored zone), and
@@ -1854,9 +2241,6 @@ function CoachSchedulePage({ role }) {
     ? { ...e, source: "booked", reschedulable: false, editable: false, with: "", clientId: null, title: e.title + " · your booking" }
     : e));
   const planEvents = calEvents.filter((e) => !picked.length || picked.includes(e.clientId));
-  // Colours come from the UNFILTERED calendar, so a client keeps their colour when the
-  // chips narrow the view.
-  const colorOf = React.useMemo(() => dscColorMap(calEvents), [JSON.stringify(calEvents.map((e) => e.clientId || e.with || e.title))]);
   const byDate = React.useMemo(() => {
     const m = new Map();
     for (const e of planEvents) { if (!m.has(e.date)) m.set(e.date, []); m.get(e.date).push(e); }
@@ -1866,7 +2250,7 @@ function CoachSchedulePage({ role }) {
   // The plans row (step 4): a trainer's clients' training days, narrowed by the same client chips.
   const showPlans = role === "trainer" && plansPref !== "off";
   // The demo's plans meet the demo's bookings by name, so a client keeps one colour across both.
-  const planList = !showPlans ? [] : liveEvents ? (cal.clientPlans || [])
+  const planList = !showPlans ? [] : liveEvents ? (cal.clientPlans || []) : !preview ? []
     : dscDemoPlans(dscMonday(cursor)).map((p) => { const known = calEvents.find((e) => e.with === p.with && e.clientId); return known ? { ...p, clientId: known.clientId } : p; });
   const plansByDate = new Map();
   for (const p of planList) {
@@ -1894,6 +2278,13 @@ function CoachSchedulePage({ role }) {
     const byId = ev.clientId ? triage.find((r) => r.client.profile.id === ev.clientId) : null;
     // The demo's bookings and the demo roster are two invented sets; they meet by name.
     return byId || (!isLive && ev.with ? triage.find((r) => r.client.profile.name === ev.with) || null : null);
+  };
+  // A block's look (step 5c): its kind (dscKind) and, for a client's booking or plan, their tier from
+  // the roster (rankPoints). A booking with a client the roster does not hold is a client still, with
+  // a hollow mark; a pushed workout, a note or the coach's own booking has no client mark at all.
+  const lookOf = (ev) => {
+    const row = rowFor(ev);
+    return { kind: dscKind(ev), client: !!row || (!!ev && ev.source === "session" && !!(ev.clientId || ev.with)), points: row ? dscRecordTier(row) : null };
   };
 
   // The verdict on putting a booking (or a new one, `ev` null) at `date` + `start`:
@@ -2019,6 +2410,7 @@ function CoachSchedulePage({ role }) {
     const what = (n) => (following ? n + (n === 1 ? " session" : " sessions") + " with " + (ev.with || ev.title) : (ev.with || ev.title));
     if (!liveEvents || !isLive) { const n = following ? dscFollowing(calEvents, ev).length : 1; setEvents(apply()); setBooking(null); showToast("Demo · " + said.toLowerCase() + " " + what(n) + told + " once you're signed in."); return; }
     setBusyId(ev.id);
+    setReqFail((f) => (f && f.id === ev.id ? null : f));
     try {
       const res = await fetch("/api/sessions/manage", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, sessionId: ev.sessionId, ...(following ? { scope: "following" } : {}) }) });
       const j = await res.json().catch(() => ({}));
@@ -2027,7 +2419,12 @@ function CoachSchedulePage({ role }) {
       setBooking(null);
       showToast(said + " · " + what(following && j && j.series ? j.series.count : 1) + told);
     } catch (e) {
-      showToast((e && e.message) || "Couldn't update it — try again.");
+      const msg = (e && e.message) || "Couldn't update it — try again.";
+      showToast(msg);
+      // A request's answer that failed is said on the request too, which stays waiting.
+      if (ev.status === "requested" && (action === "confirm" || action === "decline")) {
+        setReqFail({ id: ev.id, msg: (e && e.message) || (action === "confirm" ? "Couldn't accept it — try again." : "Couldn't decline it — try again.") });
+      }
     } finally {
       setBusyId(null);
     }
@@ -2045,7 +2442,9 @@ function CoachSchedulePage({ role }) {
       reschedulable: true, editable: false, meetingUrl: null,
     };
     const when = dscDayLabel(date) + " " + dscClock(minute);
-    if (!liveEvents || !isLive) {
+    // The preview books into its own example week; a signed-in coach whose calendar has not been
+    // read is told so below, never handed a sample booking.
+    if (!isLive || (!liveEvents && preview)) {
       const id = "demo-new-" + date + "-" + time;
       // The demo roster and the demo bookings are two invented sets with different ids; a booking
       // for a name the demo calendar already has keeps that client's id (and colour, and chip).
@@ -2081,7 +2480,7 @@ function CoachSchedulePage({ role }) {
       title: topic || (role === "nutritionist" ? "Nutrition consult" : "Coaching session"), sub: type,
       time, durationMin, with: name, clientId: row.client.profile.id, status: "confirmed", reschedulable: true, editable: false, meetingUrl: null,
     };
-    if (!liveEvents || !isLive) {
+    if (!isLive || (!liveEvents && preview)) {
       const seriesId = "demo-run-" + date + "-" + time;
       const known = calEvents.find((e) => e.with === name && e.clientId);
       const dates = dscRunDates(date, repeat.weeks, repeat.weekdays);
@@ -2243,6 +2642,10 @@ function CoachSchedulePage({ role }) {
     return out;
   })();
   const prepFor = (ev) => dscPrep({ row: rowFor(ev), ev, events: calEvents, todayIso, nowMin, role });
+  // The client panel's bookings (DashClientDrawer `sessions`) for the client it is open on, from
+  // this page's own calendar (dscPanelSessions), and the joint list for a shared client's note.
+  const calState = liveEvents ? "read" : loadNote === "error" ? "failed" : "loading";
+  const panelSessions = drawerRow ? dscPanelSessions({ rec: drawerRow.client, cal, events: calEvents, preview, calState, today: live, source, role, zone: calZone, BR, now: Date.now() }) : null;
 
   const monthLabel = cursor.toLocaleDateString([], { month: "long", year: "numeric" });
   const weekLabel = (() => { const m = dscMonday(cursor); const s = dscAddDays(m, 6); return m.toLocaleDateString([], { month: "short", day: "numeric" }) + " – " + s.toLocaleDateString([], { month: "short", day: "numeric" }); })();
@@ -2259,7 +2662,7 @@ function CoachSchedulePage({ role }) {
   const pctBooked = weekLoad.openMin ? Math.min(100, Math.round((weekLoad.bookedMin / weekLoad.openMin) * 100)) : 0;
 
   const grid = (
-    <DscTimeGrid rules={R} days={gridDays} byDate={byDate} blocks={blocks} offsFor={offsFor} colorOf={colorOf} todayIso={todayIso} nowMin={nowMin}
+    <DscTimeGrid rules={R} days={gridDays} byDate={byDate} blocks={blocks} offsFor={offsFor} lookOf={lookOf} todayIso={todayIso} nowMin={nowMin}
       plansFor={plansFor} onPlan={typeof window.DashClientDrawer === "function" ? (p) => { const row = rowFor({ clientId: p.clientId, with: p.with }); if (row) setDrawerRow(row); } : null}
       startHour={range.startHour} endHour={range.endHour}
       slot={slot} onSlot={onSlot} onBookSlot={() => { setBookFor(null); setBookOpen(true); }}
@@ -2296,6 +2699,11 @@ function CoachSchedulePage({ role }) {
     return set;
   })();
 
+  // The request card's name opens the client panel for a client on the roster.
+  const canClient = (ev) => typeof window.DashClientDrawer === "function" && !!rowFor(ev);
+  const openClient = (ev) => { const row = rowFor(ev); if (row) setDrawerRow(row); };
+  const hoursNote = hoursState === "failed" ? "your hours couldn't load" : null;
+
   return (
     <React.Fragment>
       {source === "demo" && !liveEvents && <DashDemoBand />}
@@ -2304,14 +2712,17 @@ function CoachSchedulePage({ role }) {
         payoutCard={cfg.payout()}
         eyebrow="PLANNING VIEW · DRAG TO RESCHEDULE"
         title="Schedule"
-        subtitle="Your week on a clock — open hours shaded, requests waiting at the top. Click a booking for its actions, drag it to a new time (the client is told), or click open time to book someone in."
+        subtitle="Your week on a clock: requests first, open hours a teal wash. Click a booking for its actions, drag it to a new time (the client is told), or click open time to book someone in. Your hours, time off and booking rules are under Hours & rules."
       >
-        <div className="dash-cols" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 16, alignItems: "start" }}>
-          {/* Calendar */}
-          <div className="dash-plate dash-plate--tick" style={{ "--dac": role === "nutritionist" ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)", paddingLeft: 24, minWidth: 0 }}>
-            {/* While the hours are edited the grid below is the weekly pattern, not a dated week, so
-                paging and switching views have nothing to act on and step aside. */}
-            {!editingHours && (
+        {/* ⚠ REQUESTS FIRST, AT LIFT 2 (step 5c): the page's highest card. Height means priority:
+            the request, then today's column, and the rest of the week rests. */}
+        <DscRequests list={requests} busyId={busyId} failed={reqFail} lookOf={lookOf} todayIso={todayIso} onPick={pickEvent}
+          onAccept={(ev) => sessionAction(ev, "confirm")} onDecline={(ev) => sessionAction(ev, "decline")}
+          onOther={(ev) => { setSlot(null); setBooking({ ev, move: true }); }}
+          canClient={canClient} onClient={openClient} />
+        {/* ⚠ THE WEEK TAKES THE FULL WIDTH (step 5c): the rail of settings that took a third of it
+            is behind the Hours & rules tab on the page's edge (DscSettingsSheet). */}
+        <div className="dash-plate dash-plate--tick" data-schedule-plate="" style={{ "--dac": role === "nutritionist" ? "var(--sh-gold, #d8a23a)" : "var(--sh-rust2, #c0533b)", paddingLeft: 24, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
               {/* ⚠ WRAPS AT PHONE WIDTH: a long day label ("Wednesday, Oct 7") pushed "+ Book" past
                   the plate's edge at 390px, where it was clipped. */}
@@ -2321,6 +2732,7 @@ function CoachSchedulePage({ role }) {
                 <button onClick={() => step(1)} aria-label="Next" style={btn(false)}>›</button>
                 <button onClick={goToday} style={{ ...btn(false), fontSize: 8 }}>Today</button>
                 <button type="button" onClick={bookFromToolbar} style={{ ...btn(false), fontSize: 8, whiteSpace: "nowrap", color: DSC_TEAL, border: "1px solid rgba(var(--sh-accent-rgb, 46,224,196),0.45)" }}>+ Book</button>
+                {narrow && <DscSettingsTab narrow open={settingsOpen} note={hoursNote} onOpen={() => setSettingsOpen(true)} />}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 {/* ⚠ LOAD AT A GLANCE COUNTS OPEN HOURS USED, NOT SESSIONS. Booked time is measured
@@ -2341,90 +2753,76 @@ function CoachSchedulePage({ role }) {
                 </div>
               </div>
             </div>
-            )}
             {/* ⚠ THE ZONE IS NAMED, BECAUSE A BARE "9:00a" IS A CLAIM ABOUT A CLOCK. It is the zone
                 the route says it answered in — never this browser's guess — and it is the one a
                 drag hands back. Shown only for a live answer — the demo has no coach to name —
-                or for a signed-in coach whose first read failed, who needs the Retry. */}
-            {!editingHours && (liveEvents || isLive) && (calZone || loadNote) && (
-              <div style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
+                or for a signed-in coach whose first read failed, who needs the Retry (and is told
+                their calendar couldn't be read, never shown the preview's week). */}
+            {(liveEvents || isLive || source === "live") && (calZone || loadNote) && (
+              <div data-calendar-note={liveEvents ? "read" : loadNote || "loading"} style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
                 {calZone && <span>Times in {calZone}</span>}
-                {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone || "no time zone"}; re-save them below</span>}
+                {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone || "no time zone"}; re-save them in Hours &amp; rules</span>}
                 {plansUnread && <span>Client plans couldn't load — the row is incomplete.</span>}
-                {loadNote === "loading" && <span>Loading…</span>}
-                {loadNote === "error" && <span>Some dates couldn't load. <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}
+                {loadNote === "loading" && <span>{liveEvents ? "Loading…" : "Reading your calendar…"}</span>}
+                {loadNote === "error" && <span role="alert">{liveEvents ? "Some dates couldn't load." : "Your calendar couldn't be read just now."} <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}
               </div>
             )}
-            {editingHours ? (
-              <DscHoursEditor role={role} live={isLive} initial={availSlots} storedZone={availZone}
-                onCancel={() => setEditingHours(false)} onSaved={hoursSaved} />
-            ) : (
-            <React.Fragment>
             <DscToSchedule list={toSchedule || []} failed={toSchedule === false} onBook={(p) => bookFromToolbar(p.clientId)} />
-            <DscRequests list={requests} busyId={busyId} onPick={pickEvent}
-              onAccept={(ev) => sessionAction(ev, "confirm")} onDecline={(ev) => sessionAction(ev, "decline")}
-              onOther={(ev) => { setSlot(null); setBooking({ ev, move: true }); }} />
             {!R && shownView !== "month" && (
               <div role="alert" style={{ fontSize: 12.5, color: DSC_RUST, marginBottom: 10 }}>The week grid couldn't load — reload the page. The month view still works.</div>
             )}
             {shownView === "month" || !R
-              ? <DscMonth cursor={cursor} byDate={byDate} colorOf={colorOf} todayIso={todayIso} offDates={monthOffDates} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />
+              ? <DscMonth cursor={cursor} byDate={byDate} lookOf={lookOf} todayIso={todayIso} offDates={monthOffDates} onPickEvent={pickEvent} onDrop={onDrop} onDrag={(ev) => { dragRef.current = ev; setDragId(ev.id); }} dragId={dragId} />
               : shownView === "day" || narrow
                 ? (
                   <div className="dsc-day" style={{ display: "grid", gridTemplateColumns: narrow ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
                     <div style={{ minWidth: 0 }}>{dayStrip}{grid}</div>
-                    <DscAgenda iso={dayIso} items={(byDate.get(dayIso) || []).filter((e) => e.source === "session" || dscMin(e.time) != null)} load={dayLoadOf(dayIso)} prepFor={prepFor} colorOf={colorOf} onPick={pickEvent} />
+                    <DscAgenda iso={dayIso} items={(byDate.get(dayIso) || []).filter((e) => e.source === "session" || dscMin(e.time) != null)} load={dayLoadOf(dayIso)} prepFor={prepFor} lookOf={lookOf} onPick={pickEvent} />
                   </div>
                 )
                 : grid}
-            {/* Client chips: click to show one client or several. */}
+            {/* Client chips: click to show one client or several. Each carries the client's tier
+                mark, as their bookings do; the chip's own state is its border and aria-pressed. */}
             {chipClients.length > 0 && (
               <div role="group" aria-label="Show clients" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)" }}>
                 <span style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DSC_INK50, marginRight: 2 }}>Clients</span>
                 {chipClients.map((c) => {
                   const on = picked.includes(c.key);
+                  const lk = lookOf({ clientId: c.key, with: c.name, source: "session", kind: "SESSION" });
                   return (
                     <button key={c.key} type="button" aria-pressed={on} onClick={() => togglePick(c.key)}
                       style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: DSC_MONO, fontSize: 9, cursor: "pointer", borderRadius: 12, padding: "4px 9px",
                         color: on ? "var(--sh-ink, #f2ede4)" : DSC_INK50, background: on ? "rgba(var(--sh-ink-rgb, 242,237,228),0.08)" : "transparent",
-                        border: "1px solid " + (on ? colorOf(c.key) : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)") }}>
-                      <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: colorOf(c.key) }} />{c.name}
+                        border: "1px solid " + (on ? DSC_TEAL_INK : "rgba(var(--sh-ink-rgb, 242,237,228),0.12)") }}>
+                      <DscTierMark points={lk.points} size={8} name={c.name} decorative />{c.name}
                     </button>
                   );
                 })}
                 {picked.length > 0 && <button type="button" onClick={() => setPicked([])} style={{ ...btn(false), padding: "4px 9px", fontSize: 8 }}>Show all</button>}
               </div>
             )}
-            </React.Fragment>
-            )}
-          </div>
-
-          {/* Availability */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": "var(--sh-gold, #d8a23a)", paddingLeft: 22 }}>
-              <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours} state={hoursState}
-                onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />
-            </div>
-            <div className="dash-plate" style={{ "--dac": "var(--sh-gold, #d8a23a)", padding: "14px 16px" }}>
-              <DscTimeOffPlate list={timeOff} zone={offZone || availZone} adding={offAdding} busyId={offBusy} error={offErr}
-                onAdd={addTimeOff} onRemove={removeTimeOff} />
-            </div>
-            <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "14px 16px" }}>
-              <DscRulesPlate role={role} live={isLive} onToast={showToast} />
-            </div>
-            <div className="dash-plate" style={{ "--dac": "var(--sh-ink3, #75706a)", padding: "14px 16px" }}>
-              <div className="dash-eyebrow">How the week works</div>
-              <div style={{ fontSize: 12, color: DSC_INK50, lineHeight: 1.55, marginTop: 8 }}>
-                Drag a session to a new time in 15-minute steps — the client gets a notification with the new time. A red target means it would overlap another booking; outside your shaded open hours or in hatched time off you're asked first. Click open time to book a client, and answer dashed requests in the strip at the top. Workouts and meals pushed from a plan are read-only here; move those in the program or meal plan.
-              </div>
-              <a href={role === "nutritionist" ? "NutritionistDashboard.html" : "TrainerDashboard.html"} style={{ display: "inline-block", marginTop: 10, fontFamily: DSC_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: DSC_TEAL, textDecoration: "none" }}>← Today's summary</a>
-            </div>
-          </div>
         </div>
       </DashPage>
+      {!narrow && <DscSettingsTab open={settingsOpen} note={hoursNote} onOpen={() => setSettingsOpen(true)} />}
+      {settingsOpen && (
+        <DscSettingsSheet onClose={closeSettings} unsaved={unsavedWords}>
+          {editingHours
+            ? <DscHoursEditor role={role} live={isLive} initial={availSlots} storedZone={availZone}
+                onCancel={() => setEditingHours(false)} onSaved={hoursSaved} onDirty={markUnsaved("hours")} />
+            : <DscHoursPlate slots={availSlots} live={isLive} storedZone={availZone} editing={editingHours} state={hoursState}
+                onEdit={() => { setSlot(null); setBooking(null); setEditingHours(true); }} />}
+          <div style={{ borderTop: "1px solid " + DSC_HAIR, paddingTop: 16 }}>
+            <DscTimeOffPlate list={timeOff} zone={offZone || availZone} adding={offAdding} busyId={offBusy} error={offErr}
+              onAdd={addTimeOff} onRemove={removeTimeOff} onDirty={markUnsaved("off")} />
+          </div>
+          <div style={{ borderTop: "1px solid " + DSC_HAIR, paddingTop: 16 }}>
+            <DscRulesPlate role={role} live={isLive} onToast={showToast} onDirty={markUnsaved("rules")} />
+          </div>
+        </DscSettingsSheet>
+      )}
 
       {booking && (
-        <DscBookingSheet ev={booking.ev} startInMove={booking.move} row={rowFor(booking.ev)} colorOf={colorOf} prep={prepFor(booking.ev)}
+        <DscBookingSheet ev={booking.ev} startInMove={booking.move} row={rowFor(booking.ev)} lookOf={lookOf} prep={prepFor(booking.ev)}
           busy={busyId === booking.ev.id} verdictFor={verdictFor}
           onAction={sessionAction}
           onMove={(ev, date, minute, v) => { setBooking(null); if (v && (v.outside || v.away)) setConfirmMove({ ev, date, time: dscHHMM(minute), why: v.away ? "away" : "outside" }); else requestMove(ev, date, minute); }}
@@ -2442,13 +2840,16 @@ function CoachSchedulePage({ role }) {
         <DscScopeAsk ask={scopeAsk} onNo={() => setScopeAsk(null)}
           onPick={(scope) => { const a = scopeAsk; setScopeAsk(null); moveBooking(a.ev, a.date, a.time, scope); }} />
       )}
-      {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} prefs={prefs} />}
-      {sheetEv && <DscEventSheet ev={sheetEv} colorOf={colorOf} onClose={() => setSheetEv(null)} />}
-      {toast && (
+      {/* The client panel: this page's own bookings for its next session, and the joint list for a
+          shared client's note (DashClientDrawer, dashRoster.jsx, since step 5a). */}
+      {drawerRow && typeof window.DashClientDrawer === "function" && <DashClientDrawer row={drawerRow} role={role} onClose={() => setDrawerRow(null)} prefs={prefs} joint={joint} sessions={panelSessions} />}
+      {sheetEv && <DscEventSheet ev={sheetEv} lookOf={lookOf} onClose={() => setSheetEv(null)} />}
+      {/* A body child, so a save's word is read out while the Hours & rules sheet holds the page inert. */}
+      {toast && dscPortal(
         <div role="status" data-toast="" style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 300, background: "var(--sh-ground2, #14110e)", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 8, padding: "10px 18px", color: "var(--sh-ink, #f2ede4)", fontFamily: "var(--sh-font-body, 'Space Grotesk', 'Space Grotesk Fallback', sans-serif)", fontSize: 12.5, maxWidth: "90vw" }}>{toast}</div>
       )}
     </React.Fragment>
   );
 }
 
-Object.assign(window, { CoachSchedulePage, dscClientColor, dscColorMap });
+Object.assign(window, { CoachSchedulePage, dscKind, dscKindKey, dscPanelSessions, dscWantsWhen });

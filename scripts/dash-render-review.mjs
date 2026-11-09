@@ -299,10 +299,8 @@ try {
   ok("Schedule: rescheduling explained (drag + client notification)", sc.includes("How rescheduling works") && /notification with the new time|client gets a notification/i.test(sc));
   const nsc = render(React.createElement(g.CoachSchedulePage, { role: "nutritionist" }));
   ok("Schedule nutritionist role renders without leaked trainer UI", nsc.includes("PLANNING VIEW") && !nsc.includes("TrainerSchedule.html"));
-  // Color map: distinct clients on the calendar never share a color (≤10).
-  const cmap = g.dscColorMap([{ clientId: "a" }, { clientId: "b" }, { clientId: "c" }, { clientId: "a" }]);
-  ok("distinct clients get distinct colors; same client stays stable", cmap("a") !== cmap("b") && cmap("b") !== cmap("c") && cmap("a") === cmap("a"));
-  ok("client hash color is deterministic", g.dscClientColor("demo-priya") === g.dscClientColor("demo-priya"));
+  // Since step 5c a block is coloured by its kind (the per-client palette is retired, #2630).
+  ok("a consult and a session are told apart by kind, in words", g.dscKind({ kind: "CONSULT" }).label === "Consult" && g.dscKind({ kind: "SESSION" }).label === "Session");
 } catch (e) { ok("Schedule page renders", false, e.message); }
 
 // ── 4g. Message deep-link — every button routes through the chat bubble ─────

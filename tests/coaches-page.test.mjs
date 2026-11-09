@@ -403,7 +403,8 @@ test('the Schedule tab lists what the Schedule page does', () => {
     assert.ok(tab, role + ': the Schedule tab is gone from the tour');
     assert.ok(tab.list.some((l) => /move it; the client is notified/.test(l)), role + ': the drag-to-move item is gone');
     assert.ok(tab.list.includes('Open hours you set once, in your own time zone'), role + ': the open-hours item is gone');
-    assert.ok(tab.list.some((l) => /color-coded by client/.test(l)), role + ': the color-coding item is gone');
+    // Since step 5c (#2630's tier ruling) a booking is coloured by its kind, and the client is their tier mark.
+    assert.ok(tab.list.some((l) => /color-coded by kind, each client's tier beside their name/.test(l)), role + ': the color-coding item is gone');
     assert.ok(tab.list.some((l) => /private, read-only feed/.test(l)), role + ': the calendar feed item is gone');
   }
   assert.match(SCHEDULE, /action: "reschedule"/, 'the Schedule page no longer reschedules by drag');
@@ -411,7 +412,9 @@ test('the Schedule tab lists what the Schedule page does', () => {
   const FEED_ROUTE = path.join(path.dirname(path.dirname(ND)), 'src/app/api/calendar/feed');
   assert.ok(existsSync(FEED_ROUTE), 'the calendar feed route is gone, and the tour still offers it');
   assert.match(read('coachSettings.jsx'), /function CoachCalendarFeedCard\(/, 'the coach can no longer get their feed link');
-  assert.match(SCHEDULE, /function dscColorMap\(/, 'the Schedule page no longer colours by client');
+  assert.match(SCHEDULE, /function dscKind\(/, 'the Schedule page no longer colours by kind');
+  assert.match(SCHEDULE, /function DscTierMark\(/, 'the Schedule page no longer marks each client\'s tier');
+  assert.doesNotMatch(SCHEDULE, /DSC_PALETTE = |function dscColorMap\(/, 'the per-client palette is back');
   assert.match(SCHEDULE, /body: JSON\.stringify\(\{ role, slots, timezone: dscBrowserZone\(\) \}\)/, 'open hours no longer carry the coach zone');
   // The member really is told: the reschedule writes a notification to the client.
   const MANAGE = readFileSync(new URL('../src/app/api/sessions/manage/route.ts', import.meta.url), 'utf8');

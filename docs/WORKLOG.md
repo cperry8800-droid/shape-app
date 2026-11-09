@@ -34,12 +34,12 @@ or past 12 KB.
   - ⚠ **Codex never reviews a War Room PR** (owner, 2026-10-16), and it can't skip a PR by
     its files: the War Room update rides in the PR it records, pushed after that PR opens.
     Never open a War-Room-only PR.
-- **Pre-commit hook** (`.githooks/pre-commit` → `scripts/verify-staged.sh`; enable with
-  `git config core.hooksPath .githooks`). For a small commit, run the tests it touches,
-  commit with `SKIP_VERIFY=1` and say in the PR what ran; CI runs everything.
-- **Mutation rounds** for money, data or a migration, always through
+- **Pre-commit hook:** `.githooks/pre-commit` → `scripts/verify-staged.sh` (`git config
+  core.hooksPath .githooks`). Commit with `SKIP_VERIFY=1`; the PR lists what ran.
+- **One test and mutation round per PR, before it opens** (owner, 2026-11-09); a rebase or a
+  review fix reruns only its own tests. Money, data or a migration:
   `node scripts/mutate.mjs --spec tests/mutations/<subject>.mutations.mjs --fail-on-skipped`.
-  A survivor is a missing guard (fix the test) or a proven no-op (`expectSurvive`, with proof).
+  A survivor is a missing guard (fix the test) or a proven no-op (`expectSurvive`).
 - **Migrations:** idempotent. Reply with only the
   `raw.githubusercontent.com/.../supabase-migrations/<file>.sql` link (the owner runs it),
   then check it live with read-only queries.
