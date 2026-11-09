@@ -394,12 +394,12 @@ function DmbGroceryPanel({ plan, edits, onEdits }) {
               <div style={{ fontFamily: DMB_MONO, fontSize: 8, color: DMB_INK50, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.meals.join(" · ")}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input type="number" value={g.qty} onChange={(e) => {
+              {g.qty == null ? <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50 }}>no amount</span> : <input type="number" value={g.qty} onChange={(e) => {
                 const v = Number(e.target.value);
                 if (!isFinite(v) || v <= 0) return;
                 onEdits({ ...(edits || {}), [key(g)]: { qty: v } });
-              }} style={{ ...dmbField, width: 58, padding: "4px 6px", fontSize: 11 }} />
-              <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50 }}>{g.unit || "×"}</span>
+              }} style={{ ...dmbField, width: 58, padding: "4px 6px", fontSize: 11 }} />}
+              {g.qty == null ? null : <span style={{ fontFamily: DMB_MONO, fontSize: 8.5, color: DMB_INK50 }}>{g.unit || "×"}</span>}
             </div>
             <button onClick={() => onEdits({ ...(edits || {}), [key(g)]: { remove: true } })} aria-label={"Remove " + g.name} style={{ ...dmbBtn(false), padding: "3px 7px", color: DMB_RED, borderColor: "rgba(var(--sh-rust-rgb, 224,100,75),0.4)" }}>×</button>
           </div>
@@ -740,7 +740,7 @@ function DmbGroceryPeek({ plan, onEdits }) {
     <div className="dmb-box dmb-grocery" data-grocery="">
       <div className="dmb-eyebrow">Groceries · a week of this plan</div>
       {!list.length ? <p className="dmb-quiet">Nothing to buy yet. A meal’s ingredients land here.</p> : (
-        <ul>{g.top.map((x) => <li key={x.name + "|" + x.unit}><span>{x.name}</span><span style={{ fontFamily: DMB_MONO, fontSize: 10, color: DMB_INK50 }}>{x.qty} {x.unit || "×"}</span></li>)}</ul>
+        <ul>{g.top.map((x) => <li key={x.name + "|" + x.unit}><span>{x.name}</span><span style={{ fontFamily: DMB_MONO, fontSize: 10, color: DMB_INK50 }}>{x.qty == null ? "" : x.qty + " " + (x.unit || "×")}</span></li>)}</ul>
       )}
       {list.length > 0 && <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{ ...dmbBtn(false), width: "100%" }}>{open ? "Close the list" : g.more ? "+ " + g.more + " more" : "Edit the list"}</button>}
       {open && <div style={{ marginTop: 10 }}><DmbGroceryPanel plan={plan} edits={edits} onEdits={onEdits} /></div>}
@@ -875,7 +875,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
     setDoc((prev) => ({ ...prev, days: prev.days.filter((_, j) => j !== i) }));
     setSel(0); setPick(null);
   };
-  const shift = (deltas) => setDoc(DashMeals.phaseShift(doc, deltas));
+  const shift = (deltas) => setDoc(DashMealWeek.phaseShift(DashMeals, doc, deltas));
 
   // ── Placing a recipe: the row is the meal ──
   // Where the Kitchen adds: the cell picked, else the picked day's first empty meal.

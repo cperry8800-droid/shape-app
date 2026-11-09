@@ -233,7 +233,7 @@ test('Shape Kitchen is the 100 catalog recipes with the catalog\'s own calories,
   assert.deepEqual(shak.ingredients.find((g) => g.name === 'eggs'), { name: 'eggs', qty: 2, unit: '' });
   assert.deepEqual(W.parseIngredient('1 1/2 tbsp margarine, melted (150 kcal)', 1), { name: 'margarine', qty: 1.5, unit: 'tbsp' });
   assert.deepEqual(W.parseIngredient('3/4 cup jasmine rice (240 kcal)', 3), { name: 'jasmine rice', qty: 0.25, unit: 'cup' });
-  assert.deepEqual(W.parseIngredient('to taste salt', 2), { name: 'to taste salt', qty: 1, unit: '' });
+  assert.deepEqual(W.parseIngredient('to taste salt', 2), { name: 'to taste salt', qty: null, unit: '' });
   assert.equal(W.recipeMinutes('1 hr 20 min'), 80); assert.equal(W.recipeMinutes('soon'), null);
   // The three filters, each the catalog's own rule.
   const hp = W.searchKitchen(K, '', { protein: true });
@@ -300,6 +300,28 @@ test('spreading a rotation over the week changes nothing a client gets, and ever
   assert.equal(new Set(ids).size, ids.length);
   for (const d of wide.days) for (const k of Object.keys((d.variants.rest || {}).overrides || {})) assert.ok(d.slots.some((m) => m.id === k), 'an override follows its copy');
   assert.equal(W.spreadWeek(weekDoc()).days.length, 7, 'a week stays a week');
+});
+
+test('Codex on #2648: oats are gluten in a coach\'s own dish, an ingredient with no amount stays amountless, and a phase shift moves the rest target', () => {
+  // Oats: the core tags its own oat dishes gluten, so a coach's overnight oats can't pass a gluten exclusion.
+  const oats = W.ownRecipeFood({ id: 'o1', t: 'Morning bowl', kcal: 400, p: 20, c: 60, f: 9, ing: [{ n: '80 g', m: 'rolled oats' }] });
+  const soup = W.ownRecipeFood({ id: 'o2', t: 'Lentil soup', kcal: 410, p: 24, c: 52, f: 9, ing: [{ n: '2 cups', m: 'red lentils' }] });
+  assert.deepEqual(W.searchKitchen([oats, soup], '', {}, { exclusions: ['gluten'] }).map((f) => f.name), ['Lentil soup'], 'rolled oats passed a gluten exclusion');
+  // No amount: "to taste sriracha" on a dish served all week is one line with no amount, never "7 ×".
+  const doc = weekDoc();
+  doc.days.forEach((d) => { d.slots[0].ingredients = [...(d.slots[0].ingredients || []), { name: 'to taste sriracha', qty: null, unit: '' }]; });
+  const out = W.buildAssignment(DashMeals, doc, { scale: 1.2, groceryEdits: { 'to taste sriracha|': { qty: 3 } } });
+  const sri = out.grocery.filter((g) => g.name === 'to taste sriracha');
+  assert.equal(sri.length, 1);
+  assert.equal(sri[0].qty, null, 'an ingredient with no amount was given one');
+  const line = out.days[0].meals[0].ingredients.find((g) => g.name === 'to taste sriracha');
+  assert.equal(line.qty, '', 'the client was sent an amount for it');
+  // Phase shift: the rest target moves with the meals and the training target.
+  const shifted = W.phaseShift(DashMeals, weekDoc(), { carbsPct: -10 });
+  assert.equal(shifted.targets.c, Math.round(weekDoc().targets.c * 0.9));
+  assert.deepEqual(shifted.restTargets, { kcal: 165 * 4 + 135 * 4 + 55 * 9, p: 165, c: 135, f: 55 }, 'the rest target stayed where it was');
+  const none = weekDoc(); delete none.restTargets;
+  assert.equal('restTargets' in W.phaseShift(DashMeals, none, { carbsPct: -10 }), false, 'a plan with no rest target was given one');
 });
 
 test('the assignment sends a rest day its own target, a meal\'s note as coachNote, and a Kitchen meal\'s recipe', () => {

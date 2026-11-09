@@ -392,7 +392,8 @@
     var m = clone(meal);
     ["kcal", "p", "c", "f"].forEach(function (key) { m[key] = Math.round((Number(m[key]) || 0) * k); });
     m.ingredients = (m.ingredients || []).map(function (ing) {
-      return { name: ing.name, qty: Math.round((Number(ing.qty) || 0) * k * 10) / 10, unit: ing.unit || "" };
+      // An ingredient with no amount ("to taste sriracha") keeps none.
+      return { name: ing.name, qty: ing.qty == null ? null : Math.round((Number(ing.qty) || 0) * k * 10) / 10, unit: ing.unit || "" };
     });
     m.swaps = (m.swaps || []).map(function (s) {
       return { name: s.name, kcal: Math.round(s.kcal * k), p: Math.round(s.p * k), c: Math.round(s.c * k), f: Math.round(s.f * k) };
@@ -449,15 +450,17 @@
       meals.forEach(function (m) {
         (m.ingredients || []).forEach(function (ing) {
           var key = (ing.name + "|" + (ing.unit || "")).toLowerCase();
-          if (!byKey[key]) byKey[key] = { name: ing.name, unit: ing.unit || "", qty: 0, meals: {} };
-          byKey[key].qty += (Number(ing.qty) || 0) * k;
+          // An ingredient with no amount is listed once with none, however many meals hold it
+          // (Codex on #2648: "to taste sriracha" read "7 ×").
+          if (!byKey[key]) byKey[key] = { name: ing.name, unit: ing.unit || "", qty: null, meals: {} };
+          if (ing.qty != null) byKey[key].qty = (byKey[key].qty || 0) + (Number(ing.qty) || 0) * k;
           byKey[key].meals[m.name] = true;
         });
       });
     });
     return Object.keys(byKey).map(function (key) {
       var g = byKey[key];
-      return { name: g.name, qty: Math.round(g.qty * 10) / 10, unit: g.unit, meals: Object.keys(g.meals).slice(0, 3) };
+      return { name: g.name, qty: g.qty == null ? null : Math.round(g.qty * 10) / 10, unit: g.unit, meals: Object.keys(g.meals).slice(0, 3) };
     }).sort(function (a, b) { return a.name.localeCompare(b.name); });
   }
 
@@ -506,7 +509,7 @@
             return !(e && e.remove);
           }).map(function (ing) {
             var e = edits[groceryKey(ing)];
-            if (e && e.qty != null && autoTotals[groceryKey(ing)] > 0) {
+            if (e && e.qty != null && ing.qty != null && autoTotals[groceryKey(ing)] > 0) {
               return { name: ing.name, unit: ing.unit, qty: Math.round(((Number(ing.qty) || 0) * (e.qty / autoTotals[groceryKey(ing)])) * 10) / 10 };
             }
             return ing;
@@ -527,7 +530,7 @@
           var out = {
             slot: sm.slot, time: SLOT_TIMES[sm.slot] || "",
             title: sm.name, kcal: sm.kcal, p: sm.p, c: sm.c, f: sm.f,
-            ingredients: (sm.ingredients || []).map(function (ing) { return { qty: ing.qty + (ing.unit ? " " + ing.unit : ""), name: ing.name }; }),
+            ingredients: (sm.ingredients || []).map(function (ing) { return { qty: ing.qty == null ? "" : ing.qty + (ing.unit ? " " + ing.unit : ""), name: ing.name }; }),
             alts: sm.swaps || [],
           };
           // Night-before prep (Phase 2): only a meal that needs it carries the key, so every other

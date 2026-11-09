@@ -184,7 +184,7 @@
     if (!s) return null;
     var per = Number(servings) > 0 ? Number(servings) : 1;
     var m = s.match(/^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?)\s+(.*)$/);
-    if (!m) return { name: s, qty: 1, unit: "" };
+    if (!m) return { name: s, qty: null, unit: "" };
     var qty = qtyOf(m[1]);
     var rest = m[2];
     var unit = "";
@@ -210,7 +210,8 @@
   var OWN_WORDS = {
     // A plant milk or butter ("peanut butter", "oat milk", "coconut cream") is not dairy.
     dairy: /(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(milk|butter|cream)\b|\b(cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr)\w*/i,
-    gluten: /\b(wheat|flour|bread|pasta|noodles?|barley|rye|couscous|seitan|bulgur|semolina|spelt|farro|tortillas?|pita|crackers?|breadcrumbs?|panko)\b/i,
+    // Oats count, as the core's own oat dishes are tagged gluten (Codex on #2648).
+    gluten: /\b(wheat|flour|bread|pasta|noodles?|barley|rye|couscous|seitan|bulgur|semolina|spelt|farro|tortillas?|pita|crackers?|breadcrumbs?|panko|oats?|oatmeal|granola|muesli)\b/i,
   };
   function ownContains(food, allergen) {
     var a = String(allergen).toLowerCase();
@@ -391,6 +392,20 @@
     return out;
   }
 
+  // A phase shift moves the rest-day target with the meals (Codex on #2648): the core shifts every
+  // meal and the training target, and a rest day measured against an unshifted target misreads.
+  function phaseShift(core, plan, deltas) {
+    var next = core.phaseShift(plan, deltas);
+    if (!validTargets(plan.restTargets)) return next;
+    var r = Object.assign({}, plan.restTargets);
+    if (deltas.proteinPct) r.p = Math.round(num(r.p) * (1 + deltas.proteinPct / 100));
+    if (deltas.carbsPct) r.c = Math.round(num(r.c) * (1 + deltas.carbsPct / 100));
+    if (deltas.fatPct) r.f = Math.round(num(r.f) * (1 + deltas.fatPct / 100));
+    r.kcal = num(r.p) * 4 + num(r.c) * 4 + num(r.f) * 9;
+    next.restTargets = r;
+    return next;
+  }
+
   // The grocery list's first items, and how many more: the items most meals share lead.
   function groceryTop(list, n) {
     var all = Array.isArray(list) ? list : [];
@@ -404,6 +419,6 @@
     targetsFor: targetsFor, hasRestTargets: hasRestTargets, totals: totals, dayStatus: dayStatus, weekBrief: weekBrief, projectDay: projectDay,
     recipeMinutes: recipeMinutes, recipeId: recipeId, parseIngredient: parseIngredient, kitchenContains: kitchenContains, ownContains: ownContains,
     kitchenFood: kitchenFood, kitchenFoods: kitchenFoods, ownRecipeFood: ownRecipeFood, kitchenMatches: kitchenMatches, searchKitchen: searchKitchen, readFromIngredients: readFromIngredients,
-    contentKey: contentKey, opening: opening, stampVersion: stampVersion, spreadWeek: spreadWeek, buildAssignment: buildAssignment, groceryTop: groceryTop,
+    contentKey: contentKey, opening: opening, stampVersion: stampVersion, spreadWeek: spreadWeek, buildAssignment: buildAssignment, groceryTop: groceryTop, phaseShift: phaseShift,
   };
 });
