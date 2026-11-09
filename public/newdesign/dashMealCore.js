@@ -604,6 +604,46 @@
     return { rows: rows, intake: intake, assignable: rows.filter(function (r) { return !!r.suggestion; }).length, total: all.length, pending: pending, unread: unread };
   }
 
+  // ── Who is on a meal plan (the owner's rule, 2026-11-09: only the coaches see it) ──
+  // The usage read's entry for one library plan (/api/coach/plans/usage?role=nutritionist:
+  // { clients, clientIds }) matched to the nutritionist's own roster by id. Mirrors
+  // DashBuilder.programWho (this page does not load dashBuilderCore.js). ⚠ An id the roster does
+  // not hold is still a person on the plan, counted as `elsewhere`, never dropped; an entry
+  // without ids says how many and not who.
+  function nameText(s) { return String(s == null ? "" : s).replace(/\s+/g, " ").trim(); }
+  function planWho(entry, clients) {
+    var count = entry && Number(entry.clients) > 0 ? Math.floor(Number(entry.clients)) : 0;
+    var ids = entry && Array.isArray(entry.clientIds) ? entry.clientIds.filter(function (x) { return typeof x === "string" && x; }) : null;
+    if (!ids) return { count: count, people: null, elsewhere: 0 };
+    var byId = Object.create(null);
+    (Array.isArray(clients) ? clients : []).forEach(function (c) { if (c && c.profile && c.profile.id != null) byId[String(c.profile.id)] = c; });
+    var people = [], elsewhere = 0, seen = Object.create(null);
+    for (var i = 0; i < ids.length; i++) {
+      if (seen[ids[i]]) continue;
+      seen[ids[i]] = true;
+      var c = byId[ids[i]];
+      if (c) people.push({ id: c.profile.id, name: nameText(c.profile.name) || "A client", rankPoints: c.rankPoints, client: c });
+      else elsewhere += 1;
+    }
+    people.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    return { count: Math.max(count, people.length + elsewhere), people: people, elsewhere: elsewhere };
+  }
+  // The one plan most clients are on: a single top count of at least two, from a read that
+  // counted every current plan. ⚠ A capped read, or one with plans sent before Shape recorded
+  // which library plan they came from (`untracked`), under-counts, so it cannot rank. A tie
+  // names nobody.
+  function mostUsedPlan(usageMap, capped, untracked) {
+    if (!usageMap || typeof usageMap !== "object" || capped || untracked !== 0) return null;
+    var best = null, top = 0, tie = false;
+    for (var id in usageMap) {
+      if (!Object.prototype.hasOwnProperty.call(usageMap, id)) continue;
+      var n = usageMap[id] && Number(usageMap[id].clients) > 0 ? Math.floor(Number(usageMap[id].clients)) : 0;
+      if (n > top) { best = id; top = n; tie = false; }
+      else if (n === top && n > 0) tie = true;
+    }
+    return best && top >= 2 && !tie ? { id: best, clients: top } : null;
+  }
+
   // ── The library's filters ───────────────────────────────────────────────────
   // ⚠ THE BUILDER'S EXCLUSION LIST AND THE LIBRARY'S DIET FILTER ARE ONE LIST, so a
   // plan built to exclude an allergen and a filter that asks for plans without it
@@ -810,7 +850,7 @@
     mealsTotals: mealsTotals, scaleMeal: scaleMeal, phaseShift: phaseShift,
     checkConstraints: checkConstraints, buildGrocery: buildGrocery,
     buildMealAssignment: buildMealAssignment, buildPlanLifecycle: buildPlanLifecycle, planTodo: planTodo, phaseKeyOf: phaseKeyOf,
-    planOwnDiet: planOwnDiet,
+    planOwnDiet: planOwnDiet, planWho: planWho, mostUsedPlan: mostUsedPlan,
     demoMealTemplates: demoMealTemplates,
     ALLERGENS: ALLERGENS, mealDiet: mealDiet, planServed: planServed, planDiet: planDiet, planPrep: planPrep,
     mealPlanFacts: mealPlanFacts, MEAL_FACETS: MEAL_FACETS, mealPhaseFacet: mealPhaseFacet,
