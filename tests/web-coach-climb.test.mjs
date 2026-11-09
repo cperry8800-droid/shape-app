@@ -254,17 +254,43 @@ test('a nutritionist climbs in gold, with Meal plans, the kitchen and plate note
   await p.unmount();
 });
 
-test('on a phone the camps pin as a row, and each scrolls to its camp', async () => {
+// Owner, 2026-11-09: "need a new way to organize these on coaches profile, no side scrolling".
+test('on a phone the camps pin as one bar naming where you are; a tap opens them all as a grid, and each scrolls to its camp', async () => {
   WIDE = false; backend();
   const p = await mount(LIVE);
+  const nav = $('[data-camp-nav]');
+  const pick = nav.querySelector('[data-camp-pick]');
+  const grid = nav.querySelector('[data-camp-grid]');
+  assert.equal(grid.hidden, true, 'the camps are closed at first');
+  assert.equal(pick.getAttribute('aria-expanded'), 'false');
+  assert.doesNotMatch(pick.textContent, /\d+ \/ \d+/, 'no count beside the camp: Base is not a numbered camp, so it read one ahead');
   const links = $$('[data-camp-nav] [data-camp-link]').map((b) => b.getAttribute('data-camp-link'));
   assert.deepEqual(links, camps());
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  assert.doesNotMatch(src, /\.cpw-campnav\{[^}]*overflow-x/, 'the bar never scrolls sideways');
+  assert.match(src, /\.cpw-campnav-grid\{position:absolute;[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/, 'three to a row, over the page');
+  assert.match(src, /\.cpw-campnav-grid button\{[^}]*min-height:44px/, 'a 44px target');
+  await React.act(async () => pick.click());
+  assert.equal(grid.hidden, false, 'a tap opens them');
+  assert.equal(pick.getAttribute('aria-expanded'), 'true');
   let scrolled = null;
   const was = window.Element.prototype.scrollIntoView;
   window.Element.prototype.scrollIntoView = function () { scrolled = this.getAttribute('data-camp'); };
+  $('[data-camp-link="words"]').focus();
   await React.act(async () => $('[data-camp-link="words"]').click());
+  assert.equal(document.activeElement === pick, true, 'focus is back on the bar (Codex, #2664)');
   assert.equal(scrolled, 'words');
   assert.equal($('[data-camp-link="words"]').getAttribute('aria-current'), 'true');
+  assert.match($('[data-camp-here]').textContent, /Words/, 'the bar names it');
+  assert.equal(grid.hidden, true, 'a camp closes the grid');
+  await React.act(async () => pick.click());
+  $('[data-camp-link="about"]').focus();
+  await React.act(async () => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  assert.equal(grid.hidden, true, 'Escape closes it');
+  assert.equal(document.activeElement === pick, true, 'and hands focus back to the bar');
+  await React.act(async () => pick.click());
+  await React.act(async () => { document.body.dispatchEvent(new window.Event('pointerdown', { bubbles: true })); });
+  assert.equal(grid.hidden, true, 'a tap off the bar closes it');
   window.Element.prototype.scrollIntoView = was;
   await p.unmount();
   WIDE = true;
