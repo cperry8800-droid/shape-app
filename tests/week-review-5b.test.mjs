@@ -193,6 +193,8 @@ test('a count that couldn\'t be read is "—", never 0', async () => {
   const loading = W.dwkHeadModel(W.dwkEntries([row(rec(1, 'Ada L.', { checkins: null, loading: true }))], { weekOf: MON, thisMonday: MON, live: true, weekDoc: {} }), { reviewsRead: true, isCurrent: true });
   assert.equal(loading.toReview, null);
   assert.equal(loading.facts[0], "this week's check-ins are still loading");
+  const pastUnread = W.dwkHeadModel(W.dwkEntries([row(rec(1, 'Ada L.', { checkins: null }))], { weekOf: LAST, thisMonday: MON, live: true, weekDoc: {} }), { reviewsRead: true, isCurrent: false });
+  assert.equal(pastUnread.facts[0], "that week's check-ins couldn't be read", 'a past week is named as that week');
   // A measured nothing is said in words, not as an unread dash.
   const empty = W.dwkHeadModel(W.dwkEntries([row(rec(3, 'Cal M.', { checkins: [] }))], { weekOf: MON, thisMonday: MON, live: true, weekDoc: {} }), { reviewsRead: true, isCurrent: true });
   assert.equal(W.dwkHeadTitle(empty), 'No check-ins to review');

@@ -364,7 +364,8 @@ function dwkHeadModel(entries, opts) {
   const seg = (e) => ({ id: e.id, name: e.row.client.profile.name, state: !reviewsRead ? "unknown" : e.reviewed ? "reviewed" : "waiting" });
   const segments = ins.filter((e) => reviewsRead && e.reviewed).map(seg).concat(ins.filter((e) => !(reviewsRead && e.reviewed)).map(seg));
   const facts = [];
-  if (total && known === 0) facts.push(pending ? "this week's check-ins are still loading" : "this week's check-ins couldn't be read");
+  const which = opts && opts.isCurrent ? "this week's" : "that week's";
+  if (total && known === 0) facts.push(which + (pending ? " check-ins are still loading" : " check-ins couldn't be read"));
   else if (total) {
     facts.push(ins.length + " of " + total + " checked in");
     if (none) facts.push(none + (opts && opts.isCurrent ? " haven't yet" : " didn't"));
@@ -937,10 +938,14 @@ function CoachWeekPage({ role }) {
   const canMarkAll = !!rows.length && entries.some((e) => !e.reviewed) && editable;
   const markAll = () => { const now = new Date().toISOString(); patch(entries.filter((e) => !e.reviewed).map((e) => ({ weekOf, clientId: e.id, patch: { reviewedAt: now, checkinSignature: e.ck ? JSON.stringify(e.ck) : null } }))); };
   const anyIn = entries.some((e) => e.state === "in");
+  // Not one check-in read: still loading is not unread, and neither is an empty week.
+  const allLoading = rows.length > 0 && entries.every((e) => e.state === "loading");
   const allUnread = rows.length > 0 && entries.every((e) => e.state === "unread" || e.state === "beyond" || e.state === "loading");
-  const patternsEmpty = allUnread ? "This week's check-ins couldn't be read, so there is nothing to work out yet."
+  const weekWord = isCurrent ? "this week's" : "that week's";
+  const patternsEmpty = allLoading ? "Reading " + weekWord + " check-ins…"
+    : allUnread ? (isCurrent ? "This" : "That") + " week's check-ins couldn't be read here, so there is nothing to work out."
     : !anyIn ? (isCurrent ? "Nothing to work out yet: no check-ins this week so far." : "Nothing to work out: no check-ins that week.")
-    : "Nothing stands out across this week's check-ins.";
+    : "Nothing stands out across " + weekWord + " check-ins.";
   const next = sel ? dwkNextWaiting(shown, sel.id) : null;
   return (
     <React.Fragment>
