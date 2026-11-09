@@ -14,8 +14,18 @@
 //      expose (goal phase, milestones) stay null — the signal engine skips
 //      rules with missing inputs, so a live account never gets a false alarm
 //      from absent data.
-//   2. DEMO — DashSignals.buildMockClients() when signed out / not this role /
-//      the API is unreachable. Same record shape, fully populated.
+//   2. DEMO — DashSignals.buildMockClients(), the signed-out preview (shown under the
+//      demo band): for a coach role only when the roster route answered 401 (signed
+//      out, src/lib/coach-roster.ts) or answered 200 with `[roleKey]: false` (signed in,
+//      but not a coach of this role). Same record shape, fully populated.
+//   3. UNREAD — any other failed roster read for a coach role: another HTTP status, a
+//      network error, an answer the page cannot use, or a throw in this hook after the
+//      roster read. `clients` is [] (so triage, queue and joint are empty), `loading`
+//      is false and `today` is whatever the dashboard route answered (live, or null).
+//      ⚠ UNREAD IS NOT THE PREVIEW AND NOT EMPTY: the viewer may well be a signed-in
+//      coach, so a page shows no band and no sample person, and says the roster
+//      couldn't be read wherever it would otherwise claim "nobody" or count a 0.
+//   The client role keeps its own rule: the demo when its dashboard read fails.
 //
 // role: 'trainer' | 'nutritionist' | 'client' (client = one self record).
 //
@@ -587,12 +597,18 @@ function dashPostNotifySnapshot(role, records) {
   } catch (e) { return false; }
 }
 
+// `source` (the header's resolution): null while the first read runs; "live"; "demo", the signed-out
+// preview (a coach role: the roster answered 401, or 200 with `[roleKey]: false`); or "unread", a
+// coach role's roster read that failed any other way, with no clients and the day feed as it answered.
+// ⚠ ONLY "demo" IS THE PREVIEW. Before this split a 500 or a dropped network fell back to the demo
+// too, and every coach page showed the sample's people under the band to a signed-in coach.
+//
 // opts.refreshOnFocus: re-read on the coach's return (above). ⚠ A RE-READ ON RETURN IS QUIET, AND
-// IT NEVER TAKES A LIVE PAGE BACK TO THE PREVIEW. The first load paints the roster, then the
-// overviews; a re-read keeps the page as it is until the new answers land, so the columns do not
+// IT NEVER TAKES A LIVE PAGE BACK TO THE PREVIEW OR TO UNREAD. The first load paints the roster, then
+// the overviews; a re-read keeps the page as it is until the new answers land, so the columns do not
 // flash "loading" every time the coach switches tabs. A read that fails on a re-read (the network
-// dropped while the laptop slept) keeps what the page showed; on a first load it still means the
-// preview, as before. A client whose overview failed keeps the record it had.
+// dropped while the laptop slept) keeps what the page showed; on a first load it is the preview or
+// unread, as above. A client whose overview failed keeps the record it had.
 function useDashboard(role, opts) {
   const [state, setState] = React.useState({ loading: true, clients: [], source: null, today: null, client: null, planCount: undefined });
   // The coach's dismissals and check-in reviews, attached to the records before the engine runs.
@@ -625,6 +641,11 @@ function useDashboard(role, opts) {
     // It resolves independently of the roster so one failing API can't take
     // down the other half of the page.
     const demo = (today, clientExtras) => { if (on) setState({ loading: false, clients: DashSignals.buildMockClients(), source: "demo", today: today || null, client: clientExtras || null }); };
+    // A coach role's roster that could not be read: no clients, never the sample's, and the day feed
+    // as it answered (the two reads are independent).
+    const unread = (today) => { if (on) setState({ loading: false, clients: [], source: "unread", today: today || null, client: null }); };
+    // The day feed once it has answered, so a throw after the roster read still hands it on.
+    let todaySeen = null;
     (async () => {
       try {
         if (role === "client") {
@@ -656,11 +677,15 @@ function useDashboard(role, opts) {
         // roster rather than behind the per-client pool — the window in which a
         // drawer can open on un-attempted notes is then a single round trip.
         const notesPromise = _dashCoachNotes();
-        const [roster, todayRes] = await Promise.all([
-          _dashJson("/api/" + role + "/clients").catch(() => null),
+        // ⚠ THE ROSTER'S STATUS IS KEPT (_dashJson puts it on the error, `err.status`): a 401 is a
+        // signed-out viewer, the preview; any other failure is a read that broke, and says so.
+        const [rosterRead, todayRes] = await Promise.all([
+          _dashJson("/api/" + role + "/clients").then((body) => ({ body, status: 200 }), (err) => ({ body: null, status: err && typeof err.status === "number" ? err.status : null })),
           _dashJson(dashRoleDashboardUrl(role)).catch(() => null),
         ]);
+        const roster = rosterRead.body;
         const today = todayRes && todayRes[roleKey] ? todayRes : had ? had.today : null;
+        todaySeen = today;
         if (!roster || !roster[roleKey]) {
           // A re-read whose roster failed still lands a fresh Today: the two reads are independent, so a
           // new or cancelled session shows even when the roster could not be read (Codex on #2620).
@@ -668,7 +693,10 @@ function useDashboard(role, opts) {
             if (on && todayRes && todayRes[roleKey]) setState((s) => (s.source === "live" ? { ...s, today: todayRes } : s));
             return undefined;
           }
-          return demo(today);
+          // The preview only for a viewer the route said is signed out (401) or not this role
+          // (200, `[roleKey]: false`); a 500, a dropped network or an unusable answer is unread.
+          const preview = rosterRead.status === 401 || (!!roster && typeof roster === "object" && roster[roleKey] === false);
+          return preview ? demo(today) : unread(today);
         }
         // Roster first (fast paint for callers), then enrich rows with ids.
         // ⚠ The third argument is deliberately absent, not null: undefined is
@@ -718,7 +746,13 @@ function useDashboard(role, opts) {
         });
         // Only the records whose overview answered: a client the batch could not read is not evidence.
         dashPostNotifySnapshot(role, DashSignals.attachCoachContext(records.filter((r, i) => !!overviews[i]), ctx, role));
-      } catch (e) { if (!had) demo(null); }
+      } catch (e) {
+        // A throw here is a read this page could not use: a coach's is unread (never the sample's
+        // people), with the day feed if it had answered; the client role keeps its demo.
+        if (had) return;
+        if (role === "client") demo(null);
+        else unread(todaySeen);
+      }
     })();
     return () => { on = false; };
   }, [role, refreshKey]);
