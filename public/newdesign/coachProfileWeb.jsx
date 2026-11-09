@@ -492,23 +492,11 @@ function CpwBase({ T, K, film, highlight, tip, shots, onShot }) {
 }
 
 // ── Camp · The range ─────────────────────────────────────────────────────────────────────────
-// Each program (a nutritionist's meal plans) as a card with its photo and a range of peaks drawn over
-// it, one peak per week of its real length, in the card's colour: a drawing of a rise, not data. Start
-// opens the program's sheet (its weeks, Ask, and Buy with the code box: today's path); a meal plan's
-// opens the storefront where it is bought.
+// Each program (a nutritionist's meal plans) as a card with its own photo (the cover the coach added in the
+// builder, else the first image of its media), or a band in the card's colour with none. No peaks drawn over
+// it (owner, 2026-11-09: "remove the graph design part, looks stupid"). Start opens the program's sheet (its
+// weeks, Ask, and Buy with the code box: today's path); a meal plan's opens the storefront where it is bought.
 const CPW_PEAKS = ["#c0533b", "#d8a23a", "#a78bfa", "#5fb16e", "#5b8df9"];
-function cpwPeaks(weeks, seed) {
-  const W = 300, H = 150, r = cpwRng(seed);
-  const pts = [[0, H]];
-  for (let w = 0; w < weeks; w++) {
-    const x0 = (w / weeks) * W, x1 = ((w + 0.5) / weeks) * W;
-    const rise = (w + 1) / weeks;
-    pts.push([x0, H - (10 + 52 * rise) + r() * 6]);
-    pts.push([x1, H - (34 + 92 * rise) - r() * 8]);
-  }
-  pts.push([W, H - 20 - 60]); pts.push([W, H]);
-  return pts;
-}
 function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, sample = false, startLabel = "Start" }) {
   const { ACC, INK, ink, first, isSelf, nutri, ON_CTA, CTA } = T;
   return (
@@ -518,20 +506,14 @@ function CpwRange({ T, items, failed = false, failedWhat = "", onRetry, onOpen, 
         <div className="cpw-range">
           {items.map((p, i) => {
             const col = CPW_PEAKS[i % CPW_PEAKS.length];
-            const pts = p.weeks ? cpwPeaks(Math.min(p.weeks, 24), cpwHash(p.key || p.name)) : null;
             const facts = [p.weeks ? `${p.weeks} ${p.weeks === 1 ? "week" : "weeks"}` : null, p.perWeek ? `${p.perWeek} ${p.perWeek === 1 ? "day" : "days"} a week` : null].filter(Boolean).join(" · ");
             const forSaid = cpwForWho(p.forWho);
             return (
               <article key={p.key} data-program="" data-lead={i === 0 ? "" : undefined} className="cpw-range-card" style={{ borderLeftColor: col }}>
-                <div className="cpw-range-art" aria-hidden="true">
+                {/* The program's own photo, or a band in its colour; no drawing over it (owner, 9 Nov: "remove the graph
+                    design part, looks stupid"). */}
+                <div className={"cpw-range-art" + (p.poster ? "" : " bare")} aria-hidden="true" style={p.poster ? undefined : { background: `linear-gradient(120deg, ${cpwA(col, 0.34)}, rgba(10,15,23,0) 72%), #0f1722` }}>
                   {p.poster ? <img src={p.poster} alt="" loading="lazy" /> : null}
-                  {pts ? (
-                    <svg viewBox="0 0 300 150" preserveAspectRatio="none">
-                      {/* Over the program's own photo the peaks are a line on a light wash, so the photo shows (owner, 9 Nov). */}
-                      <polygon points={pts.map((q) => q.join(",")).join(" ")} fill={col} fillOpacity={p.poster ? ".26" : ".62"} />
-                      <polyline points={pts.slice(1, -2).map((q) => q.join(",")).join(" ")} fill="none" stroke="#fff" strokeWidth={p.poster ? "2" : "1.6"} strokeDasharray={p.poster ? undefined : "4 3"} vectorEffect="non-scaling-stroke" />
-                    </svg>
-                  ) : null}
                   <span className="cpw-range-tag cpw-dtl" style={{ color: "#fff", borderColor: cpwA(col, 0.9) }}>{p.tag || (nutri ? "Meal plan" : "Program")}</span>
                   {p.weeks ? <span className="cpw-range-weeks"><span className="cpw-fig" style={{ fontSize: 20 }}>{p.weeks}</span> <span className="cpw-dtl" style={{ color: "rgba(238,243,240,.82)" }}>{p.weeks === 1 ? "week" : "weeks"}</span></span> : null}
                 </div>
@@ -1272,7 +1254,7 @@ function CpwPage({ K, mode = "live", role: roleIn = "trainer", uid = null, row =
     .cpw-range-card{display:flex;flex-direction:column;background:linear-gradient(180deg,#0f1722,#0a0f17);border:1px solid rgba(238,243,240,.1);border-left:3px solid;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%);min-width:0}
     .cpw-range-art{position:relative;height:168px;overflow:hidden;background:linear-gradient(180deg,#152030,#0a0f17)}
     .cpw-range-art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.78)}
-    .cpw-range-art svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:78%}
+    .cpw-range-art.bare{height:64px}
     .cpw-range-tag{position:absolute;left:12px;top:12px;padding:4px 8px;border:1px solid;border-radius:5px;background:rgba(6,9,15,.78);font-size:10.5px}
     .cpw-range-weeks{position:absolute;right:12px;top:10px;padding:4px 9px;border-radius:5px;background:rgba(6,9,15,.78);display:inline-flex;align-items:baseline;gap:5px}
     .cpw-range-body{display:flex;flex-direction:column;flex:1;padding:16px 18px 18px}
@@ -2573,7 +2555,6 @@ function CpwReplaysTab({ T, replays, failed = false, onRetry, onOpen }) {
 function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy, onWork, onAsk = null }) {
   const { pal, ACC, first, isSelf } = T;
   const CTA = T.CTA || ACC, ON_CTA = T.ON_CTA || T.ON_ACC;
-  const peaks = pr.weeks ? cpwPeaks(Math.min(pr.weeks, 24), cpwHash(String(pr.id || pr.name))) : null;
   const plates = [[pr.weeks, pr.weeks === 1 ? "Week" : "Weeks"], [pr.perWeek, pr.perWeek === 1 ? "Day a week" : "Days a week"]].filter(([n]) => n);
   const muted = "rgba(232,235,239,0.6)";
   const p = pr.preview || { units: [], kind: null };
@@ -2588,12 +2569,6 @@ function CpwProgramSheet({ T, pr, item = null, days = [], sells, onClose, onBuy,
       <CpwSheetHead eyebrow={`Program${pr.price ? " · " + pr.price : ""}`} ACC={muted} color="#e8ebef" onClose={onClose} />
       <h2 className="cpw-s26" style={{ margin: 0, fontFamily: CPW_DISPLAY, fontWeight: 300, fontSize: 26, lineHeight: 1.1 }}>{pr.name}<span style={{ color: ACC }}>.</span></h2>
       {meta ? <p style={{ margin: "4px 0 0", fontSize: 13.5, color: muted }}>{meta}</p> : null}
-      {peaks ? (
-        <svg aria-hidden="true" data-program-peaks="" viewBox="0 0 300 150" preserveAspectRatio="none" style={{ display: "block", width: "100%", height: 92, marginTop: 12 }}>
-          <polygon points={peaks.map((q) => q.join(",")).join(" ")} fill={CTA} fillOpacity=".6" />
-          <polyline points={peaks.slice(1, -2).map((q) => q.join(",")).join(" ")} fill="none" stroke="#fff" strokeWidth="1.6" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-        </svg>
-      ) : null}
       {plates.length ? (
         <div data-program-plates="" style={{ display: "flex", gap: 10, marginTop: 12 }}>
           {plates.map(([n, l]) => (

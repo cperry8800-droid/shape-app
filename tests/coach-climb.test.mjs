@@ -67,7 +67,7 @@ const campKeys = () => $$('[data-climb-camp]').map((el) => el.getAttribute('data
 await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/iosAppBroadsheet.jsx'), { registry: new Map([['react', React]]) });
 const climbMod = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSCoachClimb.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
 const { BSTrainerProfile } = await loadRealModule(join(ROOT, 'mobile-app/src/broadsheet/BSTrainerProfile.jsx'), { registry: new Map([['react', React], ['react-dom', require_('react-dom')]]) });
-const { bsClimbPeaks, bsClimbPeaksPath, bsClimbBlocks, bsClimbAccent, CLIMB_ACCENTS } = climbMod;
+const { bsClimbBlocks, bsClimbAccent, CLIMB_ACCENTS } = climbMod;
 const { BS_COACH_ACCENTS, bsCoachPalette } = await import(join(ROOT, 'public/newdesign/coachProfileKit.mjs'));
 
 // ── The world the page reads ─────────────────────────────────────────────────────────────────
@@ -122,16 +122,7 @@ const page = (props = {}) => React.createElement(window.BSProvider, { paperMode:
 const SAMPLE_WORDS = /hasn't set up a Shape account yet|Sample times|Iron & Ordinary|Quinn Harper|Engine 8|Air bike intervals|Rower pacing|\/m\/demo\//;
 
 // ── The drawing ──────────────────────────────────────────────────────────────────────────────
-test('peaks: one a week of the program\'s own length, rising to the top; blocks split its weeks', () => {
-  for (const n of [1, 4, 6, 8, 12, 52]) {
-    const p = bsClimbPeaks(n);
-    assert.equal(p.length, n, `${n} weeks, ${n} peaks`);
-    assert.ok(p.every((x) => x.x > 0 && x.x < 1 && x.y > 0 && x.y < 1));
-    assert.ok(p[p.length - 1].y <= p[0].y, 'the last week is the top');
-  }
-  for (const bad of [0, -1, 53, 2.5, null, undefined, '12', NaN]) assert.deepEqual(bsClimbPeaks(bad), [], String(bad));
-  assert.match(bsClimbPeaksPath(bsClimbPeaks(3), 300, 100), /^M0\.0 100\.0 .* Z$/);
-  assert.equal(bsClimbPeaksPath([], 300, 100), '');
+test('blocks split a program\'s weeks', () => {
   assert.deepEqual(bsClimbBlocks(12), [{ from: 1, to: 4 }, { from: 5, to: 8 }, { from: 9, to: 12 }]);
   assert.deepEqual(bsClimbBlocks(2), [{ from: 1, to: 1 }, { from: 2, to: 2 }]);
   assert.deepEqual(bsClimbBlocks(1), [{ from: 1, to: 1 }]);
@@ -163,8 +154,10 @@ test('a real coach\'s page draws only their own data: no sample anywhere, and th
   assert.deepEqual(wire, ['next', 'post', 'p:p1']);
   assert.match($('[data-climb-wire]').textContent, /Next open · .*New post: Week 7 notes are up · 6h.*Strength Block 3 · 12 weeks · \$59/);
   assert.doesNotMatch($('[data-climb-wire]').textContent, /example/i);
-  // The range draws a peak a week of the program's own 12.
-  assert.equal($('[data-climb-peaks]').getAttribute('data-climb-peaks'), '12');
+  // The range: no peaks drawn on a card (owner, 9 Nov: "remove the graph design part"); a program with no photo
+  // is a band in its colour.
+  assert.equal(!!$('[data-climb-range] svg'), false, 'no drawing on a card');
+  assert.equal($('[data-climb-program-art]').getAttribute('data-climb-program-art'), 'band');
   await m.unmount();
 });
 
@@ -551,9 +544,9 @@ test('a photo post with no title still names its Base tile (review, 9 Nov)', asy
   await m.unmount();
 });
 
-// Owner, 9 Nov: "use programs own photo". A program with a photo shows it, bright, its weeks a solid line on a
-// light wash; one with none keeps the filled range.
-test('a program card shows the program\'s own photo with its peaks as a line; without one, the filled range', async () => {
+// Owner, 9 Nov: "use programs own photo", then "remove the graph design part, looks stupid". A program with a
+// photo shows it, bright, with nothing drawn over it; one with none is a short band in its colour.
+test('a program card is the program\'s own photo with nothing drawn over it; without one, a band in its colour', async () => {
   const COVER = 'https://x.supabase.co/storage/v1/object/public/coach-media/u-maya/program/cover.jpg';
   const m = await mount(React.createElement(window.BSProvider, { paperMode: 'dark', accentKey: 'teal' },
     React.createElement(climbMod.BSClimbRange, { programs: [
@@ -564,10 +557,10 @@ test('a program card shows the program\'s own photo with its peaks as a line; wi
   const img = a.querySelector('[data-climb-program-photo]');
   assert.equal(img ? img.getAttribute('src') : null, COVER, 'the program\'s own photo');
   assert.equal(img.style.filter, 'brightness(0.78)', 'bright enough to see');
-  assert.equal(a.querySelector('[data-climb-peaks] path').getAttribute('fill-opacity'), '0.26', 'a light wash over the photo');
-  assert.equal(a.querySelector('[data-climb-peaks] polyline').hasAttribute('stroke-dasharray'), false, 'a solid line');
+  assert.equal(a.querySelector('[data-climb-program-art]').getAttribute('data-climb-program-art'), 'photo');
+  assert.equal(b.querySelector('[data-climb-program-art]').getAttribute('data-climb-program-art'), 'band');
+  assert.equal(b.querySelector('[data-climb-program-art]').style.height, '64px', 'a short band, not an empty picture');
   assert.equal(!!b.querySelector('[data-climb-program-photo]'), false);
-  assert.equal(b.querySelector('[data-climb-peaks] path').getAttribute('fill-opacity'), '0.82', 'no photo: the filled range');
-  assert.equal(b.querySelector('[data-climb-peaks] polyline').getAttribute('stroke-dasharray'), '3 3');
+  assert.equal(!!document.querySelector('[data-climb-range] svg'), false, 'no peaks drawn on any card');
   await m.unmount();
 });

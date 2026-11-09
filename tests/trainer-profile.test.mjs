@@ -1111,9 +1111,9 @@ test('Studio: each program with its price once, its weeks and days, the lead wit
   await tab('Studio');
   const cards = [...document.querySelectorAll('[data-program]')];
   assert.equal(cards.length, 2, 'programs only, never a meal plan');
-  // The range: a range of peaks a card, one a week of the program's own length, with its price once.
+  // The range: a card a program (no peaks drawn on it, owner 9 Nov), with its price once.
   assert.match(cards[0].textContent, /12\s*Weeks.*Strong in 12.*12 weeks · 2 days a week.*\$79.*See the climb.*Start/);
-  assert.equal(cards[0].querySelector('[data-climb-peaks]').getAttribute('data-climb-peaks'), '12', 'a peak a week');
+  assert.equal(!!cards[0].querySelector('svg'), false, 'no drawing on the card');
   assert.equal(cards[0].querySelectorAll('[data-climb-price]').length, 1, 'the price once');
   assert.match(cards[1].textContent, /Engine 8.*8 weeks.*Free/);
   assert.ok(!cards[1].querySelector('[data-climb-start]'), 'a free program has no Start: nothing to check out');

@@ -125,12 +125,11 @@ test('a real coach\'s Climb is their own data, never the sample', async () => {
   assert.match(wire[0], /^Next open /);
   assert.match(wire[1], /^New: Tempo week · 1d ago$/);
   assert.match(wire[2], /^Strength Block 3 12 weeks/);
-  // The range: one peak per week of the program's own length.
+  // The range: a card a program, no peaks drawn on it (owner, 9 Nov: "remove the graph design part").
   const card = $('[data-camp="range"] [data-program]');
   assert.match(card.textContent, /Strength Block 3/);
   assert.match(card.textContent, /\$59/);
-  const peaks = card.querySelector('polygon').getAttribute('points').split(' ').length;
-  assert.equal(peaks, 12 * 2 + 3, 'a valley and a peak a week, and the frame');
+  assert.equal(!!card.querySelector('svg'), false, 'no drawing on the card');
   await p.unmount();
 });
 
@@ -188,7 +187,7 @@ test('the booking console and the range go through today\'s paths', async () => 
   // Start on the range opens the program's sheet; its Start is lvBuyPlan's checkout with the plan.
   await React.act(async () => $('[data-camp="range"] [data-program-open]').click());
   const sheet = $('[data-program-sheet]');
-  assert.ok(sheet.querySelector('[data-program-peaks]') && sheet.querySelector('[data-program-ask]'));
+  assert.ok(!sheet.querySelector('[data-program-peaks]') && !!sheet.querySelector('[data-program-ask]'), 'no peaks drawn in the sheet, and Ask');
   assert.match(sheet.querySelector('[data-program-buy]').textContent, /Start · \$59/);
   await React.act(async () => sheet.querySelector('[data-program-buy]').click());
   await settle();
@@ -401,9 +400,9 @@ test('under 375px the dock drops the avatar and lets the booking action shrink a
   assert.match(m[1], /\.cpw-dock-acts \.cpw-cta:last-child\{flex:1;min-width:0\}/);
 });
 
-// Owner, 9 Nov: "use programs own photo". A program with a photo shows it, bright, its weeks a solid line on a
-// light wash; one with none keeps the filled range.
-test('a program card shows the program\'s own photo with its peaks as a line; without one, the filled range', async () => {
+// Owner, 9 Nov: "use programs own photo", then "remove the graph design part, looks stupid". A program with a
+// photo shows it, bright, with nothing drawn over it; one with none is a short band in its colour.
+test('a program card is the program\'s own photo with nothing drawn over it; without one, a band in its colour', async () => {
   WIDE = true;
   const WITH = { ...PLAN, id: 'p1', name: 'Strength Block 3', detail: { ...PLAN.detail, media: [{ type: 'video', url: 'https://cdn.test/intro.mp4' }, { type: 'image', url: 'https://cdn.test/cover.jpg' }] } };
   const WITHOUT = { ...PLAN, id: 'p2', name: 'Barbell basics', detail: { ...PLAN.detail, weeks: 6, media: [] } };
@@ -412,11 +411,13 @@ test('a program card shows the program\'s own photo with its peaks as a line; wi
   const [a, b] = $$('[data-camp="range"] [data-program]');
   const img = a.querySelector('.cpw-range-art img');
   assert.equal(img ? img.getAttribute('src') : null, 'https://cdn.test/cover.jpg', 'the program\'s own photo');
-  assert.equal(a.querySelector('polygon').getAttribute('fill-opacity'), '.26', 'a light wash over the photo');
-  assert.equal(a.querySelector('polyline').hasAttribute('stroke-dasharray'), false, 'a solid line');
+  assert.equal(a.querySelector('.cpw-range-art').classList.contains('bare'), false);
+  assert.equal(b.querySelector('.cpw-range-art').classList.contains('bare'), true, 'no photo: a short band in its colour');
   assert.equal(!!b.querySelector('.cpw-range-art img'), false);
-  assert.equal(b.querySelector('polygon').getAttribute('fill-opacity'), '.62', 'no photo: the filled range');
-  assert.equal(b.querySelector('polyline').getAttribute('stroke-dasharray'), '4 3');
-  assert.match(read('public/newdesign/coachProfileWeb.jsx'), /\.cpw-range-art img\{[^}]*filter:brightness\(\.78\)\}/, 'the photo shows, not greyed to half');
+  assert.equal(!!$('[data-camp="range"] svg'), false, 'no peaks drawn on any card');
+  const src = read('public/newdesign/coachProfileWeb.jsx');
+  assert.match(src, /\.cpw-range-art img\{[^}]*filter:brightness\(\.78\)\}/, 'the photo shows, not greyed to half');
+  assert.match(src, /\.cpw-range-art\.bare\{height:64px\}/);
+  assert.doesNotMatch(src, /data-program-peaks|cpwPeaks/, 'the program sheet draws none either');
   await p.unmount();
 });
