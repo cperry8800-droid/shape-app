@@ -624,6 +624,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website: the fold\'s eyebrow and stats out, the members page retired (#2659); every app screenshot re-shot from the current app (#2663). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09: "remove these from home page on website" (the fold\'s "Your climb · Shape Score" eyebrow and its three stats), "remove the members page from website", and "need to update all screenshots of app on website, on home page and app page"', status: 'done' },
+        { label: '#2659 homepage fold: the eyebrow and the $5/mo · 0 ads · 1 app stats gone with their CSS; the route\'s trailhead is min(0.86H, H − 50), clear of the wire and its stroke on short windows (Codex P2 on c78f96f, fixed in 7bf972f)', status: 'done' },
+        { label: '#2659 members page: Client.html and clientOverview.jsx deleted; Members off both nav bars and drawers (SIGNED_OUT_ONLY is Pricing), For members off both footers, Overview off the legal pages\' Clients menu, out of the sitemap; /newdesign/Client.html and /for-clients redirect to the homepage; tests/members-page-retired.test.mjs holds it', status: 'done' },
+        { label: '#2663 captures: from a /m/ build of main (59eb433) in the signed-out preview by the recorded method (375×867 at 1.6, Fri 2026-09-11 09:30 New York, is-native-app; /api/me and now-playing as production answers signed out). Get App\'s eleven PNGs in place at ?v=20261109 as 256-colour palettes; the homepage\'s seven JPEGs as -v5', status: 'done' },
+        { label: '#2663 copy follows the screens: Home leads with the score, the station and the goal (Lean by August · 7.1 lb to go); Eat reads 47g of protein left; the coach\'s page is the new layout (Verified by Shape · Elite · 9.9/10 from 284 reviews); the Wall\'s figure is 2,104 online now · Priya on set 4 of 5', status: 'done' },
+        { label: '#2663 the homepage rings re-measured: Eat\'s and the session\'s inside their cards (4%, 5.67%), Grocery\'s Produce and Apple, the Wall\'s headline through the note; the pixel test passes on all four', status: 'done' },
+        { label: 'Review: Codex clean on 7bf972f (#2659) and b11ca03 (#2663); CI green on both heads', status: 'done' },
+        { label: 'Left by #2663: the capture script is not in the repo (run from a scratch folder, as before); the method is in the PR description', status: 'pending' },
+      ],
+    },
+    {
       section: 'Agents: the support reviewer finds known gaps in the War Room; ui-ux-pro-max and framer-motion drop retired build steps; a test holds agent files to the repo (#2650). No migration',
       items: [
         { label: 'Owner, 2026-11-09: "i want to make my agents better", with softaworks/agent-toolkit\'s marketplace and dhruvjainin/absolute\'s eleven skills to review', status: 'done' },
@@ -951,7 +964,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'The workout detail page still credits its note to Jordan Chen, plays his playlist, and Save files the sample workout on a live day, as before (flagged in BSWorkoutDetail.jsx)', status: 'pending' },
         { label: 'English with no copy keys: the filed stamp\'s no-macros words and the workout detail page\'s fixed sample copy', status: 'pending' },
         { label: 'No longer used by the app: BSFocusRoute and BSShopBySwitch (BSFocus.jsx), the key nutrition:grocery.shop.aisleOf; the client imports BSFocusLead, BSFocusCountdown and BSFocusActions unused, as on main', status: 'pending' },
-        { label: 'The website\'s home-grocery-v4.jpg still shows the old Grocery page', status: 'pending' },
+        { label: 'The website\'s home-grocery-v4.jpg still shows the old Grocery page (re-shot as home-grocery-v5.jpg in #2663)', status: 'done' },
         { label: 'OWNER: on a phone, Your mornings, the goal climb, Settings, a meal page, Grocery, logging a meal and a workout from its page through Focus, on both papers', status: 'manual' },
       ],
     },

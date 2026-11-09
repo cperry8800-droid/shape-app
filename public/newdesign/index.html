@@ -331,9 +331,11 @@
      ⚠ AND EACH RING IS FITTED TO ITS CAPTURE, ON ALL FOUR SIDES. The app's own
      content starts ~28 px into a 600 px capture (5%), so a 5% inset drew every
      ring THROUGH the text it framed: "1,568", "1/25", "SET 01", the NEW PR chip.
-     2.5% clears it; the Wall's content starts at 19 px, so its ring overrides
-     to 1.25%. Each ring's top/height is the target's measured bounds plus ~12 px,
-     or the midpoint of the gap where its neighbours are closer than that. */
+     2.5% clears it. Where the target is a card that runs nearly edge to edge
+     (Eat's fuel card, the session's set card), 2.5% would draw along the card's
+     own border, so that ring overrides its inset to sit just inside the card
+     (4% and 5.67%). Each ring's top/height is the target's measured bounds plus
+     ~12 px, or the midpoint of the gap where its neighbours are closer than that. */
   .mo .shot img{display:block;width:100%;height:auto;transform:translateY(calc(var(--y) * -1))}
   .mo .hl{position:absolute;left:2.5%;right:2.5%;border:1.5px solid var(--teal);border-radius:6px;
           box-shadow:0 0 0 3px rgba(var(--teal-rgb),.12);opacity:0;transition:opacity .25s}
@@ -1068,19 +1070,19 @@
     <div class="mo-grid" id="mo-grid">
       <div class="mo on" data-tilt="4">
         <div class="eb">Eat · the menu</div><h3>The ledger ticks.</h3>
-        <div class="shot"><img src="/newdesign/home-eat-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the fuel left today, 532 kcal, and what is left of each macro, then lunch up next with Log it and Swap" style="--y:19%"><span class="hl" style="top:27.06%;height:45.38%"></span></div>
+        <div class="shot"><img src="/newdesign/home-eat-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The Eat screen: the fuel left today, 532 kcal, and what is left of each macro, then lunch up next with Log it and Swap" style="--y:19%"><span class="hl" style="top:37.81%;height:17.38%;left:4%;right:4%"></span></div>
       </div>
       <div class="mo" data-tilt="4">
         <div class="eb">Eat · the shop</div><h3>The list writes itself.</h3>
-        <div class="shot"><img src="/newdesign/home-grocery-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan, 8 of 89 in the cart, shopped by aisle with the aisles stepped across the top and Produce open, 24 to get" style="--y:34%"><span class="hl" style="top:53.3%;height:27.38%"></span></div>
+        <div class="shot"><img src="/newdesign/home-grocery-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The grocery list: this week's plan, 8 of 89 in the cart, shopped by aisle with the aisles stepped across the top and Produce open, 24 to get" style="--y:34%"><span class="hl" style="top:28.8%;height:17.88%"></span></div>
       </div>
       <div class="mo" data-tilt="4">
         <div class="eb">Train · in the session</div><h3>A set logs.</h3>
-        <div class="shot"><img src="/newdesign/home-session-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, set one up with its load and reps" style="--y:10.75%"><span class="hl" style="top:41.61%;height:16.75%"></span></div>
+        <div class="shot"><img src="/newdesign/home-session-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="The live session player: back squat, five sets of three, set one up with its load and reps" style="--y:10.75%"><span class="hl" style="top:44.99%;height:19.13%;left:5.67%;right:5.67%"></span></div>
       </div>
       <div class="mo" data-tilt="4">
         <div class="eb">Community · the Wall</div><h3>A PR lands.</h3>
-        <div class="shot"><img src="/newdesign/home-feed-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A deadlift PR from the Wall: 245 lb as the top set under the headline, the member's note, and the coach's co-sign below" style="--y:0%"><span class="hl" style="top:44.13%;height:37.88%"></span></div>
+        <div class="shot"><img src="/newdesign/home-feed-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A deadlift PR from the Wall: 245 lb as the top set under the headline, the member's note, and the coach's co-sign below" style="--y:0%"><span class="hl" style="top:39.25%;height:37.63%"></span></div>
       </div>
     </div>
     <div style="margin-top:20px"><span class="exlabel">Example member · captured from the app's signed-out preview</span></div>
@@ -1235,7 +1237,7 @@
       <div class="jph" id="jph">
         <div class="appph">
           <span class="isl"></span>
-          <img id="jph-img" src="/newdesign/home-profile-v4.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A member's living profile: the climb to the next tier drawn over their cover photo, then their tier, points and streak" style="--y:0%">
+          <img id="jph-img" src="/newdesign/home-profile-v5.jpg" width="600" height="1387" loading="lazy" decoding="async" alt="A member's living profile: the climb to the next tier drawn over their cover photo, then their tier, points and streak" style="--y:0%">
         </div>
         <div class="phcap"><b id="jph-t">Your living profile</b><span id="jph-c">The tier, the streak and the climb — drawn from day one on the terrain that is yours.</span></div>
       </div>
@@ -1293,12 +1295,12 @@
       </div>
       <div>
         <!-- ⚠ DELIBERATELY NOT THE SCORE CAPTURE. The journey rail's stage 04 already
-             carries home-score-v4.jpg under the SAME headline and the SAME sentence, so
+             carries home-score-v5.jpg under the SAME headline and the SAME sentence, so
              this phone was the second of two identical Shape Score snapshots on one page
              - the reader scrolled past the same frame twice and learned nothing the
              second time. The price section is the one place someone is deciding what $5
              buys, so it shows the screen that answers that in a single frame: the
-             station, the week, the morning check-in and today's call at once.
+             score, the station, the goal, the week and the morning check-in at once.
              It is a PNG among the page's JPEG captures because that is the Home capture
              that EXISTS (600x1387, shared byte-for-byte with GetApp.html's step 1, same
              ?v= so the two share one cache entry). It is lazy-loaded and several screens
@@ -1306,9 +1308,9 @@
              Guarded by tests/homepage-climb.test.mjs. -->
         <div class="appph">
           <span class="isl"></span>
-          <img src="/newdesign/getapp-home-v5.png?v=20261103b" width="600" height="1387" loading="lazy" decoding="async" alt="The app's Home screen: Shape Radio, this week's calendar, the morning check-in with water, and today's call" style="--y:0%">
+          <img src="/newdesign/getapp-home-v5.png?v=20261109" width="600" height="1387" loading="lazy" decoding="async" alt="The app's Home screen: the Shape Score, Shape Radio, the goal drawn as a climb with 7.1 lb to go, this week's strip, and the morning check-in with water" style="--y:0%">
         </div>
-        <div class="phcap"><b>Today, at a glance</b>The Shape Daily: the station, your week, the morning check-in and today's call.<span class="lbl-row"><span class="exlabel">Example member</span></span></div>
+        <div class="phcap"><b>Today, at a glance</b>Your score, the station, your goal, your week and the morning check-in.<span class="lbl-row"><span class="exlabel">Example member</span></span></div>
       </div>
     </div>
   </div>
@@ -1664,19 +1666,19 @@
      also what the MARKUP ships, so the reduced-motion and no-JS renders (which
      never reach this code) are already showing stage 1 rather than a blank frame. */
   var PH=[
-    ['/newdesign/home-profile-v4.jpg','Your living profile',
+    ['/newdesign/home-profile-v5.jpg','Your living profile',
      'The tier, the streak and the climb \u2014 drawn from day one on the terrain that is yours.',
      "A member's living profile: the climb to the next tier drawn over their cover photo, then their tier, points and streak"],
-    ['/newdesign/home-match-v4.jpg','Find a coach',
+    ['/newdesign/home-match-v5.jpg','Find a coach',
      'Vetted trainers and RDs, browsed and messaged from inside the app before you commit.',
      'The foot of the Eat screen: your nutritionist, their note, and the find-a-nutritionist row for vetted RDs'],
-    ['/newdesign/home-session-v4.jpg','The live session',
+    ['/newdesign/home-session-v5.jpg','The live session',
      'The plan lands written. You log the set and the app keeps the count.',
      'The live session player: back squat, five sets of three, set one up with its load and reps'],
-    ['/newdesign/home-score-v4.jpg','The Shape Score',
+    ['/newdesign/home-score-v5.jpg','The Shape Score',
      'One number over everything you log, with the ladder it climbs.',
      'The Shape Score page: the current standing, the tier, and the ladder from Raw to Legend'],
-    ['/newdesign/home-feed-v4.jpg','The Wall',
+    ['/newdesign/home-feed-v5.jpg','The Wall',
      'Your records land where your coach and your crew can see them.',
      "A deadlift PR from the Wall: 245 lb as the top set under the headline, the member's note, and the coach's co-sign below"]
   ];
