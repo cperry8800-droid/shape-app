@@ -215,15 +215,30 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
     read();
     return () => { sc.removeEventListener('scroll', on); if (raf != null && W.cancelAnimationFrame) W.cancelAnimationFrame(raf); };
   }, [campKey, pinnedTop]);
-  // The row keeps the camp you are at in view.
+  // Owner, 2026-11-09: "need a new way to organize these on coaches profile, no side scrolling". The bar
+  // names the camp you are at; a tap opens every camp as a grid under it, and a camp closes it. Escape, or
+  // a tap anywhere off the bar, closes it too.
+  const [pick, setPick] = React.useState(false);
+  const pickRef = React.useRef(null);
+  // Closing with focus inside the grid hands it back to the bar, so it is never left in a hidden list
+  // (Codex, #2664); a tap off the bar leaves focus where that tap put it.
+  const closePick = () => {
+    const nav = navRef.current, grid = nav && nav.querySelector('[data-climb-camp-grid]');
+    const doc = rootRef.current && rootRef.current.ownerDocument;
+    const inGrid = !!(grid && doc && grid.contains(doc.activeElement));
+    setPick(false);
+    if (inGrid && pickRef.current) { try { pickRef.current.focus({ preventScroll: true }); } catch (e) { pickRef.current.focus(); } }
+  };
   React.useEffect(() => {
-    const nav = navRef.current;
-    const b = nav && nav.querySelector(`[data-climb-camp-tab="${at.key}"]`);
-    if (!nav || !b || !nav.clientWidth) return;
-    const l = b.offsetLeft, r = l + b.offsetWidth;
-    if (l < nav.scrollLeft + 8) nav.scrollLeft = Math.max(0, l - 24);
-    else if (r > nav.scrollLeft + nav.clientWidth - 8) nav.scrollLeft = r - nav.clientWidth + 24;
-  }, [at.key]);
+    if (!pick) return undefined;
+    const doc = rootRef.current && rootRef.current.ownerDocument;
+    if (!doc) return undefined;
+    const off = (e) => { const nav = navRef.current; if (nav && e.target && !nav.contains(e.target)) setPick(false); };
+    const key = (e) => { if (e.key === 'Escape') closePick(); };
+    doc.addEventListener('pointerdown', off, true);
+    doc.addEventListener('keydown', key);
+    return () => { doc.removeEventListener('pointerdown', off, true); doc.removeEventListener('keydown', key); };
+  }, [pick]);
   const goTo = (key) => {
     setAt((a) => ({ ...a, key }));
     const el = headRefs.current[key];
@@ -343,19 +358,32 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
       {camps.length ? (
         <>
           {camps.length > 1 ? (
-            <nav ref={navRef} data-profile-tabs="" data-climb-camps="" aria-label={tr('profile:climb.campsAria', { defaultValue: 'Camps on the route' })} className="bs-hide-scroll"
-              style={{ position: 'sticky', top: pinnedTop, zIndex: 5, marginTop: 18, background: 'rgba(10,14,17,0.94)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderBottom: `1px solid ${CLIMB.LINE}`, overflowX: 'auto', overscrollBehaviorX: 'contain' }}>
-              <div style={{ position: 'relative', display: 'flex', minWidth: 'max-content', padding: '0 8px' }}>
+            <nav ref={navRef} data-profile-tabs="" data-climb-camps="" aria-label={tr('profile:climb.campsAria', { defaultValue: 'Camps on the route' })}
+              style={{ position: 'sticky', top: pinnedTop, zIndex: 5, marginTop: 18, background: 'rgba(10,14,17,0.94)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderBottom: `1px solid ${CLIMB.LINE}` }}>
+              {(() => {
+                const idx = Math.max(0, camps.findIndex((c) => c.key === at.key));
+                const here = camps[idx];
+                return (
+                  <button ref={pickRef} type="button" data-climb-camp-pick="" aria-expanded={pick ? 'true' : 'false'} aria-controls="climb-camp-grid" onClick={() => setPick((v) => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: ROW_H, padding: `0 ${gutter}px`, border: 0, background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                    <span data-climb-camp-here="" style={{ flex: 1, minWidth: 0, ...mono(10.5, ACC), fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{here.eyebrow || here.label}</span>
+                    <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" style={{ flex: 'none', transform: pick ? 'rotate(180deg)' : 'none', transition: reduced ? 'none' : 'transform 160ms ease' }}><path d="M2.5 4.5L6 8l3.5-3.5" fill="none" stroke={CLIMB.MUTED} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </button>
+                );
+              })()}
+              {/* The route under the bar, filled as far as you have climbed */}
+              <span aria-hidden="true" style={{ position: 'absolute', left: gutter, right: gutter, bottom: 5, height: 1, backgroundImage: `linear-gradient(90deg, ${CLIMB.LINE2} 50%, transparent 50%)`, backgroundSize: '6px 1px' }} />
+              <span aria-hidden="true" data-climb-fill="" style={{ position: 'absolute', left: gutter, bottom: 5, height: 1, width: `calc((100% - ${gutter * 2}px) * ${at.fill.toFixed(3)})`, background: DRAW, transition: reduced ? 'none' : 'width 160ms linear' }} />
+              {/* Every camp at once, wrapped in rows under the bar: nothing scrolls sideways */}
+              <div id="climb-camp-grid" data-climb-camp-grid="" hidden={!pick}
+                style={{ position: 'absolute', left: 0, right: 0, top: '100%', display: pick ? 'grid' : 'none', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, padding: `10px ${gutter}px 14px`, background: CLIMB.BG, borderBottom: `1px solid ${CLIMB.LINE}`, boxShadow: '0 14px 28px rgba(0,0,0,0.45)' }}>
                 {camps.map((c) => {
                   const on = c.key === at.key;
                   return (
-                    <button key={c.key} type="button" data-profile-tab={c.key} data-climb-camp-tab={c.key} aria-current={on ? 'location' : undefined} onClick={() => goTo(c.key)}
-                      style={{ flex: 'none', minHeight: ROW_H, padding: '0 10px', border: 0, background: 'transparent', color: on ? ACC : CLIMB.MUTED, ...mono(10.5, on ? ACC : CLIMB.MUTED), fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c.label}</button>
+                    <button key={c.key} type="button" data-profile-tab={c.key} data-climb-camp-tab={c.key} aria-current={on ? 'location' : undefined} onClick={() => { closePick(); goTo(c.key); }}
+                      style={{ minWidth: 0, minHeight: 44, padding: '0 6px', borderRadius: 8, border: `1px solid ${on ? hexA(ACC, 0.6) : CLIMB.LINE}`, background: on ? hexA(ACC, 0.12) : 'transparent', ...mono(10, on ? ACC : CLIMB.INK), fontWeight: on ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</button>
                   );
                 })}
-                {/* The route under the row, filled as far as you have climbed, a diamond at each camp */}
-                <span aria-hidden="true" style={{ position: 'absolute', left: 18, right: 18, bottom: 5, height: 1, backgroundImage: `linear-gradient(90deg, ${CLIMB.LINE2} 50%, transparent 50%)`, backgroundSize: '6px 1px' }} />
-                <span aria-hidden="true" data-climb-fill="" style={{ position: 'absolute', left: 18, bottom: 5, height: 1, width: `calc((100% - 36px) * ${at.fill.toFixed(3)})`, background: DRAW, transition: reduced ? 'none' : 'width 160ms linear' }} />
               </div>
             </nav>
           ) : null}
