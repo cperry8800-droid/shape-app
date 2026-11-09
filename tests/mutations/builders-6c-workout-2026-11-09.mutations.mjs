@@ -21,7 +21,7 @@ export default {
     { name: 'per cent of 1RM is volume in kg', file: CORE, find: 'row.loadType === "pct" || row.loadType === "rpe" ? "" : "kg";', replace: 'row.loadType === "rpe" ? "" : "kg";' },
     { name: 'an RPE is volume in kg', file: CORE, find: 'row.loadType === "pct" || row.loadType === "rpe" ? "" : "kg";', replace: 'row.loadType === "pct" ? "" : "kg";' },
     { name: 'a ladder counts its first set for all of them', file: CORE, find: 'var t = WorkoutDoc.setTarget(row, i);', replace: 'var t = WorkoutDoc.setTarget(row, 0);' },
-    { name: 'a move with no weight is not said to be left out', file: CORE, find: '        if (sets && !counted) out.unweighed += 1;\n', replace: '' },
+    { name: 'a move with no weight is not said to be left out', file: CORE, find: '        if (sets && counted < sets) out.unweighed += 1;\n', replace: '' },
     { name: 'an untagged move counts nowhere', file: CORE, find: '        } else out.untagged += sets;', replace: '        }' },
     { name: 'the muscles keep the order they were met', file: CORE, find: '.sort(function (a, b2) { return b2.sets - a.sets || a.label.localeCompare(b2.label); });\n    out.regions', replace: ';\n    out.regions' },
     { name: 'a day with upper moves is told to pair with an upper day', file: CORE, find: 'if (regions.lower && !regions.upper && only(["lower", "core"]))', replace: 'if (regions.lower && only(["lower", "upper", "core"]))' },

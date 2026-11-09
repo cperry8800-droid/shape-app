@@ -1273,7 +1273,7 @@ function DbuSessionTotals({ day }) {
   const parts = [...shown.map((m, i) => ({ ...m, c: DBU_MUSCLE_TONES[i] })), ...(rest ? [{ label: "Other", sets: rest, c: DBU_LINE2 }] : [])];
   const tagged = parts.reduce((n, p) => n + p.sets, 0);
   const notes = [];
-  if (vol && t.unweighed) notes.push("Volume leaves out " + t.unweighed + (t.unweighed === 1 ? " move" : " moves") + " with no weight or no whole rep count.");
+  if (vol && t.unweighed) notes.push("Volume leaves out " + t.unweighed + (t.unweighed === 1 ? " move" : " moves") + " with a set that has no weight or no whole rep count.");
   if (t.untagged) notes.push(t.untagged + (t.untagged === 1 ? " set is" : " sets are") + " on moves with no muscle recorded.");
   return (
     <section className="dtot" aria-label="This session adds up to">

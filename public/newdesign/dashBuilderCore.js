@@ -1532,7 +1532,9 @@
           var reps = wholeReps(t && t.reps), load = t && t.num != null ? Number(t.num) : NaN;
           if (reps != null && Number.isFinite(load) && load > 0) { out.volume[unit] += reps * load; counted += 1; }
         }
-        if (sets && !counted) out.unweighed += 1;
+        // A move any of whose sets the volume leaves out is named, so a partial sum never reads as
+        // the whole (Codex on #2648: a 100 / blank / 120 ladder counted two sets and said nothing).
+        if (sets && counted < sets) out.unweighed += 1;
       }
     }
     out.muscles = Object.keys(by).filter(function (k) { return by[k] > 0; }).map(function (k) { return { label: labels[k], sets: by[k] }; })

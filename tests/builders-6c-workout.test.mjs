@@ -155,6 +155,10 @@ test('the session adds itself up from its rows: working sets, volume per unit, m
   assert.equal(sixty.workingSets, 50, '60 sets were counted though the client gets 50');
   assert.equal(sixty.volume.kg, 50 * 5 * 100);
   assert.equal(sixty.muscles.reduce((n, m) => n + m.sets, 0) + sixty.untagged, 50, 'the muscle sets were not capped with the rest');
+  // A ladder with a set the volume can't count is named, though its other sets count (Codex on #2648).
+  const gap = DashBuilder.sessionTotals({ blocks: [{ kind: 'main', rows: [row('Back squat', 3, '5', 'kg', null, { perSet: [{ reps: '5', load: 100 }, { reps: '5', load: null }, { reps: '5', load: 120 }] })] }] });
+  assert.equal(gap.volume.kg, 5 * 100 + 5 * 120);
+  assert.equal(gap.unweighed, 1, 'a partly counted ladder read as the whole session\'s volume');
 });
 
 test('a card\'s change is on the same move in the same unit', () => {

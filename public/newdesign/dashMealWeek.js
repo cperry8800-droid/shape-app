@@ -197,7 +197,8 @@
   // (recipes.jsx recipeNeeds); the other allergens are read from the recipe's ingredients and its
   // diet, and the panel says so where it filters on one.
   var ALLERGEN_WORDS = {
-    nuts: /\b(almond|walnut|pecan|cashew|pistachio|hazelnut|peanut|macadamia|pine nut|nut butter|nuts?)\w*/i,
+    // A nut by name, or the word nut(s) on its own: never "nutmeg" (Codex on #2648).
+    nuts: /\b(?:(?:almond|walnut|pecan|cashew|pistachio|hazelnut|peanut|macadamia)\w*|pine nuts?|nut butters?|nuts?)\b/i,
     egg: /\b(eggs?|egg whites?|yolks?|mayo|mayonnaise)\b/i,
     soy: /\b(soy|tofu|tempeh|edamame|miso|tamari)\w*/i,
     fish: /\b(salmon|tuna|cod|fish|anchov\w*|sardines?|trout|tilapia|halibut|mackerel|haddock|snapper)\b/i,

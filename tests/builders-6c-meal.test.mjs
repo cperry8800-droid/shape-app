@@ -252,6 +252,11 @@ test('Shape Kitchen is the 100 catalog recipes with the catalog\'s own calories,
   assert.ok(!noNuts.some((f) => /almond|peanut|walnut|cashew/i.test(f.kitchen.text)));
   assert.ok(noNuts.length < K.length);
   assert.deepEqual(W.readFromIngredients({ exclusions: ['dairy', 'nuts'] }), ['nuts']);
+  // "nutmeg" is not a nut (Codex on #2648): the beef stroganoff stays under a nuts exclusion.
+  assert.ok(noNuts.some((f) => f.name === 'Beef stroganoff with macaroni'), 'nutmeg took a recipe out under nuts');
+  const nutmeg = W.ownRecipeFood({ id: 'n1', t: 'Rice pudding', kcal: 300, p: 9, c: 50, f: 6, ing: [{ n: '1 pinch', m: 'nutmeg' }] });
+  const pine = W.ownRecipeFood({ id: 'n2', t: 'Pesto pasta', kcal: 500, p: 15, c: 60, f: 22, ing: [{ n: '2 tbsp', m: 'pine nuts' }] });
+  assert.deepEqual(W.searchKitchen([nutmeg, pine], '', {}, { exclusions: ['nuts'] }).map((f) => f.name), ['Rice pudding']);
   assert.equal(W.searchKitchen(K, '', {}, { maxPrep: 10 }).every((f) => f.prepMin <= 10), true);
   // A dish of the coach's own is read from its ingredients too, not only its name (Codex on #2648):
   // a "Satay bowl" made with peanuts is not a nuts-free match, nor a paneer curry a dairy-free one.
