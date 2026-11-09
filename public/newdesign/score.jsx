@@ -102,6 +102,16 @@ function ScReveal({ children, delay = 0, style = {} }) {
   return <div ref={ref} style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(32px)", transition: `opacity .7s ease ${delay}ms, transform .7s ease ${delay}ms`, ...style }}>{children}</div>;
 }
 
+// The scrim behind a hero's copy over the page photo (the depth review, 2026-11-04). It sits
+// inside the copy (position: relative + isolation) at z-index -1: behind the words, above the photo.
+// Feathered on every edge, so it reads as shade on the photo, not a box.
+const SCORE_COPY_SCRIM = {
+  position: "absolute", inset: "-44px -52px", zIndex: -1, pointerEvents: "none",
+  background: "linear-gradient(90deg, rgba(14,11,9,0) 0, rgba(14,11,9,0.74) 52px, rgba(14,11,9,0.74) calc(100% - 52px), rgba(14,11,9,0) 100%)",
+  WebkitMaskImage: "linear-gradient(180deg, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%)",
+  maskImage: "linear-gradient(180deg, transparent 0, #000 44px, #000 calc(100% - 44px), transparent 100%)",
+};
+
 function ScoreHero() {
   const pct = SCORE_TOTAL / SCORE_GOAL;
   const R = 118;
@@ -116,7 +126,8 @@ function ScoreHero() {
             <h1 style={{ fontFamily: serif, fontSize: "clamp(54px, 8vw, 116px)", letterSpacing: "-0.045em", fontWeight: 300, margin: 0, lineHeight: 0.88 }}>
               Rewards for<br /><em style={{ fontStyle: "italic", fontWeight: 600, color: "transparent", WebkitTextStroke: `1.4px ${INK}` }}>showing&nbsp;up</em>.
             </h1>
-            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(242,237,228,0.66)", margin: "30px 0 0", maxWidth: 520 }}>
+            <p style={{ fontFamily: sans, fontSize: 17, lineHeight: 1.6, color: "rgba(242,237,228,0.66)", margin: "30px 0 0", position: "relative", isolation: "isolate", maxWidth: 520 }}>
+              <span aria-hidden style={SCORE_COPY_SCRIM} />
               Every logged workout, tracked meal, kept session, and habit you hit adds up. Spend points on training credits, nutrition services, or Shape merch. No expiry, no gotchas.
             </p>
             <div style={{ display: "flex", gap: 12, marginTop: 34 }}>
