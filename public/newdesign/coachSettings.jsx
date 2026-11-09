@@ -359,6 +359,23 @@ function CoachSettingsPage({ role }) {
           )}
         </div>
 
+        {/* ── the example dashboard (owner, 2026-11-09) ───────────────────── */}
+        {/* A signed-in coach's own pages show their own clients, so with none yet they're empty.
+            The example shows the dashboard with sample clients, in this tab, under its band. */}
+        {live && typeof DashExampleLink === "function" && window.ShapeDashExample && !window.ShapeDashExample.on && (
+          <div style={{ marginTop: 16 }}>
+            {cstCard(
+              <React.Fragment>
+                <span className="dash-eyebrow">The example dashboard</span>
+                <div style={{ marginTop: 10, fontSize: 13, color: CST_INK, lineHeight: 1.5 }}>
+                  Every page with sample clients on it, so you can see what your dashboard does before your own clients fill it. Nothing you do in the example reaches your account.
+                </div>
+                <div style={{ marginTop: 10, fontSize: 13 }}><DashExampleLink /></div>
+              </React.Fragment>
+            )}
+          </div>
+        )}
+
         {/* ── the account's time zone (P9) ────────────────────────────────── */}
         {/* It drives where the hours editor keeps your open hours and every reader of your
             listing's zone (the server copies it onto trainers / nutritionists). The control

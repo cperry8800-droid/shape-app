@@ -1084,11 +1084,40 @@ function DashDemoBand() {
   // yet still pushed the whole dashboard down — a phantom gap under the nav bar.
   // Pinning it to the bottom (like the mobile preview banner) keeps the demo
   // notice visible while letting content sit flush under the header.
+  // A signed-in coach who asked for the example (dashExample.js) is told it's the example, not
+  // their account, and is offered the way back to their own data, not a sign-in.
+  const example = dashExampleOn();
+  const pill = { flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "4px 12px", textDecoration: "none" };
   return (
     <div className="dash-demo-band" style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, flexWrap: "wrap", padding: "8px 16px", background: "rgba(16,20,18,0.92)", borderTop: "1px solid rgba(30,192,168,0.3)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#2ee0c4", textAlign: "center" }}>
-      <span>Preview · demo data — an example of a live account</span>
-      <a href="/login" style={{ flexShrink: 0, color: "#06110e", background: "#1ec0a8", borderRadius: 999, padding: "4px 12px", textDecoration: "none" }}>Sign in →</a>
+      {example ? (
+        <React.Fragment>
+          <span>Example · sample clients — nothing here is your account</span>
+          <button type="button" onClick={() => window.ShapeDashExample.leave()} style={{ ...pill, border: 0, cursor: "pointer", font: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}>Back to my dashboard →</button>
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          <span>Preview · demo data — an example of a live account</span>
+          <a href="/login" style={pill}>Sign in →</a>
+        </React.Fragment>
+      )}
     </div>
+  );
+}
+
+// The example dashboard (dashExample.js): on for this tab when a signed-in coach asked for it.
+function dashExampleOn() {
+  return typeof window !== "undefined" && !!(window.ShapeDashExample && window.ShapeDashExample.on);
+}
+// "See the example": what a coach's own dashboard does, with sample clients, in this tab. Only where
+// the shell has the switch, and never inside the example itself.
+function DashExampleLink({ children, style }) {
+  if (typeof window === "undefined" || !window.ShapeDashExample || window.ShapeDashExample.on) return null;
+  return (
+    <button type="button" data-dash-example-link onClick={() => window.ShapeDashExample.enter()}
+      style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "var(--sh-accent, #2ee0c4)", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", ...(style || {}) }}>
+      {children || "See the example →"}
+    </button>
   );
 }
 
@@ -2219,15 +2248,16 @@ function dashRowKeyOpen(e, canOpen, open) {
 
 // The widget: the brief over the engine's `now` (null when the pulse could not be read) and the
 // day's rows, re-read every 30 seconds so a session that starts drops out of "next up".
-function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek, loading = false }) {
+function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek, loading = false, noClients = false }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
   const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
   const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit, loading });
-  return <DashBriefCard model={model} role={role} peek={peek} />;
+  return <DashBriefCard model={model} role={role} peek={peek} noClients={noClients} />;
 }
 // With a `role`, each named client is a name that opens the client panel (`peek`), or their file.
-function DashBriefCard({ model, role, peek }) {
+// `noClients`: a roster that was read and holds nobody, where the example (DashExampleLink) shows what fills it.
+function DashBriefCard({ model, role, peek, noClients = false }) {
   return (
     <section aria-label="Brief" style={{ background: "var(--sh-card, #25211d)", border: "1px solid var(--sh-line, #302c27)", borderRadius: 12, padding: "18px 22px" }}>
       <div style={{ ...DASH_MONO_EYEBROW, marginBottom: 10 }}>Brief</div>
@@ -2236,6 +2266,11 @@ function DashBriefCard({ model, role, peek }) {
           ? <DashClientName key={i} points={p.points} size={10} link={role && p.id != null ? { id: p.id, role, peek } : null}>{p.t}</DashClientName>
           : <React.Fragment key={i}>{p.t}</React.Fragment>)}
       </p>
+      {noClients && typeof DashExampleLink === "function" && window.ShapeDashExample && !window.ShapeDashExample.on && (
+        <p data-dash-brief-empty="" style={{ margin: "10px 0 0", fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>
+          No clients yet. <DashExampleLink>See the example dashboard →</DashExampleLink>
+        </p>
+      )}
     </section>
   );
 }
@@ -2976,7 +3011,7 @@ function CoachDashboardPage({ role }) {
     // card the old default board carried (the tabbed queues, Practice, Client wins, Roster health,
     // the Business overview and summary) stays in the catalogue as an optional card.
     { key: "brief", title: "Brief", blurb: "One sentence: who needs your attention, then your next " + cfg.unit + " today.", group: "clients", size: "wide",
-      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} loading={waiting} /> },
+      render: () => <DashBriefWidget needNow={needSplit ? needSplit.now : null} rows={nowRows} demoRows={dayDemoRows} zone={dayZone} clients={clients} unit={cfg.unit} role={role} peek={peek} loading={waiting} noClients={source === "live" && Array.isArray(clients) && clients.length === 0} /> },
     { key: "upnext", title: "Up next", blurb: "The " + cfg.unit + " you're in or going to next, with what you know and a message button.", group: "schedule", size: "narrow",
       render: () => <DashUpNextWidget rows={nowRows} demoRows={dayDemoRows} clients={clients} role={role} unit={cfg.unit} zone={dayZone} unread={dayUnread} peek={peek} rosterUnread={rosterUnread} /> },
     { key: "glance", title: "At a glance", blurb: "Three figures: " + (role === "nutritionist" ? "plans" : "programs") + " due, check-ins reviewed and roster logging, or pick your own with ⚙.", group: "clients", size: "wide",
@@ -3109,4 +3144,4 @@ function CoachDashboardPage({ role }) {
   );
 }
 
-Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime, useDashNextPayout, dashPayoutSidebarCard, dashPayoutView, dashPayoutAmount, dashPayoutWhen, dashGlanceCells, dashLogTrend, DashLogTrendPanel, dashRecordTier, dashTierMark, DashTierDot, DashClientGem, DashClientName, dashRowKeyOpen, dashLinkedTab, dashPeekClick, DashPeekLink });
+Object.assign(window, { CoachDashboardPage, DashNowColumn, DashNeedsYou, dashCountdown, dashQueueRowState, dashQueueNotices, dashQueueMergeMarks, DASH_TODAY_ROLES, DASH_SEV_COLORS, DASH_FUNNEL_BENCHMARK, DashPill, DashDemoBand, TriagePulsePanel, DashWinsPanel, ProgrammingQueuePanel, dashCloseRate, dashCloseWhy, DashFunnelPanel, DashNutriAggPanel, DashBusinessSummary, DashWeekAheadPanel, DashRosterStatusPanel, DashTopMoversPanel, DashAnniversariesPanel, DashRevenueByClientPanel, DashProgramsEndingPanel, DashNotesPanel, dashTabHref, dashMessageClient, dashMessageDraft, dashCongratsDraft, dashJointDraft, dashOpenCareTeam, dashCoachActionGo, dashClientHref, dashClientPageHref, dashRelDay, dashContextLine, dashMoney, dashFmtTime, dashCalDate, dashCalTime, useDashNextPayout, dashExampleOn, DashExampleLink, dashPayoutSidebarCard, dashPayoutView, dashPayoutAmount, dashPayoutWhen, dashGlanceCells, dashLogTrend, DashLogTrendPanel, dashRecordTier, dashTierMark, DashTierDot, DashClientGem, DashClientName, dashRowKeyOpen, dashLinkedTab, dashPeekClick, DashPeekLink });
