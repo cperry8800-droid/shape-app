@@ -167,12 +167,16 @@ export async function GET(request: Request) {
         clientName: r.client_name,
       }));
 
+    // The client and the status ride along (coach dashboard step 5a): the client panel names a
+    // client's next consult from this list, by their id, and a cancelled booking is not one.
     calendar = rows.map((r) => ({
       at: r.scheduled_at,
             durationMin: r.duration_min,
       kind: 'SESSION',
       title: r.client_name || 'Client consult',
       sub: [r.topic, `${r.duration_min} min`, r.type].filter(Boolean).join(' · '),
+      clientId: r.client_id,
+      status: r.status,
     }));
 
     // Counterpart sessions: trainers this nutritionist's clients also see.
