@@ -84,6 +84,7 @@ test('every worklog section an agent or skill names is in the worklog', () => {
   for (const f of files) {
     const named = [
       ...[...f.text.matchAll(/WORKLOG's \*\*([^*]+)\*\*/g)].map((m) => m[1]),
+      ...[...f.text.matchAll(/WORKLOG's\s+([A-Z][\w-]*(?:\s+[\w-]+)*?)\s+line\b/g)].map((m) => m[1]),
       ...[...f.text.matchAll(/"([^"]+)"\s+in\s+`docs\/WORKLOG\.md`/g)].map((m) => m[1]),
       ...[...f.text.matchAll(/`docs\/WORKLOG\.md`,\s+((?:"[^"]+"(?:,\s*|\s+and\s+)?)+)/g)]
         .flatMap((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((q) => q[1])),

@@ -87,8 +87,9 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
   (`BSDetailHeader`, or `onBack` on `BSMasthead`/`BSPageHeader`). Never draw one
   by hand: `tests/back-placement.test.mjs` fails on it. A sticky row takes
   `top: useBSPinnedMastTop()`.
-- **Copy** goes through `useShapeTr()` in all 13 locales; a new English-only
-  string shows up in `tests/i18n-surface-inventory.test.mjs`.
+- **App copy** (`mobile-app/`) goes through `useShapeTr()` in all 13 locales; a
+  new English-only string shows up in `tests/i18n-surface-inventory.test.mjs`. The
+  hook is the app's own: the website and `src/` don't have it.
 - **No colored emoji in new work**: typographic symbols (⚙ ↗ ✓ → × ♡ ＋ #) or a
   theme-tinted SVG. Leave existing emoji alone.
 
@@ -125,5 +126,5 @@ Editorial **broadsheet** aesthetic + **instrument plates**. Read
 Hierarchy clear? · one primary action? · all states designed? · AA contrast? ·
 44px targets? · 0px overflow at narrow width? · theme tokens (no hardcoded
 ink/paper)? · honest data (no fake numbers signed-in)? · no duplicated feed? ·
-Back through `BSBackRow`? · copy through `useShapeTr()`? · parse-checked, built
+Back through `BSBackRow`? · app copy through `useShapeTr()`? · parse-checked, built
 and tests green? If any "no" — it's not done.
