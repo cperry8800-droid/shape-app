@@ -1877,8 +1877,8 @@ function ShapeMobileStyles() {
       @import url('https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,100..900&family=Schibsted+Grotesk:wght@400..700&display=swap');
       /* Metrics-matched fallback fonts — the local fallback is scaled (size-adjust +
          ascent/descent overrides) to occupy the SAME space as the web font, so the swap
-         on load doesn't reflow headers (Fraunces), sub-heads (JetBrains Mono) or body
-         (Space Grotesk). Metrics from @capsizecss (next/font formula). CLS guard. */
+         on load doesn't reflow headers (Anybody), sub-heads (JetBrains Mono) or body
+         (Schibsted Grotesk; the older pages' Fraunces and Space Grotesk keep theirs). Metrics from @capsizecss (next/font formula). CLS guard. */
       @font-face{font-family:'Anybody Fallback';src:local('Arial');size-adjust:104%;ascent-override:92%;descent-override:24%;line-gap-override:0%}
       @font-face{font-family:'Schibsted Fallback';src:local('Arial');size-adjust:101%;ascent-override:95%;descent-override:25%;line-gap-override:0%}
       @font-face{font-family:'Fraunces Fallback';src:local('Times New Roman');size-adjust:115.45%;ascent-override:84.71%;descent-override:22.09%;line-gap-override:0%}
@@ -3322,7 +3322,7 @@ function shapeQueryWithout(search, key) {
       var box = document.createElement("div");
       box.id = "shape-checkout-notice";
       box.setAttribute("role", error ? "alert" : "status");
-      box.style.cssText = "position:fixed;top:16px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:520px;z-index:8000;display:flex;align-items:flex-start;gap:8px;background:var(--sh-card, #25211d);color:var(--sh-ink, #f2ede4);border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15);border-left:3px solid " + (error ? "#d2693f" : "var(--sh-accent2, #0ac5a8)") + ";border-radius:9px;padding:4px 4px 4px 16px;font-family:'Space Grotesk',sans-serif;font-size:14px;line-height:1.5;box-shadow:0 10px 40px rgba(0,0,0,0.5)";
+      box.style.cssText = "position:fixed;top:16px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:520px;z-index:8000;display:flex;align-items:flex-start;gap:8px;background:var(--sh-card, #25211d);color:var(--sh-ink, #f2ede4);border:1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.15);border-left:3px solid " + (error ? "#d2693f" : "var(--sh-accent2, #0ac5a8)") + ";border-radius:9px;padding:4px 4px 4px 16px;font-family:'Schibsted Grotesk','Schibsted Fallback',system-ui,sans-serif;font-size:14px;line-height:1.5;box-shadow:0 10px 40px rgba(0,0,0,0.5)";
       var body = document.createElement("div");
       body.style.cssText = "flex:1;min-width:0;padding:8px 0";
       var eyebrow = document.createElement("div");
