@@ -7,7 +7,8 @@
 //      a roster that could not be read said so ("unread"), and its Review drawer;
 //   2. the cards: one primary and a ⋯ for the rest (Edit, Use as template, Update future
 //      assignments, Delete through ShapeConfirm), the card opening the builder, no nested buttons;
-//   3. who is on a program: tier marks (hollow when unknown) and "No clients yet", the most-used chip;
+//   3. who is on a program or a meal plan: tier marks (hollow when unknown) and "No clients yet", the
+//      most-used chip; a current meal plan that names no library plan is "none recorded", never nobody;
 //   4. the one filter row: search (recipes inside plans too), type with counts, sort;
 //   5. the to-do line counting each client once, however many reasons;
 //   6. the allergen line naming only the plan's own meals, never a swap;
@@ -60,7 +61,7 @@ const KIT = ['DashFilterBar', 'DashFacetMenu', 'DashTagChips', 'DFB_EMPTY', 'dfb
 Object.assign(globalThis, new Function(compile(read('dashFilterBar.jsx')) + ';return {' + KIT.join(',') + '};')());
 Object.assign(globalThis, new Function(compile(read('coachBuilderLayouts.jsx')) + ';return { coachTemplateCopy, CoachBuilderNav, CoachBuilderFooter, COACH_BUILDER_LAYOUTS };')());
 const { TrainerProgramsPage } = new Function(compile(read('dashBuilder.jsx')) + ';return { TrainerProgramsPage };')();
-const { NutritionistPlansPage } = new Function(compile(read('dashMealBuilder.jsx')) + ';return { NutritionistPlansPage };')();
+const { NutritionistPlansPage, DmbAssignModal } = new Function(compile(read('dashMealBuilder.jsx')) + ';return { NutritionistPlansPage, DmbAssignModal };')();
 const UNREAD = DASH_LIB_ROSTER_UNREAD;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -645,13 +646,160 @@ test('Meal plans: one row — a search that finds recipes inside plans, a type c
   assert.deepEqual(cardNames(), ['Bulk Base', 'Lean Week', 'Steady Maintain']);
 });
 
-test('Meal plans: no plan claims who is on it — the assignment stores no plan id to read', async () => {
-  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS });
+// ── Meal plans: who is on it (owner, 2026-11-09: "only the coaches see who's on what plan or program") ──
+// The nutritionist's own usage read (/api/coach/plans/usage?role=nutritionist): their clients'
+// current plans by the library plan each was sent from, and `untracked`, the current plans sent
+// before Shape recorded one.
+const mealUsage = (usage, over = {}) => ({ usage: { usage, capped: false, untracked: 0, ...over } });
+const usageCalls = () => calls.filter(([u]) => u.includes('/api/coach/plans/usage'));
+const pause = (ms) => React.act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+
+test('Meal plans: who is on a plan, as tier marks and names, from the nutritionist\'s own read; nobody is "No clients yet"', async () => {
+  // uid(9) is on Lean Week and not on the roster: counted, never dropped.
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 3, clientIds: [uid(1), uid(2), uid(9)] } }) });
   await mount(React.createElement(NutritionistPlansPage));
-  for (const name of ['Lean Week', 'Bulk Base']) {
-    assert.ok(!mealCard(name).querySelector('.dash-lib-who'), name);
-    assert.doesNotMatch(mealCard(name).textContent, /No clients yet/);
+  assert.deepEqual(usageCalls().map(([u]) => u), ['/api/coach/plans/usage?role=nutritionist'], 'the meal library\'s read, once, with no day on it');
+  const who = mealCard('Lean Week').querySelector('.dash-lib-who');
+  assert.equal(words(who), 'On it Priya S. Tess B. +1 more');
+  assert.equal(who.querySelectorAll('.sh-tier-mark[data-tier]').length, 1, 'Priya\'s tier is drawn');
+  assert.equal(who.querySelectorAll('[data-tier-unknown]').length, 1, 'Tess\'s unknown tier is hollow');
+  assert.equal(whoOf('Bulk Base'), 'On it No clients yet');
+  assert.equal(whoOf('Steady Maintain'), 'On it No clients yet');
+  // The most-used plan gets a chip, not a bigger card.
+  assert.match(mealCard('Lean Week').querySelector('.dash-lib-cover').textContent, /Most used · 3 clients/);
+  assert.equal(document.querySelectorAll('[data-most]').length, 1);
+  assert.ok(!document.querySelector('[data-untracked]'), 'every current plan was counted: nothing to explain');
+  assert.ok(noNestedButtons());
+  // A tie, or one client, names no most-used plan.
+  stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 2, clientIds: [uid(1), uid(4)] }, m2: { clients: 2, clientIds: [uid(2), uid(3)] } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(document.querySelectorAll('[data-most]').length, 0, 'a tie');
+  stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 1, clientIds: [uid(1)] } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(document.querySelectorAll('[data-most]').length, 0, 'one client is not "most used"');
+  assert.equal(whoOf('Lean Week'), 'On it Priya S.');
+});
+
+test('Meal plans: a current plan that names no library plan is not "nobody" — the card says none recorded, the page says why once', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 2, clientIds: [uid(1), uid(4)] } }, { untracked: 3 }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it Priya S. Sam R.');
+  assert.equal(whoOf('Bulk Base'), 'On it None recorded yet');
+  assert.equal(whoOf('Steady Maintain'), 'On it None recorded yet');
+  assert.doesNotMatch(text(), /No clients yet/);
+  const notes = [...document.querySelectorAll('[data-untracked]')];
+  assert.equal(notes.length, 1, 'said once, not on every card');
+  assert.ok(!notes[0].closest('[data-lib-card]'), 'above the cards, not on one');
+  assert.equal(notes[0].textContent, '3 current plans don’t say which library plan they came from (sent before Shape kept track, or from the app), so they aren’t counted on these cards.');
+  assert.equal(document.querySelectorAll('[data-most]').length, 0, 'a count missing three plans cannot rank');
+  stubFetch({ meals: MEALS, ...mealUsage({}, { untracked: 1 }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(document.querySelector('[data-untracked]').textContent, '1 current plan doesn’t say which library plan it came from (sent before Shape kept track, or from the app), so it isn’t counted on these cards.');
+  assert.equal(whoOf('Lean Week'), 'On it None recorded yet');
+});
+
+test('Meal plans: a capped read under-counts — "N+", never "No clients yet", and no most-used plan', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 5, clientIds: [uid(1)] } }, { capped: true }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it Priya S. +4 more · not every plan was read');
+  assert.equal(whoOf('Bulk Base'), 'On it None found on the plans read', 'a capped read never says "No clients yet"');
+  assert.equal(document.querySelectorAll('[data-most]').length, 0, 'a capped read cannot rank');
+  // An entry that says how many and not who.
+  stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 5 } }, { capped: true }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it 5+ clients · not every plan was read');
+  stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 2 } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it 2 clients');
+});
+
+test('Meal plans: who is on it while unread says so, never nobody', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, usageStatus: 500, usage: { error: 'x' } });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it Couldn’t read who’s on it');
+  assert.doesNotMatch(text(), /No clients yet|None recorded yet/);
+  // An answer with no real count of the plans Shape can't place is not the meal library's (the
+  // workout library's answer, or an older server): it is read as a failure, never as "nobody".
+  for (const untracked of [undefined, null, -1, 1.5, '2']) {
+    stubFetch({ meals: MEALS, usage: { usage: { m1: { clients: 2, clientIds: [uid(1), uid(4)] } }, capped: false, untracked } });
+    await mount(React.createElement(NutritionistPlansPage));
+    assert.equal(whoOf('Lean Week'), 'On it Couldn’t read who’s on it', String(untracked));
+    assert.equal(whoOf('Bulk Base'), 'On it Couldn’t read who’s on it', String(untracked));
   }
+  // Still reading.
+  stubFetch({ meals: MEALS });
+  const answer = globalThis.fetch;
+  globalThis.fetch = (url, opts) => (String(url).includes('/usage') ? new Promise(() => {}) : answer(url, opts));
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it Checking who’s on it…');
+  // The usage answered and the roster did not: the count stands, the names wait for the roster.
+  dashboard('unread', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 2, clientIds: [uid(1), uid(4)] } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it 2 clients · ' + UNREAD);
+  assert.equal(whoOf('Bulk Base'), 'On it No clients yet');
+  // And the roster still loading.
+  dashboard(null, [], 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 2, clientIds: [uid(1), uid(4)] } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it 2 clients · Reading your roster…');
+});
+
+test('Meal plans: the preview reads no client plans, under the band', async () => {
+  dashboard('demo', DashSignals.buildMockClients(NOW), 'nutritionist'); stubFetch({ libraryOk: false });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.ok(!!document.querySelector('.dash-demo-band'));
+  assert.equal(whoOf('Summer Cut · 1900'), 'On it Preview · no client plans to read');
+  assert.equal(usageCalls().length, 0, 'no account, no read');
+  assert.ok(!document.querySelector('[data-most]') && !document.querySelector('[data-untracked]'));
+});
+
+test('Meal plans: a failed refresh keeps the reading; another account\'s reading never carries across', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 2, clientIds: [uid(1), uid(4)] } }) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it Priya S. Sam R.');
+  const refresh = async () => { await React.act(async () => { window.dispatchEvent(new window.Event('focus')); }); await settle(); };
+  // The same nutritionist, a refresh that fails: a stale count is still a count.
+  stubFetch({ meals: MEALS, usageStatus: 500, usage: { error: 'x' } });
+  await refresh();
+  assert.equal(usageCalls().length, 1, 'the refresh read it again');
+  assert.equal(whoOf('Lean Week'), 'On it Priya S. Sam R.');
+  // Another nutritionist in the same tab, whose read fails: not the last account's names.
+  stubFetch({ owner: 'coach-b', meals: MEALS, usageStatus: 500, usage: { error: 'x' } });
+  await refresh();
+  assert.equal(whoOf('Lean Week'), 'On it Couldn’t read who’s on it');
+});
+
+test('Meal plans: Assign sends the library plan it came from, and the library reads who is on what again', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS, ...mealUsage({}) });
+  await mount(React.createElement(NutritionistPlansPage));
+  assert.equal(whoOf('Lean Week'), 'On it No clients yet');
+  await click(button('Assign', mealCard('Lean Week')));
+  const box = [...document.querySelectorAll('input[type="checkbox"]')].find((i) => i.closest('label').querySelector('span').textContent === 'Priya S.');
+  await click(box);
+  stubFetch({ meals: MEALS, ...mealUsage({ m1: { clients: 1, clientIds: [uid(1)] } }) });
+  await click(button('Publish to 1 client'));
+  await settle();
+  const sent = calls.filter(([u, m]) => u === '/api/nutritionist/meal-plan' && m === 'POST');
+  assert.equal(sent.length, 1);
+  assert.deepEqual([sent[0][2].clientId, sent[0][2].title, sent[0][2].templateId], [uid(1), 'Lean Week', 'm1']);
+  // The sheet closes itself once it has published; the cards then say who is on it now.
+  await pause(1200);
+  await settle();
+  assert.equal(usageCalls().length, 1, 'read again after the send');
+  assert.equal(whoOf('Lean Week'), 'On it Priya S.');
+});
+
+test('Meal plans: a plan with no library id sends none', async () => {
+  dashboard('live', NUTRI(), 'nutritionist'); stubFetch({ meals: MEALS });
+  let closed = 0;
+  await mount(React.createElement(DmbAssignModal, { template: { id: null, name: 'New meal plan' }, doc: MEALS[0].detail.mealBuilder, groceryEdits: {}, clients: NUTRI(), queue: [], lifecycle: null, live: true, preselectId: uid(1), onClose: () => { closed++; } }));
+  await click(button('Publish to 1 client'));
+  await settle();
+  const sent = calls.filter(([u, m]) => u === '/api/nutritionist/meal-plan' && m === 'POST');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0][2].clientId, uid(1));
+  assert.equal('templateId' in sent[0][2], false, 'no id is sent for a plan that has none');
+  await pause(1200);
+  assert.equal(closed, 1);
 });
 
 test('Meal plans: the preview shows its sample under the band; a signed-in nutritionist never sees it', async () => {

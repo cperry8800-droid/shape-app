@@ -435,7 +435,9 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
           const res = await fetch("/api/nutritionist/meal-plan", {
             method: "POST", credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clientId: id, title: template.name + (scale !== 1 ? " · ×" + scale : ""), weekStart: startDate, days: out.days }),
+            // The library plan it came from, so the library can say who is on it (the route keeps it
+            // only when the plan is this coach's own). A brand-new unsaved plan has none.
+            body: JSON.stringify({ clientId: id, title: template.name + (scale !== 1 ? " · ×" + scale : ""), weekStart: startDate, days: out.days, ...(template.id ? { templateId: String(template.id) } : {}) }),
           });
           if (!res.ok) throw new Error("HTTP " + res.status);
         }
@@ -772,7 +774,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
       {guided && <CoachBuilderFooter step={step} onStep={setStep} steps={steps}/>}
       {assigning && (
         <DmbAssignModal
-          template={{ id: idRef.current, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
+          template={{ id: persisted.current ? idRef.current : null, name }} doc={doc} groceryEdits={doc.groceryEdits || {}}
           clients={clients} queue={queue} lifecycle={lifecycle} live={live}
           preselectId={assignClientId || preselectId} emptyNote={emptyNote}
           onClose={() => setAssigning(false)} />
@@ -863,6 +865,37 @@ function DmbTodoDrawer({ todo, hasPlans, onAssign, onPick, onNew, onClose }) {
   </DashLibDrawer>;
 }
 
+// ── Who is on a plan (the owner's rule, 2026-11-09: "only the coaches see who's on what plan or
+// program") ──
+// The usage read (/api/coach/plans/usage?role=nutritionist): this nutritionist's own clients'
+// current plans, by the library plan each was sent from, matched to their own roster
+// (DashMeals.planWho). The same states as Programs' DbuWho. ⚠ UNREAD IS NOT EMPTY: a current plan
+// that names no library plan (sent before Shape recorded one, or from the app, which does not send
+// one yet) counts toward `untracked`, so while any such plan exists a card with none recorded says
+// that, never "No clients yet" (the page says why once, above the cards).
+function DmbWho({ entry, usage, roster, clients, preview }) {
+  let body;
+  if (preview) body = <span className="dash-lib-quiet">Preview · no client plans to read</span>;
+  else if (usage.state !== "ready") body = <span className="dash-lib-quiet">{usage.state === "error" ? "Couldn’t read who’s on it" : "Checking who’s on it…"}</span>;
+  else {
+    const who = DashMeals.planWho(entry, clients);
+    // ⚠ A CAPPED READ CAN ONLY UNDER-COUNT: "5+ clients", and never "No clients yet".
+    const many = who.count + (usage.capped ? "+ clients" : who.count === 1 ? " client" : " clients");
+    const partly = usage.capped ? <span className="dash-lib-quiet">· not every plan was read</span> : null;
+    if (!who.count) body = <span className="dash-lib-quiet">{usage.capped ? "None found on the plans read" : usage.untracked > 0 ? "None recorded yet" : "No clients yet"}</span>;
+    else if (roster !== "live" && roster !== "demo") body = <span className="dash-lib-quiet">{many} · {roster === "unread" ? DASH_LIB_ROSTER_UNREAD : "Reading your roster…"}</span>;
+    else if (!who.people) body = <><span>{many}</span>{partly}</>;
+    else body = <><DashLibPeople people={who.people} extra={who.count - who.people.length} />{partly}</>;
+  }
+  return <div className="dash-lib-who"><span className="dash-lib-who-label">On it</span>{body}</div>;
+}
+// The page's one line for plans Shape can't place: how many current plans name no library plan.
+function dmbUntrackedNote(n) {
+  return n === 1
+    ? "1 current plan doesn’t say which library plan it came from (sent before Shape kept track, or from the app), so it isn’t counted on these cards."
+    : n + " current plans don’t say which library plan they came from (sent before Shape kept track, or from the app), so they aren’t counted on these cards.";
+}
+
 // ── The page ────────────────────────────────────────────────────────────────
 // The facts line on a library card, in the filters' own words so a nutritionist can see
 // why a card matched — and what the page could NOT check, said as such.
@@ -900,6 +933,23 @@ function NutritionistPlansPage() {
   // loading, and the first answer is not an account CHANGE — treating it as one closed the
   // builder under the coach's hands and took what they had typed with it.
   const resolved = React.useRef(false);
+  // ⚠ WHO IS ON EACH PLAN IS ITS OWN READ, and an unread one is not "nobody" (as Programs reads
+  // its own). A failed REFRESH keeps the reading the page already had, because a stale count is
+  // still a count and a blank is a claim. A current plan is published, whatever its week, so no
+  // `today` rides on this read. An answer without a real `untracked` count is not the meal
+  // library's, and is read as a failure.
+  const [usage, setUsage] = React.useState({ state: "idle" });
+  const usageRead = React.useRef(0);
+  const loadUsage = React.useCallback(async () => {
+    const read = ++usageRead.current;
+    setUsage((u) => (u.state === "ready" ? u : { state: "loading" }));
+    try {
+      const res = await fetch("/api/coach/plans/usage?role=nutritionist", { credentials: "same-origin" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.usage || typeof data.usage !== "object" || !Number.isInteger(data.untracked) || data.untracked < 0) throw new Error("usage");
+      if (read === usageRead.current) setUsage({ state: "ready", map: data.usage, capped: !!data.capped, untracked: data.untracked });
+    } catch (e) { if (read === usageRead.current) setUsage((u) => (u.state === "ready" ? u : { state: "error" })); }
+  }, []);
   // ⚠ THE PREVIEW IS THE SIGNED-OUT LIBRARY, NOTHING ELSE (dashLibRosterState): until the library
   // has answered, a visitor and a coach whose roster read failed look alike, so neither the band
   // nor a sample person shows; once it has, a signed-in library never names the sample cast.
@@ -935,9 +985,9 @@ function NutritionistPlansPage() {
         const rows = all.filter((p) => p && p.detail && p.detail.mealBuilder);
         if (!on) return;
         // A different account is a different library: nothing from the last one — the
-        // open plan, the assign sheet, the filters — may carry across.
+        // open plan, the assign sheet, the filters, who was on what — may carry across.
         const owner = d.ownerId || null;
-        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); }
+        if (resolved.current && libraryOwner.current !== owner) { setView(null); setAssignFor(null); setFilters(DFB_EMPTY); usageRead.current++; setUsage({ state: "idle" }); }
         resolved.current = true;
         libraryOwner.current = owner;
         setTemplates(rows);
@@ -945,6 +995,7 @@ function NutritionistPlansPage() {
         // open them — it says how many rather than pretending they do not exist.
         setAppOnly(all.length - rows.length);
         setError("");
+        if (owner) loadUsage();
       } catch (e) {
         if (!on) return;
         // Until the dashboard knows whether anyone is signed in, a failure means nothing
@@ -1007,7 +1058,13 @@ function NutritionistPlansPage() {
   const closeAssign = () => {
     setAssignFor(null);
     setWalk((w) => (w ? (w.at + 1 < w.rows.length ? { ...w, at: w.at + 1 } : null) : null));
+    // A plan just sent changes who is on what: read it again (the last reading stays meanwhile).
+    if (libraryOwner.current) loadUsage();
   };
+  // Who is on each card's plan, and the one most clients are on (a chip, not a bigger card).
+  const entryOf = (t) => (usage.state === "ready" && t.id && Object.prototype.hasOwnProperty.call(usage.map, t.id) ? usage.map[t.id] : null);
+  const most = usage.state === "ready" ? DashMeals.mostUsedPlan(usage.map, usage.capped, usage.untracked) : null;
+  const untrackedNote = !preview && usage.state === "ready" && usage.untracked > 0 ? dmbUntrackedNote(usage.untracked) : null;
   const [notice, setNotice] = React.useState("");
   // Delete: the plans route's own DELETE (the app's coach Plans uses it), behind ShapeConfirm. A
   // plan sent to a client is a snapshot on their Eat page, and stays.
@@ -1085,6 +1142,7 @@ function NutritionistPlansPage() {
                 extra={<DashLibSort value={sort} onChange={setSort} options={DMB_SORTS} />} />
             </div>}
             {!!(templates && templates.length) && !run.shown.length && <p role="status" style={{ fontSize: 13.5, color: DMB_INK50 }}>No plans match these filters. <button onClick={() => setFilters(DFB_EMPTY)} style={dmbBtn(false)}>Clear filters</button></p>}
+            {untrackedNote && !!(templates && templates.length) && <p role="status" className="dash-lib-quiet" data-untracked="">{untrackedNote}</p>}
             {/* ⚠ ONE ACTION PER CARD: Assign. Edit and Use as template live in the ⋯, and a click
                 on the card opens the builder. The cover is the plan's type in its colour, and the
                 type in words. */}
@@ -1095,7 +1153,7 @@ function NutritionistPlansPage() {
                 const variants = b.days.reduce((s, d) => s + Object.keys(d.variants || {}).length, 0);
                 return (
                   <DashLibCard key={t.id || t.name} name={t.name} onOpen={() => setView({ template: t })} openTitle={"Open " + t.name + " in the builder"}
-                    cover={{ color: ph.c, tone: dashLibKind(b.goalPhase), kind: ph.label }}
+                    cover={{ color: ph.c, tone: dashLibKind(b.goalPhase), kind: ph.label, badges: most && t.id && most.id === t.id ? <span className="dash-lib-badge" data-most="">Most used · {dmbCount(most.clients, "client", "clients")}</span> : null }}
                     meta={b.days.length + "-day rotation · " + b.targets.kcal + " kcal · " + b.targets.p + " g protein" + (variants ? " · " + dmbCount(variants, "variant", "variants") : "")}
                     primary={<button type="button" onClick={() => { setWalk(null); setAssignFor({ template: t, clientId: targetClient ? forClient : null }); }} style={dmbBtn(true)}>Assign</button>}
                     menu={<DashLibMenu label={"More for " + t.name} items={[
@@ -1104,6 +1162,7 @@ function NutritionistPlansPage() {
                       canDelete && t.id && { key: "delete", label: "Delete", danger: true, onSelect: () => remove(t) },
                     ]} />}>
                     <p className="dash-lib-facts">{dmbCardFacts(info)}</p>
+                    <DmbWho entry={entryOf(t)} usage={usage} roster={roster} clients={people} preview={preview} />
                   </DashLibCard>
                 );
               })}
