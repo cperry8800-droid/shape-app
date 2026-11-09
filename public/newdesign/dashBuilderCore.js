@@ -1523,7 +1523,9 @@
         // RPE is an effort, not a weight: an RPE row (or a per-set entry on one) adds no volume.
         var unit = row.loadType === "lb" ? "lb" : row.loadType === "pct" || row.loadType === "rpe" ? "" : "kg";
         var counted = 0;
-        for (var i = 0; unit && WorkoutDoc && i < Math.min(sets, WorkoutDoc.LADDER_MAX || 20); i++) {
+        // Every delivered set (a row takes up to 50, as WorkoutDoc's setCount does), not only the
+        // ladder's first 20: a set past the ladder takes the row's own reps and load (Codex on #2648).
+        for (var i = 0; unit && WorkoutDoc && i < Math.min(sets, 50); i++) {
           var t = WorkoutDoc.setTarget(row, i);
           var reps = wholeReps(t && t.reps), load = t && t.num != null ? Number(t.num) : NaN;
           if (reps != null && Number.isFinite(load) && load > 0) { out.volume[unit] += reps * load; counted += 1; }

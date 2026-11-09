@@ -88,7 +88,7 @@ export default {
     { name: 'a legacy playlist is not matched by name', file: PROG, find: 'const same = (p, q) => !!p && !!q && (q.id != null && q.id !== "" ? p.id === q.id : p.name === q.name);', replace: 'const same = (p, q) => !!p && !!q && p.id === q.id;' },
     { name: 'the soundtrack read drops the id', file: PROG, find: "return { ...(x && x.id != null && x.id !== '' ? { id: x.id } : {}), name: x && x.name,", replace: 'return { name: x && x.name,' },
     // ── The retired pages ──
-    { name: 'the old workout page stays', file: OLDW, find: '<script>location.replace("TrainerApp.html#programs");</script>', replace: '' },
-    { name: 'the old program page stays', file: OLDP, find: '<script>location.replace("TrainerApp.html#programs");</script>', replace: '' },
+    { name: 'the old workout page stays', file: OLDW, find: '<script>location.replace("TrainerApp.html#programs"+(location.search||""));</script>', replace: '' },
+    { name: 'the old program page stays', file: OLDP, find: '<script>location.replace("TrainerApp.html#programs"+(location.search||""));</script>', replace: '' },
   ],
 };

@@ -653,7 +653,8 @@ function DmbKitchenPanel({ kitchen, mine, constraints, target, onAdd, onPreview,
   const W = DashMealWeek;
   const list = tab === "kitchen" ? (kitchen || []) : (mine.foods || []);
   const shown = W.searchKitchen(list, q, on, constraints);
-  const readOff = tab === "kitchen" ? W.readFromIngredients(constraints) : [];
+  // A dish of the coach's own has no catalog lists: every exclusion on it is read from its name and ingredients.
+  const readOff = tab === "kitchen" ? W.readFromIngredients(constraints) : ((constraints && constraints.exclusions) || []);
   const where = target ? target.dayName + " · " + target.slot : null;
   const card = (f) => (
     <button key={f.id} type="button" className="dmb-recipe" draggable="true" data-recipe={f.name}

@@ -204,6 +204,21 @@
     shellfish: /\b(shrimps?|prawns?|crab|lobster|scallops?|mussels?|clams?|oysters?)\b/i,
   };
   var READ_FROM_INGREDIENTS = ["nuts", "egg", "soy", "fish", "shellfish"];
+  // A dish of the coach's own has no catalog lists, so every allergen is read from its name and its
+  // ingredients' names (Codex on #2648: "Satay bowl" with peanuts passed a nuts exclusion when only
+  // its name and tags were read). Dairy and gluten need words of their own here.
+  var OWN_WORDS = {
+    // A plant milk or butter ("peanut butter", "oat milk", "coconut cream") is not dairy.
+    dairy: /(?<!\b(?:peanut|nut|almond|cashew|sunflower|seed|apple|cocoa|shea|coconut|oat|soy|rice|hemp) )\b(milk|butter|cream)\b|\b(cheese|cheddar|mozzarella|parmesan|feta|ricotta|yog(h)?urt|whey|casein|ghee|paneer|kefir|labneh|skyr)\w*/i,
+    gluten: /\b(wheat|flour|bread|pasta|noodles?|barley|rye|couscous|seitan|bulgur|semolina|spelt|farro|tortillas?|pita|crackers?|breadcrumbs?|panko)\b/i,
+  };
+  function ownContains(food, allergen) {
+    var a = String(allergen).toLowerCase();
+    if ((food.tags || []).indexOf(a) >= 0) return true;
+    var text = String(food.name || "") + " " + (Array.isArray(food.ingredients) ? food.ingredients.map(function (g) { return g && g.name ? g.name : ""; }).join(" ") : "");
+    var re = OWN_WORDS[a] || ALLERGEN_WORDS[a];
+    return re ? re.test(text) : text.toLowerCase().indexOf(a) >= 0;
+  }
   function kitchenContains(food, allergen) {
     var k = food && food.kitchen;
     if (!k) return false;
@@ -272,7 +287,7 @@
     var ex = (constraints && constraints.exclusions) || [];
     for (var i = 0; i < ex.length; i++) {
       var a = String(ex[i]).toLowerCase();
-      if (k ? kitchenContains(food, a) : ((food.tags || []).indexOf(a) >= 0 || String(food.name).toLowerCase().indexOf(a) >= 0)) return false;
+      if (k ? kitchenContains(food, a) : ownContains(food, a)) return false;
     }
     var maxPrep = constraints && constraints.maxPrep;
     if (maxPrep != null && food.prepMin != null && food.prepMin > maxPrep) return false;
@@ -387,7 +402,7 @@
     WEEKDAYS: WEEKDAYS, WEEKDAY_NAMES: WEEKDAY_NAMES, ROWS: ROWS, KITCHEN_FILTERS: KITCHEN_FILTERS, READ_FROM_INGREDIENTS: READ_FROM_INGREDIENTS,
     servedWeekdays: servedWeekdays, servedLabel: servedLabel, slotRows: slotRows, mealsIn: mealsIn, nextSlot: nextSlot, firstEmptyRow: firstEmptyRow, placeMeal: placeMeal,
     targetsFor: targetsFor, hasRestTargets: hasRestTargets, totals: totals, dayStatus: dayStatus, weekBrief: weekBrief, projectDay: projectDay,
-    recipeMinutes: recipeMinutes, recipeId: recipeId, parseIngredient: parseIngredient, kitchenContains: kitchenContains,
+    recipeMinutes: recipeMinutes, recipeId: recipeId, parseIngredient: parseIngredient, kitchenContains: kitchenContains, ownContains: ownContains,
     kitchenFood: kitchenFood, kitchenFoods: kitchenFoods, ownRecipeFood: ownRecipeFood, kitchenMatches: kitchenMatches, searchKitchen: searchKitchen, readFromIngredients: readFromIngredients,
     contentKey: contentKey, opening: opening, stampVersion: stampVersion, spreadWeek: spreadWeek, buildAssignment: buildAssignment, groceryTop: groceryTop,
   };

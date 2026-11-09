@@ -253,6 +253,15 @@ test('Shape Kitchen is the 100 catalog recipes with the catalog\'s own calories,
   assert.ok(noNuts.length < K.length);
   assert.deepEqual(W.readFromIngredients({ exclusions: ['dairy', 'nuts'] }), ['nuts']);
   assert.equal(W.searchKitchen(K, '', {}, { maxPrep: 10 }).every((f) => f.prepMin <= 10), true);
+  // A dish of the coach's own is read from its ingredients too, not only its name (Codex on #2648):
+  // a "Satay bowl" made with peanuts is not a nuts-free match, nor a paneer curry a dairy-free one.
+  const satay = W.ownRecipeFood({ id: 's1', t: 'Satay bowl', kcal: 520, p: 30, c: 50, f: 20, ing: [{ n: '2 tbsp', m: 'peanut butter' }, { n: '1 cup', m: 'rice' }] });
+  const curry = W.ownRecipeFood({ id: 's2', t: 'Weeknight curry', kcal: 480, p: 26, c: 40, f: 22, ing: [{ n: '200 g', m: 'paneer' }] });
+  const soup = W.ownRecipeFood({ id: 's3', t: 'Lentil soup', kcal: 410, p: 24, c: 52, f: 9, ing: [{ n: '2 cups', m: 'red lentils' }] });
+  const own = [satay, curry, soup];
+  assert.deepEqual(W.searchKitchen(own, '', {}, { exclusions: ['nuts'] }).map((f) => f.name), ['Weeknight curry', 'Lentil soup'], 'peanuts in the ingredients passed a nuts exclusion');
+  assert.deepEqual(W.searchKitchen(own, '', {}, { exclusions: ['dairy'] }).map((f) => f.name), ['Satay bowl', 'Lentil soup'], 'paneer passed a dairy exclusion');
+  assert.deepEqual(W.searchKitchen(own, '', {}, { exclusions: ['gluten', 'fish'] }).map((f) => f.name), ['Satay bowl', 'Weeknight curry', 'Lentil soup']);
 });
 
 test('a recipe from the coach\'s own kitchen keeps the macros they wrote, and none they did not', () => {

@@ -148,6 +148,8 @@ test('the session adds itself up from its rows: working sets, volume per unit, m
   // RPE is an effort, not a weight: a per-set entry on an RPE row adds no kg.
   const effort = DashBuilder.sessionTotals({ blocks: [{ kind: 'main', rows: [row('Back squat', 3, '5', 'rpe', 8, { perSet: [{ reps: '5', load: 8 }, { reps: '5', load: 8 }, { reps: '5', load: 9 }] })] }] });
   assert.deepEqual(effort.volume, { lb: 0, kg: 0 }, 'an RPE was counted as kilograms');
+  // Every delivered set counts, past the ladder's 20 (Codex on #2648): 25 straight sets of 5 at 100 kg.
+  assert.equal(DashBuilder.sessionTotals({ blocks: [{ kind: 'main', rows: [row('Back squat', 25, '5', 'kg', 100)] }] }).volume.kg, 25 * 5 * 100, 'sets past the 20th added no volume');
 });
 
 test('a card\'s change is on the same move in the same unit', () => {
@@ -464,7 +466,8 @@ test('a day\'s playlist is written with its soundtrack id, and a legacy one is m
 test('the old builder pages redirect to Programs', () => {
   for (const f of ['TrainerNewWorkout.html', 'TrainerNewProgram.html']) {
     const html = readFileSync(ND(f), 'utf8');
-    assert.match(html, /location\.replace\("TrainerApp\.html#programs"\)/, f + ' does not redirect');
-    assert.equal(/newWorkout\.jsx|newProgram\.jsx|babel/.test(html), false, f + ' still loads the retired builder');
+    // The house's redirect stub (TrainerPrograms.html's shape): the redirect first, the query kept.
+    assert.match(html, /location\.replace\("TrainerApp\.html#programs"\+\(location\.search\|\|""\)\)/, f + ' does not redirect');
+    assert.equal(/newWorkout\.jsx|newProgram\.jsx/.test(html), false, f + ' still loads the retired builder');
   }
 });
