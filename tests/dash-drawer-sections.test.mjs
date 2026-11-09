@@ -93,7 +93,8 @@ test('the drawer stores what is HIDDEN, per account and per role', () => {
 test('the hooks run before the early return', () => {
   // A drawer that closes would otherwise render fewer hooks than the one that opened —
   // the rules-of-hooks class this repo already post-mortems, which no build step catches.
-  const at = SRC.indexOf('function DashClientDrawer(');
+  // Since #2639 the hooks live in DashClientPanel; DashClientDrawer is the wrapper that keys it by client.
+  const at = SRC.indexOf('function DashClientPanel(');
   const body = SRC.slice(at, SRC.indexOf('\n}\n', at));
   const bail = body.indexOf('if (!row) return null;');
   assert.ok(bail > 0, 'the drawer early return moved');

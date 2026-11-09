@@ -7,11 +7,29 @@
 const ROSTER = 'public/newdesign/dashRoster.jsx';
 const TODAY = 'public/newdesign/dashToday.jsx';
 const TCP = 'public/newdesign/trainerClientsPage.jsx';
+const TROUTE = 'src/app/api/trainer/dashboard/route.ts';
+const NROUTE = 'src/app/api/nutritionist/dashboard/route.ts';
 
 export default {
-  test: 'node --test tests/clients-peek-5a.test.mjs tests/dash-today-board.test.mjs tests/dashboard-coaching-usability.test.mjs',
+  test: 'node --test tests/clients-peek-5a.test.mjs tests/dash-today-board.test.mjs tests/dashboard-coaching-usability.test.mjs tests/coach-dashboard-routes.test.mjs',
   timeoutMs: 240_000,
   mutations: [
+    // ── Codex on #2639: the client by id, a failed sessions read, a fresh panel per client
+    { name: 'Up next finds its client by name again', file: TODAY,
+      find: 'const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;\n  const context', replace: 'const rec = next ? dashFindRecord(clients, next.who) : null;\n  const context' },
+    { name: 'a shared name picks the first client', file: TODAY, find: '  return hits.length === 1 ? hits[0] : null;', replace: '  return hits[0] || null;' },
+    { name: 'the next row loses its client id', file: TODAY,
+      find: '    if (!best || at < best.at) best = { at, who: r.who, clientId: r.clientId != null ? r.clientId : null };', replace: '    if (!best || at < best.at) best = { at, who: r.who, clientId: null };' },
+    { name: 'the panel reads a failed sessions read as nothing booked', file: ROSTER,
+      find: '  if (today && today.sessionsRead === false) return { state: "unread" };\n', replace: '' },
+    { name: 'Today reads a failed sessions read as a clear day', file: TODAY,
+      find: ' && live.sessionsRead !== false ? live.today : null;', replace: ' ? live.today : null;' },
+    { name: 'the trainer route hides a failed sessions read', file: TROUTE, find: '      sessionsRead = false;\n', replace: '' },
+    { name: 'the nutritionist route hides a failed sessions read', file: NROUTE, find: '      sessionsRead = false;\n', replace: '' },
+    { name: 'the trainer route drops today\'s client id', file: TROUTE, find: '        clientId: r.client_id,\n      }));', replace: '      }));' },
+    { name: 'the nutritionist route drops today\'s client id', file: NROUTE, find: '        clientId: r.client_id,\n      }));', replace: '      }));' },
+    { name: 'one panel serves every client', file: ROSTER,
+      find: 'return <DashClientPanel key={p && p.id != null ? String(p.id) : "none"} {...props} />;', replace: 'return <DashClientPanel {...props} />;' },
     // ── the groups ──
     { name: 'groups: every row in one group', file: ROSTER, find: 'const keyOf = (r) => (known.has(r.severity) ? r.severity : "unknown");', replace: 'const keyOf = (r) => "green";' },
     { name: 'groups: an unknown severity leaves the list', file: ROSTER, find: 'const keyOf = (r) => (known.has(r.severity) ? r.severity : "unknown");', replace: 'const keyOf = (r) => r.severity;' },

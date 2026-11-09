@@ -126,6 +126,20 @@ function practice(role, zone) {
 }
 
 for (const role of ['trainer', 'nutritionist']) {
+  test(`${role}: today's rows carry their client's id, and a failed sessions read says so (Codex on #2639)`, async () => {
+    const ok = await loadRoute(role, practice(role, 'America/New_York'));
+    assert.equal(ok.body.sessionsRead, true);
+    assert.deepEqual(ok.body.today.map((r) => r.clientId), [A, A], 'by id, never by name');
+    // The read fails: an empty day is not "nothing booked", and the route says which it is.
+    const realWarn = console.warn;
+    console.warn = () => {};
+    try {
+      const bad = await loadRoute(role, practice(role, 'America/New_York'), { fail: ['sessions'] });
+      assert.equal(bad.status, 200);
+      assert.deepEqual([bad.body.sessionsRead, bad.body.today, bad.body.calendar], [false, [], []]);
+    } finally { console.warn = realWarn; }
+  });
+
   test(`${role}: a 7 pm Eastern session stays on Today, and tomorrow's 9 am does not arrive early`, async () => {
     const { body } = await loadRoute(role, practice(role, 'America/New_York'));
     assert.deepEqual(body.today.map((r) => r.scheduledAt), [iso(EARLY_TODAY), iso(SEVEN_PM_ET)]);

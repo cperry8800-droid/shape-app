@@ -60,7 +60,7 @@ Object.assign(globalThis, {
 
 const TODAY_NAMES = ['CoachDashboardPage', 'DASH_TODAY_ROLES', 'DASH_SEV_COLORS', 'DashPill', 'DashDemoBand', 'dashTabHref', 'dashClientHref', 'dashClientPageHref', 'dashRouteParam',
   'dashDemoCalendar', 'dashGlanceCells', 'dashKpiCell', 'dashRecordTier', 'dashTierMark', 'DashTierDot', 'DashClientGem', 'DashClientName', 'DashPeekLink', 'dashPeekClick',
-  'dashRowKeyOpen', 'dashJointReason', 'dashOpenCareTeam', 'dashMessageClient', 'dashCoachActionGo', 'dashFmtTime', 'dashCalDate', 'dashCalTime', 'DashBriefCard', 'DashNeedsBoard', 'dashNeedsItems', 'DashUpNextCard'];
+  'dashRowKeyOpen', 'dashJointReason', 'dashOpenCareTeam', 'dashMessageClient', 'dashCoachActionGo', 'dashFmtTime', 'dashCalDate', 'dashCalTime', 'DashBriefCard', 'DashNeedsBoard', 'dashNeedsItems', 'DashUpNextCard', 'dashFindRecord', 'dashNextToday'];
 const T = new Function(compile(read('dashToday.jsx')) + ';return {' + TODAY_NAMES.join(',') + '};')();
 Object.assign(globalThis, T);
 const ROSTER_NAMES = ['DashRosterTable', 'DashRosterHealth', 'dashRosterHealth', 'DashRosterPeek', 'dashRosterGroups', 'dashRosterColumns', 'DashClientDrawer', 'dashPeekSessions',
@@ -669,4 +669,74 @@ test('a name the panel can\'t open keeps its link, and a preview client with no 
     assert.deepEqual(opened, ['demo-1']);
     assert.equal(m.div.querySelectorAll('a, button').length, 2, 'a name with neither a file nor a panel became a control');
   } finally { await m.unmount(); delete window.__shapeCoachShell; window.location.hash = '#clients'; }
+});
+
+// ── Codex on #2639 ────────────────────────────────────────────────────────────
+test('Codex on #2639: Up next finds its client by id, never the first of two with one name', async () => {
+  window.__shapeCoachShell = true;
+  const cast = asLive(CAST());
+  const sams = cast.filter((c) => c.profile.name === 'Sam R.');
+  assert.equal(sams.length, 1, 'the cast has one Sam R.');
+  const twin = { ...sams[0], profile: { ...sams[0].profile, id: uid(99) } };
+  const clients = cast.concat([twin]);
+  // By id: that client, or nobody; by a name two clients share: nobody; by a name one client has: them.
+  assert.equal(T.dashFindRecord(clients, 'Sam R.', uid(99)).profile.id, uid(99));
+  assert.equal(T.dashFindRecord(clients, 'Sam R.', 'no-such-id'), null);
+  assert.equal(T.dashFindRecord(clients, 'Sam R.'), null, 'a shared name picks nobody');
+  assert.equal(T.dashFindRecord(cast, 'Sam R.').profile.id, sams[0].profile.id);
+  // The day's next row carries its client's id through to the card.
+  const at = new Date(Date.now() + 30 * 60000);
+  const rows = [{ at, end: new Date(+at + 3600000), time: '10:00', status: 'confirmed', clientId: uid(99), who: 'Sam R.', sub: '60 min' }];
+  assert.equal(T.dashNextToday(rows, null, Date.now(), null).clientId, uid(99));
+  const next = { ...rows[0], done: false, live: false };
+  const opened = [];
+  const m = await mount(React.createElement(T.DashUpNextCard, { rows, state: { now: Date.now(), items: [next], nextIdx: 0, next }, clients, role: 'trainer', unit: 'session', zone: null, single: true,
+    peek: { can: () => true, open: (id) => opened.push(id) } }));
+  try {
+    const link = m.div.querySelector('[data-dash-peek-name]');
+    assert.equal(!!link, true);
+    assert.equal(link.getAttribute('href'), '#client/' + encodeURIComponent(uid(99)), 'the file is the booked client\'s');
+    await click(link);
+    assert.deepEqual(opened, [uid(99)], 'the panel is the booked client\'s');
+  } finally { await m.unmount(); }
+});
+
+test('Codex on #2639: a sessions read the route says failed is unread, never "no session booked"', () => {
+  const cal = { calendar: [], sessionsRead: false };
+  assert.deepEqual(R.dashPeekSessions(cal, 'live', 'trainer'), { state: 'unread' });
+  assert.equal(R.dashNextSessionFor({ profile: { id: uid(1), name: 'Sam R.' } }, R.dashPeekSessions(cal, 'live', 'trainer'), Date.now()).state, 'unread');
+  // A read that worked and found nothing is "none"; a feed from before the flag reads as before.
+  assert.equal(R.dashNextSessionFor({ profile: { id: uid(1), name: 'Sam R.' } }, R.dashPeekSessions({ calendar: [], sessionsRead: true }, 'live', 'trainer'), Date.now()).state, 'none');
+  assert.equal(R.dashPeekSessions({ calendar: [] }, 'live', 'trainer').state, 'read');
+  // Today reads the same flag: its day is unread, not clear (the day feed's rows are dropped).
+  assert.match(read('dashToday.jsx'), /const todayRows = live && Array\.isArray\(live\.today\) && live\.sessionsRead !== false \? live\.today : null;/);
+});
+
+test('Codex on #2639: each client gets a fresh panel, so one client\'s failure never shows in the next one\'s', async () => {
+  const cast = asLive(CAST());
+  const joint = DashSignals.findJointAttention(cast, NOW, null, 'trainer');
+  const feed = DashSignals.getTriageFeed('trainer', cast, NOW);
+  const marcus = feed.find((r) => r.client.profile.name === 'Marcus T.');
+  const sam = feed.find((r) => r.client.profile.name === 'Sam R.');
+  // Two shared clients, so the joint note sits in the same place in both panels.
+  const both = [joint[0], { ...joint[0], client: sam.client }];
+  const div = document.createElement('div');
+  document.body.appendChild(div);
+  const root = createRoot(div);
+  const show = (row) => React.act(async () => root.render(React.createElement(R.DashClientDrawer, { row, role: 'trainer', onClose: () => {}, prefs: null, docked: true, joint: both })));
+  const prev = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, json: async () => ({}) });
+  try {
+    await show(marcus);
+    await click(document.querySelector('[data-peek-joint] button'));
+    await React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    assert.match(document.querySelector('[data-peek-joint]').textContent, /Marcus T\.'s nutritionist couldn't be opened just now/);
+    await show(sam);
+    assert.equal(document.getElementById(document.querySelector('[data-peek]').getAttribute('aria-labelledby')).textContent, 'Sam R.');
+    assert.doesNotMatch(document.querySelector('[data-peek-joint]').textContent, /couldn't be opened|Marcus T\./, 'Marcus\'s failure showed in Sam\'s panel');
+  } finally {
+    globalThis.fetch = prev;
+    await React.act(async () => { root.unmount(); });
+    div.remove();
+  }
 });

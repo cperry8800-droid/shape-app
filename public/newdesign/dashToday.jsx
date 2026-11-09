@@ -501,10 +501,20 @@ function dashContextLine(rec, units) {
   return parts.length ? parts.slice(0, 2).join(" · ") : null;
 }
 
-function dashFindRecord(clients, who) {
+// ⚠ BY ID WHEN THE ROW HAS ONE, AND A NAME ONLY WHEN IT IS ONE CLIENT'S (Codex on #2639). Two clients
+// can share a display name, and the first match opened the other one's panel and file from Up next.
+// A row that carries its client's id (the dashboard routes send it) finds that client or nobody; a
+// row with none (the preview, an older feed) finds a name only when exactly one client has it.
+function dashFindRecord(clients, who, id) {
+  const list = clients || [];
+  const prof = (c) => (c && c.client ? c.client.profile : c && c.profile) || null;
+  if (id != null && id !== "") {
+    return list.find((c) => { const p = prof(c); return !!p && p.id != null && String(p.id) === String(id); }) || null;
+  }
   const key = String(who || "").trim().toLowerCase();
   if (!key) return null;
-  return (clients || []).find((c) => String(c.client ? c.client.profile.name : c.profile.name).trim().toLowerCase() === key) || null;
+  const hits = list.filter((c) => { const p = prof(c); return !!p && String(p.name || "").trim().toLowerCase() === key; });
+  return hits.length === 1 ? hits[0] : null;
 }
 
 // The per-client deep dive — the REAL coach client page, by id. Only a live
@@ -1892,7 +1902,7 @@ const DASH_NOW_EYEBROW = { fontFamily: "'JetBrains Mono', monospace", fontSize: 
 function DashUpNextCard({ rows, state, clients, role, unit, zone, single = false, unread = false, peek }) {
   const units = useDashUnits();
   const { now, items, next } = state;
-  const rec = next ? dashFindRecord(clients, next.who) : null;
+  const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
   const context = rec ? dashContextLine(rec, units) : "";
   const fileHref = rec ? dashClientHref(rec, role) : null;
   const lead = !next ? null
@@ -2106,9 +2116,9 @@ function dashNextToday(rows, demoRows, now, zone) {
     if (!Number.isFinite(at)) continue;
     if (r.status && (DASH_NOW_STATUSES.indexOf(r.status) === -1 || r.status === "completed")) continue;
     if (at <= now || dayOf(at) !== today) continue;
-    if (!best || at < best.at) best = { at, who: r.who };
+    if (!best || at < best.at) best = { at, who: r.who, clientId: r.clientId != null ? r.clientId : null };
   }
-  return best ? { who: best.who, time: dashBriefTime(new Date(best.at).toISOString(), zone) } : null;
+  return best ? { who: best.who, clientId: best.clientId, time: dashBriefTime(new Date(best.at).toISOString(), zone) } : null;
 }
 
 // ⚠ THE BRIEF NAMES WHO NEEDS THE COACH, NEVER A TIME (owner, 2026-11-06): "3 clients need your
@@ -2171,7 +2181,7 @@ function dashRowKeyOpen(e, canOpen, open) {
 function DashBriefWidget({ needNow, rows, demoRows, zone, clients, unit, role, peek }) {
   const { now } = useDashNowState(rows, demoRows);
   const next = dashNextToday(rows, demoRows, now, zone);
-  const rec = next ? dashFindRecord(clients, next.who) : null;
+  const rec = next ? dashFindRecord(clients, next.who, next.clientId) : null;
   const model = dashBriefModel(needNow, next ? { ...next, id: rec && rec.profile ? rec.profile.id : null, points: dashRecordTier(rec) } : null, { read: Array.isArray(rows), unit });
   return <DashBriefCard model={model} role={role} peek={peek} />;
 }
@@ -2768,7 +2778,9 @@ function CoachDashboardPage({ role }) {
   const sample = source !== "live";
   const firstName = live ? live.user.firstName : sample ? cfg.mockName : "";
 
-  const todayRows = live && Array.isArray(live.today) ? live.today : null;
+  // ⚠ A FAILED SESSIONS READ IS UNREAD, NOT AN EMPTY DAY (Codex on #2639): the route says so with
+  // sessionsRead false, and the day then reads "couldn't be read", as a failed feed does.
+  const todayRows = live && Array.isArray(live.today) && live.sessionsRead !== false ? live.today : null;
   // The zone the route cut Today in, so its clocks print in it (dashFmtTime's note).
   const dayZone = live && typeof live.dayZone === "string" && live.dayZone ? live.dayZone : null;
   // ⚠ THE SAMPLE'S SESSIONS ARE FOR THE PREVIEW ONLY: a signed-in coach whose day feed failed gets
@@ -2790,6 +2802,7 @@ function CoachDashboardPage({ role }) {
     ? todayRows.map((s) => {
         const at = new Date(s.scheduledAt);
         return { at, end: new Date(+at + (s.durationMin || 15) * 60000), time: dashFmtTime(s.scheduledAt, dayZone), status: s.status,
+          clientId: s.clientId != null ? String(s.clientId) : null,
           who: s.clientName || "Client", sub: [s.topic, (s.durationMin || 15) + " min", s.type].filter(Boolean).join(" · ") };
       })
     : null;

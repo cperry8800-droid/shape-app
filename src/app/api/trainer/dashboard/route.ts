@@ -75,6 +75,10 @@ export async function GET(request: Request) {
   // consumer reading it is one strip that serves both.
   let totalCapped = false;
   let today: Array<Record<string, unknown>> = [];
+  // ⚠ A FAILED SESSIONS READ IS NOT AN EMPTY DAY (Codex on #2639). The read below coerced a failure to
+  // no rows, so Today said the day was clear and the client panel said "No session booked with
+  // them". The readers check this: false means the bookings couldn't be read.
+  let sessionsRead = true;
   let calendar: Array<Record<string, unknown>> = [];
   let pulse: Array<Record<string, unknown>> = [];
   // The zone Today and this week were counted in (null when there is no listing to count for).
@@ -115,13 +119,17 @@ export async function GET(request: Request) {
     activeClients = practice ? practice.clients : null;
     monthlyNetCents = practice ? practice.mrrNetCents : null;
 
-    const { data: sessions } = await supabase
+    const { data: sessions, error: sessionsErr } = await supabase
       .from('sessions')
       .select('scheduled_at, duration_min, type, status, topic, client_name, client_id')
       .eq('provider_role', 'trainer')
       .eq('provider_id', providerId)
       .order('scheduled_at', { ascending: false })
       .limit(SESSION_CAP);
+    if (sessionsErr) {
+      sessionsRead = false;
+      console.warn('[shape-app] trainer dashboard: sessions read failed — Today and the client panel say the bookings couldn\'t be read:', sessionsErr.message);
+    }
 
     // ⚠ NEWEST FIRST, RE-SORTED ASCENDING ONCE BELOW. This read is capped, and ordering it
     // ascending made the cap keep a coach's OLDEST sessions — so past SESSION_CAP "this
@@ -171,6 +179,8 @@ export async function GET(request: Request) {
         status: r.status,
         topic: r.topic,
         clientName: r.client_name,
+        // By id, never by name: two clients can share a display name (Codex on #2639).
+        clientId: r.client_id,
       }));
 
     // The client and the status ride along (coach dashboard step 5a): the client panel names a
@@ -290,6 +300,7 @@ export async function GET(request: Request) {
     isTrainer: providerId != null,
     kpis: { activeClients, monthlyNetCents, sessionsThisWeek, upcomingSessions, totalSessions, totalCapped },
     today,
+    sessionsRead,
     dayZone,
     calendar,
     pulse,

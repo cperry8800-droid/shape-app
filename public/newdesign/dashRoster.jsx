@@ -758,6 +758,8 @@ function dashPeekSessions(today, source, role) {
     return { state: "read", rows };
   }
   if (source !== "live") return { state: "unread" };
+  // The route's sessions read failed: its calendar is empty because nobody could read it (Codex on #2639).
+  if (today && today.sessionsRead === false) return { state: "unread" };
   const cal = today && Array.isArray(today.calendar) ? today.calendar : null;
   if (!cal) return { state: "unread" };
   const own = cal.filter((e) => e && !e.sharedCoach && e.kind === "SESSION");
@@ -965,7 +967,15 @@ function DashDrawerMove({ row, dismiss }) {
 // and Esc closes it with focus back on its opener. The content is the same in both.
 // `joint` is useDashboard's joint list (a shared client's note) and `sessions` the host's schedule
 // (dashPeekSessions); a host without one gets no joint section and "not on this page".
-function DashClientDrawer({ row, role, onClose, prefs, dismiss, docked = false, joint, sessions }) {
+// ⚠ ONE PANEL PER CLIENT (Codex on #2639). The panel holds per-client state (a joint note that couldn't
+// be opened, a move in flight, the ⚙ list being open), and ↑ ↓ or another row reused the same tree, so
+// client A's failure showed in client B's panel. The wrapper keys the panel by the client, so every
+// mount (Clients, Today, Schedule) gets a fresh one for each.
+function DashClientDrawer(props) {
+  const p = props && props.row && props.row.client && props.row.client.profile;
+  return <DashClientPanel key={p && p.id != null ? String(p.id) : "none"} {...props} />;
+}
+function DashClientPanel({ row, role, onClose, prefs, dismiss, docked = false, joint, sessions }) {
   const dialogRef = React.useRef(null);
   const overlayRef = React.useRef(null);
   const closeRef = React.useRef(onClose);
