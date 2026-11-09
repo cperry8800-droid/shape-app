@@ -58,6 +58,8 @@ export default {
       find: 'return u.protocol === "https:" && PL_LINK_HOSTS.test(u.hostname) ? u.href : null;', replace: 'return u.href;' },
     { name: 'unread programs read as not playing', file: PAGE,
       find: '  const programsUnknown = programs == null;', replace: '  const programsUnknown = false;' },
+    { name: 'a link from the other service keeps the old provider', file: PAGE,
+      find: '...(linkProvider && linkProvider !== p.provider ? { provider: linkProvider } : {})', replace: '' },
     { name: 'a picked playlist loses its track count', file: PAGE,
       find: '...(tracks != null ? { tracks } : {})', replace: '' },
     { name: 'the nutritionist brief counts nobody reached', file: PAGE,

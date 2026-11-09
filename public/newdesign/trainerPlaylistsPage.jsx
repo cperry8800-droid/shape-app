@@ -53,6 +53,14 @@ function plSafeUrl(url) {
     return u.protocol === "https:" && PL_LINK_HOSTS.test(u.hostname) ? u.href : null;
   } catch (e) { return null; }
 }
+// The service a safe link belongs to ('apple' | 'spotify'), or null. A playlist's `provider` must
+// follow its link (Codex P2 on #2644): the member app brands the card by it and only opens a URL
+// that belongs to that provider, falling back to a search on it.
+function plUrlProvider(url) {
+  const safe = plSafeUrl(url);
+  if (!safe) return null;
+  return /(^|\.)music\.apple\.com$/i.test(new URL(safe).hostname) ? "apple" : "spotify";
+}
 const plProviderName = (provider) => (provider === "apple" ? "Apple Music" : "Spotify");
 
 // Map a coach_soundtracks row (shared with the mobile app) into the shape this page renders. A
@@ -405,7 +413,7 @@ function PlaylistPage({ ctx }) {
   // ── Writes ──
   const replaceRow = (row) => setRead((r) => ({ ...r, rows: r.rows.map((x) => (x.id === row.id ? row : x)) }));
   const importSoundtrack = async ({ name, url, note: tag, provider, tracks }) => {
-    const prov = provider || (/music\.apple|apple\s*music/i.test(url || "") ? "apple" : "spotify");
+    const prov = plUrlProvider(url) || provider || "spotify";
     if (demo) return { error: "Sign in as a coach to save playlists." };
     try {
       const res = await fetch("/api/coach/soundtracks", {
@@ -1083,6 +1091,8 @@ function BuilderDrawer({ selectedId, setSelectedId }) {
   if (!items.length) return <Card style={{ padding: 22 }}><div data-pl-empty style={{ fontSize: 14, marginBottom: 12 }}>No playlists yet.</div><button type="button" onClick={() => c.setAdding(true)} style={pillPrimary}>＋ New playlist</button></Card>;
   return (
     <div className="pl-builder" style={{ display: "grid", gridTemplateColumns: "minmax(220px, 300px) minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+      {/* Phone widths: the list over the editor, not beside it (Codex P2 on #2644). */}
+      <style>{"@media (max-width: 760px) { .pl-builder { grid-template-columns: minmax(0, 1fr) !important; } }"}</style>
       <div role="listbox" aria-label="Your playlists" style={{ border: `1px solid ${PL_LINE}`, borderRadius: 10, overflow: "hidden" }}>
         {items.map((p) => {
           const on = active && active.id === p.id;
@@ -1125,7 +1135,8 @@ function BuilderDetailPane({ p }) {
     if (!draft.name.trim()) { setState({ busy: false, msg: "A playlist needs a name.", error: true }); return; }
     if (draft.url.trim() && !plSafeUrl(draft.url)) { setState({ busy: false, msg: "Paste a Spotify or Apple Music link that starts with https://.", error: true }); return; }
     setState({ busy: true, msg: "", error: false });
-    const r = await c.savePlaylist(p, { name: draft.name.trim(), bpm: draft.bpm.trim(), duration: draft.duration.trim(), tag: draft.note.trim(), url: draft.url.trim() });
+    const linkProvider = plUrlProvider(draft.url);
+    const r = await c.savePlaylist(p, { name: draft.name.trim(), bpm: draft.bpm.trim(), duration: draft.duration.trim(), tag: draft.note.trim(), url: draft.url.trim(), ...(linkProvider && linkProvider !== p.provider ? { provider: linkProvider } : {}) });
     setState(r.ok ? { busy: false, msg: c.demo ? "Changed in the preview only. Sign in to save." : "Saved.", error: false } : { busy: false, msg: r.error, error: true });
   };
   const remove = async () => {
@@ -1157,7 +1168,7 @@ function BuilderDetailPane({ p }) {
           <div><div data-pl-stat="tempo" style={{ color: INK, fontFamily: serif, fontSize: 22, marginBottom: 2 }}>{p.bpm || "—"}</div>TEMPO (BPM)</div>
         </div>
 
-        <div className="pl-builder-cols" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 22 }}>
+        <div className="pl-builder-cols" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))", gap: 22 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {field("Name", "name", { maxLength: 160 })}
             {renamed && <div data-pl-rename-note style={{ fontSize: 12, color: PL_INK2, marginTop: -4 }}>{dayCount === 1 ? "1 program day shows" : dayCount + " program days show"} it as “{p.name}” and keep{dayCount === 1 ? "s" : ""} that name until you attach it again.</div>}

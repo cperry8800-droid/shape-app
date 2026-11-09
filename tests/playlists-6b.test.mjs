@@ -772,3 +772,29 @@ test('with the programs unread, a playlist is never "not playing anywhere" (P2)'
   const n = await page({ role: 'nutritionist' });
   assert.equal(p.text(n.card('st-2').querySelector('[data-pl-who]')), 'Not playing anywhere yet');
 });
+
+test('a link from the other service moves the playlist to that service (P2)', async () => {
+  const p = await page();
+  await p.tab('builder');
+  const url = [...p.q('[data-pl-builder="st-1"]').querySelectorAll('input')][4];
+  await p.type(url, 'https://music.apple.com/us/playlist/leg/pl.u-1');
+  await p.click(p.q('[data-pl-save]'));
+  const w = p.reqs('PATCH', '/api/coach/soundtracks');
+  assert.equal(w.length, 1);
+  assert.equal(w[0].body.provider, 'apple');
+  assert.equal(w[0].body.url, 'https://music.apple.com/us/playlist/leg/pl.u-1');
+  await p.close();
+  // A link on the same service sends no provider.
+  const q = await page();
+  await q.tab('builder');
+  await q.type([...q.q('[data-pl-builder="st-1"]').querySelectorAll('input')][4], 'https://open.spotify.com/playlist/other');
+  await q.click(q.q('[data-pl-save]'));
+  assert.equal('provider' in q.reqs('PATCH', '/api/coach/soundtracks')[0].body, false);
+});
+
+test('the Builder stacks its panes at phone width (P2)', async () => {
+  const p = await page();
+  await p.tab('builder');
+  const css = [...p.div.querySelectorAll('style')].map((x) => x.textContent).join(' ');
+  assert.match(css, /@media \(max-width: 760px\) \{ \.pl-builder \{ grid-template-columns: minmax\(0, 1fr\) !important; \} \}/);
+});
