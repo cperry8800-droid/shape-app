@@ -629,7 +629,7 @@ function BSScoreIntro({ onClose, onOpenScore }) {
     <div style={{ position: 'absolute', inset: 0, background: t.PAPER, zIndex: 70, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 6px` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+          {typeof BSLogo !== 'undefined' && BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
         </div>
         {/* Uppercase via CSS, never JS: String.toUpperCase() is locale-insensitive
             (Turkish i → I, should be İ). text-transform honors the document locale. */}
@@ -4945,7 +4945,7 @@ function BSWorkoutBuilder({ seed, onClose, onSaved }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('session:build.close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -13802,7 +13802,7 @@ function BSFollowListSheet({ kind, uid, name = '', c = '#34d6c5', INK = '#f2ede4
               needs the sheet's own BG/INK, not the page theme. */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={INK} />}
+              {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={INK} />}
             </div>
             <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
               <BSSettingsCorner size={BS_HEADER_AVATAR} ink={INK} onClick={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} />
@@ -17076,7 +17076,7 @@ function BSTerrainProfile({ person, onBack, onMessage, isSelf = false, onEdit = 
               <div style={{ position: 'relative', padding: `${BS_MAST_TOP_CSS} ${Math.max(4, gutter - 10)}px 0`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 34 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: 10, color: WHITE }}>
                   {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-                  {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={WHITE} />}
+                  {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={WHITE} />}
                 </span>
                 <BSMastToolPill ink={WHITE}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                   <BSSearchCorner size={corner} ink={WHITE} />
@@ -18325,7 +18325,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={INK} />}
+                {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={INK} />}
               </div>
               <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
                 <BSSearchCorner size={BS_HEADER_AVATAR} ink={INK} />
@@ -18343,7 +18343,7 @@ function BSSignalCoachProfile({ person, onBack, onMessage, isSelf = false, onEdi
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-              {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={INK} />}
+              {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={INK} />}
             </div>
             {isSelf
               ? <BSMastToolPill ink={INK}><div style={{ display: 'flex', alignItems: 'center', gap: BS_CORNER_GAP }}>
@@ -19055,7 +19055,7 @@ function BSUniversalSearch({ onClose }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('common:search.closeAria', { defaultValue: 'Close search' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -20196,7 +20196,7 @@ function BSActivityDetail({ d, liked, count, myExpr, comments, feedAvatars, onCl
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={() => { onClose(); setTimeout(() => { try { window.dispatchEvent(new CustomEvent('shape:openProfile')); } catch (e) {} }, 0); }} /></BSMastToolPill>
         </div>
@@ -23294,7 +23294,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <div style={{ padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
           </div>
           <BSMastToolPill><BSHeaderTools onProfile={onProfile} /></BSMastToolPill>
         </div>
@@ -27116,7 +27116,7 @@ function BSCycleOptInSheet({ onClose, onDone }) {
       <div style={{ flex: '0 0 auto', padding: `${BS_MAST_TOP_CSS} ${t.padX}px 0` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
           </div>
           <button onClick={onClose} aria-label={tr('cycle:close', { defaultValue: 'Close' })} style={{ background: 'transparent', border: 0, color: t.INK50, cursor: 'pointer', fontFamily: t.MONO, fontSize: 15, fontWeight: 800, padding: 4, lineHeight: 1 }}>✕</button>
         </div>
@@ -27725,7 +27725,7 @@ function BSStepsHistory({ onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: BS_MAST_ROW_H }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} />}
+            {BSLogo && <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} />}
           </div>
           <BSMastToolPill><BSMeCorner /></BSMastToolPill>
         </div>

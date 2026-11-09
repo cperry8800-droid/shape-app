@@ -1226,10 +1226,11 @@ const BS_CORNER_GAP = 9;
 // puts on the back row's right.
 const BS_MAST_ROW_H = 34;
 // The mark's size in a masthead row (owner, 2026-11-09: "make sure the icons including shape triangle logos
-// in top left of masthead match the size of icons on the top right"): at 18 the prisms paint 17px tall, as
-// ⚙, ⌕ and ✦ do (at 16 they were 15). Every masthead row draws its mark at this size, here and in the
-// modules' hand-built rows (window.BS_MAST_LOGO).
-const BS_MAST_LOGO = 18;
+// in top left of masthead match the size of icons on the top right", then "the triangles in top left need to
+// match icons in the top right"): at 26 the prisms paint 17px wide, as ⚙, ⌕ and ✦ do, and 24 tall (at 16
+// they were 10 x 15; matched by height alone, at 18, they still read small beside the round icons). Every
+// masthead row draws its mark at this size, here and in the modules' hand-built rows (window.BS_MAST_LOGO).
+const BS_MAST_LOGO = 26;
 // The masthead's ← (BSBackButton compact, and the pinned bar's BSPinBackButton): 22px paints it 16px wide,
 // in step with the mark and the tools.
 const BS_MAST_ARROW = 22;

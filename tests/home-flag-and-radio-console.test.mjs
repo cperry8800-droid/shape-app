@@ -154,7 +154,7 @@ test('the dateline is the day alone, and the masthead\'s icons are one size', ()
     assert.doesNotMatch(dl[1], /\b(?:clock|extra):/, 'the time or the phase and week are back in the masthead');
   }
   // The mark at BS_MAST_LOGO in every masthead row: the chrome's and the modules' hand-built ones.
-  assert.match(CHROME, /const BS_MAST_LOGO = 18;/);
+  assert.match(CHROME, /const BS_MAST_LOGO = 26;/, 'the mark paints the tools\' 17px width');
   assert.match(body(CHROME, 'function BSMastRow('), /size = BS_MAST_LOGO/);
   for (const f of ['iosAppBroadsheet.jsx', 'iosAppBroadsheetClient.jsx', 'iosAppBroadsheetPros.jsx', 'iosAppBroadsheetRadio.jsx', 'BSGoals.jsx', 'BSMarketDirectory.jsx', 'BSNoraProfile.jsx', 'BSTrainerProfile.jsx']) {
     assert.doesNotMatch(read(f), /BSLogo size=\{16\}/, `${f} draws a masthead mark at the old 16`);

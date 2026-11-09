@@ -517,7 +517,7 @@ export function BSMarketDirectory({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: window.BS_MAST_ROW_H || 34 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {window.BSMastBackSlot ? <window.BSMastBackSlot /> : null}
-            {BSLogo ? <BSLogo size={window.BS_MAST_LOGO || 18} color={t.INK} /> : null}
+            {BSLogo ? <BSLogo size={window.BS_MAST_LOGO || 26} color={t.INK} /> : null}
           </div>
           {corner}
         </div>
