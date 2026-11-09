@@ -233,7 +233,9 @@ test('the heatmap: labelled bands with the number printed, a missing rating that
   const adaMark = p.rowEl(1).querySelector('.sh-tier-mark');
   assert.equal(!!adaMark && adaMark.getAttribute('data-tier') === ShapeClientColors.clientTier(5180).key, true);
   assert.equal(!!p.rowEl(2).querySelector('[data-tier-unknown]') && !p.rowEl(2).querySelector('.sh-tier-mark'), true);
-  assert.equal(/Form|Raw|Peak|Legend|Steel|Iron|Gold/.test(p.rowEl(1).getAttribute('aria-label')), true, 'the tier in words for assistive tech');
+  const adaLabel = p.rowEl(1).getAttribute('aria-label');
+  assert.equal(adaLabel.includes(', ' + ShapeClientColors.clientTier(5180).title + ', '), true, 'the tier in words for assistive tech: ' + adaLabel);
+  assert.equal(adaLabel.endsWith('waiting: Training 8 of 10, good; Nutrition 5 of 10, middling; Sleep 4 of 10, low; Energy 7 of 10, good; Calm 2 of 10, low; Hunger control not rated'), true, adaLabel);
   // The page's paging keeps the week: last week, Cal's check-in is there and Ada's row says "No check-in".
   await p.click(p.all('button').find((b) => b.getAttribute('aria-label') === 'Previous week'));
   assert.deepEqual(p.bands(3), ['none', 'none', 'mid', 'none', 'none', 'none']);
@@ -426,6 +428,7 @@ test('the sample roster only in the signed-out preview, under the band; a coach\
   assert.equal(failed.head(), '— check-ins to review');
   assert.equal(failed.text(failed.q('[data-dwk-roster="unread"]')), "Your roster couldn't be read just now. Nothing is lost; reload to try again.");
   assert.equal(failed.q('[data-dwk-start]').disabled, true);
+  assert.equal(/Preview/.test(failed.text(failed.div)), false, 'not told it is a preview either');
   await failed.close();
 
   // Live: never the band.

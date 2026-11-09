@@ -608,6 +608,15 @@ function dwkNoCheckinText(entry, isCurrent) {
   return (isCurrent ? "No check-in yet" : "No check-in") + (entry.last ? " · last one " + dwkFmt(entry.last) : "");
 }
 
+// The six ratings in words, for the row's label: the tiles inside a row are not read on their own.
+function dwkRatingWords(ratings) {
+  return DWK_RATINGS.map(([k, label]) => {
+    const v = ratings ? ratings[k] : null;
+    const band = dwkBand(v);
+    return label + " " + (band ? dwkRating(v) + " of 10, " + DWK_BANDS[band].label.toLowerCase() : "not rated");
+  }).join("; ");
+}
+
 // One client's row: their tier mark, their name in the page's ink, the six tiles (or what stands in
 // for a check-in that is not there), and their state. ⚠ The row is the button: nothing inside it is
 // a control, and its own keys only (dashRowKeyOpen) open it.
@@ -620,7 +629,7 @@ function DwkHeatRow({ entry, picked, isCurrent, reviewsRead, onSelect, onStep })
   return (
     <div className="dwk-heat-row" data-dwk-row={String(entry.id)} data-dwk-state={entry.state} role="button" tabIndex={0}
       aria-current={picked ? "true" : undefined}
-      aria-label={"Open " + rec.profile.name + "'s check-in" + (tier ? ", " + tier.title : "") + ", " + state}
+      aria-label={"Open " + rec.profile.name + "'s check-in" + (tier ? ", " + tier.title : "") + ", " + state + (entry.ck ? ": " + dwkRatingWords(entry.ck.ratings) : "")}
       data-dash-lift={picked ? "1" : undefined}
       onClick={open}
       onKeyDown={(e) => {
@@ -919,7 +928,8 @@ function CoachWeekPage({ role }) {
       <button type="button" onClick={() => setWeekOf(dwkAddDays(weekOf, 7))} disabled={weekOf >= thisMonday} style={{ ...chip(false), opacity: weekOf >= thisMonday ? 0.4 : 1 }} aria-label="Next week">Next ›</button>
     </React.Fragment>
   );
-  const storeLine = !live ? "Preview — ticks and notes stay on this tab"
+  // Nothing is said about saving on a page with nothing to save: still loading, or a roster unread.
+  const storeLine = !live ? (preview ? "Preview — ticks and notes stay on this tab" : "")
     : reviews.kind === "error" ? "Couldn't save — your last change didn't stick, try again"
     : reviews.kind === "signedout" || reviews.kind === "unavailable" ? "Sign in to keep your reviews — ticks and notes live with your account"
     : reviews.kind === "loading" ? "Loading your reviews…"
@@ -967,9 +977,9 @@ function CoachWeekPage({ role }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <div>
                 <span className="dash-eyebrow" style={{ "--dac": DWK_TEAL }}>The roster · {rows.length} client{rows.length === 1 ? "" : "s"}</span>
-                <div style={{ fontFamily: DWK_MONO, fontSize: 9.5, color: DWK_INK50, marginTop: 6 }}>{storeLine}</div>
+                {storeLine ? <div style={{ fontFamily: DWK_MONO, fontSize: 9.5, color: DWK_INK50, marginTop: 6 }}>{storeLine}</div> : null}
               </div>
-              <button type="button" onClick={() => setOnlyOpen(!onlyOpen)} style={chip(onlyOpen)}>{onlyOpen ? "Showing unreviewed" : "Unreviewed only"}</button>
+              {rows.length ? <button type="button" onClick={() => setOnlyOpen(!onlyOpen)} style={chip(onlyOpen)}>{onlyOpen ? "Showing unreviewed" : "Unreviewed only"}</button> : null}
             </div>
             {/* The scale, in words: what each band's colour means, on the form's own 1-10. */}
             <div data-dwk-legend="" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 10, fontFamily: DWK_MONO, fontSize: 9, letterSpacing: "0.06em", color: DWK_INK50 }}>
