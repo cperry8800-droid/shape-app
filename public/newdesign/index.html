@@ -2211,6 +2211,10 @@
 
 <script src="globalChatButton.js?v=20260714c" defer></script>
 <script src="/newdesign/depth3d.js" defer></script>
+<!-- The viewer's time zone (P9), as Coaches.html loads it: the sample coach cards print their next
+     open time through shapeZone.mjs (window.ShapeZone), so a coach reads the same day and time here
+     as on the Coaches page. A module runs before DOMContentLoaded, which the fill below waits for. -->
+<script type="module">import * as TZ from "/newdesign/shapeZone.mjs?v=20261105"; window.ShapeZone = TZ;</script>
 <script>
 /* The sample coach cards' "Next open": marketplace.jsx's example times (mkOpenTimes for an
    example coach, from the hash of the name the card carries) and its wording (mkSlotText), on the
@@ -2257,6 +2261,7 @@
       dot.className = "mk-live";
     }
   }
+  // After DOMContentLoaded, so the shapeZone module above has run and assigned ShapeZone.
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fill); else fill();
 })();
 </script>

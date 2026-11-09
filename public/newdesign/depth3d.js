@@ -28,20 +28,23 @@
   style.textContent = css;
   (document.head || document.documentElement).appendChild(style);
 
-  var active = null, timer = 0;
+  // ⚠ ONE SETTLE TIMER PER CARD. A single shared timer let a sweep across three cards cancel
+  // the first card's cleanup, which then kept its transform (and its layer) for good.
+  var active = null, timers = new WeakMap();
   function settle(el) {
     el.classList.remove("tilt-move");
     el.style.setProperty("--tilt-rx", "0deg");
     el.style.setProperty("--tilt-ry", "0deg");
     el.style.setProperty("--tilt-lift", "0px");
-    clearTimeout(timer);
-    timer = setTimeout(function () { if (el !== active) el.classList.remove("tilt-on"); }, 520);
+    clearTimeout(timers.get(el));
+    timers.set(el, setTimeout(function () { timers.delete(el); if (el !== active) el.classList.remove("tilt-on"); }, 520));
   }
   document.addEventListener("pointermove", function (e) {
     if (e.pointerType && e.pointerType !== "mouse") return;
     var el = e.target && e.target.closest ? e.target.closest("[data-tilt]") : null;
     if (active && active !== el) { var was = active; active = null; settle(was); }
     if (!el) return;
+    if (active !== el) { clearTimeout(timers.get(el)); timers.delete(el); }
     active = el;
     var r = el.getBoundingClientRect();
     if (!r.width || !r.height) return;
