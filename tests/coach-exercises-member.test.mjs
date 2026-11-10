@@ -156,7 +156,8 @@ test('the route: no zone on file counts in UTC', async () => {
 })
 
 test('the route: a failed read is unread (500), never "your trainer added nothing"', async () => {
-  for (const table of ['coach_pushed_items', 'subscriptions']) {
+  // client_profiles too (Codex P2 on #2686): a zone that could not be read is unread, not UTC.
+  for (const table of ['coach_pushed_items', 'subscriptions', 'client_profiles']) {
     const { status, body } = await get(fakeDb(world(), { fail: (c) => c.table === table }))
     assert.equal(status, 500, table)
     assert.equal(body.ok, false)

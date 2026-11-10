@@ -63,13 +63,14 @@ export async function GET(request: Request) {
       .limit(ROW_CAP),
   ]);
 
-  if (subRes.error || itemRes.error) {
-    console.warn('[shape-app] client coach-exercises: a read failed — the exercises render as unread:', (subRes.error || itemRes.error)?.message);
+  // ⚠ THE ZONE TOO (Codex P2 on #2686): with no zone on file the days count in UTC, but a zone that could
+  // not be read is unread, or every exercise could land a day off.
+  if (subRes.error || itemRes.error || tzRes.error) {
+    console.warn('[shape-app] client coach-exercises: a read failed — the exercises render as unread:', (subRes.error || itemRes.error || tzRes.error)?.message);
     return NextResponse.json({ ok: false, error: 'Could not load your coach’s exercises.' }, { status: 500 });
   }
 
-  // The member's days in their zone; a zone that could not be read counts in UTC, as a missing one does.
-  if (tzRes.error) console.warn('[shape-app] client coach-exercises: the zone read failed — days count in UTC:', tzRes.error.message);
+  // The member's days in their zone, UTC when none is on file.
   const zone = normalizeZone(tzRes.data?.timezone);
   const dates = memberDays(now, zone, EXERCISE_DAYS);
   const days: Record<string, Array<PushedExercise & { coachName: string | null }>> = Object.fromEntries(dates.map((d) => [d, []]));

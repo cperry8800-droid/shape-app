@@ -152,6 +152,11 @@ export async function GET(request: Request) {
   // What each client logged on THEIR today, never the latest row (see /api/trainer/console).
   const todayByClient: Record<string, { date: string; calories: number | null; protein_g: number | null }> = {};
   let todayUnread = false;
+  // ⚠ A FAILED ZONE READ IS UNREAD, NOT UTC (Codex P2 on #2686). A client with no zone on file counts
+  // in UTC; a client whose zone could not be read does not, or near midnight their today's log (and the
+  // trainer's session list) is read on the wrong date and shown as nothing. src/lib/roster-days.ts falls
+  // back to UTC for a 30-day window, where a day's shift moves one end; for "today" it is the answer.
+  let zonesUnread = false;
   const zoneByClient = new Map<string, string>();
 
   if (clients.length > 0) {
@@ -211,11 +216,15 @@ export async function GET(request: Request) {
       if (zone) zoneByClient.set(uid, zone);
     }
 
+    if (profRes.error) {
+      zonesUnread = true;
+      console.warn('[shape-app] nutritionist console: client zones read failed — today renders as unread:', profRes.error.message);
+    }
+    if (todayRes.error || zonesUnread) todayUnread = true;
     if (todayRes.error) {
-      todayUnread = true;
       console.warn('[shape-app] nutritionist console: today\'s logs read failed — "Logged today" renders as unread:', todayRes.error.message);
     }
-    for (const row of todayRes.data ?? []) {
+    for (const row of zonesUnread ? [] : todayRes.data ?? []) {
       const uid = row.user_id as string;
       if (row.snapshot_date !== memberDay(now, zoneByClient.get(uid) ?? null)) continue;
       todayByClient[uid] = {

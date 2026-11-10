@@ -292,3 +292,21 @@ test('trainer console: a failed read of today\'s sessions is unread, never an em
   const ok = await get('trainer', fakeDb(world('trainer')))
   assert.equal(ok.body.itemsUnread, false)
 })
+
+for (const role of ['trainer', 'nutritionist']) {
+  test(`${role} console: a zone that could not be read makes today unread, never a UTC guess (Codex P2 on #2686)`, async () => {
+    // A row on the UTC date (10 November), which a UTC guess would take as A's today; in Los Angeles it is tomorrow.
+    const w = world(role)
+    w.daily_health_snapshot = [...w.daily_health_snapshot, { user_id: A, snapshot_date: '2026-11-10', calories: 300, protein_g: 20 }]
+    const { body } = await get(role, fakeDb(w, { fail: (call) => call.table === 'client_profiles' }))
+    assert.equal(body.todayUnread, true)
+    assert.deepEqual(body.todayByClient, {}, 'no client is said to have logged nothing')
+    if (role === 'trainer') {
+      assert.equal(body.itemsUnread, true)
+      assert.deepEqual(body.itemsByClient, {}, 'no session list read on a guessed date')
+    }
+    // A client with no zone on file still counts in UTC (C, in the passing world).
+    const ok = await get(role, fakeDb(world(role)))
+    assert.equal(ok.body.todayUnread, false)
+  })
+}
