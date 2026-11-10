@@ -71,9 +71,10 @@ const RATINGS_UNREAD = () => NextResponse.json({ error: "Couldn't read the ratin
 // The client a reader's list is read with: the service role. Called only for a reader this route
 // has cleared (a signed-in adult account): each list returns `locked` before it for any other.
 // This route decides who reads the words, and its filters
-// are a validated uuid or a cleaned slug. ⚠ Through the caller's client a free account read only
-// its own rows until 2026-11-10-coach-reviews-accounts.sql runs (the 2026-10-28 policy admits paid
-// members only), and an admin never matched the policy at all (Codex P2 on #2492).
+// are a validated uuid or a cleaned slug. ⚠ Through the caller's own client an account reads only
+// the reviews it wrote and those about it (2026-11-10-coach-reviews-accounts.sql: only this route
+// can tell an adult, so a known minor never reads the words from the table, Codex P2 on #2675), and
+// an admin never matched the policy at all (Codex P2 on #2492).
 function listClient(supabase: SupabaseClient): SupabaseClient {
   try { return createAdminClient(); } catch { return supabase; }
 }

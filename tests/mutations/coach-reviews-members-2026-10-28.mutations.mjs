@@ -123,6 +123,10 @@ const ADDED = [
   { name: "api: a known minor reads the words", file: API,
     find: "    return { member: !m.isKnownMinor, admin: m.isAdmin };",
     replace: "    return { member: true, admin: m.isAdmin };" },
+  // Codex P2 on #2675: the table answers an account its own reviews and those about it.
+  { name: "r8: sql: every signed-in account reads every review from the table", file: 'supabase-migrations/2026-11-10-coach-reviews-accounts.sql',
+    find: "  using (user_id = auth.uid() or owner_id = auth.uid());",
+    replace: "  using (true);" },
 ];
 spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
 export default spec;

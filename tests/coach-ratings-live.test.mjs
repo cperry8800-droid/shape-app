@@ -148,8 +148,8 @@ test('every signed-in account reads the reviews; a visitor gets the rating and n
     }
     const guestPins = await (await guest.GET(new Request(`https://shape.test/api/coaches/reviews?ids=${REVIEW}`))).json()
     assert.deepEqual(guestPins, { reviews: [], locked: true }, 'a pinned review is a review: not for a visitor')
-    // A free account (signed in, no membership) reads the words, through the service role: before
-    // 2026-11-10-coach-reviews-accounts.sql its own session reads only its own rows.
+    // A free account (signed in, no membership) reads the words, through the service role: its own
+    // session reads only its own reviews and those about it (2026-11-10-coach-reviews-accounts.sql).
     const free = await loadRoute(reviewsClient(rows, { ratingsFn, canReadRows: false }), { signedIn: true, adminClient: reviewsClient(rows, { ratingsFn }) })
     for (const q of [`?owner=${OWNER}`, '?coach=ada-coach']) {
       const body = await (await free.GET(new Request(`https://shape.test/api/coaches/reviews${q}`))).json()
@@ -465,12 +465,16 @@ test('locked: each reviews list says members read them, with the rating, and off
   assert.match(web, /revLocked && revAgg && revAgg\.count > 0 \? \(\s+<div data-reviews-locked=""[\s\S]{0,300}Members read the reviews\.[\s\S]{0,300}href="Pricing\.html"/)
 })
 
-test('the 2026-11-10 migration opens review rows to every signed-in account, never to a visitor, in one re-runnable transaction', () => {
+// ⚠ The words go to a signed-in ADULT account, and only the API can tell an adult (Codex P2 on #2675):
+// a table open to every signed-in account let a known minor read every review through the REST API.
+test('the 2026-11-10 migration: the table answers an account its own reviews and those about it; the API reads the rest for a cleared reader', () => {
   const sql = readFileSync(join(ROOT, 'supabase-migrations/2026-11-10-coach-reviews-accounts.sql'), 'utf8').replace(/^\s*--.*$/gm, '')
   assert.match(sql, /^begin;$/m)
   assert.match(sql, /^commit;\s*$/m)
   assert.match(sql, /drop policy if exists "members read coach reviews" on public\.coach_reviews;/)
   assert.match(sql, /drop policy if exists "accounts read coach reviews" on public\.coach_reviews;/)
-  assert.match(sql, /create policy "accounts read coach reviews" on public\.coach_reviews\s+for select to authenticated\s+using \(true\);/)
+  assert.match(sql, /drop policy if exists "own coach reviews" on public\.coach_reviews;/)
+  assert.match(sql, /create policy "own coach reviews" on public\.coach_reviews\s+for select to authenticated\s+using \(user_id = auth\.uid\(\) or owner_id = auth\.uid\(\)\);/)
+  assert.doesNotMatch(sql, /using \(true\)/, 'every signed-in account, a known minor included, reads every review')
   assert.doesNotMatch(sql, /to anon|to public/, 'a visitor reads the rating only, from coach_review_ratings()')
 })
