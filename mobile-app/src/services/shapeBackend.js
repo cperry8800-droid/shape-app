@@ -9454,11 +9454,18 @@ function bsNoraActionError(res, payload, message) {
   err.code = (payload && typeof payload.code === 'string') ? payload.code : null;
   return err;
 }
+// ⚠ BOTH READ THE SESSION'S TOKEN AT THE TAP (liveAccessToken), as the chat request does: a card
+// confirmed after the app sat idle carried the cached token, which may have expired (a 401, and
+// "Could not apply that change.").
+async function noraCardHeaders() {
+  const token = await liveAccessToken();
+  return token ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } : sessionsAuthHeaders({ 'Content-Type': 'application/json' });
+}
 async function confirmNoraProposal(token) {
   const res = await fetch(`${apiBaseUrl || ''}/api/ai/proposals/confirm`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    headers: await noraCardHeaders(),
     body: JSON.stringify({ token }),
   });
   const payload = await res.json().catch(() => ({}));
@@ -9469,11 +9476,13 @@ async function undoNoraProposal(auditId) {
   const res = await fetch(`${apiBaseUrl || ''}/api/ai/audit/undo`, {
     method: 'POST',
     credentials: 'same-origin',
-    headers: sessionsAuthHeaders({ 'Content-Type': 'application/json' }),
+    headers: await noraCardHeaders(),
     body: JSON.stringify({ auditId }),
   });
   const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw bsNoraActionError(res, payload, payload.error || 'Could not undo that change.');
+  // The route's reason ("Changed since — nothing undone."), never its code; a paid refusal's
+  // status and code ride the error, as the confirm's do.
+  if (!res.ok) throw bsNoraActionError(res, payload, payload.message || 'Could not undo that change.');
   return payload;
 }
 // Nora's greeting and four suggestions for this account (GET /api/support/chat, the

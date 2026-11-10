@@ -1054,13 +1054,28 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   // (hit or miss) tells the shell to clear the target, so a later ordinary
   // marketplace open can never replay a stale deep link.
   const [deepMiss, setDeepMiss] = useStateBSM2(false);
+  // A coach a jump opened straight onto (a chat's coach card, a notification: `back: 'nav'`) goes back where
+  // the member was, through the nav history, not to the list behind it they never saw (2026-11-10).
+  const [openViaNav, setOpenViaNav] = useStateBSM2(false);
   useEffectBSM2(() => {
     if (!initialCoach || !remoteCoaches) return;
     const pool = initialCoach.role === 'nutritionist' ? (remoteCoaches.Nutritionist || []) : (remoteCoaches.Trainer || []);
     const hit = pool.find((c) => Number(c.provider_id) === Number(initialCoach.providerId));
-    if (hit) { setOpen(hit); setOpenNo(null); setOpenIntro(false); setDeepMiss(false); } else setDeepMiss(true);
+    if (hit) { setOpen(hit); setOpenNo(null); setOpenIntro(false); setOpenListing(!!initialCoach.listing); setOpenViaNav(initialCoach.back === 'nav'); setDeepMiss(false); } else setDeepMiss(true);
     if (onCoachConsumed) onCoachConsumed();
   }, [initialCoach, remoteCoaches]);
+
+  // What Coaches has open rides on the nav history (owner, 2026-11-10: Back goes "to previous page and
+  // location user was on"). A live coach's profile, or its listing, is announced, so a jump out of it
+  // (Message → the thread) comes back to it through the deep-open above; the role picked rides along, as
+  // the shell's own location carries it. A sample coach has no listing id to find it by again, so a Back
+  // to one lands on the directory.
+  const openCoachLoc = open && open.provider_id != null && (open.provider_role === 'trainer' || open.provider_role === 'nutritionist')
+    ? { role: open.provider_role, providerId: open.provider_id, ...(openListing ? { listing: true } : null), ...(openViaNav ? { back: 'nav' } : null) } : null;
+  useEffectBSM2(() => {
+    window.ShapeNav?.announce?.(openCoachLoc ? { detail: { ...(initialRole ? { role: initialRole } : null), coach: openCoachLoc } } : null);
+    return () => window.ShapeNav?.announce?.(null);
+  }, [JSON.stringify(openCoachLoc), initialRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Demo fallback: the "YOUR COACH"/"YOUR NUTRITIONIST" relationship badges are
   // honest only in the signed-out preview — strip them for a signed-in account
@@ -1195,7 +1210,11 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     return <window.BSProviderApplicationScreen initialRole={applyRole} onBack={() => setApplyRole(null)} />;
   }
   if (open) {
-    const closeOpen = () => { setOpen(null); setOpenNo(null); setOpenIntro(false); setOpenListing(false); };
+    const closeOpen = () => {
+      const viaNav = openViaNav;
+      setOpen(null); setOpenNo(null); setOpenIntro(false); setOpenListing(false); setOpenViaNav(false);
+      if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+    };
     // Tapping a coach opens the coach profile (owner, 2026-10-28, for trainers; nutritionists
     // since they got it too), drawn from this listing: read fresh by the coach's account, or by the
     // listing's id when it has none (Shape's seeded listings, which show sample content there). Its

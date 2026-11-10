@@ -11,11 +11,13 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { requireAccount } from '@/lib/require-membership';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { supersetKey, blockKind, videoUrl } from '../../../../../public/newdesign/workoutDocument.mjs';
 // Relative, as workoutDocument.mjs above: the route's test harnesses resolve a relative module themselves.
 import { sharedWeekOneOf } from '../../../../lib/coach-client-legs.mjs';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 import { bsNormalizeListingMedia } from '../../../../../public/newdesign/listingMedia.mjs';
+import { playlistLinkIndex, linkedPlaylist, linkMealDays, mealDaysHavePlaylist, mealDayPlaylists, playlistLookups } from '../../../../lib/plan-playlist-links.mjs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -125,7 +127,8 @@ function mapProgram(payload: Record<string, unknown> | null): { id: string; name
 
 // A day's playlist ({ id?, name, meta }): the id only when the builder saved one (a day saved before ids
 // has none), so the shape a day without one has is unchanged.
-function playlistOf(o: Record<string, unknown>): { id?: string; name: string; meta: string } {
+// `url` is never read from the payload: the route sets it from the coach's own saved playlist (below).
+function playlistOf(o: Record<string, unknown>): { id?: string; name: string; meta: string; url?: string } {
   const id = o.id == null ? '' : String(o.id).trim();
   return { ...(id ? { id } : {}), name: String(o.name ?? ''), meta: String(o.meta ?? '') };
 }
@@ -349,6 +352,66 @@ export async function GET(request: Request) {
     // first of two (Codex P2 on #2583). Null for the member's own workout.
     w.coachId = id ?? null;
   }
+  // ── The link each playlist on the plan opens (owner, 2026-11-10: "make the playlist chip open the
+  // playlist"). The plan names a coach's saved playlist by id and name, never its link, so the link comes
+  // from the saved playlists of the coach who wrote that session or menu (src/lib/plan-playlist-links.mjs).
+  // ⚠ coach_soundtracks IS OWNER-ONLY UNDER RLS, so this read is the service role's, held to the owners of
+  // the coaches behind this member's own published sessions and menu, and only the links of playlists those
+  // name leave the route. A read that fails, or a coach with no saved match, leaves the playlist a name.
+  const ownerOfRow = (res: { data: unknown }, id: number | null | undefined) =>
+    id == null ? null : (rowsOf(res).find((r) => String(r.id) === String(id))?.owner_id ?? null) || null;
+  const workoutOwner = new Map<string, string>();
+  for (const w of workouts) {
+    const owner = w.playlist ? ownerOfRow(trNames, trainerByWorkout.get(w.id)) : null;
+    if (owner) workoutOwner.set(String(w.id), owner);
+  }
+  const menuOwner = mealDaysHavePlaylist(mealDays) ? ownerOfRow(nuNames, mp?.nutritionist_id) : null;
+  const wanted = playlistLookups([
+    ...workouts.map((w) => ({ playlist: w.playlist, owner: workoutOwner.get(String(w.id)) ?? null })),
+    ...mealDayPlaylists(mealDays).map((p) => ({ playlist: p, owner: menuOwner })),
+  ]);
+  let playlistLinks: ReturnType<typeof playlistLinkIndex> = new Map();
+  if (wanted.ids.length || wanted.nameOwners.length) {
+    try {
+      const admin = createAdminClient();
+      const rows: unknown[] = [];
+      // ⚠ NO CAPPED READ OF EVERY ROW (Codex P2 on #2679): a playlist with an id is read by that id.
+      if (wanted.ids.length) {
+        const { data, error } = await admin
+          .from('coach_soundtracks')
+          .select('id, owner_id, name, url')
+          .in('owner_id', wanted.idOwners)
+          .in('id', wanted.ids);
+        if (error) throw new Error(error.message);
+        rows.push(...(data ?? []));
+      }
+      // One saved before ids is matched by a name only one of its coach's playlists has, so that coach's
+      // whole list is read, a page at a time from where the last one ended, until one comes back empty: the
+      // server's own row ceiling can cut a page short, so a short page proves nothing. At most 20 reads.
+      for (let from = 0, reads = 0; wanted.nameOwners.length && reads < 20; reads++) {
+        const { data, error } = await admin
+          .from('coach_soundtracks')
+          .select('id, owner_id, name, url')
+          .in('owner_id', wanted.nameOwners)
+          .order('id', { ascending: true })
+          .range(from, from + 999);
+        if (error) throw new Error(error.message);
+        if (!data || !data.length) break;
+        rows.push(...data);
+        from += data.length;
+      }
+      playlistLinks = playlistLinkIndex(rows as Parameters<typeof playlistLinkIndex>[0]);
+    } catch (e) {
+      console.error('[client/plan] playlist links read failed:', e instanceof Error ? e.message : e);
+    }
+  }
+  for (const w of workouts) {
+    const linked = w.playlist ? linkedPlaylist(w.playlist, workoutOwner.get(String(w.id)) ?? null, playlistLinks) : null;
+    if (linked) w.playlist = linked;
+  }
+  // Every day's and meal's playlist read the same way, a `url` stored in the menu dropped.
+  const menuDays = linkMealDays(mealDays, menuOwner, playlistLinks);
+
   // The plan-level name stays the first coached workout's trainer, as it was.
   const trainerId = (cwRows ?? []).find((w) => w.trainer_id != null)?.trainer_id ?? null;
   const trName = trainerId != null ? trainerName.get(String(trainerId)) ?? null : null;
@@ -419,7 +482,7 @@ export async function GET(request: Request) {
       // the plan, not the first of two (Codex P2 on #2583), as each workout's coachId does for trainers.
       coachId: mp?.nutritionist_id ?? null,
       weekStart: mp?.week_start ?? null,
-      days: mealDays,
+      days: menuDays,
       // The nutritionist's live Adjust targets — when present these are the
       // CURRENT prescription and outrank the menu's authored day targets.
       coachTargets,

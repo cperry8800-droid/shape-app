@@ -582,6 +582,7 @@ function CoachClientDetailPage({ clientId: clientIdProp, role: roleProp, inShell
 
   return (
     <DashPage
+      tourHero="hero-client"
       navItems={navItems}
       payoutCard={payout}
       actions={actions}

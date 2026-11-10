@@ -516,7 +516,10 @@ function editPane() {
 
 test('Edit profile is its own page whose Back returns to Settings, never to Home', () => {
   const pane = editPane();
-  assert.match(pane, /<DetailBack title=\{tr\('settings:passport\.edit'[^\n]*onBack=\{cancelEdit\} \/>/,
+  // Reached from Settings it goes back to Settings (cancelEdit). Opened straight from elsewhere (Goals'
+  // Edit: `landed`) it goes back there, through Settings' own Back (owner, 2026-11-10: "Make sure back
+  // buttons are going back to previous page and location user was on"): backFrom.
+  assert.match(pane, /<DetailBack title=\{tr\('settings:passport\.edit'[^\n]*onBack=\{backFrom\('edit-profile', cancelEdit\)\} \/>/,
     'the pane’s back row does not return to the Settings root');
   assert.ok(!pane.includes('onClick={onBack}'), 'the pane carries the shell’s own Back, which closes Settings and lands on Home');
   // DetailBack must honour the target, or every pane's row says "← Settings" and does

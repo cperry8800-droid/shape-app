@@ -19,6 +19,7 @@ import { bumpSignOutGen } from '../services/signOutGen.mjs';
 import { preferenceTypeFor } from '../../../public/newdesign/notificationSurfaces.mjs';
 import { heldCoachRoles, coachPlanSwitch, holdCoachPlan } from '../services/coachPlanRoute.mjs';
 import { mayLeave } from '../services/leaveGuard.mjs';
+import { BS_CLEAN_SANS } from './bsCleanType.jsx';
 import { copyIndex } from '../../../src/lib/click-capture.mjs';
 
 // Every call to Shape's server goes through the backend's ShapeApi.fetch: the API base in

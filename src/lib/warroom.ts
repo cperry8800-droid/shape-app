@@ -625,13 +625,73 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: a smaller "Preview · demo data" banner (#2681). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, with a screenshot of the banner over Home: "also make this pop-up box smaller"', status: 'done' },
+        { label: '#2681 BSPreviewBanner (iosAppBroadsheetMain.jsx): the words in Home\'s face (Inter Tight) at 11.5px, not Saira 13 semibold; tighter padding, a smaller Join pill and ×, a lighter shadow; the same words in all 13 locales. 99px tall to 71 at iPhone 13 width, three lines of English where it took four', status: 'done' },
+        { label: 'Review: Codex clean on 242b154. npm test 10,699, 0 failing; the shell\'s and the i18n inventory\'s tests on the rebased head, 508 of 508. CI green on the final head', status: 'done' },
+        { label: 'OWNER: a shorter banner line would bring it to two lines (about 52px); that is new wording in 13 languages', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Runway: the Runaway connector\'s tools run without a prompt, as Higgsfield\'s do (#2682). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "i just want to make sure this integration is live on my repo" … "like higgsfield is" … "add the runaway rule"', status: 'done' },
+        { label: '#2682 .claude/settings.json allows mcp__Runaway beside mcp__Higgsfield. Runaway is the claude.ai connector to Runway (runway.com), connected the same day: images, video, music, speech, sound effects and workflows from chat, on the workspace picked at sign-in ("Chris", personal)', status: 'done' },
+        { label: '#2682 review: Codex clean on 9e9911f (no findings); CodeRabbit not asked. npm test 10,708 (10,701 pass, 0 fail, 7 skipped). CI green on 9e9911f', status: 'done' },
+        { label: 'OWNER — the Runway workspace is on the free plan (500 credits on 2026-11-10): images and background removal only. Video, video editing, music, speech, sound effects and upscaling need a paid plan', status: 'manual' },
+        { label: 'OWNER — an older custom connector, "runaway" (lowercase), still waits to be reconnected; it duplicates Runaway, so remove it in claude.ai', status: 'manual' },
+        { label: 'OWNER DECISION — a Runway page in the admin console (gen4.5 text-to-video through the developer API with @runwayml/sdk, admin only). The developer API is its own account with its own credits (Developer Portal: 0 credits on 2026-11-10; gen4.5 is 12 credits a second at $0.01 a credit, so 5 s is $0.60). Its key is saved on the Claude cloud environment, not in Vercel', status: 'pending' },
+        { label: 'Left by #2682: the Runway Dev plugin (runway-api@claude-plugins-official: Runway API docs and Dev account tools) is not on in claude.ai, and its tools (mcp__plugin_runway-api_runway-dev) are not in the allow list', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Website playlist chips open the playlist: the plan read sets each one\'s link from its coach\'s saved playlists (#2679). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, after #2673: "make the playlist chip open the playlist"', status: 'done' },
+        { label: '#2679 /api/client/plan sets `url` on each session\'s, plan day\'s and meal\'s playlist from the saved playlists (coach_soundtracks) of the coach who wrote it: by id, or a name only one of theirs has (src/lib/plan-playlist-links.mjs); https Spotify or Apple Music only; a url stored in the payload dropped. Service-role read held to the owners of the coaches behind the member\'s own published plan, only when it carries a playlist; a failed read leaves names', status: 'done' },
+        { label: '#2679 a playlist on the member\'s plan now opens even when the coach never sent it (attached); the coach\'s Playlists page already counts a program day\'s clients as who hears it', status: 'done' },
+        { label: '#2679 dashClient.jsx: the workout and meals chips open the link in a new tab ("↗", "Open … in Spotify"); without one the workout chip keeps to the member\'s Playlists page. The program builder\'s Client view and the meal builder\'s Client preview look it up in the playlists they read (dclWithPlaylistLink); a day or meal still stores id, name and meta only', status: 'done' },
+        { label: 'Review: Codex P2 (the read capped every owner row at 1,000) fixed: read by the ids the plan names, a legacy name pages its coach list; Codex clean on 0c83fbd; mutation round 19 of 19 killed; CI green on the final head', status: 'done' },
+        { label: 'The app\'s Train and Eat still draw a playlist the coach never sent as a bare card; the plan read now carries its url, which they don\'t read yet', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Set up with Nora, checked end to end: the coach dashboard opens Nora, not Chat; one card a reply; a drafted card is kept; a refused Undo says why; the app\'s card reads a fresh token (#2678). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "Make sure this set up with Nora feature is fully functioning. Check that after." … "Just making sure Nora has those capabilities." Traced from every entry point and driven in a browser: the action itself (#2566) was sound; the path to it had one break and four ways to lose the card or its reason', status: 'done' },
+        { label: '#2678 the launcher (globalChatButton.js): on pages that boot the chat late (TrainerApp, NutritionistApp) the widget took a waiting "open Nora" request as it mounted, then the launcher\'s poll opened a bare chat, which turned Nora off: "Set up with Nora" landed on the Wall. It remembers the request was waiting and opens nothing more, with one waiter however often it is tapped; the fallback panel clears that. Before/after in Chromium: "Wall." → "Nora." with the request in her composer', status: 'done' },
+        { label: '#2678 the chat route: a second set_up_account in one reply is refused (one_card) before the budget or a read; a card drafted in an earlier round goes out with "Here it is to review. Nothing on the card changes until you confirm." when the follow-up fails or says nothing (only a card: coach links and the memory chip fall back as before)', status: 'done' },
+        { label: '#2678 Undo: the action\'s own refusal ("Changed since — nothing undone.") is a 409 with its words, as an apply\'s is; undoChange marks it (undoRefused), and an audit failure (the claim, the legacy mark) stays a plain server error. The app\'s Confirm and Undo read the session\'s token at the tap (liveAccessToken), and Undo shows the reason, never the code', status: 'done' },
+        { label: 'Review: Codex on ffd2e37, two P2s (the card line with coach links; an audit failure\'s database words on the card), fixed in 5062f78; on 5062f78, two more (a double tap started a second poll that turned Nora off; the card line spoke for a memory already written), fixed in 358f037; each with tests; Codex clean on 358f037. Mutations: nora-setup-fixes 19 killed, nothing skipped. npm test: the one failure was a test pinning the launcher too tightly, fixed to name the new guard. CI green on the final head', status: 'done' },
+        { label: 'Left by #2678: the plain fallback panel (when the rich widget cannot load) sends confirmCards:false, so Nora draws no setup card there', status: 'pending' },
+        { label: 'Left by #2678: a signed-in non-member in the app\'s Preview who reaches the goal step is offered "Set up with Nora", but the server gives non-members no setup tool', status: 'pending' },
+        { label: 'OWNER: on the live site, as a coach on TrainerApp.html: replay the welcome (Settings → Guides), tap "Set up with Nora", send "set my units to metric and my week to start on Monday", Confirm, then Undo (#2678)', status: 'pending' },
+      ],
+    },
+    {
+      section: 'Tutorials, PR 1 of 3: a five-stop coach welcome, a guide for every coach dashboard page, Skip tour on every step, the app tour fixed and replayable (#2677). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "we need create tutorials for dashboard on website for coaches and tutorial for new accounts on the app. They need to show all features" … approving the proposal: "Go to all recommendations. Also have viewing the tutorial once initially, have the option to go through it again at a later date if user wants to. Also make sure user has option to cancel tutorial if they don\'t want it"', status: 'done' },
+        { label: '#2677 the engine (spotlightTour.js, website and app): a 340px card with the guide\'s name, "2 of 5" and a bar; Skip tour on every step but the last, and skipping says where to take it again; Escape skips; onDone(reason); translated labels; when() leaves out a step the account lacks; ← →; one tour at a time; docked under 560px; html[data-guide-open] holds the Nora hint, the Radio prompt and the website\'s chat launcher under the dim', status: 'done' },
+        { label: '#2677 the coach dashboard (dashTour.js): the welcome is five stops (Needs you, the rail, getting listed, the guides); 12 guides on each page\'s real controls (Today, Week, Schedule, Clients, a client\'s file, Programs or Meal plans, Business, Profile, Playlists, Goal & Score, Settings, Nora/chat/search); a Guide button beside each page\'s name; Settings → Guides lists them, ticked, and replays the welcome; a coach who saw the old tour gets one quiet note. The Programs step no longer says programs are sold there', status: 'done' },
+        { label: '#2677 progress: web_coach_guides { welcome, note, chapters: { <role>:<guide>: day } }, read, merged (earliest day, never unticked) and written back bound to the account; a failed read writes nothing; only a finished guide is ticked; a coach with both listings keeps each role\'s ticks', status: 'done' },
+        { label: '#2677 the app: Train lights the Build door for a member with no plan, Radio the Radio box, a Coaches stop, Chat\'s copy without "Coaches"; Settings → About → Take the tour replays it for members and coaches; the card\'s words in 13 locales (14 strings)', status: 'done' },
+        { label: 'Review: Codex P2 on 41643b1 (one ticks record for a coach with both listings: finishing Programs ticked Meal plans), fixed in bcd4802 with a test that fails without it; Codex clean on bcd4802. Mutations: tour-guides 39 killed, nothing skipped. npm test 10,699, 0 failing. Walked in Chromium locally (1280 and 390) and on the Vercel preview\'s example dashboard; CI green on the final head', status: 'done' },
+        { label: 'PR 2 (planned): the member app\'s own five-stop welcome and nine page guides, Help → Guides, a first-visit offer under each tab\'s title', status: 'pending' },
+        { label: 'PR 3 (planned): "Open for business", the coach setup widget on Today (a photo, a rate and payouts from /api/coach/listing, hours, a first program, the profile link), each row opening its guide', status: 'pending' },
+        { label: 'Left by #2677: no step lets a click through to the lit control ("try it"); the member dashboard\'s own tour is still the 14-step pass', status: 'pending' },
+        { label: 'Left by #2677: the 14 new app strings want the native-speaker read already waited on (Hausa and Pidgin first)', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website meals card: the day\'s playlist and each meal\'s, in the meal builder\'s Client preview and for the member (#2673). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "does the website builder show the playlist on the client card too?" (a trainer\'s Client view did, DashWorkoutCard; a nutritionist\'s did not) … "yes"', status: 'done' },
         { label: '#2673 DashMealLedgerCard (dashClient.jsx): the day\'s playlist under the kcal line and each meal\'s under its macros, "♪ name · meta" as the workout card says it; a swapped meal keeps its own; a plan without one reads as before', status: 'done' },
         { label: '#2673 the meal builder\'s Client preview (DmbClientPreview), the member\'s dashboard and nutrition page (dnuDayMeals) hand the card the plan day\'s and each meal\'s playlist, which buildMealAssignment already sends', status: 'done' },
         { label: 'Review: Codex clean on 0638bf5; CI green on the final head', status: 'done' },
-        { label: 'The website\'s meals and workout cards name a playlist but don\'t open it: the plan carries the soundtrack\'s id, name and meta, not its URL', status: 'pending' },
+        { label: 'The website\'s meals and workout cards name a playlist but don\'t open it: the plan carries the soundtrack\'s id, name and meta, not its URL: done in #2679 (the plan read sets the link; the chip opens it)', status: 'done' },
       ],
     },
     {
@@ -652,7 +712,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Owner, 2026-11-10: "add a playlist picker to the coach app\'s meal editor too - nutritionists should be able to add playlists to meal plans"; #2670 the coach app\'s meal-plan editor (BSMealBuilderEditor.jsx) sets the day\'s and each meal\'s playlist as the website does (mealBuilderEdit.mjs), and a swap keeps the meal\'s', status: 'done' },
         { label: '#2670 Eat\'s Playlists: "For Sun · Batch prep", matched by soundtrack id then name to the days and meals as the menu shows them; an unsent playlist is a bare card, as on Train', status: 'done' },
         { label: 'Review: Codex\'s five findings fixed (playlist labels after a swap; the kcal line from the meals shown, against the target; Coming up before the plan read; a day past Sunday opening last week; the day strip on a filled open day); the coach app\'s meal editor picker reviewed clean; Codex clean on f79d607; CI green on the final head', status: 'done' },
-        { label: 'A playlist the nutritionist linked but never sent to the member has no link on Eat (a bare card): the plan carries the soundtrack id and name, not its URL or service', status: 'pending' },
+        { label: 'A playlist the nutritionist linked but never sent to the member has no link on Eat (a bare card); since #2679 the plan read carries its url, which Eat doesn\'t read yet', status: 'pending' },
         { label: 'The meal plan sheet shows this week, or next week for a Coming up day past Sunday; a plan\'s later weeks have no view', status: 'pending' },
         { label: 'The coach app\'s workout editor (BSWorkoutDocumentEditor.jsx) has no playlist picker for a trainer\'s session; it keeps one set on the website: done in #2672', status: 'done' },
         { label: 'BS_COACH_PLAYLISTS\' attached text (iosAppBroadsheetRadio.jsx) has no reader since #2669 and #2670', status: 'pending' },
@@ -667,7 +727,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2669 Train: On deck previews each next day (Tomorrow, time, length, first three moves with swaps, playlist) and opens the full plan on it; Full plan (BSTrainPlan.jsx) is a sheet of the week, every move with its cue and the member\'s swaps, today framed, Month view at its foot', status: 'done' },
         { label: '#2669 the full plan is a modal: focus stays in it (Tab and Shift+Tab wrap, bsDialogFocus.mjs) and goes back to what opened it', status: 'done' },
         { label: 'Review: five of Codex\'s six findings fixed (two playlists of one name, also with an unsent one; an Apple Music playlist drawn as Spotify\'s; On deck without the swaps; focus leaving the sheet); one declined (Sunday\'s sheet marking last Monday Tomorrow: the sheet prints this week\'s dates); Codex clean on e7fb41b; CI green on the final head', status: 'done' },
-        { label: 'A workout\'s playlist the coach never sent to the member has no link: the plan carries its soundtrack id and name, not its URL or service (a server read of coach_soundtracks by id would carry them)', status: 'pending' },
+        { label: 'A workout\'s playlist the coach never sent to the member has no link on Train (a bare card); since #2679 the plan read carries its url (a server read of coach_soundtracks by id), which Train doesn\'t read yet', status: 'pending' },
         { label: 'The full plan shows this week, which is what the plan read slots; a program\'s later weeks have no view', status: 'pending' },
         { label: 'Unused since #2669: session:train.musicFrom, session:train.music, session:train.forToday', status: 'pending' },
       ],
