@@ -625,6 +625,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Website meals card: the day\'s playlist and each meal\'s, in the meal builder\'s Client preview and for the member (#2673). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "does the website builder show the playlist on the client card too?" (a trainer\'s Client view did, DashWorkoutCard; a nutritionist\'s did not) … "yes"', status: 'done' },
+        { label: '#2673 DashMealLedgerCard (dashClient.jsx): the day\'s playlist under the kcal line and each meal\'s under its macros, "♪ name · meta" as the workout card says it; a swapped meal keeps its own; a plan without one reads as before', status: 'done' },
+        { label: '#2673 the meal builder\'s Client preview (DmbClientPreview), the member\'s dashboard and nutrition page (dnuDayMeals) hand the card the plan day\'s and each meal\'s playlist, which buildMealAssignment already sends', status: 'done' },
+        { label: 'Review: Codex clean on 0638bf5; CI green on the final head', status: 'done' },
+        { label: 'The website\'s meals and workout cards name a playlist but don\'t open it: the plan carries the soundtrack\'s id, name and meta, not its URL', status: 'pending' },
+      ],
+    },
+    {
       section: 'Coach app workout editor: a trainer sets a session\'s playlist, as the website\'s program builder does (#2672). No migration',
       items: [
         { label: 'Owner, 2026-11-10, after the nutritionists\' picker in the coach app (#2670): "do trianers have this ability?" … "yes add the trainer picker too"', status: 'done' },
@@ -644,7 +654,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Review: Codex\'s five findings fixed (playlist labels after a swap; the kcal line from the meals shown, against the target; Coming up before the plan read; a day past Sunday opening last week; the day strip on a filled open day); the coach app\'s meal editor picker reviewed clean; Codex clean on f79d607; CI green on the final head', status: 'done' },
         { label: 'A playlist the nutritionist linked but never sent to the member has no link on Eat (a bare card): the plan carries the soundtrack id and name, not its URL or service', status: 'pending' },
         { label: 'The meal plan sheet shows this week, or next week for a Coming up day past Sunday; a plan\'s later weeks have no view', status: 'pending' },
-        { label: 'The coach app\'s workout editor (BSWorkoutDocumentEditor.jsx) has no playlist picker for a trainer\'s session; it keeps one set on the website', status: 'pending' },
+        { label: 'The coach app\'s workout editor (BSWorkoutDocumentEditor.jsx) has no playlist picker for a trainer\'s session; it keeps one set on the website: done in #2672', status: 'done' },
         { label: 'BS_COACH_PLAYLISTS\' attached text (iosAppBroadsheetRadio.jsx) has no reader since #2669 and #2670', status: 'pending' },
       ],
     },
