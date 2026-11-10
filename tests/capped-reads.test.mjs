@@ -117,10 +117,13 @@ test('the exemptions are the eleven that were checked, and each is deliberate', 
   // time to the end, oldest first so the night's notices go in order and the per-person limit keeps
   // the first ones. coach/plans/usage/route.ts joined on 2026-11-09: only a client with an open
   // subscription is on a program or meal plan (the owner), so it walks the open subscriptions by the
-  // same readAllById, as coach/score does.)
+  // same readAllById, as coach/score does. client/weekly-recap/route.ts joined on 2026-11-10: the
+  // recap's streak reads every completed session back past its cap by the same readAllById walk,
+  // where one read cut at 1,000 shortened a long streak (Codex on #2675).)
   const marked = capped().filter((r) => r.exempt).map((r) => r.where.replace(/:\d+$/, ''));
   assert.deepEqual([...new Set(marked)].sort(), [
     'client/onboarding/route.ts',
+    'client/weekly-recap/route.ts',
     'coach/capacity/route.ts',
     'coach/plans/usage/route.ts',
     'coach/score/route.ts',

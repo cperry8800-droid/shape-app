@@ -43,6 +43,7 @@ export async function GET(request: Request) {
   const [sessions, ledger] = await Promise.all([
     // Every page: one read stops at the API's 1,000 rows, which a long streak with two sessions a
     // day passes (readAllById: keyset on id, and a read past its ceiling is unknown, not short).
+    // capped-read-ok: one page of a cursor walk over every row (readAllById), not a cap.
     readAllById<{ id: unknown; status: string; started_at: string | null; ended_at: string | null; created_at: string }>((after) => {
       const q = supabase.from('workout_sessions')
         .select('id, status, started_at, ended_at, created_at')
