@@ -321,3 +321,32 @@ test('Train\'s day draws the section for the day picked', () => {
   // Ahead of On deck: the day's own program, then what the trainer added to it.
   assert.ok(src.indexOf('<BSCoachExercises') < src.indexOf("tr('session:train.onDeck'"))
 })
+
+test('Start these hands today\'s added exercises to Train\'s player, on a rest day too (Codex P1 on #2686)', async () => {
+  const { bsPreviewSession } = await import('../mobile-app/src/services/workoutSession.mjs')
+  const sent = []
+  const prev = globalThis.dispatchEvent
+  const prevEvent = globalThis.CustomEvent
+  globalThis.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init && init.detail } }
+  globalThis.dispatchEvent = (e) => { sent.push(e); return true }
+  try {
+    const d = drive(M.BSCoachExercisesView, { read: READY, date: '2026-11-09', today: true })
+    d.click('Start these')
+    assert.equal(sent.length, 1)
+    assert.equal(sent[0].type, 'shape:startWorkout', 'the shell\'s own Start, which opens Train\'s player')
+    const w = sent[0].detail.workout
+    assert.equal(w.title, 'From Jordan Chen')
+    const session = bsPreviewSession(w)
+    assert.deepEqual(session.moves.map((m) => [m.m, m.sets, m.reps, m.s]), [
+      ['Hex bar deadlift', 3, '10–12', '3 × 10–12'],
+      ['Copenhagen plank', 1, '', ''],
+    ], 'the first trainer\'s two, as the player runs them')
+    assert.equal(session.moves[0].tempo, '2-0-1-0')
+    assert.equal(session.moves[0].cue, 'Push the floor away')
+    assert.equal(session.clientWorkoutId, null, 'a session of its own, never written over the day\'s assigned one')
+    assert.equal(drive(M.BSCoachExercisesView, { read: READY, date: '2026-11-09', today: false, dayLabel: 'Mon' }).buttons().filter((b) => b.label.startsWith('Start these')).length, 0, 'another day is read, not started')
+  } finally {
+    if (prev) globalThis.dispatchEvent = prev; else delete globalThis.dispatchEvent
+    if (prevEvent) globalThis.CustomEvent = prevEvent; else delete globalThis.CustomEvent
+  }
+})

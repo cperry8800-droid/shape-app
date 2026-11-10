@@ -379,5 +379,6 @@
   "train.coachAdded.today": "Đã thêm hôm nay",
   "train.coachAdded.onDay": "Đã thêm · {day}",
   "train.coachAdded.count": "{count, plural, other {# bài tập}}",
-  "train.coachAdded.tempo": "Nhịp {tempo}"
+  "train.coachAdded.tempo": "Nhịp {tempo}",
+  "train.coachAdded.start": "Bắt đầu các bài này"
 }

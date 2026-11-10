@@ -379,5 +379,6 @@
   "train.coachAdded.today": "Bugün eklendi",
   "train.coachAdded.onDay": "Eklendi · {day}",
   "train.coachAdded.count": "{count, plural, one {# egzersiz} other {# egzersiz}}",
-  "train.coachAdded.tempo": "Tempo {tempo}"
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Bunları başlat"
 }

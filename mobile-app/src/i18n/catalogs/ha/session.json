@@ -379,5 +379,6 @@
   "train.coachAdded.today": "An ƙara yau",
   "train.coachAdded.onDay": "An ƙara · {day}",
   "train.coachAdded.count": "{count, plural, one {motsa jiki #} other {motsa jiki #}}",
-  "train.coachAdded.tempo": "Sauri {tempo}"
+  "train.coachAdded.tempo": "Sauri {tempo}",
+  "train.coachAdded.start": "Fara waɗannan"
 }

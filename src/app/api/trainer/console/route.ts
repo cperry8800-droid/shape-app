@@ -265,8 +265,9 @@ export async function GET(request: Request) {
 
   // Today's session: the exercises sent on each client's today (src/lib/coach-exercises.ts), never a
   // cue (kind 'cue') and never an exercise from another day, which stays on that day in the member's
-  // Train week.
-  const { data: itemRows } = await supabase
+  // Train week. ⚠ A FAILED READ IS `itemsUnread`, NOT AN EMPTY SESSION (Codex P2 on #2686): the page
+  // said "Nothing added today" and offered no Remove, so a coach could add the same exercise twice.
+  const { data: itemRows, error: itemsErr } = await supabase
     .from('coach_pushed_items')
     .select('id, client_id, kind, payload, sent_at')
     .eq('provider_role', ROLE)
@@ -276,6 +277,8 @@ export async function GET(request: Request) {
     .gte('sent_at', exerciseReadSince(now, 1))
     .order('sent_at', { ascending: true });
 
+  const itemsUnread = !!itemsErr;
+  if (itemsErr) console.warn('[shape-app] trainer console: pushed exercises read failed — today\'s session renders as unread:', itemsErr.message);
   const itemsByClient: Record<string, Array<Record<string, unknown>>> = {};
   for (const r of (itemRows ?? []) as PushedItemRow[]) {
     const zone = zoneByClient.get(r.client_id) ?? null;
@@ -291,6 +294,7 @@ export async function GET(request: Request) {
     clients,
     focusByClient,
     itemsByClient,
+    itemsUnread,
     snapshotByClient,
     todayByClient,
     todayUnread,

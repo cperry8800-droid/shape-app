@@ -156,3 +156,10 @@ test('the Clients pages open on the tab a link names (?tab=shared)', () => {
     assert.ok(readFileSync(new URL(`../public/newdesign/${page}.html`, import.meta.url), 'utf8').includes(href), page)
   }
 })
+
+test('trainer console: a session list that didn\'t load says so, never "Nothing added today" (Codex P2 on #2686)', async () => {
+  const ui = await mount('Trainer', roster('Trainer', { itemsByClient: {}, itemsUnread: true }))
+  assert.match(document.querySelector('[data-console-session-unread]').textContent, /Today's session didn't load/)
+  assert.doesNotMatch(document.body.textContent, /Nothing added today/)
+  await React.act(async () => ui.root.unmount())
+})

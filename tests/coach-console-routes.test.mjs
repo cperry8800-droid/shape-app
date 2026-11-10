@@ -284,3 +284,11 @@ test('the migration lets a cue be its own row, and files no notice for one', () 
   assert.match(fn, /'New meal \+ grocery items'/)
   assert.match(fn, /'Grocery list ready'/)
 })
+
+test('trainer console: a failed read of today\'s sessions is unread, never an empty session (Codex P2 on #2686)', async () => {
+  const { body } = await get('trainer', fakeDb(world('trainer'), { fail: (call) => call.table === 'coach_pushed_items' }))
+  assert.equal(body.itemsUnread, true)
+  assert.deepEqual(body.itemsByClient, {})
+  const ok = await get('trainer', fakeDb(world('trainer')))
+  assert.equal(ok.body.itemsUnread, false)
+})

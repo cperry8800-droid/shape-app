@@ -379,5 +379,6 @@
   "train.coachAdded.today": "Added today",
   "train.coachAdded.onDay": "Added · {day}",
   "train.coachAdded.count": "{count, plural, one {# exercise} other {# exercises}}",
-  "train.coachAdded.tempo": "Tempo {tempo}"
+  "train.coachAdded.tempo": "Tempo {tempo}",
+  "train.coachAdded.start": "Start these"
 }

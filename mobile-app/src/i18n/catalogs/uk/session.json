@@ -379,5 +379,6 @@
   "train.coachAdded.today": "Додано сьогодні",
   "train.coachAdded.onDay": "Додано · {day}",
   "train.coachAdded.count": "{count, plural, one {# вправа} few {# вправи} many {# вправ} other {# вправи}}",
-  "train.coachAdded.tempo": "Темп {tempo}"
+  "train.coachAdded.tempo": "Темп {tempo}",
+  "train.coachAdded.start": "Почати ці"
 }

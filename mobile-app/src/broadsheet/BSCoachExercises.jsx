@@ -11,6 +11,12 @@ import { BSFocusTitle } from './BSFocus.jsx';
 // /api/client/coach-exercises (window.ShapeCoachFeed.exercises): the member's last seven days, each
 // exercise on the member's day it was sent, from trainers the member pays now.
 //
+// Today's list can be run: Start these hands them to Train's player as a session of their own, by the
+// app's shape:startWorkout (the calendar's and the workout page's Start use it too), so a rest day the
+// coach added work to has a Start, and nothing here reaches into the client module. ⚠ THEY ARE NOT
+// MERGED INTO THE DAY'S ASSIGNED SESSION: that player is BSClientTrain's, inside the client module
+// (Codex P1 on #2686; the War Room keeps it open).
+//
 // A failed read says so with a Retry, never as "nothing added"; loading and an empty day draw nothing.
 // An add or a removal in the console redraws it live (ShapeCoachFeed.subscribeExercises), and so does
 // coming back to the app.
@@ -52,6 +58,31 @@ export function bsCoachExerciseGroups(read, date) {
     g.items.push(e);
   }
   return groups;
+}
+
+// A coach's sets ("3 sets", "4") as a number of sets, or undefined when it names none.
+const setsOf = (v) => { const m = /\d+/.exec(String(v || '')); return m ? Number(m[0]) : undefined; };
+// Reps without the word ("10–12 reps" → "10–12"), as the player's reps box pre-fills them.
+const repsOf = (v) => String(v || '').replace(/\s*\breps?\b\.?/i, '').trim();
+
+/** A day's added exercises as a workout Train's player runs (workoutSession.mjs' bsPreviewSession reads it). */
+export function bsCoachExerciseWorkout(items, title) {
+  return {
+    title: title || '',
+    exercises: (Array.isArray(items) ? items : []).map((e) => {
+      const sets = setsOf(e.sets);
+      const reps = repsOf(e.reps);
+      return {
+        name: e.name,
+        sets,
+        reps,
+        // What the player shows under the name: "3 × 10–12" when both read as numbers, else the coach's words.
+        scheme: sets && reps ? `${sets} × ${reps}` : [e.sets, e.reps].filter(Boolean).join(' · '),
+        ...(e.tempo ? { tempo: e.tempo } : {}),
+        ...(e.cue ? { cue: e.cue } : {}),
+      };
+    }),
+  };
 }
 
 /** The member's pushed exercises, read on mount, on a change in the console, on an account change and back in the app. */
@@ -114,10 +145,15 @@ export function BSCoachExercisesView({ read, date, today = true, dayLabel = '', 
 
   return (
     <div data-coach-exercises="">
-      {groups.map((g) => (
+      {groups.map((g) => {
+        const from = g.coachName ? tr('session:train.coachAdded.from', { defaultValue: 'From {name}', name: g.coachName }) : tr('session:train.coachAdded.fromTrainer', { defaultValue: 'From your trainer' });
+        const start = () => {
+          try { window.dispatchEvent(new window.CustomEvent('shape:startWorkout', { detail: { workout: bsCoachExerciseWorkout(g.items, from) } })); } catch (e) { /* the list is still there to follow */ }
+        };
+        return (
         <div key={g.key} data-coach-exercises-coach={g.key}>
           <BSFocusTitle color={RUST}
-            kicker={g.coachName ? tr('session:train.coachAdded.from', { defaultValue: 'From {name}', name: g.coachName }) : tr('session:train.coachAdded.fromTrainer', { defaultValue: 'From your trainer' })}
+            kicker={from}
             title={today ? tr('session:train.coachAdded.today', { defaultValue: 'Added today' }) : tr('session:train.coachAdded.onDay', { defaultValue: 'Added · {day}', day: dayLabel })}
             meta={tr('session:train.coachAdded.count', { defaultValue: '{count, plural, one {# exercise} other {# exercises}}', count: g.items.length })} />
           <div style={{ padding: `10px ${t.padX}px 0` }}>
@@ -135,9 +171,16 @@ export function BSCoachExercisesView({ read, date, today = true, dayLabel = '', 
                 </div>
               );
             })}
+            {today ? (
+              <button type="button" data-coach-exercises-start="" onClick={start}
+                style={{ marginTop: 6, minHeight: 44, display: 'inline-flex', alignItems: 'center', background: 'transparent', border: 0, padding: '0 2px', color: RUST, fontFamily: t.MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                {tr('session:train.coachAdded.start', { defaultValue: 'Start these' })} →
+              </button>
+            ) : null}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
