@@ -86,7 +86,7 @@ function dclMemberPill(acct, sub) {
   const FREE = { kind: "free", text: "Free", c: DCL_INK50, href: "#membership" };
   const PAST = { kind: "pastdue", text: "Past due", c: DCL_RED, href: "#membership" };
   if (acct && acct.signedIn === true && typeof acct.member === "boolean") {
-    if (acct.member === true || acct.coach === true) return MEMBER;
+    if (acct.member === true || acct.coach === true || acct.includedWithCoach === true) return MEMBER;
     return acct.pastDue === true ? PAST : FREE;
   }
   if (sub && typeof sub.active === "boolean") return sub.pastDue === true ? PAST : sub.active ? MEMBER : FREE;
@@ -861,6 +861,11 @@ function ClientDashboardPage() {
             </div>
           )}
 
+          {/* Mondays: last week's recap, free and shareable (owner, 2026-11-10). */}
+          {live && new Date().getDay() === 1 && (
+            <div style={{ marginBottom: 16 }}><ClientWeekRecapCard week="last" who={firstName} tierLine={score ? hero.tier + " tier" : ""} /></div>
+          )}
+
           {/* The member's first 30 days (client-onboarding review, fix 4): only while there is a board. */}
           {live && <DclSetupBoard />}
 
@@ -1027,13 +1032,14 @@ function ClientDashboardPage() {
   );
 }
 
-// ── The membership: what $5 a month adds ───────────────────────────────────────────────────
+// ── The membership: what it adds ────────────────────────────────────────────────────────
 // ⚠ AN ACCOUNT IS FREE, AND THIS IS NO LONGER A WALL (owner, 2026-11-10). It stood in front of
 // every tab for a signed-in account without the $5 membership, back when every /api/client read
 // refused one (and before that, the account fell back to the demo member's dashboard). A free
 // account draws every route with its own data now, and this is the membership page
 // (#membership), reached from each locked paid feature's prompt and from Today's pill. It lists
-// only what the membership adds; the rest is free with the account, and the page says so.
+// only what the membership adds; the rest is free with the account, and the page says so. It
+// offers the monthly plan, and the yearly one where it is set up (/api/membership/plans).
 const DCL_JOIN_PERKS = [
   "Nora as your assistant: she makes the change you ask for, and you confirm or undo it",
   "Talk to Nora out loud, and hear her answer",
@@ -1041,14 +1047,23 @@ const DCL_JOIN_PERKS = [
   "Shape Radio: one live channel, ad-free",
   "AI program drafts, and Cook Mode by voice",
   "Spend your Shape Score points in the Store",
-  "A place on the leaderboards: members are the ones ranked",
+  "The full leaderboard and your exact rank",
 ];
-const DCL_FREE_WITH_ACCOUNT = "Free with your account, membership or not: logging workouts and meals, your dashboard, the programs you build, seeing the leaderboards, hiring and messaging coaches, their reviews, and Nora's help with the app.";
+const DCL_FREE_WITH_ACCOUNT = "Free with your account, membership or not: logging workouts and meals, your dashboard, the programs you build, the leaderboards' top 10, hiring and messaging coaches, their reviews, and Nora's help with the app.";
+const DCL_NORA_WEEK_LINE = "Try Nora free for a week after your first three workouts — no card.";
 
 // Whether /api/me/membership's answer has the paid features: the membership, an approved coach's
-// role or an admin's (the server folds those into `member`; `coach` is read too, to be safe).
-function dclHasPaid(m) { return !!(m && m.signedIn === true && (m.member === true || m.coach === true)); }
+// role, an admin's, or coaching on Shape (`includedWithCoach`; `coach` is read too, to be safe).
+function dclHasPaid(m) { return !!(m && m.signedIn === true && (m.member === true || m.coach === true || m.includedWithCoach === true)); }
 function dclPendingInUrl() { try { return new URLSearchParams(window.location.search).get("member") === "pending"; } catch (e) { return false; } }
+// Whole days left of the free week with Nora, or null when it is not running.
+function dclNoraDaysLeft(m) {
+  const p = m && m.noraPreview;
+  if (!p || p.active !== true) return null;
+  const end = Date.parse(p.endsAt);
+  return Number.isFinite(end) ? Math.max(1, Math.ceil((end - Date.now()) / 86400000)) : null;
+}
+function dclDays(n) { return n + (n === 1 ? " day" : " days"); }
 // `member=pending` in the URL means Stripe took the payment but the membership was not confirmed
 // on the way back (platform-return). It is asked again every 3 seconds for a minute, and once it
 // is a member the page reloads on the same route with `member=joined`, so the shell's answer is
@@ -1079,65 +1094,100 @@ function useDclPendingMembership(pending) {
   }, []);
   return state;
 }
+// The free week with Nora is told once, when it first appears (owner, 2026-11-10): kept per week
+// (its startedAt) on this browser once the member closes it.
+function dclNoraWeekKey(m) { return "shape.noraWeek.told." + String((m && m.noraPreview && m.noraPreview.startedAt) || ""); }
+function dclNoraWeekTold(m) { try { return window.localStorage.getItem(dclNoraWeekKey(m)) === "1"; } catch (e) { return false; } }
 
 // The client shell's one notice (ClientApp.html sets it as window.ShapeDashNotice; DashFrame draws
 // it under the app bar on every route). A renewal that failed: the owner's line and Update your
 // card, which opens Shape's billing portal (owner, 2026-11-10: past due is free until the card is
-// updated). A membership payment still clearing: said, until it lands. Nothing otherwise.
+// updated). A membership payment still clearing: said, until it lands. A free week with Nora just
+// unlocked: said once, with the days left. Nothing otherwise.
 function ClientMembershipNotice() {
   const m = window.__shapeClientMembership;
   const wait = useDclPendingMembership(dclPendingInUrl() && !!m && m.signedIn === true && !dclHasPaid(m));
+  const [weekClosed, setWeekClosed] = React.useState(false);
   if (!m || m.signedIn !== true) return null;
   const box = { margin: "14px clamp(16px, 3vw, 32px) 0" };
+  const note = { ...box, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + DCL_TEAL, fontSize: 13.5, lineHeight: 1.5 };
   if (wait) {
     return (
-      <div data-membership-notice={wait} role="status" style={{ ...box, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14)", borderLeft: "3px solid " + DCL_TEAL, fontSize: 13.5, lineHeight: 1.5 }}>
+      <div data-membership-notice={wait} role="status" style={note}>
         {wait === "waiting"
           ? "Confirming your membership. Stripe has your payment and we're waiting for it to clear; Nora and Shape Radio open as soon as it does."
           : "Your membership payment is still clearing. Reload this page in a minute, or check Plan & billing in Settings."}
       </div>
     );
   }
-  if (dclHasPaid(m) || m.pastDue !== true) return null;
-  const Lock = window.ShapePaidLock;
-  return Lock ? <div data-membership-notice="pastdue" style={box}><Lock kind="pastdue" /></div> : null;
+  if (!dclHasPaid(m) && m.pastDue === true) {
+    const Lock = window.ShapePaidLock;
+    return Lock ? <div data-membership-notice="pastdue" style={box}><Lock kind="pastdue" /></div> : null;
+  }
+  const left = dclNoraDaysLeft(m);
+  if (left != null && !dclHasPaid(m) && !weekClosed && !dclNoraWeekTold(m)) {
+    const close = () => { try { window.localStorage.setItem(dclNoraWeekKey(m), "1"); } catch (e) {} setWeekClosed(true); };
+    return (
+      <div data-membership-notice="nora-week" role="status" style={{ ...note, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ flex: "1 1 260px", minWidth: 0 }}>
+          You've unlocked a free week of Nora as your assistant: she makes the changes you ask for, for you to confirm or undo, talks with you, and writes your weekly read. {dclDays(left)} left, no card needed.
+        </span>
+        <button type="button" onClick={close} style={{ flex: "none", minHeight: 28, padding: "4px 12px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: "inherit", fontFamily: DCL_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Got it</button>
+      </div>
+    );
+  }
+  return null;
 }
 
 function ClientJoinPage() {
   const m = window.__shapeClientMembership || null;
   const paid = dclHasPaid(m);
+  const viaCoach = !!(m && m.includedWithCoach === true);
   const M = window.ShapeMembership;
   // A free account joins, a past-due one updates its card; an answer that never came offers the
   // checkout, which knows the account and says if it is already a member.
   const kind = paid ? null : (M && M.lockKind(m)) || "join";
   const pastDue = kind === "pastdue";
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
-  const go = async () => {
+  const left = dclNoraDaysLeft(m);
+  const weekOver = !!(m && m.noraPreview && m.noraPreview.active === false);
+  const go = async (plan) => {
     if (busy) return;
     setBusy(true); setErr("");
     const r = !M ? { error: "Could not start checkout. Reload the page and try again." }
       : pastDue ? await M.portal("/newdesign/ClientApp.html#membership")
-      : await M.start("/newdesign/ClientApp.html#today");
-    if (r && r.code === "already_member") { window.location.reload(); return; }
+      : await M.start("/newdesign/ClientApp.html#today", plan ? { plan } : undefined);
+    if (r && r.code === "already_member" && !r.includedWithCoach) { window.location.reload(); return; }
     if (r && r.error) setErr(r.error);
     if (r) setBusy(false);
   };
+  const money = (c) => (M && M.money ? M.money(c) : "$" + c / 100);
+  const saving = M && M.annualSaving ? M.annualSaving(plans) : null;
   const btn = { fontFamily: DCL_MONO, fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-deep, #06231f)", background: DCL_TEAL, border: 0, borderRadius: 4, padding: "13px 20px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1, textDecoration: "none", display: "inline-block" };
+  const alt = { ...btn, color: "inherit", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)" };
   return (
     <DashFrame navItems={clientNavItems("today")} payoutCard={null}>
       <main style={{ padding: "40px 32px 80px", minWidth: 0, maxWidth: 680 }}>
         <div style={{ fontFamily: DCL_MONO, fontSize: 10.5, letterSpacing: "0.14em", color: DCL_TEAL, textTransform: "uppercase" }}>Shape membership</div>
         <h1 style={{ fontFamily: serif, fontSize: 34, letterSpacing: "-0.02em", fontWeight: 500, margin: "10px 0 0", lineHeight: 1.08 }}>
-          {paid ? "Your membership is on." : pastDue ? "Your payment didn’t go through." : "Membership adds Nora and Shape Radio."}
+          {viaCoach ? "Your coaching includes membership." : paid ? "Your membership is on." : pastDue ? "Your payment didn’t go through." : "Membership adds Nora and Shape Radio."}
         </h1>
         <p style={{ fontSize: 15, lineHeight: 1.6, color: DCL_INK50, margin: "14px 0 0" }}>
-          {paid
-            ? "Nora as your assistant, Shape Radio, the Store and your place on the leaderboards are yours. Manage the membership in Settings."
-            : pastDue
-              ? "Update your card to get Shape Radio and Nora back. Your account, and everything free on it, stays as it is."
-              : "$5 a month, cancel any time in Settings. Everything else on Shape stays free with your account."}
+          {viaCoach
+            ? "Membership is included while you're coached on Shape: Nora as your assistant, Shape Radio, the Store and the full leaderboard are yours for as long as you pay your coach."
+            : paid
+              ? "Nora as your assistant, Shape Radio, the Store and the full leaderboard with your exact rank are yours. Manage the membership in Settings."
+              : pastDue
+                ? "Update your card to get Shape Radio and Nora back. Your account, and everything free on it, stays as it is."
+                : (plans && plans.annual
+                  ? money(plans.monthly.priceCents) + " a month or " + money(plans.annual.priceCents) + " a year, cancel any time in Settings. Everything else on Shape stays free with your account."
+                  : "$5 a month, cancel any time in Settings. Everything else on Shape stays free with your account.")}
         </p>
+        {!paid && left != null && <p data-nora-week="on" style={{ fontSize: 14, lineHeight: 1.55, margin: "12px 0 0" }}>Your free week with Nora: {dclDays(left)} left.</p>}
+        {!paid && !pastDue && weekOver && <p data-nora-week="ended" style={{ fontSize: 14, lineHeight: 1.55, margin: "12px 0 0" }}>Your free week with Nora has ended. Join to keep her.</p>}
+        {!paid && !pastDue && !(m && m.noraPreview) && <p data-nora-week="offer" style={{ fontSize: 14, lineHeight: 1.55, margin: "12px 0 0" }}>{DCL_NORA_WEEK_LINE}</p>}
         <ul style={{ listStyle: "none", padding: 0, margin: "22px 0 0", display: "grid", gap: 8 }}>
           {DCL_JOIN_PERKS.map((t) => (
             <li key={t} style={{ fontSize: 14, display: "flex", gap: 10, alignItems: "baseline" }}>
@@ -1146,15 +1196,110 @@ function ClientJoinPage() {
           ))}
         </ul>
         <p data-free-with-account style={{ fontSize: 13, lineHeight: 1.55, color: DCL_INK50, margin: "18px 0 0" }}>{DCL_FREE_WITH_ACCOUNT}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginTop: 28 }}>
+        {!paid && <p style={{ fontSize: 13, lineHeight: 1.55, color: DCL_INK50, margin: "8px 0 0" }}>Membership is included while you're coached on Shape.</p>}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
           {paid
             ? <a href="#settings" style={btn}>Settings →</a>
-            : <button type="button" onClick={go} disabled={busy} style={btn}>{busy ? (pastDue ? "Opening billing…" : "Opening checkout…") : pastDue ? "Update your card" : "Start membership · $5/month"}</button>}
+            : pastDue
+              ? <button type="button" onClick={() => go(null)} disabled={busy} style={btn}>{busy ? "Opening billing…" : "Update your card"}</button>
+              : plans && plans.annual
+                ? <React.Fragment>
+                    <button type="button" data-plan="monthly" onClick={() => go("monthly")} disabled={busy} style={btn}>{busy ? "Opening checkout…" : "Monthly · " + money(plans.monthly.priceCents) + "/mo"}</button>
+                    <button type="button" data-plan="annual" onClick={() => go("annual")} disabled={busy} style={alt}>{"Annual · " + money(plans.annual.priceCents) + "/yr" + (saving ? " · save " + saving + "%" : "")}</button>
+                  </React.Fragment>
+                : <button type="button" onClick={() => go(null)} disabled={busy} style={btn}>{busy ? "Opening checkout…" : "Start membership · $5/month"}</button>}
           {!paid && !pastDue && <span style={{ fontFamily: DCL_MONO, fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: DCL_INK50 }}>Cancel any time in Settings</span>}
         </div>
         {err && <div role="alert" style={{ marginTop: 14, fontSize: 13.5, color: DCL_RED }}>{err}</div>}
       </main>
     </DashFrame>
+  );
+}
+
+// ── Your week: a free, shareable recap (owner, 2026-11-10) ──────────────────────────────
+// The member's own Mon–Sun week in their zone, from GET /api/client/weekly-recap?week=last|current
+// ({ weekStart, weekEnd, workouts, activeMinutes | null, mealsLogged, daysLogged, points, streak }).
+// Free with the account; the AI weekly readout stays the membership's. Honest figures: a figure
+// that is null or zero is left out, never drawn as 0, and a week with nothing in it says so. Share
+// draws the story card through the canonical renderer (shareCard.mjs, window.ShapeShareCard).
+function dclRecapDay(iso) { const d = new Date(String(iso || "") + "T12:00:00"); return Number.isFinite(d.getTime()) ? d : null; }
+function dclRecapRange(r) {
+  const a = dclRecapDay(r && r.weekStart), b = dclRecapDay(r && r.weekEnd);
+  if (!a || !b) return "";
+  const md = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return md(a) + " – " + md(b);
+}
+// The figures, in the order they are drawn, without the absent ones: [label, value].
+function dclRecapFigures(r) {
+  if (!r || typeof r !== "object") return [];
+  const n = (v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+  const rows = [
+    ["Workouts", n(r.workouts)],
+    ["Active min", n(r.activeMinutes)],
+    ["Meals logged", n(r.mealsLogged)],
+    ["Days logged", n(r.daysLogged)],
+    ["Points", n(r.points)],
+    ["Day streak", n(r.streak)],
+  ];
+  return rows.filter((x) => x[1] != null).map((x) => [x[0], x[0] === "Points" ? "+" + x[1].toLocaleString() : x[1].toLocaleString()]);
+}
+// The share card's model: Workouts leads when there were any, else the first figure there is.
+function dclRecapShareModel(r, who, tierLine) {
+  const SC = window.ShapeShareCard;
+  const figs = dclRecapFigures(r);
+  if (!SC || !figs.length) return null;
+  const hero = figs.find((f) => f[0] === "Workouts") || figs[0];
+  const range = dclRecapRange(r);
+  return SC.bsShareCardModel({
+    who: who || "", tierLine: tierLine || "", title: "Your week",
+    heroStat: hero[0] === "Workouts" ? ["Workouts", String(r.workouts)] : hero,
+    stats: figs.filter((f) => f !== hero),
+    dateLine: range ? "Week of " + range : "",
+  });
+}
+function ClientWeekRecapCard({ week = "current", who = "", tierLine = "" }) {
+  const [state, setState] = React.useState({ kind: "loading" });
+  const [shareNote, setShareNote] = React.useState("");
+  React.useEffect(() => {
+    let on = true;
+    fetch("/api/client/weekly-recap?week=" + encodeURIComponent(week), { credentials: "same-origin", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null)
+      .then((d) => { if (on) setState(d && typeof d === "object" && d.weekStart ? { kind: "ready", recap: d } : { kind: "unread" }); });
+    return () => { on = false; };
+  }, [week]);
+  const r = state.recap;
+  const figs = dclRecapFigures(r);
+  const range = dclRecapRange(r);
+  const model = state.kind === "ready" ? dclRecapShareModel(r, who, tierLine) : null;
+  const share = async () => {
+    if (!model || !window.ShapeShareCard) return;
+    setShareNote("");
+    const out = await window.ShapeShareCard.bsShareCardImage(model);
+    if (!out || !out.ok) setShareNote("Couldn't make the image. Try again.");
+    else if (out.mode === "downloaded") setShareNote("Saved the image.");
+  };
+  const label = week === "last" ? "Last week" : "This week";
+  return (
+    <div data-week-recap={week} className="dash-plate dash-plate--tick dash-plate--bracket" style={{ "--dac": DCL_TEAL, paddingLeft: 24 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <span className="dash-eyebrow">Your week · {label}{range ? " · " + range : ""}</span>
+        {model && <button type="button" onClick={share} style={{ minHeight: 28, padding: "4px 12px", borderRadius: 999, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.25)", background: "transparent", color: "inherit", fontFamily: DCL_MONO, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>Share</button>}
+      </div>
+      {state.kind === "loading" && <div style={{ marginTop: 10, fontSize: 12.5, color: DCL_INK50 }}>Reading your week…</div>}
+      {state.kind === "unread" && <div style={{ marginTop: 10, fontSize: 12.5, color: DCL_INK50 }}>Couldn't read your week just now. Reload to try again.</div>}
+      {state.kind === "ready" && !figs.length && <div style={{ marginTop: 10, fontSize: 12.5, color: DCL_INK50 }}>Nothing logged {week === "last" ? "last week" : "this week yet"}.</div>}
+      {figs.length > 0 && (
+        <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12 }}>
+          {figs.map(([k, v]) => (
+            <div key={k}>
+              <div style={{ fontFamily: serif, fontSize: 22, lineHeight: 1 }}>{v}</div>
+              <div style={{ fontFamily: DCL_MONO, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: DCL_INK50, marginTop: 4 }}>{k}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {shareNote && <div role="status" style={{ marginTop: 10, fontSize: 12, color: DCL_INK50 }}>{shareNote}</div>}
+    </div>
   );
 }
 
@@ -1178,4 +1323,4 @@ function ClientAgeRestrictedPage() {
   );
 }
 
-Object.assign(window, { ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, ClientMembershipNotice, dclMemberPill, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });
+Object.assign(window, { ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, ClientMembershipNotice, ClientWeekRecapCard, dclMemberPill, dclRecapFigures, DashWorkoutCard, DashMealLedgerCard, DashTodayCard });

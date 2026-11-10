@@ -1607,6 +1607,8 @@ function CpwWorkWith({ T, cm, K, sells, monthly, listed, sample, providerId, off
   // The account and payment prompts the checkout can answer with, each bringing the member back here.
   const prompts = (
     <React.Fragment>
+      {/* Owner, 2026-11-10: paying a coach on Shape includes the membership while it pays. */}
+      <p data-coach-includes-membership="" style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.5, color: ink(0.6) }}>Membership is included while you’re coached on Shape.</p>
       {!cm.needsMember && cm.memberReturn === "joined" ? <p role="status" style={{ margin: "10px 0 0", fontSize: 13, color: INK }}>Your Shape membership is active. You can subscribe to {first} now.</p> : null}
       {!cm.needsMember && cm.memberReturn === "pending" ? <p role="status" style={{ margin: "10px 0 0", fontSize: 13, color: INK }}>Your membership payment is still clearing. Try Subscribe again in a minute.</p> : null}
       {cm.needsAccount ? (

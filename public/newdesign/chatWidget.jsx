@@ -201,14 +201,16 @@ const cwCardDoneKeep = (token, status, auditId) => {
     localStorage.setItem(CW_CARD_DONE_KEY, JSON.stringify(m));
   } catch (e) {}
 };
-// The prompt at a paid feature in the chat (owner, 2026-11-10: an account is free; the membership is
-// assistant Nora, Shape Radio and the points Store). pageShell.jsx's ShapePaidLock where the page has
-// it; the same words and a way in otherwise, so a page without the shell never draws nothing.
+// The prompt at a paid feature in the chat (owner, 2026-11-10: an account is free; assistant Nora
+// is the membership's, and a free account's first three workouts unlock one free week of her).
+// pageShell.jsx's ShapePaidLock where the page has it; the same words and a way in otherwise, so a
+// page without the shell never draws nothing. Kinds: "join", "pastdue", "ended" (the week is over).
 const CW_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+const CW_NORA_ENDED_LINE = "Your free week with Nora has ended. Join to keep her.";
 function CwPaidLock(props) {
   if (typeof window !== "undefined" && typeof window.ShapePaidLock === "function") return React.createElement(window.ShapePaidLock, { compact: true, ...props });
   const pastDue = props.kind === "pastdue";
-  const line = pastDue ? CW_PAST_DUE_LINE : (props.feature || "This") + " is part of Shape membership, $5 a month.";
+  const line = pastDue ? CW_PAST_DUE_LINE : props.kind === "ended" ? CW_NORA_ENDED_LINE : (props.feature || "This") + " is part of Shape membership, $5 a month.";
   const link = { color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" };
   return (
     <div data-shape-lock={props.kind} style={{ fontFamily: sans, fontSize: 12, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" }}>
@@ -278,6 +280,9 @@ function CwProposalCard({ a }) {
     if (!res.ok) {
       const failed = new Error(data.message || data.error || "Something went wrong.");
       failed.lock = res.status === 402 ? (data.code === "payment_past_due" ? "pastdue" : "join") : null;
+      // A free week with Nora that has run out says so (pageShell.jsx's shapeNoraLock reads it).
+      const M = failed.lock && typeof window !== "undefined" ? window.ShapeMembership : null;
+      if (M && M.noraLock) failed.lock = M.noraLock(data.code === "payment_past_due" ? "payment_past_due" : "membership_required") || failed.lock;
       throw failed;
     }
     return data;
@@ -2116,12 +2121,15 @@ function ChatWidget(props) {
   // Who is writing, for the composer, and what they have, for Nora's voice (owner, 2026-11-10: an
   // account is free, and messaging coaches comes with it; voice is the membership's). `account`:
   // null while it is read, "in", "out" (/api/me said nobody is signed in), or "unknown" (it did not
-  // answer: the composer stays open, and a send that fails says so). `member`: the paid features,
-  // from /api/me/membership (the membership, an approved coach's or an admin's), null while read;
-  // `pastDue`: a renewal that failed, which is free until the card is updated.
+  // answer: the composer stays open, and a send that fails says so). `member`: assistant Nora now,
+  // from /api/me/membership's `nora` (the membership, an approved coach's or an admin's, coaching on
+  // Shape, or a free week with Nora; an answer without `nora` reads the paid features), null while
+  // read; `pastDue`: a renewal that failed, which is free until the card is updated; `noraWeek`:
+  // the free week with Nora (null | { startedAt, endsAt, active }).
   const [account, setAccount] = React.useState(null);
   const [member, setMember] = React.useState(null);
   const [pastDue, setPastDue] = React.useState(false);
+  const [noraWeek, setNoraWeek] = React.useState(null);
   React.useEffect(() => {
     let cancelled = false;
     shapeReadPortalMe()
@@ -2144,8 +2152,11 @@ function ChatWidget(props) {
             ? await window.ShapeMembership.read()
             : await fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
           if (!cancelled) {
-            setMember(!!(md && md.signedIn === true && (md.member === true || md.coach === true)));
+            const paid = !!(md && (md.member === true || md.coach === true || md.includedWithCoach === true));
+            setMember(!!(md && md.signedIn === true && (typeof md.nora === "boolean" ? md.nora : paid)));
             setPastDue(!!(md && md.signedIn === true && md.pastDue === true));
+            // A member's own Nora is no free week, whatever is recorded about one.
+            setNoraWeek(md && md.signedIn === true && !paid && md.noraPreview && typeof md.noraPreview === "object" ? md.noraPreview : null);
           }
         } catch { if (!cancelled) setMember(false); }
       })
@@ -2183,6 +2194,14 @@ function ChatWidget(props) {
   // left a visitor no sign that Nora talks at all. Shown only once the answer is no: signed out,
   // or signed in and the gate said no; never while a member's own check is still running.
   const voiceLocked = member === false && (voiceGate === false || (voiceGate === null && !myUserIdRef.current));
+  // The free week with Nora (owner, 2026-11-10): while it runs, the panel says how long is left; once
+  // it is over, the locked voice note says it ended, with Join. Whole days, at least one while on.
+  const noraWeekEnded = !!(noraWeek && noraWeek.active === false);
+  const noraWeekLeft = (() => {
+    if (!noraWeek || noraWeek.active !== true) return null;
+    const end = Date.parse(noraWeek.endsAt);
+    return Number.isFinite(end) ? Math.max(1, Math.ceil((end - Date.now()) / 86400000)) : null;
+  })();
   const canVoiceRef = React.useRef(false);
   React.useEffect(() => { canVoiceRef.current = canVoice; }, [canVoice]);
 
@@ -2983,19 +3002,25 @@ function ChatWidget(props) {
               <div style={{ padding: "8px 14px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {/* A free account and a visitor: voice is part of the membership, and Join (the
                     checkout for a signed-in account, Pricing for a visitor). A renewal that failed:
-                    the owner's past-due line and Update your card (the billing portal). */}
+                    the owner's past-due line and Update your card (the billing portal). A free week
+                    with Nora that has run out: that it ended, and Join. */}
                 {voiceLocked && (
-                  <div data-nora-voice-locked={pastDue ? "pastdue" : account === "in" ? "join" : "signin"} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
+                  <div data-nora-voice-locked={pastDue ? "pastdue" : account === "in" ? (noraWeekEnded ? "ended" : "join") : "signin"} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
                     <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none" }}>
                       <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
                       <path d="M1.5 6.5a4.5 4.5 0 0 0 9 0M6 11v2.25" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                     </svg>
-                    <span>{pastDue ? CW_PAST_DUE_LINE : "Voice chat with Nora unlocks with membership."}</span>
+                    <span>{pastDue ? CW_PAST_DUE_LINE : noraWeekEnded ? CW_NORA_ENDED_LINE : "Voice chat with Nora unlocks with membership."}</span>
                     {pastDue
                       ? <button type="button" onClick={() => cwMembershipDoor(true)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}>Update your card &rarr;</button>
                       : account === "in"
                         ? <button type="button" onClick={() => cwMembershipDoor(false)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}>Join &rarr;</button>
                         : <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>}
+                  </div>
+                )}
+                {member === true && noraWeekLeft != null && (
+                  <div data-nora-week-left style={{ flex: "1 1 100%", fontFamily: sans, fontSize: 11.5, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
+                    {noraWeekLeft} {noraWeekLeft === 1 ? "day" : "days"} left with Nora, your free week as your assistant.
                   </div>
                 )}
                 {!noraScreenOff && typeof window !== "undefined" && window.__shapeNoraPageName && (

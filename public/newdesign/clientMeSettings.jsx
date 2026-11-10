@@ -125,12 +125,24 @@ async function openShapeBilling() {
 }
 
 // The membership's row (owner, 2026-11-10): an account is free, the membership is the paid
-// features, and a renewal that failed is past due — free until the card is updated, and said here
-// with the button that fixes it. `sub` is /api/stripe/subscription's answer: undefined while it is
-// read, "unread" when it did not answer (never shown as "Free" to someone who may be paying), null
-// for no membership, else { active, pastDue, status, priceCents, renewsAt }.
-function planMemberRow(sub, signedIn, money, renews) {
+// features ($5 a month or $48 a year), a renewal that failed is past due — free until the card is
+// updated, and said here with the button that fixes it — and an account that pays a coach on Shape
+// has the membership included for as long as it does. `sub` is /api/stripe/subscription's answer:
+// undefined while it is read, "unread" when it did not answer (never shown as "Free" to someone
+// who may be paying), null for no plan of their own, else { active, pastDue, status, priceCents,
+// interval, renewsAt }. `acct` is /api/me/membership's (its `includedWithCoach`). `money(cents)`
+// prints the plan's price with its interval.
+function planMemberRow(sub, signedIn, money, renews, acct) {
   if (!signedIn) return { value: "$5 / month — example", action: "JOIN", onAction: () => { window.location.href = "/pricing"; } };
+  const viaCoach = !!(acct && acct.signedIn === true && acct.includedWithCoach === true);
+  const own = !!sub && typeof sub === "object";
+  if (viaCoach) {
+    if (own) {
+      return { value: "Included with your coaching", viaCoach: true, action: "MANAGE", onAction: openShapeBilling,
+        desc: "Your coaching includes membership; you can cancel your own plan." };
+    }
+    return { value: "Included with your coaching", viaCoach: true, desc: "Membership is included while you’re coached on Shape." };
+  }
   if (sub === undefined) return { value: "Checking…" };
   if (sub === "unread") return { value: "Couldn't check. Reload to try again." };
   if (sub && sub.pastDue === true) {
@@ -138,18 +150,24 @@ function planMemberRow(sub, signedIn, money, renews) {
       desc: window.ShapeMembership ? window.ShapeMembership.pastDueLine : "Your payment didn't go through. Update your card to get Shape Radio and Nora back." };
   }
   if (sub) return { value: money(sub.priceCents) + (renews ? " · renews " + renews : ""), action: "MANAGE", onAction: openShapeBilling };
+  // Free: JOIN opens the membership page, which offers the monthly plan and, where it is set up, the yearly one.
   return { value: "Free", action: "JOIN",
-    onAction: async () => {
-      if (!window.ShapeMembership) { window.location.href = "/pricing"; return; }
-      const r = await window.ShapeMembership.start("/newdesign/ClientApp.html#settings");
-      if (r && r.code === "already_member") { window.location.reload(); return; }
-      if (r && r.error) window.alert(r.error);
-    },
-    desc: "Your account is free. The membership adds Nora as your assistant, Shape Radio, the points Store and a place on the leaderboards for $5 a month." };
+    onAction: () => { window.location.href = "/newdesign/ClientApp.html#membership"; },
+    desc: "Your account is free. The membership adds Nora as your assistant, Shape Radio, the points Store and the full leaderboard with your exact rank." };
+}
+// The plan's interval: the subscription's own when it says, else the yearly plan's price matched.
+function planInterval(sub, plans) {
+  if (!sub || typeof sub !== "object") return "month";
+  const i = String(sub.interval || "").toLowerCase();
+  if (i === "year" || i === "annual" || i === "yearly") return "year";
+  if (i === "month" || i === "monthly") return "month";
+  return plans && plans.annual && plans.annual.priceCents === sub.priceCents && (!plans.monthly || plans.monthly.priceCents !== sub.priceCents) ? "year" : "month";
 }
 
 function PlanBillingCard({ signedIn }) {
   const [sub, setSub] = React.useState(undefined);  // see planMemberRow
+  const [acct, setAcct] = React.useState(null);      // /api/me/membership, for includedWithCoach
+  const [plans, setPlans] = React.useState(null);    // /api/membership/plans, for the interval
   const [coaches, setCoaches] = React.useState(undefined); // undefined=loading, array when known
   const [pm, setPm] = React.useState(undefined);    // undefined=loading, {hasMethod,…}
   React.useEffect(() => {
@@ -158,12 +176,16 @@ function PlanBillingCard({ signedIn }) {
     j("/api/stripe/subscription").then(d => setSub(!d || typeof d.active !== "boolean" ? "unread" : (d.active || d.pastDue === true) ? d : null));
     j("/api/client/team").then(d => setCoaches(d && Array.isArray(d.coaches) ? d.coaches : []));
     j("/api/stripe/payment-method").then(d => setPm(d || { hasMethod: false }));
+    const M = window.ShapeMembership;
+    Promise.resolve(M && M.read ? M.read() : j("/api/me/membership")).then((d) => setAcct(d || null)).catch(() => {});
+    if (M && M.plans) M.plans().then((p) => setPlans(p || null)).catch(() => {});
   }, [signedIn]);
-  const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) + " / month" : "$5 / month");
+  const interval = planInterval(sub, plans);
+  const money = (c) => (typeof c === "number" ? "$" + (c % 100 ? (c / 100).toFixed(2) : (c / 100)) : "$5") + (interval === "year" ? " / year" : " / month");
   const date = (s) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : null; } catch (e) { return null; } };
   const hasSub = !!sub && typeof sub === "object";
   const renews = hasSub && !sub.pastDue && date(sub.renewsAt);
-  const member = planMemberRow(sub, signedIn, money, renews);
+  const member = planMemberRow(sub, signedIn, money, renews, acct);
   const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : "Card");
   const pmValue = (pm && pm.hasMethod) ? (cap(pm.brand) + " •••• " + (pm.last4 || "----"))
     : (hasSub || (pm && pm.hasMethod === false && signedIn) ? "Manage in billing portal" : "—");

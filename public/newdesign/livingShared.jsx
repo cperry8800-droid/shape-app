@@ -1058,6 +1058,8 @@ function LvCoachBlocks({ d, light, owner, view, onReviews }) {
   const joinPrompt = (
     <React.Fragment>
       {provId ? <LvCodeBox ink={ink} /> : null}
+      {/* Owner, 2026-11-10: paying a coach on Shape includes the membership while it pays. */}
+      {provId ? <div data-coach-includes-membership="" style={{ marginTop: 10, fontFamily: lvSans, fontSize: 12, lineHeight: 1.5, color: hexA(ink, 0.7) }}>Membership is included while you’re coached on Shape.</div> : null}
       {!needsMember && memberReturn === "joined" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your Shape membership is active. You can subscribe to {first} now.</div> : null}
       {!needsMember && memberReturn === "pending" ? <div role="status" style={{ marginTop: 11, fontFamily: lvSans, fontSize: 12.5, color: hexA(ink, 0.85) }}>Your membership payment is still clearing. Try Subscribe again in a minute.</div> : null}
       {needsAccount ? (

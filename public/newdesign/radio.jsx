@@ -410,20 +410,26 @@ function RadioNora() {
 // while the answer is read, or if it never comes: a member is never pitched what they pay for.
 function RadioJoin() {
   const m = window.useShapeMembership ? window.useShapeMembership() : null;
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState("");
   const kind = m && window.ShapeMembership ? window.ShapeMembership.lockKind(m) : null;
   if (!kind) return null;
-  const go = async () => {
+  const M = window.ShapeMembership;
+  const go = async (plan) => {
     if (busy) return;
     setBusy(true); setErr("");
-    const M = window.ShapeMembership;
-    const r = kind === "pastdue" ? await M.portal("/newdesign/Radio.html") : await M.start("/newdesign/Radio.html");
-    if (r && r.code === "already_member") { window.location.reload(); return; }
+    const r = kind === "pastdue" ? await M.portal("/newdesign/Radio.html") : await M.start("/newdesign/Radio.html", plan ? { plan } : undefined);
+    if (r && r.code === "already_member" && !r.includedWithCoach) { window.location.reload(); return; }
     if (r && r.error) setErr(r.error);
     if (r) setBusy(false);
   };
+  // Monthly, and yearly where it is set up (/api/membership/plans), at their real prices.
+  const money = (c) => (M && M.money ? M.money(c) : "$" + c / 100);
+  const annual = plans && plans.annual;
+  const saving = annual && M && M.annualSaving ? M.annualSaving(plans) : null;
   const cta = { display: "inline-flex", alignItems: "center", height: 46, padding: "0 24px", marginTop: 26, border: 0, background: RD_TEAL, color: "#04110f", fontFamily: RD_SANS, fontWeight: 700, fontSize: 14.5, textDecoration: "none", cursor: busy ? "default" : "pointer", opacity: busy ? 0.65 : 1, clipPath: "polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%)" };
+  const alt = { ...cta, marginLeft: 10, background: "transparent", color: RD_CREAM, border: "1px solid rgba(238,243,240,0.3)" };
   return (
     <section data-radio-join={kind} style={{ padding: "0 24px 110px" }}>
       <RdReveal>
@@ -434,11 +440,12 @@ function RadioJoin() {
           <p style={{ fontFamily: RD_SANS, fontSize: 15, color: "rgba(238,243,240,0.7)", margin: "16px auto 0", maxWidth: 480, lineHeight: 1.6 }}>
             {kind === "pastdue"
               ? "Update your card to get Shape Radio and Nora back. Your account stays as it is."
-              : "One live channel, no ads, and the coach playlists that ride on your own sessions. $5 a month, cancel any time. Your Shape account stays free without it."}
+              : "One live channel, no ads, and the coach playlists that ride on your own sessions. " + (annual ? money(plans.monthly.priceCents) + " a month or " + money(annual.priceCents) + " a year" : "$5 a month") + ", cancel any time. Your Shape account stays free without it, and membership is included while you’re coached on Shape."}
           </p>
           {kind === "signin"
             ? <a href="/newdesign/Landing.html" style={cta}>Join Shape</a>
-            : <button type="button" onClick={go} disabled={busy} style={cta}>{busy ? (kind === "pastdue" ? "Opening billing…" : "Opening checkout…") : kind === "pastdue" ? "Update your card" : "Join · $5/month"}</button>}
+            : <button type="button" onClick={() => go(annual && kind !== "pastdue" ? "monthly" : null)} disabled={busy} style={cta}>{busy ? (kind === "pastdue" ? "Opening billing…" : "Opening checkout…") : kind === "pastdue" ? "Update your card" : annual ? "Join · " + money(plans.monthly.priceCents) + "/mo" : "Join · $5/month"}</button>}
+          {kind === "join" && annual && !busy ? <button type="button" data-plan="annual" onClick={() => go("annual")} style={alt}>{money(annual.priceCents) + "/yr" + (saving ? " · save " + saving + "%" : "")}</button> : null}
           {err ? <p role="alert" style={{ fontFamily: RD_SANS, fontSize: 13.5, color: RD_HOT, margin: "12px 0 0" }}>{err}</p> : null}
         </div>
       </RdReveal>

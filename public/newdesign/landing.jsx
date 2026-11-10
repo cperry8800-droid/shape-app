@@ -8,14 +8,16 @@ const ROLES = [
     // ⚠ A FREE ACCOUNT, AND A MEMBERSHIP FOR THE PAID FEATURES (owner, 2026-11-10). The card
     // sold $5 as the whole app (owner, 2026-10-09: the app's features, not a coach fee); now
     // the account is free and keeps the app and every coach, and $5 a month adds assistant
-    // Nora, Shape Radio, the points Store and a place on the leaderboards. Coaches still come
-    // last, as the option they are. "Member", not "Client": someone without a coach is not
+    // Nora, Shape Radio, the points Store, and the full leaderboard with your exact rank ($48 a
+    // year on the yearly plan). A free account's first three workouts unlock a free week of
+    // Nora, and the membership is included while a member is coached on Shape. Coaches still
+    // come last, as the option they are. "Member", not "Client": someone without a coach is not
     // anyone's client, the reason the nav tab is Members (2026-09-14).
     title: "Member",
-    blurb: "A free Shape account trains, logs meals, cooks and hires a coach whenever you want one. $5 a month adds Nora as your assistant, Shape Radio, the points Store and a place on the leaderboards.",
+    blurb: "A free Shape account trains, logs meals, cooks and hires a coach whenever you want one. $5 a month adds Nora as your assistant, Shape Radio, the points Store, and the full leaderboard and your exact rank. Try Nora free for a week after your first three workouts — no card.",
     cta: "Get started",
     href: "SignupClient.html",
-    meta: "Free account · $5 / month membership",
+    meta: "Free account · $5 / month or $48 / year membership",
     perks: ["Workouts + meal logging, free", "Shape Kitchen recipes + guided cooking, free", "Every coach, when you want one, free", "Members: Nora as your assistant", "Members: Shape Radio, ad-free", "Members: spend Score points in the Store"],
   },
   {

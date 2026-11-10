@@ -907,7 +907,7 @@ test('website: the client app asks first, and a free account draws every route (
   // Codex on #2353: each pending-membership try is called off after 8 seconds.
   assert.match(dash, /const late = setTimeout\(\(\) => \{ try \{ if \(ctl\) ctl\.abort\(\); \} catch \(e\) \{\} \}, 8000\);\n\s+fetch\("\/api\/me\/membership", \{ credentials: "same-origin", cache: "no-store", signal: ctl \? ctl\.signal : undefined \}\)/);
   assert.match(dash, /\.then\(\(d\) => \{\n\s+clearTimeout\(late\);/);
-  assert.match(dash, /await M\.start\("\/newdesign\/ClientApp\.html#today"\)/);
+  assert.match(dash, /await M\.start\("\/newdesign\/ClientApp\.html#today", plan \? \{ plan \} : undefined\)/);
   assert.match(dash, /Object\.assign\(window, \{ ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, ClientMembershipNotice,/);
   const tour = read('public/newdesign/dashTour.js');
   assert.doesNotMatch(tour, /m\.member === false/, 'the first-run tour skips a free account again');
@@ -916,8 +916,10 @@ test('website: the client app asks first, and a free account draws every route (
 
 test('website: every membership button goes through one helper that posts returnTo, and the coach profile branches on the code', () => {
   const shell = read('public/newdesign/pageShell.jsx');
-  assert.match(shell, /fetch\("\/api\/stripe\/platform-checkout", \{\n\s+method: "POST", credentials: "same-origin", headers: \{ "Content-Type": "application\/json" \},\n\s+body: JSON\.stringify\(\{ returnTo: back, cancelPath: cancelTo \|\| back \}\),/);
-  assert.match(shell, /ShapeMembership: \{ start: shapeStartMembership, here: shapeMembershipHere, portal: shapeOpenBillingPortal, read: shapeReadMembership, lockKind: shapeLockKind, pastDueLine: SHAPE_PAST_DUE_LINE \},/);
+  // The plan rides along when one was chosen (owner, 2026-11-10: $5 a month or $48 a year); none is the server's monthly.
+  assert.match(shell, /fetch\("\/api\/stripe\/platform-checkout", \{\n\s+method: "POST", credentials: "same-origin", headers: \{ "Content-Type": "application\/json" \},\n\s+body: JSON\.stringify\(\{ returnTo: back, cancelPath: o\.cancelTo \|\| back, \.\.\.\(plan \? \{ plan \} : \{\}\) \}\),/);
+  assert.match(shell, /start: shapeStartMembership, here: shapeMembershipHere, portal: shapeOpenBillingPortal, read: shapeReadMembership, peek: shapeMembershipPeek,/);
+  assert.match(shell, /lockKind: shapeLockKind, noraLock: shapeNoraLock, hasPaid: shapeHasPaid, hasNora: shapeHasNora, noraDaysLeft: shapeNoraDaysLeft,/);
   // A past-due account's checkout answers 409 payment_past_due: the billing portal, not a second membership.
   assert.match(shell, /if \(res\.status === 409 && j && j\.code === "payment_past_due"\) return shapeOpenBillingPortal\(back\);/);
   assert.match(shell, /q\.delete\("member"\);/, 'a second trip does not stack member= parameters');
@@ -926,7 +928,7 @@ test('website: every membership button goes through one helper that posts return
   assert.match(profile, /if \(res\.status === 402 && j\.code === "membership_required" && window\.ShapeMembership\)/);
   assert.doesNotMatch(profile, /j\.error === "membership_required"/, 'the old branch compared the wrong field and never ran');
   assert.equal((profile.match(/\{joinPrompt\}/g) ?? []).length, 2, 'under both Subscribe buttons');
-  assert.match(read('public/newdesign/pricing.jsx'), /window\.ShapeMembership\.start\(home, "\/newdesign\/Pricing\.html"\)/);
+  assert.match(read('public/newdesign/pricing.jsx'), /window\.ShapeMembership\.start\(home, \{ plan: plan \|\| null, cancelTo: "\/newdesign\/Pricing\.html" \}\)/);
 });
 
 test('the server-action checkouts (/subscribe and /purchase) take the detour, outside any try', () => {

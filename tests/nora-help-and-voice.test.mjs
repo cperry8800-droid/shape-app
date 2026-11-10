@@ -79,7 +79,8 @@ test('website: the voice lock reads /api/me/membership — member and pastDue �
   const check = WEB.slice(at, WEB.indexOf('const [voiceGate, setVoiceGate]', at));
   assert.match(check, /window\.ShapeMembership\.read\(\)/, 'the page\'s one membership answer');
   assert.match(check, /fetch\("\/api\/me\/membership", \{ credentials: "same-origin", cache: "no-store" \}\)/, 'and the route itself without the shell');
-  assert.match(check, /setMember\(!!\(md && md\.signedIn === true && \(md\.member === true \|\| md\.coach === true\)\)\);/);
+  // Voice is assistant Nora's: `nora` (owner, 2026-11-10: the free week opens her too), else the paid features.
+  assert.match(check, /setMember\(!!\(md && md\.signedIn === true && \(typeof md\.nora === "boolean" \? md\.nora : paid\)\)\);/);
   assert.match(check, /setPastDue\(!!\(md && md\.signedIn === true && md\.pastDue === true\)\);/);
   assert.doesNotMatch(check, /\/api\/stripe\/subscription/, 'the voice lock reads the subscription again');
   // The composer: messaging comes with a free account, so only someone signed out is asked in.
@@ -135,7 +136,7 @@ test('website: a non-member is told in Nora\'s chat that voice unlocks with memb
   // A free account joins from the note; a past-due one is told so, with Update your card
   // (owner, 2026-11-10).
   assert.match(note[0], /onClick=\{\(\) => cwMembershipDoor\(false\)\}[^>]*>Join &rarr;/);
-  assert.match(note[0], /\{pastDue \? CW_PAST_DUE_LINE : "Voice chat with Nora unlocks with membership\."\}/);
+  assert.match(note[0], /\{pastDue \? CW_PAST_DUE_LINE : noraWeekEnded \? CW_NORA_ENDED_LINE : "Voice chat with Nora unlocks with membership\."\}/);
   assert.match(note[0], /onClick=\{\(\) => cwMembershipDoor\(true\)\}[^>]*>Update your card &rarr;/);
   assert.match(WEB, /const CW_PAST_DUE_LINE = "Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\.";/);
   assert.doesNotMatch(note[0], /onClick=\{(startTalk|toggleVoice)\}/, 'the note starts nothing: voice stays behind the gate');

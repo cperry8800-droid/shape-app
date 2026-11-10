@@ -324,45 +324,70 @@ test('website: every state is a sentence; a hidden member is told by whom', asyn
   await w.unmount();
 });
 
-test('website: a free account sees the board and is not on it — the locked line says why, with Join or Update your card', async () => {
-  // Owner, 2026-11-10: viewing is free, being ranked is the membership's. The route answers a
-  // non-participant with participant: false, hidden 'free_account' | 'past_due' and me: null.
+test('website: a free account is ranked on the top 10; outside it, its points and the lock line — Join, or Update your card', async () => {
+  // Owner, 2026-11-10 ("like Strava"): everyone is ranked; the full board, an exact rank and rank
+  // history are the membership's. The route sends fullBoard: false with `locked`, the top 10 only,
+  // no movement, and `me` with a null rank outside the top 10 (me.inTop false).
   const calls = [];
   window.ShapeMembership = {
     start: async () => { calls.push('start'); return null; },
     portal: async () => { calls.push('portal'); return null; },
   };
+  const top10 = (extraMe, locked) => {
+    const d = memberBoard({ me: false, extra: { fullBoard: false, locked } });
+    d.entries = d.entries.map((e) => ({ ...e, moved: null, prevRank: null }));
+    d.me = extraMe;
+    return d;
+  };
   try {
-    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ me: false, hidden: 'free_account', extra: { participant: false } }) }) };
+    routes = { '/api/leaderboard': () => ({ status: 200, body: top10({ userId: 'u99', name: 'Sam Q.', points: 120, rank: null, inTop: false, isMe: true }, 'free_account') }) };
     const v = await mount(React.createElement(MemberLeaderboard));
-    assert.ok(v.host.querySelector('.lb-board'), 'the board itself is shown');
+    assert.ok(v.host.querySelector('.lb-board'), 'the top 10 itself is shown');
     assert.match(v.text(), /Priya S\./);
-    const line = v.host.querySelector('[data-lb-not-ranked="join"]');
-    assert.ok(line, 'no locked line where the place would be');
-    assert.match(line.textContent, /Members are ranked on the leaderboards\. Join to take part\./);
-    assert.doesNotMatch(v.text(), /You’re not ranked for/, 'a free account is told to log a workout to place');
-    assert.doesNotMatch(v.text(), /Show me on leaderboards/, 'a switch for a board it is not on');
-    await click(byText(line, 'button', /^Join$/));
+    const out = v.host.querySelector('[data-lb-outside]');
+    assert.ok(out, 'no place card for a caller outside the top 10');
+    assert.match(out.textContent, /120/, 'their points');
+    assert.match(out.textContent, /Outside the top 10/);
+    assert.match(out.textContent, /See your exact rank and the full board with membership\./);
+    assert.ok(!v.host.querySelector('.lb-mv--up, .lb-mv--down'), 'movement drawn on the top-10 board');
+    assert.ok(!/places moved since a week ago/.test(v.text()), 'movement explained on a board that sends none');
+    assert.match(v.text(), /Show me on leaderboards/, 'a free account is ranked, so its switches apply');
+    assert.doesNotMatch(v.text(), /Members are ranked on the leaderboards/);
+    await click(byText(out, 'button', /^Join$/));
     assert.deepEqual(calls, ['start']);
     await v.unmount();
 
-    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ me: false, hidden: 'past_due', extra: { participant: false } }) }) };
+    routes = { '/api/leaderboard': () => ({ status: 200, body: top10({ userId: 'u99', name: 'Sam Q.', points: 120, rank: null, inTop: false, isMe: true }, 'past_due') }) };
     const w = await mount(React.createElement(MemberLeaderboard));
-    const past = w.host.querySelector('[data-lb-not-ranked="pastdue"]');
+    const past = w.host.querySelector('[data-lb-locked="pastdue"]');
     assert.ok(past);
     assert.match(past.textContent, /Your payment didn’t go through\. Update your card to get Shape Radio and Nora back\./);
     await click(byText(past, 'button', /Update your card/));
     assert.deepEqual(calls, ['start', 'portal']);
     await w.unmount();
 
-    // A member on the board keeps their place line.
-    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ extra: { participant: true } }) }) };
+    // In the top 10: their rank and the gap, and the lock line for the rest of the board under it.
+    const inTop = top10(null, 'free_account');
+    inTop.entries[3] = { ...inTop.entries[3], isMe: true, streak: 2, trainingDays: 1, mealDays: 2 };
+    inTop.me = { ...inTop.entries[3], inTop: true };
+    routes = { '/api/leaderboard': () => ({ status: 200, body: inTop }) };
+    const t = await mount(React.createElement(MemberLeaderboard));
+    assert.ok(!t.host.querySelector('[data-lb-outside]'));
+    assert.match(t.text(), /32 points to pass Aisha K\./);
+    assert.match(t.host.querySelector('[data-lb-locked="join"]').textContent, /See the full board and your rank history with membership\./);
+    await t.unmount();
+
+    // A member's full board: no lock anywhere.
+    routes = { '/api/leaderboard': () => ({ status: 200, body: memberBoard({ extra: { fullBoard: true, locked: null } }) }) };
     const m = await mount(React.createElement(MemberLeaderboard));
-    assert.ok(!m.host.querySelector('[data-lb-not-ranked]'));
+    assert.ok(!m.host.querySelector('[data-lb-locked], [data-lb-outside]'));
     assert.match(m.text(), /81 points to pass Devon R\./);
+    assert.match(m.text(), /places moved since a week ago/);
     await m.unmount();
-    assert.equal(window.lbNotRanked({ participant: false }), 'join');
-    assert.equal(window.lbNotRanked({ hidden: 'private' }), null, 'a private profile is hidden, not unranked');
+    assert.equal(window.lbBoardLock({ fullBoard: false, locked: 'free_account' }), 'join');
+    assert.equal(window.lbBoardLock({ fullBoard: false, locked: 'past_due' }), 'pastdue');
+    assert.equal(window.lbBoardLock({ fullBoard: true }), null);
+    assert.equal(window.lbBoardLock({}), null, 'an older payload is the full board');
   } finally {
     delete window.ShapeMembership;
   }

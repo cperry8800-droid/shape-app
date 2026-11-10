@@ -255,10 +255,11 @@ function StoreGrid({ locked = false, signedIn = false, pastDue = false, balance 
   // The way in from a locked Store (owner, 2026-11-10: spending points is part of the membership;
   // an account is free and still earns them). A free account: the membership checkout, back here.
   // A renewal that failed: Shape's billing portal. Signed out: Pricing.
-  const storeJoin = async () => {
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
+  const storeJoin = async (plan) => {
     const M = window.ShapeMembership;
     if (!signedIn || !M) { window.location.href = "Pricing.html"; return; }
-    const r = pastDue ? await M.portal("/newdesign/Store.html") : await M.start("/newdesign/Store.html");
+    const r = pastDue ? await M.portal("/newdesign/Store.html") : await M.start("/newdesign/Store.html", plan === "annual" || plan === "monthly" ? { plan } : undefined);
     if (r && r.code === "already_member") { window.location.reload(); return; }
     if (r && r.error) setNotice(r.error);
   };
@@ -472,7 +473,12 @@ function StoreGrid({ locked = false, signedIn = false, pastDue = false, balance 
                 <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>{pastDue ? STORE_PAST_DUE_LINE + " Your points are safe, and you keep earning them." : "You still earn points. Become a member to spend them on gear, training credits & rewards."}</div>
               </div>
               {signedIn
-                ? <button type="button" onClick={storeJoin} style={{ flex: "none", border: 0, cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px" }}>{pastDue ? "Update your card →" : "Join · $5/mo →"}</button>
+                ? <React.Fragment>
+                    <button type="button" onClick={() => storeJoin(plans && plans.annual ? "monthly" : null)} style={{ flex: "none", border: 0, cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px" }}>{pastDue ? "Update your card →" : "Join · " + (plans && window.ShapeMembership ? window.ShapeMembership.money(plans.monthly.priceCents) : "$5") + "/mo →"}</button>
+                    {!pastDue && plans && plans.annual && window.ShapeMembership
+                      ? <button type="button" data-plan="annual" onClick={() => storeJoin("annual")} style={{ flex: "none", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: INK, background: "transparent", border: "1px solid rgba(242,237,228,0.3)", borderRadius: 999, padding: "10px 18px" }}>{window.ShapeMembership.money(plans.annual.priceCents) + "/yr" + (window.ShapeMembership.annualSaving(plans) ? " · save " + window.ShapeMembership.annualSaving(plans) + "%" : "")}</button>
+                      : null}
+                  </React.Fragment>
                 : <a href="Pricing.html" style={{ flex: "none", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px", textDecoration: "none" }}>Join Shape · $5/mo →</a>}
             </div>
           )}
@@ -860,7 +866,7 @@ function StorePage() {
           ? await window.ShapeMembership.read()
           : await fetch("/api/me/membership", { credentials: "include", cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
         const unread = !d || d.unknown === true || d.signedIn !== true;
-        const allowed = unread || d.member === true || d.coach === true;
+        const allowed = unread || d.member === true || d.coach === true || d.includedWithCoach === true;
         if (!cancelled) setGate({ loading: false, allowed, signedIn: true, pastDue: !allowed && !!(d && d.pastDue === true) });
       } catch (_) {
         if (!cancelled) setGate({ loading: false, allowed: false, signedIn: true });
