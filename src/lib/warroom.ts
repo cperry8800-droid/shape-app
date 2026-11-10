@@ -624,6 +624,16 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App launch: the invite opens on its pitch, at once (#2666). No migration',
+      items: [
+        { label: 'Owner, 2026-11-09, over the signed-out invite (paywall → Preview the app first): "also make sure this is wired properly. and remove that one line" (To: You · Invitation)', status: 'done' },
+        { label: '#2666 the address line gone from BSSplash\'s invite edition, and launch.toYou from all 13 onboarding catalogs', status: 'done' },
+        { label: '#2666 wiring: a visitor with no session waited 3.3s on "Putting today together…" (three digest retries meant for a restoring member); the shell now passes signedOut={previewMode && authReady && !authUserId} and the pitch shows in 5 ms. Step inside, a tap anywhere and Enter each enter the app; a preview writes no shape.dailySeen. tests/launch-invite.test.mjs holds it', status: 'done' },
+        { label: 'Review: Codex clean on 57e4b4e; CI green on 57e4b4e (shard 4 on its one re-run, after midnight UTC: the flake below)', status: 'done' },
+        { label: 'tests/clients-peek-5a.test.mjs "Up next finds its client by id" fails from 23:30 to midnight on the runner\'s clock (UTC): its row is Date.now() + 30 min and dashNextToday keeps only today\'s. Red on main too. Fix: a fixed now for the row and the call', status: 'pending' },
+      ],
+    },
+    {
       section: 'Website: zoomed-out moments, a solid Kitchen bar, smaller headings, no app page figures, every coach goal (#2665). No migration',
       items: [
         { label: 'Owner, 2026-11-09: "show more zoomed out screenshots here" (then "Top three-quarters"), "nav bar on kitchen page needs to not look like this", "looks faded", "reduce the size of the heading on community, pricing, rewards pages", "also remove this on app page", and of the Coaches matcher "make sure all goals are here and this actually works"', status: 'done' },
