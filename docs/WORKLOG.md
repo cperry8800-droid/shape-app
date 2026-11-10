@@ -72,8 +72,8 @@ or past 12 KB.
     `scripts/build-m.sh` builds it at deploy, and CI's Mobile job only checks it builds.
   - Parse-check a JSX file:
     `node -e "require('@babel/parser').parse(require('fs').readFileSync('<file>','utf8'),{sourceType:'module',plugins:['jsx']})"`
-  - Native builds get `VITE_API_BASE_URL` from `android-build.yml` and `codemagic.yaml`; the
-    hosted `/m/` calls its own origin.
+  - Native builds get `VITE_API_BASE_URL` (`android-build.yml`, `codemagic.yaml`); `/m/` calls
+    its own origin.
   - Raise `mobile-app/package.json`'s version per store release (CI sets build numbers).
     `src/lib/app-version.mjs` holds each store's minimum for `BSUpdateGate.jsx`: raise it
     only in the PR that breaks older builds, once that store has the new version live.
@@ -88,9 +88,8 @@ or past 12 KB.
   kitchen is `studio` kind `kitchen`; samples in `trainerDemo` and the like). `coachWork`,
   `studioKit`, `planPreview`, `planOutline`, `coachPronoun` and the demos live in
   `public/newdesign/` (the website uses them); `mobile-app/src/services/` only re-exports.
-  Night-before prep: one rule in `services/prepAhead.mjs` for Eat and the reminder cron; a
-  member's own day plan in `services/mealDays.mjs` (written account-bound and compare-and-set);
-  the plan sheet and morning swap in `BSPlanDay.jsx`.
+  Night-before prep: `services/prepAhead.mjs` (Eat and the cron), `services/mealDays.mjs`
+  (account-bound, compare-and-set), `BSPlanDay.jsx`.
 - ⚠ **Window globals** (`Object.assign(window, …)`): read one before its module defines it
   and React throws #130. `iosAppBroadsheetMain.jsx` loads feature modules before role
   modules, and `loadProsBundle` the whole client bundle first.
@@ -110,9 +109,11 @@ or past 12 KB.
 - **Backend:** a new notification kind needs a switch in `PREFERENCE_OF`
   (`notificationSurfaces.mjs`) and on both settings screens; quiet hours hold a notice for
   `/api/cron/push-held`; a writer stores `data.copy` for `noticeCopy.mjs`. Reviews' words
-  go to members only (`/api/coaches/reviews`). Also: `src/lib/calendar-activities.ts`,
+  go to signed-in accounts (`/api/coaches/reviews`). Also: `src/lib/calendar-activities.ts`,
   `api/nutrition/meal-note` (private `meal-notes` bucket), `api/nutrition/voice` (Whisper),
   and the War Room board (`/warroom`). Nora's account setup: `src/lib/ai/accountSetup.mjs`.
+- **Free account, paid membership:** routes take `requireAccount` (free), `requireMembership`
+  (paid) or `requireNora` (paid or the free week); past due is free (`paidRefusal`).
 - **Own radio station:** `services/station`, the engine's `NORA_MODE=station`, `radio/rotation.mjs`.
 - **Time zones:** one per account (`profiles.timezone`, `/api/me/timezone`); print through `shapeZone.mjs`.
 - ⚠ **A screen holding a copy of a `user_goals` doc** reads it again when something else writes
@@ -144,12 +145,11 @@ Known gaps live in the War Room (`src/lib/warroom.ts`), as each section's pendin
 - Decide the bring-your-clients rules (the 15% cases, private profiles, the app's checkout).
 - Decide whether a coach checkout refuses payment, instead of a destination charge on Shape's
   account, when a Connect variable is missing (`directChargesReady`, #2555).
-- Decide #2566's calls (its War Room section): Nora's account setup as one database transaction,
-  and her confirm cards in the member's language.
-- Decide night-before prep's open calls (#2563's War Room section): a second push for a meal
-  planned after tonight's reminder, and a planned-day total on Eat beside Fuel left.
+- Decide #2566's calls (its War Room section).
+- Decide night-before prep's open calls (#2563's War Room section).
 - A trademark search on "Club Shape", its domain and handles, before the rename ships (#2568's War Room).
 - Set up the radio station (`services/station`).
+- Set `STRIPE_PLATFORM_ANNUAL_PRICE_ID` ($48/yr) in Vercel Production.
 - Add the `localhost` hostname to the Turnstile widget.
 - A native speaker reads the PAR-Q, Nora hint, sample coach and Friends translations
   (Hausa and Pidgin first).
