@@ -645,8 +645,10 @@
     if (disciplineForRole(role) !== "general") {
       var prev = r.prevComplete;
       if (!(drop > 0) || prev == null || !(prev >= THRESHOLDS.SCORE_DROP_MIN_PREV)) return null;
+      // The line is the exact share, never the rounded one (Codex): 41 to 33 is 19.5%, under 20, though
+      // it prints as 20. Points are whole, so the cross-multiplied test has no float in it.
+      if (drop * 100 < THRESHOLDS.SCORE_DROP_PCT * prev) return null;
       var pct = Math.round((drop / prev) * 100);
-      if (pct < THRESHOLDS.SCORE_DROP_PCT) return null;
       return { key: "score_drop", label: "Score \u2193" + pct + "%", reason: "Shape Score down " + drop + " pts (" + pct + "%) week-over-week", figures: { drop: drop, pct: pct }, sig: sig };
     }
     if (drop >= THRESHOLDS.SCORE_DROP_PTS) {

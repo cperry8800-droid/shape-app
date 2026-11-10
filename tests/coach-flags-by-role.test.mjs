@@ -89,6 +89,9 @@ test('a coach\'s score drop is 20% of the week before, over a week of 30 points 
   assert.equal(x.flags[0].label, 'Score ↓20%');
   assert.match(x.flags[0].reason, /down 14 pts \(20%\)/);
   assert.deepEqual(keys(row('nutritionist', rec(score(25, 10)))), [], 'under the 30-point floor nothing speaks');
+  // The line is the exact share: 41 to 33 is 19.5%, which would round to 20; 40 to 32 is 20% on the line.
+  assert.deepEqual(keys(row('trainer', rec(score(41, 33)))), [], '19.5% is under the line');
+  assert.deepEqual(keys(row('trainer', rec(score(40, 32)))), ['score_drop'], 'exactly 20% is on it');
   // Tunable, refused outside its range.
   assert.deepEqual(keys(row('trainer', rec(score(70, 60)), S.resolveThresholds({ SCORE_DROP_PCT: 10 }, 'trainer').thresholds)), ['score_drop']);
   assert.deepEqual(S.resolveThresholds({ SCORE_DROP_PCT: 2 }).refused.map((r) => r.why), ['out of range']);
