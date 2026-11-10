@@ -1267,6 +1267,13 @@ function useRememberedChoices(live) {
   // One `useSignedIn` per page, not one per read: it takes a getUser() round trip and
   // an auth subscription, and calling it twice in the same expression would take two.
   const accountId = useSignedIn();
+  return useRememberedChoicesFor(live, accountId);
+}
+// The same store for a page that has already resolved the account with its own `useSignedIn`
+// (coach Settings): a second call would be a second getUser() round trip and auth subscription,
+// and if only that read failed the page's choices would quietly stop being remembered (Codex,
+// #2685). `accountId` is `useSignedIn`'s answer as it stands: undefined, null or the account.
+function useRememberedChoicesFor(live, accountId) {
   // ⚠ AND IT DOES NOT OPEN UNTIL THE ACCOUNT IS KNOWN, which is one read rather than
   // two AND is the same rule the fix is about: reading a per-account document before
   // knowing whose it is was the defect. `useSignedIn` publishes `undefined` until it
@@ -1943,4 +1950,4 @@ function dashCoachingNames(coaching) {
   return [coaching.name || ""];
 }
 
-Object.assign(window, { useDashboard, dashRoleDashboardUrl, useDashFocusRefresh, dashFocusGate, useRememberedChoices, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount, dashReadDismissals, dashWriteDismissal, dashClearDismissal, dashPostNotifySnapshot });
+Object.assign(window, { useDashboard, dashRoleDashboardUrl, useDashFocusRefresh, dashFocusGate, useRememberedChoices, useRememberedChoicesFor, useRememberedChoice, useRememberedSet, useRememberedSlots, useDashPaper, DASH_PAPER_OPTS, dashPaperMode, dashJson: _dashJson, useCoachLiveFigures, coachLiveMomentum, goalMetricsFor, goalMetricUnit, goalLiveValue, useCoachDoc, readoutStamp, readoutWeekKey, useWeekClock, dashResolveCoachThresholds, useCoachThresholds, useSignedIn, dashReadCoachSettings, dashInvalidateCoachSettings, DASH_THRESHOLDS_EVENT, useDashUnits, dashUnitsApi, dashUnitPrefs, dashGoalText, dashMilestonesIn, dashWeighIn, dashWeighInDelta, dashNameList, dashCoachingNames, dashPlanClientCount, dashReadDismissals, dashWriteDismissal, dashClearDismissal, dashPostNotifySnapshot });

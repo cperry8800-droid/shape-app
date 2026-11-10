@@ -27,7 +27,7 @@ const EXPORTS = 'return { CoachSettingsPage, cstGrouped, CST_FLAG_GROUPS, CST_NO
 // The globals the page reads off the other dashboard scripts, as parameters of the compiled module.
 const GLOBALS = ['React', 'window', 'document', 'fetch', 'DashSignals', 'nutriNavItems', 'trainerNavItems', 'nutriPayoutCard', 'trainerPayoutCard',
   'useCoachThresholds', 'useSignedIn', 'useCoachDoc', 'useDashPaper', 'DashDemoBand', 'DashPage', 'DashSegmented', 'DashPaperPicker',
-  'DashExampleLink', 'useRememberedChoices', 'useRememberedChoice', 'dashRouteParam', 'CoachAccountSettings', 'CoachGuidesCard',
+  'DashExampleLink', 'useRememberedChoicesFor', 'useRememberedChoice', 'dashRouteParam', 'CoachAccountSettings', 'CoachGuidesCard',
   'dashInvalidateCoachSettings', 'DASH_THRESHOLDS_EVENT', 'dashReadCoachSettings'];
 
 function load(win, over = {}) {
@@ -48,7 +48,7 @@ function load(win, over = {}) {
       items.map((it) => h('button', { key: it.key, type: 'button', role: 'tab', 'aria-selected': it.key === value, onClick: () => onChange(it.key) }, it.label))),
     DashPaperPicker: () => h('div', null, 'SKIN PICKER'),
     DashExampleLink: undefined,
-    useRememberedChoices: () => ({}),
+    useRememberedChoicesFor: () => ({}),
     useRememberedChoice: (store, key, allowed, fallback) => React.useState(fallback),
     dashRouteParam: () => null,
     CoachAccountSettings: () => h('div', null, 'ACCOUNT CARDS'),
@@ -198,6 +198,26 @@ test('the tour opens each Settings stop\'s tab, and "See all guides" opens Guide
   assert.match(tour, /window\.location\.hash = '#settings\?section=guides';/);
   const labels = CST_SECTIONS.map((s) => s.label);
   for (const m of guide.matchAll(/setTab\('([^']+)'\)/g)) assert.ok(labels.includes(m[1]), m[1] + ' is not a Settings tab');
+});
+
+test('the tab memory reads off the account the page already resolved: one sign-in check, not two (Codex, #2685)', async () => {
+  let signedInCalls = 0;
+  const stores = [];
+  const m = await mountPage({
+    useSignedIn: () => { signedInCalls += 1; return 'coach-1'; },
+    useCoachDoc: () => ({ kind: 'ready', doc: {}, apply: async () => true }),
+    useRememberedChoicesFor: (live, acct) => { stores.push([live, acct]); return {}; },
+  });
+  try {
+    assert.ok(stores.length > 0, 'the page opened no preference store');
+    assert.deepEqual(stores[stores.length - 1], [true, 'coach-1'], 'the store is not keyed on the page\'s own account');
+    // The page and its notification card each run on one sign-in check a render; none more.
+    const page = readFileSync(join(ROOT, 'public/newdesign/coachSettings.jsx'), 'utf8');
+    const body = page.slice(page.indexOf('function CoachSettingsPage('), page.indexOf('function CoachNotificationCard('));
+    assert.equal((body.match(/useSignedIn\(/g) || []).length, 1, 'Settings resolves the account twice');
+    assert.doesNotMatch(body, /useRememberedChoices\(/, 'Settings opened the store through a second useSignedIn');
+    assert.ok(signedInCalls > 0);
+  } finally { await m.close(); }
 });
 
 test('a link naming no section, or one that is not there, leaves General', async () => {

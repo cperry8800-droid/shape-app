@@ -373,7 +373,8 @@ function CoachSettingsPage({ role }) {
   const ZoneSetting = typeof window.ShapeZoneSetting === "function" ? window.ShapeZoneSetting : null;
 
   // ── the sections ──────────────────────────────────────────────────────────
-  const prefs = useRememberedChoices(live);
+  // The store off the account this page already resolved (`acct`), not a second useSignedIn.
+  const prefs = useRememberedChoicesFor(live, acct);
   const [section, setSection] = useRememberedChoice(prefs, "settingsSection:" + role, CST_SECTION_KEYS, "general");
   // A link that names a section opens on it, and counts as the coach's choice, as on Business.
   React.useEffect(() => {
