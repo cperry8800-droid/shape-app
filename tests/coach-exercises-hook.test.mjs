@@ -64,3 +64,20 @@ test('the section reads, redraws live, opens its channel again for a new account
   await React.act(async () => root.unmount())
   assert.equal(channels[1].closed, true)
 })
+
+test('the section shows the account\'s today on the today tile when the phone is a date apart (Codex P2 on #2686)', async () => {
+  const dayIdx = (new Date().getDay() + 6) % 7
+  const phoneToday = M.bsCoachExerciseDate(dayIdx)
+  const d = new Date(`${phoneToday}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1)
+  const accountToday = d.toISOString().slice(0, 10) // the account's zone is still on yesterday
+  window.ShapeCoachFeed = {
+    exercises: async () => ({ status: 'ready', today: accountToday, days: { [accountToday]: [{ id: 'a', providerId: '7', coachName: null, name: 'Sled push', sets: '4', reps: null, tempo: null, cue: null }], [phoneToday]: [] } }),
+    subscribeExercises: () => () => {},
+  }
+  const root = createRoot(document.getElementById('root'))
+  await React.act(async () => root.render(React.createElement(M.BSCoachExercises, { dayIdx, today: true })))
+  await React.act(flush)
+  assert.match(document.body.textContent, /Sled push/, 'today\'s addition, on the account\'s today')
+  assert.ok(document.querySelector('[data-coach-exercises-start]'), 'with Start these')
+  await React.act(async () => root.unmount())
+})

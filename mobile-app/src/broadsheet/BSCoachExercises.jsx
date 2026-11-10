@@ -39,10 +39,23 @@ function useShapeTr() {
 const pad = (n) => String(n).padStart(2, '0');
 const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-/** The date ('YYYY-MM-DD') of weekday `idx` (0 = Monday) in this week, on the device's calendar, as Train's week draws it. */
-export function bsCoachExerciseDate(idx, now = new Date()) {
-  const mon = new Date(now); mon.setHours(0, 0, 0, 0); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  const d = new Date(mon); d.setDate(mon.getDate() + (Number(idx) || 0));
+const DAY_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const shiftIso = (iso, n) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+/**
+ * The date ('YYYY-MM-DD') of Train's weekday `idx` (0 = Monday). Train's week is the device's, its
+ * today tile the device's today; the route's days are the account's (client_profiles.timezone), and
+ * `accountToday` is the route's `today`. ⚠ THE TILES COUNT FROM THE ACCOUNT'S TODAY (Codex P2 on #2686):
+ * a member who keeps their home zone abroad can be a date apart from the phone, and a lookup by the
+ * phone's date lost today's additions or put them on the tile beside it, where Start these is not.
+ * Without the account's today (no read yet), the device's dates.
+ */
+export function bsCoachExerciseDate(idx, now = new Date(), accountToday = null) {
+  const i = Number(idx) || 0;
+  const todayIdx = (now.getDay() + 6) % 7;
+  if (typeof accountToday === 'string' && DAY_ISO.test(accountToday)) return shiftIso(accountToday, i - todayIdx);
+  const mon = new Date(now); mon.setHours(0, 0, 0, 0); mon.setDate(now.getDate() - todayIdx);
+  const d = new Date(mon); d.setDate(mon.getDate() + i);
   return isoOf(d);
 }
 
@@ -188,5 +201,5 @@ export function BSCoachExercisesView({ read, date, today = true, dayLabel = '', 
 // The section on Train for the week's day `dayIdx` (0 = Monday), reading for itself.
 export function BSCoachExercises({ dayIdx = 0, today = true, dayLabel = '' }) {
   const { read, retry } = useBSCoachExercises();
-  return <BSCoachExercisesView read={read} date={bsCoachExerciseDate(dayIdx)} today={today} dayLabel={dayLabel} onRetry={retry} />;
+  return <BSCoachExercisesView read={read} date={bsCoachExerciseDate(dayIdx, new Date(), read && read.status === 'ready' ? read.today : null)} today={today} dayLabel={dayLabel} onRetry={retry} />;
 }

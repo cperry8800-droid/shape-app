@@ -644,7 +644,7 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: 'Left by #2686: the nutritionist\'s grocery note cannot save. The live kind check takes exercise, meal (and now cue), never grocery_note, so its insert is refused; nothing on the member side reads one either', status: 'pending' },
         { label: 'Left by #2686: each console\'s 90-day trajectory read is one select, so a roster of a dozen daily loggers passes PostgREST\'s 1,000 rows and loses its newest days (it reads oldest first). "Logged today" has its own read now; the chart and the latest snapshot do not', status: 'pending' },
         { label: 'Left by #2686 (Codex P1): the coach\'s added exercises run as a session of their own, not inside the day\'s assigned session, whose player is BSClientTrain\'s in the client module; merging them means carving Train into its own module first', status: 'pending' },
-        { label: 'Left by #2686: Train\'s week is the device\'s, the route\'s days the account zone\'s; on a phone whose zone has not been posted yet (/api/client/timezone) an exercise can show a day off', status: 'pending' },
+        { label: '#2686 Codex P2: Train\'s week is the device\'s and the route\'s days the account\'s, so the tiles count from the route\'s today (bsCoachExerciseDate); a member whose account zone is a date from the phone\'s no longer loses today\'s additions', status: 'done' },
       ],
     },
     {

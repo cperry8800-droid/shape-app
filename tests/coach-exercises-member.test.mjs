@@ -315,6 +315,20 @@ test('a weekday of Train\'s week is that date on the device\'s calendar, Monday 
   assert.equal(M.bsCoachExerciseDate(0, sun), '2026-11-09', 'Sunday still belongs to the week that began on Monday')
 })
 
+test('the tiles count from the account\'s today, not the phone\'s, when the two are a date apart (Codex P2 on #2686)', () => {
+  const wed = new Date(2026, 10, 11, 1, 0) // the phone: Wednesday 11 November, 01:00
+  // The account keeps a zone still on Tuesday the 10th: the today tile (Wednesday) is the 10th.
+  assert.equal(M.bsCoachExerciseDate(2, wed, '2026-11-10'), '2026-11-10')
+  assert.equal(M.bsCoachExerciseDate(1, wed, '2026-11-10'), '2026-11-09', 'the tile before is the account\'s yesterday')
+  assert.equal(M.bsCoachExerciseDate(0, wed, '2026-11-10'), '2026-11-08')
+  // Ahead of the phone (Thursday the 12th already): across a month end too.
+  assert.equal(M.bsCoachExerciseDate(2, wed, '2026-11-12'), '2026-11-12')
+  assert.equal(M.bsCoachExerciseDate(6, new Date(2026, 10, 30, 9), '2026-12-01'), '2026-12-07')
+  // No read yet, or a malformed one: the device's dates.
+  assert.equal(M.bsCoachExerciseDate(2, wed, null), '2026-11-11')
+  assert.equal(M.bsCoachExerciseDate(2, wed, 'Tuesday'), '2026-11-11')
+})
+
 test('Train\'s day draws the section for the day picked', () => {
   const src = readFileSync(join(ROOT, 'mobile-app/src/broadsheet/BSTrainDay.jsx'), 'utf8')
   assert.match(src, /import \{ BSCoachExercises \} from '\.\/BSCoachExercises\.jsx';/)
