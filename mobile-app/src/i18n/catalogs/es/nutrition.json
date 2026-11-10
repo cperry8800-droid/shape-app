@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Sin comidas planificadas",
   "eat.noMealsToday": "No hay comidas planificadas para hoy.",
   "eat.mealCount": "{n, plural, one {# comida} other {# comidas}}",
+  "eat.comingUp": "Lo que viene",
+  "eat.mealPlan": "Plan de comidas",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Definiendo",
   "eat.goalBuild": "Construyendo",

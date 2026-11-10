@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Chưa có bữa ăn nào",
   "eat.noMealsToday": "Hôm nay chưa có bữa ăn nào được lên kế hoạch.",
   "eat.mealCount": "{n, plural, one {# bữa ăn} other {# bữa ăn}}",
+  "eat.comingUp": "Sắp tới",
+  "eat.mealPlan": "Kế hoạch ăn uống",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Giảm mỡ",
   "eat.goalBuild": "Tăng cơ",

@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Nessun pasto in programma",
   "eat.noMealsToday": "Nessun pasto in programma per oggi.",
   "eat.mealCount": "{n, plural, one {# pasto} other {# pasti}}",
+  "eat.comingUp": "In arrivo",
+  "eat.mealPlan": "Piano alimentare",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Definizione",
   "eat.goalBuild": "Massa",

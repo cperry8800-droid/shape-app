@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Прийоми їжі не заплановані",
   "eat.noMealsToday": "На сьогодні прийоми їжі не заплановані.",
   "eat.mealCount": "{n, plural, one {# прийом їжі} few {# прийоми їжі} many {# прийомів їжі} other {# прийому їжі}}",
+  "eat.comingUp": "Далі",
+  "eat.mealPlan": "План харчування",
   "eat.metaWithKcal": "{meals} · {kcal} ккал",
   "eat.goalCut": "Сушка",
   "eat.goalBuild": "Набір",

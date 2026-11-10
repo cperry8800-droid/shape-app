@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Aucun repas prévu",
   "eat.noMealsToday": "Aucun repas prévu pour aujourd’hui.",
   "eat.mealCount": "{n, plural, one {# repas} other {# repas}}",
+  "eat.comingUp": "À venir",
+  "eat.mealPlan": "Plan de repas",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Sèche",
   "eat.goalBuild": "Prise de masse",

@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Planlanmış öğün yok",
   "eat.noMealsToday": "Bugün için planlanmış öğün yok.",
   "eat.mealCount": "{n, plural, one {# öğün} other {# öğün}}",
+  "eat.comingUp": "Sırada",
+  "eat.mealPlan": "Beslenme planı",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Yağ yakımı",
   "eat.goalBuild": "Kas yapımı",

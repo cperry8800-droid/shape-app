@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "Keine Mahlzeiten geplant",
   "eat.noMealsToday": "Für heute sind keine Mahlzeiten geplant.",
   "eat.mealCount": "{n, plural, one {# Mahlzeit} other {# Mahlzeiten}}",
+  "eat.comingUp": "Demnächst",
+  "eat.mealPlan": "Ernährungsplan",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Definitionsphase",
   "eat.goalBuild": "Aufbauphase",

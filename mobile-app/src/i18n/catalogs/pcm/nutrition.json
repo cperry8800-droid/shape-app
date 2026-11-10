@@ -117,6 +117,8 @@
   "eat.noMealsPlanned": "No food plan yet",
   "eat.noMealsToday": "Dem never plan any food for today.",
   "eat.mealCount": "{n, plural, one {# meal} other {# meals}}",
+  "eat.comingUp": "Wetin dey come",
+  "eat.mealPlan": "Food plan",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
   "eat.goalCut": "Dey cut",
   "eat.goalBuild": "Dey build",
