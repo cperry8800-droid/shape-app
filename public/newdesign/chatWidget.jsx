@@ -1200,8 +1200,16 @@ function ChatWidget(props) {
             // on; one saved before carries no names, so they are read back from its
             // length (`cwLegacyTabIds`). A tab this record does not hold starts from its
             // own threads, and a feed holds none.
+            // A record from the site's own tab list (it has Team's "circle") is read back by
+            // its shape; any other host's record is the positional one it always was, taken
+            // when it fits this list exactly.
+            const legacyIds = (arr) => {
+              const std = cwLegacyTabIds(arr);
+              if (std && tabs.some((t) => t.id === "circle")) return std;
+              return arr.length === tabs.length ? tabs.map((t) => t.id) : null;
+            };
             const ids = saved && Array.isArray(saved.threadsByTab)
-              ? (Array.isArray(saved.tabIds) && saved.tabIds.length === saved.threadsByTab.length ? saved.tabIds : cwLegacyTabIds(saved.threadsByTab))
+              ? (Array.isArray(saved.tabIds) && saved.tabIds.length === saved.threadsByTab.length ? saved.tabIds : legacyIds(saved.threadsByTab))
               : null;
             const fit = (arr, fresh) => {
               if (!ids || !Array.isArray(arr) || arr.length !== ids.length) return null;
@@ -2367,8 +2375,8 @@ function ChatWidget(props) {
         /* Nora's suggestions: whole rows, each a question she answers. */
         .cw-suggest { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1); background: rgba(var(--sh-ink-rgb, 242,237,228),0.03); color: var(--sh-ink, #f2ede4); font-family: inherit; font-size: 13.5px; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
         .cw-suggest:hover { border-color: rgba(var(--sh-accent2-rgb, 10,197,168),0.55); background: rgba(var(--sh-accent2-rgb, 10,197,168),0.07); }
-        .cw-suggest .cw-arrow { color: var(--sh-accent-ink, #2ee0c4); transition: transform .15s ease; }
-        .cw-suggest:hover .cw-arrow { transform: translateX(2px); }
+        .cw-suggest::after { content: "→"; flex: none; color: var(--sh-accent-ink, #2ee0c4); transition: transform .15s ease; }
+        .cw-suggest:hover::after { transform: translateX(2px); }
         /* The small controls over Nora's composer: one height, one type. */
         .cw-ctl { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.14); background: transparent; color: var(--sh-ink2, #a09b94); font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; cursor: pointer; transition: border-color .15s ease, color .15s ease, background .15s ease; }
         .cw-ctl:hover { border-color: rgba(var(--sh-ink-rgb, 242,237,228),0.3); color: var(--sh-ink, #f2ede4); }
@@ -2381,7 +2389,7 @@ function ChatWidget(props) {
         .cw-send { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px; padding: 0 16px; border: 0; border-radius: 11px; background: var(--sh-accent2, #0ac5a8); color: var(--sh-ground, #1a1612); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s ease, transform .15s ease; }
         .cw-send:hover:not(:disabled) { transform: translateY(-1px); }
         .cw-send:disabled { background: rgba(var(--sh-ink-rgb, 242,237,228),0.08); color: var(--sh-ink3, #75706a); cursor: not-allowed; }
-        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } .cw-send, .cw-suggest .cw-arrow { transition: none; } }
+        @media (prefers-reduced-motion: reduce) { .cw-nora-face { transition: none; } .cw-nora-face::before { animation: none; opacity: .5; } .cw-send, .cw-suggest::after { transition: none; } }
         @media (max-width: 640px) {
           .chw-bubble { padding: 14px 20px 14px 16px !important; font-size: 14px !important; gap: 10px !important; right: 16px !important; bottom: 16px !important; }
           .chw-bubble svg { width: 18px !important; height: 18px !important; }
@@ -2608,7 +2616,7 @@ function ChatWidget(props) {
                     cursor: "pointer", color: "inherit", fontFamily: "inherit",
                   }}>
                   {t.group ? (
-                    <span aria-hidden style={{ flex: "none", width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700 }}>#</span>
+                    <span aria-hidden style={{ flex: "none", width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700 }}>#</span>
                   ) : (
                     <CwFacetAvatar size={34} c={cwTierColor(t.tier || cwHashTier(t.who, !!t.coach || /trainer|coach|nutritionist/i.test(t.role || "")))} initial={cwInitials(t.who)} photo={t.conversationId ? undefined : (cwDemoFace(t.who) || undefined)} live={!!t.online} />
                   )}
@@ -2843,7 +2851,7 @@ function ChatWidget(props) {
               style={{ padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: docked ? "default" : "grab", userSelect: "none" }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 11 }}>
                 {active && (active.group
-                  ? <span aria-hidden style={{ flex: "none", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: TEAL_BRIGHT, fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700 }}>#</span>
+                  ? <span aria-hidden style={{ flex: "none", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700 }}>#</span>
                   : active.who === "Nora"
                   ? <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ flex: "none", width: 32, height: 32, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
                   : <CwFacetAvatar size={32} c={cwTierColor(active.tier || cwHashTier(active.who, !!active.coach || /trainer|coach|nutritionist/i.test(active.role || "")))} initial={cwInitials(active.who)} photo={active.conversationId ? undefined : (cwDemoFace(active.who) || undefined)} live={!!active.online} />)}
@@ -3044,10 +3052,7 @@ function ChatWidget(props) {
                 <div data-nora-suggest style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 2, marginLeft: 41, maxWidth: 340 }}>
                   <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)", marginBottom: 1 }}>Try asking</div>
                   {active.quick.map((label) => (
-                    <button key={label} type="button" className="cw-suggest" onClick={() => send(label)}>
-                      <span>{label}</span>
-                      <span aria-hidden className="cw-arrow">→</span>
-                    </button>
+                    <button key={label} type="button" className="cw-suggest" onClick={() => send(label)}>{label}</button>
                   ))}
                 </div>
               )}

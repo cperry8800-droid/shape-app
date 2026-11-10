@@ -378,6 +378,9 @@ test('the persisted chat state is read back by tab id, and a record saved before
     'the hydrate is back to an exact-length match, which discards every older record');
   assert.match(s, /tabIds: tabs\.map\(\(t\) => t\.id\)/, 'the saved record no longer names its tabs');
   assert.match(s, /const at = ids\.indexOf\(t\.id\)/, 'the hydrate no longer reads a record back by tab id');
+  // Only the site's own tab list is read by shape; another host's record keeps the exact-fit rule.
+  assert.match(s, /if \(std && tabs\.some\(\(t\) => t\.id === "circle"\)\) return std;/, 'an old record is read by shape on any host');
+  assert.match(s, /return arr\.length === tabs\.length \? tabs\.map\(\(t\) => t\.id\) : null;/, 'another host\'s exact-fit record is dropped');
   // A record saved before names nothing: its ids are read back from its length.
   const legacy = {};
   new Function('S', `${lift(WIDGET, 'cwLegacyTabIds')}\nS.ids = cwLegacyTabIds;`)(legacy);
