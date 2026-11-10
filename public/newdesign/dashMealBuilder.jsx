@@ -160,7 +160,10 @@ function dmbPlaylistChoices(rows) {
     .filter((x) => x && x.role !== "trainer" && typeof x.name === "string" && x.name.trim())
     .map((x) => {
       const n = Number(x.tracks);
-      return { ...(x.id != null && x.id !== "" ? { id: x.id } : {}), name: x.name.trim(), meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? " track" : " tracks") : "" };
+      // Its saved link rides along for the Client preview's chip (dclWithPlaylistLink); a day or meal
+      // stores id, name and meta only (dmbWithPlaylist), never the link.
+      const url = typeof x.url === "string" && x.url.trim() ? x.url.trim() : "";
+      return { ...(x.id != null && x.id !== "" ? { id: x.id } : {}), name: x.name.trim(), meta: Number.isFinite(n) && n > 0 ? n + (n === 1 ? " track" : " tracks") : "", ...(url ? { url } : {}) };
     });
 }
 const dmbHasPlaylist = (p) => !!(p && typeof p.name === "string" && p.name.trim());
@@ -628,13 +631,16 @@ function DmbAssignModal({ template, doc, groceryEdits, clients, queue, lifecycle
 const DMB_ALLERGEN_NOTE = "read from recipe names and ingredients, not a certified allergen check";
 const DMB_LISTED_NOTE = "from Shape Kitchen’s own lists";
 
-function DmbClientPreview({ doc, day, variant, targets, label }) {
+// `playlists`: the coach's saved playlists the builder read (dmbPlaylistChoices), so a chip opens the link
+// the coach saved, as the member's card opens it (/api/client/plan looks it up the same way).
+function DmbClientPreview({ doc, day, variant, targets, label, playlists }) {
+  const linked = (p) => (p && p.name ? (typeof dclWithPlaylistLink === "function" ? dclWithPlaylistLink(p, playlists) : p) : null);
   const meals = React.useMemo(() => DashMeals.resolveDay(day, variant).map((m, i) => ({
     id: m.id || "pv-" + i, slot: m.slot, time: null, title: m.name,
     kcal: m.kcal, p: m.p, c: m.c, f: m.f, alts: m.swaps || [],
     // The meal's playlist as the member's card shows it (the assignment sends it: sentPlaylist).
-    playlist: m.playlist && m.playlist.name ? m.playlist : null,
-  })), [JSON.stringify(day), variant]);
+    playlist: linked(m.playlist),
+  })), [JSON.stringify(day), variant, playlists]);
   const [ledger, setLedger] = React.useState({ kcal: 0, p: 0, c: 0, f: 0 });
   const [logged, setLogged] = React.useState({});
   const reset = () => { setLedger({ kcal: 0, p: 0, c: 0, f: 0 }); setLogged({}); };
@@ -654,7 +660,7 @@ function DmbClientPreview({ doc, day, variant, targets, label }) {
             setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
           }}
           headerNote={label || (variant === "training" ? "training day" : variant + " day")}
-          playlist={day && day.playlist && day.playlist.name ? day.playlist : null}
+          playlist={linked(day && day.playlist)}
         />
       </div>
     </div>
@@ -1209,7 +1215,7 @@ function DmbBuilder({ template, preselectId, clients, queue, lifecycle, live, on
 
           {preview && day && (
             <div className="dmb-box" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-              <DmbClientPreview doc={doc} day={day} variant={curVariant} targets={target} label={dayLabel} />
+              <DmbClientPreview doc={doc} day={day} variant={curVariant} targets={target} label={dayLabel} playlists={playlists} />
             </div>
           )}
 

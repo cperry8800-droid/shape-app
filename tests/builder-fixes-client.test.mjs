@@ -84,6 +84,7 @@ const route = await loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'
     ['next/server', nextServer],
     ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
     ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
   ]),
 });
 

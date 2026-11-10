@@ -236,6 +236,7 @@ test('the member\'s plan route delivers the key under the same rule', async () =
       ['next/server', nextServer],
       ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   for (const v of KEY_VECTORS) {

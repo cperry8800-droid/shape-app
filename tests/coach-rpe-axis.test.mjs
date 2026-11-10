@@ -189,6 +189,7 @@ test('the member\'s plan route carries the target RPE as a number', async () => 
       ['next/server', nextServer],
       ['@/lib/request-auth', { clientForRequest: async () => null, currentUser: async () => null }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { throw new Error('no service role in this test'); } }],
     ]),
   });
   const ex = W.exerciseFromRow({ id: 'r1', name: 'Back squat', sets: 3, reps: '5', loadType: 'kg', load: 100, rpe: 8, group: 'A' });
