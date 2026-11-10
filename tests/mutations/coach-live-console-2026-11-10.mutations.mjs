@@ -56,7 +56,7 @@ const consoleRoute = (role, file) => [
 ];
 
 export default {
-  test: 'node --test tests/coach-console-routes.test.mjs tests/coach-console-page.test.mjs tests/coach-exercises-member.test.mjs tests/coach-exercises-hook.test.mjs tests/workout-coach-cues.test.mjs tests/desktop-live-workout.test.mjs',
+  test: 'node --test tests/coach-console-routes.test.mjs tests/coach-console-page.test.mjs tests/coach-exercises-member.test.mjs tests/coach-exercises-hook.test.mjs tests/workout-coach-cues.test.mjs tests/desktop-live-workout.test.mjs tests/builder-fixes-client.test.mjs',
   timeoutMs: 300_000,
   mutations: [
     // ── The console routes ──
@@ -167,6 +167,12 @@ export default {
     { name: 'view: Start these keeps the word "reps" in the reps box', file: VIEW,
       find: "const repsOf = (v) => String(v || '').replace(/\\s*\\breps?\\b\\.?/i, '').trim();",
       replace: "const repsOf = (v) => String(v || '').trim();" },
+    { name: 'Train with no program hides the trainer\'s additions', file: 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
+      find: "            Mounted, not written here: the section is BSCoachExercises.jsx's. */}\n        <BSCoachExercises dayIdx={bsWeekdayIdx()} today />\n",
+      replace: "            Mounted, not written here: the section is BSCoachExercises.jsx's. */}\n" },
+    { name: 'Train with a failed plan read hides the trainer\'s additions', file: 'mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx',
+      find: "        {/* The trainer's additions are their own read, so they show when the plan's did not load. */}\n        <BSCoachExercises dayIdx={bsWeekdayIdx()} today />\n",
+      replace: '' },
     { name: 'Train does not draw the section', file: DAY,
       find: '      <BSCoachExercises dayIdx={day} today={day === todayIdx} dayLabel={shortDay(day)} />\n',
       replace: '' },

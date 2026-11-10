@@ -323,3 +323,33 @@ test('the app preview offers each move\'s demo behind one control, one open at a
   d.click('▾ How-to · form clip');
   assert.equal(players().length, 0, 'and folds again');
 });
+
+// ⚠ A MEMBER WITH NO PROGRAM STILL SEES WHAT THEIR TRAINER ADDED TODAY (Codex P1 on #2686). Train returns
+// the Build-your-week door (or "your coach is preparing your plan") before it draws BSTrainDay, and the
+// trainer's additions were only BSTrainDay's; a client before a program is assigned is often here, and
+// the "New exercise from your coach" notice opens Train. The section (BSCoachExercises.jsx, which reads
+// for itself) is mounted on that path and on a plan read that failed, as today.
+const coachExercises = (d) => d.nodes().filter((n) => typeof n.type === 'function' && n.type.name === 'BSCoachExercises');
+test('Train with no program, coached or not, and with a failed plan read, mounts the trainer\'s additions for today', async () => {
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  globalThis.window.ShapeAuth = { getCachedState: () => ({ user: { id: 'member-a' } }) };
+  for (const training of [
+    { hasPlan: false, workouts: [], coaching: { name: 'Coach Kim', conversationId: null, coaches: [{ name: 'Coach Kim', conversationId: null }] } },
+    { hasPlan: false, workouts: [], coaching: null },
+  ]) {
+    globalThis.window.ShapePlan = { get: async () => ({ training }) };
+    const d = drive(BSClientTrain, { onProfile() {} });
+    await settle();
+    d.render();
+    assert.equal(trainDay(d), undefined, 'setup: no program, so no BSTrainDay');
+    const section = coachExercises(d);
+    assert.equal(section.length, 1, `the additions are on the no-program page (${training.coaching ? 'coached' : 'no coach'})`);
+    assert.deepEqual({ dayIdx: section[0].props.dayIdx, today: section[0].props.today }, { dayIdx: todayIdx, today: true });
+  }
+  globalThis.window.ShapePlan = { get: async () => null };
+  const failed = drive(BSClientTrain, { onProfile() {} });
+  await settle();
+  failed.render();
+  assert.equal(coachExercises(failed).length, 1, 'a plan that did not load leaves the additions, which are their own read');
+  delete globalThis.window.ShapePlan;
+});

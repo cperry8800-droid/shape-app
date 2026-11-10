@@ -100,6 +100,7 @@ import { BSEatMacroPage, bsEatSwapDelta, bsEatSwappedMeal } from './BSEatFuel.js
 import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
+import { BSCoachExercises } from './BSCoachExercises.jsx';
 import { BSTrainPlanSheet } from './BSTrainPlan.jsx';
 import { BSEatComingUp, BSEatPlanSheet } from './BSEatPlan.jsx';
 import { bsTrainPlaylistCards, bsEatPlaylistCards, bsPlaylistOf } from './bsTrainPlaylists.mjs';
@@ -5376,6 +5377,8 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
         <BSCleanType t={t}>
         {resumeBanner}
         <BSPlanReadFailed part="training" onRetry={retryPlan} busy={planRetrying} />
+        {/* The trainer's additions are their own read, so they show when the plan's did not load. */}
+        <BSCoachExercises dayIdx={bsWeekdayIdx()} today />
         </BSCleanType>
       </BSPage>
     );
@@ -5404,6 +5407,10 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
               onDraft={() => setBuilder({ mode: 'program', autoDraft: true })}
             />
           </>}
+        {/* ⚠ WITH NO PLAN YET, TODAY'S ADDITIONS STILL SHOW (Codex P1 on #2686): a trainer's client is often
+            here, before a program is assigned, and the "New exercise from your coach" notice opens Train.
+            Mounted, not written here: the section is BSCoachExercises.jsx's. */}
+        <BSCoachExercises dayIdx={bsWeekdayIdx()} today />
         </BSCleanType>
       </BSPage>
     );
