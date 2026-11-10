@@ -58,7 +58,7 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, membershipFails = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
   // Nora's limits run for real over a stubbed counter and bot check, so a test reads
@@ -97,7 +97,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/adminLookup.mjs', adminLookup],
     // The help desk's service-role client: the test's own (adminDb), else one that refuses.
     ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminDb) throw new Error('no service role'); return adminDb; } }],
-    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { computeMembership: async (_c, _u, _e, opts) => { if (membershipFails) { calls_.membershipOpts = opts; throw new Error('fake failure on platform_subscriptions'); } return { isMember, isCoach, isAdmin, isKnownMinor: false }; } }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
@@ -1499,4 +1499,28 @@ test('no free week (owner, 2026-11-10): a free account gets the help desk, never
   assert.doesNotMatch(sys, /free week|NORA FREE WEEK|three workouts/i, 'a free week is still promised');
   const route = (await import('node:fs')).readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/app/api/support/chat/route.ts'), 'utf8');
   assert.doesNotMatch(route, /readNoraPreview|noraWeek|nora_previews/);
+});
+
+// ⚠ A MEMBERSHIP THAT COULD NOT BE READ IS NEITHER (Codex P2 on #2675): a paying member asking during a
+// database fault was told they had no membership and to join. The paid reads throw (strictPaid) and
+// Nora is told the plan is unknown.
+test('an unread membership is unknown to Nora: no free-account note, no Join, and the paid reads throw', async () => {
+  const lost = await loadRoute({ isMember: false, membershipFails: true });
+  await lost.mod.POST(post(ask('do I have the membership?')));
+  const sys = String(lost.calls.ai[0].body.input?.[0]?.content ?? JSON.stringify(lost.calls.ai[0].body));
+  assert.match(sys, /PLAN UNKNOWN: You couldn't check this account's membership just now/);
+  assert.doesNotMatch(sys, /FREE ACCOUNT:|PAYMENT DIDN'T GO THROUGH/, 'an unread membership was said as a confirmed one');
+  assert.equal(lost.calls.membershipOpts?.strictPaid, true, 'a failed paid read reads as "not a member"');
+  // Read, a free account is still told so.
+  const free = await loadRoute({ isMember: false });
+  await free.mod.POST(post(ask('do I have the membership?')));
+  assert.doesNotMatch(String(free.calls.ai[0].body.input?.[0]?.content ?? ''), /PLAN UNKNOWN/);
+});
+
+// The yearly price only when it is set up (Codex P2 on #2675), as her membership entry.
+test('the free-account note names the yearly price only when STRIPE_PLATFORM_ANNUAL_PRICE_ID is set', async () => {
+  const route = (await import('node:fs')).readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/app/api/support/chat/route.ts'), 'utf8');
+  assert.match(route, /The membership \(\$5 a month" \+ YEARLY_PRICE \+ "; included while they pay a coach on Shape\)/);
+  assert.doesNotMatch(route, /\$48 a year/, 'the note promises a year that may not exist');
+  assert.equal(shapeKnowledge.YEARLY_PRICE, process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID ? ' or $48 a year' : '');
 });

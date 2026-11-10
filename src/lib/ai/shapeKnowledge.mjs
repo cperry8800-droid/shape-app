@@ -15,7 +15,7 @@
 
 // ⚠ The yearly price only when it is set up (Codex P2 on #2675): with STRIPE_PLATFORM_ANNUAL_PRICE_ID
 // unset the checkout refuses a year, so Nora never tells anyone it exists.
-const YEARLY_PRICE = typeof process !== 'undefined' && process.env && process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID ? ' or $48 a year' : '';
+export const YEARLY_PRICE = typeof process !== 'undefined' && process.env && process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID ? ' or $48 a year' : '';
 
 export const SHAPE_KNOWLEDGE = Object.freeze([
   {
