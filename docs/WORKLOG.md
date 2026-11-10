@@ -16,8 +16,9 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
   no run). Stack only on a base that merges first, and run `workflow_dispatch` once it does.
 - **The PR description is the record:** what changed and why, each review finding and its
   answer, what was verified, what is left open. What is left open goes to the War Room,
-  and below if it waits on the owner. The War Room update is the
-  last commit of the last PR in flight, once its CI and review are done (owner, 2026-10-16).
+  and below if it waits on the owner. ⚠ **The War Room entry goes in the PR's first push,
+  with the code**; a review fix edits it with the fix. No War-Room-only commit
+  (owner, 2026-11-10).
 - **Review.**
   - Read your own diff, and a helper's whole diff, adversarially before pushing (owner,
     2026-11-06): unread vs empty, partial loads, sample data, old keys, zones, nested buttons.
@@ -31,8 +32,7 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
   - A head no reviewer covered merges only on the owner's word. Docs-only diffs merge on
     green CI without a review round.
   - ⚠ **Codex never reviews a War Room PR** (owner, 2026-10-16), and it can't skip a PR by
-    its files: the War Room update rides in the PR it records, pushed after that PR opens.
-    Never open a War-Room-only PR.
+    its files: the War Room entry rides in the PR it records. Never open a War-Room-only PR.
 - **Pre-commit hook:** `.githooks/pre-commit` → `scripts/verify-staged.sh` (`git config
   core.hooksPath .githooks`). Commit with `SKIP_VERIFY=1`; the PR lists what ran.
 - **One test and mutation round per PR, before it opens** (owner, 2026-11-09); a rebase or a
