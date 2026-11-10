@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   bsNavPush, bsNavPop, bsNavPeek, bsNavCanPop, bsNavSize, bsNavClear,
   bsNavReplaceTop, bsNavAnnounce, bsNavAnnounced, bsNavCompose,
-  bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop, bsGuardAfterClear,
+  bsGuardWanted, bsGuardSync, bsPhoneBack,
 } from '../mobile-app/src/services/navHistory.mjs';
 
 test('push/pop round-trips descriptors in LIFO order', () => {
@@ -90,47 +90,66 @@ test('bsNavClear resets the announce register as well as the stack', () => {
   assert.deepEqual(bsNavCompose({ tab: 'home' }), { tab: 'home' });
 });
 
-test('guard decisions: arm on empty→non-empty, rearm while entries remain, disarm at empty', () => {
-  assert.equal(bsGuardAfterPush(0, 1), 'arm');
-  assert.equal(bsGuardAfterPush(1, 2), null);
-  assert.equal(bsGuardAfterPush(1, 1), null); // dedupe no-op never arms
-  assert.equal(bsGuardAfterPop(1), 'rearm');
-  assert.equal(bsGuardAfterPop(0), 'disarm');
+test('a guard is wanted while a Back has somewhere to go: the stack, or the page in front\'s own Back', () => {
+  assert.equal(bsGuardWanted(0, false), false, 'a root tab, nothing pushed: the phone\'s back leaves the app');
+  assert.equal(bsGuardWanted(1, false), true);
+  // A page opened in place pushes nothing (Home → Goals, a station, a meal's preview): its own Back wants it,
+  // or the phone's back walked off the app from it (owner, 2026-11-10).
+  assert.equal(bsGuardWanted(0, true), true);
+  assert.equal(bsGuardWanted(2, true), true);
 });
 
-test('in-app back consumes the guard only when it empties the stack', () => {
-  // entries remain → the guard still stands for them, leave it alone
-  assert.equal(bsGuardAfterInAppPop(2, true), null);
-  assert.equal(bsGuardAfterInAppPop(1, true), null);
-  // emptied while armed → the guard is stale; consume it, or the next hardware
-  // Back spends itself on it and the user's real back is swallowed
-  assert.equal(bsGuardAfterInAppPop(0, true), 'consume');
-  // never armed (nothing to consume)
-  assert.equal(bsGuardAfterInAppPop(0, false), null);
+test('the sync arms a wanted guard, walks off a stale one, and waits while its own walk-off is on its way', () => {
+  assert.equal(bsGuardSync({ wanted: true, armed: false }), 'arm');
+  assert.equal(bsGuardSync({ wanted: true, armed: true }), null, 'never a second guard');
+  // Nothing to go back to and armed: the guard is stale, and would swallow the reader's next Back.
+  assert.equal(bsGuardSync({ wanted: false, armed: true }), 'consume');
+  assert.equal(bsGuardSync({ wanted: false, armed: false }), null);
+  // Our history.back() lands as a popstate later: decide nothing until it has.
+  assert.equal(bsGuardSync({ wanted: true, armed: false, consuming: true }), null);
+  assert.equal(bsGuardSync({ wanted: false, armed: true, consuming: true }), null);
 });
 
-test('clearing an armed stack consumes the orphaned guard', () => {
-  assert.equal(bsGuardAfterClear(true), 'consume');
-  assert.equal(bsGuardAfterClear(false), null);
+test('the phone\'s back takes the page in front\'s own Back first, then the stack', () => {
+  assert.equal(bsPhoneBack({ pageHasBack: true, stackSize: 3 }), 'page', 'a station closes onto its cover, not a step of the stack');
+  assert.equal(bsPhoneBack({ pageHasBack: true, stackSize: 0 }), 'page');
+  assert.equal(bsPhoneBack({ pageHasBack: false, stackSize: 2 }), 'stack', 'a root tab steps the history');
+  assert.equal(bsPhoneBack({ pageHasBack: false, stackSize: 0 }), 'none');
 });
 
-test('guard invariant holds across a full mixed sequence (armed ⟺ stack non-empty)', () => {
-  // Simulates the shell: armed tracks whether a guard entry exists in history.
-  let armed = false;
-  const size = () => stack;
-  let stack = 0;
-  const push = () => { const prev = stack; stack += 1; if (bsGuardAfterPush(prev, stack) === 'arm' && !armed) armed = true; };
-  const popInApp = () => { stack -= 1; if (bsGuardAfterInAppPop(size(), armed) === 'consume') armed = false; };
-  const popFromPopstate = () => { stack -= 1; if (bsGuardAfterPop(size()) === 'rearm') armed = true; else armed = false; };
-
-  push(); assert.equal(armed, true);          // 0→1 arms
-  push(); assert.equal(armed, true);          // 1→2 no second guard
-  popInApp(); assert.equal(armed, true);      // 2→1 guard still stands
-  popInApp(); assert.equal(armed, false);     // 1→0 stale guard consumed  ← the Codex P2
-  push(); assert.equal(armed, true);          // re-arms cleanly afterwards
-  popFromPopstate(); assert.equal(armed, false); // browser consumed it at empty
-  push(); push(); assert.equal(armed, true);
-  popFromPopstate(); assert.equal(armed, true);  // entries remain → re-armed
-  popFromPopstate(); assert.equal(armed, false); // empty → disarmed
-  assert.equal(stack, 0);
+test('guard invariant holds across a mixed sequence (armed ⟺ the stack or a page Back)', () => {
+  // Simulates the shell: armed tracks whether a guard entry exists in history; each step syncs after.
+  let stack = 0, pageBack = false, armed = false, consuming = false;
+  const sync = () => {
+    const act = bsGuardSync({ wanted: bsGuardWanted(stack, pageBack), armed, consuming });
+    if (act === 'arm') armed = true;
+    if (act === 'consume') { armed = false; consuming = true; }
+  };
+  const landConsume = () => { consuming = false; sync(); };
+  const phoneBack = () => { // the popstate: the browser spent the guard
+    if (!armed) return 'left the app';
+    armed = false;
+    const step = bsPhoneBack({ pageHasBack: pageBack, stackSize: stack });
+    if (step === 'page') pageBack = false; // its ← closed it
+    else if (step === 'stack') stack -= 1;
+    sync();
+    return step;
+  };
+  // Home → Goals in place: nothing pushed, the page's Back wants a guard.
+  pageBack = true; sync(); assert.equal(armed, true);
+  assert.equal(phoneBack(), 'page');           // the phone's back closes Goals, not the app
+  assert.equal(armed, false);                  // on Home with nothing behind it: no guard
+  assert.equal(phoneBack(), 'left the app');
+  // A jump (push), then a page opened in place over the destination.
+  stack = 1; sync(); assert.equal(armed, true);
+  pageBack = true; sync(); assert.equal(armed, true);
+  assert.equal(phoneBack(), 'page');           // the page first…
+  assert.equal(armed, true);                   // …the stack still has the jump
+  assert.equal(phoneBack(), 'stack');          // …then the jump back
+  assert.equal(armed, false);
+  // An on-screen ← that empties everything leaves a stale guard: walked off, and waited for.
+  stack = 1; sync(); stack = 0; sync();
+  assert.equal(armed, false); assert.equal(consuming, true);
+  pageBack = true; sync(); assert.equal(armed, false, 'nothing is decided while the walk-off is on its way');
+  landConsume(); assert.equal(armed, true);
 });

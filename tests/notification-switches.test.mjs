@@ -697,7 +697,7 @@ test('payment notices open what they are about, and a rejection is notified', as
   assert.equal(R.canonicalRoute('business', { providerRole: 'nutritionist' }), 'business:nutritionist');
   assert.deepEqual(R.parseRoute('business:nutritionist'), { kind: 'business', id: null, role: 'nutritionist' });
   assert.deepEqual(R.parseRoute('admin'), { kind: 'admin', id: null, role: null });
-  assert.match(CLIENT, /const \[showBusiness, setShowBusiness\] = useStateBSC\(initialPage === 'business' \? 'money' : null\);/);
+  assert.match(CLIENT, /const \[showBusiness, setShowBusiness\] = useStateBSC\(startPage === 'business' \? 'money' : null\);/);
   assert.match(CLIENT, /case 'admin': window\.ShapeStaff\?\.openConsole\?\.\(\); return;/);
   const pros = read('mobile-app/src/broadsheet/iosAppBroadsheetPros.jsx');
   assert.equal((pros.match(/case 'business': clear\(\); setSettingsStart\('business'\); setSettingsLanded\(true\); setShowSettings\(true\); return;/g) || []).length, 2, 'both coach apps open Business');

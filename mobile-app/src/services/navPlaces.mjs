@@ -60,3 +60,32 @@ export function bsGoalsView(sub) {
   const v = s.slice(6);
   return GOAL_VIEWS.includes(v) ? v : 'cover';
 }
+
+// ── Settings: a page open over one of its panes ──
+// Settings draws a page (Contact, the Score, Your notifications…) over the pane it was opened from (More,
+// Privacy, Your practice…), and a page's ← closes it onto that pane. Both are recorded, as '<page>@<pane>'
+// ('@<pane>' for a pane alone), since their names overlap ('health', 'privacy' and 'notifications' are
+// each a page and a pane). A bare name, as a notification or a jump asks for one, opens the page alone.
+export function bsSettingsSub(page, pane) {
+  const p = page || '';
+  return pane ? p + '@' + pane : p;
+}
+export function bsSettingsStart(sub) {
+  const s = String(sub || '');
+  const at = s.indexOf('@');
+  return at < 0 ? { page: s, pane: '' } : { page: s.slice(0, at), pane: s.slice(at + 1) };
+}
+
+// ── Eat's meal preview: the meal and the day it is on ──
+// The id keeps its type (a number or a string), so the replay finds the same meal in that day's list.
+export function bsEatSub(view, day, mealId) {
+  if (view !== 'eat' || mealId == null) return view;
+  return 'meal:' + (Number.isInteger(day) ? day : '') + ':' + JSON.stringify(mealId);
+}
+export function bsEatStart(sub) {
+  const m = /^meal:(\d*):(.+)$/.exec(String(sub || ''));
+  if (!m) return { view: sub || 'eat', day: null, mealId: null };
+  let id = null;
+  try { id = JSON.parse(m[2]); } catch (e) { id = null; }
+  return { view: 'eat', day: m[1] === '' ? null : Number(m[1]), mealId: id };
+}

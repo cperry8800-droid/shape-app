@@ -315,10 +315,12 @@ test('a hand-over replays in the other app with the route it was given', () => {
 });
 
 test('Settings opens on the page a notification asks for, and the notification list has a door', () => {
-  assert.match(CLIENT, /const \[showSessions, setShowSessions\] = useStateBSC\(initialPage === 'sessions'\);/);
-  assert.match(CLIENT, /const \[showNotifications, setShowNotifications\] = useStateBSC\(initialPage === 'notifications'\);/);
-  assert.match(CLIENT, /const \[showHabits, setShowHabits\] = useStateBSC\(initialPage === 'habits'\);/);
-  assert.match(CLIENT, /const \[detail, setDetail\] = useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \|\| bsGoalsView\(initialPage\) != null \? 'more' : ''\);/);
+  // The page a notification names is Settings' start page (a recorded pane rides after an '@': navPlaces).
+  assert.match(CLIENT, /const \{ page: startPage, pane: startPane \} = bsSettingsStart\(initialPage\);/);
+  assert.match(CLIENT, /const \[showSessions, setShowSessions\] = useStateBSC\(startPage === 'sessions'\);/);
+  assert.match(CLIENT, /const \[showNotifications, setShowNotifications\] = useStateBSC\(startPage === 'notifications'\);/);
+  assert.match(CLIENT, /const \[showHabits, setShowHabits\] = useStateBSC\(startPage === 'habits'\);/);
+  assert.match(CLIENT, /const \[detail, setDetail\] = useStateBSC\(startPane \|\| \(startPage === 'practice' \|\| startPage === 'hours' \? 'practice' : startPage === 'library' \|\| bsGoalsView\(startPage\) != null \? 'more' : ''\)\);/);
   assert.match(CLIENT, /\{ l: tr\('settings:notif\.inbox', \{ defaultValue: 'Your notifications' \}\), r: tr\('settings:notif\.inboxMeta', \{ defaultValue: 'Open' \}\), action: \(\) => setShowNotifications\(true\) \},/);
   // A new start page remounts Settings, so one already open goes there.
   assert.match(CLIENT, /<BSSettings\s+key=\{'settings:' \+ settingsStart \+ \(settingsLanded \? ':landed' : ''\)\}/);

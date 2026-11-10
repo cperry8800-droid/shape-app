@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bsLibraryPlace, bsLibraryPlaceSub, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc, bsGoalsSub, bsGoalsView } from '../mobile-app/src/services/navPlaces.mjs';
-import { bsNavAnnounce, bsNavCompose, bsNavPush, bsNavPop, bsNavClear, bsNavSize, bsGuardOnFirstUse, bsGuardAfterPush, bsNavDropStack } from '../mobile-app/src/services/navHistory.mjs';
+import { bsNavAnnounce, bsNavCompose, bsNavPush, bsNavPop, bsNavClear, bsNavSize, bsGuardOnFirstUse, bsGuardWanted, bsGuardSync, bsNavDropStack } from '../mobile-app/src/services/navHistory.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
@@ -99,7 +99,7 @@ test('the register: a page\'s place rides a push under an overlay, and a Back br
 
 test('Chat announces its place and a profile opened inside it, and a Back reopens both', () => {
   const feed = between(CLIENT, 'function BSClientFeed({', '\n}\n');
-  assert.match(CLIENT, /^import \{ bsGoalsSub, bsGoalsView, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc \} from '\.\.\/services\/navPlaces\.mjs';/m);
+  assert.match(CLIENT, /^import \{ bsGoalsSub, bsGoalsView, bsChatPlaceLoc, bsChatPlaceOf, bsProfileLoc, bsSettingsSub, bsSettingsStart, bsEatSub, bsEatStart \} from '\.\.\/services\/navPlaces\.mjs';/m);
   assert.match(feed, /const chatAnnounce = \{\n\s+\.\.\.\(chatNavDetail \|\| null\),\n\s+place: bsChatPlaceLoc\(tab, filter, teamsSel\),\n\s+\.\.\.\(bsProfileLoc\(openProfile\) \? \{ profile: bsProfileLoc\(openProfile\) \} : null\),\n\s+\};/);
   assert.match(feed, /window\.ShapeNav\?\.announce\?\.\(Object\.keys\(chatAnnounce\)\.length \? \{ detail: chatAnnounce \} : null, 'chat'\);/);
   assert.match(feed, /\}, \[JSON\.stringify\(chatAnnounce\)\]\);/);
@@ -183,7 +183,7 @@ test('a Goals station opens again on a Back, under Home and under Settings', () 
   assert.match(home, /if \(bsGoalsView\(initialPage\) != null\) \{ setGoalsView\(bsGoalsView\(initialPage\)\); setGoalsPage\(true\); \}/);
   // Settings: More → Goals, reopened over More.
   const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
-  assert.match(settings, /const \[showGoals, setShowGoals\] = useStateBSC\(bsGoalsView\(initialPage\) != null\);\n\s+const \[goalsView, setGoalsView\] = useStateBSC\(bsGoalsView\(initialPage\) \|\| 'cover'\);\n\s+React\.useEffect\(\(\) => \{ if \(!showGoals\) setGoalsView\('cover'\); \}, \[showGoals\]\);/);
+  assert.match(settings, /const \[showGoals, setShowGoals\] = useStateBSC\(bsGoalsView\(startPage\) != null\);\n\s+const \[goalsView, setGoalsView\] = useStateBSC\(bsGoalsView\(startPage\) \|\| 'cover'\);\n\s+React\.useEffect\(\(\) => \{ if \(!showGoals\) setGoalsView\('cover'\); \}, \[showGoals\]\);/);
   assert.ok(settings.indexOf('const [goalsView') < settings.indexOf('const navSub'));
   for (const src of [home, settings]) assert.match(src, /<BSClientGoals initialView=\{goalsView\} onView=\{setGoalsView\} onBack=/);
 });
@@ -210,10 +210,9 @@ test('a shell drops a stack another shell left, and adopts that shell\'s guard e
   bsNavAnnounce({ libPlace: 'workouts' }, 'library');
   assert.equal(bsGuardOnFirstUse(bsNavSize()), 'adopt');
   bsNavDropStack(); // the coach app's first touch
-  // Adopted, so its first push (empty → non-empty) asks to arm, which the shell skips: already armed.
-  const prev = bsNavSize();
+  // Adopted, so its first push finds the guard there already: nothing more to arm.
   bsNavPush(bsNavCompose({ tab: 'programs', libPlace: '' }));
-  assert.equal(bsGuardAfterPush(prev, bsNavSize()), 'arm');
+  assert.equal(bsGuardSync({ wanted: bsGuardWanted(bsNavSize(), false), armed: true }), null);
   // And it records where Programs is: the takeover dropped the other app's stack, not this one's announce
   // (Codex P1 on #2687).
   assert.deepEqual(bsNavPop(), { tab: 'programs', libPlace: 'workouts' });
@@ -223,9 +222,118 @@ test('a shell drops a stack another shell left, and adopts that shell\'s guard e
 
 test('every way into the history takes the shell\'s first touch first', () => {
   assert.match(SHELL, /const own = React\.useCallback\(\(\) => \{\n\s+if \(owned\.current\) return;\n\s+owned\.current = true;\n\s+if \(bsGuardOnFirstUse\(bsNavSize\(\)\) === 'adopt'\) \{ bsNavDropStack\(\); armed\.current = true; \}\n\s+\}, \[\]\);/);
-  assert.match(SHELL, /const navPush = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+const prev = bsNavSize\(\);/);
-  assert.match(SHELL, /const navBack = React\.useCallback\(\(fromPopstate = false\) => \{\n\s+own\(\);\n\s+if \(!bsNavCanPop\(\)\) return false;/);
-  assert.match(SHELL, /const onPop = \(\) => \{\n\s+own\(\);\n\s+if \(!armed\.current\) return;/);
+  assert.match(SHELL, /const navPush = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+const changed = bsNavPush\(/);
+  assert.match(SHELL, /const navBack = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+if \(!bsNavCanPop\(\)\) return false;/);
+  assert.match(SHELL, /const onPop = \(\) => \{\n\s+own\(\);\n/);
+  assert.match(SHELL, /const sync = React\.useCallback\(\(\) => \{\n\s+syncTimer\.current = null;\n\s+own\(\);/);
   assert.match(SHELL, /const navClear = React\.useCallback\(\(\) => \{\n\s+own\(\);\n\s+bsNavClear\(\);/);
   assert.match(SHELL, /const canPop = \(\) => \{ own\(\); return bsNavCanPop\(\); \};\n\s+window\.ShapeNav = \{ push: navPush, back: navBack, canPop, announce: bsNavAnnounce, clear: navClear \};/);
+});
+
+// ── The phone's back does what the page in front's ← does ───────────────────────────────────────────
+// The War Room, left by #2687: "the phone's Back steps the shell's history, not a page's own nesting:
+// from Search's person view, a Goals station or a meal preview it leaves the whole page, where the
+// on-screen ← and the swipe step one level back". Owner, 2026-11-10: "complete war room items".
+
+const CHROME = read('mobile-app/src/broadsheet/iosAppBroadsheet.jsx');
+
+test('the chrome names the Back of the page in front: the one a swipe there would take', () => {
+  const fn = between(CHROME, 'function bsTopPageBack() {', '\n}\n');
+  assert.match(fn, /const el = document\.elementFromPoint\(r\.left \+ r\.width \/ 2, r\.top \+ r\.height \/ 2\);/);
+  assert.match(fn, /if \(!el \|\| !surf\.contains\(el\)\) return null;\n\s+return bsPageBackFor\(el, surf\)\.back;/);
+  assert.match(CHROME, /\/\/ The phone's back does what the page in front's ← does \(bsNavShell's popstate\)\.\n\s+bsTopPageBack,\n\}\);/);
+});
+
+test('the phone\'s back takes the page\'s own Back first, and the guard stands while there is one', () => {
+  const onPop = between(SHELL, 'const onPop = () => {', '\n    };\n');
+  // Our own walk-off landing is nothing for the reader; an entry not ours is left alone.
+  assert.match(onPop, /if \(consuming\.current\) \{ consuming\.current = false; scheduleSync\(\); return; \}\n\s+if \(!armed\.current\) return;/);
+  assert.match(onPop, /armed\.current = false;/);
+  assert.match(onPop, /const step = bsPhoneBack\(\{ pageHasBack: !!pageBack, stackSize: bsNavSize\(\) \}\);\n\s+if \(step === 'page'\) \{/);
+  assert.match(onPop, /try \{ pageBack\(\); \} catch \(e\) \{\}\n\s+\} else if \(step === 'stack'\) navBack\(\);\n\s+scheduleSync\(\);/);
+  assert.ok(onPop.indexOf('window.bsMarkBack()') < onPop.indexOf('pageBack();'), 'a page Back lands at the scroll it left, like the ←');
+  // The guard follows the rule: the stack, or the page in front's Back.
+  const sync = between(SHELL, 'const sync = React.useCallback(() => {', '\n  }, [own]);');
+  assert.match(sync, /const act = bsGuardSync\(\{ wanted: bsGuardWanted\(bsNavSize\(\), !!bsPageBackNow\(\)\), armed: armed\.current, consuming: consuming\.current \}\);/);
+  assert.match(sync, /\} else if \(act === 'consume'\) \{\n\s+armed\.current = false;\n\s+consuming\.current = true;\n\s+try \{ window\.history\.back\(\); \}/);
+  // A page opened in place pushes nothing, so a tap looks again; a swipe's Back runs after its slide.
+  assert.match(SHELL, /const onTap = \(\) => scheduleSync\(\);\n\s+const onTouchEnd = \(\) => scheduleSync\(260\);/);
+  assert.match(SHELL, /document\.addEventListener\('click', onTap, true\);\n\s+document\.addEventListener\('touchend', onTouchEnd, true\);/);
+  // Every push, back and clear syncs after itself; a push arms at once, for a Back right after a jump.
+  for (const fn of ['navPush', 'navBack', 'navClear']) {
+    const body = between(SHELL, `const ${fn} = React.useCallback(`, '\n  }, [');
+    assert.match(body, /scheduleSync\(\);/, fn);
+    assert.doesNotMatch(body, /history\.back\(\)/, fn + ' leaves the walk-off to the sync');
+  }
+  assert.match(between(SHELL, 'const navPush = React.useCallback(', '\n  }, ['), /if \(changed && !armed\.current && !consuming\.current\) \{\n\s+try \{ window\.history\.pushState/);
+});
+
+// ── Settings' other pages, and the meal previews ──────────────────────────────────────────────────
+// The War Room, left by #2687: "Settings' other takeovers (Score and its Record, Store, Progress, check-in,
+// health, leaderboard, Radio, the legal pages) and Home's and Eat's meal preview are not announced, so a
+// jump from one comes back to the page or pane under it".
+
+import { bsSettingsSub, bsSettingsStart, bsEatSub, bsEatStart } from '../mobile-app/src/services/navPlaces.mjs';
+
+test('a Settings page is recorded with the pane under it, and a bare name still opens the page alone', () => {
+  assert.equal(bsSettingsSub('score', 'more'), 'score@more');
+  assert.equal(bsSettingsSub('', 'privacy'), '@privacy', 'a pane on its own');
+  assert.equal(bsSettingsSub('pricing', ''), 'pricing');
+  assert.equal(bsSettingsSub('', ''), '');
+  // 'health', 'privacy' and 'notifications' are each a page and a pane: the two never mix.
+  assert.deepEqual(bsSettingsStart('health@privacy'), { page: 'health', pane: 'privacy' });
+  assert.deepEqual(bsSettingsStart('@health'), { page: '', pane: 'health' });
+  assert.deepEqual(bsSettingsStart('sessions'), { page: 'sessions', pane: '' }, 'a notification\'s page');
+  assert.deepEqual(bsSettingsStart(''), { page: '', pane: '' });
+  assert.deepEqual(bsSettingsStart(undefined), { page: '', pane: '' });
+  for (const [page, pane] of [['record', 'more'], ['hours', 'practice'], ['', 'billing']]) {
+    assert.deepEqual(bsSettingsStart(bsSettingsSub(page, pane)), { page, pane });
+  }
+});
+
+test('Eat\'s meal preview is recorded with its day, and its id keeps its type', () => {
+  assert.equal(bsEatSub('eat', 2, 7), 'meal:2:7');
+  assert.equal(bsEatSub('eat', 2, 'm-3'), 'meal:2:"m-3"');
+  assert.equal(bsEatSub('eat', 2, null), 'eat', 'no preview: the view');
+  assert.equal(bsEatSub('grocery', 2, 7), 'grocery', 'the preview only shows over Eat\'s own page');
+  assert.deepEqual(bsEatStart('meal:2:7'), { view: 'eat', day: 2, mealId: 7 });
+  assert.deepEqual(bsEatStart('meal:2:"m-3"'), { view: 'eat', day: 2, mealId: 'm-3' }, 'a string id stays a string');
+  assert.deepEqual(bsEatStart('library'), { view: 'library', day: null, mealId: null });
+  assert.deepEqual(bsEatStart(''), { view: 'eat', day: null, mealId: null });
+  assert.deepEqual(bsEatStart('meal:2:{bad'), { view: 'eat', day: 2, mealId: null }, 'an unreadable id opens Eat on that day');
+});
+
+test('Settings names every page it draws, in the order it draws them, over its pane', () => {
+  const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
+  assert.match(settings, /const \{ page: startPage, pane: startPane \} = bsSettingsStart\(initialPage\);\n\s+const landedOn = landed \? startPage : '';/);
+  assert.doesNotMatch(settings, /initialPage === /, 'every page opens from the parsed page');
+  const pages = [['Contact', 'contact'], ['Terms', 'terms'], ['Help', 'help'], ['Privacy', 'privacy-policy'], ['DataCompliance', 'data'], ['CodeOfConduct', 'conduct'], ['ConsumerHealth', 'consumer-health'], ['Subprocessors', 'subprocessors'], ['NotifyPrefs', 'notify-prefs'], ['NoraMemory', 'nora-memory'], ['Store', 'store'], ['Radio', 'radio'], ['Progress', 'progress'], ['Checkin', 'checkin'], ['Health', 'health'], ['Leaderboard', 'leaderboard'], ['Rates', 'rates'], ['Apply', 'apply'], ['PublicProfile', 'public-profile']];
+  for (const [flag, name] of pages) {
+    assert.match(settings, new RegExp(`const \\[show${flag}, setShow${flag}\\] = useStateBSC\\(startPage === '${name}'\\);`), flag);
+  }
+  assert.match(settings, /const \[showScore, setShowScore\] = useStateBSC\(startPage === 'score' \|\| startPage === 'record'\);\n(?:\s*\/\/[^\n]*\n)*\s+const \[scoreRecord, setScoreRecord\] = useStateBSC\(startPage === 'record'\);/);
+  assert.match(settings, /<BSShapeScorePage profile=\{scoreProfile\} initialRecord=\{scoreRecord\} onRecord=\{setScoreRecord\} /);
+  // The name follows the page Settings draws: its early returns, in their order.
+  const navPage = between(settings, 'const navPage = ', ";\n");
+  const named = [...navPage.matchAll(/show([A-Za-z]+) \?/g)].map((m) => m[1]);
+  const drawn = [...settings.matchAll(/^  if \(show([A-Za-z]+)(?: && window\.[A-Za-z]+)?\) \{/gm)].map((m) => m[1]);
+  assert.deepEqual(named, drawn, 'named in the order drawn');
+  // Over its pane; a pane alone, Your practice by its own name, Goals with its station.
+  assert.match(settings, /const navSub = editing \? 'edit-profile'\n\s+: showGoals && navPage\.startsWith\('goals'\) \? navPage\n\s+: navPage \? bsSettingsSub\(navPage, detail\)\n\s+: detail === 'practice' \? 'practice' : bsSettingsSub\('', detail\);/);
+  // Landed reads the page alone; Your practice, a pane a coach app lands on by name, counts as its page.
+  assert.match(settings, /const navLanded = !!landedOn && \(editing \? 'edit-profile' : navPage \|\| \(detail === 'practice' \? 'practice' : ''\)\) === landedOn;/);
+  assert.match(settings, /const \[detail, setDetail\] = useStateBSC\(startPane \|\| \(/);
+});
+
+test('Eat reopens a meal\'s preview on a Back; Home\'s has no door to record', () => {
+  const eat = between(CLIENT, 'function BSClientEat({', '\n}\n');
+  assert.match(eat, /const eatAt = bsEatStart\(initialView\);\n\s+const \[view, setView\] = useStateBSC\(eatAt\.view\);/);
+  assert.match(eat, /const \[previewMealId, setPreviewMealId\] = useStateBSC\(eatAt\.mealId\);/);
+  assert.match(eat, /const \[day, setDay\] = useStateBSC\(eatAt\.day != null \? eatAt\.day : bsWeekdayIdx\(\)\);/);
+  assert.match(eat, /const eatNavSub = bsEatSub\(view, day, previewMealId\);\n\s+React\.useEffect\(\(\) => \{\n\s+window\.ShapeNav\?\.announce\?\.\(\{ sub: eatNavSub \}, 'eat'\);/);
+  assert.ok(eat.indexOf('const eatNavSub') < eat.search(/\n  if \(/), 'above every early return');
+  // Home draws a meal's preview, but nothing opens it any more (previewMeal is only ever cleared), so
+  // there is nothing to record. A door added back would need recording like Eat's.
+  const home = between(CLIENT, 'function BSClientHome({', '\n}\n');
+  assert.deepEqual([...home.matchAll(/setPreviewMeal\(([^)]*)\)/g)].map((m) => m[1]).filter((a) => a !== 'null'), [], 'no door opens Home\'s meal preview');
 });

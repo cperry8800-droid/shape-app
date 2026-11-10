@@ -64,29 +64,34 @@ export function bsNavCompose(shellLoc) {
   return out;
 }
 
-// ── Guard-entry decisions (the hardware-back bridge, spec §5). ONE browser
-// history entry stands in for the whole stack. The invariant these three keep:
+// ── Guard-entry decisions (the hardware-back bridge, spec §5). ONE browser history entry stands
+// between the app and leaving it: the phone's back (Android's back button walks the webview's history)
+// and the browser's Back spend it, and the shell answers that popstate. The invariant:
 //
-//     a guard entry exists  ⟺  armed  ⟺  the stack is non-empty
+//     a guard entry exists  ⟺  armed  ⟺  a Back has somewhere to go
 //
-// `bsGuardAfterPush`  — arm on the empty→non-empty transition (only then).
-// `bsGuardAfterPop`   — the POPSTATE path: the browser just consumed the guard,
-//                       so re-arm while entries remain, else disarm.
-// `bsGuardAfterInAppPop` — the ON-SCREEN back path: the guard was NOT consumed.
-//                       While entries remain it still stands for them (no-op);
-//                       when the stack empties it is stale and must be consumed,
-//                       or the next hardware Back would spend itself on it and
-//                       the user's real back would be swallowed.
-// Pure, so every arm/re-arm/disarm/consume sequence is unit-testable.
-// `bsGuardAfterClear` — clearing empties the stack, so an existing guard is
-//                       orphaned and must be consumed too (same shape as the
-//                       in-app pop). Without it, `armed` stays true over an
-//                       empty stack: the next push skips arming and the next
-//                       hardware Back is swallowed.
-export function bsGuardAfterPush(prevSize, nextSize) { return prevSize === 0 && nextSize > 0 ? 'arm' : null; }
-export function bsGuardAfterPop(sizeAfterPop) { return sizeAfterPop > 0 ? 'rearm' : 'disarm'; }
-export function bsGuardAfterInAppPop(sizeAfterPop, armed) { return sizeAfterPop === 0 && armed ? 'consume' : null; }
-export function bsGuardAfterClear(armed) { return armed ? 'consume' : null; }
+// and a Back has somewhere to go while the stack holds a location OR the page in front has a Back of its
+// own. The second is new (owner, 2026-11-10, of the War Room's "the phone's Back steps the shell's
+// history, not a page's own nesting"): a page opened in place pushes nothing (Home → Goals, a station, a
+// meal's preview), so with an empty stack there was no guard and the phone's back walked off the app from
+// it; with a stack it popped the stack and skipped the page's own steps. Pure, so every sequence is
+// unit-testable; the shell (bsNavShell.js) runs `bsGuardSync` after every push, back, clear and tap.
+//
+// `bsGuardWanted` — is a guard entry wanted now?
+// `bsGuardSync`   — what to do to it: 'arm' (push one), 'consume' (walk off ours: nothing to go back to,
+//                   and a stale guard would swallow the reader's next Back), or null. While our own
+//                   walk-off is on its way (`consuming`) nothing is decided: it lands as a popstate first.
+// `bsPhoneBack`   — what the phone's back does once it has spent the guard: the page in front's own Back
+//                   ('page', what its ← and a swipe on it do), else a step of the stack ('stack'), else
+//                   nothing ('none').
+export function bsGuardWanted(stackSize, pageHasBack) { return stackSize > 0 || !!pageHasBack; }
+export function bsGuardSync({ wanted, armed, consuming = false }) {
+  if (consuming) return null;
+  if (wanted && !armed) return 'arm';
+  if (!wanted && armed) return 'consume';
+  return null;
+}
+export function bsPhoneBack({ pageHasBack, stackSize }) { return pageHasBack ? 'page' : stackSize > 0 ? 'stack' : 'none'; }
 // `bsGuardOnFirstUse` — the first time a shell touches the history, a stack
 //                       already there is ANOTHER shell's: the member app's, left
 //                       when the account switched to a coach app (Settings'
