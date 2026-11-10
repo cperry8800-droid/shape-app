@@ -74,6 +74,7 @@ test('a menu\'s day and meal playlists are read the same way; a menu without one
 
 // ── The route ──
 const U = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+let adminMade = 0; // how many times the route made a service-role client
 async function loadRoute(db, admin) {
   return loadRealModule(join(ROOT, 'src/app/api/client/plan/route.ts'), {
     typescript: true,
@@ -81,7 +82,7 @@ async function loadRoute(db, admin) {
       ['next/server', { NextResponse: { json: (body, init) => ({ body, init }) } }],
       ['@/lib/request-auth', { clientForRequest: async () => db, currentUser: async () => ({ id: U }) }],
       ['@/lib/require-membership', { requireMembership: async () => null }],
-      ['@/lib/supabase/admin', { createAdminClient: () => { if (!admin) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY'); return admin; } }],
+      ['@/lib/supabase/admin', { createAdminClient: () => { adminMade++; if (!admin) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY'); return admin; } }],
     ]),
   });
 }
@@ -182,8 +183,10 @@ test('no playlist on the plan, no read; a read that fails leaves every playlist 
     client_workouts: [{ id: 'w2', client_id: U, status: 'published', scheduled_date: monday, created_at: '2026-11-01', trainer_id: 7, title: 'Legs', kind: 'workout', payload: { exercises: [] } }],
     client_meal_plans: [],
   });
+  adminMade = 0;
   await (await loadRoute(fakeSupabase({ tables: bare }), admin)).GET(new Request('https://x/api/client/plan'));
   assert.equal(admin.seen.length, 0, 'the service role is not asked');
+  assert.equal(adminMade, 0, 'nor made: with no service key, every plan read would log a failure');
   for (const failing of [null, fakeSupabase({ tables: {}, fail: ['coach_soundtracks'] })]) {
     const { body } = await (await loadRoute(fakeSupabase({ tables: memberTables() }), failing)).GET(new Request('https://x/api/client/plan'));
     assert.deepEqual(body.training.workouts.find((w) => w.id === 'w1').playlist, { id: S1, name: 'Pull heavy', meta: '14 tracks' }, 'a name, and never the payload\'s link');
