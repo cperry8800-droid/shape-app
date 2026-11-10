@@ -413,5 +413,10 @@
   "thread.voiceUnplayable": "Không thể phát tin nhắn thoại này lúc này.",
   "thread.voiceNotSent": "Chưa gửi",
   "thread.voiceFailed": "Không gửi được tin nhắn thoại.",
-  "thread.voicePreview": "Tin nhắn thoại · {time}"
+  "thread.voicePreview": "Tin nhắn thoại · {time}",
+  "channels.changePicture": "Đổi ảnh kênh",
+  "channels.pictureSaved": "Đã lưu ảnh",
+  "channels.pictureError": "Không thể lưu ảnh — thử lại.",
+  "channels.openError": "Không thể mở kênh — thử lại.",
+  "channels.readOnly": "Chỉ Shape đăng bài ở đây"
 }

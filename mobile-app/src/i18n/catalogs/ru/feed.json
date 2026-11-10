@@ -413,5 +413,10 @@
   "thread.voiceUnplayable": "Это голосовое сообщение сейчас нельзя воспроизвести.",
   "thread.voiceNotSent": "Не отправлено",
   "thread.voiceFailed": "Не удалось отправить голосовое сообщение.",
-  "thread.voicePreview": "Голосовое сообщение · {time}"
+  "thread.voicePreview": "Голосовое сообщение · {time}",
+  "channels.changePicture": "Сменить изображение канала",
+  "channels.pictureSaved": "Изображение сохранено",
+  "channels.pictureError": "Не удалось сохранить изображение — попробуйте снова.",
+  "channels.openError": "Не удалось открыть канал — попробуйте снова.",
+  "channels.readOnly": "Здесь публикует только Shape"
 }

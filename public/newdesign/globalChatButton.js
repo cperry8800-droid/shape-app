@@ -393,10 +393,6 @@
           { who:"Nina O.", t:"welcome everyone — drop your goal for the month", time:"4m", me:false },
           { who:"Marcus J.", t:"225 bench by end of month. locked in.", time:"3m", me:false },
           { who:"Rae Lindqvist", t:"consistency > intensity this month. pick one thing and nail it daily.", time:"2m", me:false } ] },
-        { who:"# strength-block-3", role:"412 members · 34 online", last:"Marcus J: First time hitting 225 on bench.", time:"18m", unread:3, messages:[
-          { who:"Marcus J.", t:"First time hitting 225 on bench after 8 months. Maya's programming is unreal.", time:"18m", me:false },
-          { who:"You", t:"Starting tomorrow. Any tips on recovery?", time:"12m", me:true },
-          { who:"Priya S.", t:"Double your protein target and sleep 8+. Seriously.", time:"10m", me:false } ] },
         { who:"# running-club", role:"1,204 members · 89 online", last:"Ava K: Long run Saturday 6am.", time:"31m", unread:1, messages:[
           { who:"Ava K.", t:"Long run Saturday 6am — Prospect Park loop. Who's in?", time:"31m", me:false } ] },
         { who:"# ask-a-coach", role:"5,214 members · 198 online", last:"Maya: Free live Q&A Thursday 7pm EST.", time:"2h", unread:0, messages:[

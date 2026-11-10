@@ -25,7 +25,7 @@ rule changes, replace its line. **No changelog**: the PR description is the reco
   - Codex reviews a PR when it opens and on `@codex review`: post one after every fix (owner,
     2026-11-06). Fix or answer each finding; at its limit, retry once. Its `commit_id` is the
     head it read.
-  - Copilot runs on push and often declines.
+  - Copilot is not a step (owner, 2026-11-10).
   - CodeRabbit only when the owner asks on that PR: brief in the PR description, wait for
     its notice, post just `@coderabbitai full review`, one round, never re-trigger ($0.25 a
     file past the included review each hour).
