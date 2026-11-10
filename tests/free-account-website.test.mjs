@@ -485,12 +485,12 @@ test('Settings: the plan\'s interval, and "Included with your coaching"', () => 
 test('your week: honest figures (no zeros, no nulls), and Share draws the canonical story card', async () => {
   const SC = await import('../public/newdesign/shareCard.mjs');
   const src = jsx(slice(DASH, '// ── Your week:', '// A signed-in account the server knows to be under 18'));
-  let recap = { weekStart: '2026-11-03', weekEnd: '2026-11-09', workouts: 3, activeMinutes: null, mealsLogged: 12, daysLogged: 5, points: 240, streak: 0 };
+  let recap = { weekStart: '2026-11-03', weekEnd: '2026-11-09', workouts: 3, activeMinutes: null, mealDays: 4, daysActive: 5, points: 240, streak: 0 };
   const shared = [];
   const w = fakeWindow({ ShapeShareCard: { bsShareCardModel: SC.bsShareCardModel, bsShareCardImage: async (m) => { shared.push(m); return { ok: true, mode: 'downloaded' }; } } });
   const f = fakeFetch({ '/api/client/weekly-recap': () => ({ status: 200, body: recap }) });
   const mod = new Function('React', 'window', 'fetch', 'DCL_TEAL', 'DCL_INK50', 'DCL_MONO', 'serif', src + '\nreturn { ClientWeekRecapCard, dclRecapFigures };')(React, w, f, 'teal', 'ink', 'mono', 'serif');
-  assert.deepEqual(mod.dclRecapFigures(recap), [['Workouts', '3'], ['Meals logged', '12'], ['Days logged', '5'], ['Points', '+240']], 'null minutes and a 0 streak are left out');
+  assert.deepEqual(mod.dclRecapFigures(recap), [['Workouts', '3'], ['Meal days', '4'], ['Days active', '5'], ['Points', '+240']], 'null minutes and a 0 streak are left out');
   const v = await mount(React.createElement(mod.ClientWeekRecapCard, { week: 'last', who: 'Sam', tierLine: 'Tempo tier' }));
   assert.equal(f.calls[0][0], '/api/client/weekly-recap?week=last');
   assert.match(v.text(), /Your week · Last week/);
@@ -499,13 +499,13 @@ test('your week: honest figures (no zeros, no nulls), and Share draws the canoni
   assert.equal(shared.length, 1);
   assert.equal(shared[0].title, 'Your week');
   assert.deepEqual(shared[0].heroStat, ['Workouts', '3']);
-  assert.deepEqual(shared[0].stats, [['Meals logged', '12'], ['Days logged', '5'], ['Points', '+240']]);
+  assert.deepEqual(shared[0].stats, [['Meal days', '4'], ['Days active', '5'], ['Points', '+240']]);
   assert.equal(shared[0].who, 'Sam');
   assert.equal(shared[0].tierLine, 'TEMPO TIER');
   assert.match(shared[0].dateLine, /^Week of /);
   assert.match(v.text(), /Saved the image\./);
   await v.unmount();
-  recap = { weekStart: '2026-11-10', weekEnd: '2026-11-16', workouts: 0, activeMinutes: 0, mealsLogged: 0, daysLogged: 0, points: 0, streak: 0 };
+  recap = { weekStart: '2026-11-10', weekEnd: '2026-11-16', workouts: 0, activeMinutes: 0, mealDays: 0, daysActive: 0, points: 0, streak: 0 };
   const empty = await mount(React.createElement(mod.ClientWeekRecapCard, { week: 'current' }));
   assert.match(empty.text(), /Nothing logged this week yet\./);
   assert.ok(!button(empty.host, /Share/), 'an empty week offers nothing to share');

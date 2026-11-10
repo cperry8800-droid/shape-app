@@ -1218,7 +1218,8 @@ function ClientJoinPage() {
 
 // ── Your week: a free, shareable recap (owner, 2026-11-10) ──────────────────────────────
 // The member's own Mon–Sun week in their zone, from GET /api/client/weekly-recap?week=last|current
-// ({ weekStart, weekEnd, workouts, activeMinutes | null, mealsLogged, daysLogged, points, streak }).
+// ({ weekStart, weekEnd, workouts, activeMinutes | null, mealDays, daysActive, points, streak }: mealDays is
+// the days a meal was logged, never a count of meals; daysActive the days with a workout or a log).
 // Free with the account; the AI weekly readout stays the membership's. Honest figures: a figure
 // that is null or zero is left out, never drawn as 0, and a week with nothing in it says so. Share
 // draws the story card through the canonical renderer (shareCard.mjs, window.ShapeShareCard).
@@ -1236,8 +1237,8 @@ function dclRecapFigures(r) {
   const rows = [
     ["Workouts", n(r.workouts)],
     ["Active min", n(r.activeMinutes)],
-    ["Meals logged", n(r.mealsLogged)],
-    ["Days logged", n(r.daysLogged)],
+    ["Meal days", n(r.mealDays)],
+    ["Days active", n(r.daysActive)],
     ["Points", n(r.points)],
     ["Day streak", n(r.streak)],
   ];

@@ -41,7 +41,7 @@ function csrDay(iso) {
 // ⚠ "NOT SIGNED IN" IS NOT "IT BROKE", AND NEITHER IS "NOT A MEMBER". Both routes
 // answer a signed-out visitor with 401 (`requireMembership` / `currentUser`), and once
 // answered a signed-in NON-member with 402 (free with an account since 2026-11-10; the
-// leaderboard ranks members only, and says so in its payload) — so a marketing visitor pressing these buttons on the
+// leaderboard ranks everyone and says in its payload when it sends the top 10 only) — so a marketing visitor pressing these buttons on the
 // demo Score page was told their record "couldn't be read just now" and invited to
 // reload, which can never work. Three different answers, three different sentences.
 //
