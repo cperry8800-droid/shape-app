@@ -68,7 +68,8 @@ test('PREVIEW: dietitian OWNS nutrition; the trainer sees the dietitian’s nutr
   const c = {
     profile: { name: 'Priya S.' },
     nutrition: { avgProtein: 118, targetProtein: 175, avgCalories: 1900, targetCalories: 2000 },
-    streaks: { current: 0, best: 8 }, // a training signal too
+    foodLogs: { lastLoggedOn: null, daysLogged7d: 5 }, // the week's days the average is over
+    recovery: { recoveryScore: { avg7: 20, n: 5 } }, // a trainer's signal too (the streak was, until 2026-11-10)
     pros: { trainer: true, nutritionist: true },
   };
 
@@ -79,14 +80,14 @@ test('PREVIEW: dietitian OWNS nutrition; the trainer sees the dietitian’s nutr
   assert.equal(dieProtein.discipline, 'nutrition');
   assert.equal(dieProtein.owned, true);
   assert.equal(dieProtein.routeTo, 'nutritionist');
-  // …and sees the TRAINING signal READ-ONLY (routes to the trainer).
-  const dieStreak = die.flags.find((f) => f.key === 'streak_broken');
-  assert.equal(dieStreak.owned, false);
-  assert.equal(dieStreak.routeTo, 'trainer');
+  // …and sees the trainer's signal READ-ONLY (routes to the trainer).
+  const dieRecovery = die.flags.find((f) => f.key === 'recovery_low');
+  assert.equal(dieRecovery.owned, false);
+  assert.equal(dieRecovery.routeTo, 'trainer');
 
-  // The TRAINER owns training and sees the dietitian's nutrition READ-ONLY.
+  // The TRAINER owns it and sees the dietitian's nutrition READ-ONLY.
   const tr = row('trainer', c);
-  assert.equal(tr.flags.find((f) => f.key === 'streak_broken').owned, true);
+  assert.equal(tr.flags.find((f) => f.key === 'recovery_low').owned, true);
   assert.equal(tr.flags.find((f) => f.key === 'protein_under'), undefined, 'not actionable for the trainer');
   const trProtein = tr.readOnly.find((f) => f.key === 'protein_under');
   assert.ok(trProtein, 'the trainer sees the dietitian’s nutrition change as read-only context');
@@ -96,7 +97,7 @@ test('PREVIEW: dietitian OWNS nutrition; the trainer sees the dietitian’s nutr
 });
 
 test('a dietitian and a nutritionist route IDENTICALLY (same discipline)', () => {
-  const c = { profile: { name: 'X' }, nutrition: { avgProtein: 100, targetProtein: 175 }, pros: { trainer: true, nutritionist: true } };
+  const c = { profile: { name: 'X' }, nutrition: { avgProtein: 100, targetProtein: 175 }, foodLogs: { lastLoggedOn: null, daysLogged7d: 5 }, pros: { trainer: true, nutritionist: true } };
   const die = row('dietitian', c).flags.find((f) => f.key === 'protein_under');
   const nut = row('nutritionist', c).flags.find((f) => f.key === 'protein_under');
   assert.deepEqual({ owned: die.owned, routeTo: die.routeTo, discipline: die.discipline },

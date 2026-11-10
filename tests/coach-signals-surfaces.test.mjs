@@ -39,10 +39,13 @@ const JOINED = new Date(NOW.getTime() - 200 * DAY).toISOString();
 
 function overview({ careTeam } = {}) {
   return {
-    stats: { sessionsCompleted: 6, sessionsPlanned: 10, daysLogged7d: 2, avgCalories: 2600, avgProtein: 90 },
-    logs: { lastLoggedOn: ago(4), daysLogged7d: 2, recent: [] },
+    // Four days logged, the last three days ago: the calorie and protein averages have their days
+    // (NUTRITION_MIN_DAYS), and a trainer's 5-day food-log gap has not come (2026-11-10).
+    stats: { sessionsCompleted: 6, sessionsPlanned: 10, daysLogged7d: 4, avgCalories: 2600, avgProtein: 90 },
+    logs: { lastLoggedOn: ago(3), daysLogged7d: 4, recent: [] },
     nutritionTargets: { calories: 2100, protein: 150 },
-    scoreHistory: { weeks: [{ weekOf: mondaysAgo(2), points: 70, partial: false }, { weekOf: mondaysAgo(1), points: 61, partial: false }, { weekOf: MONDAY, points: 12, partial: true }], streak: { current: 0, best: 10, lastActiveOn: ago(3) } },
+    // A 29% fall: a coach's score drop is relative, and context.
+    scoreHistory: { weeks: [{ weekOf: mondaysAgo(2), points: 70, partial: false }, { weekOf: mondaysAgo(1), points: 50, partial: false }, { weekOf: MONDAY, points: 12, partial: true }], streak: { current: 0, best: 10, lastActiveOn: ago(3) } },
     lastContact: { trainer: new Date(NOW.getTime() - 8 * DAY).toISOString(), nutritionist: null },
     sleep: { avg7: 5.5, latest: 5.5, series7: [1, 2, 3, 4].map((d, i) => ({ date: ago(d), value: [5.4, 5.6, 5.5, 5.5][i] })) },
     vitals: { energy: { avg7: 3.2, n: 4 }, hunger: { avg7: 8.5, n: 4 } },
@@ -134,9 +137,14 @@ const core = await loadRealModule(join(ROOT, 'src/lib/ai/notify-core.ts'), {
 });
 
 test('the website feeds every leg: sleep, energy, hunger, wearable recovery, replies, the new signals', () => {
-  const keys = websiteRow().flags.map((f) => f.key).sort();
-  assert.deepEqual(keys, ['checkin_waiting', 'contact_gap', 'energy_low', 'food_gap', 'hunger_high', 'ledger_blown', 'missed_sessions',
-    'payment_retrying', 'program_ending', 'protein_under', 'recovery_low', 'reply_waiting', 'score_drop', 'screening_flagged', 'sleep_low', 'streak_broken'].sort());
+  const row = websiteRow();
+  const keys = row.flags.map((f) => f.key).sort();
+  // No broken streak: it is the member's own, no coach's (2026-11-10).
+  assert.deepEqual(keys, ['checkin_waiting', 'contact_gap', 'energy_low', 'hunger_high', 'ledger_blown', 'missed_sessions',
+    'payment_retrying', 'program_ending', 'protein_under', 'recovery_low', 'reply_waiting', 'score_drop', 'screening_flagged', 'sleep_low'].sort());
+  // The logging and streak legs reach the record; the rules that read them decide.
+  assert.deepEqual(row.client.foodLogs, { lastLoggedOn: ago(3), daysLogged7d: 4 });
+  assert.equal(row.client.streaks.current, 0);
 });
 
 test('the app gets the same flags and reasons as the website, from the same overview', async () => {
@@ -152,11 +160,11 @@ test('the app gets the same flags and reasons as the website, from the same over
 
 test("the app runs on the coach's own tuning, as the website does", async () => {
   appOverview = overview();
-  appSettings = { thresholds: { FOOD_GAP_DAYS: 10, MISSED_SESSIONS: 9 } };
-  const tuned = E.resolveThresholds(appSettings.thresholds).thresholds;
+  appSettings = { thresholds: { FOOD_GAP_DAYS: 2, MISSED_SESSIONS: 9 } };
+  const tuned = E.resolveThresholds(appSettings.thresholds, 'trainer').thresholds;
   const app = await appRow();
   const web = websiteRow(overview(), tuned);
-  assert.equal(app.flags.some((f) => f.key === 'food_gap'), false, 'the tuned gap is longer than 4 days');
+  assert.equal(app.flags.some((f) => f.key === 'food_gap'), true, 'the tuned gap is shorter than the 3 days since the last log');
   assert.equal(app.flags.some((f) => f.key === 'missed_sessions'), false);
   assert.deepEqual(flagsOf(app), flagsOf(web));
   appSettings = {};

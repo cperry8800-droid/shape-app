@@ -4587,7 +4587,7 @@ function BSProClientFullProfilePage({ client, onBack, role = 'trainer' }) {
   const _allClear = _sig.sev === 'green' || _sig.sev === 'past';
   const _lead = _sig && _sig.lead ? _sig.lead : null;
   const _act = _lead && _lead.action ? _lead.action : null;
-  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', food_gap: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', plan_due: 'program-stall', program_ending: 'program-stall' };
+  const _LEAD_GROUP = { checkin_overdue: 'check-in-due', checkin_waiting: 'check-in-due', missed_sessions: 'missed-sessions', food_gap: 'nutrition-slip', food_logging: 'nutrition-slip', ledger_blown: 'nutrition-slip', protein_under: 'nutrition-slip', hunger_high: 'nutrition-slip', plan_due: 'program-stall', program_ending: 'program-stall' };
   const _DEMO_GROUP = { missed: role === 'nutritionist' ? 'nutrition-slip' : 'check-in-due', 'review form': 'check-in-due', 'deload soon': 'program-stall' };
   const _dirKind = _allClear ? 'all-clear'
     : _sig.sev === 'new' ? 'new-intake' // a fresh client → reach out with the intake (no program exists yet)

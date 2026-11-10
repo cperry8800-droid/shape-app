@@ -22,7 +22,7 @@ const presetReact = require('next/dist/compiled/babel/preset-react');
 const DashSignals = require(join(ROOT, 'public/newdesign/dashSignals.js'));
 
 const CODE = babel.transformSync(readFileSync(join(ROOT, 'public/newdesign/coachSettings.jsx'), 'utf8'), { presets: [presetReact], babelrc: false, configFile: false }).code;
-const EXPORTS = 'return { CoachSettingsPage, cstGrouped, CST_FLAG_GROUPS, CST_NOTIFY_GROUPS, CST_COACH_TYPES, CST_SECTIONS };';
+const EXPORTS = 'return { CoachSettingsPage, cstGrouped, cstFlagGroups, CST_FLAG_GROUPS_BY_ROLE, CST_NOTIFY_GROUPS, CST_COACH_TYPES, CST_SECTIONS };';
 
 // The globals the page reads off the other dashboard scripts, as parameters of the compiled module.
 const GLOBALS = ['React', 'window', 'document', 'fetch', 'DashSignals', 'nutriNavItems', 'trainerNavItems', 'nutriPayoutCard', 'trainerPayoutCard',
@@ -93,17 +93,56 @@ async function mountPage(over = {}, role = 'trainer') {
 }
 
 const fake = new JSDOM('').window;
-const { cstGrouped, CST_FLAG_GROUPS, CST_NOTIFY_GROUPS, CST_COACH_TYPES, CST_SECTIONS } = load(fake);
+const { cstGrouped, cstFlagGroups, CST_FLAG_GROUPS_BY_ROLE, CST_NOTIFY_GROUPS, CST_COACH_TYPES, CST_SECTIONS } = load(fake);
+const ROLES = ['trainer', 'nutritionist'];
 
 // ── the groups drop nothing ──────────────────────────────────────────────────
-test('every flag threshold sits under exactly one heading, and every heading names a real one', () => {
-  const named = CST_FLAG_GROUPS.flatMap((g) => g.keys);
-  assert.equal(new Set(named).size, named.length, 'a threshold is under two headings');
-  const tunable = DashSignals.TUNABLES.map((t) => t.key);
-  assert.deepEqual([...named].sort(), [...tunable].sort(), 'the headings and the engine\'s thresholds differ');
-  const out = cstGrouped(CST_FLAG_GROUPS, DashSignals.TUNABLES, (t) => t.key, { key: 'more', label: 'More' });
-  assert.deepEqual(out.map((g) => g.key), CST_FLAG_GROUPS.map((g) => g.key), 'a heading is empty, or rows fell to More');
-  assert.equal(out.reduce((n, g) => n + g.rows.length, 0), tunable.length);
+test('every flag threshold a role reads sits under exactly one of its headings, and every heading names a real one', () => {
+  assert.deepEqual(Object.keys(CST_FLAG_GROUPS_BY_ROLE).sort(), ROLES.slice().sort());
+  for (const role of ROLES) {
+    const groups = cstFlagGroups(role);
+    const named = groups.flatMap((g) => g.keys);
+    assert.equal(new Set(named).size, named.length, role + ': a threshold is under two headings');
+    const rows = DashSignals.tunablesFor(role);
+    const tunable = rows.map((t) => t.key);
+    assert.deepEqual([...named].sort(), [...tunable].sort(), role + ': the headings and the engine\'s thresholds differ');
+    const out = cstGrouped(groups, rows, (t) => t.key, { key: 'more', label: 'More' });
+    assert.deepEqual(out.map((g) => g.key), groups.map((g) => g.key), role + ': a heading is empty, or rows fell to More');
+    assert.equal(out.reduce((n, g) => n + g.rows.length, 0), tunable.length);
+  }
+  // A dietitian's page is the nutritionist's.
+  assert.equal(cstFlagGroups('dietitian'), cstFlagGroups('nutritionist'));
+});
+
+test('each coach\'s own flags come first, in their own words and with their own house values', async () => {
+  const want = {
+    trainer: { first: 'Training & sessions', last: ['Nutrition · when you\'re their only coach', 'Context · shown, never counted'], gap: '5', program: 'Program ending', logging: false, houseFor: 'trainers' },
+    nutritionist: { first: 'Logging & intake', last: ['Recovery · the trainer\'s when one is on', 'Context · shown, never counted'], gap: '3', program: 'Plan ending', logging: true, houseFor: 'nutritionists' },
+  };
+  for (const role of ROLES) {
+    const w = want[role];
+    const groups = cstFlagGroups(role);
+    assert.equal(groups[0].label, w.first, role);
+    assert.deepEqual(groups.slice(-2).map((g) => g.label), w.last, role);
+    const m = await mountPage({}, role);
+    try {
+      await m.click('Client flags');
+      const flags = m.panel('Client flags');
+      // The headings in the page's order, the role's own first.
+      const text = flags.textContent;
+      const at = groups.map((g) => text.indexOf(g.label));
+      assert.ok(at.every((i) => i >= 0), role + ': a heading is missing');
+      assert.deepEqual(at, [...at].sort((a, b) => a - b), role + ': the headings are out of order');
+      // The food-log gap at this role's house value, and the chip saying so.
+      assert.equal(flags.querySelector('input[aria-label="Food-log gap (days)"]').value, w.gap, role);
+      assert.match(text, new RegExp('House ' + w.gap));
+      assert.match(text, new RegExp('Shape\'s default\\s+for ' + w.houseFor));
+      assert.ok(flags.querySelector('input[aria-label="' + w.program + ' (days)"]'), role + ': ' + w.program);
+      assert.equal(!!flags.querySelector('input[aria-label="Logging days (days)"]'), w.logging, role + ': logging days');
+      assert.match(text, /Red takes\s+flags in two different areas/);
+      assert.match(text, /Score drop/);
+    } finally { await m.close(); }
+  }
 });
 
 test('every notification switch sits under exactly one heading, and every heading names a real one', () => {
@@ -135,16 +174,16 @@ test('tabs across the top: General first and showing, every other section mounte
   } finally { await m.close(); }
 });
 
-test('a tab shows its section and hides the one before; the flags are all there, under four headings', async () => {
+test('a tab shows its section and hides the one before; the flags are all there, under their headings', async () => {
   const m = await mountPage();
   try {
     await m.click('Client flags');
     assert.deepEqual(m.shown(), ['Client flags']);
     assert.equal(m.tabs().find((t) => t.textContent === 'Client flags').getAttribute('aria-selected'), 'true');
     const flags = m.panel('Client flags');
-    for (const g of CST_FLAG_GROUPS) assert.ok(flags.textContent.includes(g.label), g.label + ' heading missing');
+    for (const g of cstFlagGroups('trainer')) assert.ok(flags.textContent.includes(g.label), g.label + ' heading missing');
     const fields = [...flags.querySelectorAll('input[type="number"]')].map((i) => i.getAttribute('aria-label'));
-    assert.deepEqual(fields.sort(), DashSignals.TUNABLES.map((t) => t.label + ' (' + t.unit + ')').sort(), 'a threshold has no field');
+    assert.deepEqual(fields.sort(), DashSignals.tunablesFor('trainer').map((t) => t.label + ' (' + t.unit + ')').sort(), 'a threshold has no field');
     assert.match(flags.textContent, /Each number decides when a client is flagged to you/);
     await m.click('Calendar');
     assert.deepEqual(m.shown(), ['Calendar']);
@@ -234,12 +273,12 @@ test('a link naming no section, or one that is not there, leaves General', async
 test('a signed-in coach\'s tuning shows on its row and in its heading\'s count', async () => {
   const m = await mountPage({
     useSignedIn: () => 'coach-1',
-    useCoachDoc: () => ({ kind: 'ready', doc: { thresholds: { FOOD_GAP_DAYS: 5 } }, apply: async () => true }),
+    useCoachDoc: () => ({ kind: 'ready', doc: { thresholds: { FOOD_GAP_DAYS: 4 } }, apply: async () => true }),
   });
   try {
     await m.click('Client flags');
     const flags = m.panel('Client flags');
-    assert.equal(flags.querySelector('input[aria-label="Food-log gap (days)"]').value, '5');
+    assert.equal(flags.querySelector('input[aria-label="Food-log gap (days)"]').value, '4');
     assert.match(flags.textContent, /1 tuned/);
     assert.match(flags.textContent, /Saved to your account/);
   } finally { await m.close(); }
