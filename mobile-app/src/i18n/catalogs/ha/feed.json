@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "Ba za a iya kunna wannan saƙon murya yanzu ba.",
   "thread.voiceNotSent": "Ba a aika ba",
   "thread.voiceFailed": "Ba a iya aika saƙon murya ba.",
-  "thread.voicePreview": "Saƙon murya · {time}"
+  "thread.voicePreview": "Saƙon murya · {time}",
+  "channels.changePicture": "Canza hoton tashar",
+  "channels.pictureSaved": "An adana hoton",
+  "channels.pictureError": "An kāsa adana hoton — sāke gwadawa.",
+  "channels.readOnly": "Shape kaɗai ke wallafawa a nan"
 }

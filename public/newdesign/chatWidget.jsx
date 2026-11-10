@@ -542,10 +542,65 @@ const CW_PLACE_SUBS = {
 // PR Wall, pinned for everyone; the rest with the member's own pins first. One difference: the
 // app draws a canned Shape HQ (sample "product news") when no real one exists, and a member's
 // view here carries no sample, so HQ shows only once there is a real channel by that name.
+// ── What sits in a channel's circle ──────────────────────────────────────────────────
+// An IDENTICAL copy of public/newdesign/channelMark.mjs (this classic script cannot import it);
+// tests/channel-mark.test.mjs runs both on the same names. The host's picture; Shape's triangles
+// for Shape HQ and a trophy for the PR Wall, Shape's own channels only; else the name's initials
+// on the name's colour.
+const CW_CHANNEL_MARK_HUES = ['#34d6c5', '#c0533b', '#d8b25a', '#5b8def', '#8a5cf6', '#5fa96e'];
+const CW_CHANNEL_MARK_TRIANGLES = { viewBox: '4 12 91 91', top: '43,39 82,15 82,63', bottom: '17,49 56,73 17,97' };
+const CW_CHANNEL_MARK_TROPHY = 'M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5.5a2.5 2.5 0 0 0 2.5 3.5M16 6h2.5a2.5 2.5 0 0 1-2.5 3.5M12 13v3.5M9.5 16.5h5v3.5h-5Z';
+function cwChannelMark(ch) {
+  const c = ch || {};
+  const name = String(c.name || '').replace(/^#\s*/, '').trim();
+  const key = name.toLowerCase();
+  if (typeof c.picture === 'string' && c.picture.trim()) return { kind: 'picture', src: c.picture.trim() };
+  if (c.official && key === 'shape hq') return { kind: 'shape' };
+  if (c.official && key === 'pr wall') return { kind: 'trophy' };
+  const words = name.split(/[\s\-_.·]+/).map((w) => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(Boolean);
+  const text = (words.length >= 2 ? words[0][0] + words[1][0] : (words[0] || '#').slice(0, 2)).toUpperCase();
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return { kind: 'initials', text, hue: CW_CHANNEL_MARK_HUES[h % CW_CHANNEL_MARK_HUES.length] };
+}
+// The circle (owner, 2026-11-10: "you can leave them circle", "make them a little smaller").
+function CwChannelMark({ ch, size = 30 }) {
+  const m = cwChannelMark(ch);
+  const [broken, setBroken] = React.useState(false);
+  const base = { flex: "none", width: size, height: size, borderRadius: 999, display: "grid", placeItems: "center", overflow: "hidden" };
+  if (m.kind === "picture" && !broken) {
+    return <span aria-hidden data-channel-mark="picture" style={{ ...base, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)" }}><img src={m.src} alt="" onError={() => setBroken(true)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></span>;
+  }
+  if (m.kind === "shape") {
+    const g = CW_CHANNEL_MARK_TRIANGLES;
+    return (
+      <span aria-hidden data-channel-mark="shape" style={{ ...base, background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.14)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.45)" }}>
+        <svg viewBox={g.viewBox} width={size * 0.56} height={size * 0.56} style={{ display: "block" }}><polygon points={g.top} fill="var(--sh-ink, #f2ede4)" /><polygon points={g.bottom} fill="var(--sh-accent3, #34d6c5)" /></svg>
+      </span>
+    );
+  }
+  if (m.kind === "trophy") {
+    return (
+      <span aria-hidden data-channel-mark="trophy" style={{ ...base, background: cwHexA("#d8b25a", 0.14), border: "1px solid " + cwHexA("#d8b25a", 0.45), color: "#d8b25a" }}>
+        <svg viewBox="0 0 24 24" width={size * 0.52} height={size * 0.52} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ display: "block" }}><path d={CW_CHANNEL_MARK_TROPHY} /></svg>
+      </span>
+    );
+  }
+  const fall = m.kind === "initials" ? m : cwChannelMark({ name: ch && ch.name });
+  return (
+    <span aria-hidden data-channel-mark="initials" style={{ ...base, background: cwHexA(fall.hue, 0.16), border: "1px solid " + cwHexA(fall.hue, 0.45), color: fall.hue, fontFamily: "'Saira', 'Space Grotesk', system-ui, sans-serif", fontWeight: 700, fontSize: Math.round(size * (fall.text.length > 1 ? 0.36 : 0.44)), letterSpacing: "0.02em", lineHeight: 1 }}>{fall.text}</span>
+  );
+}
+
+// The "#" before a channel's name, smaller and lighter than the name, as the app draws it.
+function CwChannelHash() {
+  return <span aria-hidden style={{ fontSize: "0.72em", opacity: 0.55, marginRight: "0.15em" }}>#</span>;
+}
+
 function cwChannelRole(n, desc) {
   return `${n} ${n === 1 ? "member" : "members"}${desc ? " · " + desc : ""}`;
 }
-function cwChannelThreads(rows, members, me, unread, when) {
+function cwChannelThreads(rows, members, me, unread, when, pictureUrl) {
   const by = {};
   (members || []).forEach((m) => { if (m && m.channel_id) (by[m.channel_id] = by[m.channel_id] || []).push(m); });
   const list = (rows || []).filter((c) => c && c.id).map((c) => {
@@ -559,15 +614,21 @@ function cwChannelThreads(rows, members, me, unread, when) {
       last: c.last_message || "", time: c.last_message_at ? when(c.last_message_at) : "",
       unread: (unread && unread[c.id]) || 0, group: true,
       joined: !!mine, host: !!((mine && mine.role === "host") || (me && c.created_by === me)),
-      private: c.visibility === "private", pinned: !!(mine && mine.pinned), official: false,
+      private: c.visibility === "private", pinned: !!(mine && mine.pinned),
+      // Shape's own channel (system-owned); a member's channel named "Shape HQ" is not one.
+      official: !c.created_by,
+      // The host's picture, its address built by this client from the stored path.
+      picture: (c.picture_path && typeof pictureUrl === "function") ? (pictureUrl(c.picture_path) || null) : null,
+      // A channel only Shape posts in (Shape HQ).
+      readOnly: c.read_only === true,
       messages: [],
     };
   });
-  const named = (t, n) => t.name.trim().toLowerCase() === n;
+  const named = (t, n) => t.official && t.name.trim().toLowerCase() === n;
   const hq = list.find((t) => named(t, "shape hq")) || null;
   const prw = list.find((t) => named(t, "pr wall")) || null;
   const rest = list.filter((t) => t !== hq && t !== prw).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  return [hq, prw].filter(Boolean).map((t) => ({ ...t, pinned: true, official: true })).concat(rest);
+  return [hq, prw].filter(Boolean).map((t) => ({ ...t, pinned: true })).concat(rest);
 }
 
 // The tab ids of a thread record saved before records named their tabs. Those were
@@ -1553,7 +1614,10 @@ function ChatWidget(props) {
         let channelThreads = null;
         try {
           const chRes = await db.from("channels")
-            .select("id, name, description, created_by, visibility, last_message, last_message_at, created_at")
+            // Every column: `picture_path` and `read_only` exist once
+            // 2026-11-10-channel-pictures-and-shape-hq.sql has run, and naming them before then
+            // would fail the whole read.
+            .select("*")
             .order("last_message_at", { ascending: false, nullsFirst: false })
             .order("created_at", { ascending: false });
           if (cancelled) return;
@@ -1568,7 +1632,8 @@ function ChatWidget(props) {
               ((ur && !ur.error && ur.data) || []).forEach((r) => { unread[r.channel_id] = Number(r.unread) || 0; });
             } catch (e) { /* no badges, the list still stands */ }
             if (cancelled) return;
-            if (memRes && !memRes.error) channelThreads = cwChannelThreads(rows, memRes.data || [], me, unread, relTime);
+            const pictureUrl = (path) => { try { return db.storage.from("channel-pictures").getPublicUrl(path).data.publicUrl || null; } catch (e) { return null; } };
+            if (memRes && !memRes.error) channelThreads = cwChannelThreads(rows, memRes.data || [], me, unread, relTime, pictureUrl);
           }
         } catch (e) { /* channels stay as they were */ }
 
@@ -2467,6 +2532,40 @@ function ChatWidget(props) {
     }
   };
 
+  // A channel's picture, set by its host (owner, 2026-11-10: "have creators of channels upload custom
+  // pictures"): the file into the channel's folder of the channel-pictures bucket (only its host may
+  // write there), then its path onto the channel. The address is built here, never stored.
+  const pictureInputRef = React.useRef(null);
+  const [pictureBusy, setPictureBusy] = React.useState(false);
+  const [pictureErr, setPictureErr] = React.useState(null); // { id, text }
+  const onChannelPicture = async (e) => {
+    const file = e && e.target && e.target.files && e.target.files[0];
+    if (e && e.target) e.target.value = "";
+    const th = (threadsByTab[tabIdx] || [])[activeIdx];
+    const chId = th && th.channelId;
+    if (!file || !chId || !th.host || th.official) return;
+    const db = window.shapeDb && window.shapeDb.client;
+    const type = String(file.type || "").toLowerCase();
+    if (!db) { setPictureErr({ id: chId, text: "No connection. Try again." }); return; }
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) { setPictureErr({ id: chId, text: "Use a JPEG, PNG, WebP or GIF." }); return; }
+    if (file.size > 5 * 1024 * 1024) { setPictureErr({ id: chId, text: "Use a picture under 5 MB." }); return; }
+    setPictureBusy(true); setPictureErr(null);
+    try {
+      const ext = type === "image/jpeg" ? "jpg" : type.split("/")[1];
+      const path = `${chId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const up = await db.storage.from("channel-pictures").upload(path, file, { contentType: type, upsert: false });
+      if (up && up.error) throw up.error;
+      const res = await db.from("channels").update({ picture_path: path }).eq("id", chId);
+      if (res && res.error) throw res.error;
+      const url = db.storage.from("channel-pictures").getPublicUrl(path).data.publicUrl || null;
+      setThreadsByTab(prev => prev.map((ts) => (ts || []).map((t) => (t && t.channelId === chId ? { ...t, picture: url } : t))));
+    } catch (err) {
+      setPictureErr({ id: chId, text: "Couldn\u2019t save the picture. Try again." });
+    } finally {
+      setPictureBusy(false);
+    }
+  };
+
   // Joining a channel: a member row of your own, which a public channel allows (the app's
   // `joinChannel`). Already a member reads as joined.
   const [joinBusy, setJoinBusy] = React.useState(null);
@@ -2816,7 +2915,7 @@ function ChatWidget(props) {
                     cursor: "pointer", color: "inherit", fontFamily: "inherit",
                   }}>
                   {t.group ? (
-                    <span aria-hidden style={{ flex: "none", width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700 }}>#</span>
+                    <CwChannelMark ch={{ name: t.name || t.who, picture: t.picture, official: t.official }} size={30} />
                   ) : (
                     <CwFacetAvatar size={34} c={cwTierColor(t.tier || cwHashTier(t.who, !!t.coach || /trainer|coach|nutritionist/i.test(t.role || "")))} initial={cwInitials(t.who)} photo={t.conversationId ? undefined : (cwDemoFace(t.who) || undefined)} live={!!t.online} />
                   )}
@@ -2825,7 +2924,7 @@ function ChatWidget(props) {
                     <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 500, fontFamily: t.group ? "'JetBrains Mono', monospace" : sans, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}>
                         {t.online && <span style={{ flex: "none", width: 7, height: 7, borderRadius: 999, background: "#3ddc84", boxShadow: "0 0 0 2px rgba(61,220,132,0.2)" }} />}
-                        {t.group ? String(t.who || "").replace(/^#\s*/, "") : t.who}
+                        {t.group ? <React.Fragment><CwChannelHash />{String(t.who || "").replace(/^#\s*/, "")}</React.Fragment> : t.who}
                       </span>
                       {t.pinned && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", padding: "1px 5px", borderRadius: 3 }}>{t.official ? "SHAPE" : "PINNED"}</span>}
                       {t.channelId && !t.joined && <span style={{ flex: "none", fontSize: 8.5, color: "var(--sh-ink2, #a09b94)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", padding: "0 5px", borderRadius: 3 }}>JOIN</span>}
@@ -3053,15 +3152,26 @@ function ChatWidget(props) {
               style={{ padding: "12px 18px", borderBottom: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: docked ? "default" : "grab", userSelect: "none" }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 11 }}>
                 {active && (active.group
-                  ? <span aria-hidden style={{ flex: "none", width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.12)", border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.3)", color: "var(--sh-accent-ink, #2ee0c4)", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, fontWeight: 700 }}>#</span>
+                  ? <CwChannelMark ch={{ name: active.name || active.who, picture: active.picture, official: active.official }} size={32} />
                   : active.who === "Nora"
                   ? <img src="/nora-avatar.png" alt="" aria-hidden onError={cwPhotoError} data-fallback={CW_NORA_MARK} style={{ flex: "none", width: 32, height: 32, borderRadius: 999, objectFit: "cover", objectPosition: "50% 32%", boxShadow: `0 0 0 2px ${TEAL}` }} />
                   : <CwFacetAvatar size={32} c={cwTierColor(active.tier || cwHashTier(active.who, !!active.coach || /trainer|coach|nutritionist/i.test(active.role || "")))} initial={cwInitials(active.who)} photo={active.conversationId ? undefined : (cwDemoFace(active.who) || undefined)} live={!!active.online} />)}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-0.01em", fontFamily: active?.group ? "'JetBrains Mono', monospace" : sans, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active?.group ? String(active.who || "").replace(/^#\s*/, "") : active?.who}</div>
-                  {active?.role && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.role}</div>}
+                  <div style={{ fontSize: 14.5, fontWeight: 600, letterSpacing: "-0.01em", fontFamily: sans, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active?.group ? <React.Fragment><CwChannelHash />{String(active.who || "").replace(/^#\s*/, "")}</React.Fragment> : active?.who}</div>
+                  {pictureErr && active && pictureErr.id === active.channelId
+                    ? <div role="alert" style={{ fontSize: 11.5, color: "var(--sh-gold, #d8a23a)", marginTop: 2 }}>{pictureErr.text}</div>
+                    : active?.role && <div style={{ fontSize: 11.5, color: "var(--sh-ink2, #a09b94)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{active.role}</div>}
                 </div>
               </div>
+              {active && active.channelId && active.host && !active.official && (
+                <React.Fragment>
+                  <button type="button" className="cw-icon-btn" data-channel-picture onClick={() => pictureInputRef.current && pictureInputRef.current.click()} disabled={pictureBusy}
+                    title="Change the channel\u2019s picture" aria-label="Change the channel\u2019s picture" style={{ opacity: pictureBusy ? 0.5 : 1 }}>
+                    <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4Z" /><circle cx="12" cy="13" r="3.4" /></svg>
+                  </button>
+                  <input ref={pictureInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onChannelPicture} style={{ display: "none" }} />
+                </React.Fragment>
+              )}
             </div>
             )}
 
@@ -3071,7 +3181,7 @@ function ChatWidget(props) {
                 <div data-channel-empty style={{ margin: "auto", maxWidth: 360, textAlign: "center", padding: "24px 8px" }}>
                   <div style={{ fontFamily: serif, fontSize: 20, letterSpacing: "-0.015em", color: INK }}>#{active.name}</div>
                   <div style={{ marginTop: 8, fontFamily: sans, fontSize: 13, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" }}>{active.desc || "No messages yet."}</div>
-                  <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{active.joined ? "Say the first thing" : "Join to post"}</div>
+                  <div style={{ marginTop: 10, fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink3, #75706a)" }}>{active.readOnly ? "Only Shape posts here" : active.joined ? "Say the first thing" : "Join to post"}</div>
                 </div>
               )}
               {active?.messages?.map((m, i) => {
@@ -3345,7 +3455,12 @@ function ChatWidget(props) {
                   : (voiceErr || speakNotice)}
               </div>
             )}
-            {active && active.channelId && !active.joined ? (
+            {active && active.channelId && active.readOnly ? (
+              // A channel only Shape posts in (Shape HQ): no composer, and it says why.
+              <div data-channel-readonly style={{ margin: "10px 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.1)", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", fontSize: 9.5, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--sh-ink2, #a09b94)" }}>
+                Only Shape posts here
+              </div>
+            ) : active && active.channelId && !active.joined ? (
               // Posting is for a channel's members (its insert policy), as in the app: Join first.
               <div data-channel-join style={{ margin: "10px 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <div role={joinErr && joinErr.id === active.channelId ? "alert" : undefined} style={{ flex: 1, minWidth: 160, fontFamily: sans, fontSize: 13, lineHeight: 1.4, color: joinErr && joinErr.id === active.channelId ? "var(--sh-gold, #d8a23a)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.78)" }}>

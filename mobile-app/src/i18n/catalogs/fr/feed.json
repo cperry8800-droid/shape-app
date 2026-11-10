@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "Ce message vocal ne peut pas être lu pour le moment.",
   "thread.voiceNotSent": "Non envoyé",
   "thread.voiceFailed": "Le message vocal n’a pas pu être envoyé.",
-  "thread.voicePreview": "Message vocal · {time}"
+  "thread.voicePreview": "Message vocal · {time}",
+  "channels.changePicture": "Changer l’image du canal",
+  "channels.pictureSaved": "Image enregistrée",
+  "channels.pictureError": "Impossible d’enregistrer l’image — réessaie.",
+  "channels.readOnly": "Seul Shape publie ici"
 }

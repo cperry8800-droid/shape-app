@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "Pesan suara ini tidak dapat diputar sekarang.",
   "thread.voiceNotSent": "Tidak terkirim",
   "thread.voiceFailed": "Pesan suara tidak dapat dikirim.",
-  "thread.voicePreview": "Pesan suara · {time}"
+  "thread.voicePreview": "Pesan suara · {time}",
+  "channels.changePicture": "Ganti gambar kanal",
+  "channels.pictureSaved": "Gambar disimpan",
+  "channels.pictureError": "Gagal menyimpan gambar — coba lagi.",
+  "channels.readOnly": "Hanya Shape yang memposting di sini"
 }

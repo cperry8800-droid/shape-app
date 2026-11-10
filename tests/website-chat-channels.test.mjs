@@ -45,6 +45,14 @@ function fakeDb({ tables, log, failChannels = false, insertError = null }) {
       if (state.table === 'channel_messages') tables.channel_messages.push({ id: 'm' + tables.channel_messages.length, created_at: new Date(Date.now() + 1000).toISOString(), ...row });
       return { data: null, error: null };
     }
+    if (has('update')) {
+      const row = has('update')[1][0];
+      const id = has('eq') ? has('eq')[1][1] : null;
+      log.push(['update', state.table, row, id]);
+      const target = (tables[state.table] || []).find((r) => r.id === id);
+      if (target) Object.assign(target, row);
+      return { data: null, error: null };
+    }
     log.push(['select', state.table, ops.map((o) => o[0]).join('.')]);
     if (state.table === 'channels') return failChannels ? { data: null, error: { message: 'down' } } : { data: tables.channels, error: null };
     if (state.table === 'channel_members') {
@@ -85,11 +93,17 @@ function fakeDb({ tables, log, failChannels = false, insertError = null }) {
     return Promise.resolve({ data: null, error: null });
   };
   const user = { id: 'u1', email: 'ann@shape.test', user_metadata: { full_name: 'Ann Lee' } };
+  const storage = {
+    from: (bucket) => ({
+      upload: async (path, file, opts) => { log.push(['upload', bucket, path, opts && opts.contentType]); return { data: { path }, error: null }; },
+      getPublicUrl: (path) => ({ data: { publicUrl: `https://cdn.test/${bucket}/${path}` } }),
+    }),
+  };
   return {
     getSession: async () => ({}),
     getUserGoals: async () => null,
     getProfile: async () => ({ full_name: 'Ann Lee' }),
-    client: { auth: { getUser: async () => ({ data: { user } }) }, from, rpc },
+    client: { auth: { getUser: async () => ({ data: { user } }) }, from, rpc, storage },
   };
 }
 
@@ -149,7 +163,10 @@ const world = () => ({
   channels: [
     { id: 'ch-run', name: 'sunday-run-club', description: 'Long runs', created_by: 'u9', visibility: 'public', last_message: 'See you at 6', last_message_at: '2026-11-10T09:00:00Z' },
     { id: 'ch-pr', name: 'PR Wall', description: 'Every public member’s new personal records, automatically.', created_by: null, visibility: 'public', last_message: 'New PRs land here.', last_message_at: '2026-06-14T21:22:06Z' },
-    { id: 'ch-mine', name: 'macro-mondays', description: '', created_by: 'u1', visibility: 'public', last_message: '', last_message_at: null },
+    { id: 'ch-mine', name: 'macro-mondays', description: '', created_by: 'u1', visibility: 'public', last_message: '', last_message_at: null, picture_path: 'ch-mine/a.jpg' },
+    { id: 'ch-hq', name: 'Shape HQ', description: 'The official Shape channel: product news, drops and events.', created_by: null, visibility: 'public', read_only: true, last_message: 'Welcome to Shape HQ.', last_message_at: '2026-11-10T06:00:00Z' },
+    // A member's channel named after Shape's: not Shape's, so not pinned and not marked as Shape's.
+    { id: 'ch-fake', name: 'PR Wall', description: '', created_by: 'u5', visibility: 'public', last_message: '', last_message_at: '2026-11-01T00:00:00Z' },
   ],
   channel_members: [
     { channel_id: 'ch-run', user_id: 'u9', role: 'host', pinned: false },
@@ -171,12 +188,23 @@ test('a member sees the real channels, in the app\'s order, and not the sample',
   const m = await mount({ db: fakeDb({ tables, log }) });
   try {
     const r = m.rows();
-    assert.equal(r.length, 3, 'three real channels: ' + r.join(' | '));
+    assert.equal(r.length, 5, 'five real channels: ' + r.join(' | '));
     assert.ok(!r.some((x) => /shape-community/.test(x)), 'the sample channel is still listed');
-    assert.match(r[0], /PR Wall/, 'the PR Wall is pinned first, for everyone');
-    assert.match(r[0], /SHAPE/, 'and marked as Shape\'s own');
-    assert.match(r[1], /macro-mondays/, 'then the member\'s own pin');
-    assert.match(r[2], /sunday-run-club/);
+    assert.match(r[0], /Shape HQ/, 'Shape HQ is pinned first, for everyone');
+    assert.match(r[1], /PR Wall/, 'then the PR Wall');
+    assert.match(r[0], /SHAPE/, 'marked as Shape\'s own');
+    assert.match(r[1], /SHAPE/);
+    assert.match(r[2], /macro-mondays/, 'then the member\'s own pin');
+    assert.ok(r.slice(3).some((x) => /sunday-run-club/.test(x)));
+    // The impostor is listed as the member's channel it is.
+    const fake = [...m.doc.querySelectorAll('.chw-row')].slice(3).find((x) => /PR Wall/.test(x.textContent));
+    assert.ok(fake, 'a member\'s channel named PR Wall is missing');
+    assert.doesNotMatch(fake.textContent, /SHAPE/, 'a member\'s channel is marked as Shape\'s');
+    assert.equal(fake.querySelector('[data-channel-mark]').getAttribute('data-channel-mark'), 'initials', 'a member\'s channel wears Shape\'s trophy');
+    assert.equal(m.row('Shape HQ').querySelector('[data-channel-mark]').getAttribute('data-channel-mark'), 'shape', 'Shape HQ does not wear the triangles');
+    const pic = m.row('macro-mondays').querySelector('[data-channel-mark="picture"] img');
+    assert.ok(pic, 'the host\'s picture is not drawn');
+    assert.equal(pic.getAttribute('src'), 'https://cdn.test/channel-pictures/ch-mine/a.jpg', 'the address is not built from the stored path');
     assert.match(m.row('sunday-run-club').textContent, /JOIN/, 'a channel you are not in says Join');
     assert.match(m.row('sunday-run-club').textContent, /2/, 'its unread count comes from channel_unread');
     assert.equal(m.row('PR Wall').querySelector('.chw-pin'), null, 'Shape\'s own channel cannot be unpinned');
@@ -309,4 +337,58 @@ test('Shape HQ is pinned only when it is real', () => {
   const real = S.f([{ id: 'a', name: 'run' }, { id: 'p', name: 'PR Wall' }, { id: 'h', name: 'Shape HQ' }], [], 'u1', {}, when);
   assert.deepEqual(real.map((t) => t.name), ['Shape HQ', 'PR Wall', 'run'], 'a real HQ goes first');
   assert.ok(real[0].official && real[0].pinned && real[1].official, 'Shape\'s two are pinned and marked');
+});
+
+test('Shape HQ is read, not posted in: no composer and no Join', async () => {
+  const m = await mount({ db: fakeDb({ tables: world(), log: [] }) });
+  try {
+    await m.click(m.row('Shape HQ'));
+    assert.ok(m.doc.querySelector('[data-channel-readonly]'), 'no note that only Shape posts here');
+    assert.match(m.doc.querySelector('[data-channel-readonly]').textContent, /Only Shape posts here/);
+    assert.equal(m.doc.querySelector('.cw-composer'), null, 'a composer in a read-only channel');
+    assert.equal(m.doc.querySelector('[data-channel-join]'), null, 'Join in a read-only channel');
+    assert.equal(m.doc.querySelector('[data-channel-picture]'), null, 'Shape\'s channel offers a picture change');
+  } finally { await m.done(); }
+});
+
+test('the host changes the channel\'s picture: into its folder, then its path onto the channel', async () => {
+  const tables = world();
+  const log = [];
+  const m = await mount({ db: fakeDb({ tables, log }) });
+  try {
+    await m.click(m.row('sunday-run-club'));
+    assert.equal(m.doc.querySelector('[data-channel-picture]'), null, 'a channel you do not host offers a picture change');
+    await m.click(m.row('macro-mondays'));
+    const btn = m.doc.querySelector('[data-channel-picture]');
+    assert.ok(btn, 'the host is not offered a picture change');
+    const input = btn.parentNode.querySelector('input[type="file"]');
+    const file = new m.w.File(['png'], 'p.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await React.act(async () => { input.dispatchEvent(new m.w.Event('change', { bubbles: true })); });
+    await settle(8);
+    const up = log.find((x) => x[0] === 'upload');
+    assert.ok(up, 'nothing was uploaded');
+    assert.equal(up[1], 'channel-pictures');
+    assert.match(up[2], /^ch-mine\/\d+-[a-z0-9]+\.png$/, 'not into the channel\'s own folder: ' + up[2]);
+    assert.equal(up[3], 'image/png');
+    const upd = log.find((x) => x[0] === 'update' && x[1] === 'channels');
+    assert.deepEqual([upd[2], upd[3]], [{ picture_path: up[2] }, 'ch-mine'], 'the path was not stored on the channel');
+    const img = m.row('macro-mondays').querySelector('[data-channel-mark="picture"] img');
+    assert.equal(img.getAttribute('src'), `https://cdn.test/channel-pictures/${up[2]}`, 'the new picture is not drawn');
+  } finally { await m.done(); }
+});
+
+test('a picture that is not an image, or too large, is refused before anything is sent', async () => {
+  const log = [];
+  const m = await mount({ db: fakeDb({ tables: world(), log }) });
+  try {
+    await m.click(m.row('macro-mondays'));
+    const input = m.doc.querySelector('[data-channel-picture]').parentNode.querySelector('input[type="file"]');
+    const pdf = new m.w.File(['%PDF'], 'x.pdf', { type: 'application/pdf' });
+    Object.defineProperty(input, 'files', { value: [pdf], configurable: true });
+    await React.act(async () => { input.dispatchEvent(new m.w.Event('change', { bubbles: true })); });
+    await settle();
+    assert.ok(!log.some((x) => x[0] === 'upload'), 'a PDF was uploaded');
+    assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /Use a JPEG, PNG, WebP or GIF/);
+  } finally { await m.done(); }
 });

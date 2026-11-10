@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "This voice note can’t be played right now.",
   "thread.voiceNotSent": "Not sent",
   "thread.voiceFailed": "Couldn’t send the voice note.",
-  "thread.voicePreview": "Voice note · {time}"
+  "thread.voicePreview": "Voice note · {time}",
+  "channels.changePicture": "Change the channel’s picture",
+  "channels.pictureSaved": "Picture saved",
+  "channels.pictureError": "Couldn’t save the picture — try again.",
+  "channels.readOnly": "Only Shape posts here"
 }

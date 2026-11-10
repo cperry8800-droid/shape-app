@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "This voice note no fit play now.",
   "thread.voiceNotSent": "E no send",
   "thread.voiceFailed": "The voice note no fit send.",
-  "thread.voicePreview": "Voice note · {time}"
+  "thread.voicePreview": "Voice note · {time}",
+  "channels.changePicture": "Change di channel picture",
+  "channels.pictureSaved": "Picture don save",
+  "channels.pictureError": "We no fit save di picture — try again.",
+  "channels.readOnly": "Na only Shape dey post for here"
 }

@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "Questo messaggio vocale non può essere riprodotto ora.",
   "thread.voiceNotSent": "Non inviato",
   "thread.voiceFailed": "Impossibile inviare il messaggio vocale.",
-  "thread.voicePreview": "Messaggio vocale · {time}"
+  "thread.voicePreview": "Messaggio vocale · {time}",
+  "channels.changePicture": "Cambia l’immagine del canale",
+  "channels.pictureSaved": "Immagine salvata",
+  "channels.pictureError": "Impossibile salvare l’immagine — riprova.",
+  "channels.readOnly": "Qui pubblica solo Shape"
 }

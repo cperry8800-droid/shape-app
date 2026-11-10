@@ -8383,9 +8383,11 @@ function channelDisplayName() {
 async function listChannels() {
   if (!supabase || !state.user?.id) return { stored: 'local', data: [] };
   const uid = state.user.id;
+  // Every column: `picture_path` and `read_only` exist once 2026-11-10-channel-pictures-and-shape-hq.sql
+  // has run, and naming them before then would fail the whole read (the channel_messages precedent).
   const { data: channels, error } = await supabase
     .from('channels')
-    .select('id, name, description, created_by, visibility, last_message, last_message_at, created_at')
+    .select('*')
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -8408,10 +8410,37 @@ async function listChannels() {
       private: c.visibility === 'private',
       pinned: !!(mine && mine.pinned),
       last: c.last_message || '', lastAt: c.last_message_at,
+      // The host's picture, built from its storage path by this client (never a stored URL);
+      // a channel only Shape posts in; and Shape's own (system-owned) channels.
+      picture: channelPictureUrl(c.picture_path),
+      readOnly: c.read_only === true,
+      official: !c.created_by,
     };
   });
   rows.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first; stable otherwise
   return { stored: 'supabase', data: rows };
+}
+// A channel's picture: its storage path in the public channel-pictures bucket, under the channel's
+// own id (the table's check holds it there), turned into an address by this client.
+function channelPictureUrl(path) {
+  if (!supabase || typeof path !== 'string' || !path) return null;
+  try { return supabase.storage.from('channel-pictures').getPublicUrl(path).data?.publicUrl || null; } catch (e) { return null; }
+}
+// The host sets it (owner, 2026-11-10: "have creators of channels upload custom pictures"): the file
+// into the channel's folder (only its host may write there), then the path onto the channel.
+async function setChannelPicture(channelId, file) {
+  if (!supabase || !state.user?.id) throw new Error('Sign in to change the picture.');
+  if (!channelId || !file) throw new Error('No picture selected.');
+  const type = String(file.type || '').toLowerCase();
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(type)) throw new Error('Use a JPEG, PNG, WebP or GIF.');
+  if (file.size > 5 * 1024 * 1024) throw new Error('Use a picture under 5 MB.');
+  const ext = type.split('/')[1] === 'jpeg' ? 'jpg' : type.split('/')[1];
+  const path = `${channelId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const up = await supabase.storage.from('channel-pictures').upload(path, file, { contentType: type, upsert: false });
+  if (up.error) throw up.error;
+  const { error } = await supabase.from('channels').update({ picture_path: path }).eq('id', channelId);
+  if (error) throw error;
+  return { stored: 'supabase', data: { path, url: channelPictureUrl(path) } };
 }
 async function createChannel({ name, description, visibility } = {}) {
   if (!supabase || !state.user?.id) throw new Error('Sign in to create a channel.');
@@ -8518,6 +8547,7 @@ function subscribeDirectMessages(onInsert) {
 window.ShapeChannels = {
   list: listChannels,
   create: createChannel,
+  setPicture: setChannelPicture,
   join: joinChannel,
   leave: leaveChannel,
   addMember: addChannelMember,

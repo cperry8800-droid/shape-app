@@ -413,5 +413,9 @@
   "thread.voiceUnplayable": "Bu sesli mesaj şu anda oynatılamıyor.",
   "thread.voiceNotSent": "Gönderilmedi",
   "thread.voiceFailed": "Sesli mesaj gönderilemedi.",
-  "thread.voicePreview": "Sesli mesaj · {time}"
+  "thread.voicePreview": "Sesli mesaj · {time}",
+  "channels.changePicture": "Kanalın resmini değiştir",
+  "channels.pictureSaved": "Resim kaydedildi",
+  "channels.pictureError": "Resim kaydedilemedi — tekrar dene.",
+  "channels.readOnly": "Burada yalnızca Shape paylaşım yapar"
 }

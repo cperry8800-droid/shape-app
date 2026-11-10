@@ -75,6 +75,7 @@ import { BSNoraHint, bsNoraHintDone } from './BSNoraHint.jsx';
 import { bsNoraPhotoError } from './noraFace.mjs';
 import { BSNoraProfile } from './BSNoraProfile.jsx';
 import { BSLeaderboard } from './BSLeaderboard.jsx';
+import { BSChannelMark } from './BSChannelMark.jsx';
 import { BSTimezoneSetting } from './BSTimezone.jsx';
 import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
@@ -13533,12 +13534,6 @@ const BS_SAMPLE_COACH_DMS = {
   ],
 };
 const BS_SAMPLE_CHANNELS = [
-  { id: 'sample-block3', name: 'strength-block-3', description: 'Week 9 · peaking. Top-set check-ins.', memberCount: 412, online: 38, joined: true, isHost: false, private: false, pinned: false, live: true, last: 'Top set check-in: 245×3 @ RPE 8', messages: [
-    { who: 'Priya Shah', tier: 'peak', t: 'Top set check-in: 245×3 @ RPE 8. Leaving Block 3 happy.', time: '9:04a', me: false },
-    { who: 'Maya Okafor', tier: 'legend', coach: true, role: 'trainer', t: "That's the strongest the group has looked all block. Whoever's on day 4 — keep the back-offs honest.", time: '9:12a', me: false },
-    { who: 'Casey Morgan', tier: 'form', t: 'On it. 5×5 @ 185 then mobility.', time: '9:20a', me: false },
-    { who: 'You', t: "Spotting Priya's PR — same scheme tomorrow, wish me luck.", time: '9:24a', me: true },
-  ] },
   { id: 'sample-shapehq', name: 'Shape HQ', description: '', memberCount: 2841, joined: true, isHost: false, private: false, pinned: false, last: 'Shape HQ updates', messages: [
     { who: 'Shape', t: '👋 Welcome to Shape HQ — product news, drops, and events live here.', time: 'Mon', me: false },
     { who: 'Shape', t: 'New this week: save a coach playlist straight to your own Spotify.', time: 'Tue', me: false },
@@ -13548,10 +13543,6 @@ const BS_SAMPLE_CHANNELS = [
     { who: 'Marcus J.', t: 'Saturday 6am long run is on! Coffee at Blackbird after.', time: '1d', me: false },
     { who: 'Diego A.', t: 'In. Holding ~8:00 if anyone wants company.', time: '1d', me: false },
     { who: 'You', t: "I'm in 🏃", time: '1d', me: true },
-  ] },
-  { id: 'sample-macros', name: 'Macro Mondays', description: '', memberCount: 312, joined: true, isHost: false, private: false, pinned: false, last: 'Protein-first, every day.', messages: [
-    { who: 'Dr. Maya Patel', t: 'Protein first, fill the rest with volume — 0.8–1g/lb, daily.', time: '2d', me: false },
-    { who: 'Owen H.', t: 'Adding: fiber is the most under-eaten macro I see.', time: '2d', me: false },
   ] },
   { id: 'sample-prwall', name: 'PR Wall', description: '', memberCount: 526, joined: true, isHost: false, private: false, pinned: false, last: '405 deadlift, no belt 🔥', messages: [
     { who: 'Tomás R.', t: '405 deadlift, conventional, no belt. Felt like nothing 🔥', time: '5h', me: false },
@@ -19092,10 +19083,10 @@ function BSUniversalSearch({ onClose }) {
 
   // Non-people result row — mono glyph tile + title + sub (channels / recipes /
   // workouts / coach plans).
-  const TileRow = ({ glyph, color, title, sub, onClick, first }) => (
+  const TileRow = ({ glyph, mark, color, title, sub, onClick, first }) => (
     <div style={{ borderTop: first ? 0 : `1px solid ${t.HAIR}` }}>
       <button onClick={onClick} style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, padding: '11px 2px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${color}55`, background: `${color}14`, color, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, fontWeight: 800 }}>{glyph}</span>
+        {mark || <span style={{ width: 38, height: 38, flexShrink: 0, borderRadius: 11, border: `1px solid ${color}55`, background: `${color}14`, color, display: 'grid', placeItems: 'center', fontFamily: t.MONO, fontSize: 15, fontWeight: 800 }}>{glyph}</span>}
         <span style={{ minWidth: 0, flex: 1 }}>
           <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 16, fontWeight: 700, color: t.INK, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
           <span style={{ display: 'block', marginTop: 2, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.INK50, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sub}</span>
@@ -19140,7 +19131,7 @@ function BSUniversalSearch({ onClose }) {
           chHits.length ? (
             <>
               <div style={{ ...eyebrow, padding: '8px 0 2px' }}>{tr('feed:channels.count', { count: chHits.length, defaultValue: '{count, plural, one {# channel} other {# channels}}' })}</div>
-              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+              {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" mark={<BSChannelMark ch={{ name: c.name, picture: c.picture || null, official: !!c.official }} size={34} ink={t.INK} accent={teal} />} color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
             </>
           ) : (
             <div style={{ padding: '18px 0', fontFamily: t.DISPLAY, fontSize: 15, color: t.INK50 }}>{needle ? tr('feed:channels.noneMatch', { q: q.trim(), defaultValue: 'No channels match “{q}”' })
@@ -19188,7 +19179,7 @@ function BSUniversalSearch({ onClose }) {
               {filter === 'all' && chHits.length > 0 && (
                 <>
                   <div style={{ ...eyebrow, padding: '16px 0 2px' }}>{tr('feed:tab.channels', { defaultValue: 'Channels' })}</div>
-                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
+                  {chHits.map((c, i) => <TileRow key={'ch' + c.id} first={i === 0} glyph="#" mark={<BSChannelMark ch={{ name: c.name, picture: c.picture || null, official: !!c.official }} size={34} ink={t.INK} accent={teal} />} color={teal} title={c.name} sub={`${tr('feed:thread.memberCount', { count: c.memberCount || 0, defaultValue: '{count, plural, one {# member} other {# members}}' })}${c.blurb ? ' · ' + c.blurb : ''}`} onClick={() => { onClose(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: c } })); } catch (e) {} }} />)}
                 </>
               )}
               {filter === 'all' && recHits.length > 0 && (
@@ -22432,6 +22423,9 @@ const BS_CHAT_SIZES = Object.freeze({
   rowFace: 36, rowName: 16,
   senderFace: 24, senderName: 8.5,
   headFace: 48, headName: 25,
+  // A channel's circle in the head, a little smaller than a person's face (owner, 2026-11-10, of the
+  // channel header's circle: "also make them a little smaller").
+  headMark: 40,
 });
 
 function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
@@ -22746,7 +22740,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
   const openChannelNow = (ch) => {
     window.ShapeUnread?.markChannelRead?.(ch.id);
     const mc = ch.memberCount || 0;
-    const finish = (msgs) => setOpenChat({ n: ch.name, s: tr('feed:thread.memberCount', { defaultValue: '{count, plural, one {# member} other {# members}}', count: mc }), channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc });
+    const finish = (msgs) => setOpenChat({ n: ch.name, s: tr('feed:thread.memberCount', { defaultValue: '{count, plural, one {# member} other {# members}}', count: mc }), channelId: ch.id, messages: msgs, isHost: ch.isHost, memberCount: mc, picture: ch.picture || null, readOnly: !!ch.readOnly, official: !!ch.official });
     if (ch.messages && ch.messages.length) { finish(ch.messages); return; }   // demo/sample channel
     if (window.ShapeChannels?.listMessages) window.ShapeChannels.listMessages(ch.id).then(r => finish(r?.data || [])).catch(() => finish([]));
     else finish([]);
@@ -23271,11 +23265,12 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
       <>
         <BSChatThread
           key={openChat.conversation_id || (openChat.channelId != null ? 'ch:' + openChat.channelId : 'n:' + (openChat.n || ''))}
-          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId }}
+          thread={{ who: isCh && !String(openChat.n || '').startsWith('#') ? `# ${openChat.n}` : openChat.n, role: openChat.s || (isCh ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })), last: openChat.last, time: '', at: openChat.at || null, messages: openChat.messages || [], group: isCh, conversationId: openChat.conversation_id, channelId: openChat.channelId, channelName: openChat.n, picture: openChat.picture || null, readOnly: !!openChat.readOnly, official: !!openChat.official, isHost: !!openChat.isHost }}
           eyebrow={openChat.channelId ? tr('feed:thread.channel', { defaultValue: 'Channel' }) : openChat.dm ? tr('feed:thread.privateThread', { defaultValue: 'Private thread' }) : tr('feed:thread.directMessage', { defaultValue: 'Direct message' })}
           onBack={() => setOpenChat(null)}
           onOpenProfile={(person) => setOpenProfile(person)}
           onSendChannel={openChat.channelId && !String(openChat.channelId).startsWith('sample') ? () => setSendPostFor({ channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount || 0 } }) : null}
+          onChannelPicture={(url) => { setOpenChat((o) => (o ? { ...o, picture: url } : o)); refreshChannels(); }}
           grocerySaveTo={myRole === 'client' ? 'member' : bsIsCoachRole(myRole) ? 'coach' : null}
         />
         {sendPostFor && <BSPostSendSheet post={sendPostFor} onClose={() => setSendPostFor(null)} />}
@@ -23531,7 +23526,7 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
               <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 2px', borderTop: i ? `1px solid ${hair}66` : 0, ...(chReduced ? null : { animation: 'bsSdFadeUp 300ms ease both', animationDelay: `${Math.min(i, 10) * 26}ms` }) }}>
                 <button onClick={openOrJoin} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 0, textAlign: 'left', cursor: 'pointer', color: cardInk, padding: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{ch.name}</span>
+                    <span style={{ fontFamily: bsWsHead(t), fontWeight: 500, fontSize: BS_CHAT_SIZES.rowName, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BSChannelHash />{ch.name}</span>
                     {ch.live && (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                         <span aria-hidden style={{ width: 5, height: 5, borderRadius: 999, background: tealSig }} />
@@ -25283,11 +25278,40 @@ const BS_REPLY_GLYPH = (size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></svg>
 );
 
-function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, grocerySaveTo = 'member' }) {
+// The "#" before a channel's name, smaller than the name and a little lighter (owner, 2026-11-10:
+// "make the # smaller"). It marks the name as a channel without competing with it.
+function BSChannelHash() {
+  return <span aria-hidden="true" style={{ fontSize: '0.6em', opacity: 0.6, marginRight: '0.12em', verticalAlign: '0.18em', fontWeight: 600 }}>#</span>;
+}
+
+function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSendChannel = null, onChannelPicture = null, grocerySaveTo = 'member' }) {
   const t = useBS();
   const tr = useShapeTr();
   useBSPresence(); // refresh message-avatar dots as people start/stop a workout or cooking
   const [text, setText] = useStateBSC('');
+  // The channel's picture as shown here: the one it was opened with, or the one its host just set
+  // (owner, 2026-11-10: "have creators of channels upload custom pictures"). Its host only, on a real
+  // channel of theirs; Shape's own channels are Shape's to dress.
+  const [chPicture, setChPicture] = useStateBSC(thread.picture || null);
+  const [pictureBusy, setPictureBusy] = useStateBSC(false);
+  const pictureInputRef = React.useRef(null);
+  const canSetPicture = !!(thread.channelId && thread.isHost && !thread.official && !String(thread.channelId).startsWith('sample') && window.ShapeChannels?.setPicture);
+  const onPictureFile = async (e) => {
+    const file = e?.target?.files?.[0];
+    if (e?.target) e.target.value = '';
+    if (!file || !canSetPicture) return;
+    setPictureBusy(true);
+    try {
+      const res = await window.ShapeChannels.setPicture(thread.channelId, file);
+      const url = res?.data?.url || null;
+      if (url) { setChPicture(url); if (onChannelPicture) onChannelPicture(url); }
+      window.__bsToast?.(tr('feed:channels.pictureSaved', { defaultValue: 'Picture saved' }), 'ok');
+    } catch (err) {
+      window.__bsToast?.(tr('feed:channels.pictureError', { defaultValue: 'Couldn’t save the picture. Try again.' }), 'err');
+    } finally {
+      setPictureBusy(false);
+    }
+  };
   const [extras, setExtras] = useStateBSC([]);
   // Swipe to reply (2026-11-01): the message being answered, quoted over the composer until it is sent.
   const [replyTo, setReplyTo] = useStateBSC(null);
@@ -25749,7 +25773,10 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 6 }}>
           <button onClick={() => !thread.group && openP(thread.who)} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 13, minWidth: 0, background: 'transparent', border: 0, padding: 0, textAlign: 'left', cursor: thread.group ? 'default' : 'pointer', color: 'inherit' }}>
             {thread.group ? (
-              <span aria-hidden style={{ flex: 'none', width: BS_CHAT_SIZES.headFace, height: BS_CHAT_SIZES.headFace, borderRadius: '50%', display: 'grid', placeItems: 'center', background: bsTHexA(deskTeal, 0.16), color: deskTeal, boxShadow: `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`, fontFamily: t.MONO, fontSize: 20, fontWeight: 800 }}>#</span>
+              // The channel's circle (owner, 2026-11-10): its host's picture, Shape's triangles for Shape
+              // HQ, a trophy for the PR Wall, else its initials; a little smaller than a person's face (BS_CHAT_SIZES.headMark).
+              // Its host sets the picture from here (BSChannelPicture, below the header).
+              <BSChannelMark ch={{ name: thread.channelName || String(thread.who || '').replace(/^#\s*/, ''), picture: chPicture, official: thread.official }} size={BS_CHAT_SIZES.headMark} ink={DESK_INK} accent={deskTeal} ring={`0 0 0 2px ${DESK}, 0 0 0 3.5px ${bsTHexA(deskTeal, 0.6)}`} />
             ) : (
               <span style={{ position: 'relative', flex: 'none' }}>
                 {roundFace(BS_CHAT_SIZES.headFace, headPhoto, bsInitials(thread.who) || (thread.who.match(/[A-Z]/) || ['?'])[0], `0 0 0 2px ${DESK}, 0 0 0 3.5px ${deskTeal}`)}
@@ -25757,7 +25784,7 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
               </span>
             )}
             <span style={{ minWidth: 0 }}>
-              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: BS_CHAT_SIZES.headName, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.who}</span>
+              <span data-thread-name="" style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: BS_CHAT_SIZES.headName, fontWeight: 600, lineHeight: 1, letterSpacing: '-0.01em', color: DESK_INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{thread.group && /^#\s*/.test(String(thread.who || '')) ? <><BSChannelHash />{String(thread.who).replace(/^#\s*/, '')}</> : thread.who}</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: deskMuted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{thread.role}</span>
                 {headOnline && <><span aria-hidden>·</span><span style={{ color: deskTeal }}>{tr('profile:trainer.online', { defaultValue: 'Online now' })}</span></>}
@@ -25767,6 +25794,14 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
           {/* Channel actions live HERE (not on every index row): send to a member + share */}
           {thread.channelId && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {canSetPicture && (
+                <>
+                  <button onClick={() => pictureInputRef.current?.click()} disabled={pictureBusy} aria-label={tr('feed:channels.changePicture', { defaultValue: 'Change the channel’s picture' })} title={tr('feed:channels.changePicture', { defaultValue: 'Change the channel’s picture' })} data-channel-picture="" style={{ ...deskBtn, opacity: pictureBusy ? 0.5 : 1 }}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4Z" /><circle cx="12" cy="13" r="3.4" /></svg>
+                  </button>
+                  <input ref={pictureInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onPictureFile} style={{ display: 'none' }} />
+                </>
+              )}
               {onSendChannel && <button onClick={onSendChannel} aria-label="Send channel to a member" title="Send to a member" style={deskBtn}>{bsFeedIcon('send', 15)}</button>}
               <button onClick={() => bsSharePostExternal({ who: '', title: `Join ${thread.who} on Shape`, body: thread.role || '', postId: null })} aria-label="Share channel" title="Share" style={deskBtn}>{bsFeedIcon('share', 15)}</button>
             </div>
@@ -25858,9 +25893,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                     {m.sharedChannel && (
                       <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: m.sharedChannel } })); } catch (e2) {} }}
                         style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 10, cursor: 'pointer' }}>
-                        <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, color: teal, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>#</span>
+                        <BSChannelMark ch={{ name: m.sharedChannel.name, picture: m.sharedChannel.picture || null, official: !!m.sharedChannel.official }} size={28} ink={t.INK} accent={teal} />
                         <span style={{ minWidth: 0, flex: 1 }}>
-                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{m.sharedChannel.name}</span>
+                          <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BSChannelHash />{m.sharedChannel.name}</span>
                           <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
                         </span>
                         <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
@@ -25930,9 +25965,9 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
                   {m.sharedChannel && (
                     <button onClick={(e) => { e.stopPropagation(); try { window.dispatchEvent(new CustomEvent('shape:openConversation', { detail: { channel: m.sharedChannel } })); } catch (e2) {} }}
                       style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', minWidth: 190, textAlign: 'left', marginTop: 9, padding: '9px 11px', background: t.PAPER, border: `1px solid ${teal}66`, borderRadius: 10, cursor: 'pointer' }}>
-                      <span style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, background: `${teal}1f`, border: `1px solid ${teal}55`, color: teal, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: t.MONO, fontSize: 14, fontWeight: 800 }}>#</span>
+                      <BSChannelMark ch={{ name: m.sharedChannel.name, picture: m.sharedChannel.picture || null, official: !!m.sharedChannel.official }} size={28} ink={t.INK} accent={teal} />
                       <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>#{m.sharedChannel.name}</span>
+                        <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 13.5, fontWeight: 700, color: t.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BSChannelHash />{m.sharedChannel.name}</span>
                         <span style={{ display: 'block', marginTop: 1, fontFamily: t.MONO, fontSize: 7.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: t.INK50 }}>{m.sharedChannel.memberCount || 0} member{m.sharedChannel.memberCount === 1 ? '' : 's'} · Channel</span>
                       </span>
                       <span style={{ flexShrink: 0, fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal }}>Open →</span>
@@ -25976,7 +26011,14 @@ function BSChatThread({ thread, eyebrow, onBack, onOpenProfile = () => {}, onSen
 
       {/* The tray composer, as Nora's sheet docks it, pinned to the foot of the screen; a reply's quote
           rides over its field. */}
-      <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} voiceNote={voiceNote} />
+      {thread.readOnly ? (
+        // A channel only Shape posts in (Shape HQ): no composer, and it says why.
+        <div data-channel-readonly="" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, padding: `14px ${t.padX}px calc(18px + env(safe-area-inset-bottom, 0px))`, background: t.PAPER, borderTop: `1px solid ${t.HAIR}`, fontFamily: t.MONO, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50, textAlign: 'center' }}>
+          {tr('feed:channels.readOnly', { defaultValue: 'Only Shape posts here' })}
+        </div>
+      ) : (
+        <BSMessageComposer value={text} onChange={onType} onSend={send} pinned tray above={quoteBar} voiceNote={voiceNote} />
+      )}
     </BSPage>
   );
 }

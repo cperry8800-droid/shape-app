@@ -79,13 +79,6 @@ const clientChatTabs = [
         { who: "Rae Lindqvist", t: "consistency > intensity this month. pick one thing and nail it daily.", time: "2m", me: false, coach: true },
         { who: "Devon W.", t: "morning mobility routine, 10 min, every day.", time: "1m", me: false },
       ]},
-      { who: "# strength-block-3", role: "412 members · 34 online", last: "Marcus J: First time hitting 225 on bench after 8 months.", time: "18m", unread: 3, group: true, messages: [
-        { who: "Marcus J.", t: "First time hitting 225 on bench after 8 months. Maya's programming is unreal.", time: "18m", me: false },
-        { who: "Priya S.", t: "HUGE. Anyone else in block 3 right now?", time: "16m", me: false },
-        { who: "Tomás R.", t: "Week 4 here. Squats are destroying me in the best way.", time: "14m", me: false },
-        { who: "You", t: "Starting tomorrow. Any tips on recovery?", time: "12m", me: true },
-        { who: "Priya S.", t: "Double your protein target and sleep 8+. Seriously.", time: "10m", me: false },
-      ]},
       { who: "# running-club", role: "1,204 members · 89 online", last: "Ava K: Long run Saturday 6am — Prospect Park loop.", time: "31m", unread: 1, group: true, messages: [
         { who: "Ava K.", t: "Long run Saturday 6am — Prospect Park loop. Who's in?", time: "31m", me: false },
         { who: "Jin-ho P.", t: "Pace?", time: "28m", me: false },
