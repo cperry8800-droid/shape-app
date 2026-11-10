@@ -181,6 +181,11 @@ test('no signup surface writes over_18 directly — it is derived, never supplie
 
 const APPLY_ROUTE = read('../src/app/api/apply/route.ts');
 const APPROVAL = read('../src/app/dashboard/applications/actions.ts');
+// The approval itself moved to src/lib/coach-approval.ts (2026-11-10), shared by the admin's Approve
+// and the applicant's own confirm link (src/app/coach/confirm/actions.ts); both refuse through
+// approvalBlocker before anything is claimed or created.
+const APPROVAL_LIB = read('../src/lib/coach-approval.ts');
+const CONFIRM = read('../src/app/coach/confirm/actions.ts');
 
 test('the apply route validates 18+ server-side, before the application is stored', () => {
   const body = stripComments(APPLY_ROUTE);
@@ -212,23 +217,29 @@ test('the apply route degrades when the dob column is not yet deployed', () => {
 // birth creates an entitled account the gates refuse at every surface. Legacy
 // applications (submitted before the field existed) carry none.
 test('approval refuses an application with no verified date of birth', () => {
-  const body = stripComments(APPROVAL);
-  const guardAt = body.search(/if \(!applicantDob/);
-  // Match the CALL, not the declaration — resolveOrInviteProviderUser is defined
-  // far above the guard, so indexOf on the bare name finds the function itself
-  // and reports a correct order as failing. (Third time this exact trap: anchor
-  // ordering assertions on the invocation.)
-  const inviteAt = body.search(/await resolveOrInviteProviderUser\(/);
-  assert.ok(guardAt > -1, 'approval does not require a date of birth');
-  assert.ok(inviteAt > -1, 'invite call not found — re-anchor this test');
-  assert.ok(guardAt < inviteAt, 'the DOB guard runs AFTER the auth user is created');
-  assert.match(body, /isMinorFromDob\(applicantDob\)/, 'approval does not re-derive the applicant age');
+  const lib = stripComments(APPROVAL_LIB);
+  const blocker = lib.slice(lib.indexOf('export function approvalBlocker('), lib.indexOf('export async function findAuthUserByEmail('));
+  assert.ok(blocker.length > 0, 'approvalBlocker not found — re-anchor this test');
+  assert.match(blocker, /const dob = applicantDob\(application\);\s+if \(!dob \|\| isMinorFromDob\(dob\) !== false\) \{\s+return '/, 'approval does not require a verified adult date of birth');
   // Recovers the date from `details` for applications stored before the column existed.
-  assert.match(body, /typed\.dob \|\|/, 'approval does not fall back to the details-carried DOB');
+  assert.match(lib, /if \(application\.dob\) return application\.dob;\s+const fromDetails = asRecord\(application\.details\)\.dob;/, 'approval does not fall back to the details-carried DOB');
+  // ⚠ The refusal runs BEFORE any account is claimed or created, at both doors. Anchored on the
+  // CALLS, never the declarations (the trap this test has hit before).
+  const approve = stripComments(APPROVAL);
+  const blockAt = approve.search(/const blocker = approvalBlocker\(typed\);/);
+  const claimAt = approve.search(/await claimForApproval\(/);
+  const bindAt = approve.search(/await resolveApprovalBinding\(/);
+  assert.ok(blockAt > -1 && claimAt > -1 && bindAt > -1, 'Approve calls not found — re-anchor this test');
+  assert.ok(blockAt < claimAt && blockAt < bindAt, 'Approve checks the DOB after it starts provisioning');
+  const confirm = stripComments(CONFIRM);
+  const cBlockAt = confirm.search(/if \(approvalBlocker\(typed\)\)/);
+  const cProvisionAt = confirm.search(/await provisionApproval\(/);
+  assert.ok(cBlockAt > -1 && cProvisionAt > -1, 'Confirm calls not found — re-anchor this test');
+  assert.ok(cBlockAt < cProvisionAt, 'the confirm link checks the DOB after it starts provisioning');
 });
 
 test('approval carries the DOB into the profile without overwriting an existing one', () => {
-  const body = stripComments(APPROVAL);
-  assert.match(body, /date_of_birth: dob/, 'approval does not persist the applicant DOB');
-  assert.match(body, /profile\?\.date_of_birth \?/, 'approval can overwrite an existing DOB — the freeze makes the first write permanent');
+  const body = stripComments(APPROVAL_LIB);
+  assert.match(body, /\.\.\.\(profile\?\.date_of_birth \? \{\} : dob \? \{ date_of_birth: dob \} : \{\}\)/, 'approval does not persist the applicant DOB, or can overwrite an existing one — the freeze makes the first write permanent');
+  assert.match(body, /await updateProfileRole\(admin, binding\.user\.id, application\.provider_type, fullName, applicantDob\(application\)\)/, 'approval does not hand the applicant DOB to the profile');
 });
