@@ -120,6 +120,7 @@
   "eat.comingUp": "Lo que viene",
   "eat.mealPlan": "Plan de comidas",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
+  "eat.metaOfTarget": "{meals} · {kcal} de {target} kcal",
   "eat.goalCut": "Definiendo",
   "eat.goalBuild": "Construyendo",
   "eat.goalMaintain": "Manteniendo",

@@ -71,7 +71,7 @@ test('Coming up: the next three days as previews, each opening the meal plan on 
     const [first, second] = rows;
     assert.match(first.textContent, /Tomorrow/);
     assert.match(first.textContent, /Sundaysimple\./, 'the day\'s own headline');
-    assert.match(first.textContent, /3 meals · 1900 kcal/);
+    assert.match(first.querySelector('[data-eat-coming-meta]').textContent, /^3 meals · 1,500 kcal$/, 'summed from its meals, not the day\'s stored words');
     assert.equal(first.querySelectorAll('[data-eat-coming-meals] > span').length, 3, 'its meals, at most three');
     assert.match(first.querySelector('[data-eat-coming-meals]').textContent, /7:00 AMOats/);
     assert.match(first.querySelector('[data-eat-playlist]').textContent, /♪ Meal prep, low-key/, 'the day\'s playlist');
@@ -176,7 +176,10 @@ test('Eat hands Coming up and the meal plan its week, its meals as the menu show
 test('the plan carries the nutritionist\'s playlists on its days and meals into Eat', () => {
   assert.match(CLIENT, /playlist: bsPlaylistOf\(meal\.playlist\),/);
   assert.match(CLIENT, /playlist: bsPlaylistOf\(dy\.playlist\),/);
-  assert.match(CLIENT, /<BSCoachPlaylists role="nutritionist" signedIn=\{bsEatSignedIn\} demo=\{\{ who, items \}\} program=\{PROGRAM\} todayIdx=\{bsWeekdayIdx\(\)\} planCoach=/);
+  // Matched against the meals as the menu shows them (Codex on #2670), each weekday on its next date, the
+  // week the labels read soonest first: a swapped dish's playlist names the dish on the plate.
+  assert.match(CLIENT, /const playWeek = PROGRAM\.map\(\(d, i\) => \(d \? \{ \.\.\.d, meals: eatMealsOf\(i, \(i - todayIdx \+ 7\) % 7\) \} : d\)\);/);
+  assert.match(CLIENT, /<BSCoachPlaylists role="nutritionist" signedIn=\{bsEatSignedIn\} demo=\{\{ who, items \}\} program=\{playWeek\} todayIdx=\{todayIdx\} planCoach=/);
   const eat = CLIENT.slice(CLIENT.indexOf("const lists = all.filter(p => p.role === 'Nutritionist');"));
   assert.doesNotMatch(eat.slice(0, 900), /p\.attached/, 'the sample\'s "Sun prep" still rides in its meta');
   assert.deepEqual(bsPlaylistOf({ id: 7, name: ' Jazz ', meta: null }), { id: '7', name: 'Jazz', meta: '' });
@@ -221,4 +224,43 @@ test('the meal plan keeps focus in (Tab wraps) and hands it back to what opened 
   } finally { await m.close(); }
   assert.ok(document.activeElement === opener, 'closing hands focus back');
   opener.remove();
+});
+
+// ── Codex on #2670 ──
+// The meals and kcal are the meals each day shows: a live plan carries each meal's macros and the day's
+// targets but no totals, and a swap or a meal the member planned changes the sum.
+test('the meals and kcal are summed from the meals shown, against the plan\'s target when it has one', async () => {
+  const w = week();
+  const tgt = (TODAY + 2) % 7;
+  w[tgt] = { ...w[tgt], meta: '3 meals', totals: { cal: '', p: '', c: '', f: '', target: { cal: '2200', p: '160', c: '220', f: '70' } } };
+  // The page's meals: today's breakfast swapped for a 300 kcal one, and a meal the member planned on the target day.
+  const mealsOf = (i) => (i === tgt ? [{ ...w[i].meals[0], kcal: 300, _swapped: true }, ...w[i].meals.slice(1), meal('own', '8:00 PM', 'Planned pasta', { kcal: 650, _own: true })] : w[i].meals);
+  const sheet = await mount(React.createElement(E.BSEatPlanSheet, { program: w, mealsOf, onClose() {} }));
+  try {
+    assert.equal(sheet.q(`[data-eat-plan-day="${tgt}"] [data-eat-plan-meta]`).textContent, '4 meals · 1,950 of 2,200 kcal', 'the swap and the planned meal counted, against the target');
+    assert.equal(sheet.q(`[data-eat-plan-day="${(TODAY + 3) % 7}"] [data-eat-plan-meta]`).textContent, '3 meals · 1,500 kcal', 'no target, no "of"');
+    assert.equal(sheet.q(`[data-eat-plan-day="${(TODAY + 4) % 7}"] [data-eat-plan-meta]`).textContent, 'No meals planned', 'a day with no meals keeps its words');
+  } finally { await sheet.close(); }
+  const coming = await mount(React.createElement(E.BSEatComingUp, { program: w, mealsOf: (i) => mealsOf(i) }));
+  try {
+    assert.equal(coming.q(`[data-eat-coming-day="${tgt}"] [data-eat-coming-meta]`).textContent, '4 meals · 1,950 of 2,200 kcal', 'Coming up says the same');
+  } finally { await coming.close(); }
+});
+
+test('Coming up and the meal plan wait for the plan read; the sample and a read plan show them', () => {
+  assert.match(CLIENT, /const eatPlanShown = !bsEatSignedIn \|\| eatPlanRead \|\| !!liveMealDays;/);
+  assert.match(CLIENT, /\{eatPlanShown && <BSEatComingUp program=\{PROGRAM\}/);
+  assert.match(CLIENT, /\{eatPlanShown && <BSFocusLink data-bsck-door="meal-plan"/);
+  // Each appears once, and only behind the gate.
+  assert.equal(CLIENT.split('<BSEatComingUp ').length - 1, 1);
+  assert.equal(CLIENT.split('data-bsck-door="meal-plan"').length - 1, 1);
+});
+
+test('a swapped dish\'s playlist names the dish on the plate', () => {
+  const w = week();
+  const at = (TODAY + 2) % 7;
+  // As the page builds it: each day's meals as the menu shows them (here Steak night swapped for Grilled tofu).
+  const shown = w.map((d, i) => (i === at ? { ...d, meals: d.meals.map((m) => (m.id === 'dd' ? { ...m, title: 'Grilled tofu', _swapped: true } : m)) } : d));
+  const jazz = bsEatPlaylistCards([], shown, TODAY).find((c) => c.title === 'Dinner jazz');
+  assert.deepEqual(jazz.uses.map((u) => u.title), ['Grilled tofu']);
 });

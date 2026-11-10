@@ -120,6 +120,7 @@
   "eat.comingUp": "Demnächst",
   "eat.mealPlan": "Ernährungsplan",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
+  "eat.metaOfTarget": "{meals} · {kcal} von {target} kcal",
   "eat.goalCut": "Definitionsphase",
   "eat.goalBuild": "Aufbauphase",
   "eat.goalMaintain": "Halten",

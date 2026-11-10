@@ -120,6 +120,7 @@
   "eat.comingUp": "Далі",
   "eat.mealPlan": "План харчування",
   "eat.metaWithKcal": "{meals} · {kcal} ккал",
+  "eat.metaOfTarget": "{meals} · {kcal} з {target} ккал",
   "eat.goalCut": "Сушка",
   "eat.goalBuild": "Набір",
   "eat.goalMaintain": "Підтримання",

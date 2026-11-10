@@ -746,7 +746,14 @@ test('Eat: Coming up and the Meal plan link open the meal plan sheet; Playlists 
   assert.ok(coming && coming.props.program.length === 7 && typeof coming.props.mealsOf === 'function', 'no Coming up with the week');
   assert.ok(d.nodes().indexOf(coming) > d.nodes().findIndex(fn('BSEatDay')), 'Coming up follows the day');
   const lists = d.nodes().find((n) => fn('BSCoachPlaylists')(n) && n.props.role === 'nutritionist');
-  assert.ok(lists && lists.props.program === coming.props.program, 'Playlists does not read the week it matches against');
+  // The same week, each day's meals as the menu shows them on that weekday's next date (Codex on #2670).
+  assert.ok(lists && lists.props.program.length === 7, 'Playlists does not read the week it matches against');
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const titles = (ms) => (ms || []).map((m) => m.title).join('|');
+  lists.props.program.forEach((day, i) => {
+    assert.equal(day.headline, coming.props.program[i].headline, 'Playlists reads the same days');
+    assert.equal(titles(day.meals), titles(coming.props.mealsOf(i, (i - todayIdx + 7) % 7)), 'with the meals the menu shows');
+  });
   const link = d.nodes().find((n) => fn('BSFocusLink')(n) && n.props.label === 'Meal plan');
   assert.ok(link, 'no Meal plan link');
   link.props.onOpen();

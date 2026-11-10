@@ -120,6 +120,7 @@
   "eat.comingUp": "Sắp tới",
   "eat.mealPlan": "Kế hoạch ăn uống",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
+  "eat.metaOfTarget": "{meals} · {kcal} / {target} kcal",
   "eat.goalCut": "Giảm mỡ",
   "eat.goalBuild": "Tăng cơ",
   "eat.goalMaintain": "Giữ mức",

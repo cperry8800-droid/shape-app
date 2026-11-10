@@ -120,6 +120,7 @@
   "eat.comingUp": "Berikutnya",
   "eat.mealPlan": "Rencana makan",
   "eat.metaWithKcal": "{meals} · {kcal} kkal",
+  "eat.metaOfTarget": "{meals} · {kcal} dari {target} kkal",
   "eat.goalCut": "Menurunkan",
   "eat.goalBuild": "Menambah",
   "eat.goalMaintain": "Menjaga",

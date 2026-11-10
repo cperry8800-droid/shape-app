@@ -120,6 +120,7 @@
   "eat.comingUp": "Masu zuwa",
   "eat.mealPlan": "Tsarin abinci",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
+  "eat.metaOfTarget": "{meals} · {kcal} cikin {target} kcal",
   "eat.goalCut": "Rage kiba",
   "eat.goalBuild": "Ƙara tsoka",
   "eat.goalMaintain": "Riƙe matsayi",

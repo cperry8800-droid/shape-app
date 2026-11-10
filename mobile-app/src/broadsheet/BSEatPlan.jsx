@@ -64,6 +64,21 @@ function playlistsOf(day, meals) {
   for (const m of meals || []) take(m && m.playlist);
   return out;
 }
+// A day's meals and kcal, summed from the meals it shows (the swaps and the member's own meals on), against
+// the plan's target when it has one (Codex on #2670): a live plan carries each meal's macros and the day's
+// targets but no totals, and a swap changes the sum. A day with no meals keeps its own words.
+const num = (v) => { const n = Number(String(v == null ? '' : v).replace(/[^\d.]/g, '')); return Number.isFinite(n) ? n : 0; };
+const fmtN = (n) => { try { return Math.round(n).toLocaleString(locale()); } catch (e) { return String(Math.round(n)); } };
+function mealsMeta(tr, day, meals) {
+  if (!meals.length) return (day && day.meta) || '';
+  const count = tr('nutrition:eat.mealCount', { defaultValue: '{n, plural, one {# meal} other {# meals}}', n: meals.length });
+  const kcal = meals.reduce((s, m) => s + num(m && m.kcal), 0);
+  if (!(kcal > 0)) return count;
+  const target = num(day && day.totals && day.totals.target && day.totals.target.cal);
+  return target > 0
+    ? tr('nutrition:eat.metaOfTarget', { defaultValue: '{meals} · {kcal} of {target} kcal', meals: count, kcal: fmtN(kcal), target: fmtN(target) })
+    : tr('nutrition:eat.metaWithKcal', { defaultValue: '{meals} · {kcal} kcal', meals: count, kcal: fmtN(kcal) });
+}
 function Chip({ t, p }) {
   return <span data-eat-playlist="" style={{ display: 'inline-block', maxWidth: '100%', boxSizing: 'border-box', padding: '4px 8px', border: `1px solid ${t.ACCENT}66`, borderLeft: `3px solid ${t.ACCENT}`, borderRadius: 3, ...mono(t, 8, t.ACCENT, { letterSpacing: '0.12em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>♪ {p.name}</span>;
 }
@@ -87,6 +102,7 @@ export function BSEatComingUp({ program = [], mealsOf = null, onPlan }) {
           const meals = (typeof mealsOf === 'function' ? mealsOf(idx, off) : d.meals) || [];
           const tomorrow = off === 1;
           const lists = playlistsOf(d, meals);
+          const meta = mealsMeta(tr, d, meals);
           return (
             <button type="button" key={idx} data-eat-coming-day={idx} onClick={() => onPlan && onPlan(idx)}
               style={{ width: '100%', textAlign: 'left', cursor: 'pointer', background: 'transparent', border: 0, display: 'grid', gridTemplateColumns: '40px 1fr 14px', gap: 12, alignItems: 'start', minHeight: 44, padding: '14px 0', borderTop: i === 0 ? 0 : `1px solid ${t.HAIR}` }}>
@@ -94,7 +110,7 @@ export function BSEatComingUp({ program = [], mealsOf = null, onPlan }) {
               <span style={{ minWidth: 0, display: 'block' }}>
                 {tomorrow ? <span style={{ display: 'block', marginBottom: 3, ...mono(t, 8, t.ACCENT, { letterSpacing: '0.16em' }) }}>{tr('home:when.tomorrow', { defaultValue: 'Tomorrow' })}</span> : null}
                 <span style={{ display: 'block', fontFamily: t.DISPLAY, fontSize: 17, fontWeight: 600, lineHeight: 1.2, color: t.INK, letterSpacing: '-0.01em' }}>{d.headline || d.title || '—'}</span>
-                {d.meta ? <span style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{d.meta}</span> : null}
+                {meta ? <span data-eat-coming-meta="" style={{ display: 'block', fontFamily: t.MONO, fontSize: 9.5, color: t.INK50, marginTop: 3, letterSpacing: '0.04em' }}>{meta}</span> : null}
                 {meals.length > 0 ? (
                   <span data-eat-coming-meals="" style={{ display: 'block', marginTop: 8, paddingLeft: 9, borderLeft: `2px solid ${t.RULE}` }}>
                     {meals.slice(0, 3).map((m, j) => (
@@ -182,12 +198,13 @@ export function BSEatPlanSheet({ program = [], focusIdx = 0, planName = '', coac
             const day = d || {};
             const meals = (typeof mealsOf === 'function' ? mealsOf(idx) : day.meals) || [];
             const when = whenOf(idx);
+            const meta = mealsMeta(tr, day, meals);
             return (
               <section key={idx} ref={(el) => { dayRefs.current[idx] = el; }} data-eat-plan-day={idx} aria-label={dayName(idx, 'long')}
                 style={{ position: 'relative', padding: `18px 0 18px ${idx === todayIdx ? 12 : 0}px`, borderTop: idx === 0 ? 0 : `1px solid ${t.HAIR || t.RULE}`, borderLeft: idx === todayIdx ? `3px solid ${GOLD}` : 0 }}>
                 <div style={mono(t, 9, idx === todayIdx ? GOLD : t.INK50)}>{[dayName(idx, 'short'), dateOf(idx).getDate()].join(' ')}{when ? ` · ${when}` : ''}</div>
                 <div style={{ marginTop: 5, fontFamily: t.HEAD || t.DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.15, color: t.INK }}>{day.headline || day.title || ''}</div>
-                {day.meta ? <div style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{day.meta}</div> : null}
+                {meta ? <div data-eat-plan-meta="" style={{ marginTop: 3, fontFamily: t.MONO, fontSize: 9.5, letterSpacing: '0.04em', color: t.INK50 }}>{meta}</div> : null}
                 {day.copy ? <div style={{ marginTop: 6, fontFamily: t.BODY || t.DISPLAY, fontSize: 13.5, lineHeight: 1.45, color: t.INK70 }}>{day.copy}</div> : null}
                 {day.playlist && day.playlist.name ? <div style={{ marginTop: 8 }}><Chip t={t} p={day.playlist} /></div> : null}
                 {meals.length > 0 ? (

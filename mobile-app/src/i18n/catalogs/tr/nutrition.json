@@ -120,6 +120,7 @@
   "eat.comingUp": "Sırada",
   "eat.mealPlan": "Beslenme planı",
   "eat.metaWithKcal": "{meals} · {kcal} kcal",
+  "eat.metaOfTarget": "{meals} · {kcal} / {target} kcal",
   "eat.goalCut": "Yağ yakımı",
   "eat.goalBuild": "Kas yapımı",
   "eat.goalMaintain": "Koruma",
