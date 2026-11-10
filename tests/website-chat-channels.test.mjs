@@ -402,5 +402,13 @@ test('a picture that is not an image, or too large, is refused before anything i
     await settle();
     assert.ok(!log.some((x) => x[0] === 'upload'), 'a PDF was uploaded');
     assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /Use a JPEG, PNG, WebP or GIF/);
+    // A picture over 5 MB (the bucket's limit) is refused here, not sent to be refused.
+    const big = new m.w.File(['x'], 'big.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(big, 'size', { value: 5 * 1024 * 1024 + 1 });
+    Object.defineProperty(input, 'files', { value: [big], configurable: true });
+    await React.act(async () => { input.dispatchEvent(new m.w.Event('change', { bubbles: true })); });
+    await settle();
+    assert.ok(!log.some((x) => x[0] === 'upload'), 'a picture over 5 MB was uploaded');
+    assert.match(m.doc.querySelector('[data-chat-panel]').textContent, /Use a picture under 5 MB/);
   } finally { await m.done(); }
 });

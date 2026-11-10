@@ -80,7 +80,11 @@ test('the host sets the picture: a path, never a stored address', () => {
   assert.match(WIDGET, /update\(\{ picture_path: path \}\)/);
   const sql = read('supabase-migrations/2026-11-10-channel-pictures-and-shape-hq.sql');
   assert.match(sql, /check \(picture_path is null or picture_path ~ \('\^' \|\| id::text \|\| '\/\[A-Za-z0-9\]/, 'the path is not held to the channel\'s own folder');
-  assert.match(sql, /public\.can_edit_channel_picture\(\(storage\.foldername\(name\)\)\[1\]\)/, 'the bucket is not written by the host alone');
+  // Each way of writing the bucket, on its own: upload, replace and remove are the host's alone.
+  const host = "bucket_id = 'channel-pictures' and public\\.can_edit_channel_picture\\(\\(storage\\.foldername\\(name\\)\\)\\[1\\]\\)";
+  assert.match(sql, new RegExp(`for insert to authenticated\\n  with check \\(${host}\\);`), 'anyone uploads into any channel\'s folder');
+  assert.match(sql, new RegExp(`for update to authenticated\\n  using \\(${host}\\);`), 'anyone replaces a channel\'s picture');
+  assert.match(sql, new RegExp(`for delete to authenticated\\n  using \\(${host}\\);`), 'anyone removes a channel\'s picture');
   assert.match(sql, /revoke execute on function public\.can_edit_channel_picture\(text\) from public, anon;/);
   assert.match(sql, /and not exists \(select 1 from public\.channels c where c\.id = channel_id and c\.read_only\)/, 'members can post in a read-only channel');
   assert.match(sql, /where not exists \(\n  select 1 from public\.channels where official and lower\(name\) = 'shape hq'\n\)/, 'Shape HQ is not created once');
