@@ -7,7 +7,14 @@ import { createRequire } from 'node:module';
 const source = readFileSync(new URL('../mobile-app/src/services/shapeBackend.js', import.meta.url), 'utf8');
 const shipping = source.slice(source.indexOf('async function sendWorkoutCoachCue('), source.indexOf('// ─── Pro Console API'));
 const start = '2026-09-19T12:00:00.000Z';
-const row = (text, seconds = 10, extras = {}) => ({ id: 'focus-one', client_id: 'client-a', provider_id: 'coach-a', provider_role: 'trainer', text, sent_at: new Date(Date.parse(start) + seconds * 1000).toISOString(), ...extras });
+// What onCue hands the workout screen: { id, client_id, provider_role, provider_id, text, sent_at }.
+const row = (text, seconds = 10, extras = {}) => ({ id: 'cue-one', client_id: 'client-a', provider_id: 'coach-a', provider_role: 'trainer', text, sent_at: new Date(Date.parse(start) + seconds * 1000).toISOString(), ...extras });
+// ⚠ A CUE IS A coach_pushed_items ROW OF KIND 'cue' (2026-11-10), never the focus banner: the database
+// answers this shape, and the service hands the screen `row`'s.
+const dbRow = (text, seconds = 10, extras = {}) => {
+  const { text: _t, ...rest } = row(text, seconds, extras);
+  return { ...rest, id: extras.id || `cue-${text}`, kind: extras.kind || 'cue', payload: { text } };
+};
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
 function service({ apiBaseUrl = '' } = {}) {
@@ -66,7 +73,7 @@ test('coach sends real authenticated JSON on web and native; nutrition credentia
     assert.equal(s.requests[0].headers['Content-Type'], 'application/json');
     assert.ok(s.requests[0].signal instanceof AbortSignal);
     assert.equal(s.deadlines.size, 0);
-    assert.deepEqual(JSON.parse(s.requests[0].body), { action: 'focus', clientId: 'client-b', text: 'Brace' });
+    assert.deepEqual(JSON.parse(s.requests[0].body), { action: 'cue', clientId: 'client-b', text: 'Brace' });
   }
 });
 
@@ -106,23 +113,27 @@ test('a stalled send and client read have deadlines and the receiver can recover
   receiver.queries[0].filters.signal.addEventListener('abort', () => reject(Error('Aborted')));
   for (const deadline of receiver.deadlines.values()) deadline(); await flush();
   assert.equal(statuses.at(-1), 'error');
-  receiver.pendingRead = null; receiver.data = [row('Recovered cue')]; await receiver.poll();
+  receiver.pendingRead = null; receiver.data = [dbRow('Recovered cue')]; await receiver.poll();
   assert.equal(cues.at(-1).text, 'Recovered cue'); stop();
 });
 
 test('session receives only its own new cues, deduplicates polling and recovers a missed websocket update', async () => {
   const s = service(), cues = [], statuses = [];
-  s.data = [row('Old workout', -1), row('Other client', 30, { client_id: 'client-b' }), row('Brace')];
+  s.data = [dbRow('Old workout', -1), dbRow('Other client', 30, { client_id: 'client-b' }), dbRow('Brace'), dbRow('A focus row is no cue', 12, { kind: 'exercise' })];
   const stop = s.api.subscribeWorkoutCues({ userId: 'client-a', startedAt: start, onCue: cue => cues.push(cue), onStatus: status => statuses.push(status) });
   await flush();
   assert.deepEqual(cues.map(cue => cue.text), ['Brace']);
+  assert.equal(s.queries[0].table, 'coach_pushed_items', 'cues are their own rows, never the focus banner');
+  assert.equal(s.queries[0].filters.kind, 'cue');
+  assert.match(s.queries[0].columns, /payload/);
   assert.equal(s.queries[0].filters.client_id, 'client-a');
   assert.equal(s.queries[0].filters['sent_at>='], start);
   assert.equal(s.channels[0].filter.filter, 'client_id=eq.client-a');
+  assert.equal(s.channels[0].filter.table, 'coach_pushed_items');
   await s.poll(); assert.equal(cues.length, 1);
   s.error = { message: 'Offline' }; await s.poll();
   assert.equal(statuses.at(-1), 'error'); assert.equal(cues.length, 1);
-  s.error = null; s.data = [row('Slow down', 25)]; await s.poll();
+  s.error = null; s.data = [dbRow('Slow down', 25)]; await s.poll();
   assert.deepEqual(cues.map(cue => cue.text), ['Brace', 'Slow down']);
   assert.equal(statuses.at(-1), 'ready');
   stop(); assert.equal(s.intervals.size, 0); assert.equal(s.channels[0].removed, true);
@@ -132,16 +143,16 @@ test('reconnect and foreground recovery re-read cues without resurrecting a dism
   const s = service(), cues = [];
   const stop = s.api.subscribeWorkoutCues({ userId: 'client-a', startedAt: start, onCue: cue => cues.push(cue) });
   await flush();
-  s.data = [row('Rest longer')]; s.channels[0].status('SUBSCRIBED'); await flush();
+  s.data = [dbRow('Rest longer')]; s.channels[0].status('SUBSCRIBED'); await flush();
   assert.equal(cues.length, 1);
   s.online(); await flush(); assert.equal(cues.length, 1);
-  s.data = [row('Hold this weight', 20)]; s.online(); await flush();
+  s.data = [dbRow('Hold this weight', 20)]; s.online(); await flush();
   assert.equal(cues.at(-1).text, 'Hold this weight'); stop();
 });
 
 test('account switch clears the visible cue and invalidates pending reads and old subscriptions', async () => {
   const s = service(), cues = []; let resolve;
-  s.data = [row('Brace')];
+  s.data = [dbRow('Brace')];
   s.api.subscribeWorkoutCues({ userId: 'client-a', startedAt: start, onCue: cue => cues.push(cue) });
   await flush();
   s.pendingRead = new Promise(done => { resolve = done; });
@@ -149,7 +160,7 @@ test('account switch clears the visible cue and invalidates pending reads and ol
   const pendingSignal = s.queries.at(-1).filters.signal;
   s.state.user = { id: 'client-b' }; s.identity();
   assert.equal(pendingSignal.aborted, true);
-  resolve({ data: [row('Old account pending response')], error: null }); await flush();
+  resolve({ data: [dbRow('Old account pending response')], error: null }); await flush();
   assert.equal(cues.at(-1), null); assert.equal(cues.length, 2);
   assert.equal(s.intervals.size, 0); assert.equal(s.channels[0].removed, true);
   s.api.subscribeWorkoutCues({ userId: 'client-a', startedAt: start, onCue: cue => cues.push(cue) });

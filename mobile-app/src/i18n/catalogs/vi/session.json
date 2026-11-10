@@ -371,5 +371,13 @@
   "burn.page.toCome": "Sắp tới",
   "burn.page.notTracked": "Chưa ghi",
   "burn.page.today": "Hôm nay",
-  "burn.page.rule": "Mỗi ngày chỉ tính một lần: số đo của đồng hồ cho cả ngày, hoặc các buổi tập đã ghi trong ngày đó."
+  "burn.page.rule": "Mỗi ngày chỉ tính một lần: số đo của đồng hồ cho cả ngày, hoặc các buổi tập đã ghi trong ngày đó.",
+  "train.coachAdded.unread": "Không tải được các bài tập huấn luyện viên đã thêm.",
+  "train.coachAdded.retry": "Thử lại",
+  "train.coachAdded.from": "Từ {name}",
+  "train.coachAdded.fromTrainer": "Từ huấn luyện viên của bạn",
+  "train.coachAdded.today": "Đã thêm hôm nay",
+  "train.coachAdded.onDay": "Đã thêm · {day}",
+  "train.coachAdded.count": "{count, plural, other {# bài tập}}",
+  "train.coachAdded.tempo": "Nhịp {tempo}"
 }

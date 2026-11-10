@@ -235,6 +235,7 @@ const RAW_ROUTES: ReadonlyArray<readonly [string, string]> = [
   ['/api/client/activities', 'GET,POST'],
   ['/api/client/analytics', 'GET'],
   ['/api/client/checkin', 'POST'],
+  ['/api/client/coach-exercises', 'GET'],
   ['/api/account/export', 'GET'],
   ['/api/account/delete', 'POST'],
   ['/api/privacy-request', 'POST'],
@@ -628,6 +629,24 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach Live console: a trainer\'s added exercises reach the member\'s Train day; real client names; a cue no longer replaces the focus (#2686). Migration: 2026-11-10-coach-live-cues.sql',
+      items: [
+        { label: 'Owner, 2026-11-10: "Fix two broken pieces of the coach Live console": pushed exercises never reached the member, and console client lists showed a subscriber with no session as "Client"; also the cue that overwrote the focus, "Logged today" showing an old day, the score\'s unread workout minutes and the Shared clients link', status: 'done' },
+        { label: '#2686 GET /api/client/coach-exercises (in RAW_ROUTES; request-auth, so the installed app\'s Bearer token reads it): the member\'s last 7 days, each exercise on the member\'s own day it was sent (client_profiles.timezone, UTC without one; src/lib/coach-exercises.ts), only from trainers the member pays now, the coach named from their listing; a failed read answers 500, never "none"', status: 'done' },
+        { label: '#2686 App: Train draws a day\'s exercises under that day\'s program, "From {coach} · Added today" with sets, reps, tempo and cue (BSCoachExercises.jsx, its own module and useShapeTr, all 13 locales; BSTrainDay renders it). It reads ShapeCoachFeed.exercises and redraws live on a console add or remove (subscribeExercises, a channel per reader). The member\'s "New exercise from your coach" notice already opened Train', status: 'done' },
+        { label: '#2686 Console: Today\'s session lists the exercises on the client\'s Train today, each with Remove (it was never drawn, so nothing could be taken back); an add and a remove wait for the server and say a failure (an add used to show the row and drop the error). Another day\'s exercises stay on that day, no longer listed forever as today\'s', status: 'done' },
+        { label: '#2686 Client names: both console routes read each client\'s name from their profile (src/lib/client-names.ts), a session\'s as the fallback; a name the route has not got is null with nameUnread when the read failed, and the pages say "No name on file" or "Name didn\'t load", never "Client". Both routes now read the caller through src/lib/request-auth.ts', status: 'done' },
+        { label: '#2686 A live cue is a coach_pushed_items row of kind \'cue\' (action \'cue\'; coachLiveWorkout.jsx and the app\'s sendCue), and the member\'s workout screen reads those; the focus banner is the weekly focus alone. The migration adds \'cue\' to the kind check and sends no notice for one; the console, Home\'s feed and the Instacart list read no cue rows', status: 'done' },
+        { label: '#2686 "Logged today" is the client\'s own today (todayByClient, in their zone; "Nothing logged yet today", or "didn\'t load"), never the newest of 90 days; the score\'s 10 workout points read workout_minutes, now selected; TrainerClients and NutritionistClients open on ?tab=shared', status: 'done' },
+        { label: '#2686 Tests: tests/coach-console-routes, coach-console-page, coach-exercises-member and coach-exercises-hook (new); workout-coach-cues and desktop-live-workout updated for the cue', status: 'done' },
+        { label: 'OWNER — run supabase-migrations/2026-11-10-coach-live-cues.sql before this deploys: until it runs, the old kind check refuses a cue and the coach is told it did not send', status: 'manual' },
+        { label: 'Left by #2686: the nutritionist\'s pushed meals still reach no screen. /api/client/nutrition sends them as todayMeals and neither the app nor the website reads it; the nutritionist console never draws its plan list either (removeMeal is unused)', status: 'pending' },
+        { label: 'Left by #2686: the nutritionist\'s grocery note cannot save. The live kind check takes exercise, meal (and now cue), never grocery_note, so its insert is refused; nothing on the member side reads one either', status: 'pending' },
+        { label: 'Left by #2686: each console\'s 90-day trajectory read is one select, so a roster of a dozen daily loggers passes PostgREST\'s 1,000 rows and loses its newest days (it reads oldest first). "Logged today" has its own read now; the chart and the latest snapshot do not', status: 'pending' },
+        { label: 'Left by #2686: Train\'s week is the device\'s, the route\'s days the account zone\'s; on a phone whose zone has not been posted yet (/api/client/timezone) an exercise can show a day off', status: 'pending' },
+      ],
+    },
+    {
       section: 'Hours & rules fills the screen and explains itself; the Score bar is the score; Invite client gives the no-fee link; time zones named as a calendar names them (#2684). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "This pop up should fill more of screen, its very small and constrained. Also how does this work? How do I choose when im available" … "this bar should represent actually shape score. Im at 80 but the bar is filled" … "also do these work properly?" (Live console, Invite client) … "remove all of that and just have it show normally. Like Eastern/Standard Time"', status: 'done' },
@@ -636,8 +655,8 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
         { label: '#2684 Invite client on Clients opens Business · Growth\'s Your profile link (the referral link, no Shape fee); it opened MemberProfile.html, whose Share copies the profile without the ref token, so a client who joined through it counted as found on Shape', status: 'done' },
         { label: '#2684 shapeZone.mjs zoneName ("Eastern Standard Time", Daylight in summer, in the app\'s language) and zoneNamesApart (city · offset where two zones read the same) in every sentence that names a zone, website and app; Schedule\'s calendar note printed the raw "America/New_York". Pickers keep zoneLabel ("New York · GMT-5")', status: 'done' },
         { label: '#2684 review: Codex clean on 82406c1 (no findings); CodeRabbit not asked. npm test 10,729 on the first commit (10,721 pass, 1 fail: the app calendar\'s label test, run mid-edit and passing on the head; 7 skipped); every zone and schedule suite rerun on the head; mutation round 22/22 killed; mobile build passes. CI green on 82406c1', status: 'done' },
-        { label: 'Left by #2684: the Live console\'s "+ Add to today\'s session" saves an exercise no member screen shows (the app reads only coachFeed.banners), and a subscriber with no session is listed as "Client" (trainer/console and nutritionist/console routes)', status: 'pending' },
-        { label: 'Left by #2684: in the Live console a cue from the live panel overwrites the coach\'s saved focus banner; "Logged today" shows the latest reading of 90 days; workout_minutes is scored but never selected; the Shared clients link\'s ?tab=shared is ignored by Clients', status: 'pending' },
+        { label: 'Left by #2684: the Live console\'s "+ Add to today\'s session" saves an exercise no member screen shows (the app reads only coachFeed.banners), and a subscriber with no session is listed as "Client" (trainer/console and nutritionist/console routes). Fixed by #2686', status: 'done' },
+        { label: 'Left by #2684: in the Live console a cue from the live panel overwrites the coach\'s saved focus banner; "Logged today" shows the latest reading of 90 days; workout_minutes is scored but never selected; the Shared clients link\'s ?tab=shared is ignored by Clients. Fixed by #2686', status: 'done' },
         { label: 'OWNER: on the deployed site, open Schedule → Hours & rules → Edit hours and paint a week; check the Score card\'s bar against your score and that Invite client opens Your profile link', status: 'manual' },
       ],
     },

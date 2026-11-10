@@ -1,0 +1,169 @@
+// Mutation spec for the coach Live console fixes (2026-11-10): a trainer's pushed exercises reach the
+// member's Train day (/api/client/coach-exercises, src/lib/coach-exercises.ts, the app's read and
+// BSCoachExercises.jsx); the console routes' client names come from profiles (null, never "Client";
+// nameUnread on a failed read); "Logged today" is the client's own today; the score reads
+// workout_minutes; a live cue is its own row (2026-11-10-coach-live-cues.sql), never the focus; the
+// console's session list waits for the server; ?tab=shared opens the Shared tab. Each mutation undoes
+// one guard; the tests must fail on every one.
+// Run from the repo root:
+//   node scripts/mutate.mjs --spec tests/mutations/coach-live-console-2026-11-10.mutations.mjs --fail-on-skipped
+const TR = 'src/app/api/trainer/console/route.ts';
+const NU = 'src/app/api/nutritionist/console/route.ts';
+const MEMBER = 'src/app/api/client/coach-exercises/route.ts';
+const LIB = 'src/lib/coach-exercises.ts';
+const APP = 'mobile-app/src/services/shapeBackend.js';
+const VIEW = 'mobile-app/src/broadsheet/BSCoachExercises.jsx';
+const DAY = 'mobile-app/src/broadsheet/BSTrainDay.jsx';
+const PANEL = 'public/newdesign/coachLiveWorkout.jsx';
+const TPAGE = 'public/newdesign/TrainerLiveConsole.html';
+const NPAGE = 'public/newdesign/NutritionistLiveConsole.html';
+const SQL = 'supabase-migrations/2026-11-10-coach-live-cues.sql';
+
+const consoleRoute = (role, file) => [
+  { name: `${role}: the profile names are never used`, file,
+    find: '      const name = names.get(e.id) || e.sessionName || null;',
+    replace: '      const name = e.sessionName || null;' },
+  { name: `${role}: a name it doesn't have is "Client" again`, file,
+    find: '      const name = names.get(e.id) || e.sessionName || null;',
+    replace: "      const name = names.get(e.id) || e.sessionName || 'Client';" },
+  { name: `${role}: an unread name is never said`, file,
+    find: '      return { id: e.id, name, nameUnread: !name && unread.has(e.id),',
+    replace: '      return { id: e.id, name, nameUnread: false,' },
+  { name: `${role}: "Logged today" takes any of the three dates read`, file,
+    find: '      if (row.snapshot_date !== memberDay(now, zoneByClient.get(uid) ?? null)) continue;\n',
+    replace: '' },
+  { name: `${role}: "Logged today" ignores the client's zone`, file,
+    find: '      if (row.snapshot_date !== memberDay(now, zoneByClient.get(uid) ?? null)) continue;',
+    replace: '      if (row.snapshot_date !== memberDay(now, null)) continue;' },
+  { name: `${role}: a failed read of today's logs is not said`, file,
+    find: '      todayUnread = true;\n',
+    replace: '' },
+  { name: `${role}: the score's workout minutes are not read`, file,
+    find: "protein_g, hrv_ms, recovery_score, workout_minutes')",
+    replace: "protein_g, hrv_ms, recovery_score')" },
+  { name: `${role}: a cue is written as an exercise again`, file,
+    find: "      kind: 'cue',\n      payload: { text },",
+    replace: "      kind: 'exercise',\n      payload: { name: text },"  },
+  { name: `${role}: an overlong cue is taken`, file,
+    find: '    if (text.length > CUE_MAX) {',
+    replace: '    if (false) {' },
+];
+
+export default {
+  test: 'node --test tests/coach-console-routes.test.mjs tests/coach-console-page.test.mjs tests/coach-exercises-member.test.mjs tests/coach-exercises-hook.test.mjs tests/workout-coach-cues.test.mjs tests/desktop-live-workout.test.mjs',
+  timeoutMs: 300_000,
+  mutations: [
+    // ── The console routes ──
+    ...consoleRoute('trainer', TR),
+    ...consoleRoute('nutritionist', NU),
+    { name: 'trainer: today\'s session reads any kind', file: TR,
+      find: "    .eq('kind', KIND)\n    .is('removed_at', null)\n    .gte('sent_at', exerciseReadSince(now, 1))",
+      replace: "    .is('removed_at', null)\n    .gte('sent_at', exerciseReadSince(now, 1))" },
+    { name: 'trainer: today\'s session lists every day\'s exercises', file: TR,
+      find: '    if (!ex || ex.day !== memberDay(now, zone)) continue;',
+      replace: '    if (!ex) continue;' },
+    { name: 'trainer: today\'s session counts in UTC', file: TR,
+      find: '    const zone = zoneByClient.get(r.client_id) ?? null;',
+      replace: '    const zone = null;' },
+    { name: 'nutritionist: the plan read takes the live cues too', file: NU,
+      find: "    .in('kind', [KIND, 'grocery_note'])\n",
+      replace: '' },
+
+    // ── The member's read ──
+    { name: 'member: a former trainer\'s exercises are shown', file: MEMBER,
+      find: '    .filter((e): e is PushedExercise => !!e && paid.has(e.providerId) && e.day in days)',
+      replace: '    .filter((e): e is PushedExercise => !!e && e.day in days)' },
+    { name: 'member: a failed read answers as no exercises', file: MEMBER,
+      find: '  if (subRes.error || itemRes.error) {',
+      replace: '  if (false) {' },
+    { name: 'member: the days count in UTC', file: MEMBER,
+      find: '  const zone = normalizeZone(tzRes.data?.timezone);',
+      replace: '  const zone = null;' },
+    { name: 'member: a removed exercise is shown', file: MEMBER,
+      find: "      .is('removed_at', null)\n",
+      replace: '' },
+    { name: 'lib: any kind is an exercise', file: LIB,
+      find: "  if (!row || row.kind !== 'exercise' || row.id == null) return null;",
+      replace: '  if (!row || row.id == null) return null;' },
+    { name: 'lib: an empty box (—) is shown as a value', file: LIB,
+      find: "  return s && s !== '—' && s !== '-' ? s : null;",
+      replace: '  return s ? s : null;' },
+    { name: 'lib: the read starts too late for the oldest day in a zone ahead of UTC', file: LIB,
+      find: '  return `${shiftDay(utc, -(n + 1))}T00:00:00.000Z`;',
+      replace: '  return `${shiftDay(utc, -(n - 1))}T00:00:00.000Z`;' },
+
+    // ── The app ──
+    { name: 'app: a failed read reads as none', file: APP,
+      find: "    if (!res.ok || !body || body.ok !== true || !body.days || typeof body.days !== 'object') return { status: 'error' };",
+      replace: "    if (!res.ok || !body || body.ok !== true || !body.days || typeof body.days !== 'object') return { status: 'none' };" },
+    { name: 'app: a 402 reads as an error', file: APP,
+      find: "    if (res.status === 402 || res.status === 403) return { status: 'none' };\n",
+      replace: '' },
+    { name: 'app: an answer for the last account is shown', file: APP,
+      find: "    const res = await fetch(`${apiBaseUrl || ''}/api/client/coach-exercises`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });\n    if (state.user?.id !== owner) return { status: 'none' };",
+      replace: "    const res = await fetch(`${apiBaseUrl || ''}/api/client/coach-exercises`, { headers: sessionsAuthHeaders(), credentials: 'same-origin', cache: 'no-store' });" },
+    { name: 'app: a cue\'s row redraws the exercises', file: APP,
+      find: "        if (kind && kind !== 'exercise') return;\n",
+      replace: '' },
+    { name: 'app: two readers share one channel', file: APP,
+      find: '      .channel(`coach-exercises:${userId}:${++coachExerciseChannelId}`)',
+      replace: '      .channel(`coach-exercises:${userId}`)' },
+    { name: 'app: the cue is sent as the focus again', file: APP,
+      find: "      body: JSON.stringify({ action: 'cue', clientId: recipient, text: cue }), signal: controller.signal,",
+      replace: "      body: JSON.stringify({ action: 'focus', clientId: recipient, text: cue }), signal: controller.signal," },
+    { name: 'app: the workout screen reads cues from the focus banner again', file: APP,
+      find: "      const result = await supabase.from('coach_pushed_items')\n        .select('id, client_id, provider_role, provider_id, kind, payload, sent_at')",
+      replace: "      const result = await supabase.from('coach_focus_banners')\n        .select('id, client_id, provider_role, provider_id, kind, payload, sent_at')" },
+    { name: 'website panel: the cue is sent as the focus again', file: PANEL,
+      find: "        body: JSON.stringify({ clientId, action: 'cue', text }), signal: controller.signal,",
+      replace: "        body: JSON.stringify({ clientId, action: 'focus', text }), signal: controller.signal," },
+
+    // ── Train ──
+    { name: 'view: a failed read draws nothing', file: VIEW,
+      find: "  if (read && read.status === 'error') {",
+      replace: '  if (false) {' },
+    { name: 'view: the week starts on Sunday', file: VIEW,
+      find: '  const mon = new Date(now); mon.setHours(0, 0, 0, 0); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));',
+      replace: '  const mon = new Date(now); mon.setHours(0, 0, 0, 0); mon.setDate(now.getDate() - now.getDay());' },
+    { name: 'view: a change in the console is never redrawn', file: VIEW,
+      find: "    const unsubscribe = api && typeof api.subscribeExercises === 'function' ? api.subscribeExercises(() => { load(); }) : () => {};",
+      replace: '    const unsubscribe = () => {};' },
+    { name: 'view: a new account keeps the old channel', file: VIEW,
+      find: '  }, [load, account]);',
+      replace: '  }, [load]);' },
+    { name: 'Train does not draw the section', file: DAY,
+      find: '      <BSCoachExercises dayIdx={day} today={day === todayIdx} dayLabel={shortDay(day)} />\n',
+      replace: '' },
+
+    // ── The console pages ──
+    { name: 'trainer page: a client with no name reads "Client"', file: TPAGE,
+      find: "              label: c.name || (c.nameUnread ? \"Name didn't load\" : 'No name on file'),",
+      replace: "              label: c.name || 'Client'," },
+    { name: 'nutritionist page: a client with no name reads "Client"', file: NPAGE,
+      find: "              label: c.name || (c.nameUnread ? \"Name didn't load\" : 'No name on file'),",
+      replace: "              label: c.name || 'Client'," },
+    { name: 'trainer page: "Logged today" shows the newest row again', file: TPAGE,
+      find: '            const today = todayByClient[c.id] || null;',
+      replace: '            const today = snapByClient[c.id] || null;' },
+    { name: 'nutritionist page: "Logged today" shows the newest row again', file: NPAGE,
+      find: '            const today = todayByClient[c.id] || null;',
+      replace: '            const today = snapByClient[c.id] || null;' },
+    { name: 'trainer page: a failed add is listed', file: TPAGE,
+      find: "      if (!res.ok || data.ok !== true || !data.id) throw new Error(data.error || \"Could not add the exercise. Try again.\");",
+      replace: '' },
+    { name: 'trainer page: a failed remove drops the row', file: TPAGE,
+      find: "      if (!res.ok || data.ok !== true) throw new Error(data.error || \"Could not remove the exercise. Try again.\");",
+      replace: '' },
+    { name: 'clients page: ?tab is ignored', file: 'public/newdesign/trainerClientsPage.jsx',
+      find: '    if (requestedTab === "shared" || requestedTab === "all") setTab(requestedTab);\n',
+      replace: '' },
+
+    // ── The migration ──
+    { name: 'migration: the kind check still refuses a cue', file: SQL,
+      find: "  add constraint coach_pushed_items_kind_check check (kind in ('exercise', 'meal', 'cue'));",
+      replace: "  add constraint coach_pushed_items_kind_check check (kind in ('exercise', 'meal'));" },
+    { name: 'migration: a cue files "New exercise from your coach"', file: SQL,
+      find: "  if new.kind = 'cue' then\n    return new;\n  end if;\n",
+      replace: '' },
+  ],
+};
