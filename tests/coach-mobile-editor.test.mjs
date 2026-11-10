@@ -169,3 +169,83 @@ test('setting a target RPE keeps an imported load; a new unit still replaces it'
   assert.equal('loadText' in rowOf(1), false, 'a new unit replaces the imported text');
   await React.act(async () => root.unmount());
 });
+
+// ── A playlist on a trainer's session (owner, 2026-11-10: "yes add the trainer picker too") ──
+// As the website's program builder sets it (DbuDayChips): { id?, name, meta } on the session's `playlist`,
+// from the coach's saved playlists (dbuPlaylistChoice: every one, "12 tracks"); the delivery
+// (builderToAssignmentRows) carries it to the member's session card and Train's Playlists.
+const { workoutPlaylistChoices, sessionPlaylist } = await import('../mobile-app/src/services/coachWorkoutLibrary.mjs');
+const { builderToAssignmentRows } = await import('../public/newdesign/workoutDocument.mjs');
+const ROWS = [
+  { id: 'st-1', name: ' Pull day tempo ', tracks: 14, role: 'trainer' },
+  { id: 'st-2', name: 'Riverside long run', tracks: 1, role: null },
+  { id: 'st-3', name: '  ', tracks: 3 },
+];
+const pickSelect = async (sel, v) => {
+  await React.act(async () => { Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set.call(sel, v); sel.dispatchEvent(new window.Event('change', { bubbles: true })); });
+};
+const settle = () => React.act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+test('a session\'s playlists: the coach\'s saved ones as the website lists them; stored as the website stores them', () => {
+  assert.deepEqual(workoutPlaylistChoices(ROWS), [
+    { id: 'st-1', name: 'Pull day tempo', meta: '14 tracks', tracks: 14 },
+    { id: 'st-2', name: 'Riverside long run', meta: '1 track', tracks: 1 },
+  ]);
+  assert.deepEqual(workoutPlaylistChoices(null), []);
+  assert.deepEqual(sessionPlaylist({ id: 'st-1', name: ' Pull day tempo ', meta: '14 tracks', tracks: 14 }), { id: 'st-1', name: 'Pull day tempo', meta: '14 tracks' }, 'id, name and meta only');
+  assert.deepEqual(sessionPlaylist({ name: 'Old mix' }), { name: 'Old mix', meta: '' }, 'one saved before ids keeps no id');
+  for (const none of [null, undefined, {}, { name: '  ' }]) assert.equal(sessionPlaylist(none), null);
+});
+
+test('the editor: a session\'s playlist from the coach\'s saved playlists; Save writes it and the delivery carries it; cleared, it goes', async () => {
+  localStorage.clear();
+  window.ShapeSoundtracks = { list: async () => ROWS };
+  const saved = [];
+  const root = await mount(Editor, { onSave: async (row) => { saved.push(row); } });
+  try {
+    await settle();
+    const sel = document.querySelector('[data-session-playlist] select');
+    assert.ok(sel, 'a playlist picker on the session');
+    assert.equal(document.querySelector('[data-session-playlist]').firstChild.textContent, "Playlist on the client's card");
+    assert.deepEqual([...sel.options].map((o) => o.textContent.split(' · ')[0]), ['No playlist', 'Pull day tempo', 'Riverside long run']);
+    assert.equal(sel.value, '');
+    await pickSelect(sel, 'id:st-1');
+    assert.equal(document.querySelector('[data-session-playlist] select').value, 'id:st-1');
+    await React.act(async () => button('Save draft').click());
+    const day = saved[0].detail.builder.weeks[0].days[0];
+    assert.deepEqual(day.playlist, { id: 'st-1', name: 'Pull day tempo', meta: '14 tracks' });
+    assert.equal(day.blocks[0].rows[0].name, 'Squat', 'the rest of the session as it was');
+    // The member is sent it with the session, as a program built on the website is.
+    const [delivered] = builderToAssignmentRows(saved[0].detail.builder, { name: 'Strength' }, '2026-11-09');
+    assert.deepEqual(delivered.payload.playlist, { id: 'st-1', name: 'Pull day tempo', meta: '14 tracks' });
+    // Cleared, the key goes (the website writes null; both are none, and the delivery sends null).
+    await pickSelect(document.querySelector('[data-session-playlist] select'), '');
+    await React.act(async () => button('Save draft').click());
+    const cleared = saved[1].detail.builder.weeks[0].days[0];
+    assert.equal('playlist' in cleared, false);
+    assert.equal(builderToAssignmentRows(saved[1].detail.builder, { name: 'Strength' }, '2026-11-09')[0].payload.playlist, null);
+  } finally { await React.act(async () => root.unmount()); delete window.ShapeSoundtracks; localStorage.clear(); }
+});
+
+test('the editor: a playlist the session already has stays shown when the list lacks it; signed out, there are none to pick', async () => {
+  localStorage.clear();
+  window.ShapeSoundtracks = { list: async () => null };
+  const p = plan();
+  p.detail.builder.weeks[0].days[0].playlist = { id: 'st-9', name: 'Old pull mix', meta: '9 tracks' };
+  p.detail.builder.weeks[0].days.push({ id: 'day-b', name: 'Upper', playlist: { name: 'Saved before ids', meta: '' }, blocks: [{ kind: 'main', rows: [] }] }, { id: 'day-c', name: 'Run', blocks: [{ kind: 'main', rows: [] }] });
+  const root = await mount(Editor, { plan: p, onSave: async () => {} });
+  try {
+    await settle();
+    let sel = document.querySelector('[data-session-playlist] select');
+    assert.equal(sel.value, 'id:st-9');
+    assert.deepEqual([...sel.options].map((o) => o.textContent), ['No playlist', 'Old pull mix · 9 tracks']);
+    assert.match(document.body.textContent, /Saved version/, 'showing what the session has changes nothing');
+    assert.doesNotMatch(document.body.textContent, /Unsaved changes|Draft kept on this device/);
+    await React.act(async () => button('Upper').click());
+    sel = document.querySelector('[data-session-playlist] select');
+    assert.equal(sel.value, 'name:Saved before ids', 'one saved without an id, by its name');
+    await React.act(async () => button('Run').click());
+    sel = document.querySelector('[data-session-playlist] select');
+    assert.deepEqual([...sel.options].map((o) => [o.textContent, o.disabled]), [['No playlist', false], ['No playlists yet', true]]);
+  } finally { await React.act(async () => root.unmount()); delete window.ShapeSoundtracks; localStorage.clear(); }
+});

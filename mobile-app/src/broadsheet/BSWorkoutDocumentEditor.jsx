@@ -2,7 +2,7 @@ import { createMobileVideoComponents } from '../services/videoComponents.mjs';
 import React from 'react';
 const { ShapeVideoPlayer, ShapeVideoLink, ShapeVideoAttachment } = createMobileVideoComponents(React);
 import { normalizeWorkoutDetail, videoUrl, ladder as rowLadder, perSetEntries, weightLabel, LADDER_MAX, SET_REPS_MAX, normalizeProgression, applyProgramProgression, pinLoadEdits, progressionStatus, rpeProgressionStatus, unpinned } from '../../../public/newdesign/workoutDocument.mjs';
-import { coachWorkoutVideos, coachWorkoutDraftKey } from '../services/coachWorkoutLibrary.mjs';
+import { coachWorkoutVideos, coachWorkoutDraftKey, workoutPlaylistChoices, sessionPlaylistKey, sameSessionPlaylist, sessionPlaylist } from '../services/coachWorkoutLibrary.mjs';
 import BSWorkoutFutureUpdates, { useWorkoutTr } from './BSWorkoutFutureUpdates.jsx';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -81,6 +81,17 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
     window.addEventListener('beforeunload', guard);
     return () => window.removeEventListener('beforeunload', guard);
   }, [dirty, stored, saving, upload]);
+  // The coach's saved playlists, for each session's playlist (owner, 2026-11-10: "yes add the trainer picker
+  // too"), read once (ShapeSoundtracks, read at call time). Signed out or a read that failed leaves the list
+  // empty, and a session keeps showing the playlist it has.
+  const [playlists, setPlaylists] = React.useState([]);
+  React.useEffect(() => {
+    const list = window.ShapeSoundtracks && window.ShapeSoundtracks.list;
+    if (typeof list !== 'function') return undefined;
+    let on = true;
+    Promise.resolve().then(() => list()).then((rows) => { if (on) setPlaylists(workoutPlaylistChoices(rows || [])); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
 
   const builder = value.detail.builder;
   const wi = Math.min(weekIdx, builder.weeks.length - 1);
@@ -257,6 +268,26 @@ export default function BSWorkoutDocumentEditor({ plan, plans, t, tr: inheritedT
         <label style={label}>{txt('minutes', 'Planned minutes (optional)')}<input type="number" min="1" max="480" value={day.plannedMinutes ?? ''} onChange={(e) => changeDay((next) => { next.plannedMinutes = e.target.value === '' ? undefined : Number(e.target.value); next.loadCapture = next.plannedMinutes && next.plannedRpe ? 'per_session' : undefined; })} style={input} /></label>
         <label style={label}>{txt('effort', 'Planned effort · RPE (optional)')}<input type="number" min="1" max="10" step="0.5" value={day.plannedRpe ?? ''} onChange={(e) => changeDay((next) => { next.plannedRpe = e.target.value === '' ? undefined : Number(e.target.value); next.loadCapture = next.plannedMinutes && next.plannedRpe ? 'per_session' : undefined; })} style={input} /></label>
       </div>
+      {/* The session's playlist, as the website's program builder sets it (DbuDayChips): { id?, name, meta } on
+          `day.playlist`, which the plan carries to the member's session card and Train's Playlists. A playlist
+          the session already carries stays listed and selected when the list lacks it (by id, or by name for
+          one saved without an id). Cleared, the key goes; the website writes null, and both are none. */}
+      {(() => {
+        const has = day.playlist && typeof day.playlist.name === 'string' && day.playlist.name.trim() ? day.playlist : null;
+        const lists = has && !playlists.some((p) => sameSessionPlaylist(p, has)) ? [has, ...playlists] : playlists;
+        const current = has ? lists.find((p) => sameSessionPlaylist(p, has)) : null;
+        const sub = (p) => (p.tracks ? tr('coach:workoutEditor.tracks', { defaultValue: '{n, plural, one {# track} other {# tracks}}', n: p.tracks }) : (p.meta || ''));
+        return (
+          <label data-session-playlist="" style={{ ...label, marginTop: 10 }}>{txt('playlist', "Playlist on the client's card")}
+            <select value={current ? sessionPlaylistKey(current) : ''} style={{ ...input, color: current ? accent : t.INK }}
+              onChange={(e) => { const s = sessionPlaylist(lists.find((x) => sessionPlaylistKey(x) === e.target.value)); changeDay((next) => { if (s) next.playlist = s; else delete next.playlist; }); }}>
+              <option value="">{txt('noPlaylist', 'No playlist')}</option>
+              {lists.map((p) => <option key={sessionPlaylistKey(p)} value={sessionPlaylistKey(p)}>{p.name}{sub(p) ? ` · ${sub(p)}` : ''}</option>)}
+              {!lists.length && <option value="" disabled>{txt('noPlaylists', 'No playlists yet')}</option>}
+            </select>
+          </label>
+        );
+      })()}
       <ShapeVideoAttachment key={wi+'-'+di+'-'+day.id} value={day.video} title={tr('coach:video.workoutWalkthrough', {defaultValue:'Workout walkthrough'})} onChange={video=>changeDay(next=>{next.video=video;})} upload={uploadIntroduction} onBusy={introductionBusy} clips={videos}/>
       {(day.blocks || []).map((block, bi) => <div key={bi} style={{ marginTop: 22 }}>
         <div style={{ color: t.INK50, fontFamily: t.MONO, fontSize: 11 }}>{block.kind || txt('exercises', 'Exercises')}</div>
