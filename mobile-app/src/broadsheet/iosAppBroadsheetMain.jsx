@@ -499,7 +499,7 @@ function BSClimbTagline({ rise = false }) {
   );
 }
 
-function BSSplash({ onDone, style = 'wire-beat' }) {
+function BSSplash({ onDone, style = 'wire-beat', signedOut = false }) {
   const t = useBS();
   const { tr, locale } = useTr('onboarding');
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
@@ -515,9 +515,15 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
   // The Daily digest: when the "classified" (daily) splash mounts, fetch the
   // member's real day. Fully guarded; null = still loading. Tap-to-advance works
   // the whole time regardless of fetch state.
-  const [bsDigest, setBsDigest] = useStateBSM(null);
+  // ⚠ `signedOut` IS THE SHELL'S ANSWER, NOT A GUESS: true only for the paywall's Preview, taken
+  // once the session restore has finished with no account (the paywall waits for it). That visitor
+  // gets the invite edition at once. The retries below are for a member whose session is still
+  // restoring; run for a visitor with no session at all, they held "Putting today together…" on
+  // screen for 3.3s before the pitch (owner, 2026-11-09: "make sure this is wired properly").
+  const [bsDigest, setBsDigest] = useStateBSM(() => (style === 'classified' && signedOut ? { signedIn: false, name: null } : null));
   useEffectBSM(() => {
     if (style !== 'classified') return undefined;
+    if (signedOut) { setBsDigest({ signedIn: false, name: null }); return undefined; }
     let alive = true;
     let tries = 0;
     // The session restores asynchronously during the splash, so the first build
@@ -538,7 +544,7 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
     };
     run();
     return () => { alive = false; };
-  }, [style]);
+  }, [style, signedOut]);
 
   // The telegram self-advances 5s AFTER the member's digest resolves — a slow
   // fetch never burns reading time (the loading state carries no timer). Under
@@ -680,9 +686,9 @@ function BSSplash({ onDone, style = 'wire-beat' }) {
           // Signed-out preview only — the invite edition (members render the
           // telegram above): one clean wire dispatch, centered (the owner cut
           // the Inside Shape / In the world catalog columns — the pitch IS the
-          // page). Tap-only "Step inside"; never auto-advances.
+          // page). Tap-only "Step inside"; never auto-advances. No address line over the pitch (owner,
+          // 2026-11-09: "remove that one line", the "To: You · Invitation" it opened on).
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
-            <div style={{ fontFamily: mono, fontSize: 9.5, letterSpacing: '0.2em', textTransform: 'uppercase', color: INKF50 }}>{tr('launch.toYou')}</div>
             {/* the pitch, on the wire */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
@@ -2097,7 +2103,7 @@ function BSAppShell({ tweaks, setTweak }) {
             />
           )
         )}
-        {stage === 'daily' && <BSSplash style="classified" onDone={() => {
+        {stage === 'daily' && <BSSplash style="classified" signedOut={previewMode && authReady && !authUserId} onDone={() => {
           // A real signed-in member entering their telegram stamps today's
           // seen-marker (warm relaunch skips the rest of the day). The signed-out
           // preview/invite path never stamps.
