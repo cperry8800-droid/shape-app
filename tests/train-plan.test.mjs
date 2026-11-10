@@ -257,3 +257,13 @@ test('focus stays in the sheet (Tab and Shift+Tab wrap) and returns to what open
   assert.ok(document.activeElement === opener, 'closing hands focus back to what opened it');
   opener.remove(); outside.remove();
 });
+
+// Codex on #2669: "When the fetched list contains playlist A and an ID-bearing workout refers to an absent
+// playlist B with the same name … a legacy name-only workout … is assigned to A".
+test('a day saved before ids claims no card when the list\'s and an unsent one share its name', () => {
+  const w = week();
+  w[(TODAY + 1) % 7] = session('New day', { playlist: { id: 'b', name: 'Pull' } });
+  w[(TODAY + 2) % 7] = session('Old day', { playlist: { name: 'pull' } });
+  const cards = bsTrainPlaylistCards([{ id: 'a', title: 'Pull', k: 'list' }], w, TODAY).filter((c) => bsPlaylistKey(c.title) === 'pull');
+  assert.deepEqual(cards.map((c) => [c.k || 'unsent', c.uses.map((u) => u.title)]).sort(), [['list', []], ['unsent', ['New day']]]);
+});

@@ -74,13 +74,15 @@ export function bsTrainPlaylistCards(items, program, todayIdx = 0) {
     card.uses.push(...u.days);
   }
   for (const u of groups.filter((g) => !g.id)) {
-    const named = byName.get(u.name) || [];
-    if (named.length > 1) continue; // two cards of that name: which one is not ours to guess
-    if (named.length === 1) { cards[named[0]].uses.push(...u.days); continue; }
-    // Not in the list: the card an id-bearing day of that name made, when there is exactly one.
-    const same = [...own.entries()].filter(([k, c]) => k.startsWith('id:') && bsPlaylistKey(c.title) === u.name);
-    const card = same.length === 1 ? same[0][1] : ownCard(`name:${u.name}`, u);
-    if (!card.coach && u.coach) card.coach = u.coach;
+    // Every card that playlist could be: the list's of that name, and the ones id-bearing days of that name
+    // made (Codex on #2669: a list's "Pull" and an unsent "Pull" a day names by id are two candidates).
+    const candidates = [
+      ...(byName.get(u.name) || []).map((i) => cards[i]),
+      ...[...own.entries()].filter(([k, c]) => k.startsWith('id:') && bsPlaylistKey(c.title) === u.name).map(([, c]) => c),
+    ];
+    if (candidates.length > 1) continue; // which one is not ours to guess
+    const card = candidates.length === 1 ? candidates[0] : ownCard(`name:${u.name}`, u);
+    if (card.onlyOnDay && !card.coach && u.coach) card.coach = u.coach;
     card.uses.push(...u.days);
   }
   for (const c of cards) c.uses.sort((a, b) => ahead(a.idx) - ahead(b.idx));
