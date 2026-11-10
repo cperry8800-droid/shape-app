@@ -30,7 +30,8 @@ import { REQUIRED_ATTESTATIONS, attestationsComplete } from '../../../src/lib/co
 // words for a refusal show on Review.
 //   · The role is picked on the first step (it could not be changed before), and a nutritionist says
 //     whether they are a dietitian there.
-//   · A DRAFT is kept on this device while they type (`shape.applyDraft.<uid|anon>`): the values, never a
+//   · A DRAFT is kept while they type: on this device under their account when signed in
+//     (`shape.applyDraft.<uid>`, 30 days), for this session only when signed out. The values, never a
 //     file and never an agreement or attestation tick. It comes back on the next open with "Draft
 //     restored · Start over", and goes once the application is sent.
 //   · NORA: the first step offers her ("Fill it in with Nora"), which opens her sheet with a starter line
@@ -266,20 +267,30 @@ function apDraftValues(values) {
   }
   return out;
 }
-function apReadDraft(key) {
+// ⚠ WHERE A DRAFT IS KEPT (Codex on #2667): a signed-in applicant's on the device under their own account
+// (localStorage, shape.applyDraft.<uid>), for 30 days; a signed-out one's for this session only
+// (sessionStorage). One device-wide "anon" draft handed a previous applicant's name, email, date of
+// birth and licence details to the next signed-out person on a shared phone or browser.
+const AP_DRAFT_TTL = 30 * 86400000;
+const AP_ANON_KEY = 'shape.applyDraft.anon';
+function apDraftStore(signedIn) {
+  try { return signedIn ? window.localStorage : window.sessionStorage; } catch (e) { return null; }
+}
+function apReadDraft(store, key) {
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = store && store.getItem(key);
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d || typeof d !== 'object' || !d.values || typeof d.values !== 'object') return null;
+    if (!(Number(d.at) > 0) || Date.now() - Number(d.at) > AP_DRAFT_TTL) { store.removeItem(key); return null; }
     return { ...d, values: apDraftValues(d.values) };
   } catch (e) { return null; }
 }
-function apWriteDraft(key, draft) {
-  try { window.localStorage.setItem(key, JSON.stringify(draft)); return true; } catch (e) { return false; }
+function apWriteDraft(store, key, draft) {
+  try { if (!store) return false; store.setItem(key, JSON.stringify(draft)); return true; } catch (e) { return false; }
 }
-function apClearDraft(key) {
-  try { window.localStorage.removeItem(key); } catch (e) { /* nothing kept, nothing to clear */ }
+function apClearDraft(store, key) {
+  try { if (store) store.removeItem(key); } catch (e) { /* nothing kept, nothing to clear */ }
 }
 
 function apFreshValues(dietitian, fromAccount) {
@@ -601,9 +612,15 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   // and the RD/RDN flag never reached the apply route.
   const isDietitianApplicant = initialRole === 'dietitian';
   const startRole = initialRole === 'nutritionist' || isDietitianApplicant ? 'nutritionist' : 'trainer';
-  const draftKey = `shape.applyDraft.${apUid() || 'anon'}`;
-  // The draft from the last time, read once as the screen opens.
-  const [draft] = useState(() => apReadDraft(draftKey));
+  const signedIn = !!apUid();
+  const draftKey = signedIn ? `shape.applyDraft.${apUid()}` : AP_ANON_KEY;
+  const draftStore = apDraftStore(signedIn);
+  // The draft from the last time, read once as the screen opens. A device-wide signed-out draft an
+  // earlier build kept in localStorage is cleared, never read.
+  const [draft] = useState(() => {
+    apClearDraft(apDraftStore(true), AP_ANON_KEY);
+    return apReadDraft(draftStore, draftKey);
+  });
   const [role, setRole] = useState(() => (draft && (draft.role === 'trainer' || draft.role === 'nutritionist') ? draft.role : startRole));
   const [step, setStep] = useState(() => (draft && Number.isInteger(draft.step) ? Math.max(0, Math.min(AP_REVIEW, draft.step)) : 0));
   const [values, setValues] = useState(() => {
@@ -722,20 +739,20 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   submittedRef.current = submitted;
   useEffect(() => {
     if (submitted || !dirtyRef.current) return undefined;
-    const id = setTimeout(() => apWriteDraft(draftKey, snapshotRef.current()), 500);
+    const id = setTimeout(() => apWriteDraft(draftStore, draftKey, snapshotRef.current()), 500);
     return () => clearTimeout(id);
   }, [values, role, step, noraKeys, submitted, draftKey]);
   useEffect(() => () => {
     clearTimeout(noraTimer.current);
-    if (dirtyRef.current && !submittedRef.current) apWriteDraft(draftKey, snapshotRef.current());
+    if (dirtyRef.current && !submittedRef.current) apWriteDraft(draftStore, draftKey, snapshotRef.current());
   }, [draftKey]);
   const saveAndLeave = () => {
-    apWriteDraft(draftKey, snapshotRef.current());
+    apWriteDraft(draftStore, draftKey, snapshotRef.current());
     dirtyRef.current = false;
     if (onBack) onBack();
   };
   const startOver = () => {
-    apClearDraft(draftKey);
+    apClearDraft(draftStore, draftKey);
     dirtyRef.current = false;
     setRole(startRole);
     setStep(0);
@@ -906,7 +923,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       // happen, and the form, which keeps every value, stays up to try again.
       if (!next || next.stored !== 'api') throw new Error(PROVIDER_APPLICATION_SEND_FAILED);
       dirtyRef.current = false;
-      apClearDraft(draftKey);
+      apClearDraft(draftStore, draftKey);
       setResult(next);
     } catch (err) {
       // The route's own words for a refusal; the send-failed sentence in their language.
@@ -1308,7 +1325,9 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
     : name === 'role' && noraKeys.length
       ? tr('onboarding:apply.nora.reviewFilled', { defaultValue: 'Review what Nora filled' })
       : fromReview ? tr('onboarding:apply.backToReview', { defaultValue: 'Back to review' }) : tr('onboarding:apply.continue', { defaultValue: 'Continue' });
-  const saveLater = (
+  // Save and finish later only where the draft outlives this session: signed in. Signed out, the draft
+  // keeps for the session (going back and returning), and the link would promise more than that.
+  const saveLater = !signedIn ? null : (
     <button type="button" data-apply-save-later="" onClick={saveAndLeave} style={{ ...quietLink, padding: '0 0 0 12px', margin: host ? '-5px 0' : 0 }}>{tr('onboarding:apply.saveLater', { defaultValue: 'Save and finish later' })}</button>
   );
 

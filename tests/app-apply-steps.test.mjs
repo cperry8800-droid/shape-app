@@ -28,6 +28,7 @@ globalThis.window = W;
 globalThis.document = W.document;
 Object.defineProperty(globalThis, 'navigator', { value: W.navigator, configurable: true, writable: true });
 globalThis.localStorage = W.localStorage;
+globalThis.sessionStorage = W.sessionStorage;
 globalThis.__VITE_ENV__ = { BASE_URL: '/m/', MODE: 'test' };
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const React = require_('react');
@@ -89,7 +90,7 @@ async function mount({ role = 'trainer', host = null } = {}) {
   return p;
 }
 
-test.beforeEach(() => { localStorage.clear(); auth = {}; delete W.bsAskNora; });
+test.beforeEach(() => { localStorage.clear(); sessionStorage.clear(); auth = {}; delete W.bsAskNora; });
 
 test('seven short steps, a segmented bar and "Step N of 7", Back stepping back and out', async () => {
   const p = await mount();
@@ -230,18 +231,28 @@ test('the draft round-trips through this device without files or ticks, and Star
   } finally { await r.close(); }
 
   // "Save and finish later" keeps it at once and leaves.
-  auth = {};
+  auth = { user: { id: 'u-77' } };
   const s = await mount();
   try {
     await s.next();
     await s.type('firstName', 'Grace');
     await s.click(s.q('[data-apply-save-later]'));
     assert.equal(s.backs.length, 1);
-    assert.equal(JSON.parse(localStorage.getItem('shape.applyDraft.anon')).values.firstName, 'Grace', 'signed out, under anon');
+    assert.equal(JSON.parse(localStorage.getItem(KEY)).values.firstName, 'Grace', 'under their account');
   } finally { await s.close(); }
 
+  // A draft past 30 days is dropped, not restored.
+  localStorage.setItem(KEY, JSON.stringify({ v: 1, role: 'trainer', step: 2, values: { firstName: 'Old' }, at: Date.now() - 31 * 86400000 }));
+  const o = await mount();
+  try {
+    assert.equal(o.at(), 'role');
+    assert.ok(!o.q('[data-apply-restored]'), 'an expired draft is no draft');
+    assert.equal(localStorage.getItem(KEY), null, 'and it is removed');
+  } finally { await o.close(); }
+  auth = {};
+
   // A draft in a shape the screen does not hold (an old build's, a hand-edited one) keeps only what fits.
-  localStorage.setItem('shape.applyDraft.anon', JSON.stringify({ role: 'admin', step: 99, values: { email: 'a@b.co', firstName: { x: 1 }, secondary: 'Mobility', populations: ['Rehab', 7], licenses: 'NY', tos: true, password: 'x' } }));
+  sessionStorage.setItem('shape.applyDraft.anon', JSON.stringify({ role: 'admin', step: 99, at: Date.now(), values: { email: 'a@b.co', firstName: { x: 1 }, secondary: 'Mobility', populations: ['Rehab', 7], licenses: 'NY', tos: true, password: 'x' } }));
   const u = await mount();
   try {
     assert.equal(u.at(), 'review', 'a step past the last is the last');
@@ -378,7 +389,7 @@ test('a successful send shows where it stands and clears the draft; Done leaves'
     await p.next();
     for (const re of [/I agree to the/, /code of conduct/, /I consent to a required background check/]) await p.click(byText('button', re, p.el));
     await wait(650);
-    assert.ok(localStorage.getItem('shape.applyDraft.anon'), 'a draft while they work');
+    assert.ok(sessionStorage.getItem('shape.applyDraft.anon'), 'a draft while they work, for this session');
     const sent = [];
     W.ShapeApplications = { submitProviderApplication: async (arg) => { sent.push(arg); return { stored: 'api', duplicate: false, data: { id: 'a-1' } }; } };
     await p.next();
@@ -393,9 +404,9 @@ test('a successful send shows where it stands and clears the draft; Done leaves'
     assert.match(stages[0].textContent, /Submitted/);
     assert.match(stages[0].textContent, new RegExp(new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date())), 'with today\'s date');
     assert.match(p.text(), /Usually 2–3 business days\. We'll email you, and you can see where it stands in Settings, under Coach on Shape\./);
-    assert.equal(localStorage.getItem('shape.applyDraft.anon'), null, 'the draft goes once it is sent');
+    assert.equal(sessionStorage.getItem('shape.applyDraft.anon'), null, 'the draft goes once it is sent');
     await wait(650);
-    assert.equal(localStorage.getItem('shape.applyDraft.anon'), null, 'and is not written again');
+    assert.equal(sessionStorage.getItem('shape.applyDraft.anon'), null, 'and is not written again');
     assert.equal(W.shapeNoraForm, null, 'a sent application has no form for Nora');
     await p.click(byText('button', /^Done$/, p.el));
     assert.equal(p.backs.length, 1);
@@ -428,6 +439,7 @@ test('in the member app it covers the whole phone surface, tab bar included; on 
   nav.setAttribute('data-bs-tabbar', '');
   surface.appendChild(nav);
   document.body.appendChild(surface);
+  auth = { user: { id: 'u-5' } };
   const p = await mount({ host: surface });
   try {
     const screen = surface.querySelector('[data-provider-apply]');
@@ -472,6 +484,26 @@ test('the option values stay English for the route; only their labels are transl
     await p.click(byText('[data-apply-field="insurance"] [role="radio"]', /^In Arbeit$/, p.el));
     assert.equal(byText('[data-apply-field="insurance"] [role="radio"]', /^In Arbeit$/, p.el).getAttribute('aria-checked'), 'true');
     await wait(650);
-    assert.equal(JSON.parse(localStorage.getItem('shape.applyDraft.anon')).values.insurance, 'In progress', 'the English value is what is kept and sent');
+    assert.equal(JSON.parse(sessionStorage.getItem('shape.applyDraft.anon')).values.insurance, 'In progress', 'the English value is what is kept and sent');
   } finally { await p.close(); W.ShapeI18n = was; }
+});
+
+test('a signed-out draft is this session\'s only, never a device-wide one the next person opens (Codex on #2667)', async () => {
+  // An earlier build's device-wide signed-out draft: cleared on open, never restored.
+  localStorage.setItem('shape.applyDraft.anon', JSON.stringify({ v: 1, role: 'trainer', step: 1, at: Date.now(), values: { firstName: 'Previous', email: 'prev@example.invalid', dob: '1980-01-01' } }));
+  const p = await mount();
+  try {
+    assert.equal(p.at(), 'role');
+    assert.ok(!p.q('[data-apply-restored]'), 'the previous applicant\'s draft is not restored');
+    assert.equal(localStorage.getItem('shape.applyDraft.anon'), null, 'and it is cleared from the device');
+    assert.ok(!p.q('[data-apply-save-later]'), 'no "finish later" promise signed out');
+    await p.next();
+    await p.type('firstName', 'Grace');
+    await wait(650);
+    assert.equal(JSON.parse(sessionStorage.getItem('shape.applyDraft.anon')).values.firstName, 'Grace', 'kept for this session');
+    assert.equal(localStorage.getItem('shape.applyDraft.anon'), null, 'never on the device');
+  } finally { await p.close(); }
+  // Within the session, going back and returning restores it.
+  const q = await mount();
+  try { assert.ok(q.q('[data-apply-restored]')); } finally { await q.close(); }
 });

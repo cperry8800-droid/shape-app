@@ -33083,9 +33083,13 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // The member's own coach application (Also → Coach on Shape): null until read and when there is none
   // (the plain Apply row), { unavailable } when the read failed (/api/me/application). Read again when
   // the application screen closes, since they may have just sent one. A coach is never asked.
+  // ⚠ ANY COACH ROLE THE ACCOUNT HOLDS, not only its primary one (Codex on #2667): an approved member
+  // keeps profiles.role 'client' with the coach role in roles[], and in Client mode would otherwise be
+  // offered Coach on Shape, and a fresh application, again.
   const accountIsCoach = (() => {
     const r = String(window.ShapeAuth?.getCachedState?.()?.profile?.role || '').toLowerCase();
-    return r === 'trainer' || r === 'nutritionist' || r === 'dietitian';
+    return r === 'trainer' || r === 'nutritionist' || r === 'dietitian'
+      || accountRoles.some((x) => x === 'trainer' || x === 'nutritionist' || x === 'dietitian');
   })();
   const [coachApp, setCoachApp] = useStateBSC(null);
   const [coachAppReads, setCoachAppReads] = useStateBSC(0);

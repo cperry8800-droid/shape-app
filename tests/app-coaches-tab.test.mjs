@@ -390,6 +390,10 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   // The client: hidden for a coach, read from /api/me/application, the screen full screen over Settings.
   const src = read('iosAppBroadsheetClient.jsx');
   assert.match(src, /const coachAppRow = \(isCoachRole \|\| accountIsCoach\) \? null/);
+  // Any coach role the account holds hides it, not only the primary one: an approved member keeps
+  // profiles.role 'client' with the coach role in roles[] (Codex on #2667).
+  assert.match(src, /\|\| accountRoles\.some\(\(x\) => x === 'trainer' \|\| x === 'nutritionist' \|\| x === 'dietitian'\);/);
+  assert.ok(src.indexOf('const accountRoles = bsAccountRoles(') < src.indexOf('const accountIsCoach = ('), 'the roles are read before the guard');
   assert.match(src, /if \(d === 'coachapply'\) \{\n\s+if \(coachAppRow && coachAppRow\.retry\) setCoachAppReads\(\(n\) => n \+ 1\);\n\s+else setShowApply\(true\);\n\s+return;\n\s+\}/, 'a failed read retries on a tap; only a read row opens the application');
   assert.match(src, /if \(showApply && window\.BSProviderApplicationScreen\) \{/);
   const backend = fs.readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
