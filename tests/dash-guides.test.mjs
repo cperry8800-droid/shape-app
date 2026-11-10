@@ -172,9 +172,18 @@ test('a guide is ticked only when it is finished, not when it is skipped', async
   assert.equal(saved.length, 1);
   assert.equal(saved[0].kind, 'web_coach_guides');
   assert.deepEqual(JSON.parse(JSON.stringify(saved[0].opts)), { expectedUserId: 'u1' });
-  assert.ok(saved[0].data.chapters.programs, 'the Programs guide is ticked');
+  assert.ok(saved[0].data.chapters['trainer:programs'], 'the trainer\'s Programs guide is ticked');
+  assert.deepEqual(Object.keys(saved[0].data.chapters), ['trainer:programs'], 'and nothing else');
   assert.equal(api.guideHere().done, true);
   assert.equal(api.list().find((g) => g.key === 'programs').done, true);
+  // A coach with both listings: the trainer's tick is not the nutritionist's Meal plans (Codex, #2677).
+  const ctx2 = { window: { ...win, location: { hash: '#plans' } }, document: ctx.document, localStorage: { getItem: (k) => (k === 'shape.webGuides.u1' ? JSON.stringify(saved[0].data) : null), setItem() {} }, Event: ctx.Event, setTimeout: () => 0 };
+  vm.runInNewContext(TOUR_SRC, ctx2, { filename: 'dashTour.js' });
+  ctx2.window.ShapeDashTour.init('nutritionist');
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(ctx2.window.ShapeDashTour.guideHere().title, 'Meal plans');
+  assert.equal(ctx2.window.ShapeDashTour.guideHere().done, false, 'the nutritionist\'s Meal plans guide is not ticked by the trainer\'s Programs');
+  assert.equal(ctx2.window.ShapeDashTour.list().filter((g) => g.done).length, 0);
   assert.equal(api.list().find((g) => g.key === 'client').startable, false, 'a client\'s file is taken from the file');
 });
 

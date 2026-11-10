@@ -40,8 +40,8 @@
   // Dedicated web keys — NEVER write the app's client_onboarding / coach_onboarding
   // docs from here (replace-semantics would clobber the app tour's own seen flag).
   var GOAL_KEY = { client: 'web_client_onboarding', trainer: 'web_coach_onboarding', nutritionist: 'web_coach_onboarding' };
-  // A coach's guide progress: { welcome, note, chapters: { <guide>: <day finished> } }. One document
-  // for both coach roles, as the welcome's flag is: the dashboards share their pages.
+  // A coach's guide progress: { welcome, note, chapters: { <role>:<guide>: <day finished> } }. One
+  // document for both coach roles, as the welcome's flag is; each role's ticks are its own.
   var GUIDE_KEY = 'web_coach_guides';
 
   // Where to find the tour again, said when it is skipped.
@@ -251,6 +251,10 @@
   }
 
   var ROLE = null, UID = null, PROG = { chapters: {} };
+  // A tick is kept per role: a coach with both listings has a trainer's dashboard and a
+  // nutritionist's, whose guides share keys ('programs' is Programs for one and Meal plans for the
+  // other) but not their pages, so finishing one must not tick the other (Codex, #2677).
+  function tickKey(role, key) { return role + ':' + key; }
   function progLocalKey(uid) { return 'shape.webGuides.' + uid; }
   function today() { return new Date().toISOString().slice(0, 10); }
   function announce() { try { window.dispatchEvent(new Event('shape:guides')); } catch (e) {} }
@@ -302,7 +306,7 @@
   }
   function guideHere() {
     var g = guideForRoute(ROLE, routeNow());
-    return g ? { key: g.key, title: g.title, done: !!PROG.chapters[g.key] } : null;
+    return g ? { key: g.key, title: g.title, done: !!PROG.chapters[tickKey(ROLE, g.key)] } : null;
   }
   function list() {
     if (!isCoach(ROLE)) return [];
@@ -310,7 +314,7 @@
     return coachGuides(ROLE).map(function (g) {
       // A client's file has no address of its own to open from Settings: it is taken from the file.
       var startable = g.key !== 'client' || here === 'client';
-      return { key: g.key, title: g.title, steps: g.steps.length, done: !!PROG.chapters[g.key], startable: startable,
+      return { key: g.key, title: g.title, steps: g.steps.length, done: !!PROG.chapters[tickKey(ROLE, g.key)], startable: startable,
         hint: startable ? '' : 'Open a client’s file, then press Guide.' };
     });
   }
@@ -337,7 +341,8 @@
     for (var k = 0; k < all.length; k++) { if (all[k].key === key) g = all[k]; }
     if (!g) return;
     var o = cardStyle(ROLE);
-    o.onDone = function (reason) { if (reason === 'finished') { var p = { chapters: {} }; p.chapters[g.key] = today(); recordProgress(p); } };
+    var role = ROLE;
+    o.onDone = function (reason) { if (reason === 'finished') { var p = { chapters: {} }; p.chapters[tickKey(role, g.key)] = today(); recordProgress(p); } };
     window.SpotlightTour.start(g.steps, o);
   }
 

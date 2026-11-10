@@ -27,6 +27,7 @@ export default {
     { name: 'a failed read writes anyway', file: DASH, find: "        if (remote == null || UID !== uid) return;\n        var merged", replace: "        if (UID !== uid) return;\n        var merged" },
     { name: 'the write is not bound to the account', file: DASH, find: 'db.saveUserGoals(GUIDE_KEY, merged, { expectedUserId: uid })', replace: 'db.saveUserGoals(GUIDE_KEY, merged)' },
     { name: 'the write skips the read', file: DASH, find: 'var merged = mergeProgress(remote, PROG);', replace: 'var merged = PROG;' },
+    { name: "one role's tick is the other's (a coach with both listings)", file: DASH, find: "function tickKey(role, key) { return role + ':' + key; }", replace: 'function tickKey(role, key) { return key; }' },
     { name: 'a skipped guide is ticked', file: DASH, find: "o.onDone = function (reason) { if (reason === 'finished') {", replace: 'o.onDone = function (reason) { if (true) {' },
     // ── The coach guides ──
     { name: 'a member gets the coach guides', file: DASH, find: '    if (!isCoach(role)) return null;\n    var all = coachGuides(role);', replace: '    var all = coachGuides(role);' },
