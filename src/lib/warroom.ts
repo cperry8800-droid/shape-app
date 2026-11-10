@@ -628,6 +628,17 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach dashboard Profile at the page\'s width and the Coach Cockpit preview\'s scale (#2688). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, with a screenshot of the Profile tab: "profile should take up full width of page and formatting looks bad. Everything looks huge. I want it to look like what the preview design was", then picked the Coach Cockpit preview (claude.ai artifact "Shape Coach Cockpit", Profile: pv3-a, pnv3-a)', status: 'done' },
+        { label: '#2688 coachProfileWeb.jsx, in the dashboard only (chrome off, data-in-dash) and at 1000px and wider: the whole width inside the dashboard\'s 32px gutters, not a centred 1440; the portrait 230 to 300px wide; the name sized to its own column (container query, max 78px; it read 100vw, rail and all, and ran 106px at 1916); chips 30px, the quote 16px, buttons 40px, four stat plates 176px wide with 28px figures, the summit plate smaller; the wire joined to the stage\'s foot; camp titles 26 to 40px. The public coach page and phones keep their own', status: 'done' },
+        { label: '#2688 dashProfileExtras.jsx: the coach\'s own setup under the profile takes the same width (it was 1240, centred)', status: 'done' },
+        { label: 'Checked at 1916, 1440 and 1280 px, trainer and nutritionist, Black and White skins: no sideways scroll; tests/web-coach-climb.test.mjs guards the dashboard block and the public page\'s 1440', status: 'done' },
+        { label: 'Not built from the preview: the booking plate inside the hero, the Customize bar (layout, theme, camps, Preview as client, Publish) and the camps on light paper; the page stays dark on a light skin', status: 'pending' },
+        { label: 'OWNER: open Profile on the live site as a coach: the hero fills the width, the name and plates at the preview\'s size', status: 'manual' },
+      ],
+    },
+    {
       section: 'Coach dashboard Settings in tabs: one section at a time, the flags explained and grouped, new cards and switches, Guides on its own tab; the time zone list readable on Glass (#2685). No migration',
       items: [
         { label: 'Owner, 2026-11-10, with a screenshot of the flags list: "settings page needs to be organized much better", "also what are these options here", "create tabs at the top that get to different sections in settings instead of scrolling all the way down", "improve look of boxes etc", then "when i click timezones all the options are whited out, cant see them in settings"', status: 'done' },
