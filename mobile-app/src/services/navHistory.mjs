@@ -83,3 +83,14 @@ export function bsGuardAfterPush(prevSize, nextSize) { return prevSize === 0 && 
 export function bsGuardAfterPop(sizeAfterPop) { return sizeAfterPop > 0 ? 'rearm' : 'disarm'; }
 export function bsGuardAfterInAppPop(sizeAfterPop, armed) { return sizeAfterPop === 0 && armed ? 'consume' : null; }
 export function bsGuardAfterClear(armed) { return armed ? 'consume' : null; }
+// `bsGuardOnFirstUse` — the first time a shell touches the history, a stack
+//                       already there is ANOTHER shell's: the member app's, left
+//                       when the account switched to a coach app (Settings'
+//                       profile type, a notification handed over), or the other
+//                       way. Those locations name tabs this shell does not have,
+//                       so they go; and the guard entry that shell armed is still
+//                       in the browser's history, so this shell adopts it as its
+//                       own. Left as it was, the new shell never armed (its push
+//                       was not empty→non-empty), ignored every popstate, and a
+//                       phone Back walked off the app (2026-11-10).
+export function bsGuardOnFirstUse(size) { return size > 0 ? 'adopt' : null; }

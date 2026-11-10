@@ -77,7 +77,7 @@ test('the module carries its own translator, and imports only React, the pure go
 
 test('the client imports the page, renders it from Home and Settings, and publishes the goal model after its last line', () => {
   assert.match(client, /^import \{ BSClientGoals \} from '\.\/BSGoals\.jsx';/m);
-  assert.equal((client.match(/<BSClientGoals onBack=/g) || []).length, 2, 'Home and Settings no longer both open the page');
+  assert.equal((client.match(/<BSClientGoals initialView=\{goalsView\} onView=\{setGoalsView\} onBack=/g) || []).length, 2, 'Home and Settings no longer both open the page');
   const at = client.indexOf('Object.assign(window, {\n  BS_PRIMARY_GOALS,');
   assert.ok(at > 0, 'the goal model is not published on window');
   // Declared above the publish: a const named before its line is a TDZ error when the module loads.
