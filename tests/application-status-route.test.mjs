@@ -48,6 +48,10 @@ test('the route: signed in, every read scoped to the caller by exact match, a fa
   assert.match(ROUTE, /const user = await currentUser\(request\);\s*if \(!user\) return privateJson\(\{ error: 'Authentication required\.' \}, \{ status: 401 \}\);/);
   assert.match(ROUTE, /\.eq\('details->>user_id', user\.id\)/);
   assert.match(ROUTE, /\.eq\('email', email\)/);
+  // The open ones are read on their own (Codex on #2667): a newest-ten window alone drops an open
+  // application older than ten later decisions.
+  assert.match(ROUTE, /const OPEN_STATUSES = \['pending', 'in_review'\];/);
+  assert.match(ROUTE, /newest\(scoped\(key\)\),\n\s+newest\(scoped\(key\)\.in\('status', OPEN_STATUSES\)\),/);
   assert.doesNotMatch(ROUTE, /\.ilike\(|\.like\(|\.or\(/, 'a pattern match on an address can reach someone else\'s row');
   assert.match(ROUTE, /if \(results\.some\(\(r\) => r\.error\)\) return privateJson\([^)]*\{ status: 503 \}\)/);
   assert.match(ROUTE, /'Cache-Control': 'private, no-store, max-age=0'/);

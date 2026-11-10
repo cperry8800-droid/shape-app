@@ -442,6 +442,7 @@
   "apply.status.submittedSubNoDocs": "Chúng tôi đã nhận đơn của bạn.",
   "apply.status.review": "Đang xét duyệt",
   "apply.status.reviewSub": "Tiếp theo, người duyệt của Shape sẽ đọc chứng chỉ của bạn.",
+  "apply.status.reviewSubNow": "Người xét duyệt của Shape đang đọc chứng chỉ của bạn.",
   "apply.status.bg": "Kiểm tra lý lịch",
   "apply.status.bgSub": "Checkr gửi cho bạn một liên kết bảo mật qua email.",
   "apply.status.decision": "Quyết định",

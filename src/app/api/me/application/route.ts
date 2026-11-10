@@ -25,17 +25,25 @@ const privateJson = (body: unknown, init?: { status?: number }) =>
   NextResponse.json(body, { ...(init || {}), headers: PRIVATE_HEADERS });
 
 const COLUMNS = 'provider_type, status, email, details, admin_review, created_at, reviewed_at';
+const OPEN_STATUSES = ['pending', 'in_review'];
 
 export async function GET(request: Request) {
   const user = await currentUser(request);
   if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });
   const email = String(user.email || '').trim().toLowerCase();
   const admin = createAdminClient();
-  // Two exact reads, never a pattern built from the address: by account id, and by address.
-  const reads = [
-    admin.from('provider_applications').select(COLUMNS).eq('details->>user_id', user.id).order('created_at', { ascending: false }).limit(10),
-  ];
-  if (email) reads.push(admin.from('provider_applications').select(COLUMNS).eq('email', email).order('created_at', { ascending: false }).limit(10));
+  // Exact reads only, never a pattern built from the address: by account id, and by address. ⚠ THE OPEN
+  // ONES ARE READ ON THEIR OWN (Codex on #2667): a window of the newest rows alone would drop an open
+  // application older than ten later decisions, and pickApplication shows an open one first.
+  const newest = (q: ReturnType<typeof scoped>) => q.order('created_at', { ascending: false }).limit(10);
+  const scoped = (key: 'id' | 'email') => (key === 'id'
+    ? admin.from('provider_applications').select(COLUMNS).eq('details->>user_id', user.id)
+    : admin.from('provider_applications').select(COLUMNS).eq('email', email));
+  const keys: Array<'id' | 'email'> = email ? ['id', 'email'] : ['id'];
+  const reads = keys.flatMap((key) => [
+    newest(scoped(key)),
+    newest(scoped(key).in('status', OPEN_STATUSES)),
+  ]);
   const results = await Promise.all(reads);
   // ⚠ A FAILED READ IS NOT "NO APPLICATION": the row would offer to apply again over one in review.
   if (results.some((r) => r.error)) return privateJson({ error: 'Could not read your application.', code: 'unavailable' }, { status: 503 });

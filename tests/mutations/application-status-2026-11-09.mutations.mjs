@@ -27,6 +27,7 @@ export default {
     // ── the route ──
     { name: 'a signed-out caller is answered', file: ROUTE, find: "  if (!user) return privateJson({ error: 'Authentication required.' }, { status: 401 });", replace: '' },
     { name: 'a failed read answers "no application"', file: ROUTE, find: "  if (results.some((r) => r.error)) return privateJson({ error: 'Could not read your application.', code: 'unavailable' }, { status: 503 });", replace: '' },
+    { name: 'an open application past the newest ten is not read', file: ROUTE, find: "    newest(scoped(key).in('status', OPEN_STATUSES)),\n", replace: '' },
     { name: 'the answer may be cached', file: ROUTE, find: "const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' };", replace: "const PRIVATE_HEADERS = { 'Cache-Control': 'public, max-age=60' };" },
 
     // ── the app ──

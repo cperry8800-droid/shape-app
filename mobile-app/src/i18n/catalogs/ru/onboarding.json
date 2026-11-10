@@ -442,6 +442,7 @@
   "apply.status.submittedSubNoDocs": "Мы получили вашу заявку.",
   "apply.status.review": "На проверке",
   "apply.status.reviewSub": "Затем специалист Shape проверит вашу квалификацию.",
+  "apply.status.reviewSubNow": "Сотрудник Shape изучает вашу квалификацию.",
   "apply.status.bg": "Проверка биографии",
   "apply.status.bgSub": "Checkr пришлёт вам защищённую ссылку на почту.",
   "apply.status.decision": "Решение",

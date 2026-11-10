@@ -511,3 +511,38 @@ test('a signed-out draft is this session\'s only, never a device-wide one the ne
   const q = await mount();
   try { assert.ok(q.q('[data-apply-restored]')); } finally { await q.close(); }
 });
+
+test('a duplicate send shows the application already with us at its own stage and day, or no tracker (Codex on #2667)', async () => {
+  const send = async (status) => {
+    const p = await mount();
+    await p.fill({ firstName: 'Maya', lastName: 'Torres', email: 'maya@example.invalid', dob: '1991-06-14', cert: 'NASM-CPT', years: '7-10 years' });
+    await p.next();
+    await p.click(p.q('[data-review-edit="credentials"]'));
+    await p.click(byText('button', /credentials may be verified/, p.el));
+    await p.next();
+    for (const re of [/I agree to the/, /code of conduct/, /I consent to a required background check/]) await p.click(byText('button', re, p.el));
+    W.ShapeApplications = { submitProviderApplication: async () => ({ stored: 'api', duplicate: true, data: { id: 'a-0' } }), myStatus: async () => status };
+    await p.next();
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    return p;
+  };
+  // In review already: Submitted done on its own day, In review where it stands.
+  const p = await send({ role: 'trainer', stage: 'in_review', submittedAt: '2026-11-01T10:00:00Z' });
+  try {
+    assert.equal(p.at(), 'sent');
+    assert.match(p.text(), /This application was already with us\./);
+    const stages = [...p.el.querySelectorAll('[data-apply-stage]')];
+    assert.equal(stages[0].getAttribute('aria-current'), null);
+    assert.match(stages[0].textContent, new RegExp(new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date('2026-11-01T10:00:00Z'))), 'the day it was sent, not today');
+    assert.match(stages[0].textContent, /We have your application\./, 'a duplicate\'s files were not taken');
+    assert.equal(stages[1].getAttribute('aria-current'), 'step', 'In review is where it stands');
+    assert.match(stages[1].textContent, /A Shape reviewer is reading your credentials\./);
+  } finally { await p.close(); delete W.ShapeApplications; }
+  // Its stage unread: no tracker rather than a wrong one.
+  const q = await send(null);
+  try {
+    assert.equal(q.at(), 'sent');
+    assert.ok(!q.el.querySelector('[data-apply-tracker]'), 'no tracker for an application whose stage was not read');
+    assert.match(q.text(), /see where it stands in Settings/);
+  } finally { await q.close(); delete W.ShapeApplications; }
+});

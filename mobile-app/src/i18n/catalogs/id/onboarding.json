@@ -442,6 +442,7 @@
   "apply.status.submittedSubNoDocs": "Kami sudah menerima lamaran Anda.",
   "apply.status.review": "Sedang ditinjau",
   "apply.status.reviewSub": "Berikutnya, peninjau Shape membaca kredensial Anda.",
+  "apply.status.reviewSubNow": "Peninjau Shape sedang membaca kredensial Anda.",
   "apply.status.bg": "Pemeriksaan latar belakang",
   "apply.status.bgSub": "Checkr mengirimkan tautan aman ke email Anda.",
   "apply.status.decision": "Keputusan",

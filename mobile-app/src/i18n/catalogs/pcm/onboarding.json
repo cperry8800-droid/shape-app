@@ -442,6 +442,7 @@
   "apply.status.submittedSubNoDocs": "We don collect your application.",
   "apply.status.review": "Dem dey review am",
   "apply.status.reviewSub": "Next, Shape reviewer go read your credentials.",
+  "apply.status.reviewSubNow": "Somebody for Shape dey read your credentials.",
   "apply.status.bg": "Background check",
   "apply.status.bgSub": "Checkr go email you one safe link.",
   "apply.status.decision": "Decision",

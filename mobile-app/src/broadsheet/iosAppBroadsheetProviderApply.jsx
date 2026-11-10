@@ -82,6 +82,8 @@ const AP_DRAFT_KEYS = Object.values(AP_STEP_KEYS).flat();
 // attestations). Files are never in `values` at all.
 const AP_DRAFT_SKIP = ['verify', 'tos', 'conduct', 'bgcheck', 'attest'];
 const AP_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The stages an open application can stand at, in order (src/lib/application-status.mjs).
+const AP_OPEN_STAGES = ['submitted', 'in_review', 'background_check'];
 
 const TRAINER_SPECIALTIES = [
   'Strength & Powerlifting',
@@ -924,7 +926,18 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
       if (!next || next.stored !== 'api') throw new Error(PROVIDER_APPLICATION_SEND_FAILED);
       dirtyRef.current = false;
       apClearDraft(draftStore, draftKey);
-      setResult(next);
+      // ⚠ A DUPLICATE IS THE APPLICATION ALREADY WITH US (Codex on #2667): its stage and day are that
+      // one's, read from the server, never "Submitted today"; unread, the screen draws no tracker.
+      let stage = 'submitted';
+      let sentAt = null;
+      if (next.duplicate) {
+        stage = null;
+        try {
+          const a = window.ShapeApplications?.myStatus ? await window.ShapeApplications.myStatus() : null;
+          if (a && !a.unavailable && AP_OPEN_STAGES.includes(a.stage)) { stage = a.stage; sentAt = a.submittedAt || null; }
+        } catch (e) { /* no tracker rather than a wrong one */ }
+      }
+      setResult({ ...next, stage, sentAt });
     } catch (err) {
       // The route's own words for a refusal; the send-failed sentence in their language.
       const said = err?.message || PROVIDER_APPLICATION_SEND_FAILED;
@@ -1014,16 +1027,23 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
   if (result) {
     let today = '';
     try { today = new Intl.DateTimeFormat(window.ShapeI18n?.intlLocale?.() || undefined, { month: 'short', day: 'numeric' }).format(new Date()); } catch (e) { today = ''; }
-    const sentFiles = fileList().length > 0;
+    // A duplicate's files were not taken: it says only that the application is with us.
+    const sentFiles = !result.duplicate && fileList().length > 0;
     const first = apStr(values.firstName);
+    // ⚠ WHERE IT STANDS IS THE SERVER'S (Codex on #2667): a new row is `pending`, which the server and
+    // Settings call Submitted until a reviewer opens it, so a fresh send is at Submitted, today; a
+    // duplicate is at the stage, and from the day, the server read for it (submit), or has no tracker.
+    const at = AP_OPEN_STAGES.indexOf(result.stage);
+    let sentDay = result.duplicate ? '' : today;
+    if (result.sentAt) {
+      try { sentDay = new Intl.DateTimeFormat(window.ShapeI18n?.intlLocale?.() || undefined, { month: 'short', day: 'numeric' }).format(new Date(result.sentAt)); } catch (e) { /* the day stays off */ }
+    }
     const stages = [
-      // ⚠ SUBMITTED IS WHERE IT STANDS (Codex on #2667): a new row is `pending`, which the server and
-      // Settings call Submitted until a reviewer opens it; In review is the step after, never claimed here.
-      { key: 'submitted', now: true, title: tr('onboarding:apply.status.submitted', { defaultValue: 'Submitted' }), sub: sentFiles ? tr('onboarding:apply.status.submittedSub', { defaultValue: 'We have your application and documents.' }) : tr('onboarding:apply.status.submittedSubNoDocs', { defaultValue: 'We have your application.' }), when: today },
-      { key: 'review', title: tr('onboarding:apply.status.review', { defaultValue: 'In review' }), sub: tr('onboarding:apply.status.reviewSub', { defaultValue: 'Next, a Shape reviewer reads your credentials.' }) },
+      { key: 'submitted', title: tr('onboarding:apply.status.submitted', { defaultValue: 'Submitted' }), sub: sentFiles ? tr('onboarding:apply.status.submittedSub', { defaultValue: 'We have your application and documents.' }) : tr('onboarding:apply.status.submittedSubNoDocs', { defaultValue: 'We have your application.' }), when: sentDay },
+      { key: 'review', title: tr('onboarding:apply.status.review', { defaultValue: 'In review' }), sub: at >= 1 ? tr('onboarding:apply.status.reviewSubNow', { defaultValue: 'A Shape reviewer is reading your credentials.' }) : tr('onboarding:apply.status.reviewSub', { defaultValue: 'Next, a Shape reviewer reads your credentials.' }) },
       { key: 'bg', title: tr('onboarding:apply.status.bg', { defaultValue: 'Background check' }), sub: tr('onboarding:apply.status.bgSub', { defaultValue: 'Checkr emails you a secure link.' }) },
       { key: 'decision', title: tr('onboarding:apply.status.decision', { defaultValue: 'Decision' }), sub: tr('onboarding:apply.status.decisionSub', { defaultValue: 'We email you the decision.' }) },
-    ];
+    ].map((st, i) => ({ ...st, done: at >= 0 && i < at, now: i === at }));
     const tag = isTrainer
       ? tr('onboarding:apply.tag.trainer', { defaultValue: 'Trainer application' })
       : isDietitian ? tr('onboarding:apply.tag.dietitian', { defaultValue: 'Dietitian application (RD/RDN)' }) : tr('onboarding:apply.tag.nutritionist', { defaultValue: 'Nutritionist application' });
@@ -1040,7 +1060,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
               ? tr('onboarding:apply.status.duplicate', { defaultValue: 'This application was already with us.' })
               : first ? tr('onboarding:apply.status.thanks', { defaultValue: 'Thanks, {name}. Here is where it stands.', name: first }) : tr('onboarding:apply.status.thanksNoName', { defaultValue: 'Here is where it stands.' })}
           </p>
-          <ol data-apply-tracker="" style={{ listStyle: 'none', margin: '24px 0 0', padding: 0 }}>
+          {at >= 0 ? <ol data-apply-tracker="" style={{ listStyle: 'none', margin: '24px 0 0', padding: 0 }}>
             {stages.map((s, i) => {
               const last = i === stages.length - 1;
               const ring = s.done ? teal : s.now ? teal : inkA(t, 0.24);
@@ -1075,7 +1095,7 @@ function BSProviderApplicationScreen({ initialRole = 'trainer', onBack }) {
                 </li>
               );
             })}
-          </ol>
+          </ol> : null}
           <p style={{ margin: '24px 0 0', paddingTop: 14, borderTop: `1px solid ${inkA(t, 0.1)}`, fontFamily: BS_CLEAN_SANS, fontSize: 14, fontWeight: 500, lineHeight: 1.45, color: t.INK70 }}>
             <b style={{ fontWeight: 700, color: t.INK }}>{tr('onboarding:apply.status.usually', { defaultValue: 'Usually 2–3 business days.' })}</b>{' '}
             {tr('onboarding:apply.status.where', { defaultValue: "We'll email you, and you can see where it stands in Settings, under Coach on Shape." })}

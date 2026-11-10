@@ -442,6 +442,7 @@
   "apply.status.submittedSubNoDocs": "Nous avons votre candidature.",
   "apply.status.review": "En cours d’examen",
   "apply.status.reviewSub": "Ensuite, l’équipe Shape examine vos qualifications.",
+  "apply.status.reviewSubNow": "Un membre de l’équipe Shape lit vos qualifications.",
   "apply.status.bg": "Vérification des antécédents",
   "apply.status.bgSub": "Checkr vous envoie un lien sécurisé par e-mail.",
   "apply.status.decision": "Décision",
