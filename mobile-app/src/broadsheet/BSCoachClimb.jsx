@@ -9,8 +9,8 @@ const { ShapeVideoPlayer } = createMobileVideoComponents(React);
 // layout from the 5 Nov review): one layout for every coach, trainer and nutritionist, dark
 // throughout, in the look of the Coaches page. The coach's practice is drawn as a climb over their
 // own wall photo: a route up to the summit, which holds their rating; the prism portrait; the name
-// set huge; their headline stats as Saira plates; the wire of what is new; and the booking console
-// docked above the tab capsule. Under the hero the page's sections are the route's camps, a spine
+// set huge; their headline stats as Saira plates; the booking console; and the wire of what is new.
+// Under the hero the page's sections are the route's camps, a spine
 // down the left with a diamond at each, and the camps pin under the condensed masthead as a tab row
 // that fills as you climb. A program opens as a dark sheet: its peaks (one a week), its plates, the
 // climb by block, then Ask and Start.
@@ -254,7 +254,6 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
     return Math.max(34, Math.min(60, Math.floor(340 / (longest * 0.74))));
   })();
   const ratingFig = rating ? (Math.round(Math.min(10, rating.avg) * 10) / 10).toFixed(1) : null;
-  const tabbar = W.BS_TABBAR_CSS || '70px';
 
   return (
     <div ref={rootRef} data-trainer-profile="" data-climb="" data-climb-role={nutri ? 'nutritionist' : 'trainer'} style={{ position: 'relative', minHeight: '100%', background: CLIMB.BG, color: CLIMB.INK, fontFamily: CLIMB.BODY, WebkitFontSmoothing: 'antialiased' }}>
@@ -347,7 +346,7 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
             </div>
           ) : null}
           {actions}
-          {dock && dock.kind === 'self' ? <Console dock={dock} who={who} ACC={ACC} nutri={nutri} tr={tr} tabbar={tabbar} /> : null}
+          {dock ? <Console dock={dock} ACC={ACC} nutri={nutri} tr={tr} /> : null}
         </div>
 
         {/* The wire: what is new, from real events only */}
@@ -405,9 +404,6 @@ export function BSCoachClimb({ nutri = false, isSelf = false, isPrivate = false,
       ) : null}
 
       <footer style={{ padding: `22px ${gutter}px 30px 44px`, ...mono(9, CLIMB.DIM) }}>{footer}</footer>
-
-      {/* ── A visitor's booking console, docked above the tab capsule (the coach's own sits in the head) ── */}
-      {dock && dock.kind !== 'self' ? <Console dock={dock} who={who} ACC={ACC} nutri={nutri} tr={tr} tabbar={tabbar} /> : null}
     </div>
   );
 }
@@ -440,7 +436,9 @@ function Prism({ who, ACC, nutri, onPick, tr }) {
       {who.online ? <span aria-label={tr('profile:trainer.online', { defaultValue: 'Online now' })} style={{ position: 'absolute', right: 6, bottom: 8, width: 16, height: 16, borderRadius: 99, background: CLIMB.TEAL, border: `3px solid ${CLIMB.BG}`, boxSizing: 'border-box' }} /> : null}
     </>
   );
-  const box = { position: 'absolute', left: 18, top: 0, width: 'min(44%, 168px)', height: 214, padding: 0, border: 0, background: 'transparent', display: 'block' };
+  // A little smaller than the first cut's 168 × 214 (owner, 10 Nov), in the same proportion; its box keeps
+  // its height, so the name stays below where the route fades out.
+  const box = { position: 'absolute', left: 18, top: 0, width: '38%', maxWidth: 144, height: 184, padding: 0, border: 0, background: 'transparent', display: 'block' };
   return onPick
     ? <button type="button" data-climb-prism="" onClick={onPick} aria-label={tr('profile:trainer.changePhoto', { defaultValue: 'Change your photo' })} style={{ ...box, cursor: 'pointer' }}>{inner}</button>
     : <div data-climb-prism="" role="img" aria-label={who.name} style={box}>{inner}</div>;
@@ -468,7 +466,10 @@ function Wire({ items, ACC, reduced, tr }) {
 }
 
 // The console: the intro and the next open time, Book; on the coach's own page, their own two doors.
-function Console({ dock, who, ACC, nutri, tr, tabbar }) {
+// Both sit in the head and scroll away with the page (owner, 10 Nov, of a visitor's from the
+// marketplace: "still staying present and too high on screen when i scroll"). Docked, it stopped at
+// BSPage's bottom padding, which already clears the tab bar, and then rose the tab bar's height again.
+function Console({ dock, ACC, nutri, tr }) {
   const cta = nutri ? CLIMB.GOLD : CLIMB.RUST;
   const onCta = nutri ? '#14100a' : '#ffffff';
   // The coach's own page: a small pill in the head, under the quote and plates, that scrolls away with
@@ -489,8 +490,8 @@ function Console({ dock, who, ACC, nutri, tr, tabbar }) {
     );
   }
   return (
-    <div data-climb-console="" style={{ position: 'sticky', bottom: `calc(${tabbar} + 8px)`, zIndex: 6, margin: '0 10px', pointerEvents: 'none' }}>
-      <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px 10px 14px', borderRadius: 16, background: 'rgba(14,20,25,0.94)', border: `1px solid ${hexA(ACC, 0.35)}`, boxShadow: '0 14px 34px rgba(0,0,0,0.5)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
+    <div data-climb-console="" style={{ marginTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px 10px 14px', borderRadius: 16, background: 'rgba(14,20,25,0.86)', border: `1px solid ${hexA(ACC, 0.35)}` }}>
         <>
             <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: CLIMB.INK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tr('profile:climb.freeIntro', { defaultValue: 'Free intro · {minutes} min', minutes: dock.introMin || 15 })}</span>
