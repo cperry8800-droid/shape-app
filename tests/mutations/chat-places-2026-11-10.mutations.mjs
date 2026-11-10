@@ -28,7 +28,7 @@ export default {
       find: '  return !!((p.photo || p.video) && !p.repost);',
       replace: '  return !!(p.photo || p.video);' },
     { name: 'a web Wall post without media leaves the Wall', file: FEED,
-      find: '  if (explicit === "COMMUNITY") return true;\n',
+      find: '  if (explicit === "COMMUNITY" && !p.repost) return true;\n',
       replace: '' },
     { name: 'a trainer\'s role channel is the client one', file: FEED,
       find: '  return r === "trainer" ? "TRAINER" : r === "nutritionist" ? "NUTRI" : "CLIENT";',
@@ -66,6 +66,13 @@ export default {
     { name: 'the card is a new component every render', file: FEED,
       find: '  const CfFeedCard = cardTypeRef.current || (cardTypeRef.current = FeedItem);',
       replace: '  const CfFeedCard = FeedItem;' },
+    // ── reposts (Codex P2 on #2671) ──
+    { name: 'a web repost is a Wall card', file: FEED,
+      find: '  if (explicit === "COMMUNITY" && !p.repost) return true;',
+      replace: '  if (explicit === "COMMUNITY") return true;' },
+    { name: 'a repost is filed on the Wall again', file: FEED,
+      find: '      const repostChannel = cfRoleChannel(env.role);',
+      replace: '      const repostChannel = CF_POST_CHANNEL;' },
     // ── the role is the account's (Codex P1 on #2671) ──
     { name: 'a signed-in member\'s role is the cache\'s guess', file: FEED,
       find: '  const myRole = (signedIn === true && acctRole) || cachedRole || "client";',

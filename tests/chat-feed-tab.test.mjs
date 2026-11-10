@@ -269,7 +269,7 @@ test('every web-originated feed write carries the channel, reposts included', ()
     assert.ok(m, 'a POST to the feed sends no metrics — the read stopped matching');
     const expr = m[1].trim();
     if (expr.startsWith('{')) {
-      assert.match(expr, /channel: CF_POST_CHANNEL/,
+      assert.match(expr, /channel: (CF_POST_CHANNEL|repostChannel)/,
         'an inline metrics payload does not stamp the channel: ' + expr.slice(0, 160));
     } else {
       // A named payload assembled above the call: at least one identifier in
@@ -449,6 +449,7 @@ test('the bubble carries the app\'s places, and files each post where the app do
     "a photo posted into the trainers' room reached a client's Wall");
   assert.ok(at({ kind: 'post', channel: 'COMMUNITY', buckets: ['post'], body: 'from the web', role: 'Member' }, 'wall'),
     'a text post made on the web Wall vanished from it');
+  assert.ok(!at({ kind: 'post', channel: 'COMMUNITY', buckets: ['post'], body: 'quoted', repost: true, role: 'Member' }, 'wall'), 'a web repost is on the Wall');
 });
 
 test('the feed keeps up: re-read on a post, on return, and on a timer, keeping what is on screen', () => {
@@ -480,6 +481,10 @@ test('the feed keeps up: re-read on a post, on return, and on a timer, keeping w
   assert.match(F, /disabled=\{signedIn !== true \|\| roleUnsure\}/, 'New post in the role place opens before the role is known');
   assert.match(F, /window\.dispatchEvent\(new Event\("shape:viewer-role"\)\)/, 'the bubble is not told the role');
   assert.match(stripComments(WIDGET), /window\.addEventListener\("shape:viewer-role", seen\)/, 'the role tab does not follow the account');
+  // ⚠ Codex P2 on #2671: a repost is never a Wall card, and it is filed by the reposter's role,
+  // where the app's own reposts land; it waits for that role.
+  assert.match(F, /const repostChannel = cfRoleChannel\(env\.role\);/, 'a repost is not filed by the reposter\'s role');
+  assert.match(F, /if \(env\.roleUnsure\) \{/, 'a repost does not wait for the role');
   // The member is found on every page, not only where /supabase.js is loaded.
   assert.match(F, /window\.shapeEnsureDb \? await window\.shapeEnsureDb\(\)/, 'the feed assumes the client is loaded');
 });

@@ -837,7 +837,9 @@ function cfInPlace(p, place, role, scope) {
   if (place === "community") return ch === "SHAPE" && !!p.body;
   if (place === "role") return ch === cfRoleChannel(role) && !!p.body;
   const explicit = cfExplicitChannel(p);
-  if (explicit === "COMMUNITY") return true;
+  // ⚠ NOT A REPOST (Codex P2 on #2671): a repost is never a Wall card, in the app or here, and the
+  // web's old reposts carry COMMUNITY too.
+  if (explicit === "COMMUNITY" && !p.repost) return true;
   return cfIsWallCard(p) && (explicit === "" || scope.indexOf(explicit) >= 0);
 }
 // The app's own signed-out sample for Community and the role places (`SAMPLE` in the
@@ -1820,16 +1822,19 @@ function CommunityFeed({ place = "wall" } = {}) {
         if (!error) refreshFeed();
       } catch (e) {}
     };
-    // ⚠ A REPOST IS A FEED WRITE, so it carries the channel like every other
-    // one (Codex P2 on #2102). Without it the app's mapper falls back to the
-    // REPOSTER'S ROLE and files it under Client/Trainer/Nutri instead of the
-    // Wall — and the reposted card is the one most likely to be a record.
-    // Pre-existing, and this PR owns it: making `CF_POST_CHANNEL` the file's
-    // write-side invariant is what turned a gap into a broken invariant.
+    // ⚠ A REPOST IS A FEED WRITE, so it carries a channel like every other one (Codex P2 on
+    // #2102), and it is FILED WHERE THE APP FILES ITS OWN (Codex P2 on #2671). It was stamped
+    // COMMUNITY to reach the Wall, but a repost is a note and never a Wall card, in the app or
+    // here. The app writes its reposts with no channel, so they land in the reposter's role place
+    // (`KIND_OF(role)`); here that place is named outright, from the account's role, and a
+    // repost waits for that role as the role place's composer does.
     const onRepost = async () => {
+      const env = cardEnvRef.current || {};
+      if (env.roleUnsure) { try { window.alert("Checking your account \u2014 try again in a moment."); } catch (e) {} return; }
+      const repostChannel = cfRoleChannel(env.role);
       if (!p.isLive || !p.id) { try { window.alert("Sample post — repost works on real posts."); } catch (e) {} return; }
       try {
-        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: CF_POST_CHANNEL, repostOf: { postId: p.id, who: p.who || "", title: stored.title || "", body: String(stored.body || "").slice(0, 240) } } }) });
+        const res = await fetch("/api/community/feed", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: stored.title || "Repost", note: stored.body || "", privacy: "public", metrics: { kind: "note", channel: repostChannel, repostOf: { postId: p.id, who: p.who || "", title: stored.title || "", body: String(stored.body || "").slice(0, 240) } } }) });
         if (!res.ok) throw new Error("repost_failed");
         refreshFeed();
         try { window.alert("Reposted to the feed"); } catch (e) {}
@@ -1979,7 +1984,7 @@ function CommunityFeed({ place = "wall" } = {}) {
   // every 45 seconds once it keeps up. The first render's `FeedItem` is kept, and what
   // it needs from later renders (the reader's units, the place) it reads from
   // `cardEnvRef`. Everything else it closes over is state-free or stable.
-  cardEnvRef.current = { units, place };
+  cardEnvRef.current = { units, place, role: myRole, roleUnsure: signedIn === true && !acctRole };
   const CfFeedCard = cardTypeRef.current || (cardTypeRef.current = FeedItem);
   const lens = (
     <div className="cf-seg" role="group" aria-label="Whose posts">
