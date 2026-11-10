@@ -286,13 +286,19 @@ test('a Settings page is recorded with the pane under it, and a bare name still 
   assert.equal(bsSettingsSub('pricing', ''), 'pricing');
   assert.equal(bsSettingsSub('', ''), '');
   // 'health', 'privacy' and 'notifications' are each a page and a pane: the two never mix.
-  assert.deepEqual(bsSettingsStart('health@privacy'), { page: 'health', pane: 'privacy' });
-  assert.deepEqual(bsSettingsStart('@health'), { page: '', pane: 'health' });
-  assert.deepEqual(bsSettingsStart('sessions'), { page: 'sessions', pane: '' }, 'a notification\'s page');
-  assert.deepEqual(bsSettingsStart(''), { page: '', pane: '' });
-  assert.deepEqual(bsSettingsStart(undefined), { page: '', pane: '' });
-  for (const [page, pane] of [['record', 'more'], ['hours', 'practice'], ['', 'billing']]) {
-    assert.deepEqual(bsSettingsStart(bsSettingsSub(page, pane)), { page, pane });
+  assert.deepEqual(bsSettingsStart('health@privacy'), { page: 'health', pane: 'privacy', under: '' });
+  assert.deepEqual(bsSettingsStart('@health'), { page: '', pane: 'health', under: '' });
+  assert.deepEqual(bsSettingsStart('sessions'), { page: 'sessions', pane: '', under: '' }, 'a notification\'s page');
+  assert.deepEqual(bsSettingsStart(''), { page: '', pane: '', under: '' });
+  assert.deepEqual(bsSettingsStart(undefined), { page: '', pane: '', under: '' });
+  // A page left open under the one in front comes ahead of it (Codex P2 on #2689): Your public profile
+  // under the Score it opened.
+  assert.equal(bsSettingsSub('score', 'more', 'public-profile'), 'public-profile>score@more');
+  assert.equal(bsSettingsSub('store', '', 'public-profile'), 'public-profile>store');
+  assert.equal(bsSettingsSub('', 'more', 'public-profile'), '@more', 'nothing is under a pane alone');
+  assert.deepEqual(bsSettingsStart('public-profile>score@more'), { page: 'score', pane: 'more', under: 'public-profile' });
+  for (const [page, pane, under] of [['record', 'more', ''], ['hours', 'practice', ''], ['', 'billing', ''], ['record', 'more', 'public-profile'], ['store', '', 'public-profile']]) {
+    assert.deepEqual(bsSettingsStart(bsSettingsSub(page, pane, under)), { page, pane, under });
   }
 });
 
@@ -326,12 +332,15 @@ test('a start a Back replays onto an open page is spent, so the next mount opens
 
 test('Settings names every page it draws, in the order it draws them, over its pane', () => {
   const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
-  assert.match(settings, /const \{ page: startPage, pane: startPane \} = bsSettingsStart\(initialPage\);\n\s+const landedOn = landed \? startPage : '';/);
+  assert.match(settings, /const \{ page: startPage, pane: startPane, under: startUnder \} = bsSettingsStart\(initialPage\);\n\s+const landedOn = landed \? startPage : '';/);
   assert.doesNotMatch(settings, /initialPage === /, 'every page opens from the parsed page');
-  const pages = [['Contact', 'contact'], ['Terms', 'terms'], ['Help', 'help'], ['Privacy', 'privacy-policy'], ['DataCompliance', 'data'], ['CodeOfConduct', 'conduct'], ['ConsumerHealth', 'consumer-health'], ['Subprocessors', 'subprocessors'], ['NotifyPrefs', 'notify-prefs'], ['NoraMemory', 'nora-memory'], ['Store', 'store'], ['Radio', 'radio'], ['Progress', 'progress'], ['Checkin', 'checkin'], ['Health', 'health'], ['Leaderboard', 'leaderboard'], ['Rates', 'rates'], ['Apply', 'apply'], ['PublicProfile', 'public-profile']];
+  const pages = [['Contact', 'contact'], ['Terms', 'terms'], ['Help', 'help'], ['Privacy', 'privacy-policy'], ['DataCompliance', 'data'], ['CodeOfConduct', 'conduct'], ['ConsumerHealth', 'consumer-health'], ['Subprocessors', 'subprocessors'], ['NotifyPrefs', 'notify-prefs'], ['NoraMemory', 'nora-memory'], ['Store', 'store'], ['Radio', 'radio'], ['Progress', 'progress'], ['Checkin', 'checkin'], ['Health', 'health'], ['Leaderboard', 'leaderboard'], ['Rates', 'rates'], ['Apply', 'apply']];
   for (const [flag, name] of pages) {
     assert.match(settings, new RegExp(`const \\[show${flag}, setShow${flag}\\] = useStateBSC\\(startPage === '${name}'\\);`), flag);
   }
+  // Your public profile reopens on its own name, or under the page a Back reopens over it.
+  assert.match(settings, /const \[showPublicProfile, setShowPublicProfile\] = useStateBSC\(startPage === 'public-profile' \|\| startUnder === 'public-profile'\);/);
+  assert.match(settings, /const navUnder = showPublicProfile && navPage && navPage !== 'public-profile' \? 'public-profile' : '';/);
   assert.match(settings, /const \[showScore, setShowScore\] = useStateBSC\(startPage === 'score' \|\| startPage === 'record'\);\n(?:\s*\/\/[^\n]*\n)*\s+const \[scoreRecord, setScoreRecord\] = useStateBSC\(startPage === 'record'\);/);
   assert.match(settings, /<BSShapeScorePage profile=\{scoreProfile\} initialRecord=\{scoreRecord\} onRecord=\{setScoreRecord\} /);
   // The name follows the page Settings draws: its early returns, in their order.
@@ -340,7 +349,20 @@ test('Settings names every page it draws, in the order it draws them, over its p
   const drawn = [...settings.matchAll(/^  if \(show([A-Za-z]+)(?: && window\.[A-Za-z]+)?\) \{/gm)].map((m) => m[1]);
   assert.deepEqual(named, drawn, 'named in the order drawn');
   // Over its pane; a pane alone, Your practice by its own name, Goals with its station.
-  assert.match(settings, /const navSub = editing \? 'edit-profile'\n\s+: showGoals && navPage\.startsWith\('goals'\) \? navPage\n\s+: navPage \? bsSettingsSub\(navPage, detail\)\n\s+: detail === 'practice' \? 'practice' : bsSettingsSub\('', detail\);/);
+  assert.match(settings, /const navSub = editing \? 'edit-profile'\n\s+: showGoals && navPage\.startsWith\('goals'\) \? navPage\n\s+: navPage \? bsSettingsSub\(navPage, detail, navUnder\)\n\s+: detail === 'practice' \? 'practice' : bsSettingsSub\('', detail\);/);
+  // Only Your public profile stays open under the page it opens; every other page's door closes it first.
+  // A new door that leaves its page open would need recording under the page, as the profile is.
+  const doors = between(settings, '  if (showContact) {', '\n  const nutritionRows');
+  const opens = [];
+  let seen = 0;
+  for (const m of doors.matchAll(/^  if \(show([A-Za-z]+)[^\n]*\{\n([\s\S]*?)\n  \}\n/gm)) {
+    for (const h of m[2].matchAll(/=\{\([^)]*\) => \{?\s*([^}]*?)setShow([A-Za-z]+)\(true\)/g)) {
+      seen += 1;
+      if (!new RegExp(`setShow${m[1]}\\((false|null)\\)`).test(h[1])) opens.push(m[1] + ' → ' + h[2]);
+    }
+  }
+  assert.deepEqual(opens, ['PublicProfile → Score']);
+  assert.equal(seen, (doors.match(/setShow[A-Za-z]+\(true\)/g) || []).length, 'every door was read');
   // Landed reads the page alone; Your practice, a pane a coach app lands on by name, counts as its page.
   assert.match(settings, /const navLanded = !!landedOn && \(editing \? 'edit-profile' : navPage \|\| \(detail === 'practice' \? 'practice' : ''\)\) === landedOn;/);
   assert.match(settings, /const \[detail, setDetail\] = useStateBSC\(startPane \|\| \(/);

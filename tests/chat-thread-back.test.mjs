@@ -143,7 +143,7 @@ test('a Settings page opened straight from elsewhere goes back there; reached in
   for (const p of ['pricing', 'sessions', 'notifications', 'integrations', 'habits', 'business', 'library', 'hours']) {
     assert.match(settings, new RegExp(`: show[A-Za-z]+ \\? '${p}'`), p);
   }
-  assert.match(settings, /const navSub = editing \? 'edit-profile'\n\s+: showGoals && navPage\.startsWith\('goals'\) \? navPage\n\s+: navPage \? bsSettingsSub\(navPage, detail\)\n\s+: detail === 'practice' \? 'practice' : bsSettingsSub\('', detail\);/);
+  assert.match(settings, /const navSub = editing \? 'edit-profile'\n\s+: showGoals && navPage\.startsWith\('goals'\) \? navPage\n\s+: navPage \? bsSettingsSub\(navPage, detail, navUnder\)\n\s+: detail === 'practice' \? 'practice' : bsSettingsSub\('', detail\);/);
   assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}, 'settings'\);/);
   // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
   assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
@@ -237,7 +237,7 @@ test('Settings\' Library and Your hours come back to themselves after their jump
   // lands on that pane after a Back to it.
   assert.match(settings, /: showLibrary \? 'library' :/);
   assert.match(settings, /: showHours \? 'hours'\n/);
-  assert.match(settings, /: navPage \? bsSettingsSub\(navPage, detail\)/);
+  assert.match(settings, /: navPage \? bsSettingsSub\(navPage, detail, navUnder\)/);
   // Each reopens over the pane it sits in, so its ← lands there: Library in More, Your hours in Your practice.
   assert.match(settings, /useStateBSC\(startPane \|\| \(startPage === 'practice' \|\| startPage === 'hours' \? 'practice' : startPage === 'library' \|\| bsGoalsView\(startPage\) != null \? 'more' : ''\)\);/);
   // Their jumps push first, so the announced page is what comes back.

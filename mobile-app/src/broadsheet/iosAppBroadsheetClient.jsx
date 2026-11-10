@@ -32831,7 +32831,7 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // Reached from Settings' own page, it goes back there, as before.
   // What it opens on: a page, and the pane that page sits over ('<page>@<pane>', services/navPlaces.mjs), which
   // a Back to Settings replays; a notification or a jump names the page alone.
-  const { page: startPage, pane: startPane } = bsSettingsStart(initialPage);
+  const { page: startPage, pane: startPane, under: startUnder } = bsSettingsStart(initialPage);
   const landedOn = landed ? startPage : '';
   const backFrom = (page, close) => () => { if (landedOn && landedOn === page) onBack(); else close(); };
   const tr = useShapeTr();
@@ -32958,7 +32958,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   const [showStore, setShowStore] = useStateBSC(startPage === 'store');
   const [showRadio, setShowRadio] = useStateBSC(startPage === 'radio');
   const [showProgress, setShowProgress] = useStateBSC(startPage === 'progress');
-  const [showPublicProfile, setShowPublicProfile] = useStateBSC(startPage === 'public-profile');
+  // Also when it was open under the page a Back reopens (the Score it opened, or the Store the Score opened).
+  const [showPublicProfile, setShowPublicProfile] = useStateBSC(startPage === 'public-profile' || startUnder === 'public-profile');
   // Your practice → Payouts opens Business on Money (null, or the tab it opens on).
   // A sale or a renewal notice opens Business on its money (initialPage 'business').
   const [showBusiness, setShowBusiness] = useStateBSC(startPage === 'business' ? 'money' : null);
@@ -33806,9 +33807,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     : showLibrary ? 'library' : showHabits ? 'habits' : showCheckin ? 'checkin' : showHealth ? 'health'
     : showLeaderboard ? 'leaderboard' : showBusiness ? 'business' : showHours ? 'hours'
     : showRates ? 'rates' : showApply ? 'apply' : showPublicProfile ? 'public-profile' : '';
+  // The one page that stays open under the page it opens: Your public profile, under its Score (and the Store
+  // the Score opens). Every other door closes its page first (tests/nav-places.test.mjs holds it to that).
+  const navUnder = showPublicProfile && navPage && navPage !== 'public-profile' ? 'public-profile' : '';
   const navSub = editing ? 'edit-profile'
     : showGoals && navPage.startsWith('goals') ? navPage
-    : navPage ? bsSettingsSub(navPage, detail)
+    : navPage ? bsSettingsSub(navPage, detail, navUnder)
     : detail === 'practice' ? 'practice' : bsSettingsSub('', detail);
   // Landed: the page it was opened straight onto, whatever pane is recorded under it. Your practice is a
   // pane a coach app lands on by name (a sale's notice), so it counts as that page here.

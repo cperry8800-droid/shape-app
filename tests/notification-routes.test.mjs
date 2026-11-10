@@ -316,7 +316,7 @@ test('a hand-over replays in the other app with the route it was given', () => {
 
 test('Settings opens on the page a notification asks for, and the notification list has a door', () => {
   // The page a notification names is Settings' start page (a recorded pane rides after an '@': navPlaces).
-  assert.match(CLIENT, /const \{ page: startPage, pane: startPane \} = bsSettingsStart\(initialPage\);/);
+  assert.match(CLIENT, /const \{ page: startPage, pane: startPane, under: startUnder \} = bsSettingsStart\(initialPage\);/);
   assert.match(CLIENT, /const \[showSessions, setShowSessions\] = useStateBSC\(startPage === 'sessions'\);/);
   assert.match(CLIENT, /const \[showNotifications, setShowNotifications\] = useStateBSC\(startPage === 'notifications'\);/);
   assert.match(CLIENT, /const \[showHabits, setShowHabits\] = useStateBSC\(startPage === 'habits'\);/);
