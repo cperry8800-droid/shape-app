@@ -229,3 +229,31 @@ test('a day\'s soundtrack the list does not carry is a card of its own, and a na
   const renamed = bsTrainPlaylistCards([{ id: 'z', title: 'Engine room v2' }], w, TODAY);
   assert.deepEqual(renamed.find((c) => c.title === 'Engine room v2').uses.map((u) => u.title), ['New day']);
 });
+
+// Codex on #2669: "focus can move from the aria-modal sheet into controls on the obscured Train page; closing the
+// sheet also removes the focused panel without restoring focus to the control that opened it".
+test('focus stays in the sheet (Tab and Shift+Tab wrap) and returns to what opened it', async () => {
+  const opener = document.createElement('button');
+  opener.textContent = 'Full plan';
+  document.body.appendChild(opener);
+  opener.focus();
+  const outside = document.createElement('button');
+  document.body.appendChild(outside);
+  const m = await mount();
+  try {
+    const dlg = m.q('[data-train-plan]');
+    assert.ok(document.activeElement === dlg, 'focus moves into the sheet');
+    const tab = (shiftKey) => React.act(async () => { document.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true })); });
+    const buttons = [...dlg.querySelectorAll('button')];
+    buttons[buttons.length - 1].focus();
+    await tab(false);
+    assert.ok(document.activeElement === buttons[0], 'Tab on the last control wraps to the first');
+    await tab(true);
+    assert.ok(document.activeElement === buttons[buttons.length - 1], 'Shift+Tab on the first wraps to the last');
+    outside.focus();
+    await tab(false);
+    assert.ok(dlg.contains(document.activeElement), 'focus outside is brought back in');
+  } finally { await m.close(); }
+  assert.ok(document.activeElement === opener, 'closing hands focus back to what opened it');
+  opener.remove(); outside.remove();
+});

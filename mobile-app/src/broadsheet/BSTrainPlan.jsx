@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { bsCleanSheet } from './bsCleanType.jsx';
+import { bsTrapFocus } from './bsDialogFocus.mjs';
 
 // ─── TRAIN · THE FULL PLAN ────────────────────────────────────────────────────────────────────
 // Owner, 2026-11-10: "the full plan and on deck just brings you to the monthly calendar page, there
@@ -64,15 +65,13 @@ export function BSTrainPlanSheet({ program = [], focusIdx = 0, weekLabel = '', c
     const top = Math.max(0, el.offsetTop - 8);
     try { box.scrollTo({ top, behavior: smooth && !reduced ? 'smooth' : 'auto' }); } catch (e) { box.scrollTop = top; }
   };
-  // Open on the day asked for, with focus in the sheet; Escape closes it.
+  // Open on the day asked for, with focus in the sheet and kept there (Tab wraps), Escape to close, and focus
+  // handed back to what opened it (bsTrapFocus; Codex on #2669). onClose is read when Escape is pressed.
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
   React.useEffect(() => {
     go(Number.isInteger(focusIdx) ? focusIdx : todayIdx, false);
-    try { panelRef.current && panelRef.current.focus({ preventScroll: true }); } catch (e) { /* older engines */ }
-    const doc = panelRef.current && panelRef.current.ownerDocument;
-    if (!doc) return undefined;
-    const key = (e) => { if (e.key === 'Escape') onClose && onClose(); };
-    doc.addEventListener('keydown', key);
-    return () => doc.removeEventListener('keydown', key);
+    return bsTrapFocus(panelRef.current, () => closeRef.current && closeRef.current());
   }, []);
 
   const mono = (size, color, extra) => ({ fontFamily: t.MONO, fontSize: size, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color, ...extra });
