@@ -10451,14 +10451,33 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   }
   // Why the last play() did not start, when the station said: 'region', or null.
   const radioApi = { lastRefusal: null };
-  // ⚠ A READ WHOSE PASS HAS RUN OUT IS NO READ. Shape's own station hands each member the stream
-  // with a pass on it, checked as a listener connects (src/lib/radio/pass.mjs). A cached read that
-  // close to its pass's end would play an address the station refuses, so it is not kept.
+  // ⚠ A READ WHOSE CODE HAS RUN OUT IS NO READ. Shape's own station hands each member the stream
+  // with a start code on it, good for ninety seconds and checked as a listener connects
+  // (src/lib/radio/pass.mjs; owner, 2026-11-10: no pass gives anyone else access). A cached read
+  // within twenty seconds of its code's end would play an address the station refuses, so it is
+  // not kept.
   const passFresh = (cfg) => {
     if (!cfg || !cfg.passExpiresAt) return true;
     const ends = Date.parse(cfg.passExpiresAt);
-    return !Number.isFinite(ends) || ends - Date.now() > 60000;
+    return !Number.isFinite(ends) || ends - Date.now() > 20000;
   };
+  // A fresh read kept ready, so the next tap's play() still reaches `a.play()` with no await in front
+  // of it (Codex, P1 on #2088), now that a code lasts ninety seconds instead of six hours. Asked as
+  // a stream stops, and by a screen that shows the play button (prime()).
+  function prime() {
+    if (stationCache && passFresh(stationCache)) return;
+    station().then((fresh) => { if (fresh && fresh.configured && fresh.streamUrl) stationCache = fresh; }).catch(() => { /* the tap asks */ });
+  }
+  // Whether the station is on, without a start code (a schedule's "on air"; /api/radio/station?peek=1).
+  async function stationStatus() {
+    try {
+      const headers = {};
+      if (state.session?.access_token) headers.Authorization = `Bearer ${state.session.access_token}`;
+      const r = await fetch(api('/api/radio/station?peek=1'), { cache: 'no-store', headers });
+      if (r.status === 451) return { configured: false, refusal: 'region' };
+      return r.ok ? r.json() : null;
+    } catch { return null; }
+  }
   async function nowPlaying(signal) {
     try { const r = await fetch(api('/api/radio/now-playing'), { cache: 'no-store', signal }); return r.ok ? r.json() : null; }
     catch { return null; }
@@ -10525,7 +10544,18 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
       return true;
     } catch { return false; }
   }
-  function pause() { playbackGate.supersede(); if (el) el.pause(); }
+  // ⚠ A STOPPED STREAM LETS GO OF ITS ADDRESS. A resume on the same element re-asks the same
+  // address, whose start code has run out a minute and a half after it was made: the station
+  // refuses it and the radio stays silent. With the address dropped, the next play() starts a new
+  // stream with a fresh code (a stream a new device started stops this one anyway: one per account).
+  function pause() {
+    playbackGate.supersede();
+    if (el) {
+      el.pause();
+      try { el.removeAttribute('src'); el.load(); } catch { /* no-op */ }
+    }
+    prime();
+  }
   // Hand sign-out a direct way to stop playback. Registered here rather than read off
   // window at the call site so a bundling/ordering change can't silently make the
   // sign-out stop a no-op.
@@ -10572,7 +10602,7 @@ window.ShapeProConsole = { fetch: fetchProConsole, post: postProConsole };
   function peekAnalyser() {
     return (_analyser && _srcWired && _ac && _ac.state === 'running') ? _analyser : null;
   }
-  window.ShapeRadioLive = Object.assign(radioApi, { station, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser, peekAnalyser });
+  window.ShapeRadioLive = Object.assign(radioApi, { station, stationStatus, prime, nowPlaying, audio, play, pause, startPolling, stopPolling, analyser, peekAnalyser });
 })();
 
 // Shape Sets broadcast schedule (spec 2026-07-19). Public read — the table's RLS

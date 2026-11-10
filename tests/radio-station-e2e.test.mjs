@@ -111,6 +111,9 @@ test('the station end to end: the standby loop, the engine\'s music, the loop ag
       listenRedirect({
         pass: u.searchParams.get('pass'), country: req.headers['x-test-country'] || null, production: true,
         readStation: async () => ({ provider: 'shape', stream_url: `http://127.0.0.1:${port}/live` }), now: Date.now(), key: PASS_KEY,
+        // The stream Shape records as the member's (src/lib/radio/streams.mjs); the door below lets
+        // a ticket naming it in. The account behind it is tests/radio-own-account.test.mjs's.
+        openStream: async () => '00000000-0000-4000-8000-000000000001',
       }).then((r) => {
         res.writeHead(r.status, r.status === 302 ? { location: r.location, 'access-control-allow-origin': '*' } : { 'access-control-allow-origin': '*' });
         res.end();

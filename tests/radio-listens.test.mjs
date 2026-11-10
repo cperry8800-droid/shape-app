@@ -324,13 +324,17 @@ test('⚠ the door: the station\'s sign-in and its start first; a join kept afte
     at('const left = leavingListener(form, { key: passKey() });'),
     at("await recordListen(createAdminClient(), { action: 'leave', ...boot, client, durationSec, now });"),
     at('const verdict = checkListener(form, { now, key: passKey() });'),
+    // The stream's account on record before the listener is let in (owner, 2026-11-10).
+    at('const r = await admitConnection(createAdminClient(), { streamId, ...boot, client, now });'),
     at("headers['icecast-auth-user'] = '1';"),
     at("await recordListen(createAdminClient(), { action: 'join', ...boot, client, now });"),
   ];
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in that order');
   assert.equal((route.match(/headers\['icecast-auth-user'\] = '1'/g) || []).length, 1, 'admitted in one place');
-  // A failed write is logged, never a refusal and never a fault.
-  assert.equal((route.match(/\} catch \(e\) \{\n\s+console\.error\('\[radio\/pass\]/g) || []).length, 2);
+  // A failed session write, or a leave's connection not cleared, is logged, never a refusal and
+  // never a fault; a connection that cannot be recorded is logged AND refused (fail closed).
+  assert.equal((route.match(/\} catch \(e\) \{\n\s+console\.error\('\[radio\/pass\]/g) || []).length, 4);
+  assert.match(route, /console\.error\('\[radio\/pass\] a listener could not be recorded, so was refused:', \(e as Error\)\.message\);\n\s+headers\['icecast-auth-message'\] = 'write_failed';/);
   assert.match(read('src/lib/radio/listens.mjs'), /export function stationCaller\(authorization, env = process\.env\)/);
 });
 

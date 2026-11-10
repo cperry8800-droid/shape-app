@@ -3140,7 +3140,8 @@ function useBSSetsSchedule() {
     const derive = () => { if (on) setState({ ...bsSetsNow(rowsRef.current, Date.now()), real: realRef.current }); };
     const load = () => Promise.all([
       window.ShapeNoraSets ? window.ShapeNoraSets.list() : Promise.resolve([]),
-      window.ShapeRadioLive ? window.ShapeRadioLive.station() : Promise.resolve(null),
+      // Whether the station is on, without a start code: a code starts a stream (src/lib/radio/pass.mjs).
+      window.ShapeRadioLive ? (window.ShapeRadioLive.stationStatus || window.ShapeRadioLive.station)() : Promise.resolve(null),
     ]).then(([rows, cfg]) => {
       if (!on) return;
       rowsRef.current = Array.isArray(rows) ? rows : [];

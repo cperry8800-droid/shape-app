@@ -4,13 +4,27 @@
 // it can keep hitting it", docs/legal/compliance-spec.md §15). Now two credentials, each signed by
 // Shape:
 //
-//   a member's PASS (`v1.<member>.<expiry>.<sig>`, six hours): /api/radio/station hands it to a
-//     member, on Shape's own address for the stream, /api/radio/listen?pass=…;
-//   a station TICKET (`t1.<random>.<expiry>.<sig>`, two minutes, no member on it): each time a
-//     player connects, /api/radio/listen checks the pass and the listener's own country, and
-//     sends the player on to the station with a fresh ticket; the station server
-//     (services/station) asks /api/radio/pass, before it lets a listener in, whether that ticket
-//     is good.
+//   a member's START CODE, the "pass" (`v1.<member>.<expiry>.<sig>`, ninety seconds): /api/radio/
+//     station hands it to a member, on Shape's own address for the stream, /api/radio/listen?pass=…;
+//   a station TICKET (`t2.<stream>.<expiry>.<sig>`, two minutes, naming a stream, never a member):
+//     each time a player connects, /api/radio/listen checks the code and the listener's own
+//     country, opens a stream for the member (src/lib/radio/streams.mjs) and sends the player on to
+//     the station with a ticket for it; the station server (services/station) asks /api/radio/pass,
+//     before it lets a listener in, whether that ticket is good, and Shape keeps which account the
+//     connection is (one device at a time, dropped when the membership ends; /api/radio/kicks).
+//     A `t1.<random>.…` ticket names no stream: only the dashboard's own probe of the station makes
+//     one, and it is let in without an account.
+//
+// ⚠ NO PASS GIVES ANYONE ELSE ACCESS (owner, 2026-11-10: "you can only access shape radio if you
+// have your own login with a your own paid membership"). The pass used to last six hours, so an
+// address a member shared played for anyone in the territory for that long, on as many devices as
+// it reached, and a stream already playing never ended. Now the code only STARTS a stream, for
+// ninety seconds (a player asks for a new one at every start, signed in); the account plays on one
+// device at a time (a newer connection drops the older one); and a membership that ends or goes
+// past due drops the account's stream within about a minute. The code is not single-use: Safari
+// and iOS fetch a stream's address twice as it starts (a probe, then the stream), so a code that
+// died at its first use would never play there. Ninety seconds and one stream per account are
+// what make a shared address worthless.
 //
 //   passKey(env)                            the signing key, or null (then nothing is issued or taken)
 //   makePass({ userId, now, key })          → { pass, expiresAt } | null
@@ -31,8 +45,9 @@
 // ⚠ ONLY A SHORT, NAMELESS TICKET REACHES THE STATION (Codex, #2579). The station's access log
 // keeps every address asked for: a six-hour pass there, with its member on it, could be replayed by
 // anyone who read the log. A ticket lasts two minutes and names no one.
-// ⚠ BOTH ARE CHECKED AT THE DOOR, NOT WHILE THEY LISTEN. An expired pass or ticket ends no stream
-// already playing; it opens no new one.
+// ⚠ BOTH ARE CHECKED AT THE DOOR; THE ACCOUNT IS KEPT WHILE THEY LISTEN. An expired code or ticket
+// ends no stream already playing; it opens no new one. What ends one is Shape: a newer stream for
+// the account, or a membership that ended or went past due (src/lib/radio/streams.mjs).
 // ⚠ THE TERRITORY IS THE LICENCES': THE US AND THE UK (compliance-spec §15's licence set). In
 // production a request with no country is refused: an unlicensed performance is worse than an
 // unnecessary refusal (§15's rule for the sign-in gate).
@@ -40,7 +55,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { OWN_PROVIDER } from './station.mjs';
 
-export const PASS_TTL_SEC = 6 * 3600;
+export const PASS_TTL_SEC = 90;
 export const PASS_PARAM = 'pass';
 export const TICKET_TTL_SEC = 120;
 export const TICKET_PARAM = 'ticket';
@@ -87,24 +102,37 @@ export function verifyPass(pass, { now, key }) {
   return { ok: true, userId, expiresAt: new Date(expMs).toISOString() };
 }
 
-/** A station ticket, good for `ttlSec` from `now` (ms), naming no one. Null without a key. */
-export function makeTicket({ now, key, ttlSec = TICKET_TTL_SEC }) {
+/**
+ * A station ticket, good for `ttlSec` from `now` (ms). With `streamId` (a stream Shape opened for a
+ * member, src/lib/radio/streams.mjs) it names that stream (`t2`); without, nothing (`t1`, the
+ * dashboard's probe). It never names a member. Null without a key or with a malformed stream.
+ */
+export function makeTicket({ now, key, ttlSec = TICKET_TTL_SEC, streamId = null }) {
   if (!key) return null;
   const exp = Math.floor(now / 1000) + ttlSec;
-  const body = `t1.${randomBytes(8).toString('hex')}.${exp}`;
+  let body;
+  if (streamId == null) body = `t1.${randomBytes(8).toString('hex')}.${exp}`;
+  else {
+    const hex = String(streamId).toLowerCase().replace(/-/g, '');
+    if (!/^[0-9a-f]{32}$/.test(hex)) return null;
+    body = `t2.${hex}.${exp}`;
+  }
   return { ticket: `${body}.${sign(key, body)}`, expiresAt: new Date(exp * 1000).toISOString() };
 }
 
-/** A ticket Shape signed, whatever its age: { ok: true, expMs } | { ok: false, reason }. */
+const asUuid = (hex) => `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+
+/** A ticket Shape signed, whatever its age: { ok: true, expMs, streamId } | { ok: false, reason }. */
 function signedTicket(ticket, key) {
   if (!key) return { ok: false, reason: 'no_key' };
-  const m = /^t1\.([0-9a-f]{16})\.(\d{9,11})\.([A-Za-z0-9_-]{43})$/.exec(String(ticket || ''));
+  const m = /^(t1\.[0-9a-f]{16}|t2\.[0-9a-f]{32})\.(\d{9,11})\.([A-Za-z0-9_-]{43})$/.exec(String(ticket || ''));
   if (!m) return { ok: false, reason: 'malformed' };
-  const [, nonce, exp, sig] = m;
-  const want = Buffer.from(sign(key, `t1.${nonce}.${exp}`));
+  const [, head, exp, sig] = m;
+  const want = Buffer.from(sign(key, `${head}.${exp}`));
   const got = Buffer.from(sig);
   if (got.length !== want.length || !timingSafeEqual(got, want)) return { ok: false, reason: 'signature' };
-  return { ok: true, expMs: Number(exp) * 1000 };
+  const streamId = head.startsWith('t2.') ? asUuid(head.slice(3)) : null;
+  return { ok: true, expMs: Number(exp) * 1000, streamId };
 }
 
 export function verifyTicket(ticket, { now, key }) {
@@ -113,10 +141,10 @@ export function verifyTicket(ticket, { now, key }) {
   const { expMs } = signed;
   if (expMs <= now) return { ok: false, reason: 'expired' };
   if (expMs > now + (TICKET_TTL_SEC + 60) * 1000) return { ok: false, reason: 'too_long' };
-  return { ok: true, expiresAt: new Date(expMs).toISOString() };
+  return { ok: true, expiresAt: new Date(expMs).toISOString(), streamId: signed.streamId };
 }
 
-/** Shape's own address for the stream, with this member's pass on it. */
+/** Shape's own address for the stream, with this member's start code on it. */
 export function listenUrl(origin, pass) {
   const u = new URL(LISTEN_PATH, origin);
   u.searchParams.set(PASS_PARAM, pass);
@@ -124,13 +152,14 @@ export function listenUrl(origin, pass) {
 }
 
 /**
- * /api/radio/listen's answer to a player connecting: the member's pass, then the territory of this
- * very request, then the station (Shape's own, connected; read only once both have passed), then a
- * fresh ticket for it.
- * @param {{ pass: string | null, country: string | null, production: boolean, readStation: () => Promise<{provider?: string | null, stream_url?: string | null} | null>, now: number, key: Buffer | null }} p
+ * /api/radio/listen's answer to a player connecting: the member's start code, then the territory of
+ * this very request, then the station (Shape's own, connected; read only once both have passed),
+ * then a stream opened for the member (`openStream`, which records whose it is), then a ticket
+ * naming that stream.
+ * @param {{ pass: string | null, country: string | null, production: boolean, readStation: () => Promise<{provider?: string | null, stream_url?: string | null} | null>, openStream: (userId: string) => Promise<string | null>, now: number, key: Buffer | null }} p
  * @returns {Promise<{status: 302, location: string} | {status: 401 | 451 | 503, reason: string}>}
  */
-export async function listenRedirect({ pass, country, production, readStation, now, key }) {
+export async function listenRedirect({ pass, country, production, readStation, openStream, now, key }) {
   const p = verifyPass(pass, { now, key });
   if (!p.ok) return { status: p.reason === 'no_key' ? 503 : 401, reason: p.reason };
   const region = regionAllowed(country, { production });
@@ -138,7 +167,12 @@ export async function listenRedirect({ pass, country, production, readStation, n
   let station = null;
   try { station = await readStation(); } catch { station = null; }
   if (!station || station.provider !== OWN_PROVIDER || !station.stream_url) return { status: 503, reason: 'station' };
-  const t = makeTicket({ now, key });
+  // ⚠ NO STREAM WITHOUT ITS ACCOUNT ON RECORD: the door lets a ticket in only for a stream Shape
+  // knows the account of, so a failed write plays nothing (fail closed, as the licences ask).
+  let streamId = null;
+  try { streamId = await openStream(p.userId); } catch { streamId = null; }
+  if (!streamId) return { status: 503, reason: 'stream' };
+  const t = makeTicket({ now, key, streamId });
   if (!t) return { status: 503, reason: 'no_key' };
   return { status: 302, location: streamWithTicket(station.stream_url, t.ticket) };
 }

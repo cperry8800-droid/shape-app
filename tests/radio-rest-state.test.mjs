@@ -366,11 +366,12 @@ test('a cached station read lets a retry reach audio.play() with no await in fro
   const refused = make(null);
   assert.equal(await refused.play(), false);
   assert.equal(refused.cache(), null);
-  // ⚠ A cached read whose pass has run out is not replayed (the station would refuse its address):
-  // the next play asks again, for a fresh pass.
-  const old = make({ configured: true, streamUrl: 'https://radio.example/live?pass=old', passExpiresAt: new Date(Date.now() + 30000).toISOString() });
+  // ⚠ A cached read whose start code is about to run out is not replayed (the station would refuse
+  // its address): the next play asks again, for a fresh code. A code lasts ninety seconds
+  // (owner, 2026-11-10), and one within twenty seconds of its end is spent.
+  const old = make({ configured: true, streamUrl: 'https://radio.example/live?pass=old', passExpiresAt: new Date(Date.now() + 15000).toISOString() });
   assert.equal(await old.play(), true);
-  old.set({ configured: true, streamUrl: 'https://radio.example/live?pass=new', passExpiresAt: new Date(Date.now() + 6 * 3600000).toISOString() });
+  old.set({ configured: true, streamUrl: 'https://radio.example/live?pass=new', passExpiresAt: new Date(Date.now() + 90000).toISOString() });
   const p3 = old.play();
   assert.deepEqual(old.log, ['play'], 'a read with a spent pass was replayed without asking again');
   assert.equal(await p3, true);

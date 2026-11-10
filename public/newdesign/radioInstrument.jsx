@@ -371,15 +371,19 @@ function useRadioStation() {
       const stopped = (bad) => {
         setPlaying(false);
         startedAtRef.current = null;
-        if (!bad) return;
-        setRefusal("unavailable");
-        // ⚠ AND THE CACHED SOURCE IS DROPPED, or the recovery is unreachable: the
-        // fetch is gated on `!audio.src`, so a stale or dead URL would make every
+        // ⚠ ANY STOP DROPS THE SOURCE, a pause too (owner, 2026-11-10: no pass gives anyone else
+        // access, so a stream's start code lasts ninety seconds, src/lib/radio/pass.mjs). A resume
+        // on the kept address would ask the station with a code that has run out, and be refused;
+        // with it dropped, the next press fetches a fresh one. And after a fault the recovery is
+        // reachable: the fetch is gated on `!audio.src`, so a stale or dead URL would make every
         // later press skip the station entirely and fail the same way forever.
         // removeAttribute alone, with no load() — assigning a new src later runs
         // the resource selection itself, and calling load() here risks re-entering
         // this very handler.
         if (audio.src) audio.removeAttribute("src");
+        passExpiresRef.current = null;
+        if (!bad) return;
+        setRefusal("unavailable");
       };
       audio.addEventListener("play", () => setPlaying(true));
       audio.addEventListener("playing", () => setPlaying(true));
@@ -389,11 +393,11 @@ function useRadioStation() {
       rdCountListening(audio);
       audioRef.current = audio;
     }
-    // ⚠ A SOURCE WHOSE PASS HAS RUN OUT IS NO SOURCE. The station checks the pass as a listener
+    // ⚠ A SOURCE WHOSE CODE HAS RUN OUT IS NO SOURCE. The station checks the code as a listener
     // connects, so resuming on an old address would be refused, and the key would read "Couldn't
-    // reach the station" for a member who did nothing wrong. Within a minute of its end it is
+    // reach the station" for a member who did nothing wrong. Within twenty seconds of its end it is
     // dropped here, and the fetch below asks for a fresh one.
-    if (audio.src && passExpiresRef.current != null && passExpiresRef.current - Date.now() < 60000) {
+    if (audio.src && passExpiresRef.current != null && passExpiresRef.current - Date.now() < 20000) {
       audio.removeAttribute("src");
       passExpiresRef.current = null;
     }
