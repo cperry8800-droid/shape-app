@@ -625,6 +625,15 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'App: a smaller "Preview · demo data" banner (#2681). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, with a screenshot of the banner over Home: "also make this pop-up box smaller"', status: 'done' },
+        { label: '#2681 BSPreviewBanner (iosAppBroadsheetMain.jsx): the words in Home\'s face (Inter Tight) at 11.5px, not Saira 13 semibold; tighter padding, a smaller Join pill and ×, a lighter shadow; the same words in all 13 locales. 99px tall to 71 at iPhone 13 width, three lines of English where it took four', status: 'done' },
+        { label: 'Review: Codex clean on 242b154. npm test 10,699, 0 failing; the shell\'s and the i18n inventory\'s tests on the rebased head, 508 of 508. CI green on the final head', status: 'done' },
+        { label: 'OWNER: a shorter banner line would bring it to two lines (about 52px); that is new wording in 13 languages', status: 'pending' },
+      ],
+    },
+    {
       section: 'Set up with Nora, checked end to end: the coach dashboard opens Nora, not Chat; one card a reply; a drafted card is kept; a refused Undo says why; the app\'s card reads a fresh token (#2678). No migration',
       items: [
         { label: 'Owner, 2026-11-10: "Make sure this set up with Nora feature is fully functioning. Check that after." … "Just making sure Nora has those capabilities." Traced from every entry point and driven in a browser: the action itself (#2566) was sound; the path to it had one break and four ways to lose the card or its reason', status: 'done' },
