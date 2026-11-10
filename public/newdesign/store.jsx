@@ -137,10 +137,12 @@ function StoreHero({ balance = BALANCE, credit = { session: 0, nutrition: 0 } })
           <div style={{ padding: "28px 28px 28px 0" }}>
             <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Available balance</div>
             <div style={{ fontFamily: serif, fontSize: 76, letterSpacing: "-0.035em", color: INK, lineHeight: 1, marginTop: 12 }}>
-              {balance.toLocaleString()}
+              {balance == null ? "—" : balance.toLocaleString()}
               <span style={{ fontSize: 18, color: "rgba(242,237,228,0.55)", fontFamily: sans, marginLeft: 10 }}>pts</span>
             </div>
+            {balance == null ? null : (
             <div style={{ fontFamily: sans, fontSize: 13, fontWeight: 600, color: TEAL, marginTop: 8 }}>≈ ${(balance / SHAPE_PTS_PER_USD).toFixed(2)} value</div>
+            )}
             {hasCredit && (
               <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, border: `1px solid rgba(var(--sh-accent2-rgb, 10,197,168), 0.3333)`, background: "rgba(10,197,168,0.08)" }}>
                 <div style={{ fontFamily: sans, fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: TEAL }}>Coach credit wallet</div>
@@ -728,9 +730,11 @@ function CheckoutModal({ lines, total, balance, busy, notice, onQty, onClose, on
   );
 }
 
-function UnlockedCoupons({ redemptions }) {
-  // Real redemptions when present; demo locker otherwise (signed-out / preview).
+function UnlockedCoupons({ redemptions, signedIn = false }) {
+  // Real redemptions when present; the demo locker only signed out (the preview). A signed-in
+  // account with nothing redeemed is shown no one else's codes (Codex P2 on #2675).
   const live = Array.isArray(redemptions) && redemptions.length > 0;
+  if (signedIn && !live) return null;
   const items = live
     ? redemptions.map((r) => ({
         code: r.code,
@@ -838,8 +842,12 @@ function StorePage() {
       });
     } catch (_) {}
   }, []);
-  useEStore(() => { if (gate.allowed) reloadStore(); }, [gate.allowed]);
-  const liveBalance = store.balance == null ? BALANCE : store.balance;
+  // ⚠ EVERY SIGNED-IN ACCOUNT READS ITS OWN BALANCE AND LOCKER (Codex P2 on #2675). The read is
+  // the account's (GET /api/store/redeem needs no membership); only spending is the membership's.
+  // Gated on the membership, a free or past-due account was shown the demo 940 points and codes.
+  useEStore(() => { if (gate.signedIn) reloadStore(); }, [gate.signedIn]);
+  // The sample balance only signed out; a signed-in balance not read yet is "—", never 940.
+  const liveBalance = store.balance == null ? (gate.signedIn ? null : BALANCE) : store.balance;
   const liveCredit = store.credit || { session: 0, nutrition: 0 };
   useEStore(() => {
     let cancelled = false;
@@ -885,8 +893,8 @@ function StorePage() {
         ) : (
           <React.Fragment>
             <StoreHero balance={liveBalance} credit={liveCredit} />
-            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} pastDue={!!gate.pastDue} balance={liveBalance} onRedeemed={reloadStore} />
-            <UnlockedCoupons redemptions={store.redemptions} />
+            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} pastDue={!!gate.pastDue} balance={liveBalance == null ? 0 : liveBalance} onRedeemed={reloadStore} />
+            <UnlockedCoupons redemptions={store.redemptions} signedIn={!!gate.signedIn} />
             <StoreFAQ />
           </React.Fragment>
         )}

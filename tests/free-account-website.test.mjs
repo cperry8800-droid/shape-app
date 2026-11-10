@@ -516,6 +516,21 @@ test('your week: honest figures (no zeros, no nulls), and Share draws the canoni
   assert.match(DASH, /\{live && new Date\(\)\.getDay\(\) === 1 && \(\n\s+<div style=\{\{ marginBottom: 16 \}\}><ClientWeekRecapCard week="last"/);
 });
 
+// ── The Store's own figures ─────────────────────────────────────────────────────────────────
+test('store: every signed-in account reads its own balance and locker; the sample ones are for a visitor only (Codex P2 on #2675)', () => {
+  const S = read('public/newdesign/store.jsx');
+  assert.match(S, /useEStore\(\(\) => \{ if \(gate\.signedIn\) reloadStore\(\); \}, \[gate\.signedIn\]\);/, 'loaded for every signed-in account, locked or not');
+  assert.doesNotMatch(S, /if \(gate\.allowed\) reloadStore\(\)/);
+  assert.match(S, /const liveBalance = store\.balance == null \? \(gate\.signedIn \? null : BALANCE\) : store\.balance;/, 'no sample 940 for an account');
+  assert.match(S, /\{balance == null \? "—" : balance\.toLocaleString\(\)\}/);
+  assert.match(S, /if \(signedIn && !live\) return null;/, 'no sample codes in an account\'s locker');
+  assert.match(S, /<UnlockedCoupons redemptions=\{store\.redemptions\} signedIn=\{!!gate\.signedIn\} \/>/);
+  // The read itself is an account's: no membership is asked for on GET.
+  const route = read('src/app/api/store/redeem/route.ts');
+  const get = route.slice(route.indexOf('export async function GET'), route.indexOf('export async function POST') > 0 ? route.indexOf('export async function POST') : undefined);
+  assert.doesNotMatch(get, /requireMembership\(/);
+});
+
 // ── Pricing ─────────────────────────────────────────────────────────────────────────────────
 test('pricing: monthly and yearly, the free week with Nora, and coaching that includes the membership', () => {
   const P = read('public/newdesign/pricing.jsx');

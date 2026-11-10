@@ -76,7 +76,8 @@ function fakeDb({ fail = [] } = {}) {
       neq(c, v) { st.filters.push((r) => r[c] !== v); return q; },
       is(c, v) { st.filters.push((r) => (r[c] ?? null) === v); return q; },
       not(c, op, v) { assert.equal(op, 'is'); st.filters.push((r) => (r[c] ?? null) !== v); return q; },
-      lt(c, v) { st.filters.push((r) => r[c] != null && String(r[c]) < String(v)); return q; },
+      lt(c, v) { st.filters.push((r) => r[c] != null && (typeof v === 'number' ? Number(r[c]) < v : String(r[c]) < String(v))); return q; },
+      gt(c, v) { st.filters.push((r) => r[c] != null && (typeof v === 'number' ? Number(r[c]) > v : String(r[c]) > String(v))); return q; },
       in(c, vs) { st.filters.push((r) => vs.includes(r[c])); return q; },
       order(c) { st.order = c; return q; },
       limit(n) { st.limit = n; return q; },
@@ -106,10 +107,10 @@ test('1: ⚠ one device per account: a newer connection marks the older one to d
   const phone = await openStream(db, { userId: ANA, now: NOW });
   const laptop = await openStream(db, { userId: ANA, now: NOW });
   const bens = await openStream(db, { userId: BEN, now: NOW });
-  assert.deepEqual(await admitConnection(db, { streamId: phone, boot: BOOT, bootAt: BOOT_AT, client: 5, now: NOW }), { ok: true, userId: ANA, superseded: 0 });
-  assert.deepEqual(await admitConnection(db, { streamId: bens, boot: BOOT, bootAt: BOOT_AT, client: 6, now: NOW }), { ok: true, userId: BEN, superseded: 0 });
+  assert.deepEqual(await admitConnection(db, { streamId: phone, boot: BOOT, bootAt: BOOT_AT, client: 5, now: NOW }), { ok: true, userId: ANA, superseded: 0, newer: false });
+  assert.deepEqual(await admitConnection(db, { streamId: bens, boot: BOOT, bootAt: BOOT_AT, client: 6, now: NOW }), { ok: true, userId: BEN, superseded: 0, newer: false });
   // The same account on a second device (or someone else on a copied address): the older one drops.
-  assert.deepEqual(await admitConnection(db, { streamId: laptop, boot: BOOT, bootAt: BOOT_AT, client: 7, now: NOW + 1000 }), { ok: true, userId: ANA, superseded: 1 });
+  assert.deepEqual(await admitConnection(db, { streamId: laptop, boot: BOOT, bootAt: BOOT_AT, client: 7, now: NOW + 1000 }), { ok: true, userId: ANA, superseded: 1, newer: false });
   const by = (c) => live(db).find((r) => r.client === c);
   assert.equal(by(5).kick_requested_at, iso(NOW + 1000));
   assert.equal(by(5).kick_reason, 'newer_stream');
@@ -118,6 +119,33 @@ test('1: ⚠ one device per account: a newer connection marks the older one to d
   // The same code again (Safari's probe, then the stream): the newer connection wins again.
   assert.equal((await admitConnection(db, { streamId: laptop, boot: BOOT, bootAt: BOOT_AT, client: 8, now: NOW + 2000 })).superseded, 1);
   assert.equal(by(7).kick_reason, 'newer_stream');
+  // ⚠ Two arriving together: the newest plays, never neither (Codex P1 on #2675). The fake answers
+  // every call on its own turn, so the two admissions interleave: both rows are written before either
+  // marks, which is the race that dropped both.
+  const race = fakeDb();
+  const [s1, s2] = [await openStream(race, { userId: ANA, now: NOW }), await openStream(race, { userId: ANA, now: NOW })];
+  await Promise.all([
+    admitConnection(race, { streamId: s1, boot: BOOT, bootAt: BOOT_AT, client: 21, now: NOW }),
+    admitConnection(race, { streamId: s2, boot: BOOT, bootAt: BOOT_AT, client: 22, now: NOW }),
+  ]);
+  const rb = (c) => live(race).find((r) => r.client === c);
+  assert.equal(rb(22).kick_requested_at, null, 'the newer of the two plays');
+  assert.equal(rb(21).kick_reason, 'newer_stream', 'the older drops');
+  // An older connection whose admission lands after the newer one's marks itself.
+  const late = fakeDb();
+  const [l1, l2] = [await openStream(late, { userId: ANA, now: NOW }), await openStream(late, { userId: ANA, now: NOW })];
+  await admitConnection(late, { streamId: l2, boot: BOOT, bootAt: BOOT_AT, client: 32, now: NOW });
+  assert.equal((await admitConnection(late, { streamId: l1, boot: BOOT, bootAt: BOOT_AT, client: 31, now: NOW + 500 })).newer, true);
+  const lb = (c) => live(late).find((r) => r.client === c);
+  assert.equal(lb(31).kick_reason, 'newer_stream');
+  assert.equal(lb(32).kick_requested_at, null);
+  // Client numbers compare as numbers: 10 is newer than 9.
+  const ten = fakeDb();
+  const [t1, t2] = [await openStream(ten, { userId: ANA, now: NOW }), await openStream(ten, { userId: ANA, now: NOW })];
+  await admitConnection(ten, { streamId: t1, boot: BOOT, bootAt: BOOT_AT, client: 9, now: NOW });
+  await admitConnection(ten, { streamId: t2, boot: BOOT, bootAt: BOOT_AT, client: 10, now: NOW + 500 });
+  assert.equal(live(ten).find((r) => r.client === 9).kick_reason, 'newer_stream');
+  assert.equal(live(ten).find((r) => r.client === 10).kick_requested_at, null);
   // A ticket for a stream Shape has no record of is no way in; a failed read refuses too.
   assert.deepEqual(await admitConnection(db, { streamId: '99999999-9999-4999-8999-999999999999', boot: BOOT, bootAt: BOOT_AT, client: 9, now: NOW }), { ok: false, reason: 'stream' });
   assert.deepEqual(await admitConnection(fakeDb({ fail: ['select:radio_streams'] }), { streamId: phone, boot: BOOT, bootAt: BOOT_AT, client: 9, now: NOW }), { ok: false, reason: 'read_failed' });

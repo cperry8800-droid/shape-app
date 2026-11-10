@@ -71,15 +71,25 @@ export async function admitConnection(db, { streamId, boot, bootAt, client, now 
     { onConflict: 'boot,client' },
   );
   if (writeErr) return { ok: false, reason: 'write_failed' };
-  // ⚠ ONE DEVICE PER ACCOUNT: every other connection of this account, on this start of the
-  // station (any other client) or an earlier one.
+  // ⚠ ONE DEVICE PER ACCOUNT, AND THE NEWEST ONE PLAYS, HOWEVER TWO ADMISSIONS INTERLEAVE (Codex P1
+  // on #2675). Each used to mark every OTHER connection of the account, so two arriving together each
+  // marked the other and both were dropped. Icecast numbers a start's connections in the order they
+  // came, so on this start the higher client is the newer: a connection marks only the lower ones,
+  // and marks itself when a higher one is already recorded. Whatever the order of the two writes,
+  // the highest is never marked and every lower one is (each one's check runs after its own write,
+  // so at least one of the two sees the other). Connections of an earlier start are marked too.
   const mark = { kick_requested_at: at, kick_reason: 'newer_stream' };
   const [sameBoot, otherBoot] = await Promise.all([
-    db.from(CONNECTIONS).update(mark).eq('user_id', userId).eq('boot', boot).neq('client', client).is('kick_requested_at', null).select('client'),
+    db.from(CONNECTIONS).update(mark).eq('user_id', userId).eq('boot', boot).lt('client', client).is('kick_requested_at', null).select('client'),
     db.from(CONNECTIONS).update(mark).eq('user_id', userId).neq('boot', boot).is('kick_requested_at', null).select('client'),
   ]);
+  const { data: newer } = await db.from(CONNECTIONS).select('client')
+    .eq('user_id', userId).eq('boot', boot).gt('client', client).is('kick_requested_at', null).limit(1);
+  if (newer && newer.length) {
+    await db.from(CONNECTIONS).update(mark).eq('boot', boot).eq('client', client).is('kick_requested_at', null);
+  }
   const superseded = (sameBoot.data?.length ?? 0) + (otherBoot.data?.length ?? 0);
-  return { ok: true, userId, superseded };
+  return { ok: true, userId, superseded, newer: !!(newer && newer.length) };
 }
 
 /** The station's word that a listener left: their connection's row goes. */
