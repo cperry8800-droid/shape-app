@@ -894,6 +894,20 @@ function bsmPass(c, f, role, q, now) {
   }
   return true;
 }
+// The filters `f` as the role `role` can hold them: another role's goals off, a city none of the role's
+// coaches is in back to Anywhere, a unit's budget the role is not priced in cleared. ⚠ EVERY ROLE CHANGE
+// GOES THROUGH THIS (Codex on #2667): the role picker and a jump that lands on the open tab with a role
+// (Goals, Train's "Find a trainer"); kept, a filter the role can't hold hid every coach the member asked for.
+function bsmFiltersForRole(f, role, everyone, now) {
+  const cities = new Set((everyone || []).filter((c) => bsmPass(c, BSM_FILTERS0, role, '', now)).map(bsmCityOf).filter(Boolean));
+  return {
+    ...f,
+    goals: f.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, role)),
+    city: f.city === 'Anywhere' || cities.has(f.city) ? f.city : 'Anywhere',
+    maxSession: role === 'Nutritionists' ? null : f.maxSession,
+    maxMonth: role === 'Trainers' ? null : f.maxMonth,
+  };
+}
 // The sorts: Best match is the goal's fit, then an open intro, then the rating and how many reviews
 // it rests on (the website's mkScore); price compares per session before per month.
 function bsmSort(list, sort, f, now) {
@@ -972,13 +986,18 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   const roleOf = (r) => (r === 'nutritionist' ? 'Nutritionists' : r === 'trainer' ? 'Trainers' : 'Both');
   const [pill, setPill] = useStateBSM2(roleOf(initialRole));
   // A deep link that lands while the tab is open (a waitlist notification, Train's bar) picks its role.
+  // Its filters go through the same rule as the role picker's (bsmFiltersForRole), over the coaches
+  // this render read (everyoneRef, set below).
   const roleSeen = React.useRef(initialRole);
+  const everyoneRef = React.useRef([]);
+  const [f, setF] = useStateBSM2(BSM_FILTERS0);
   useEffectBSM2(() => {
     if (roleSeen.current === initialRole) return;
     roleSeen.current = initialRole;
-    setPill(roleOf(initialRole));
+    const r = roleOf(initialRole);
+    setPill(r);
+    setF((prev) => bsmFiltersForRole(prev, r, everyoneRef.current, Date.now()));
   }, [initialRole]);
-  const [f, setF] = useStateBSM2(BSM_FILTERS0);
   const [sort, setSort] = useStateBSM2('best');
   const [query, setQuery] = useStateBSM2('');
   const [filtersOpen, setFiltersOpen] = useStateBSM2(false);
@@ -1051,6 +1070,7 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   useMktCoachPoints(everyone);
   // And every account's open intro times, for the rows' next open time and "Open intro this week".
   useMktOpenTimes(everyone);
+  everyoneRef.current = everyone;
   const team = useMktTeam();
 
   // Real profile photos for live coaches (those with an account) — shown in the
@@ -1128,20 +1148,11 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     f.maxMonth != null ? { key: 'maxMonth', label: tr('marketplace:filters.upToMonth', { defaultValue: 'Up to ${amount}/month', amount: f.maxMonth }), onRemove: () => set({ maxMonth: null }) } : null,
     f.meet !== 'either' ? { key: 'meet', label: meetWord(f.meet), onRemove: () => set({ meet: 'either' }) } : null,
   ].filter(Boolean);
-  // A role leaves behind the filters it can't hold: another role's goals, a city none of its coaches
-  // is in (Codex on #2667: kept, it hid every coach elsewhere), a unit's budget the
-  // role is not priced in, a city none of its coaches is in.
+  // A role leaves behind the filters it can't hold (bsmFiltersForRole): another role's goals, a city none
+  // of its coaches is in, a unit's budget the role is not priced in.
   const pickRole = (r) => {
     setPill(r);
-    // The cities the new role's coaches are in (the sheet's own list for that role).
-    const roleCities = new Set(everyone.filter((c) => bsmPass(c, BSM_FILTERS0, r, '', now)).map(bsmCityOf).filter(Boolean));
-    setF((prev) => ({
-      ...prev,
-      goals: prev.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, r)),
-      city: prev.city === 'Anywhere' || roleCities.has(prev.city) ? prev.city : 'Anywhere',
-      maxSession: r === 'Nutritionists' ? null : prev.maxSession,
-      maxMonth: r === 'Trainers' ? null : prev.maxMonth,
-    }));
+    setF((prev) => bsmFiltersForRole(prev, r, everyone, now));
   };
   const filters = {
     role: pill,

@@ -306,6 +306,44 @@ test('a role switch drops a city its coaches are not in, and keeps one they are 
   }
 });
 
+test('a jump that lands on the open tab with a role drops the filters that role can\'t hold, as the picker does (Codex on #2667)', () => {
+  delete globalThis.ShapeAuth;
+  const NU = ['nutrition', 'weight', 'muscle', 'gut', 'plant', 'prenatal', 'mealprep', 'medical', 'longevity'];
+  const cityOpts = (role) => screen({ initialRole: role }).dir().props.filters.city?.options || [];
+  const nu = new Set(cityOpts('nutritionist'));
+  const only = cityOpts('trainer').find((c) => c !== 'Anywhere' && !nu.has(c));
+  // On Both: a nutritionist's goal, a trainers-only city and a session budget; then a jump lands on the
+  // open tab with a role (the shell hands the mounted tab a new initialRole).
+  EFFECTS = [];
+  const props = { onProfile() {} };
+  const d = drive(BSMarketplaceScreen, props);
+  const s = { d, dir: () => d.nodes()[0] };
+  const land = (role) => {
+    props.initialRole = role;
+    EFFECTS = [];
+    d.render();
+    for (const fx of EFFECTS.splice(0)) { try { fx(); } catch (e) { /* an effect's own failure is its own */ } }
+    d.render();
+  };
+  const nuGoal = s.dir().props.filters.goals.find((g) => NU.includes(g.key));
+  nuGoal.onToggle(); s.d.render();
+  s.dir().props.filters.city.onChange(only); s.d.render();
+  s.dir().props.filters.budget.session?.onChange(s.dir().props.filters.budget.session.min + 5); s.d.render();
+  land('trainer');
+  const f = s.dir().props.filters;
+  assert.equal(f.role, 'Trainers');
+  assert.ok(!f.applied.some((a) => a.key === `goal:${nuGoal.key}`), 'a nutritionist\'s goal stayed on Trainers');
+  assert.ok(f.applied.some((a) => a.key === 'city'), 'a city the trainers are in stays');
+  land('nutritionist');
+  const g = s.dir().props.filters;
+  assert.equal(g.role, 'Nutritionists');
+  assert.ok(!g.applied.some((a) => a.key === 'city' || a.key === 'maxSession'), 'the trainers-only city and the session budget went');
+  assert.ok(s.dir().props.list.length > 0, 'and the list is not emptied by them');
+  // The picker and the jump share the one rule.
+  const src = read('iosAppBroadsheetMarketplace.jsx');
+  assert.equal((src.match(/bsmFiltersForRole\(prev, r, /g) || []).length, 2);
+});
+
 test('the sheet: goals with counts, a city picker, a budget per unit, how you meet, open intro; "Not listed yet" where nothing is', () => {
   delete globalThis.ShapeAuth;
   const s = screen({ initialRole: 'trainer' });
