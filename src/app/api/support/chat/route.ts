@@ -581,6 +581,8 @@ const READ_TOOLS = new Set([...MEMBER_READ_TOOLS.map((t) => t.name), ...COACH_TO
 // is a budget, and the reply is taken on the last round whatever is pending.
 const MAX_MODEL_ROUNDS = 5;
 const MAX_TOOL_CALLS = 10;
+// Said with a card when the model's own words for it never arrived (askOpenAI).
+const CARD_ONLY_REPLY = 'Here it is to review. Nothing changes until you confirm.';
 const MAX_OUTPUT_TOKENS = 6000;
 
 const MEMORY_TOOLS = new Set(['remember', 'forget']);
@@ -1111,9 +1113,17 @@ function extractOutputText(payload: OpenAIResponsePayload): string {
 // action, so the action's core stays node-testable.
 type DraftModel = ((body: Record<string, unknown>, opts: { promptId: string; effort?: 'medium'; timeoutMs?: number }) => ReturnType<typeof callAI>) | null;
 function makePropose(actor: Actor | null, request: Request, isMember: boolean, draftModel: DraftModel = null, zone: string | null = null, locale: string | null = null): ProposeFn {
+  // ⚠ ONE SETUP CARD A MESSAGE (2026-11-10). The note asks Nora for one card with every change on
+  // it, and nothing held her to it: a second set_up_account in the same reply drew a second card
+  // reading the same "before", and confirming both left the second stale. Built per request, so
+  // this counts the cards of one reply; a second call is refused before the budget or a read.
+  let setupDrafted = false;
   return async (name, args) => {
     if (!actor) {
       return { result: { error: 'sign_in_required', message: 'They need to be signed in for me to do that.' }, actions: [] };
+    }
+    if (name === 'set_up_account' && setupDrafted) {
+      return { result: { error: 'one_card', message: 'The setup card for this message is already drafted. Tell them to review that one; nothing more to draft.' }, actions: [] };
     }
     const secret = proposalSecret();
     if (!secret) return { result: { error: 'unavailable', message: 'Actions are not configured right now.' }, actions: [] };
@@ -1143,6 +1153,7 @@ function makePropose(actor: Actor | null, request: Request, isMember: boolean, d
     if (!res.ok) {
       return { result: { error: res.error, message: (res as { message?: string }).message || null }, actions: [] };
     }
+    if (name === 'set_up_account') setupDrafted = true;
     const preview = res.preview as typeof res.preview & { open?: ProposalOpen; note?: string };
     const action: SupportAction = {
       type: 'proposal',
@@ -1284,7 +1295,10 @@ async function askOpenAI(
     let shownThisRound = false;
     const onText = sink ? (d: string) => { shownThisRound = true; sink.text(d); } : undefined;
     const result = await callAI(body, { promptId: 'support.chat', signal, effort: 'low', verbosity: 'low', ...(onText ? { onText } : {}) });
-    if (!result.ok) return null;
+    // ⚠ A DRAFTED CARD OUTLIVES A FAILED FOLLOW-UP (2026-11-10): the card was drawn, signed and
+    // counted against the budget in an earlier round; dropping it with the reply lost it. Nothing
+    // is applied before Confirm, so the card goes out with a plain line instead.
+    if (!result.ok) return actions.length ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;
     answeredBy = result.model;
     if (result.fellBack) pinnedModel = result.model;
     const payload = result.data as OpenAIResponsePayload;
@@ -1293,7 +1307,7 @@ async function askOpenAI(
     const budgetLeft = toolCalls < MAX_TOOL_CALLS;
     if (calls.length === 0 || round === MAX_MODEL_ROUNDS - 1 || !budgetLeft) {
       const reply = plainText(extractOutputText(payload));
-      return reply ? { reply, actions, model: answeredBy } : null;
+      return reply ? { reply, actions, model: answeredBy } : actions.length ? { reply: CARD_ONLY_REPLY, actions, model: answeredBy } : null;
     }
     if (shownThisRound && sink) sink.reset();
     // What she is looking up, so the panel says so instead of three dots (noraStatus.mjs).

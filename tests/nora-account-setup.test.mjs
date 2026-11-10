@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { loadRealModule } from './helpers/load-real-module.mjs';
 import { fakeSupabase } from './helpers/fake-supabase.mjs';
 import * as setup from '../src/lib/ai/accountSetup.mjs';
@@ -723,7 +724,7 @@ async function loadChat({ user = { id: ME, email: 'm@x' }, role = 'client', isMe
       // #2558: a member's own chat rides the fast model; the real resolvers, as support-chat-route's.
       aiFastModel: ai.aiFastModel,
       aiModel: ai.aiModel,
-      callAI: async (body, opts) => { seen.ai.push({ body, opts }); const data = answers[Math.min(i, answers.length - 1)]; i += 1; return { ok: true, data, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
+      callAI: async (body, opts) => { seen.ai.push({ body, opts }); const data = answers[Math.min(i, answers.length - 1)]; i += 1; if (data && data.fail) return { ok: false, error: 'upstream', latencyMs: 1, promptId: opts.promptId }; return { ok: true, data, usage: null, latencyMs: 1, promptId: opts.promptId, model: 'pinned', fellBack: false }; },
     }],
     ['@/lib/ai/server', {
       resolveActor: async () => (user ? { user, role, roles: [role], supabase: sb } : null),
@@ -819,4 +820,103 @@ test('route source: set_up_account is a write tool, so a plain panel never offer
   assert.ok(propose.indexOf("countBudget(actor.supabase, actor.user.id, 'account_setup')") < propose.indexOf('proposeChange({'), 'the budget gates the preview');
   const limits = readFileSync(join(ROOT, 'src/lib/ai/noraLimits.ts'), 'utf8');
   assert.match(limits, /account_setup: 30,/);
+});
+
+
+// ── Set up with Nora, end to end (2026-11-10: "Make sure this set up with Nora feature is fully
+// functioning"). Each of these was a way the card went missing or said nothing useful.
+test('route: one setup card a message; a second call in the same reply is refused before any read', async () => {
+  const two = { output: [
+    { type: 'reasoning', id: 'rs_1', summary: [] },
+    { type: 'function_call', call_id: 'call_a', name: 'set_up_account', arguments: JSON.stringify({ changes: [{ field: 'units', value: 'metric' }] }) },
+    { type: 'function_call', call_id: 'call_b', name: 'set_up_account', arguments: JSON.stringify({ changes: [{ field: 'dailyLimit', value: '3' }] }) },
+  ] };
+  const r = await loadChat({ answers: [two, say('Drafted — confirm below.')] });
+  const res = await (await r.mod.POST(chat('metric, and 3 notifications a day'))).json();
+  assert.equal(res.actions.filter((a) => a.type === 'proposal').length, 1, 'one card');
+  const outs = r.seen.ai[1].body.input.filter((it) => it.type === 'function_call_output').map((it) => JSON.parse(it.output));
+  assert.equal(outs[0].requiresConfirm, true);
+  assert.equal(outs[1].error, 'one_card');
+  assert.equal(r.seen.rate.filter((x) => x.key.startsWith('nora:account_setup:')).length, 1, 'the refused call spends no budget');
+  // A new message is a new reply: its card is drawn.
+  const again = await loadChat({ answers: [call('set_up_account', { changes: [{ field: 'units', value: 'metric' }] }), say('ok')] });
+  const res2 = await (await again.mod.POST(chat('metric'))).json();
+  assert.equal(res2.actions.filter((a) => a.type === 'proposal').length, 1);
+});
+
+test('route: a drafted card outlives a failed or wordless follow-up; with no card, the fallback stands', async () => {
+  for (const [label, after] of [['failed', { fail: true }], ['wordless', { output: [] }]]) {
+    const r = await loadChat({ answers: [call('set_up_account', { changes: [{ field: 'units', value: 'metric' }] }), after] });
+    const res = await (await r.mod.POST(chat('metric please'))).json();
+    const card = res.actions.find((a) => a.type === 'proposal');
+    assert.ok(card && card.action === 'set_up_account', `${label}: the card is still sent`);
+    assert.equal(res.reply, 'Here it is to review. Nothing changes until you confirm.', label);
+  }
+  const none = await loadChat({ answers: [{ fail: true }] });
+  const res = await (await none.mod.POST(chat('hello'))).json();
+  assert.ok(!(res.actions || []).some((a) => a.type === 'proposal'));
+  assert.notEqual(res.reply, 'Here it is to review. Nothing changes until you confirm.', 'no card, no card line');
+});
+
+test('undo route: a refused undo says why (409 and its reason), not a bare 500', async () => {
+  const load = (undoChange) => loadRealModule(join(ROOT, 'src/app/api/ai/audit/undo/route.ts'), { typescript: true, registry: new Map([
+    ['next/server', nextServer],
+    ['@/lib/request-utils', requestUtils],
+    ['@/lib/ai/proposals.mjs', { undoChange }],
+    ['@/lib/ai/server', { resolveActor: async () => ({ user: { id: ME }, role: 'client', roles: ['client'], supabase: {} }), makeCtx: () => ({}), serverRegistry: {}, auditSink: () => ({}) }],
+    ['@/lib/require-membership', { requireMembership: async () => null }],
+  ]) });
+  const req = () => new Request('https://x/api/ai/audit/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auditId: 'a1' }) });
+  const refused = await load(async () => { throw new Error('Changed since — nothing undone.'); });
+  const r1 = await refused.POST(req());
+  assert.equal(r1.status, 409);
+  assert.deepEqual(await r1.json(), { error: 'undo_failed', message: 'Changed since — nothing undone.' });
+  const ok = await load(async () => ({ ok: true, undoneBy: ME }));
+  const r2 = await ok.POST(req());
+  assert.equal(r2.status, 200);
+  const gone = await load(async () => ({ ok: false, error: 'audit_not_found' }));
+  assert.equal((await gone.POST(req())).status, 404);
+});
+
+test('the app\'s card: Confirm and Undo carry the session\'s token at the tap, and Undo says the route\'s reason', () => {
+  const be = readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
+  const fn = be.slice(be.indexOf('async function noraCardHeaders('), be.indexOf('async function noraGreeting('));
+  assert.match(fn, /const token = await liveAccessToken\(\);/);
+  assert.equal((fn.match(/headers: await noraCardHeaders\(\),/g) || []).length, 2, 'both Confirm and Undo');
+  assert.doesNotMatch(fn, /headers: sessionsAuthHeaders\(/, 'never the cached token alone');
+  assert.match(fn, /if \(!res\.ok\) throw new Error\(payload\.message \|\| 'Could not undo that change\.'\);/);
+});
+
+// ⚠ THE COACH DASHBOARD BOOTS THE CHAT LATE, and a request the widget took as it mounted was then
+// opened again with nothing, which turned Nora off: "Set up with Nora" landed in Chat.
+test('the chat launcher: a request the widget took on mount is not opened again; a plain open still opens', () => {
+  const src = readFileSync(join(ROOT, 'public/newdesign/globalChatButton.js'), 'utf8');
+  const slice = src.slice(src.indexOf('  var chatBootStarted = false;'), src.indexOf('  // On deployed pages the JSX is precompiled'));
+  assert.match(slice, /function flushOpen\(\)/);
+  assert.match(slice, /function waitAndOpen\(tries\)/);
+  assert.match(src, /function openRichChat\(\) \{\n\s+if \(typeof window\.__openChat === "function"\) \{ flushOpen\(\); return; \}\n\s+if \(window\.__openChatRequest\) waiting = true;/, 'the boot remembers a waiting request');
+  assert.match(src, /function openFallbackPanel\(\) \{\n(?:\s*\/\/.*\n)*\s+waiting = false;/, 'the fallback panel takes it itself');
+  const run = (stash) => {
+    const timers = [];
+    const calls = [];
+    const win = {};
+    const ctx = { window: win, openFallbackPanel: () => calls.push(['fallback']) };
+    ctx.window.setTimeout = (fn) => timers.push(fn);
+    vm.runInNewContext(slice + '\nthis.boot = function () { if (window.__openChatRequest) waiting = true; waitAndOpen(0); };', ctx);
+    if (stash) win.__openChatRequest = stash;
+    ctx.boot();
+    timers.shift()();                       // a poll before the widget exists
+    // The widget mounts: it defines __openChat and takes a waiting request itself (chatWidget.jsx).
+    win.__openChat = (arg, tab) => calls.push([arg, tab]);
+    if (win.__openChatRequest) { const r = win.__openChatRequest; delete win.__openChatRequest; win.__openChat(r, r.tab); }
+    while (timers.length) timers.shift()(); // the launcher's next poll
+    return calls;
+  };
+  const req = { who: 'Nora', tab: 'support', draft: 'Set up my coach profile with me.' };
+  const withReq = run(req);
+  assert.equal(withReq.length, 1, 'opened once, by the widget: ' + JSON.stringify(withReq));
+  assert.deepEqual(JSON.parse(JSON.stringify(withReq[0])), [req, 'support']);
+  const plain = run(null);
+  assert.equal(plain.length, 1, 'a plain open still opens');
+  assert.equal(plain[0][0], undefined);
 });
