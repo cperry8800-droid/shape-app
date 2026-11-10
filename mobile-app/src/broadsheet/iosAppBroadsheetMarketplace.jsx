@@ -1128,13 +1128,17 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
     f.maxMonth != null ? { key: 'maxMonth', label: tr('marketplace:filters.upToMonth', { defaultValue: 'Up to ${amount}/month', amount: f.maxMonth }), onRemove: () => set({ maxMonth: null }) } : null,
     f.meet !== 'either' ? { key: 'meet', label: meetWord(f.meet), onRemove: () => set({ meet: 'either' }) } : null,
   ].filter(Boolean);
-  // A role leaves behind the filters it can't hold: another role's goals, a unit's budget the
+  // A role leaves behind the filters it can't hold: another role's goals, a city none of its coaches
+  // is in (Codex on #2667: kept, it hid every coach elsewhere), a unit's budget the
   // role is not priced in, a city none of its coaches is in.
   const pickRole = (r) => {
     setPill(r);
+    // The cities the new role's coaches are in (the sheet's own list for that role).
+    const roleCities = new Set(everyone.filter((c) => bsmPass(c, BSM_FILTERS0, r, '', now)).map(bsmCityOf).filter(Boolean));
     setF((prev) => ({
       ...prev,
       goals: prev.goals.filter((id) => bsmGoalFits(BSM_GOALS.find((g) => g.id === id) || {}, r)),
+      city: prev.city === 'Anywhere' || roleCities.has(prev.city) ? prev.city : 'Anywhere',
       maxSession: r === 'Nutritionists' ? null : prev.maxSession,
       maxMonth: r === 'Trainers' ? null : prev.maxMonth,
     }));

@@ -32297,10 +32297,12 @@ function BSLanguageSetting({ t }) {
 // window.ShapeApplications.myStatus, by its stage): Submitted, In review or Background check, amber;
 // Approved, teal; Not approved, unlit; with the application, the day it was sent and, while it waits,
 // "usually 2–3 business days". A withdrawn application, or none at all, is the door. ⚠ A read that
-// failed ({ unavailable }) says so, and never offers to apply over an application it could not see.
+// failed ({ unavailable }) says so, and a tap reads it again: it never opens an application over one
+// it could not see.
 function bsCoachApplyRow(app, { tr, amber = '#d8a23a', teal = '#34d6c5', unlit = '#777777', locale } = {}) {
   const title = tr('settings:coachApply.title', { defaultValue: 'Coach on Shape' });
-  if (app && app.unavailable) return { title, summary: tr('settings:coachApply.unavailable', { defaultValue: 'Couldn’t check your application · try again later' }), detail: 'coachapply', wrap: true };
+  // Its tap reads again (`retry`), never a fresh application over one it could not see (Codex on #2667).
+  if (app && app.unavailable) return { title, summary: tr('settings:coachApply.unavailable', { defaultValue: 'Couldn’t check your application · tap to try again' }), detail: 'coachapply', wrap: true, retry: true };
   const st = app && app.stage !== 'withdrawn' ? app.stage : null;
   const tag = st === 'submitted' ? { text: tr('settings:coachApply.submitted', { defaultValue: 'Submitted' }), color: amber }
     : st === 'in_review' ? { text: tr('settings:coachApply.inReview', { defaultValue: 'In review' }), color: amber }
@@ -34555,7 +34557,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
           onPickRole={(key) => setTweak('role', key)}
           tiles={passportTiles}
           also={alsoRows}
-          onOpen={(d) => { if (d === 'coachapply') { setShowApply(true); return; } setDetail(d); }}
+          onOpen={(d) => {
+            if (d === 'coachapply') {
+              if (coachAppRow && coachAppRow.retry) setCoachAppReads((n) => n + 1);
+              else setShowApply(true);
+              return;
+            }
+            setDetail(d);
+          }}
           onLogout={onLogout}
         />
       )}

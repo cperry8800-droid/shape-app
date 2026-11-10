@@ -284,6 +284,28 @@ test('every goal the website has (owner: "make sure all goals are here"): the sa
   assert.deepEqual(s.dir().props.filters.applied.map((a) => a.key), [`goal:${trGoal.key}`]);
 });
 
+test('a role switch drops a city its coaches are not in, and keeps one they are (Codex on #2667)', () => {
+  delete globalThis.ShapeAuth;
+  const cityOpts = (role) => screen({ initialRole: role }).dir().props.filters.city?.options || [];
+  const tr = cityOpts('trainer');
+  const nu = new Set(cityOpts('nutritionist'));
+  const only = tr.find((c) => c !== 'Anywhere' && !nu.has(c));
+  const shared = tr.find((c) => c !== 'Anywhere' && nu.has(c));
+  assert.ok(only, 'the example roster has a trainers-only city');
+  const s = screen({ initialRole: 'trainer' });
+  s.dir().props.filters.city.onChange(only); s.d.render();
+  assert.deepEqual(s.dir().props.filters.applied.map((a) => a.key), ['city']);
+  s.dir().props.filters.onRole('Nutritionists'); s.d.render();
+  assert.equal(s.dir().props.filters.applied.length, 0, 'the trainers-only city stayed on and hid every nutritionist elsewhere');
+  assert.ok(s.dir().props.list.length > 0);
+  if (shared) {
+    const k = screen({ initialRole: 'trainer' });
+    k.dir().props.filters.city.onChange(shared); k.d.render();
+    k.dir().props.filters.onRole('Nutritionists'); k.d.render();
+    assert.equal(k.dir().props.filters.city.value, shared, 'a city both roles are in stays');
+  }
+});
+
 test('the sheet: goals with counts, a city picker, a budget per unit, how you meet, open intro; "Not listed yet" where nothing is', () => {
   delete globalThis.ShapeAuth;
   const s = screen({ initialRole: 'trainer' });
@@ -341,8 +363,10 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   assert.deepEqual(client.bsCoachApplyRow({ role: 'trainer', stage: 'withdrawn', submittedAt: '2026-11-01T10:00:00Z' }, { tr }).summary, 'Apply as a trainer or nutritionist', 'a withdrawn application is the door again');
   // ⚠ A failed read is not "no application": it says so, and offers no fresh Apply over one it could not see.
   const unread = client.bsCoachApplyRow({ unavailable: true }, { tr });
-  assert.equal(unread.summary, 'Couldn’t check your application · try again later');
+  assert.equal(unread.summary, 'Couldn’t check your application · tap to try again');
   assert.equal(unread.tag, undefined);
+  assert.equal(unread.retry, true, 'its tap reads again (Codex on #2667), never a fresh application');
+  assert.equal(door.retry, undefined);
   const sent = client.bsCoachApplyRow({ role: 'nutritionist', stage: 'submitted', submittedAt: '2026-11-07T10:00:00Z', decidedAt: null }, { tr, amber: '#d8a23a', locale: 'en-US' });
   assert.equal(sent.title, 'Coach on Shape');
   assert.deepEqual(sent.tag, { text: 'Submitted', color: '#d8a23a' });
@@ -366,7 +390,7 @@ test('Settings › Coach on Shape: the door, or the stage the route says, with w
   // The client: hidden for a coach, read from /api/me/application, the screen full screen over Settings.
   const src = read('iosAppBroadsheetClient.jsx');
   assert.match(src, /const coachAppRow = \(isCoachRole \|\| accountIsCoach\) \? null/);
-  assert.match(src, /onOpen=\{\(d\) => \{ if \(d === 'coachapply'\) \{ setShowApply\(true\); return; \} setDetail\(d\); \}\}/);
+  assert.match(src, /if \(d === 'coachapply'\) \{\n\s+if \(coachAppRow && coachAppRow\.retry\) setCoachAppReads\(\(n\) => n \+ 1\);\n\s+else setShowApply\(true\);\n\s+return;\n\s+\}/, 'a failed read retries on a tap; only a read row opens the application');
   assert.match(src, /if \(showApply && window\.BSProviderApplicationScreen\) \{/);
   const backend = fs.readFileSync(join(ROOT, 'mobile-app/src/services/shapeBackend.js'), 'utf8');
   assert.match(backend, /const res = await shapeApiFetch\('\/api\/me\/application'\);\n\s+if \(!res\.ok\) return \{ unavailable: true \};/, 'a refusal or failure is unavailable, never "none"');
