@@ -770,8 +770,7 @@ function DashGuidesCard({ plate, note, btn }) {
   const start = (key) => { try { T.startGuide(key); } catch (e) {} };
   return (
     <div className="dash-plate" data-tour="dash-guides" style={{ ...plate("var(--sh-accent, #2ee0c4)"), gridColumn: "1 / -1" }}>
-      <div className="dash-eyebrow">Guides{guides.length ? ` · ${done} of ${guides.length} done` : ""}</div>
-      <div className="dash-ledger" />
+      {pxSetHead("guides", "Guides" + (guides.length ? ` · ${done} of ${guides.length} done` : ""))}
       <p style={note}>A minute on each page and what you can do there. Start one here, or press Guide beside any page’s name. Skip one whenever you like; it stays here.</p>
       <button type="button" style={btn(false)} onClick={() => { try { window.dispatchEvent(new Event("shape:startTour")); } catch (e) {} }}>Take the welcome tour again</button>
       {guides.length > 0 && (
@@ -789,6 +788,33 @@ function DashGuidesCard({ plate, note, btn }) {
       )}
     </div>
   );
+}
+
+// The Settings cards' plate, note and button, shared by the Account tab's cards and the Guides tab's
+// (coachSettings.jsx, owner 2026-11-10: Settings in tabs, with Guides on its own, where the tour's
+// "Settings → Guides" says it is).
+const pxSetPlate = (dac) => ({ "--dac": dac, paddingLeft: 24 });
+const PX_SET_NOTE = { margin: "0 0 14px", fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" };
+const pxSetBtn = (danger) => ({ background: "transparent", color: danger ? "var(--sh-danger, #e07856)" : "var(--sh-ink, #f2ede4)", border: `1px solid ${danger ? "rgba(224,120,86,0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textAlign: "left" });
+// A Settings card's head: an icon in a tinted tile beside the eyebrow, as on the other Settings tabs
+// (dash.css .cst-icon; owner, 2026-11-10: "improve look of boxes etc"). `danger` tints it the danger colour.
+const PX_SET_ICONS = {
+  guides: "M10 3a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM8.2 7.6a1.9 1.9 0 1 1 2.4 1.8c-.5.2-.6.5-.6 1v.6M10 13.4v.1",
+  profile: "M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 17c.8-3 3.2-4.5 6-4.5s5.2 1.5 6 4.5",
+  danger: "M10 3.5 17 16H3zM10 8.5v3.5M10 14.2v.1",
+};
+function pxSetHead(icon, label, danger) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <span className="cst-icon" aria-hidden="true" style={danger ? { background: "rgba(224,120,86,0.12)", color: "var(--sh-danger, #e07856)" } : undefined}>
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={PX_SET_ICONS[icon]} /></svg>
+      </span>
+      <div className="dash-eyebrow">{label}</div>
+    </div>
+  );
+}
+function CoachGuidesCard() {
+  return <DashGuidesCard plate={pxSetPlate} note={PX_SET_NOTE} btn={pxSetBtn} />;
 }
 
 function CoachAccountSettings({ accountId }) {
@@ -814,26 +840,24 @@ function CoachAccountSettings({ accountId }) {
   // this on settings page in dashboard". This section was a 900px column centred under full-width
   // plates, with a bare heading and its own rounded cards, so the page changed width and style
   // halfway down. It uses the page's own card now (dash-plate, the mono eyebrow over its ledger),
-  // the two short cards share a row, and the danger zone's eyebrow is the danger colour.
-  const plate = (dac) => ({ "--dac": dac, paddingLeft: 24 });
-  const note = { margin: "0 0 14px", fontSize: 12.5, lineHeight: 1.5, color: "var(--sh-ink2, #a09b94)" };
-  const btn = (danger) => ({ background: "transparent", color: danger ? "var(--sh-danger, #e07856)" : "var(--sh-ink, #f2ede4)", border: `1px solid ${danger ? "rgba(224,120,86,0.45)" : "rgba(var(--sh-ink-rgb, 242,237,228),0.2)"}`, padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", textAlign: "left" });
+  // and the danger zone's eyebrow is the danger colour. The Guides card that shared the profile
+  // card's row has its own Settings tab now (CoachGuidesCard above).
+  const plate = pxSetPlate;
+  const note = PX_SET_NOTE;
+  const btn = pxSetBtn;
   return (
     <React.Fragment>
-      <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
+      <div className="dk-3up" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
         <div className="dash-plate" style={plate("var(--sh-accent, #2ee0c4)")}>
-          <div className="dash-eyebrow">Profile details</div>
-          <div className="dash-ledger" />
+          {pxSetHead("profile", "Profile details")}
           <p style={note}>Your name, handle, location and links are shared with the app. Manage your bio, credentials and listing on your profile.</p>
           {error && <p role="alert" style={{ ...note, color: "var(--sh-danger, #e07856)" }}>{error} <button type="button" onClick={load} style={{ ...btn(false), padding: "4px 10px", marginLeft: 6 }}>Retry</button></p>}
           <button type="button" disabled={!accountId || !details} style={{ ...btn(false), opacity: (!accountId || !details) ? 0.5 : 1 }} onClick={()=>setEditing(true)}>Edit profile details</button>
           {editing && <EditProfileModal initial={details} accountId={accountId} onClose={()=>setEditing(false)} onPersist={persist} onSaved={patch=>setDetails({...details,...patch})} />}
         </div>
-        <DashGuidesCard plate={plate} note={note} btn={btn} />
       </div>
       <div className="dash-plate" style={{ ...plate("var(--sh-danger, #e07856)"), marginTop: 16 }}>
-        <div className="dash-eyebrow">Account · Danger zone</div>
-        <div className="dash-ledger" />
+        {pxSetHead("danger", "Account · Danger zone", true)}
         <p style={note}>Download everything Shape holds about you, or close your account and erase it for good.</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <button style={btn(false)} onClick={async (ev) => {

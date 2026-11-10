@@ -218,12 +218,15 @@
         ? 'Added up from your active clients and the sessions they complete.'
         : 'Added up from your active clients, the sessions they complete and the programs you publish.') + ' It ranks you on the marketplace and earns the verified badge.' },
     ] });
+    // Settings shows one tab at a time (owner, 2026-11-10), so each stop opens the tab its card is on.
+    var setTab = function (label) { return openTab('settings', 'Settings sections', label); };
     g.push({ key: 'settings', title: 'Settings', routes: ['settings'], steps: [
-      { navigate: go('settings'), wait: 2500, anchor: eyebrowCard('Your dashboard opens on'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Your first page.', body: 'Your dashboard opens on the page you pick here.' },
-      { anchor: sel('[role="radiogroup"][aria-label="Dashboard skin"]'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Pick a skin.', body: 'Light, dark and the rest. Night takes the blue out for late evenings.' },
-      { anchor: eyebrowCard('Notifications'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Notifications and quiet hours.', body: 'Choose what reaches you. During your quiet hours a notice waits until they end.' },
-      { anchor: closest('[aria-label="Your calendar feed link"]', '.dash-plate'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Your calendar feed.', body: 'Copy this link into Google Calendar, Apple Calendar or Outlook to see your sessions there. It is read-only; Reset makes a new link.' },
-      { anchor: q('dash-guides'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Guides, any time.', body: 'Every guide is listed here and ticked once you finish it. The welcome tour is here too.' },
+      { navigate: setTab('General'), wait: 2500, anchor: eyebrowCard('Your dashboard opens on'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Your first page.', body: 'Your dashboard opens on the page you pick here.' },
+      { navigate: setTab('General'), anchor: sel('[role="radiogroup"][aria-label="Dashboard skin"]'), fallback: q('webtab-settings'), eyebrow: 'Settings', title: 'Pick a skin.', body: 'Light, dark and the rest. Night takes the blue out for late evenings.' },
+      { navigate: setTab('Client flags'), anchor: eyebrowCard('Flags · when a client reaches you'), fallback: q('webtab-settings'), eyebrow: 'Settings · Client flags', title: 'When a client is flagged.', body: 'Each number decides when a client is flagged to you. Change any of them for your practice; the House chip puts Shape\'s default back.' },
+      { navigate: setTab('Notifications'), anchor: function () { return eyebrowCard('Notifications · what reaches you')() || eyebrowCard('Notifications')(); }, fallback: q('webtab-settings'), eyebrow: 'Settings · Notifications', title: 'Notifications and quiet hours.', body: 'Choose what reaches you. During your quiet hours a notice waits until they end.' },
+      { navigate: setTab('Calendar'), anchor: closest('[aria-label="Your calendar feed link"]', '.dash-plate'), fallback: q('webtab-settings'), eyebrow: 'Settings · Calendar', title: 'Your calendar feed.', body: 'Copy this link into Google Calendar, Apple Calendar or Outlook to see your sessions there. It is read-only; Reset makes a new link.' },
+      { navigate: setTab('Guides'), anchor: q('dash-guides'), fallback: q('webtab-settings'), eyebrow: 'Settings · Guides', title: 'Guides, any time.', body: 'Every guide is listed here and ticked once you finish it. The welcome tour is here too.' },
     ] });
     g.push({ key: 'chat', title: 'Nora, chat & search', routes: [], steps: [
       { anchor: sel('#shape-global-chat-button .sgc-nora'), fallback: chatBtn, eyebrow: 'Nora', title: 'Ask Nora.', body: 'Ask how anything in Shape works, or have her draft a program or set up your profile; nothing is saved until you confirm. Select text on any page to ask her about it.' },
@@ -319,7 +322,8 @@
     });
   }
   function openGuideList() {
-    window.location.hash = '#settings';
+    // Settings' Guides tab (Settings shows one tab at a time; the page follows ?section=).
+    window.location.hash = '#settings?section=guides';
     var tries = 0;
     (function tick() {
       var card = document.querySelector('[data-tour="dash-guides"]');

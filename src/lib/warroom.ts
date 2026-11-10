@@ -625,6 +625,19 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
 
   return [
     {
+      section: 'Coach dashboard Settings in tabs: one section at a time, the flags explained and grouped, new cards and switches, Guides on its own tab; the time zone list readable on Glass (#2685). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10, with a screenshot of the flags list: "settings page needs to be organized much better", "also what are these options here", "create tabs at the top that get to different sections in settings instead of scrolling all the way down", "improve look of boxes etc", then "when i click timezones all the options are whited out, cant see them in settings"', status: 'done' },
+        { label: '#2685 coachSettings.jsx: tabs across the top (General, Client flags, Notifications, Calendar, Guides, Account; DashSegmented, as Business) show one section at a time, every panel kept mounted; the tab is remembered per role (dashboard_prefs settingsSection:<role>), and #settings?section=<key> opens one, also while Settings is open', status: 'done' },
+        { label: '#2685 Client flags: what the numbers do, said at the top (a flag puts a client in Needs you, on Clients and in the red and amber alerts; the House chip is Shape\'s default and puts it back); the 13 thresholds under Logging & contact, Check-ins & sessions, Nutrition & recovery, Programs & progress, still read from DashSignals.TUNABLES (an unnamed one lands under More). Notification switches under Your clients, Bookings & money, People, Your account', status: 'done' },
+        { label: '#2685 the look: every card heads with an icon tile and its eyebrow, status pills, a number field with its unit inside (the accent once tuned), the House chip readable at the default and ↺ in the accent once tuned, sliding switches for the notification matrix, a delivery card beside the matrix, quiet hours as 22:00; dash.css .cst-* classes. Checked in Glass and White at 1820, 1500 and 390 px, no sideways scroll', status: 'done' },
+        { label: '#2685 Guides has its own Settings tab (CoachGuidesCard in dashProfileExtras.jsx), where the tour\'s "Settings → Guides" says it is; the tour\'s Settings guide opens each stop\'s tab and gains a Client flags stop, and "See all guides" opens #settings?section=guides', status: 'done' },
+        { label: '#2685 dash.css: on Glass a native select\'s options take the solid ground. The open list was painted with the see-through card, near-white on the system\'s white (the time zone picker, and Library\'s sort)', status: 'done' },
+        { label: 'Review: tests/coach-settings-sections.test.mjs mounts the page in JSDOM (10 tests: the tabs, every threshold and switch under one heading, the remembered and linked section, the tour\'s tabs); the hash listener and the hidden panels each mutated and caught', status: 'done' },
+        { label: 'OWNER: on the live site as a coach, open Settings on Glass: the tabs, a tuned flag (accent field, ↺ House chip), the notification switches, and the time zone list opened, readable', status: 'manual' },
+      ],
+    },
+    {
       section: 'App: a smaller "Preview · demo data" banner (#2681). No migration',
       items: [
         { label: 'Owner, 2026-11-10, with a screenshot of the banner over Home: "also make this pop-up box smaller"', status: 'done' },
