@@ -17,6 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const require_ = createRequire(import.meta.url);
@@ -406,4 +407,62 @@ test('a rest day\'s own version of a meal takes its own playlist, which rides on
   const sent = DashMeals.buildMealAssignment(out, { trainingDows: [0] });
   assert.deepEqual(sent.days[1].meals.find((m) => m.title === 'Rest soup').playlist, SUNDAY_PREP);
   assert.equal(has(sent.days[0].meals.find((m) => m.title === 'Sun soup'), 'playlist'), false);
+});
+
+// ── The client's meals card shows them (owner, 2026-11-10: "does the website builder show the playlist on
+// the client card too?") ──
+// DashMealLedgerCard (dashClient.jsx) is the member's meals card on the website dashboard and nutrition page,
+// and the card the builder's Client preview draws. It says the day's playlist and each meal's as the workout
+// card does (♪ name · meta), so what the nutritionist previews is what the member reads.
+test('the Client preview hands the meals card the day\'s playlist and each meal\'s', async () => {
+  stubFetch();
+  const doc = weekDoc();
+  doc.days[6].playlist = clone(SUNDAY_PREP);
+  doc.days[6].slots[1].playlist = clone(BATCH);
+  const seen = [];
+  const was = globalThis.DashMealLedgerCard;
+  globalThis.DashMealLedgerCard = (p) => { seen.push(p); return null; };
+  try {
+    await mount(builder({ template: TEMPLATE(doc) }));
+    await click(document.querySelector('.dmb-dayhead[data-day="Sunday"]'));
+    const box = [...document.querySelectorAll('label')].find((l) => /Client preview/.test(l.textContent)).querySelector('input');
+    await click(box);
+    const last = seen[seen.length - 1];
+    assert.ok(last, 'the client preview did not render');
+    assert.deepEqual(last.playlist, SUNDAY_PREP, 'the day\'s playlist');
+    assert.deepEqual(Object.fromEntries(last.meals.map((m) => [m.title, m.playlist])), { 'Sun eggs': null, 'Sun soup': BATCH }, 'each meal\'s, or none');
+    // A day with none hands none.
+    await click(document.querySelector('.dmb-dayhead[data-day="Tuesday"]'));
+    const tue = seen[seen.length - 1];
+    assert.equal(tue.playlist, null);
+    assert.deepEqual(tue.meals.map((m) => m.playlist), [null]);
+  } finally { globalThis.DashMealLedgerCard = was; }
+});
+
+test('the meals card says the day\'s playlist and each meal\'s, a swapped meal keeping its own; with none it says nothing', async () => {
+  const RDS = require_('react-dom/server');
+  const { DashMealLedgerCard } = await loadRealModule(ND('dashClient.jsx'), { registry: new Map([['react', React]]), appendExports: 'export { DashMealLedgerCard };' });
+  const meals = [
+    { id: 'm1', slot: 'Breakfast', title: 'Oats', kcal: 450, p: 30, c: 50, f: 10, alts: [{ name: 'Eggs', kcal: 400, p: 30, c: 5, f: 25 }], playlist: { id: 'st-2', name: 'Breakfast beats', meta: '4 tracks' } },
+    { id: 'm2', slot: 'Lunch', title: 'Bowl', kcal: 600, p: 45, c: 60, f: 18, alts: [], playlist: null },
+  ];
+  const targets = { kcal: 2000, p: 150, c: 200, f: 60 };
+  const ledger = { kcal: 0, p: 0, c: 0, f: 0 };
+  const html = RDS.renderToStaticMarkup(React.createElement(DashMealLedgerCard, { meals, targets, ledger, playlist: SUNDAY_PREP, interactive: false }));
+  assert.match(html, /data-meal-card-playlist="day"[^>]*>♪ Sunday prep · 12 tracks</, 'the day\'s playlist');
+  assert.match(html, /data-meal-card-playlist="m1"[^>]*>♪ Breakfast beats · 4 tracks</, 'the meal\'s');
+  assert.equal((html.match(/data-meal-card-playlist=/g) || []).length, 2, 'the meal without one says none');
+  const bare = RDS.renderToStaticMarkup(React.createElement(DashMealLedgerCard, { meals: meals.map((m) => ({ ...m, playlist: null })), targets, ledger, interactive: false }));
+  assert.equal(/data-meal-card-playlist|♪/.test(bare), false, 'a plan without playlists reads as before');
+});
+
+test('the member\'s dashboard and nutrition page hand the card the plan\'s playlists', () => {
+  const src = (f) => readFileSync(ND(f), 'utf8');
+  const dash = src('dashClient.jsx');
+  assert.match(dash, /playlist: m\.playlist && m\.playlist\.name \? m\.playlist : null,/);
+  assert.match(dash, /mealDayPlaylist = day && day\.playlist && day\.playlist\.name \? day\.playlist : null;/);
+  assert.match(dash, /<DashMealLedgerCard[\s\S]{0,300}playlist=\{mealDayPlaylist\}/);
+  const nutri = src('dashNutri.jsx');
+  assert.match(nutri, /playlist: m\.playlist && m\.playlist\.name \? m\.playlist : null,/);
+  assert.match(nutri, /playlist=\{pickedDay && pickedDay\.playlist && pickedDay\.playlist\.name \? pickedDay\.playlist : null\}/);
 });

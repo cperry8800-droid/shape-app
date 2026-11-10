@@ -211,7 +211,11 @@ function DashWorkoutCard({ workout, accent = "var(--sh-rust2, #c0533b)", startHr
 // what gets logged follow the chosen alternate, so swapping never breaks the
 // ledger math. Bars go red when a macro runs over target (the builder's
 // running total mirrors this exact treatment).
-function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, headerNote, swapStorageKey, interactive = true }) {
+// `playlist` is the day's, and each meal may carry its own (`meal.playlist`): the nutritionist links them in
+// the meal builder (owner, 2026-11-10: "does the website builder show the playlist on the client card too?"),
+// and the card says them as the workout card does (♪ name · meta). The builder's Client preview draws this
+// same card, so what the nutritionist previews is what the member reads.
+function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, headerNote, swapStorageKey, interactive = true, playlist = null }) {
   const ink50 = DCL_INK50;
   const mono = "'JetBrains Mono', monospace";
   const teal = "var(--sh-accent, #2ee0c4)", green = "var(--sh-green, #7bbf5a)", red = "var(--sh-rust, #e0644b)";
@@ -234,6 +238,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
     return alt ? { ...m, title: alt.name, kcal: alt.kcal, p: alt.p, c: alt.c, f: alt.f, _swapped: true } : m;
   };
   const remaining = targets.kcal - ledger.kcal;
+  const chip = (p, key) => (p && p.name ? <span data-meal-card-playlist={key} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: mono, fontSize: 8.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--sh-spotify-ink, #1db954)", background: "rgba(29,185,84,0.08)", border: "1px solid rgba(29,185,84,0.35)", borderLeft: "3px solid #1DB954", borderRadius: 4, padding: "5px 9px" }}>♪ {p.name}{p.meta ? " · " + p.meta : ""}</span> : null);
   const ghost = { fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(var(--sh-ink-rgb, 242,237,228),0.7)", background: "transparent", border: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.18)", borderRadius: 4, padding: "8px 13px", cursor: "pointer" };
   return (
     <div>
@@ -243,6 +248,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
           {remaining > 0 ? remaining.toLocaleString() + " kcal left" : remaining < 0 ? "Over by " + Math.abs(remaining).toLocaleString() + " kcal" : "Target hit"}
         </span>
       </div>
+      {playlist && playlist.name ? <div style={{ marginTop: 8 }}>{chip(playlist, "day")}</div> : null}
       <div className="dash-ledger" style={{ marginTop: 9 }} />
       {/* The ledger — ticks live as meals are logged; red when a macro runs over */}
       {[["Calories", ledger.kcal, targets.kcal, teal], ["Protein", ledger.p, targets.p, "#7ed4ff"], ["Carbs", ledger.c, targets.c, "#f6c177"], ["Fat", ledger.f, targets.f, "#ff8a6d"]].map(([l, v, t, c2]) => {
@@ -268,6 +274,7 @@ function DashMealLedgerCard({ meals = [], targets, ledger, logged = {}, onLog, h
                 <div style={{ fontFamily: mono, fontSize: 8.5, letterSpacing: "0.12em", textTransform: "uppercase", color: teal }}>{m.slot}{m.time ? " · " + m.time : ""}{m._swapped ? " · swapped" : ""}</div>
                 <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 3, opacity: isLogged ? 0.55 : 1 }}>{m.title}</div>
                 <div style={{ fontFamily: mono, fontSize: 9, color: ink50, marginTop: 2 }}>{m.kcal} kcal · {m.p}P · {m.c}C · {m.f}F</div>
+                {m.playlist && m.playlist.name ? <div style={{ marginTop: 6 }}>{chip(m.playlist, m.id)}</div> : null}
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 {canSwap && (
@@ -711,6 +718,7 @@ function ClientDashboardPage() {
   let meals = live ? [] : DCL_DEMO.meals;
   let targets = live ? { kcal: 0, p: 0, c: 0, f: 0 } : DCL_DEMO.targets;
   let planLive = false;
+  let mealDayPlaylist = null; // the nutritionist's playlist for today's plan day, if any
   if (plan && (plan.training.hasPlan || plan.meals.hasPlan)) {
     planLive = true;
     const w = (plan.training.workouts || []).find((x) => x.scheduledDate === todayIso)
@@ -734,7 +742,9 @@ function ClientDashboardPage() {
       id: m.id || "live-" + j, slot: m.slot || "Meal", time: dclFmt12(m.time), title: m.title || "Meal",
       kcal: m.kcal || 0, p: m.p || 0, c: m.c || 0, f: m.f || 0,
       alts: Array.isArray(m.alts) ? m.alts : [], // approved swap alternates from the plan
+      playlist: m.playlist && m.playlist.name ? m.playlist : null,
     })) : [];
+    mealDayPlaylist = day && day.playlist && day.playlist.name ? day.playlist : null;
     const tgt = day && day.targets;
     if (tgt && tgt.cal) targets = { kcal: Number(tgt.cal) || DCL_DEMO.targets.kcal, p: Number(tgt.p) || DCL_DEMO.targets.p, c: Number(tgt.c) || DCL_DEMO.targets.c, f: Number(tgt.f) || DCL_DEMO.targets.f };
   }
@@ -890,7 +900,7 @@ function ClientDashboardPage() {
               <div className="dash-plate dash-plate--tick dash-plate--bracket" style={{ ...plate(DCL_TEAL), paddingLeft: 24 }}>
                 <DashMealLedgerCard
                   meals={meals} targets={targets} ledger={ledger} logged={logged}
-                  onLog={logMeal} headerNote={planLive ? "from your plan" : null}
+                  onLog={logMeal} headerNote={planLive ? "from your plan" : null} playlist={mealDayPlaylist}
                   swapStorageKey={"shape.dashMealSwap." + todayIso}
                 />
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(var(--sh-ink-rgb, 242,237,228),0.06)", textAlign: "right" }}>

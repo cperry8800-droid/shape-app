@@ -632,6 +632,8 @@ function DmbClientPreview({ doc, day, variant, targets, label }) {
   const meals = React.useMemo(() => DashMeals.resolveDay(day, variant).map((m, i) => ({
     id: m.id || "pv-" + i, slot: m.slot, time: null, title: m.name,
     kcal: m.kcal, p: m.p, c: m.c, f: m.f, alts: m.swaps || [],
+    // The meal's playlist as the member's card shows it (the assignment sends it: sentPlaylist).
+    playlist: m.playlist && m.playlist.name ? m.playlist : null,
   })), [JSON.stringify(day), variant]);
   const [ledger, setLedger] = React.useState({ kcal: 0, p: 0, c: 0, f: 0 });
   const [logged, setLogged] = React.useState({});
@@ -652,6 +654,7 @@ function DmbClientPreview({ doc, day, variant, targets, label }) {
             setLedger((l) => ({ kcal: l.kcal + (m.kcal || 0), p: l.p + (m.p || 0), c: l.c + (m.c || 0), f: l.f + (m.f || 0) }));
           }}
           headerNote={label || (variant === "training" ? "training day" : variant + " day")}
+          playlist={day && day.playlist && day.playlist.name ? day.playlist : null}
         />
       </div>
     </div>
