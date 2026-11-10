@@ -732,3 +732,57 @@ test('the week and month kcal averages read calories eaten, never a device\'s ca
   assert.match(route, /calories: caloriesSeries,/);
   assert.doesNotMatch(route, /seriesFor\('calories'\)/, 'the snapshot calories column also holds Garmin/Oura active calories');
 });
+
+
+// Owner, 2026-11-10: "add a 'Coming up' preview of the next days' meals to Eat, and a pop-up of the full week's
+// meal plan, the same way Train now works". Eat hands Coming up its week; Coming up's days and the Meal plan
+// link open the meal plan sheet, and its Month view the calendar.
+test('Eat: Coming up and the Meal plan link open the meal plan sheet; Playlists read the week', () => {
+  delete globalThis.ShapeAuth;
+  let month = 0;
+  const d = drive(BSClientEat, { onProfile() {}, goCalendar() { month += 1; } });
+  const fn = (name) => (n) => typeof n.type === 'function' && n.type.name === name;
+  const coming = d.nodes().find(fn('BSEatComingUp'));
+  assert.ok(coming && coming.props.program.length === 7 && typeof coming.props.mealsOf === 'function', 'no Coming up with the week');
+  assert.ok(d.nodes().indexOf(coming) > d.nodes().findIndex(fn('BSEatDay')), 'Coming up follows the day');
+  const lists = d.nodes().find((n) => fn('BSCoachPlaylists')(n) && n.props.role === 'nutritionist');
+  // The same week, each day's meals as the menu shows them on that weekday's next date (Codex on #2670).
+  assert.ok(lists && lists.props.program.length === 7, 'Playlists does not read the week it matches against');
+  const todayIdx = (new Date().getDay() + 6) % 7;
+  const titles = (ms) => (ms || []).map((m) => m.title).join('|');
+  lists.props.program.forEach((day, i) => {
+    assert.equal(day.headline, coming.props.program[i].headline, 'Playlists reads the same days');
+    assert.equal(titles(day.meals), titles(coming.props.mealsOf(i, (i - todayIdx + 7) % 7)), 'with the meals the menu shows');
+  });
+  const link = d.nodes().find((n) => fn('BSFocusLink')(n) && n.props.label === 'Meal plan');
+  assert.ok(link, 'no Meal plan link');
+  link.props.onOpen();
+  d.render();
+  let sheet = d.nodes().find(fn('BSEatPlanSheet'));
+  assert.ok(sheet, 'the Meal plan link opened no sheet');
+  assert.equal(sheet.props.focusIdx, (new Date().getDay() + 6) % 7, 'it opens on today');
+  assert.equal(month, 0, 'not the calendar');
+  // Each day's meals as the menu shows them: the sample's first day reads its own meals.
+  assert.ok(sheet.props.mealsOf(0).length > 0);
+  sheet.props.onClose();
+  d.render();
+  assert.equal(d.nodes().find(fn('BSEatPlanSheet')), undefined);
+  d.nodes().find(fn('BSEatComingUp')).props.onPlan(5);
+  d.render();
+  sheet = d.nodes().find(fn('BSEatPlanSheet'));
+  assert.equal(sheet && sheet.props.focusIdx, 5, 'a day coming up opens the plan on that day');
+  assert.equal(sheet.props.weekOffset, 0, 'in this week');
+  // A day past Sunday opens the week that holds it, with that date's meals (Codex on #2670).
+  sheet.props.onClose();
+  d.render();
+  d.nodes().find(fn('BSEatComingUp')).props.onPlan(0, 1);
+  d.render();
+  sheet = d.nodes().find(fn('BSEatPlanSheet'));
+  assert.equal(sheet.props.focusIdx, 0);
+  assert.equal(sheet.props.weekOffset, 1, 'next week');
+  assert.equal(sheet.props.mealsOf.length, 2, 'the sheet hands each day its date');
+  sheet.props.onMonth();
+  d.render();
+  assert.equal(month, 1, 'Month view opens the calendar');
+  assert.equal(d.nodes().find(fn('BSEatPlanSheet')), undefined, 'and closes the sheet');
+});

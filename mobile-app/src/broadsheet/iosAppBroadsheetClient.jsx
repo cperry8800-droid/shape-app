@@ -98,7 +98,8 @@ import { BSEatDay } from './BSEatDay.jsx';
 import { BSTrainBurnPage } from './BSTrainBurn.jsx';
 import { BSTrainDay } from './BSTrainDay.jsx';
 import { BSTrainPlanSheet } from './BSTrainPlan.jsx';
-import { bsTrainPlaylistCards } from './bsTrainPlaylists.mjs';
+import { BSEatComingUp, BSEatPlanSheet } from './BSEatPlan.jsx';
+import { bsTrainPlaylistCards, bsEatPlaylistCards, bsPlaylistOf } from './bsTrainPlaylists.mjs';
 import { BSPlanReadFailed } from './BSPlanReadFailed.jsx';
 import { BSWallTrainingNow } from './BSWallLive.jsx';
 import { BSLiveBoostSheet } from './BSLiveBoost.jsx';
@@ -4450,7 +4451,7 @@ function useBSCoachPlaylists(role) {
   }, [role]);
   return list;
 }
-function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }) {
+function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0, planCoach = null }) {
   const t = useBS();
   const tr = useShapeTr();
   const live = useBSCoachPlaylists(signedIn ? role : null);
@@ -4486,7 +4487,13 @@ function BSCoachPlaylists({ role, signedIn, demo, program = null, todayIdx = 0 }
     // A workout's own card names the coach who set it, or nobody (never " · Your trainer" with no name). The
     // plan names it and nothing more: no link, no service, so it is drawn bare, never as Spotify's (Codex on
     // #2669: an Apple Music playlist read "Open in Spotify").
-    cards = bsTrainPlaylistCards(items, program, todayIdx).map((c) => (c.onlyOnDay ? { ...c, k: c.coach ? byOf(c.coach) : null, bare: true } : c));
+    // Eat's are the nutritionist's, on a day or a meal: the plan's nutritionist set them (`planCoach`).
+    const matched = role === 'nutritionist' ? bsEatPlaylistCards(items, program, todayIdx) : bsTrainPlaylistCards(items, program, todayIdx);
+    cards = matched.map((c) => {
+      if (!c.onlyOnDay) return c;
+      const by = c.coach || (role === 'nutritionist' ? planCoach : null);
+      return { ...c, coach: by, k: by ? byOf(by) : null, bare: true };
+    });
     if (!who) who = firstName(cards.find((c) => c.coach) && cards.find((c) => c.coach).coach);
   }
   if (!cards.length) return null;
@@ -11265,6 +11272,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     : tr('nutrition:eat.goalMaintain', { defaultValue: 'Maintaining' });
   const [swapMealId, setSwapMealId] = useStateBSC(null);     // meal id being swapped, or null
   const [mealOverrides, setMealOverrides] = useStateBSC({}); // meal id → { title, kcal, p, c, f }
+  // The meal plan sheet (BSEatPlan.jsx): the weekday it opens on, or null when closed, and its week: 0 this
+  // one, 1 the next (a Coming up day past Sunday opens the week that holds it; Codex on #2670).
+  const [eatPlanAt, setEatPlanAt] = useStateBSC(null);
+  const [eatPlanWeek, setEatPlanWeek] = useStateBSC(0);
   React.useEffect(() => {
     let cancelled = false;
     if (!(window.shapeDb && window.shapeDb.getUserGoals)) return undefined;
@@ -11302,12 +11313,14 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   }, []);
 
   // ── Compact builder for non-anchor days. Generates a full BSMealPreview-shaped record.
-  const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A' }) => ({
+  const mk = ({ id, time, tag, tagColor, title, kcal, p, c, f, state, last, hero, brief, ingredients, steps, coachNote, prep = '10 min', portion = '1 plate', score = 'A', playlist = null }) => ({
     id, time, tag, tagColor, title,
     sub: `${kcal} kcal · ${p}P · ${c}C · ${f}F`,
     state, last,
     kcal, p, c, f, prep, portion, score,
     hero, brief, ingredients, steps, coachNote,
+    // The nutritionist's playlist for this meal (dashMealBuilder.jsx), or null.
+    playlist,
   });
 
   // Build the 7-day menu from a live meal plan (days[] from /api/client/plan),
@@ -11351,6 +11364,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           steps: meal.steps || [],
           coachNote: meal.coachNote || '',
           prep: meal.prep || '—', portion: meal.portion || '1 plate', score: meal.score || '—',
+          playlist: bsPlaylistOf(meal.playlist),
         });
       });
       const tot = dy.totals || {}; const tgt = dy.targets || {};
@@ -11376,6 +11390,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           cal: str(tot.cal), p: str(tot.p), c: str(tot.c), f: str(tot.f),
           target: { cal: str(tgt.cal), p: str(tgt.p), c: str(tgt.c), f: str(tgt.f) },
         },
+        // The nutritionist's playlist for the day (a Sunday prep), or null (dashMealBuilder.jsx).
+        playlist: bsPlaylistOf(dy.playlist),
         meals,
       };
     });
@@ -12166,6 +12182,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       d: 'S 23',
       kicker: 'Section · Nutrition',
       title: <>Easy plate.</>,
+      // The sample's cooking playlist, on the Sunday batch it was made for (BS_COACH_PLAYLISTS' "Sun prep").
+      playlist: { name: 'Meal prep, low-key', meta: '45m · 12 tracks' },
       tag: 'REST',
       tagColor: t.GREEN,
       accent: t.GREEN,
@@ -12899,6 +12917,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // left reads "—", not 0 kcal, and the coach link names no 0 kcal target. A member the read says has no
   // plan is unchanged.
   const bsEatFuelUnread = bsEatSignedIn && !eatPlanRead && !liveMealDays;
+  // Coming up and the meal plan show the week once it is known (Codex on #2670): signed out (the sample),
+  // a plan already read, or a read that answered. While the read is out or failed the week is the open
+  // stand-in, and they would tell the member "No menu" over a plan that only could not be read.
+  const eatPlanShown = !bsEatSignedIn || eatPlanRead || !!liveMealDays;
   // A macro tile's own page (owner, 2026-10-24: "the 3 of these are links to the same page"): the
   // macro's figures as the tile reads them, the day's meals by it, and the week against the target
   // (a coach's Adjust target is the current one, so it is every day's).
@@ -12976,6 +12998,23 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
     </div>
   ) : null;
   // The menu's rows: each meal at its time, its stamps, its shop list and its door.
+  // A day's meals as the menu shows them, for Coming up and the meal plan (BSEatPlan.jsx): the plan's meals
+  // with the member's swaps (by title, then that date's own swap by id) and the meals they planned that date.
+  // `off` is days from today (Coming up, past Sunday into next week's dates); without it, this week's day.
+  const eatMealsOf = (idx, off = null) => {
+    const dd = PROGRAM[idx];
+    if (!dd) return [];
+    const md = bsMealDayOf(myDays, bsYmdAdd(bsLocalDay(Date.now()), off != null ? off : idx - bsWeekdayIdx()));
+    const macro = (x) => `${x.kcal} kcal · ${x.p}P · ${x.c}C · ${x.f}F`;
+    const base = (dd.meals || []).map((m) => {
+      const ov = mealOverrides[m.title];
+      const sw = ov ? { ...m, ...ov, _swapped: true } : m;
+      const ds = md.swap[m.id];
+      return ds ? { ...sw, title: ds.title, kcal: ds.kcal, p: ds.p, c: ds.c, f: ds.f, sub: macro(ds), _swapped: true } : sw;
+    });
+    const own = md.add.map((a) => ({ id: `own-${a.id}`, time: a.time || BS_OWN_SLOT_TIME[a.slot] || '', tag: a.slot.slice(0, 5), tagColor: eatSlotColor[a.slot] || t.AMBER, title: a.title, kcal: a.kcal, p: a.p, c: a.c, f: a.f, sub: macro(a), _own: true }));
+    return bsEatByTime([...base, ...own], (m) => bsFocusMin(bsMealSchedTime(m)));
+  };
   const _eatRows = effMeals.map((m) => {
     const logged = m.state === 'done';
     const isNext = !!(bsEatNextMeal && m.id === bsEatNextMeal.id);
@@ -13044,6 +13083,10 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
         slotOf={_eatSlot} timeOf={bsMealSchedLabel} fmt12={bsFmt12} macroRow={_eatMacro}
         onOpenMeal={(id) => setPreviewMealId(id)} onSwapMeal={(id) => setSwapMealId(id)} onSwapPick={() => setSwapMealId('pick')} />
 
+      {/* Coming up (owner, 2026-11-10: "add a 'Coming up' preview of the next days' meals to Eat"): the next
+          three days' menus, each opening the meal plan on its day (BSEatPlan.jsx). */}
+      {eatPlanShown && <BSEatComingUp program={PROGRAM} mealsOf={eatMealsOf} onPlan={(idx, week) => { setEatPlanWeek(week === 1 ? 1 : 0); setEatPlanAt(Number.isInteger(idx) ? idx : bsWeekdayIdx()); }} />}
+
       {/* Tonight's prep for tomorrow (owner, 2026-10-05): the same list the reminder names. A dish
           the nutritionist ticked has no catalog method to walk, so it has no Start (Phase 2). */}
       {prepTonightGroups.map((g) => (
@@ -13097,6 +13140,9 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
           <div style={{ marginTop: t.sectGap }}>
             <BSFocusLink tour="hero-grocery" color={t.GREEN} glyph="◎" label={tr('nutrition:eat.shopList', { defaultValue: 'The shop list' })} tag={total > 0 ? toGet : ''} sub={[byline, cats].filter(Boolean).join(' · ')} onOpen={() => setView('grocery')} />
             <BSFocusLink data-bsck-door="prep" color={t.isLight ? '#0a8f87' : t.ACCENT} glyph="→" label={tr('cook:prep.door', { defaultValue: 'Prep the week' })} onOpen={() => openPrep()} />
+            {/* The week's meal plan as a sheet, every day and meal (owner, 2026-11-10: "a pop-up of the full week's
+                meal plan, the same way Train now works"). */}
+            {eatPlanShown && <BSFocusLink data-bsck-door="meal-plan" color={t.INK70} glyph="▤" label={tr('nutrition:eat.mealPlan', { defaultValue: 'Meal plan' })} tag={liveMealTitle || ''} onOpen={() => { setEatPlanWeek(0); setEatPlanAt(bsWeekdayIdx()); }} />}
             <BSFocusLink color="#a07a2e" glyph="✎" label={coach} tag={bsEatFuelUnread && !bsEatCoachSet('calories') ? planGoalLabel : `${planGoalLabel} · ${bsEatCalTgt.toLocaleString()}`} onOpen={() => setPreviewDayBrief(true)} />
             {cur.coachLine ? (
               <div style={{ margin: `10px ${t.padX}px 0`, padding: '2px 0 2px 12px', borderLeft: '3px solid #a07a2e', fontFamily: tClean.DISPLAY, fontStyle: 'italic', fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>&ldquo;{cur.coachLine}&rdquo;</div>
@@ -13114,11 +13160,24 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
       {(() => {
         const all = Array.isArray(window.BS_COACH_PLAYLISTS) ? window.BS_COACH_PLAYLISTS : [];
         const lists = all.filter(p => p.role === 'Nutritionist');
-        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }) + (p.attached ? ` · ${p.attached}` : ''), url: p.url, provider: p.provider, tracks: p.songs }))
-          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks · Sun prep' }];
+        // Which day a sample plays on is the sample week's own (its Sunday's `playlist`), matched as a
+        // nutritionist's is, so `attached` no longer rides in its meta.
+        const items = lists.length ? lists.map(p => ({ k: tr('nutrition:eat.playlistBy', { defaultValue: '{who} · Your nutritionist', who: p.by }), title: p.name, meta: tr('nutrition:eat.playlistMeta', { defaultValue: '{len} · {bpm} BPM · {tracks, plural, one {# track} other {# tracks}}', len: p.len, bpm: p.bpm, tracks: p.tracks }), url: p.url, provider: p.provider, tracks: p.songs }))
+          : [{ k: 'Dr. Maya Patel · Your nutritionist', title: 'Meal prep, low-key', meta: '45m · 85-100 BPM · 12 tracks' }];
         const who = lists.length ? String(lists[0].by || '').replace(/^Dr\.?\s+/i, '').split(' ')[0] : 'Maya';
-        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} />;
+        // Each day's meals as the menu shows them (eatMealsOf), on that weekday's next date, the week the
+        // labels read soonest first (Codex on #2670): a swapped dish's playlist says the dish on the plate.
+        const todayIdx = bsWeekdayIdx();
+        const playWeek = PROGRAM.map((d, i) => (d ? { ...d, meals: eatMealsOf(i, (i - todayIdx + 7) % 7) } : d));
+        return <BSCoachPlaylists role="nutritionist" signedIn={bsEatSignedIn} demo={{ who, items }} program={playWeek} todayIdx={todayIdx} planCoach={bsEatSignedIn ? (liveMealCoach || null) : 'Dr. Maya Patel'} />;
       })()}
+
+      {/* The meal plan: the week as a sheet, each day's meals as the menu shows them. It portals out of the
+          clean area and keeps its type (bsCleanSheet). */}
+      {eatPlanAt != null && (
+        <BSEatPlanSheet program={PROGRAM} focusIdx={eatPlanAt} weekOffset={eatPlanWeek} planName={liveMealTitle || ''} coach={bsEatSignedIn ? (liveMealCoach || null) : 'Dr. Maya Patel'}
+          mealsOf={(i, off) => eatMealsOf(i, off)} onClose={() => setEatPlanAt(null)} onMonth={() => { setEatPlanAt(null); goCalendar(); }} />
+      )}
       </BSCleanType>
 
       {/* Meal swap sheet — pick which meal, then a coach-approved alternate. */}
