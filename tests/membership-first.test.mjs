@@ -898,36 +898,48 @@ test('a membership read that comes back with an error is unknown, never "not a m
 });
 
 // ── the website ─────────────────────────────────────────────────────────────────────────────
-test('website: the client app asks first, and a signed-in non-member gets the join panel on every tab but Settings', () => {
+test('website: the client app asks first, and a free account draws every route (owner, 2026-11-10)', () => {
   const shell = read('public/newdesign/ClientApp.html');
   assert.match(shell, /fetch\("\/api\/me\/membership", \{ credentials: "same-origin", cache: "no-store", signal: ctl \? ctl\.signal : undefined \}\)/);
   // Codex on #2353: a lookup that never answers is unknown after 8 seconds, not a blank page.
   assert.match(shell, /const timer = setTimeout\(\(\) => \{ try \{ if \(ctl\) ctl\.abort\(\); \} catch \(e\) \{\} settle\(\{ unknown: true \}\); \}, 8000\);/);
   assert.match(shell, /if \(settled\) return;\n\s+settled = true;/, 'one answer: the late reply does not overwrite the timeout');
-  assert.match(shell, /if \(!membership\) return null;\n(?:\s*\/\/.*\n)*\s+if \(membership\.signedIn && membership\.ageRestricted === true && route !== "settings"\) return <ClientAgeRestrictedPage \/>;\n\s+if \(membership\.signedIn && membership\.member === false && route !== "settings"\) return <ClientJoinPage \/>;/);
+  // A known minor still gets the age page; nothing else stands in front of a route.
+  assert.match(shell, /if \(!membership\) return null;\n(?:\s*\/\/.*\n)*\s+if \(membership\.signedIn && membership\.ageRestricted === true && route !== "settings"\) return <ClientAgeRestrictedPage \/>;\n\s+return \(caHasRoute\(route\) \? CA_ROUTES\[route\] : CA_ROUTES\.today\)\(\);/);
+  assert.doesNotMatch(shell, /membership\.member === false/, 'a free account is turned away from a route again');
   assert.match(shell, /window\.__shapeClientMembership = d \|\| \{ unknown: true \};/, 'an unanswered lookup keeps the page as it was');
+  assert.match(shell, /if \(d && d\.signedIn === true\) d = \{ \.\.\.d, pastDue: d\.pastDue === true \};/, 'pastDue is always a boolean on a signed-in answer');
+  // The join panel is the membership page now, a route of its own, and the shell's notice is drawn on every route.
+  assert.match(shell, /membership: \(\) => <React\.Fragment><ClientJoinPage \/><ChatWidget tabs=\{clientChatTabs\} \/><\/React\.Fragment>,/);
+  assert.match(shell, /window\.ShapeDashNotice = ClientMembershipNotice;/);
+  assert.match(read('public/newdesign/trainerDashboard.jsx'), /\{Notice \? <Notice \/> : null\}\n\s+\{children\}/, 'DashFrame draws the shell notice under the app bar');
   const dash = read('public/newdesign/dashClient.jsx');
   assert.match(dash, /function ClientJoinPage\(\)/);
   // Codex on #2353: each pending-membership try is called off after 8 seconds.
   assert.match(dash, /const late = setTimeout\(\(\) => \{ try \{ if \(ctl\) ctl\.abort\(\); \} catch \(e\) \{\} \}, 8000\);\n\s+fetch\("\/api\/me\/membership", \{ credentials: "same-origin", cache: "no-store", signal: ctl \? ctl\.signal : undefined \}\)/);
   assert.match(dash, /\.then\(\(d\) => \{\n\s+clearTimeout\(late\);/);
-  assert.match(dash, /window\.ShapeMembership\.start\("\/newdesign\/ClientApp\.html#today"\)/);
-  assert.match(dash, /Object\.assign\(window, \{ ClientDashboardPage, ClientJoinPage,/);
+  assert.match(dash, /await M\.start\("\/newdesign\/ClientApp\.html#today", plan \? \{ plan \} : undefined\)/);
+  assert.match(dash, /Object\.assign\(window, \{ ClientDashboardPage, ClientJoinPage, ClientAgeRestrictedPage, ClientMembershipNotice,/);
   const tour = read('public/newdesign/dashTour.js');
-  assert.match(tour, /if \(m\.signedIn && m\.member === false\) return;/, 'no first-run tour over the join panel');
+  assert.doesNotMatch(tour, /m\.member === false/, 'the first-run tour skips a free account again');
+  assert.match(tour, /if \(m\.signedIn && m\.ageRestricted === true\) return;/, 'no first-run tour over the age page');
 });
 
 test('website: every membership button goes through one helper that posts returnTo, and the coach profile branches on the code', () => {
   const shell = read('public/newdesign/pageShell.jsx');
-  assert.match(shell, /fetch\("\/api\/stripe\/platform-checkout", \{\n\s+method: "POST", credentials: "same-origin", headers: \{ "Content-Type": "application\/json" \},\n\s+body: JSON\.stringify\(\{ returnTo: back, cancelPath: cancelTo \|\| back \}\),/);
-  assert.match(shell, /Object\.assign\(window, \{ ShapeMembership: \{ start: shapeStartMembership, here: shapeMembershipHere \} \}\);/);
+  // The plan rides along when one was chosen (owner, 2026-11-10: $5 a month or $48 a year); none is the server's monthly.
+  assert.match(shell, /fetch\("\/api\/stripe\/platform-checkout", \{\n\s+method: "POST", credentials: "same-origin", headers: \{ "Content-Type": "application\/json" \},\n\s+body: JSON\.stringify\(\{ returnTo: back, cancelPath: o\.cancelTo \|\| back, \.\.\.\(plan \? \{ plan \} : \{\}\) \}\),/);
+  assert.match(shell, /start: shapeStartMembership, here: shapeMembershipHere, portal: shapeOpenBillingPortal, read: shapeReadMembership, peek: shapeMembershipPeek,/);
+  assert.match(shell, /lockKind: shapeLockKind, noraLock: shapeNoraLock, hasPaid: shapeHasPaid, hasNora: shapeHasNora, noraDaysLeft: shapeNoraDaysLeft,/);
+  // A past-due account's checkout answers 409 payment_past_due: the billing portal, not a second membership.
+  assert.match(shell, /if \(res\.status === 409 && j && j\.code === "payment_past_due"\) return shapeOpenBillingPortal\(back\);/);
   assert.match(shell, /q\.delete\("member"\);/, 'a second trip does not stack member= parameters');
   const profile = read('public/newdesign/livingShared.jsx');
   assert.match(profile, /if \(res\.status === 402 && j && j\.code === "membership_required"\) \{ setNeedsMember\(true\); return; \}/);
   assert.match(profile, /if \(res\.status === 402 && j\.code === "membership_required" && window\.ShapeMembership\)/);
   assert.doesNotMatch(profile, /j\.error === "membership_required"/, 'the old branch compared the wrong field and never ran');
   assert.equal((profile.match(/\{joinPrompt\}/g) ?? []).length, 2, 'under both Subscribe buttons');
-  assert.match(read('public/newdesign/pricing.jsx'), /window\.ShapeMembership\.start\(home, "\/newdesign\/Pricing\.html"\)/);
+  assert.match(read('public/newdesign/pricing.jsx'), /window\.ShapeMembership\.start\(home, \{ plan: plan \|\| null, cancelTo: "\/newdesign\/Pricing\.html" \}\)/);
 });
 
 test('the server-action checkouts (/subscribe and /purchase) take the detour, outside any try', () => {

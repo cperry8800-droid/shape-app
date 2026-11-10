@@ -243,7 +243,26 @@ function ProductCard({ p, balance, onRedeem, locked = false, busy = false, inCar
   );
 }
 
-function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRedeemed }) {
+// A Store route's refusal: the membership gate answers 402 with `code` (membership_required, or
+// payment_past_due for a renewal that failed); older answers carried it in `error`.
+const STORE_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+function storeRefusalCode(d) {
+  const c = d && (d.code || d.error);
+  return c === "payment_past_due" || c === "membership_required" ? c : null;
+}
+
+function StoreGrid({ locked = false, signedIn = false, pastDue = false, balance = BALANCE, onRedeemed }) {
+  // The way in from a locked Store (owner, 2026-11-10: spending points is part of the membership;
+  // an account is free and still earns them). A free account: the membership checkout, back here.
+  // A renewal that failed: Shape's billing portal. Signed out: Pricing.
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
+  const storeJoin = async (plan) => {
+    const M = window.ShapeMembership;
+    if (!signedIn || !M) { window.location.href = "Pricing.html"; return; }
+    const r = pastDue ? await M.portal("/newdesign/Store.html") : await M.start("/newdesign/Store.html", plan === "annual" || plan === "monthly" ? { plan } : undefined);
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) setNotice(r.error);
+  };
   const [cat, setCat] = useSStore("All");
   const [sort, setSort] = useSStore("Featured");
   const [query, setQuery] = useSStore("");
@@ -293,7 +312,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   useEStore(() => { if (signedIn) loadTierRewards(); }, [signedIn, loadTierRewards]);
 
   async function claimReward(reward, choice, shipping) {
-    if (locked) { window.location.href = "Pricing.html"; return; }
+    if (locked) { storeJoin(); return; }
     if (claimKey) return;
     const needsShip = reward.kind === "merch";
     if (needsShip && !shipping) { setClaimShipFor({ reward, choice }); setNotice(""); return; }
@@ -312,7 +331,8 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
         else if (e === "not_unlocked") setNotice("That reward isn't unlocked yet.");
         else if (e === "needs_shipping") setNotice("We need a full shipping address to send that.");
         else if (e === "bad_choice") setNotice("Pick one of the options shown.");
-        else if (e === "membership_required") setNotice("Become a Shape member to claim your rewards.");
+        else if (storeRefusalCode(d) === "payment_past_due") setNotice(STORE_PAST_DUE_LINE);
+        else if (storeRefusalCode(d) === "membership_required") setNotice("Become a Shape member to claim your rewards.");
         else setNotice("Could not claim that. Please try again.");
         if (e === "already_claimed" || e === "not_unlocked") { setClaimShipFor(null); loadTierRewards(); }
         return;
@@ -336,7 +356,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   const cartLines = Object.entries(cart).map(([id, qty]) => ({ p: allProducts.find((x) => x.itemId === id), qty: Number(qty) || 0 })).filter((l) => l.p && l.qty > 0);
   const cartCount = cartLines.reduce((a, l) => a + l.qty, 0);
   const cartTotal = cartLines.reduce((s, l) => s + l.p.cost * l.qty, 0);
-  const addToCart = (p) => { if (locked) { window.location.href = "Pricing.html"; return; } setCart((c) => ({ ...c, [p.itemId]: Math.min(9, (c[p.itemId] || 0) + 1) })); };
+  const addToCart = (p) => { if (locked) { storeJoin(); return; } setCart((c) => ({ ...c, [p.itemId]: Math.min(9, (c[p.itemId] || 0) + 1) })); };
   const setQty = (id, qty) => setCart((c) => { const n = { ...c }; if (qty <= 0) delete n[id]; else n[id] = Math.min(9, qty); return n; });
 
   // Single-item redemption (credit / service) — confirmed first (a).
@@ -354,7 +374,8 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (d.error === "insufficient_points") setNotice("Not enough points for that yet — keep earning!");
-        else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
+        else if (storeRefusalCode(d) === "payment_past_due") setNotice(STORE_PAST_DUE_LINE);
+        else if (storeRefusalCode(d) === "membership_required") setNotice("Become a Shape member to redeem your points.");
         else setNotice((d && d.error) || "Redemption failed. Please try again.");
         return;
       }
@@ -370,7 +391,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
 
   // Non-merch redeem opens a confirm step; merch adds to the cart.
   function handleRedeem(product) {
-    if (locked) { window.location.href = "Pricing.html"; return; }
+    if (locked) { storeJoin(); return; }
     if (busy) return;
     setConfirmFor(product);
   }
@@ -395,7 +416,7 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
   // Checkout the whole merch cart as one order (atomic, one shipment).
   async function doCheckout(shipping) {
     if (checkoutBusy) return;
-    if (locked) { window.location.href = "Pricing.html"; return; }
+    if (locked) { storeJoin(); return; }
     setCheckoutBusy(true); setNotice("");
     try {
       const items = cartLines.map((l) => ({ itemId: l.p.itemId, qty: l.qty }));
@@ -408,7 +429,8 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
       const d = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (d.error === "insufficient_points") setNotice("Not enough points to cover the cart — remove an item or earn more.");
-        else if (d.error === "membership_required") setNotice("Become a Shape member to redeem your points.");
+        else if (storeRefusalCode(d) === "payment_past_due") setNotice(STORE_PAST_DUE_LINE);
+        else if (storeRefusalCode(d) === "membership_required") setNotice("Become a Shape member to redeem your points.");
         else setNotice((d && d.error) || "Checkout failed. Please try again.");
         return;
       }
@@ -446,11 +468,18 @@ function StoreGrid({ locked = false, signedIn = false, balance = BALANCE, onRede
           {locked && (
             <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", padding: "14px 18px", borderRadius: 12, border: "1px solid rgba(232,177,74,0.4)", background: "rgba(232,177,74,0.08)" }}>
               <span style={{ fontSize: 20, filter: "grayscale(1)" }}>🔒</span>
-              <div style={{ flex: 1, minWidth: 220 }}>
-                <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.015em", color: INK }}>Browse freely — join to redeem</div>
-                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>You still earn points. Become a member to spend them on gear, training credits & rewards.</div>
+              <div style={{ flex: 1, minWidth: 220 }} data-store-locked={pastDue ? "pastdue" : signedIn ? "join" : "signin"}>
+                <div style={{ fontFamily: serif, fontSize: 18, letterSpacing: "-0.015em", color: INK }}>{pastDue ? "Your payment didn’t go through" : "Browse freely — join to redeem"}</div>
+                <div style={{ fontFamily: sans, fontSize: 13, color: "rgba(242,237,228,0.6)", marginTop: 2 }}>{pastDue ? STORE_PAST_DUE_LINE + " Your points are safe, and you keep earning them." : "You still earn points. Become a member to spend them on gear, training credits & rewards."}</div>
               </div>
-              <a href="Pricing.html" style={{ flex: "none", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px", textDecoration: "none" }}>{signedIn ? "Activate · $5/mo →" : "Join Shape · $5/mo →"}</a>
+              {signedIn
+                ? <React.Fragment>
+                    <button type="button" onClick={() => storeJoin(plans && plans.annual ? "monthly" : null)} style={{ flex: "none", border: 0, cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px" }}>{pastDue ? "Update your card →" : "Join · " + (plans && window.ShapeMembership ? window.ShapeMembership.money(plans.monthly.priceCents) : "$5") + "/mo →"}</button>
+                    {!pastDue && plans && plans.annual && window.ShapeMembership
+                      ? <button type="button" data-plan="annual" onClick={() => storeJoin("annual")} style={{ flex: "none", cursor: "pointer", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: INK, background: "transparent", border: "1px solid rgba(242,237,228,0.3)", borderRadius: 999, padding: "10px 18px" }}>{window.ShapeMembership.money(plans.annual.priceCents) + "/yr" + (window.ShapeMembership.annualSaving(plans) ? " · save " + window.ShapeMembership.annualSaving(plans) + "%" : "")}</button>
+                      : null}
+                  </React.Fragment>
+                : <a href="Pricing.html" style={{ flex: "none", fontFamily: sans, fontSize: 12, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "11px 20px", textDecoration: "none" }}>Join Shape · $5/mo →</a>}
             </div>
           )}
           {!!notice && (
@@ -785,7 +814,7 @@ function StoreMembersOnly({ signedIn }) {
         <div style={{ fontSize: 44, lineHeight: 1 }}>🔒</div>
         <div style={{ fontFamily: sans, fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: TEAL, margin: "20px 0 14px" }}>Members only</div>
         <h1 style={{ fontFamily: serif, fontSize: "clamp(34px,5vw,56px)", lineHeight: 0.98, letterSpacing: "-0.03em", fontWeight: 400, margin: 0, color: INK }}>The Shape Store is a <em style={{ fontStyle: "italic", color: TEAL }}>member perk.</em></h1>
-        <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: "18px auto 0", maxWidth: 480 }}>Become a Shape member to redeem your points for gear, training credits and rewards — plus Shape Radio, the community, and the marketplace. You still earn points; redeem them once you’re a member.</p>
+        <p style={{ fontFamily: sans, fontSize: 16, lineHeight: 1.55, color: "rgba(242,237,228,0.7)", margin: "18px auto 0", maxWidth: 480 }}>Become a Shape member to redeem your points for gear, training credits and rewards — plus Nora as your assistant and Shape Radio. The community and the marketplace stay free with your account, and you still earn points; redeem them once you’re a member.</p>
         <a href="Pricing.html" style={{ display: "inline-block", marginTop: 28, fontFamily: sans, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#04201d", background: TEAL, borderRadius: 999, padding: "14px 28px", textDecoration: "none" }}>{signedIn ? "Activate membership · $5/mo →" : "Join Shape · $5/mo →"}</a>
       </div>
     </section>
@@ -828,9 +857,17 @@ function StorePage() {
           isCoach = role === "trainer" || role === "nutritionist";
         } catch (_) {}
         if (isCoach) { if (!cancelled) setGate({ loading: false, allowed: true, signedIn: true }); return; }
-        const res = await fetch("/api/stripe/subscription", { credentials: "include", cache: "no-store" });
-        const d = res.ok ? await res.json() : null;
-        if (!cancelled) setGate({ loading: false, allowed: !!(d && d.active === true), signedIn: true });
+        // Spending points is part of the membership (owner, 2026-11-10), and /api/me/membership says
+        // whether this account has it: the membership, an approved coach's role or an admin's. A
+        // renewal that failed is past due: free until the card is updated, and told so here. An answer
+        // that never came opens the catalogue rather than telling a paying member to join: the
+        // redeem routes check again, and a refusal there says why.
+        const d = window.ShapeMembership && window.ShapeMembership.read
+          ? await window.ShapeMembership.read()
+          : await fetch("/api/me/membership", { credentials: "include", cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
+        const unread = !d || d.unknown === true || d.signedIn !== true;
+        const allowed = unread || d.member === true || d.coach === true || d.includedWithCoach === true;
+        if (!cancelled) setGate({ loading: false, allowed, signedIn: true, pastDue: !allowed && !!(d && d.pastDue === true) });
       } catch (_) {
         if (!cancelled) setGate({ loading: false, allowed: false, signedIn: true });
       }
@@ -848,7 +885,7 @@ function StorePage() {
         ) : (
           <React.Fragment>
             <StoreHero balance={liveBalance} credit={liveCredit} />
-            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} balance={liveBalance} onRedeemed={reloadStore} />
+            <StoreGrid locked={!gate.allowed} signedIn={gate.signedIn} pastDue={!!gate.pastDue} balance={liveBalance} onRedeemed={reloadStore} />
             <UnlockedCoupons redemptions={store.redemptions} />
             <StoreFAQ />
           </React.Fragment>

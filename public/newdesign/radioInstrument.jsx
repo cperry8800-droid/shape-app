@@ -125,6 +125,18 @@ function rdTransportKey({ signedIn, playing, paused }) {
   return "tune";
 }
 
+// The station's 402 (owner, 2026-11-10: Shape Radio is part of the $5 membership; an account is
+// free). The way in for a free account is the membership checkout, back to this page; for a
+// renewal that failed it is Shape's billing portal. Both are pageShell.jsx's (window.ShapeMembership).
+const RD_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+async function rdMembershipDoor(pastDue) {
+  const M = window.ShapeMembership;
+  if (!M) { window.location.href = "/newdesign/Pricing.html"; return; }
+  const r = pastDue ? await M.portal("/newdesign/Radio.html") : await M.start("/newdesign/Radio.html");
+  if (r && r.code === "already_member") { window.location.reload(); return; }
+  if (r && r.error) window.alert(r.error);
+}
+
 // How long the stream plays, for the admin Overview's Radio tab: radioListening.mjs (Radio.html
 // hands it over on window) sends a beat as it starts, one a minute, one as it stops. The consent rule
 // is the tap counts' (click-capture.js, which pageShell.jsx loads): until it has loaded, nothing is
@@ -153,7 +165,7 @@ function useRadioStation() {
   const [signedIn, setSignedIn] = React.useState(null);   // null = not resolved yet
   const [playing, setPlaying] = React.useState(false);
   const [configured, setConfigured] = React.useState(null); // null = unread
-  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age" | "region" | "unavailable"
+  const [refusal, setRefusal] = React.useState(null);        // null | "signin" | "age" | "region" | "membership" | "pastdue" | "unavailable"
   const [nowPlaying, setNowPlaying] = React.useState(null);
   const audioRef = React.useRef(null);
   // When the pass on the stream's address runs out (Shape's own station hands each member one,
@@ -460,18 +472,24 @@ function useRadioStation() {
         // 451: a country the licences do not reach (the US and the UK). Said as such, never as a
         // fault to retry.
         if (r.status === 451) { setRefusal("region"); return false; }
+        // 402: Shape Radio is part of the membership, and the owner's call on what that says is
+        // made (2026-11-10). A free account is offered the membership; an account whose renewal
+        // failed is told its card didn't go through, with the way to fix it. Never "press again",
+        // which can't work for either. The route's own code says which.
+        if (r.status === 402) {
+          const why = await r.json().catch(() => null);
+          if (!isCurrent()) return false;
+          if (why && why.code === "payment_past_due") { setRefusal("pastdue"); return false; }
+          setRefusal("membership");
+          return false;
+        }
         // ⚠ AND EVERY OTHER NON-OK ANSWER IS AN ATTEMPT WE COULD NOT COMPLETE, NOT A
         // FACT ABOUT THE BROADCAST (Codex, round 3). `fetch` RESOLVES on an HTTP
         // error, so the catch below never runs for one — which meant the previous
         // round removed the false "No station on the air yet" from the rejected-fetch
         // door and left it standing in this one. The route's own 503 (its membership
-        // check faulting, documented in its header as failing CLOSED) and its 402
-        // both came through here and were published as "no station".
-        //
-        // ⚠ THE 402 IS DELIBERATELY NOT GIVEN ITS OWN SENTENCE HERE. A signed-in
-        // non-member needs a join prompt, and what that says is an OWNER copy call
-        // already open in the war room. What this fixes is the lie: "we could not
-        // complete that" is true of a 402, where "there is no station" is not.
+        // check faulting, documented in its header as failing CLOSED) came through here
+        // and was published as "no station"; "we could not complete that" is true of it.
         if (!r.ok) { setRefusal("unavailable"); return false; }
         const cfg = await r.json();
         if (!isCurrent()) return false;               // .json() is a second await
@@ -1180,6 +1198,20 @@ function RadioInstrument() {
               )}
               {st.refusal === "region" && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>Shape Radio isn&rsquo;t available in your region yet</span>
+              )}
+              {/* A 402 (owner, 2026-11-10): the station is part of the membership. A free account
+                  is offered it; a renewal that failed is told so, with Update your card. */}
+              {st.refusal === "membership" && (
+                <span data-radio-refusal="membership" style={{ display: "inline-flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ ...eb, color: RD_CREAM50 }}>Shape Radio is part of membership</span>
+                  <button type="button" onClick={() => rdMembershipDoor(false)} style={{ ...eb, display: "inline-flex", alignItems: "center", minHeight: 24, padding: 0, background: "transparent", border: 0, color: RD_TEAL, cursor: "pointer" }}>Join &rarr;</button>
+                </span>
+              )}
+              {st.refusal === "pastdue" && (
+                <span data-radio-refusal="pastdue" style={{ display: "inline-flex", alignItems: "center", gap: 12, flexWrap: "wrap", maxWidth: 520 }}>
+                  <span style={{ fontFamily: RD_SANS, fontSize: 13.5, lineHeight: 1.45, color: RD_CREAM50 }}>{RD_PAST_DUE_LINE}</span>
+                  <button type="button" onClick={() => rdMembershipDoor(true)} style={{ ...eb, display: "inline-flex", alignItems: "center", minHeight: 24, padding: 0, background: "transparent", border: 0, color: RD_TEAL, cursor: "pointer" }}>Update your card &rarr;</button>
+                </span>
               )}
               {st.refusal === "unavailable" && (
                 <span style={{ ...eb, color: RD_CREAM50 }}>Couldn&rsquo;t reach the station &mdash; press again</span>

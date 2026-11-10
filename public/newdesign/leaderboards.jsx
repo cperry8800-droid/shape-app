@@ -43,9 +43,11 @@ function lbInitials(name) {
   return String(name || "?").split(/\s+/).filter(Boolean).map((p) => p[0]).join("").replace(/\./g, "").slice(0, 2).toUpperCase() || "?";
 }
 
-// One reader for the three routes. 401 signed out · 402 not a member · 403 not a coach ·
+// One reader for the three routes. 401 signed out · 402 refused this account · 403 not a coach ·
 // 503 not switched on yet · anything else that is not a 2xx, or a 2xx that is not the route's
-// payload, could not be read.
+// payload, could not be read. (The boards are free with an account, owner 2026-11-10, so a 402 is
+// not expected; the full board and an exact rank are the membership's, and the board's own
+// payload says when it is the top 10 only: lbBoardLock.)
 function lbRead(url, shaped) {
   return fetch(url, { credentials: "same-origin", cache: "no-store" }).then(function (r) {
     if (r.status === 401) return { kind: "anon" };
@@ -80,7 +82,7 @@ function lbCoachShaped(d) {
 function lbStateNote(kind, coach) {
   if (kind === "loading") return "Reading the board…";
   if (kind === "anon") return "Sign in to see the leaderboard.";
-  if (kind === "gated") return "The leaderboard is part of Shape membership.";
+  if (kind === "gated") return "This account can’t open the leaderboard right now.";
   if (kind === "forbidden") return coach ? "The coach leaderboard is for coaches with a Shape listing." : "You can’t see this board.";
   if (kind === "not_ready") return "This leaderboard isn’t switched on yet. Check back soon.";
   if (kind === "error") return "We couldn’t read the leaderboard just now. Nothing has changed; reload to try again.";
@@ -168,6 +170,61 @@ function lbWithGaps(all, skip) {
   return out;
 }
 
+// ⚠ EVERYONE IS RANKED; THE FULL BOARD IS THE MEMBERSHIP'S (owner, 2026-11-10, "like Strava"). A
+// free account is on the boards like anyone, and its privacy switches apply. What the membership adds
+// is the whole board, an exact rank anywhere on it, and rank history. The route says which board it
+// sent: `fullBoard: false` with `locked` "free_account" | "past_due" is the top 10 only, with no
+// movement (prevRank and moved null), and `me` is the caller's own row, its rank null outside the
+// top 10 (`me.inTop`). Outside it the board shows their points and why there is no rank, with the
+// way in: Join, or for a renewal that failed, the owner's past-due line and Update your card.
+// "join" | "pastdue" | null (the full board).
+const LB_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+function lbBoardLock(d) {
+  if (!d || typeof d !== "object" || d.fullBoard !== false) return null;
+  return d.locked === "past_due" ? "pastdue" : "join";
+}
+function LbLockLine({ kind, inTop }) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState("");
+  // Monthly, and yearly where it is set up (pageShell.jsx's /api/membership/plans read).
+  const plans = window.useShapePlans ? window.useShapePlans() : null;
+  const M0 = window.ShapeMembership;
+  const annual = plans && plans.annual && M0 && M0.money ? plans.annual : null;
+  const pastDue = kind === "pastdue";
+  const go = async (plan) => {
+    if (busy) return;
+    const M = window.ShapeMembership;
+    if (!M) { window.location.href = "/newdesign/Pricing.html"; return; }
+    setBusy(true); setErr("");
+    const r = pastDue ? await M.portal() : await M.start(undefined, plan ? { plan } : undefined);
+    if (r && r.code === "already_member" && !r.includedWithCoach) { window.location.reload(); return; }
+    if (r && r.error) setErr(r.error);
+    if (r) setBusy(false);
+  };
+  return (
+    <div className="lb-note" data-lb-locked={kind} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "8px 0 0" }}>
+      <span style={{ flex: "1 1 240px", minWidth: 0 }}>{pastDue ? LB_PAST_DUE_LINE : inTop ? "See the full board and your rank history with membership." : "See your exact rank and the full board with membership."}</span>
+      <button type="button" className="lb-btn lb-btn--on" disabled={busy} onClick={() => go(annual && !pastDue ? "monthly" : null)}>{busy ? (pastDue ? "Opening billing…" : "Opening checkout…") : pastDue ? "Update your card" : annual ? "Join · " + M0.money(plans.monthly.priceCents) + "/mo" : "Join"}</button>
+      {annual && !pastDue && !busy ? <button type="button" className="lb-btn" data-plan="annual" onClick={() => go("annual")}>{M0.money(annual.priceCents) + "/yr" + (M0.annualSaving && M0.annualSaving(plans) ? " · save " + M0.annualSaving(plans) + "%" : "")}</button> : null}
+      {err ? <span role="alert" style={{ flexBasis: "100%", color: "var(--sh-danger, #e07856)" }}>{err}</span> : null}
+    </div>
+  );
+}
+// Outside the top 10 on the top-10 board: the caller's points, no rank, and the lock line.
+function LbYouOutside({ me, kind, sideLabel, metaText }) {
+  return (
+    <div className="lb-card lb-you" data-lb-outside="">
+      <div className="lb-rank">{"—"}<small className="lb-of">outside the top 10</small></div>
+      <div style={{ minWidth: 0 }}>
+        <div className="lb-gap"><b>Outside the top 10</b> on this board.</div>
+        <div className="lb-meta">{metaText}</div>
+        <LbLockLine kind={kind} inTop={false} />
+      </div>
+      <div className="lb-side"><div className="lb-pts">{lbNum(me.points)}</div><div className="lb-eyebrow">{sideLabel}</div></div>
+    </div>
+  );
+}
+
 // ── Members ─────────────────────────────────────────────────────────────────────────────────
 function MemberLeaderboard() {
   const [scope, setScope] = React.useState("everyone");
@@ -218,14 +275,16 @@ function MemberLeaderboard() {
       {saveError ? <span className="lb-where" role="alert" style={{ color: "var(--sh-danger, #e07856)" }}>{saveError}</span> : null}
     </div>
   ) : null;
-  const foot = (
+  // The top-10 board (lbBoardLock): no movement is sent, so none is drawn or explained. Read from
+  // the payload only once the state note has said there is one.
+  const footFor = (lock) => (
     <div className="lb-foot">
       <span><b>First name and last initial only.</b> {scope === "team"
         ? "Teammates appear only if they switched this board on; a private profile shows initials, not a photo."
         : "Members with a private profile never appear."}</span>
       <span><b>Other members see points and tier.</b> Your streak, workouts and meals stay yours.</span>
       <span>Points from workouts, meals, habits and check-ins; store spending and tier bonuses don’t count.</span>
-      <span><b>{"▲▼"}</b> places moved since a week ago.</span>
+      {lock ? <span><b>Top 10 shown.</b> The full board, your exact rank and its history come with membership.</span> : <span><b>{"▲▼"}</b> places moved since a week ago.</span>}
     </div>
   );
 
@@ -233,8 +292,13 @@ function MemberLeaderboard() {
   if (note) return <div className="lb">{controls}<div className="lb-card lb-empty">{note}</div>{switches}</div>;
 
   const d = state.data;
+  const lock = lbBoardLock(d);
+  const foot = footFor(lock);
   const entries = d.entries;
   const me = d.me;
+  // On the top-10 board, a caller with points outside it gets their points and the lock line where
+  // their rank would be; anyone else on it gets the lock line under the board.
+  const outside = !!lock && !!me && (me.rank === null || me.rank === undefined) && me.inTop !== true && Number(me.points) > 0;
   const nameOf = (e) => (e.isMe ? "You" : e.name);
   const periodWord = LB_PERIODS.find((p) => p.key === period).long.toLowerCase();
 
@@ -281,13 +345,13 @@ function MemberLeaderboard() {
         </div>
         {rest.length ? (
           <div className="lb-card lb-board" role="table" aria-label="Leaderboard">
-            <div className="lb-row lb-row--head" role="row"><span className="lb-rk">Rank</span><span className="lb-mv">Wk</span><span>Member</span><span className="lb-c-tier">Tier</span><span className="lb-num">Points</span></div>
+            <div className="lb-row lb-row--head" role="row"><span className="lb-rk">Rank</span><span className="lb-mv">{lock ? "" : "Wk"}</span><span>Member</span><span className="lb-c-tier">Tier</span><span className="lb-num">Points</span></div>
             {rest.map((e, i) => e === null
               ? <div key={"gap" + i} className="lb-row lb-row--gap" aria-hidden="true">{"· · ·"}</div>
               : (
                 <div key={e.userId} className={"lb-row" + (e.isMe ? " lb-row--me" : "")} role="row">
                   <span className="lb-rk">#{lbNum(e.rank)}</span>
-                  <LbMove moved={e.moved} />
+                  {lock ? <span className="lb-mv" aria-hidden="true"></span> : <LbMove moved={e.moved} />}
                   <span className="lb-who"><LbAvatar name={e.name} url={e.avatarUrl} me={e.isMe} /><div><div className="lb-nm">{nameOf(e)}</div><div className="lb-ds">{lbActivity(e)}</div></div></span>
                   <span className="lb-c-tier"><LbTier name={e.tier} ladder={LB_MEMBER_TIERS} /></span>
                   <span className="lb-num lb-num--main">{lbNum(e.points)}</span>
@@ -304,8 +368,11 @@ function MemberLeaderboard() {
     <div className="lb">
       {controls}
       {ask}
-      {me && me.rank !== null
-        ? <LbYou me={me} entries={entries} gapUnit="points" sideLabel={lbLabel("points \u00b7 " + periodWord, "pts")}
+      {outside
+        ? <LbYouOutside me={me} kind={lock} sideLabel={lbLabel("points · " + periodWord, "pts")}
+            metaText={LB_SCOPES.find((s) => s.key === scope).long + " · " + LB_PERIODS.find((p) => p.key === period).long} />
+        : me && me.rank !== null && me.rank !== undefined
+        ? <LbYou me={me} entries={entries} gapUnit="points" sideLabel={lbLabel("points · " + periodWord, "pts")}
             value={(e) => e.points} valueLabel={(e) => lbNum(e.points)} nameOf={nameOf}
             ofText={ofText} leadText={LB_SCOPE_NAME[scope]}
             metaText={LB_SCOPES.find((s) => s.key === scope).long + " · " + LB_PERIODS.find((p) => p.key === period).long} />
@@ -313,6 +380,7 @@ function MemberLeaderboard() {
         : <div className="lb-note">You’re not ranked for {LB_PERIOD_NAME[period]} yet. The board counts points earned inside the window; log a workout, a meal or a habit and you’ll place.</div>}
       {hiddenNote}
       {body}
+      {lock && !outside ? <LbLockLine kind={lock} inTop={!!(me && me.rank !== null && me.rank !== undefined)} /> : null}
       {switches}
       {foot}
     </div>
@@ -543,4 +611,4 @@ function useLeaderboardPrivacy() {
   return [state, save];
 }
 
-Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, coachScoreFixNote, COACH_SCORE_FIX_ON, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });
+Object.assign(window, { MemberLeaderboard, CoachLeaderboard, CoachScoreActions, coachStandingLine, coachScoreFixNote, COACH_SCORE_FIX_ON, useCoachStanding, useLeaderboardPrivacy, lbPutPrivacy, lbRead, lbMemberShaped, lbCoachShaped, lbStateNote, lbBoardLock, lbAbove, lbWithGaps, lbActivity, lbPodiumLine });
