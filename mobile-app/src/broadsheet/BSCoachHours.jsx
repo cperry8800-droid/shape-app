@@ -5,7 +5,7 @@ import {
   bsHoursMerge, bsHoursSpan, bsHoursScale, bsHoursRangeWords,
 } from '../services/coachHours.mjs';
 import { bsProjectAvailability, bsInstantInZone, bsIsZone } from '../services/coachAvailability.mjs';
-import { viewerZone, zoneLabel } from '../services/shapeZone.mjs';
+import { viewerZone, zoneName as plainZoneName, zoneNamesApart } from '../services/shapeZone.mjs';
 import { bsRaised } from './BSProInstrument.jsx';
 import { bsMpGlass } from './BSMemberBento.jsx';
 
@@ -703,10 +703,14 @@ export function BSCoachHoursPage({ role = 'trainer', onBack, onOpenCalendar }) {
   // The zone a save stamps: the account's (P9; ShapeCoachHours.zone reads services/shapeZone.mjs),
   // this phone's only as an account's first default. Named the way Settings names it.
   const phoneZone = window.ShapeCoachHours?.zone?.() || null;
-  const zoneName = (z) => zoneLabel(z) || z;
+  // Named the way a phone names a zone ("Eastern Standard Time"; owner, 2026-11-10), in the app's
+  // language; two named apart where both read the same.
+  const zoneOpts = { locale: window.ShapeLocale?.get?.() || undefined };
+  const zoneName = (z) => plainZoneName(z, zoneOpts) || z;
+  const [movedFrom, movedTo] = zone && phoneZone ? zoneNamesApart(zone, phoneZone, zoneOpts) : ['', ''];
   const zoneLine = zone
     ? (phoneZone && phoneZone !== zone
-      ? tr('coach:hours.zoneMoved', { defaultValue: 'Times in {zone}. Saving moves them to your time zone, {phone}.', zone: zoneName(zone), phone: zoneName(phoneZone) })
+      ? tr('coach:hours.zoneMoved', { defaultValue: 'Times in {zone}. Saving moves them to your time zone, {phone}.', zone: movedFrom || zone, phone: movedTo || phoneZone })
       : tr('coach:hours.zone', { defaultValue: 'Times in {zone}', zone: zoneName(zone) }))
     : (phoneZone ? tr('coach:hours.zoneFirst', { defaultValue: 'Times will be saved in {zone}', zone: zoneName(phoneZone) }) : '');
   const hoursLabel = (min) => {

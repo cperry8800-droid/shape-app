@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import {
-  deviceZone, normalizeZone, getAccountZone, setAccountZone, onZoneChange, zoneOptions, zoneLabel, zoneCity,
+  deviceZone, normalizeZone, getAccountZone, setAccountZone, onZoneChange, zoneOptions, zoneName, zoneNamesApart, zoneCity,
   travelAsk, declinedZone,
 } from '../services/shapeZone.mjs';
 import { bsZoneOnOpen, bsZoneSwitch, bsZoneKeep } from '../services/accountZone.mjs';
@@ -43,6 +43,11 @@ function useShapeTr() {
 }
 
 const tealOf = (t) => (t.isLight ? '#0a8f87' : '#34d6c5');
+// A zone as a sentence names it ("Eastern Standard Time"; owner, 2026-11-10: "just have it show
+// normally"), in the app's language (read at call time). The picker's options keep zoneLabel's
+// "New York · GMT-5": there, only the city tells Detroit from New York.
+const bsZoneOpts = () => ({ locale: window.ShapeLocale?.get?.() || undefined });
+const bsZoneName = (z) => zoneName(z, bsZoneOpts()) || z;
 function hexA(hex, a) {
   const h = String(hex || '#888888').replace('#', '');
   const s = h.length === 3 ? h.split('').map((x) => x + x).join('') : h;
@@ -163,10 +168,11 @@ export function BSTimezonePrompt({ account, device, coach = false, onClose }) {
     bsZoneKeep(device);
     if (onClose) onClose('kept');
   };
-  const line = (label, zone) => (
+  const [accountName, deviceName] = zoneNamesApart(account, device, bsZoneOpts());
+  const line = (label, zone, name) => (
     <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderTop: `1px solid ${t.HAIR}` }}>
       <span style={{ fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: t.INK50 }}>{label}</span>
-      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, textAlign: 'right' }}>{zoneLabel(zone)}</span>
+      <span style={{ fontFamily: t.DISPLAY, fontSize: 15, fontWeight: 650, color: t.INK, textAlign: 'right' }}>{name || zone}</span>
     </div>
   );
   const title = tr('settings:timezone.askTitle', { defaultValue: 'This device is on another clock' });
@@ -178,8 +184,8 @@ export function BSTimezonePrompt({ account, device, coach = false, onClose }) {
         <div style={{ marginTop: 4, fontFamily: t.DISPLAY, fontSize: 21, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2, color: t.INK }}>{title}</div>
         <div style={{ marginTop: 8, fontFamily: t.DISPLAY, fontSize: 14, lineHeight: 1.45, color: t.INK70 }}>{tr('settings:timezone.askBody', { defaultValue: 'Times on Shape show on your account’s clock. Switch it to this device’s, or keep it?' })}</div>
         <div style={{ marginTop: 12, borderBottom: `1px solid ${t.HAIR}` }}>
-          {line(tr('settings:timezone.askAccount', { defaultValue: 'Your account' }), account)}
-          {line(tr('settings:timezone.askDevice', { defaultValue: 'This device' }), device)}
+          {line(tr('settings:timezone.askAccount', { defaultValue: 'Your account' }), account, accountName)}
+          {line(tr('settings:timezone.askDevice', { defaultValue: 'This device' }), device, deviceName)}
         </div>
         {coach && <div style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.45, color: t.INK70 }}>{tr('settings:timezone.coachHours', { defaultValue: 'Your hours stay at the same times on the new clock. Sessions already booked don’t move.' })}</div>}
         {failed && <div role="alert" style={{ marginTop: 10, fontFamily: t.DISPLAY, fontSize: 13, lineHeight: 1.4, color: t.RUST }}>{tr('settings:timezone.switchFailed', { defaultValue: 'Couldn’t switch. Your time zone is still {city}.', city: accountCity })}</div>}
@@ -307,13 +313,13 @@ export function BSTimezoneSetting({ t, coach = false }) {
           <div role={save.kind === 'failed' ? 'alert' : 'status'} style={{ ...status, color: save.kind === 'failed' ? t.RUST : save.kind === 'saved' ? teal : t.INK50 }}>
             {save.kind === 'saving' ? tr('settings:timezone.saving', { defaultValue: 'Saving…' })
               : save.kind === 'saved' ? tr('settings:toast.saved', { defaultValue: 'Saved' })
-              : read.zone ? tr('settings:timezone.saveFailed', { defaultValue: 'Couldn’t save. Still {zone}.', zone: zoneLabel(read.zone) })
+              : read.zone ? tr('settings:timezone.saveFailed', { defaultValue: 'Couldn’t save. Still {zone}.', zone: bsZoneName(read.zone) })
               : tr('settings:timezone.saveFailedNone', { defaultValue: 'Couldn’t save. Try again.' })}
           </div>
         )}
         {offerDevice && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-            <span style={small}>{tr('settings:timezone.deviceIs', { defaultValue: 'This device: {zone}', zone: zoneLabel(device) })}</span>
+            <span style={small}>{tr('settings:timezone.deviceIs', { defaultValue: 'This device: {zone}', zone: bsZoneName(device) })}</span>
             <button type="button" onClick={() => choose(device)}
               style={{ flexShrink: 0, minHeight: 36, padding: '0 12px', borderRadius: 999, border: `1px solid ${teal}`, background: hexA(teal, 0.12), color: t.INK, cursor: 'pointer', fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               {tr('settings:timezone.useDevice', { defaultValue: 'Use this device’s time zone' })}

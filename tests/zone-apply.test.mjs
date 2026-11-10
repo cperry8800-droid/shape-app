@@ -93,7 +93,9 @@ test('coach Today: capacity walks the account\'s days and clock, not this browse
   assert.match(panel, /const zone = Z \? Z\.viewerZone\(\)/);
   assert.match(panel, /dashCapacity\(read\.data\[0\]\.events,read\.data\[1\]\.slots,new Date\(\),zone\)/);
   assert.doesNotMatch(panel, /this browser's time zone/);
-  assert.match(panel, /"Your working hours are saved in " \+ label\(hoursZone\) \+ ", not your time zone \("/);
+  // Named as a calendar names them, and apart where both read the same (Detroit and New York).
+  assert.match(panel, /"Your working hours are saved in " \+ hoursName \+ ", not your time zone \(" \+ zoneName \+ "\)/);
+  assert.match(panel, /const \[hoursName, zoneName\] = Z && typeof Z\.zoneNamesApart === "function" && hoursZone \? Z\.zoneNamesApart\(hoursZone, zone\)/);
 });
 
 // ── Coach Week and Schedule ─────────────────────────────────────────────────────────────────────
@@ -111,12 +113,16 @@ test('coach Week: "this week" is the week on the coach\'s own calendar', () => {
   assert.match(src, /const thisMonday = dwkIso\(dwkMonday\(dwkToday\(\)\)\);/);
 });
 
-test('coach Schedule: the hours editor names the account\'s zone as Settings does', () => {
+test('coach Schedule: the hours editor names the account\'s zone as a calendar does ("Japan Standard Time")', () => {
   const fn = lift(read('public/newdesign/dashSchedule.jsx'), 'function dscZoneLabel(', '// This browser\'s IANA zone.');
   const label = (win, live, stored) => new Function('window', 'dscBrowserZone', fn + ';return dscZoneLabel;')(win, () => NY)(live, stored);
   asTokyo(() => {
-    assert.equal(label({ ShapeZone: Z }, true, TOKYO), 'times in ' + Z.zoneLabel(TOKYO) + ', your time zone');
-    assert.equal(label({ ShapeZone: Z }, true, null), 'times will be saved in ' + Z.zoneLabel(TOKYO), 'before the first save: the account\'s, not the browser\'s');
+    // Owner, 2026-11-10: "just have it show normally. Like Eastern/Standard Time", never "Tokyo · GMT+9".
+    assert.equal(label({ ShapeZone: Z }, true, TOKYO), 'times in Japan Standard Time, your time zone');
+    assert.equal(label({ ShapeZone: Z }, true, null), 'times will be saved in Japan Standard Time', 'before the first save: the account\'s, not the browser\'s');
+    // A shapeZone.mjs cached from before zoneName: its zoneLabel, as before.
+    const { zoneName, ...old } = Z;
+    assert.equal(label({ ShapeZone: old }, true, TOKYO), 'times in ' + Z.zoneLabel(TOKYO) + ', your time zone');
     assert.equal(label({ ShapeZone: Z }, false, TOKYO), '', 'the preview names no zone');
   });
   assert.equal(label({}, true, null), 'times will be saved in ' + NY, 'without shapeZone.mjs, the browser\'s, as before');
@@ -167,7 +173,7 @@ test('a coach\'s Day tab lays its days out on the viewer\'s midnights', async ()
 
 test('the member\'s booking sheet names the zone its times are in', () => {
   const src = read('public/newdesign/clientTeam.jsx');
-  assert.match(src, /const zoneName = \(\(\) => \{ try \{ const Z = window\.ShapeZone; return Z && Z\.zoneLabel \? Z\.zoneLabel\(Z\.viewerZone\(\)\) : ""; \}/);
+  assert.match(src, /const zoneName = \(\(\) => \{ try \{ const Z = window\.ShapeZone; return Z && \(Z\.zoneName \|\| Z\.zoneLabel\) \? \(Z\.zoneName \|\| Z\.zoneLabel\)\(Z\.viewerZone\(\)\) : ""; \}/);
   assert.match(src, /"Times are shown in your time zone, " \+ zoneName \+ "\."/);
   assert.doesNotMatch(src, /Times are shown in your timezone\./);
 });
@@ -243,7 +249,8 @@ test('the app sends the account\'s zone for the calendar, the coach\'s hours, qu
 
 test('the app\'s hours page names the account\'s zone and previews times on it', () => {
   const src = read('mobile-app/src/broadsheet/BSCoachHours.jsx');
-  assert.match(src, /const zoneName = \(z\) => zoneLabel\(z\) \|\| z;/);
+  assert.match(src, /const zoneName = \(z\) => plainZoneName\(z, zoneOpts\) \|\| z;/);
+  assert.match(src, /const zoneOpts = \{ locale: window\.ShapeLocale\?\.get\?\.\(\) \|\| undefined \};/, 'the zone is not named in the app\'s language');
   assert.match(src, /tr\('coach:hours\.zone', \{ defaultValue: 'Times in \{zone\}', zone: zoneName\(zone\) \}\)/);
   assert.match(src, /hour: 'numeric', minute: '2-digit', timeZone: viewerZone\(\) \}\)/);
   assert.match(src, /Set your time zone in Settings to fix it\./);

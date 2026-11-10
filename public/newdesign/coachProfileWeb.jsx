@@ -1866,7 +1866,7 @@ function CpwDayTab({ T, K, avail, listingState, introClosed, hoursHref, onRetry,
     body = (
       <React.Fragment>
         <h2 className="cpw-s21" style={{ margin: "24px 0 0", fontFamily: CPW_DISPLAY, fontWeight: 500, fontSize: 21, color: INK }}>{title}<span style={{ color: ACC }}>.</span></h2>
-        <p data-day-sub="" style={{ margin: "2px 0 0", fontSize: 13.5, color: ink(0.64) }}>{avail.sample ? `Sample times: ${first} hasn't set open hours on Shape yet.` : `From ${first}'s Shape calendar${vz && Z.zoneLabel ? `, in your time zone (${Z.zoneLabel(vz)})` : ""}. Busy time shows only as busy.`}</p>
+        <p data-day-sub="" style={{ margin: "2px 0 0", fontSize: 13.5, color: ink(0.64) }}>{avail.sample ? `Sample times: ${first} hasn't set open hours on Shape yet.` : `From ${first}'s Shape calendar${vz && (Z.zoneName || Z.zoneLabel) ? `, in your time zone (${(Z.zoneName || Z.zoneLabel)(vz)})` : ""}. Busy time shows only as busy.`}</p>
         {introClosed ? <div style={{ marginTop: 12 }}><CpwHint ink={ink}>{`${first} is full right now. Join the waiting list to be first in line.`}</CpwHint><button type="button" onClick={onWork} style={cpwLink(ACC)}>{words.work} →</button></div> : null}
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
           {rows.length ? rows.map((r, i) => r.kind === "open" ? (

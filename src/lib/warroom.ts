@@ -641,6 +641,20 @@ function buildChecklist(config: ConfigGroup[], mobileBuild = false): ChecklistSe
       ],
     },
     {
+      section: 'Hours & rules fills the screen and explains itself; the Score bar is the score; Invite client gives the no-fee link; time zones named as a calendar names them (#2684). No migration',
+      items: [
+        { label: 'Owner, 2026-11-10: "This pop up should fill more of screen, its very small and constrained. Also how does this work? How do I choose when im available" … "this bar should represent actually shape score. Im at 80 but the bar is filled" … "also do these work properly?" (Live console, Invite client) … "remove all of that and just have it show normally. Like Eastern/Standard Time"', status: 'done' },
+        { label: '#2684 Hours & rules is up to 1120px wide (was 560), time off beside the booking rules; the hours grid\'s rows 20px (were 14), with numbered how-it-works steps, the drag read out ("Opening Mon–Fri · 9:00 AM–5:00 PM"), each day\'s hours over its column, the week in words, Mon–Fri 9–5 and Clear week, a hover on cells, and "shaded" never a colour\'s name; an empty week says members can\'t book yet', status: 'done' },
+        { label: '#2684 the coach Score card\'s ladder fills the current tier as far as the score is through it (cgsLadderPlace\'s frac): 80 of Certified\'s 750 is ~11%, a passed tier full, the ones ahead empty', status: 'done' },
+        { label: '#2684 Invite client on Clients opens Business · Growth\'s Your profile link (the referral link, no Shape fee); it opened MemberProfile.html, whose Share copies the profile without the ref token, so a client who joined through it counted as found on Shape', status: 'done' },
+        { label: '#2684 shapeZone.mjs zoneName ("Eastern Standard Time", Daylight in summer, in the app\'s language) and zoneNamesApart (city · offset where two zones read the same) in every sentence that names a zone, website and app; Schedule\'s calendar note printed the raw "America/New_York". Pickers keep zoneLabel ("New York · GMT-5")', status: 'done' },
+        { label: '#2684 review: Codex clean on 82406c1 (no findings); CodeRabbit not asked. npm test 10,729 on the first commit (10,721 pass, 1 fail: the app calendar\'s label test, run mid-edit and passing on the head; 7 skipped); every zone and schedule suite rerun on the head; mutation round 22/22 killed; mobile build passes. CI green on 82406c1', status: 'done' },
+        { label: 'Left by #2684: the Live console\'s "+ Add to today\'s session" saves an exercise no member screen shows (the app reads only coachFeed.banners), and a subscriber with no session is listed as "Client" (trainer/console and nutritionist/console routes)', status: 'pending' },
+        { label: 'Left by #2684: in the Live console a cue from the live panel overwrites the coach\'s saved focus banner; "Logged today" shows the latest reading of 90 days; workout_minutes is scored but never selected; the Shared clients link\'s ?tab=shared is ignored by Clients', status: 'pending' },
+        { label: 'OWNER: on the deployed site, open Schedule → Hours & rules → Edit hours and paint a week; check the Score card\'s bar against your score and that Invite client opens Your profile link', status: 'manual' },
+      ],
+    },
+    {
       section: 'Free accounts and the paid membership, Shape Radio for its own account, coach approval by account (#2675). Three migrations',
       items: [
         { label: 'Owner, 2026-11-10: the free tier "in one pass" ("just do it all in one pass"), then "also make channels free"; the Store "Paid only"; reviews read by "Every signed-in account"; Shape Radio only with "your own login with a your own paid membership"; coach approval by "Email a confirm link"; and later, of the free week of Nora built here: "no you dont need to complete 3 workouts. drop that. I thought Nora assistant was locked for free users"', status: 'done' },
