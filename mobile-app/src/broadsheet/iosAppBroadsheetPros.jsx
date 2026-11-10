@@ -12,6 +12,7 @@ import { coachWorkoutLibrary, duplicateWorkoutPlan, persistCoachWorkout, coachWo
 import BSWorkoutDocumentEditor from './BSWorkoutDocumentEditor.jsx';
 import BSMealBuilderEditor from './BSMealBuilderEditor.jsx';
 import { mealBuilderDoc, assignmentDays as bsMealBuilderWeek } from '../services/mealBuilderEdit.mjs';
+import { bsLibraryPlace, bsLibraryPlaceSub } from '../services/navPlaces.mjs';
 import { takeCoachPlan } from '../services/coachPlanRoute.mjs';
 import { mayLeave, holdLeave } from '../services/leaveGuard.mjs';
 import { nutritionNotAMenu } from '../services/nutritionAssign.mjs';
@@ -868,7 +869,10 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
   const [showReviews, setShowReviews] = useStateBSP(false);
   const [showHabits, setShowHabits] = useStateBSP(false);
   const [storeView, setStoreView] = useStateBSP('store');
-  const [programInitialTab, setProgramInitialTab] = useStateBSP('programs');
+  // Where Programs opens: a kind of the library ('plans' | 'workouts' | 'programs'), Music ('soundtracks'),
+  // or '' for its first kind. The Playlists shortcut asks for Music; a Back brings what Programs announced
+  // (its `libPlace`, services/navPlaces.mjs); the tab bar opens it fresh.
+  const [programInitialTab, setProgramInitialTab] = useStateBSP('');
   // A program Nora drafted and the coach confirmed → open it in the Programs tab's
   // editor (BSTrainerPrograms answers it once its library has loaded). Not a nav
   // descriptor: replaying it would reopen an editor the coach already closed.
@@ -890,7 +894,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     if (queueView) return { tab, overlay: 'queue', detail: { type: queueView } };
     if (showSearch) return { tab, overlay: 'search', ...(searchQueryRef.current ? { query: searchQueryRef.current } : null) };
     if (tab === 'store') return { tab: 'store', sub: storeView };
-    if (tab === 'programs') return { tab: 'programs', sub: programInitialTab };
+    if (tab === 'programs') return { tab: 'programs', libPlace: programInitialTab };
     return { tab };
   };
   // Replay a popped descriptor onto the existing entry points. NEVER pushes.
@@ -911,7 +915,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     if (loc.overlay === 'settings') { setSettingsStart(loc.sub || ''); setSettingsLanded(!!loc.landed); setShowSettings(true); }
     else { setShowSettings(false); setSettingsStart(''); setSettingsLanded(false); }
     if (loc.tab === 'store') setStoreView(loc.sub === 'score' ? 'score' : 'store');
-    if (loc.tab === 'programs') setProgramInitialTab(loc.sub || 'programs');
+    if (loc.tab === 'programs') setProgramInitialTab(loc.libPlace || '');
     // A Back to Chat's list carries no thread, and drops any older one (the client shell's rule).
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     // Clients comes back on the client whose page was open (the Clients screen announces it), or its list.
@@ -934,7 +938,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     if (action === 'reviews') { setShowReviews(true); return; }
     if (action === 'clients') { setTab('clients'); return; }
     if (action === 'programs' || action === 'playlists') {
-      setProgramInitialTab(action === 'playlists' ? 'playlists' : 'programs');
+      setProgramInitialTab(action === 'playlists' ? 'soundtracks' : '');
       setTab('programs');
       return;
     }
@@ -968,7 +972,8 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
     enterTab(next);
   };
   // Chat from another tab opens on its list: a thread a jump opened earlier is that jump's (2026-11-10).
-  const enterTab = (k) => { if (k === 'chat' && tab !== 'chat') setChatRequest(null); setTab(k); };
+  // The tab bar opens Programs on its first kind: a place a jump or a Back asked for was that one's.
+  const enterTab = (k) => { if (k === 'chat' && tab !== 'chat') setChatRequest(null); if (k === 'programs' && tab !== 'programs') setProgramInitialTab(''); setTab(k); };
   navJumpRef.current = { navPush, goSettings, openHomeWidget, onNavGesture };
   useBSNavGestureHandler(navJumpRef);
   React.useEffect(() => {
@@ -1004,7 +1009,7 @@ function BSTrainerAppInner({ onLogout, tweaks, setTweak }) {
       // The client Nora drafted it for rides along, so Assign can start on them (#2227).
       const clientId = typeof e.detail.clientId === 'string' && e.detail.clientId ? e.detail.clientId : null;
       navJumpRef.current.navPush();
-      setProgramInitialTab('programs');
+      setProgramInitialTab('');
       setOpenPlanRequest({ planId, clientId, nonce: Date.now() });
       setTab('programs');
     };
@@ -5868,7 +5873,7 @@ function BSCoachDraftEditor({ t, accent, accentInk = '#04201d', typeName, blockL
   );
 }
 
-function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, onOpenConsumed = () => {} } = {}) {
+function BSTrainerPrograms({ initialTab = '', openPlanRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const tClean = useBSProClean();
   const tr = useShapeTr();
@@ -6025,10 +6030,19 @@ function BSTrainerPrograms({ initialTab = 'programs', openPlanRequest = null, on
     { n: 'Squat & deadlift form', meta: '8 videos · 14 min · in 3 plans' },
     { n: 'Warmup & mobility', meta: '6 videos · 9 min · in 4 plans' },
   ];
-  const [tab, setTab] = useStateBSP('library');
+  // The page opens where the shell asks (initialTab: the Playlists shortcut's Music, or what a Back brings)
+  // and announces where it is, so a jump from it (Search, the corners, a plan's client) comes back to it
+  // (2026-11-10, "fix all of these"; services/navPlaces.mjs).
+  const libStart = bsLibraryPlace(initialTab, ['plans', 'workouts', 'programs']);
+  const [tab, setTab] = useStateBSP(libStart.tab);
   // Library sub-tabs. NOTE the labels: Plans = multi-week paid programs,
   // Programs = reusable weekly routines/templates, Workouts = single sessions.
-  const [libTab, setLibTab] = useStateBSP('plans');
+  const [libTab, setLibTab] = useStateBSP(libStart.libTab);
+  const libPlace = bsLibraryPlaceSub(tab, libTab);
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.({ libPlace }, 'library');
+    return () => window.ShapeNav?.announce?.(null, 'library');
+  }, [libPlace]);
   const LIB_TABS = [['plans', tr('coach:plans.subPlans', { defaultValue: 'Plans' })], ['workouts', tr('coach:plans.subWorkouts', { defaultValue: 'Workouts' })], ['programs', tr('coach:plans.subPrograms', { defaultValue: 'Programs' })]];
   // The library search (one field over every list) and the most popular plan's card.
   const [libQuery, setLibQuery] = useStateBSP('');
@@ -6730,6 +6744,9 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const [showReviews, setShowReviews] = useStateBSP(false);
   const [showHabits, setShowHabits] = useStateBSP(false);
   const [storeView, setStoreView] = useStateBSP('store');
+  // Where Plans opens: a kind ('plans' | 'programs' | 'diet'), Music ('soundtracks'), or '' for the first
+  // (the trainer shell's programInitialTab).
+  const [plansStart, setPlansStart] = useStateBSP('');
   const [queueView, setQueueView] = useStateBSP(null);
   const [settingsStart, setSettingsStart] = useStateBSP(''); // replayed Settings sub-page (announce register)
   // Was Settings opened straight onto that page from somewhere else? Its ← then leaves Settings (BSSettings).
@@ -6745,6 +6762,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (queueView) return { tab, overlay: 'queue', detail: { type: queueView } };
     if (showSearch) return { tab, overlay: 'search', ...(searchQueryRef.current ? { query: searchQueryRef.current } : null) };
     if (tab === 'store') return { tab: 'store', sub: storeView };
+    if (tab === 'plans') return { tab: 'plans', libPlace: plansStart };
     return { tab };
   };
   const navResolve = (loc) => {
@@ -6765,6 +6783,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     // Clients comes back on the client whose page was open (the Clients screen announces it), or its list.
     if (loc.tab === 'clients' && loc.detail && (loc.detail.clientId || loc.detail.clientName)) setOpenClientReq({ clientId: loc.detail.clientId || null, clientName: loc.detail.clientName || '', back: loc.detail.back, nonce: Date.now() });
+    // Plans comes back on the kind or Music it was showing (BSNutriPlans announces it).
+    if (loc.tab === 'plans') setPlansStart(loc.libPlace || '');
     if (loc.tab) setTab(loc.tab);
   };
   const { navPush, navBack } = useBSNavHistory({ navLoc, navResolve });
@@ -6781,7 +6801,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     if (!['reviews', 'plans', 'clients', 'grocery'].includes(action)) return;
     navPush();
     if (action === 'reviews') { setShowReviews(true); return; }
-    if (action === 'plans') { setTab('plans'); return; }
+    if (action === 'plans') { setPlansStart(''); setTab('plans'); return; }
     if (action === 'clients') { setTab('clients'); return; }
     if (action === 'grocery') setQueueView('grocery');
   };
@@ -6807,7 +6827,8 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
     enterTab(next);
   };
   // Chat from another tab opens on its list: a thread a jump opened earlier is that jump's (2026-11-10).
-  const enterTab = (k) => { if (k === 'chat' && tab !== 'chat') setChatRequest(null); setTab(k); };
+  // The tab bar opens Plans on its first kind, as the trainer's Programs.
+  const enterTab = (k) => { if (k === 'chat' && tab !== 'chat') setChatRequest(null); if (k === 'plans' && tab !== 'plans') setPlansStart(''); setTab(k); };
   // A swipe that reaches the shell (a tab step, or a back with no page Back to take it) leaves
   // whatever is open, so a screen holding unsaved changes is asked first, as for a tab tap (Codex on #2594).
   const onNavGesture = (intent) => { mayLeave(window).then((ok) => { if (ok) stepNav(intent); }); };
@@ -6866,6 +6887,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
         if (!ok) return;
         navJumpRef.current.navPush();
         setOpenPlanRequest({ planId: d.planId, clientId, nonce: Date.now() });
+        setPlansStart('');
         setTab('plans');
       });
     };
@@ -6922,7 +6944,7 @@ function BSNutritionistAppInner({ onLogout, tweaks, setTweak }) {
   const screens = {
     today:    <BSNutriToday onProfile={goSettings} sheet={sheet} goCalendar={() => { navPush(); setShowCalendar(true); }} goRadio={goRadio} onOpenReviews={() => { navPush(); setShowReviews(true); }} onWidgetOpen={openHomeWidget} onOpenHabits={() => { navPush(); setShowHabits(true); }} onOpenScore={() => { navPush(); setStoreView('score'); setTab('store'); }} tweaks={tweaks} setTweak={setTweak} />,
     clients:  <BSNutriClients sheet={sheet} openRequest={openClientReq} onOpenConsumed={() => setOpenClientReq(null)} />,
-    plans:    <BSNutriPlans sheet={sheet} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />,
+    plans:    <BSNutriPlans sheet={sheet} initialTab={plansStart} openPlanRequest={openPlanRequest} onOpenConsumed={() => setOpenPlanRequest(null)} />,
     chat:     <BSClientChat onProfile={goSettings} sheet={sheet} role="nutritionist" openRequest={chatRequest} />,
     radio:    <BSRadioScreen onBack={() => { if (!navBack()) setTab('today'); }} />,
     store:    storeView === 'score'
@@ -7067,7 +7089,7 @@ function BSProPlansTabBar({ active, onChange }) {
   );
 }
 
-function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}) {
+function BSNutriPlans({ initialTab = '', openPlanRequest = null, onOpenConsumed = () => {} } = {}) {
   const t = useBS();
   const tClean = useBSProClean();
   const tr = useShapeTr();
@@ -7134,10 +7156,17 @@ function BSNutriPlans({ openPlanRequest = null, onOpenConsumed = () => {} } = {}
     { n: 'Athlete fuel', meta: '8 wks · performance · $160' },
     { n: 'Weight-loss kickstart', meta: '4 wks · calorie-controlled · $110' },
   ];
-  const [tab, setTab] = useStateBSP('library');
+  // Opens where the shell asks and announces where it is, as the trainer's Programs.
+  const libStart = bsLibraryPlace(initialTab, ['plans', 'programs', 'diet']);
+  const [tab, setTab] = useStateBSP(libStart.tab);
   // Library sub-tabs. Plans = multi-week paid meal plans, Programs = lifestyle
   // meal programs you sell, Diet = diet-specific meals / plans.
-  const [libTab, setLibTab] = useStateBSP('plans');
+  const [libTab, setLibTab] = useStateBSP(libStart.libTab);
+  const libPlace = bsLibraryPlaceSub(tab, libTab);
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.({ libPlace }, 'library');
+    return () => window.ShapeNav?.announce?.(null, 'library');
+  }, [libPlace]);
   const LIB_TABS = [['plans', tr('coach:plans.subPlans', { defaultValue: 'Plans' })], ['programs', tr('coach:plans.subPrograms', { defaultValue: 'Programs' })], ['diet', tr('coach:diet.subDiet', { defaultValue: 'Diet' })]];
   // The library search (one field over every list).
   const [libQuery, setLibQuery] = useStateBSP('');

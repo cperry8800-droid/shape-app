@@ -14,7 +14,7 @@ import React from 'react';
 import {
   bsNavPush, bsNavPop, bsNavCanPop, bsNavSize, bsNavClear, bsNavAnnounce,
   bsNavCompose, bsGuardAfterPush, bsGuardAfterPop, bsGuardAfterInAppPop,
-  bsGuardAfterClear,
+  bsGuardAfterClear, bsGuardOnFirstUse, bsNavDropStack,
 } from '../services/navHistory.mjs';
 
 export function useBSNavHistory({ navLoc, navResolve }) {
@@ -24,8 +24,19 @@ export function useBSNavHistory({ navLoc, navResolve }) {
   // Does a guard entry currently exist in browser history?
   // Invariant: guard exists ⟺ armed ⟺ the stack is non-empty.
   const armed = React.useRef(false);
+  // This shell's first touch of the history: a stack another shell left is dropped, and its guard entry
+  // adopted (bsGuardOnFirstUse). Every entry point calls it first, so this shell's own pushes, which all
+  // come after, are never the ones dropped. Only the stack: what this shell's pages announced before it
+  // stays, so the first push records them (Codex P1 on #2687).
+  const owned = React.useRef(false);
+  const own = React.useCallback(() => {
+    if (owned.current) return;
+    owned.current = true;
+    if (bsGuardOnFirstUse(bsNavSize()) === 'adopt') { bsNavDropStack(); armed.current = true; }
+  }, []);
 
   const navPush = React.useCallback(() => {
+    own();
     const prev = bsNavSize();
     const changed = bsNavPush(bsNavCompose(fns.current.navLoc()));
     if (changed && bsGuardAfterPush(prev, bsNavSize()) === 'arm' && !armed.current) {
@@ -35,6 +46,7 @@ export function useBSNavHistory({ navLoc, navResolve }) {
   }, []);
 
   const navBack = React.useCallback((fromPopstate = false) => {
+    own();
     if (!bsNavCanPop()) return false;
     // A Back: the page it reopens takes the scroll it left at (the chrome's scroll memory).
     try { if (typeof window !== 'undefined' && window.bsMarkBack) window.bsMarkBack(); } catch (e) {}
@@ -56,6 +68,7 @@ export function useBSNavHistory({ navLoc, navResolve }) {
 
   React.useEffect(() => {
     const onPop = () => {
+      own();
       if (!armed.current) return;              // not our guard entry
       if (!navBack(true)) armed.current = false; // raced empty — disarm
     };
@@ -68,6 +81,7 @@ export function useBSNavHistory({ navLoc, navResolve }) {
   // with an empty stack: the next push would skip arming (already "armed"), and
   // the next hardware Back would spend itself on the orphaned entry.
   const navClear = React.useCallback(() => {
+    own();
     bsNavClear();
     if (bsGuardAfterClear(armed.current) === 'consume') {
       armed.current = false;
@@ -76,9 +90,10 @@ export function useBSNavHistory({ navLoc, navResolve }) {
   }, []);
 
   React.useEffect(() => {
-    window.ShapeNav = { push: navPush, back: navBack, canPop: bsNavCanPop, announce: bsNavAnnounce, clear: navClear };
+    const canPop = () => { own(); return bsNavCanPop(); };
+    window.ShapeNav = { push: navPush, back: navBack, canPop, announce: bsNavAnnounce, clear: navClear };
     return () => { if (window.ShapeNav && window.ShapeNav.back === navBack) delete window.ShapeNav; };
-  }, [navPush, navBack, navClear]);
+  }, [navPush, navBack, navClear, own]);
 
   return { navPush, navBack };
 }
