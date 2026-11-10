@@ -133,12 +133,17 @@ test('a Search result that opens another page leaves Search without a Back, and 
 
 test('a Settings page opened straight from elsewhere goes back there; reached inside Settings, back to Settings', () => {
   const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
-  assert.match(settings, /const landedOn = landed \? initialPage : '';\n\s+const backFrom = \(page, close\) => \(\) => \{ if \(landedOn && landedOn === page\) onBack\(\); else close\(\); \};/);
+  assert.match(settings, /const landedOn = landed \? startPage : '';\n\s+const backFrom = \(page, close\) => \(\) => \{ if \(landedOn && landedOn === page\) onBack\(\); else close\(\); \};/);
   for (const page of ['pricing', 'sessions', 'notifications', 'integrations', 'habits', 'business', 'edit-profile', 'practice']) {
     assert.match(settings, new RegExp(`onBack=\\{backFrom\\('${page}', `), page);
   }
   // Every page it can open on is announced, with whether it was landed on.
-  assert.match(settings, /const navSub = editing \? 'edit-profile' : showIntegrations \? 'integrations' : showPricing \? 'pricing'\n\s+: showNotifications \? 'notifications' : showSessions \? 'sessions' : showHabits \? 'habits'\n(?:\s*\/\/[^\n]*\n)*\s+: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n(?:\s*\/\/[^\n]*\n)*\s+: showGoals \? bsGoalsSub\(goalsView\)\n\s+: detail === 'practice' \? 'practice' : '';/);
+  // Every page Settings draws is named (tests/nav-places.test.mjs holds the order), with the pane under it;
+  // the landed check reads the page alone, so a page with a pane recorded still leaves Settings.
+  for (const p of ['pricing', 'sessions', 'notifications', 'integrations', 'habits', 'business', 'library', 'hours']) {
+    assert.match(settings, new RegExp(`: show[A-Za-z]+ \\? '${p}'`), p);
+  }
+  assert.match(settings, /const navSub = editing \? 'edit-profile'\n\s+: showGoals && navPage\.startsWith\('goals'\) \? navPage\n\s+: navPage \? bsSettingsSub\(navPage, detail, navUnder\)\n\s+: detail === 'practice' \? 'practice' : bsSettingsSub\('', detail\);/);
   assert.match(settings, /window\.ShapeNav\?\.announce\?\.\(navLanded \? \{ sub: navSub, landed: true \} : \{ sub: navSub \}, 'settings'\);/);
   // The shells: a jump onto a page lands; the gear and a Back to Settings' own page do not.
   assert.match(CLIENT, /const goSettings = \(\) => \{ if \(!showSettings\) navPush\(\); setSettingsStart\(''\); setSettingsLanded\(false\); setShowSettings\(true\); \};/);
@@ -225,12 +230,16 @@ test('Home\'s own pages are announced and reopen on a Back; a reminder\'s Your m
 
 test('Settings\' Library and Your hours come back to themselves after their jumps', () => {
   const settings = between(CLIENT, 'function BSSettings({', '\n}\n');
-  assert.match(settings, /const \[showHours, setShowHours\] = useStateBSC\(initialPage === 'hours'\);/);
-  assert.match(settings, /const \[showLibrary, setShowLibrary\] = useStateBSC\(initialPage === 'library'\);/);
+  assert.match(settings, /const \[showHours, setShowHours\] = useStateBSC\(startPage === 'hours'\);/);
+  assert.match(settings, /const \[showLibrary, setShowLibrary\] = useStateBSC\(startPage === 'library'\);/);
   // Named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
-  assert.match(settings, /: showBusiness \? 'business' : showLibrary \? 'library' : showHours \? 'hours'\n(?:\s*\/\/[^\n]*\n)*\s+: showGoals \? bsGoalsSub\(goalsView\)\n\s+: detail === 'practice' \? 'practice' : '';/);
+  // Each is named, over the pane it sits in (Your hours over Your practice, 'hours@practice'), so its ←
+  // lands on that pane after a Back to it.
+  assert.match(settings, /: showLibrary \? 'library' :/);
+  assert.match(settings, /: showHours \? 'hours'\n/);
+  assert.match(settings, /: navPage \? bsSettingsSub\(navPage, detail, navUnder\)/);
   // Each reopens over the pane it sits in, so its ← lands there: Library in More, Your hours in Your practice.
-  assert.match(settings, /useStateBSC\(initialPage === 'practice' \|\| initialPage === 'hours' \? 'practice' : initialPage === 'library' \|\| bsGoalsView\(initialPage\) != null \? 'more' : ''\);/);
+  assert.match(settings, /useStateBSC\(startPane \|\| \(startPage === 'practice' \|\| startPage === 'hours' \? 'practice' : startPage === 'library' \|\| bsGoalsView\(startPage\) != null \? 'more' : ''\)\);/);
   // Their jumps push first, so the announced page is what comes back.
   assert.match(CLIENT, /navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setSettingsStart\(''\); setShowSearch\(false\);\n\s+setMarketRole\(/, 'Browse coaches (shape:openMarket)');
   assert.equal((PROS.match(/const onAvail = \(\) => \{ navJumpRef\.current\.navPush\(\); setShowSettings\(false\); setShowCalendar\(true\); \};/g) || []).length, 2, 'Open calendar (shape:proAvailability)');

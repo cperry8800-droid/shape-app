@@ -729,6 +729,23 @@ function bsPageBackFor(target, surf) {
   }
   return { page: layer || bsPageOuter(target && target.closest ? target.closest('[data-bs-page]') : null), back: null };
 }
+// The Back of the page on top, for the phone's back (owner, 2026-11-10: "Make sure back buttons are going
+// back to previous page and location user was on"; the War Room's "the phone's Back steps the shell's
+// history, not a page's own nesting"). The page under the middle of the phone is the one in front (a
+// takeover or a layer covers what is under it), and its Back is the one a swipe there would take: so the
+// phone's back closes Search's person view onto Search, a Goals station onto its cover, a meal's preview
+// onto its page, as the ← in front of the reader does. null on a page with no Back of its own (a root
+// tab), where the shell's history decides. Read at the moment of the back, never cached.
+function bsTopPageBack() {
+  if (typeof document === 'undefined' || typeof document.elementFromPoint !== 'function') return null;
+  const surf = document.getElementById('bs-phone-surface');
+  if (!surf) return null;
+  const r = surf.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  if (!el || !surf.contains(el)) return null;
+  return bsPageBackFor(el, surf).back;
+}
 // The page's outermost element (its wrapper, when its pinned masthead sits beside the scroller):
 // the one that slides under the finger.
 function bsPageOuter(page) {
@@ -2790,4 +2807,6 @@ Object.assign(window, {
   bsMakeTexture: makeTexture,
   // Back lands where you were: the shells' navBack (the phone's back) marks its Back with this.
   bsMarkBack,
+  // The phone's back does what the page in front's ← does (bsNavShell's popstate).
+  bsTopPageBack,
 });
