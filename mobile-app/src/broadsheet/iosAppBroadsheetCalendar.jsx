@@ -2,6 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { BS_CLIENT_WEEK_DEMO, BS_CLIENT_WORKOUTS } from './bsClientWeekDemo.js';
 import { BSCalendarWeeks, bsCalWeeksOf, bsCalIso } from './BSCalendarWeeks.jsx';
+import { zoneName as bsCalZoneName } from '../services/shapeZone.mjs';
 import { BSProDeck, BSProDeckGauges, bsProDeckTheme, bsDeckEyebrow, bsDeckTeal, bsProLedgerTop, BS_DECK_MONO, BS_GAUGE_FACE } from './BSProInstrument.jsx';
 const _BS_CAL_KIND_ICON = { WORKOUT: '🏋', MEAL: '🍽', CHECKIN: '✅', CONSULT: '💬', REVIEW: '📋', PLAN: '🗺', REST: '😴', ADMIN: '✦' };
 // iosAppBroadsheetCalendar.jsx — Sheet overlay system + the calendar screen (Month | Weeks).
@@ -669,7 +670,8 @@ function BSCalMonthHead({ viewYear, viewMonth, monthName, zone = null, role = 'c
           Registered on #2222, done 2026-10-07. */}
       {zone && (
         <div style={{ padding: `4px ${t.padX}px 0`, ...bsDeckEyebrow(d.INK50), fontSize: 8.5, letterSpacing: '0.1em' }}>
-          {tr('calendar:zone.timesIn', { defaultValue: 'Times in {zone}', zone })}
+          {/* Named the way a phone names it ("Eastern Standard Time", owner 2026-11-10), never the raw "America/New_York". */}
+          {tr('calendar:zone.timesIn', { defaultValue: 'Times in {zone}', zone: bsCalZoneName(zone, { locale: window.ShapeLocale?.get?.() || undefined }) || zone })}
         </div>
       )}
       {children}

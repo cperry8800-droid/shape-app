@@ -664,3 +664,18 @@ test('the hours editor says how it works: the steps, the drag read out, each day
     assert.deepEqual(post.body.slots, [1, 2, 3, 4, 5].map((weekday) => ({ weekday, start_minute: 540, duration_min: 480 })).concat([{ weekday: 6, start_minute: 600, duration_min: 30 }]));
   } finally { await page.unmount(); }
 });
+
+test('the calendar and the hours name the zone as a calendar does, never "America/New_York" or "GMT-5"', async () => {
+  // Owner, 2026-11-10: "remove all of that and just have it show normally. Like Eastern/Standard Time".
+  const Z = await import(pathToFileURL(join(ROOT, 'public/newdesign/shapeZone.mjs')).href);
+  const { page } = await open({ globals: { ShapeZone: Z } });
+  try {
+    const note = page.doc.querySelector('[data-calendar-note]');
+    assert.match(note.textContent, /Times in Eastern (Standard|Daylight) Time/);
+    assert.doesNotMatch(note.textContent, /America\/New_York/);
+    await page.click(page.doc.querySelector('[data-settings-tab]'));
+    const sheet = page.doc.querySelector('[data-settings-sheet]');
+    assert.match(sheet.textContent, /times in Eastern (Standard|Daylight) Time/);
+    assert.doesNotMatch(sheet.textContent, /GMT/);
+  } finally { await page.unmount(); }
+});

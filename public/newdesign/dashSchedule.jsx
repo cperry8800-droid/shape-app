@@ -260,16 +260,26 @@ const DSC_EDIT_PX = 20;
 // coach who does not exist.
 // ⚠ THE HOURS ARE IN THE ACCOUNT'S ZONE (P9): the save stamps the account's own zone (the browser's
 // only as an account's first default), and the database copies it onto the listing, so the label
-// names it the way Settings does ("Tokyo · GMT+9", shapeZone.mjs zoneLabel) and says it is theirs.
+// names it the way a calendar does ("Eastern Standard Time", shapeZone.mjs zoneName; owner,
+// 2026-11-10: "just have it show normally") and says it is theirs.
 // Without shapeZone.mjs, the raw name and this browser's zone, as before.
 function dscZoneLabel(live, storedZone) {
   if (!live) return "";
   let Z = null;
   try { Z = window.ShapeZone && typeof window.ShapeZone.zoneLabel === "function" ? window.ShapeZone : null; } catch (e) { Z = null; }
-  const name = (z) => (Z && Z.zoneLabel(z)) || z;
+  const name = (z) => (Z && (typeof Z.zoneName === "function" ? Z.zoneName(z) : Z.zoneLabel(z))) || z;
   if (storedZone) return "times in " + name(storedZone) + (Z && Z.getAccountZone() === storedZone ? ", your time zone" : "");
   const b = Z ? Z.viewerZone() : dscBrowserZone();
   return b ? "times will be saved in " + name(b) : "";
+}
+// A zone as a sentence names it ("Eastern Standard Time"), or its IANA name without shapeZone.mjs.
+function dscZoneName(z) {
+  try {
+    const Z = window.ShapeZone;
+    if (Z && typeof Z.zoneName === "function") return Z.zoneName(z) || z;
+    if (Z && typeof Z.zoneLabel === "function") return Z.zoneLabel(z) || z;
+  } catch (e) { /* the name below */ }
+  return z;
 }
 // This browser's IANA zone. Resolved once per render rather than cached in a module
 // constant: a laptop that changes zone mid-session should stamp the new one on the next
@@ -2856,8 +2866,8 @@ function CoachSchedulePage({ role }) {
                 their calendar couldn't be read, never shown the preview's week). */}
             {(liveEvents || isLive || source === "live") && (calZone || loadNote) && (
               <div data-calendar-note={liveEvents ? "read" : loadNote || "loading"} style={{ fontFamily: DSC_MONO, fontSize: 8.5, letterSpacing: "0.06em", color: DSC_INK50, margin: "-4px 0 10px", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "baseline" }}>
-                {calZone && <span>Times in {calZone}</span>}
-                {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone || "no time zone"}; re-save them in Hours &amp; rules</span>}
+                {calZone && <span>Times in {dscZoneName(calZone)}</span>}
+                {isLive && avail && avail.length > 0 && !shadeOk && <span>Open hours aren't shaded — they're saved in {availZone ? dscZoneName(availZone) : "no time zone"}; re-save them in Hours &amp; rules</span>}
                 {plansUnread && <span>Client plans couldn't load — the row is incomplete.</span>}
                 {loadNote === "loading" && <span>{liveEvents ? "Loading…" : "Reading your calendar…"}</span>}
                 {loadNote === "error" && <span role="alert">{liveEvents ? "Some dates couldn't load." : "Your calendar couldn't be read just now."} <button type="button" onClick={retryLoad} style={{ ...btn(false), padding: "2px 8px", fontSize: 8 }}>Retry</button></span>}

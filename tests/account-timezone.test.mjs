@@ -106,6 +106,29 @@ test('offsets follow daylight saving, and half and quarter hours', () => {
   assert.equal(Z.offsetMinutes('Area/Nowhere'), null);
 });
 
+// Owner, 2026-11-10: "remove all of that and just have it show normally. Like Eastern/Standard Time".
+test('a sentence names a zone as a calendar does: Eastern Standard Time, Eastern Daylight Time in summer', () => {
+  const WINTER = Date.parse('2026-01-15T12:00:00Z'), SUMMER = Date.parse('2026-07-15T12:00:00Z');
+  assert.equal(Z.zoneName('America/New_York', { at: WINTER }), 'Eastern Standard Time');
+  assert.equal(Z.zoneName('America/New_York', { at: SUMMER }), 'Eastern Daylight Time');
+  assert.equal(Z.zoneName('America/Los_Angeles', { at: WINTER }), 'Pacific Standard Time');
+  assert.equal(Z.zoneName('Asia/Kolkata', { at: LATE }), 'India Standard Time');
+  assert.equal(Z.zoneName('Europe/London', { at: WINTER }), 'Greenwich Mean Time');
+  assert.equal(Z.zoneName('UTC', { at: LATE }), 'Coordinated Universal Time');
+  // In the app's language; English where that language has no name, never a bare offset.
+  assert.equal(Z.zoneName('America/New_York', { at: WINTER, locale: 'es' }), 'hora estándar oriental');
+  assert.doesNotMatch(Z.zoneName('Europe/Istanbul', { at: LATE, locale: 'pcm' }), /^GMT/);
+  assert.equal(Z.zoneName('America/New_York', { at: WINTER, locale: 'not a language' }), 'Eastern Standard Time');
+  assert.equal(Z.zoneName('Area/Nowhere'), '');
+  assert.equal(Z.zoneName(null), '');
+  // Two zones in one sentence are named apart: by city where both are "Eastern".
+  assert.deepEqual(Z.zoneNamesApart('America/Detroit', 'America/New_York', { at: WINTER }), ['Detroit · GMT-5', 'New York · GMT-5']);
+  assert.deepEqual(Z.zoneNamesApart('America/Chicago', 'America/New_York', { at: WINTER }), ['Central Standard Time', 'Eastern Standard Time']);
+  assert.deepEqual(Z.zoneNamesApart('America/New_York', 'America/New_York', { at: WINTER }), ['Eastern Standard Time', 'Eastern Standard Time']);
+  // A picker keeps the city: there, only the city tells Detroit from New York.
+  assert.equal(Z.zoneOptions({ at: WINTER }).find((o) => o.zone === 'America/Detroit').label, 'Detroit · GMT-5');
+});
+
 test('only a real zone is a zone', () => {
   for (const bad of ['', 'Area/Nowhere', 'New York', '../etc', null, undefined, 'x'.repeat(80)]) {
     assert.equal(Z.normalizeZone(bad), null, String(bad));

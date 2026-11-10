@@ -321,7 +321,9 @@ test('the app calendar names the zone its bookings are read in, for a live accou
   assert.match(between(APP_CAL, 'function BSCalendarMonth(', '{/* DOW header'), /<BSCalMonthHead [^>]*zone=\{zone\}/, 'Month no longer hands its zone to the headline');
   assert.match(APP_CAL, /head=\{<BSCalMonthHead [^>]*zone=\{useServer && serverZone \? serverZone : null\}/, 'Weeks names a zone signed out, or none signed in');
   assert.match(month, /\{zone && \(/, 'the label shows without a zone');
-  assert.match(month, /tr\('calendar:zone\.timesIn', \{ defaultValue: 'Times in \{zone\}', zone \}\)/, 'the label is not the translated one');
+  // The zone as a phone names it ("Eastern Standard Time", owner 2026-11-10), in the app's language.
+  assert.match(month, /tr\('calendar:zone\.timesIn', \{ defaultValue: 'Times in \{zone\}', zone: bsCalZoneName\(zone, \{ locale: window\.ShapeLocale\?\.get\?\.\(\) \|\| undefined \}\) \|\| zone \}\)/, 'the label is not the translated one');
+  assert.match(APP_CAL, /import \{ zoneName as bsCalZoneName \} from '\.\.\/services\/shapeZone\.mjs';/);
   for (const loc of ['de', 'en', 'es', 'fr', 'ha', 'id', 'it', 'pcm', 'pt-BR', 'ru', 'tr', 'uk', 'vi']) {
     const cat = JSON.parse(readFileSync(join(ROOT, 'mobile-app/src/i18n/catalogs', loc, 'calendar.json'), 'utf8'));
     assert.match(cat['zone.timesIn'] || '', /\{zone\}/, loc + ' has no "Times in {zone}"');

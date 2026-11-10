@@ -120,7 +120,7 @@ function CtBookSheet({ coach, onClose, onBooked }) {
     window.addEventListener("shape:timezone", h);
     return () => window.removeEventListener("shape:timezone", h);
   }, []);
-  const zoneName = (() => { try { const Z = window.ShapeZone; return Z && Z.zoneLabel ? Z.zoneLabel(Z.viewerZone()) : ""; } catch (e) { return ""; } })();
+  const zoneName = (() => { try { const Z = window.ShapeZone; return Z && (Z.zoneName || Z.zoneLabel) ? (Z.zoneName || Z.zoneLabel)(Z.viewerZone()) : ""; } catch (e) { return ""; } })();
   const groups = state === "ready" ? window.BookingSlots.groupByDay(slots) : [];
 
   // ⚠ THE REQUEST GOES THROUGH /api/sessions/request NOW, NOT STRAIGHT INTO `sessions`
