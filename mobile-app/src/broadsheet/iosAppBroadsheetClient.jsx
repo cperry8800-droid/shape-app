@@ -82,6 +82,7 @@ import { BSTimezoneSetting } from './BSTimezone.jsx';
 import { BSScoreFixNote } from './BSScoreFixNote.jsx';
 import { BSWorkoutDetail } from './BSWorkoutDetail.jsx';
 import { BSWorkoutSession } from './BSWorkoutSession.jsx';
+import { BSWorkoutCoachCue } from './BSWorkoutCoachCue.jsx';
 import { BSSessionFinish } from './BSSessionFinish.jsx';
 import { BSGroceryLibrary, bsLibraryPreviewItems } from './BSGroceryLibrary.jsx';
 import { BSCheckinCard, BSMorningPanel, bsCiLeadReason, bsCiIso, bsCiShift, BS_CI_SAVED } from './BSCheckinCard.jsx';
@@ -31848,28 +31849,6 @@ function bsPlates(total) {
   const out = [];
   for (const s of sizes) { while (per >= s - 0.01 && out.length < 8) { out.push(s); per = Math.round((per - s) * 100) / 100; } }
   return out;
-}
-
-function BSWorkoutCoachCue({ identity }) {
-  const t = useBS();
-  const tr = useShapeTr();
-  const [cue, setCue] = useStateBSC(null);
-  React.useEffect(() => {
-    setCue(null);
-    return window.ShapeCoachFeed?.subscribeWorkoutCues?.({
-      userId: identity.userId, startedAt: identity.startedAt, onCue: setCue,
-    });
-  }, [identity.userId, identity.sessionId, identity.startedAt]);
-  if (!cue) return null;
-  return (
-    <div style={{ position: 'relative', marginTop: 14, border: '1px solid #26d8c4', borderRadius: 5, padding: '10px 12px', background: '#082b29', color: '#f6f0e4', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-      <div role="status" aria-live="polite" aria-atomic="true" style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#26d8c4' }}>{tr('session:player.coachCue')}</div>
-        <div style={{ marginTop: 5, fontSize: 16, lineHeight: 1.4, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{cue.text}</div>
-      </div>
-      <button type="button" onClick={() => setCue(null)} aria-label={tr('session:player.dismissCoachCue')} style={{ flexShrink: 0, minWidth: 44, minHeight: 44, border: 0, background: 'transparent', color: '#f6f0e4', fontSize: 22, cursor: 'pointer' }}>×</button>
-    </div>
-  );
 }
 
 function BSSession({ moves: movesProp, onBack, title: requestedTitle = '', clientWorkoutId: requestedWorkoutId = null, prescriptionMeta = {}, draft = null }) {

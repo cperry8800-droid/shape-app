@@ -10516,9 +10516,12 @@ function subscribeWorkoutCoachCues({ userId, startedAt, onCue, onStatus = () => 
         && Number.isFinite(Date.parse(row.sent_at)) && Date.parse(row.sent_at) >= since)
         .sort((a, b) => Date.parse(b.sent_at) - Date.parse(a.sent_at));
       const key = row => JSON.stringify([row.id, row.provider_role, row.provider_id, row.sent_at, row.text]);
-      const latest = eligible.find(row => !seen.has(key(row)));
-      eligible.forEach(row => seen.add(key(row)));
-      if (latest) onCue(latest);
+      // ⚠ EVERY UNSEEN CUE, OLDEST FIRST (Codex P2 on #2686). A cue is a row of its own, not the one
+      // focus banner it was, so two sent within one read (inside the 8-second poll, or while a read is
+      // in flight) are two cues. Handing over only the newest marked the older one seen and lost it.
+      const fresh = eligible.filter(row => !seen.has(key(row))).reverse();
+      fresh.forEach(row => seen.add(key(row)));
+      fresh.forEach(row => onCue(row));
       onStatus('ready');
     } catch {
       if (isCurrent()) onStatus('error');

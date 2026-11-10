@@ -30,8 +30,9 @@ const C = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' // active subscriber, no name o
 // 03:00 UTC on 10 November: still 9 November in Los Angeles.
 const NOW = Date.parse('2026-11-10T03:00:00.000Z')
 
-// Every read answers from `tables`, filtered by the eq / in / is / gte filters the route names (so a
-// filter the route drops lets the wrong rows through); `fail(call)` fails a read it picks. Writes are
+// Every read answers from `tables`, filtered by the eq / in / is / gte / gt filters the route names (so
+// a filter the route drops lets the wrong rows through), ordered, and cut at its limit as PostgREST
+// cuts it; `fail(call)` fails a read it picks. Writes are
 // recorded and answer ok. `rpc` answers is_coach_on_client from `onClient`.
 function fakeDb(tables, { fail = null, onClient = true } = {}) {
   const calls = []
@@ -41,6 +42,7 @@ function fakeDb(tables, { fail = null, onClient = true } = {}) {
     if (op === 'in') return v.map(String).includes(String(row[col]))
     if (op === 'is') return v === null ? row[col] == null : row[col] === v
     if (op === 'gte') return String(row[col]) >= String(v)
+    if (op === 'gt') return String(row[col]) > String(v)
     return true
   })
   const from = (table) => {
@@ -58,6 +60,7 @@ function fakeDb(tables, { fail = null, onClient = true } = {}) {
         const dir = o && o.ascending === false ? -1 : 1
         out = out.slice().sort((a, b) => (String(a[col]) < String(b[col]) ? -dir : String(a[col]) > String(b[col]) ? dir : 0))
       }
+      for (const [op, n] of call.ops) if (op === 'limit') out = out.slice(0, n)
       return { data: single ? (out[0] ?? null) : out, error: null }
     }
     const q = new Proxy({}, {
@@ -81,7 +84,7 @@ async function libs() {
   const time = await ts('src/lib/time.ts')
   const workoutDays = await ts('src/lib/workout-days.ts', new Map([['@/lib/time', time]]))
   const exercises = await ts('src/lib/coach-exercises.ts', new Map([['@/lib/workout-days', workoutDays]]))
-  return { time, workoutDays, exercises, names: await ts('src/lib/client-names.ts'), utils: await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]])) }
+  return { time, workoutDays, exercises, names: await ts('src/lib/client-names.ts'), readAll: await ts('src/lib/read-all-by-id.ts'), utils: await ts('src/lib/request-utils.ts', new Map([['next/server', nextServer]])) }
 }
 const LIBS = await libs()
 
@@ -105,6 +108,7 @@ async function route(role, db) {
       ['@/lib/time', LIBS.time],
       ['@/lib/workout-days', LIBS.workoutDays],
       ['@/lib/coach-exercises', LIBS.exercises],
+      ['@/lib/read-all-by-id', LIBS.readAll],
     ]),
   })
 }
@@ -140,9 +144,9 @@ const world = (role = 'trainer', over = {}) => ({
   client_profiles: [{ user_id: A, data: { goal: 'Strength' }, timezone: 'America/Los_Angeles' }, { user_id: C, data: {}, timezone: null }],
   daily_health_snapshot: [
     // A's today (9 November in Los Angeles), with 45 workout minutes.
-    { user_id: A, snapshot_date: '2026-11-09', calories: 1800, protein_g: 120, sleep_hours: 6, workout_minutes: 45 },
+    { id: 's-a-today', user_id: A, snapshot_date: '2026-11-09', calories: 1800, protein_g: 120, sleep_hours: 6, workout_minutes: 45 },
     // C's newest row is yesterday's (C counts in UTC): not today.
-    { user_id: C, snapshot_date: '2026-11-09', calories: 2400, protein_g: 150 },
+    { id: 's-c-yesterday', user_id: C, snapshot_date: '2026-11-09', calories: 2400, protein_g: 150 },
   ],
   coach_focus_banners: [{ client_id: A, text: 'Control the eccentric.', provider_role: role, provider_id: 7 }],
   coach_pushed_items: [
@@ -297,7 +301,7 @@ for (const role of ['trainer', 'nutritionist']) {
   test(`${role} console: a zone that could not be read makes today unread, never a UTC guess (Codex P2 on #2686)`, async () => {
     // A row on the UTC date (10 November), which a UTC guess would take as A's today; in Los Angeles it is tomorrow.
     const w = world(role)
-    w.daily_health_snapshot = [...w.daily_health_snapshot, { user_id: A, snapshot_date: '2026-11-10', calories: 300, protein_g: 20 }]
+    w.daily_health_snapshot = [...w.daily_health_snapshot, { id: 's-a-utc', user_id: A, snapshot_date: '2026-11-10', calories: 300, protein_g: 20 }]
     const { body } = await get(role, fakeDb(w, { fail: (call) => call.table === 'client_profiles' }))
     assert.equal(body.todayUnread, true)
     assert.deepEqual(body.todayByClient, {}, 'no client is said to have logged nothing')
@@ -310,3 +314,48 @@ for (const role of ['trainer', 'nutritionist']) {
     assert.equal(ok.body.todayUnread, false)
   })
 }
+
+// ⚠ ONE SELECT STOPS AT 1,000 ROWS WITHOUT A WORD (Codex P2 on #2686). Three dates of a roster's logs pass
+// that at 334 clients, and two days of a trainer's added exercises at 100 clients and five a day, so a
+// client past the cut read "Nothing logged yet today" or an empty session. Both reads walk every page.
+const filler = (n, make) => Array.from({ length: n }, (_, i) => make(String(i).padStart(4, '0')))
+const todayReads = (db) => db.calls.filter((c) => c.table === 'daily_health_snapshot' && c.ops.some(([op, col]) => op === 'in' && col === 'snapshot_date'))
+
+for (const role of ['trainer', 'nutritionist']) {
+  test(`${role} console: "Logged today" reads past the first 1,000 rows (Codex P2 on #2686)`, async () => {
+    const w = world(role)
+    // 1,000 of C's rows sort ahead of A's today by id (a day after C's today, so none is C's today).
+    w.daily_health_snapshot = [...filler(1000, (i) => ({ id: `a-fill-${i}`, user_id: C, snapshot_date: '2026-11-11', calories: 1, protein_g: 1 })), ...w.daily_health_snapshot]
+    const db = fakeDb(w)
+    const { body } = await get(role, db)
+    assert.equal(body.todayUnread, false)
+    assert.deepEqual(body.todayByClient[A], { date: '2026-11-09', calories: 1800, protein_g: 120 }, 'A\'s today is on the second page')
+    assert.equal(body.todayByClient[C], undefined)
+    const reads = todayReads(db)
+    assert.equal(reads.length, 2, 'two pages')
+    assert.ok(reads.every((c) => c.ops.some(([op, n]) => op === 'limit' && n === 1000)), 'each page is the API\'s cap')
+    assert.ok(reads[1].ops.some(([op, col, v]) => op === 'gt' && col === 'id' && v === 'a-fill-0999'), 'the second page starts after the first')
+
+    // A failed second page is unread, never the first page's answer.
+    const failing = fakeDb(w, { fail: (call) => call.table === 'daily_health_snapshot' && call.ops.some(([op, col]) => op === 'gt' && col === 'id') })
+    const cut = await get(role, failing)
+    assert.equal(cut.body.todayUnread, true)
+  })
+}
+
+test('trainer console: today\'s session reads past the first 1,000 rows, in the order they were added (Codex P2 on #2686)', async () => {
+  const w = world('trainer')
+  // 1,000 exercises for a client off this roster sort ahead of A's by id.
+  w.coach_pushed_items = [...filler(1000, (i) => ex(`a-fill-${i}`, 'not-on-roster', '2026-11-10T02:00:00.000Z', { name: 'Filler' })), ...w.coach_pushed_items]
+  const db = fakeDb(w)
+  const { body } = await get('trainer', db)
+  assert.equal(body.itemsUnread, false)
+  assert.deepEqual(body.itemsByClient[A].map((m) => m.id), ['e-today-early', 'e-today'], 'second page, by the time they were sent')
+  assert.deepEqual(body.itemsByClient[C].map((m) => m.id), ['e-c'])
+  assert.equal(db.calls.filter((c) => c.table === 'coach_pushed_items').length, 2, 'two pages')
+
+  const failing = fakeDb(w, { fail: (call) => call.table === 'coach_pushed_items' && call.ops.some(([op, col]) => op === 'gt' && col === 'id') })
+  const cut = await get('trainer', failing)
+  assert.equal(cut.body.itemsUnread, true)
+  assert.deepEqual(cut.body.itemsByClient, {})
+})
