@@ -216,8 +216,6 @@
   "support.voice.paused": "Pausiert. Tippe auf mich, um zu sprechen.",
   "support.voice.noAnswer": "Ich konnte gerade nicht antworten. Tippe auf mich, um es erneut zu versuchen.",
   "support.voice.unheard": "Meine Antwort steht im Chat. Tippe auf mich, um weiterzusprechen.",
-  "support.voice.memberOnly": "Noras Stimme ist eine Funktion für Mitglieder.",
-  "support.voice.talkMembers": "Mit Nora zu sprechen ist eine Funktion für Mitglieder.",
   "support.voice.micBlocked": "Erlaube den Zugriff auf das Mikrofon, um mit Nora zu sprechen.",
   "support.voice.done": "Fertig gesprochen",
   "support.voice.interrupt": "Nora unterbrechen",
@@ -413,5 +411,6 @@
   "thread.voiceUnplayable": "Diese Sprachnachricht kann gerade nicht abgespielt werden.",
   "thread.voiceNotSent": "Nicht gesendet",
   "thread.voiceFailed": "Die Sprachnachricht konnte nicht gesendet werden.",
-  "thread.voicePreview": "Sprachnachricht · {time}"
+  "thread.voicePreview": "Sprachnachricht · {time}",
+  "composer.signInToSend": "Melde dich an, um Nachrichten zu senden"
 }

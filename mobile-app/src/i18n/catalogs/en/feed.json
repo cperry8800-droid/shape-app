@@ -216,8 +216,6 @@
   "support.voice.paused": "Paused. Tap me to talk.",
   "support.voice.noAnswer": "I couldn't answer just now. Tap me to try again.",
   "support.voice.unheard": "My answer is in the chat. Tap me to keep talking.",
-  "support.voice.memberOnly": "Nora's voice is a member feature.",
-  "support.voice.talkMembers": "Talking to Nora is a member feature.",
   "support.voice.micBlocked": "Allow the microphone to talk to Nora.",
   "support.voice.done": "Done talking",
   "support.voice.interrupt": "Interrupt Nora",
@@ -413,5 +411,6 @@
   "thread.voiceUnplayable": "This voice note can’t be played right now.",
   "thread.voiceNotSent": "Not sent",
   "thread.voiceFailed": "Couldn’t send the voice note.",
-  "thread.voicePreview": "Voice note · {time}"
+  "thread.voicePreview": "Voice note · {time}",
+  "composer.signInToSend": "Sign in to send messages"
 }

@@ -841,10 +841,15 @@ async function startCheckout({ item, coach, user, role, code }) {
 // A lookup that never answers (a half-open connection, a stalled proxy) is unknown after this
 // long, never a wait without end (Codex on #2353): the gate then keeps this account's last answer.
 const MEMBERSHIP_LOOKUP_MS = 8000;
-// The whole answer: { member, ageRestricted }, or null when it could not be found out. A known minor
-// is told so before the membership offer, which would refuse them (#2353's moved item).
+// The whole answer: { member, ageRestricted, pastDue }, or null when it could not be found out. A
+// known minor is told so before the membership offer, which would refuse them (#2353's moved item).
+// `member` is the paid features (the $5 membership, an approved coach or an admin); a free account
+// is in the app all the same (owner, 2026-11-10). `pastDue` is a membership whose renewal failed
+// while Stripe retries: `member` is false then, and the app asks for the card, not a new checkout.
+// `nora` is assistant Nora (a member's, or a free week's: `noraPreview`), and `includedWithCoach`
+// a membership that comes with an active coaching subscription.
 async function lookupMembership() {
-  if (!state.user?.id) return { member: false, ageRestricted: false };
+  if (!state.user?.id) return { member: false, ageRestricted: false, pastDue: false, nora: false, noraPreview: null, includedWithCoach: false };
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   let timer = null;
   const late = new Promise((resolve) => {
@@ -856,7 +861,16 @@ async function lookupMembership() {
       if (!res.ok) return null;
       const d = await res.json();
       if (!d || d.signedIn !== true) return null;
-      return { member: d.member === true, ageRestricted: d.ageRestricted === true };
+      return {
+        member: d.member === true,
+        ageRestricted: d.ageRestricted === true,
+        pastDue: d.member !== true && d.pastDue === true,
+        // Assistant Nora: a member's, or a free account's free week after its first 3 workouts.
+        nora: d.member === true || d.nora === true,
+        noraPreview: d.noraPreview && typeof d.noraPreview === 'object' ? d.noraPreview : null,
+        // Membership included with an active coaching subscription (no $5 plan needed).
+        includedWithCoach: d.member === true && d.includedWithCoach === true,
+      };
     } catch (e) {
       return null;
     }
@@ -893,19 +907,23 @@ async function seedOnboarding() {
   }
 }
 
-// One door for the membership checkout: the paywall's Join, the preview banner, Settings'
-// Activate and the Store. The hosted /m/ build comes back to /m/. The installed app opens the
+// One door for the membership checkout: every Join on a locked paid feature, Settings' plan card
+// and the Store. The hosted /m/ build comes back to /m/. The installed app opens the
 // checkout in the system browser, which lands on /membership/done ("close this page"); the
 // shell re-checks the membership when that browser closes or the app comes back to the
 // front ('shape:membership-recheck').
-// Resolves { ok: true }, or { ok: false, status, code, error } for the caller to act on.
-async function startMembershipCheckout() {
+// Resolves { ok: true }, or { ok: false, status, code, error } for the caller to act on. A
+// past-due account is refused a second membership (409 `payment_past_due`): the caller opens the
+// billing portal to update the card instead.
+// `plan` is the member's pick ('monthly' | 'annual', owner 2026-11-10: $5 a month or $48 a year);
+// anything else is monthly, the route's own default.
+async function startMembershipCheckout({ plan } = {}) {
   const back = _isNative ? '/membership/done' : '/m/';
   try {
     const res = await shapeApiFetch('/api/stripe/platform-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ returnTo: back, cancelPath: back }),
+      body: JSON.stringify({ returnTo: back, cancelPath: back, plan: plan === 'annual' ? 'annual' : 'monthly' }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.url) {
@@ -2183,7 +2201,12 @@ window.ShapeSelfTraining = {
 // ✦ AI draft for the builder — POST a goal, get a STRUCTURED program back (the
 // builder's review shape). Returns null on any failure (the sheet shows the
 // honest "unavailable" fallback); NOTHING is saved here.
+// ⚠ A PAID HELPER (owner, 2026-11-10): a free account's 402 is not "unavailable". The
+// refusal's lock ('free' | 'pastDue') is kept on ShapeTrainingAI.lastLock, so the sheet says
+// what it is and offers Join or Update your card. A hand-built program stays free.
+let _draftLock = null;
 async function draftTrainingProgram({ goal, weeks, daysPerWeek, discipline, experience } = {}) {
+  _draftLock = null;
   try {
     const res = await fetch(`${apiBaseUrl || ''}/api/ai/draft-program`, {
       method: 'POST',
@@ -2192,11 +2215,12 @@ async function draftTrainingProgram({ goal, weeks, daysPerWeek, discipline, expe
       body: JSON.stringify({ goal, weeks, daysPerWeek, discipline, experience }),
     });
     const d = await res.json().catch(() => ({}));
+    if (res.status === 402) { _draftLock = d && d.code === 'payment_past_due' ? 'pastDue' : 'free'; return null; }
     if (!res.ok || !d || !d.program) return null;
     return d.program; // { name, discipline, weeks: [...] }
   } catch (e) { return null; }
 }
-window.ShapeTrainingAI = { draft: draftTrainingProgram };
+window.ShapeTrainingAI = { draft: draftTrainingProgram, get lastLock() { return _draftLock; } };
 
 async function updateClientWorkout({ workoutId, patch = {} } = {}) {
   if (!workoutId) {
@@ -4764,6 +4788,8 @@ async function transcribeTo(path, blob, { filename, signal, language, context })
     status: res.status,
     transcript: payload && payload.transcript ? String(payload.transcript).trim() : '',
     error: payload && typeof payload.error === 'string' ? payload.error : '',
+    // A paid route's refusal says which lock it is (membership_required / payment_past_due).
+    ...(payload && typeof payload.code === 'string' ? { code: payload.code } : {}),
   };
 }
 
@@ -5033,7 +5059,25 @@ window.ShapePayments = {
   startCheckout,
 };
 
-window.ShapeMembershipApi = { check: checkMembership, lookup: lookupMembership, startCheckout: startMembershipCheckout };
+// The membership's plans (GET /api/membership/plans): { monthly: { priceCents, interval }, annual:
+// { priceCents, interval } | null }, the annual null when it is not configured (then Join offers
+// monthly alone). Read once per session; a failed read is null and is asked again next time.
+let _membershipPlans = null;
+async function membershipPlans() {
+  if (_membershipPlans) return _membershipPlans;
+  try {
+    const res = await shapeApiFetch('/api/membership/plans', { cache: 'no-store' });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    if (!d || !d.monthly || !(Number(d.monthly.priceCents) > 0)) return null;
+    const annual = d.annual && Number(d.annual.priceCents) > 0 ? { priceCents: Number(d.annual.priceCents), interval: 'year' } : null;
+    _membershipPlans = { monthly: { priceCents: Number(d.monthly.priceCents), interval: 'month' }, annual };
+    return _membershipPlans;
+  } catch (e) {
+    return null;
+  }
+}
+window.ShapeMembershipApi = { check: checkMembership, lookup: lookupMembership, startCheckout: startMembershipCheckout, plans: membershipPlans };
 window.ShapeOnboarding = { seed: seedOnboarding };
 
 window.ShapeConnect = {
@@ -5294,6 +5338,12 @@ async function getWeeklyReadout({ windowDays } = {}) {
       cache: 'no-store',
       body: JSON.stringify(windowDays ? { window_days: windowDays } : {}),
     });
+    // ⚠ A PAID FEATURE (owner, 2026-11-10): a 402 is not "nothing to say". It resolves
+    // { locked: 'free' | 'pastDue' }, so the card shows its locked teaser instead of vanishing.
+    if (res.status === 402) {
+      const b = await res.json().catch(() => null);
+      return { locked: b && b.code === 'payment_past_due' ? 'pastDue' : 'free' };
+    }
     if (!res.ok) return null;
     const data = await res.json();
     return data && data.readout ? data : null;
@@ -5302,6 +5352,32 @@ async function getWeeklyReadout({ windowDays } = {}) {
   }
 }
 window.ShapeReadout = { get: getWeeklyReadout };
+
+// The free, shareable weekly recap (owner, 2026-11-10; GET /api/client/weekly-recap?week=last|current,
+// any signed-in account): the member's own Monday–Sunday in their time zone, as counted figures —
+// { weekStart, weekEnd, workouts, activeMinutes | null, mealDays, daysActive, points, streak }.
+// `mealDays` is days a meal was logged (never a count of meals); `daysActive` days with a workout
+// or a log.
+// The AI weekly readout above stays paid; this is the plain count. Resolves null on any failure:
+// the card then draws nothing rather than a week of zeros.
+async function getWeeklyRecap({ week = 'last' } = {}) {
+  try {
+    const w = week === 'current' ? 'current' : 'last';
+    const res = await shapeApiFetch(`/api/client/weekly-recap?week=${w}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    if (!d || typeof d.weekStart !== 'string' || typeof d.weekEnd !== 'string') return null;
+    const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    return {
+      weekStart: d.weekStart, weekEnd: d.weekEnd,
+      workouts: n(d.workouts), activeMinutes: n(d.activeMinutes), mealDays: n(d.mealDays),
+      daysActive: n(d.daysActive), points: n(d.points), streak: n(d.streak),
+    };
+  } catch (e) {
+    return null;
+  }
+}
+window.ShapeWeeklyRecap = { get: getWeeklyRecap };
 // Real food search (meal logger add sheet). Plain authed fetch — NO shared
 // cache (queries are too varied to benefit); THROWS on failure so the sheet
 // can show the honest can't-reach state instead of a silent empty list.
@@ -5385,6 +5461,9 @@ async function bsRecipePost(path, body, signal) {
       signal: ctrl ? ctrl.signal : signal,
     });
     const payload = await res.json().catch(() => null);
+    // A paid helper (owner, 2026-11-10): the 402's code is the reason, so the sheet offers Join
+    // (membership_required) or Update your card (payment_past_due), not "unavailable".
+    if (res.status === 402) return { ok: false, draft: null, reason: payload && payload.code === 'payment_past_due' ? 'payment_past_due' : 'membership_required' };
     if (!res.ok || !payload) return { ok: false, draft: null, reason: 'unavailable' };
     if (!payload.draft) return { ok: false, draft: null, reason: payload.reason || 'unavailable' };
     return { ok: true, draft: payload.draft, reason: null };
@@ -6064,6 +6143,14 @@ window.ShapeAssign = {
 // ─── Shape Store (redeem points for real rewards) ────────────────────────────
 // GET returns the live points balance + redemption locker; POST redeems an
 // item by id (server validates cost + deducts atomically, issues a code).
+// The Store is a paid feature (owner, 2026-11-10): a refusal's `code` rides the error
+// (membership_required / payment_past_due, or the route's own), so the page branches on it.
+function bsStoreError(res, data, fallback) {
+  const err = new Error((data && data.error) || fallback);
+  err.status = res.status;
+  err.code = (data && typeof data.code === 'string') ? data.code : null;
+  return err;
+}
 async function getStore() {
   return getJsonOrDefault(`${apiBaseUrl || ''}/api/store/redeem`, { balance: null, redemptions: [], credit: { session: 0, nutrition: 0 } },
     (data) => ({ balance: typeof data.balance === 'number' ? data.balance : null, redemptions: Array.isArray(data.redemptions) ? data.redemptions : [], credit: (data.credit && typeof data.credit === 'object') ? data.credit : { session: 0, nutrition: 0 } }));
@@ -6076,7 +6163,7 @@ async function redeemStoreItem(itemId, shipping) {
     body: JSON.stringify(shipping ? { itemId, shipping } : { itemId }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Redemption failed.');
+  if (!res.ok) throw bsStoreError(res, data, 'Redemption failed.');
   return data;
 }
 // Cart checkout — redeem MULTIPLE merch items in one order (one shipment).
@@ -6089,7 +6176,7 @@ async function checkoutStoreCart(items, shipping) {
     body: JSON.stringify({ items, shipping }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Checkout failed.');
+  if (!res.ok) throw bsStoreError(res, data, 'Checkout failed.');
   return data;
 }
 // Coach-only — activate a marketplace Lead Boost (separate from item redemption).
@@ -6124,7 +6211,7 @@ async function claimTierReward(rewardKey, choice, shipping) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Claim failed.');
+  if (!res.ok) throw bsStoreError(res, data, 'Claim failed.');
   return data;
 }
 window.ShapeTierRewards = { list: listTierRewards, claim: claimTierReward };
@@ -9359,6 +9446,15 @@ window.ShapeIntegrations = {
 // Confirm a Nora-drafted change (the human-in-the-loop step): POST the signed
 // proposal token to /api/ai/proposals/confirm. Nothing was applied until here.
 // Returns { ok, auditId, result }. Undo reverses a confirmed change by auditId.
+// Both are assistant Nora, a paid feature (owner, 2026-11-10): a refusal's status and code
+// (membership_required / payment_past_due) ride the error, so the card offers Join or Update
+// your card instead of printing the server's English.
+function bsNoraActionError(res, payload, message) {
+  const err = new Error(message);
+  err.status = res.status;
+  err.code = (payload && typeof payload.code === 'string') ? payload.code : null;
+  return err;
+}
 async function confirmNoraProposal(token) {
   const res = await fetch(`${apiBaseUrl || ''}/api/ai/proposals/confirm`, {
     method: 'POST',
@@ -9367,7 +9463,7 @@ async function confirmNoraProposal(token) {
     body: JSON.stringify({ token }),
   });
   const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload.message || payload.error || 'Could not apply that change.');
+  if (!res.ok) throw bsNoraActionError(res, payload, payload.message || payload.error || 'Could not apply that change.');
   return payload;
 }
 async function undoNoraProposal(auditId) {
@@ -9378,7 +9474,7 @@ async function undoNoraProposal(auditId) {
     body: JSON.stringify({ auditId }),
   });
   const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload.error || 'Could not undo that change.');
+  if (!res.ok) throw bsNoraActionError(res, payload, payload.error || 'Could not undo that change.');
   return payload;
 }
 // Nora's greeting and four suggestions for this account (GET /api/support/chat, the
@@ -9615,7 +9711,16 @@ async function speakVoice(text, toneOverride, opts = {}) {
     const res = await opening;
     // A newer speak() or a stop() ran while we were fetching — don't play stale audio.
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
-    if (!res.ok) { dropRest(); return { ok: false, reason: res.status === 401 ? 'signed_out' : (res.status === 402 || res.status === 403) ? 'members' : 'unavailable' }; }
+    if (!res.ok) {
+      dropRest();
+      // A paid feature (owner, 2026-11-10): a 402 says whether this is a free account
+      // (membership_required) or a membership whose renewal failed (payment_past_due).
+      let code = null;
+      if (res.status === 402) { try { const b = await res.json(); code = b && b.code; } catch (e) {} }
+      const failed = { ok: false, reason: res.status === 401 ? 'signed_out' : (res.status === 402 || res.status === 403) ? 'members' : 'unavailable' };
+      if (res.status === 402) failed.lock = code === 'payment_past_due' ? 'pastDue' : 'free';
+      return failed;
+    }
     const blob = await res.blob();
     if (myGen !== _voiceGen) return { ok: false, superseded: true };
     const url = URL.createObjectURL(blob);

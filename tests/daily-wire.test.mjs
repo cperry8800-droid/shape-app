@@ -8,27 +8,32 @@ import {
 import { stripComments } from './helpers/strip-comments.mjs';
 
 // ── bsLaunchRoute — the warm-relaunch decision ─────────────────────────────
-test('launchRoute: same uid + same day + cached member → app', () => {
-  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'app');
+test('launchRoute: same uid + same day + a signed-in account → app', () => {
+  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'app');
 });
 test('launchRoute: different day → beat', () => {
-  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-09', uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-09', uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'beat');
 });
 test('launchRoute: different uid → beat (no cross-account skip)', () => {
-  assert.equal(bsLaunchRoute({ stamp: 'u2:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: 'u2:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'beat');
 });
-test('launchRoute: no membership cache → beat', () => {
-  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', memberCached: false }), 'beat');
+test('launchRoute: no signed-in account → beat', () => {
+  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', signedIn: false }), 'beat');
+});
+// Owner, 2026-11-10: a free account is in the app, so it skips the same-day briefing like a
+// member. The skip keys on the account, not the cached membership flag.
+test('launchRoute: a free account skips the same-day briefing too', () => {
+  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: '2026-07-10', signedIn: true, memberCached: false }), 'app');
 });
 test('launchRoute: no stamp / malformed stamp → beat', () => {
-  assert.equal(bsLaunchRoute({ stamp: undefined, uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'beat');
-  assert.equal(bsLaunchRoute({ stamp: 'no-separator', uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'beat');
-  assert.equal(bsLaunchRoute({ stamp: ':2026-07-10', uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'beat');
-  assert.equal(bsLaunchRoute({ stamp: 'u1:', uid: 'u1', todayLocal: '2026-07-10', memberCached: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: undefined, uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: 'no-separator', uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: ':2026-07-10', uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: 'u1:', uid: 'u1', todayLocal: '2026-07-10', signedIn: true }), 'beat');
 });
 test('launchRoute: missing uid or day → beat', () => {
-  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: null, todayLocal: '2026-07-10', memberCached: true }), 'beat');
-  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: null, memberCached: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: null, todayLocal: '2026-07-10', signedIn: true }), 'beat');
+  assert.equal(bsLaunchRoute({ stamp: 'u1:2026-07-10', uid: 'u1', todayLocal: null, signedIn: true }), 'beat');
 });
 test('launchRoute: no args → beat (safe default)', () => {
   assert.equal(bsLaunchRoute(), 'beat');
@@ -36,7 +41,7 @@ test('launchRoute: no args → beat (safe default)', () => {
 test('dailyStamp: builds "<uid>:<day>" and round-trips through launchRoute', () => {
   const s = bsDailyStamp('abc', '2026-07-10');
   assert.equal(s, 'abc:2026-07-10');
-  assert.equal(bsLaunchRoute({ stamp: s, uid: 'abc', todayLocal: '2026-07-10', memberCached: true }), 'app');
+  assert.equal(bsLaunchRoute({ stamp: s, uid: 'abc', todayLocal: '2026-07-10', signedIn: true }), 'app');
 });
 
 // ── bsAfterBeat — post-beat routing ────────────────────────────────────────

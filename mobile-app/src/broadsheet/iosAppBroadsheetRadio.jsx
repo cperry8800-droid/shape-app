@@ -4,6 +4,7 @@ import { boothLabel, exampleAllowed, boothTier, webgl2Available, NORA_MODEL, nor
 import { createBoothKeeper } from '../../../public/newdesign/booth/noraBoothKeeper.mjs';
 import { bsSetsNow } from '../../../public/newdesign/noraSets.mjs';
 import { BS_CLEAN_HEAD, BS_CLEAN_SANS } from './bsCleanType.jsx';
+import { BSPaidLock, BSLockGlyph, useBSPaidLock, bsPaidGo, bsPaidActionLabel, bsPaidFeatureLine } from './BSPaidLock.jsx';
 import {
   BANDS, BAND_BINS, hasSignal, bandsFromBins, smoothBand, peakBand, barHeight, capVisible,
   fieldBin, fieldK, fieldAlpha, fieldRadius,
@@ -118,29 +119,46 @@ function bsRadioSignedIn() {
   try { return !!window.ShapeAuth?.getCachedState?.()?.user?.id; } catch (e) { return false; }
 }
 
-// IS THIS SOMEBODY LOOKING AROUND, RATHER THAN A MEMBER?
+// IS THIS AN ACCOUNT THAT HAS NOT PAID FOR SHAPE RADIO, RATHER THAN A MEMBER?
 //
-// ⚠ IT DEFAULTS TO "MEMBER", AND THAT DIRECTION IS THE POINT. `ShapeCanChat` is
-// the shell's own `memberAllowed` (iosAppBroadsheetMain.jsx) — an approved
-// coach, a signed-in account, or an active subscription — published on a
-// `shape:canchat` event. Only an explicit `false` is a prospect; `undefined`
-// (the flag has not been published yet, on the first frames of a cold launch)
-// reads as a member, so a real member is never shown a simulated station while
-// the gate is still settling. The asymmetry is deliberate: showing a prospect
-// the honest empty for a second costs nothing, and showing a MEMBER a
-// fabricated signal for a second is the one thing this page must never do.
+// ⚠ IT DEFAULTS TO "MEMBER", AND THAT DIRECTION IS THE POINT. `ShapePaid` is
+// the shell's own answer for the paid features (iosAppBroadsheetMain.jsx,
+// memberGate.mjs's bsPaidFlags) — the $5 membership, an approved coach or an
+// admin — published on a `shape:paid` event. Only an explicit `false` is an
+// account that has not paid (a free account, or a membership whose renewal
+// failed: owner, 2026-11-10, Shape Radio is a paid feature); `undefined` (the
+// flag has not been published yet, on the first frames of a cold launch) reads
+// as a member, so a real member is never shown a simulated station while the
+// gate is still settling. The asymmetry is deliberate: showing an unpaid account
+// the honest empty for a second costs nothing, and showing a MEMBER a fabricated
+// signal for a second is the one thing this page must never do.
 //
-// ⚠ AND `false` IMPLIES SIGNED OUT, which is what makes the simulation safe at
-// all: `memberAllowed` ORs in `signedIn`, so a prospect cannot have a session,
-// and playback is licensed to signed-in accounts only. There is no reading for
-// a simulated frame to displace, and there never could be.
+// ⚠ AND `false` MEANS NO STREAM, which is what makes the simulation safe at all:
+// /api/radio/station refuses an unpaid account (402 membership_required or
+// payment_past_due), so nothing plays. There is no reading for a simulated
+// frame to displace, and there never could be. (The signed-out Preview this
+// used to mean is gone: the app needs an account.)
 function useBSRadioPreview() {
-  const [v, setV] = useStateBR(() => (typeof window !== 'undefined' ? window.ShapeCanChat === false : false));
+  const [v, setV] = useStateBR(() => (typeof window !== 'undefined' ? window.ShapePaid === false : false));
   useEffectBR(() => {
-    const on = () => { try { setV(window.ShapeCanChat === false); } catch (e) { setV(false); } };
-    window.addEventListener('shape:canchat', on);
+    const on = () => { try { setV(window.ShapePaid === false); } catch (e) { setV(false); } };
+    window.addEventListener('shape:paid', on);
     on();
-    return () => window.removeEventListener('shape:canchat', on);
+    return () => window.removeEventListener('shape:paid', on);
+  }, []);
+  return v;
+}
+
+// A KNOWN member: `ShapePaid === true`, never merely "not known to be unpaid". The first-launch
+// ask to listen waits for it, so a free account is never invited to listen to a station its
+// account cannot play (owner, 2026-11-10).
+function useBSRadioPaidYes() {
+  const [v, setV] = useStateBR(() => (typeof window !== 'undefined' ? window.ShapePaid === true : false));
+  useEffectBR(() => {
+    const on = () => { try { setV(window.ShapePaid === true); } catch (e) { setV(false); } };
+    window.addEventListener('shape:paid', on);
+    on();
+    return () => window.removeEventListener('shape:paid', on);
   }, []);
   return v;
 }
@@ -497,12 +515,18 @@ function BSRadioProvider({ children }) {
   // auth gate: on a cold launch there is no uid on the first evaluation, so it
   // must fail closed and re-run when the session resolves. The 600ms delay lets
   // the launch splash finish rather than painting over it mid-transition.
+  // ⚠ AND ONLY A KNOWN MEMBER (owner, 2026-11-10: Shape Radio is a paid feature). A free or
+  // past-due account is not asked whether it wants music it cannot play; the Radio page and
+  // Home's console show it the lock instead. Re-run when the answer lands, so a member asked
+  // nothing yet is asked once it does, and an account that joins is asked then.
+  const radioPaidYes = useBSRadioPaidYes();
   useEffectBR(() => {
     if (askedPrompt) return undefined;
     if (!bsRadioUid()) return undefined; // no resolved account — nothing to ask
+    if (!radioPaidYes) return undefined; // not a known member — nothing to listen to
     const tm = setTimeout(() => setShowPrompt(true), 600);
     return () => clearTimeout(tm);
-  }, [askedPrompt, authTick]);
+  }, [askedPrompt, authTick, radioPaidYes]);
 
   // Re-seed the gate from the account's own mirror whenever the identity
   // changes, then converge it from the cloud so a fresh device inherits the
@@ -867,8 +891,10 @@ function BSRadioPrompt() {
   const tr = useShapeTr();
   const [choice, setChoice] = useStateBR('on'); // pre-select the recommended "play Radio" option
   const isLight = !!t.isLight;
+  // A free or past-due account is never asked to listen (owner, 2026-11-10): the station is paid.
+  const lock = useBSPaidLock();
 
-  if (!r.showPrompt) return null;
+  if (!r.showPrompt || lock) return null;
 
   return (
     <div style={{
@@ -1131,12 +1157,17 @@ function BSNowPlaying({ onOpen }) {
   const r = useBSRadio();
   const tr = useShapeTr();
   const preview = useBSRadioPreview();
+  // ⚠ SHAPE RADIO IS A PAID FEATURE (owner, 2026-11-10). A free account's console keeps what is on
+  // air and the example signal, and its disc is the lock: Join, or for a membership whose renewal
+  // failed, Update your card. The line under the title says which. Nothing here plays.
+  const paidLock = useBSPaidLock();
+  const lock = bsRadioSignedIn() ? paidLock : null;
   // The station is always live (there is no radio off); what the bar shows is
   // the deck's MEASURED key. Muted is its own quieter bar, and every other
   // state (playing, a refused play, signed out) is the live bar with the
   // speaker saying whether anything can be heard.
   const key = bsRadioTransportKey({ signedIn: bsRadioSignedIn(), playing: r.playingSince != null, paused: r.paused });
-  if (key === 'resume') return <BSNowPlayingMuted onTurnOn={() => r.setPaused(false)} onOpen={onOpen} />;
+  if (key === 'resume' && !lock) return <BSNowPlayingMuted onTurnOn={() => r.setPaused(false)} onOpen={onOpen} />;
 
   const np = radioNowPlayingDisplay(r.nowPlaying);
   // Key off the provider's raw-derived currentSongKey (NOT np, whose '—' fillers
@@ -1152,10 +1183,13 @@ function BSNowPlaying({ onOpen }) {
     : key === 'resume' ? () => r.setPaused(false)
       : key === 'tune' ? () => r.retryPlay()
         : null;
-  const label = key === 'pause' ? tr('radio:screen.pause', { defaultValue: 'Pause' })
+  const keyLabel = key === 'pause' ? tr('radio:screen.pause', { defaultValue: 'Pause' })
     : key === 'resume' ? tr('radio:screen.resume', { defaultValue: 'Resume' })
       : key === 'tune' ? tr('radio:nowPlaying.tuneIn', { defaultValue: 'Tune in' })
         : tr('radio:screen.signInToListen', { defaultValue: 'Sign in to listen' });
+  // Locked (signed in, so the key always has an action): the disc runs the lock's Join or Update your card.
+  const tap = lock ? () => { bsPaidGo(lock); } : act;
+  const label = lock ? bsPaidActionLabel(tr, lock) : keyLabel;
 
   // ⚠ OPTION B · THE LIVE SIGNAL. The box is a small console on the Radio page's dark ground, in both
   // themes, with the station's spectrum rising behind the words: 40 bars off the analyser while the
@@ -1178,14 +1212,14 @@ function BSNowPlaying({ onOpen }) {
       <BSRadioLevel n={40} playing={playing} preview={preview} color={`${C.teal}38`} height="78%" gap={2} floor={0.06}
         style={{ position: 'absolute', left: 8, right: 8, bottom: 0, pointerEvents: 'none', WebkitMaskImage: 'linear-gradient(to top, #000 30%, transparent)', maskImage: 'linear-gradient(to top, #000 30%, transparent)' }} />
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, minHeight: 68, padding: '0 4px 0 10px' }}>
-        <button disabled={!act} type="button" aria-label={label} title={label} onClick={(e) => { e.stopPropagation(); if (!act) return; if (key !== 'pause') bsRadioWakeMeter(); act(); }} style={{
+        <button disabled={!act} type="button" aria-label={label} title={label} data-bs-paid-action={lock || undefined} onClick={(e) => { e.stopPropagation(); if (!tap) return; if (!lock && key !== 'pause') bsRadioWakeMeter(); tap(); }} style={{
           position: 'relative', width: 44, height: 44, flexShrink: 0, border: 0, padding: 0, borderRadius: 999,
           background: act ? C.teal : 'transparent', color: act ? C.ground : C.cream60,
           boxShadow: act ? `0 0 18px -4px ${C.teal}` : `inset 0 0 0 1.5px ${C.cream40}`,
           cursor: act ? 'pointer' : 'default', display: 'grid', placeItems: 'center',
         }}>
           {playing && <span aria-hidden data-bs-np-onair="" style={{ position: 'absolute', inset: 0, borderRadius: 999, boxShadow: `0 0 0 2px ${C.teal}`, pointerEvents: 'none' }} />}
-          <BSPlayGlyph playing={key === 'pause'} size={16} />
+          {lock ? <BSLockGlyph size={16} /> : <BSPlayGlyph playing={key === 'pause'} size={16} />}
         </button>
         <div style={{ flex: 1, minWidth: 0, paddingLeft: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontFamily: t.MONO, fontSize: 8.5, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.teal, whiteSpace: 'nowrap' }}>
@@ -1194,7 +1228,9 @@ function BSNowPlaying({ onOpen }) {
             {preview && <span style={{ color: C.cream40 }}>· {tr('radio:rail.preview', { defaultValue: 'Preview' })}</span>}
           </div>
           <div style={{ marginTop: 3, fontFamily: BS_CLEAN_HEAD, fontSize: 17, fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.12, color: C.cream, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.title}</div>
-          {np.byline ? <div style={{ marginTop: 1, fontSize: 12, lineHeight: 1.3, color: C.cream60, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.byline}</div> : null}
+          {lock
+            ? <div data-bs-np-lock={lock} style={{ marginTop: 1, fontSize: 12, lineHeight: 1.3, color: lock === 'pastDue' ? '#e3a544' : C.cream60, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lock === 'pastDue' ? tr('common:paid.eyebrowPastDue', { defaultValue: 'Payment didn’t go through' }) : bsPaidFeatureLine(tr, 'radio')}</div>
+            : np.byline ? <div style={{ marginTop: 1, fontSize: 12, lineHeight: 1.3, color: C.cream60, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{np.byline}</div> : null}
         </div>
         {[
           { key: 'up', glyph: '＋', count: homeSocial.up },
@@ -2529,10 +2565,12 @@ function BSRadioScreen({ onBack }) {
   // How many of the rail's five bars are lit — a COUNT, reported up only when it
   // moves, so a 60Hz loop cannot re-render the page 60 times a second.
   const [railLit, setRailLit] = useStateBR(0);
-  // Someone previewing the app sees the instrument running on a SIMULATED
+  // An account that has not paid for Shape Radio sees the instrument running on a SIMULATED
   // station, labelled as one on the rail below. Owner ruling, 2026-09-15:
-  // "i want to show what it would look like for someone previewing the app".
+  // "i want to show what it would look like for someone previewing the app"; since 2026-11-10 that
+  // is a free or past-due account (the app needs an account, and the station is paid).
   const previewSim = useBSRadioPreview();
+  const radioLock = useBSPaidLock();
   const [hrmConnected, setHrmConnected] = useStateBR(false);
   const [liveHr, setLiveHr] = useStateBR(null); // real strap/watch reading (window.ShapeHRM)
   const [matching, setMatching] = useStateBR(false);
@@ -2861,6 +2899,9 @@ function BSRadioScreen({ onBack }) {
               the word beside it. Never a slider: the stream has no position. */}
           {(() => {
             const signedIn = bsRadioSignedIn();
+            // ⚠ A FREE OR PAST-DUE ACCOUNT MEETS THE LOCK, NOT A TUNE IN THAT CANNOT PLAY (owner,
+            // 2026-11-10: Shape Radio is a paid feature). The votes and comments stay.
+            const lockNow = signedIn ? radioLock : null;
             const key = bsRadioTransportKey({ signedIn, playing: r.playingSince != null, paused: r.paused });
             const act = key === 'pause' ? () => r.setPaused(true)
               : key === 'resume' ? () => r.setPaused(false)
@@ -2872,6 +2913,7 @@ function BSRadioScreen({ onBack }) {
             const canReact = bsRadioSignedIn();
             return (
               <>
+                {lockNow ? <BSPaidLock lock={lockNow} feature="radio" style={{ marginTop: 16 }} /> : (
                 <button disabled={!act} onClick={() => { if (act) act(); }} style={{ marginTop: 16, width: '100%', minHeight: 56, borderRadius: 999,
                   padding: '6px 18px 6px 6px', cursor: act ? 'pointer' : 'default',
                   border: `1px solid ${act ? `${TEAL}99` : EDGE}`,
@@ -2887,6 +2929,7 @@ function BSRadioScreen({ onBack }) {
                   </span>
                   <span style={{ fontFamily: t.MONO, fontSize: 10.5, fontWeight: 800, letterSpacing: '0.22em', textTransform: 'uppercase' }}>{label}</span>
                 </button>
+                )}
                 {/* No ■ Stop beside it: the station has no off, and Pause is the member's whole say. */}
                 {!signedIn && (
                   <div style={{ marginTop: 8, fontFamily: t.MONO, fontSize: 8.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: TEAL, fontWeight: 700, textAlign: 'center' }}>

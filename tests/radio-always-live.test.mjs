@@ -120,7 +120,8 @@ test('muted is the resting state, and the member\'s choice is kept on the device
 
 test('the Home bar is muted only on the measured key, and its play control says what can be heard', () => {
   const bar = stripComments(braced(RADIO, 'function BSNowPlaying({ onOpen }) {'));
-  assert.match(bar, /if \(key === 'resume'\) return <BSNowPlayingMuted onTurnOn=\{\(\) => r\.setPaused\(false\)\}/,
+  // A locked account (Shape Radio is paid, owner 2026-11-10) keeps the live console and its lock instead.
+  assert.match(bar, /if \(key === 'resume' && !lock\) return <BSNowPlayingMuted onTurnOn=\{\(\) => r\.setPaused\(false\)\}/,
     'the muted bar no longer follows the deck\'s key, or its Tune in no longer unmutes');
   // No speaker (owner, 2026-11-04: "we dont need the volume button since the phone will control that"):
   // the round control plays and pauses, ❚❚ only while the measured key says sound is playing.

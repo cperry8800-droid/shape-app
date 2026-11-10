@@ -988,7 +988,11 @@ test('MEASUREMENT — the numbers the record has to carry', () => {
   // Train's and Eat's "Find a trainer" / "Find a nutritionist" bars (BSFindCoachBar) are translated, with
   // their "Vetted coaches" / "Vetted RDs", under common:findCoach.* in all 13 locales (the Coaches tab,
   // 2026-11-09). Its line left UNCOVERED with its 4 strings: 422 -> 418.
-  assert.equal(noneStrings, 418, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
+  // The chat composer's locked bar said "Join Shape to send messages" to a signed-out previewer; the
+  // Preview is gone and messaging is free (owner, 2026-11-10), so a session with no account is asked
+  // to sign in by BSSignInToSend (BSPaidLock.jsx), keyed under feed:composer.signInToSend in all 13
+  // locales. BSMessageComposer stays UNCOVERED with one string fewer: 418 -> 417.
+  assert.equal(noneStrings, 417, 'the untranslated surfaces changed how much they hardcode — update the number AND say so in the PR');
   // 33 -> 32: BSScoreStandingChart left with the Score page's ladder (see partStrings above).
   // BSTerrainProfile is fully translated now (2026-10-31): 32 -> 31.
   // MktComboCard and MktRow went with the directory's redesign (2026-11-04, see partStrings): 31 -> 29.

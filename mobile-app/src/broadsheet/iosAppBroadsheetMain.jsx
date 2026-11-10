@@ -11,7 +11,8 @@ import BSUpdateGate from './BSUpdateGate.jsx';
 import { BSTimezoneCheck } from './BSTimezone.jsx';
 import { bsLaunchRoute, bsDailyStamp, bsAfterBeat, bsWireLines, bsWireTraining, bsWireCoachNote, bsWireNutrition } from '../services/dailyWire.mjs';
 import { bsCiLeadReason } from './BSCheckinCard.jsx';
-import { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
+import { bsAccountGate, bsPaidFlags, bsMembershipAfter, bsMembershipSeed, bsPollMembership } from '../services/memberGate.mjs';
+import { BSPlanPickerHost } from './BSPaidLock.jsx';
 import { bsCaptureBoundaryError } from '../sentry.mjs';
 import { shapeScrubLocalUserContent, shapeInstallSignOutListener } from '../services/localScrub.mjs';
 import { bumpSignOutGen } from '../services/signOutGen.mjs';
@@ -44,7 +45,7 @@ try { (window.requestIdleCallback || ((fn) => setTimeout(fn, 3000)))(() => windo
 const { useState: useStateBSM, useEffect: useEffectBSM } = React;
 const {
   useBS, BSProvider, BSPhone, BSLogo,
-  BSRadioProvider, useBSRadio,
+  BSRadioProvider,
 } = window;
 
 // The membership price, interpolated into every CTA that quotes it. One
@@ -499,7 +500,7 @@ function BSClimbTagline({ rise = false }) {
   );
 }
 
-function BSSplash({ onDone, style = 'wire-beat', signedOut = false }) {
+function BSSplash({ onDone, style = 'wire-beat' }) {
   const t = useBS();
   const { tr, locale } = useTr('onboarding');
   const SPLASH_FACE = "'Saira', 'Arial Narrow', 'Helvetica Neue', sans-serif";
@@ -515,15 +516,13 @@ function BSSplash({ onDone, style = 'wire-beat', signedOut = false }) {
   // The Daily digest: when the "classified" (daily) splash mounts, fetch the
   // member's real day. Fully guarded; null = still loading. Tap-to-advance works
   // the whole time regardless of fetch state.
-  // ⚠ `signedOut` IS THE SHELL'S ANSWER, NOT A GUESS: true only for the paywall's Preview, taken
-  // once the session restore has finished with no account (the paywall waits for it). That visitor
-  // gets the invite edition at once. The retries below are for a member whose session is still
-  // restoring; run for a visitor with no session at all, they held "Putting today together…" on
-  // screen for 3.3s before the pitch (owner, 2026-11-09: "make sure this is wired properly").
-  const [bsDigest, setBsDigest] = useStateBSM(() => (style === 'classified' && signedOut ? { signedIn: false, name: null } : null));
+  // Only a signed-in account reaches the telegram now (owner, 2026-11-10: the signed-out Preview is
+  // gone, so the shell never hands it a visitor with no session). Its reads are a free account's
+  // too: the daily briefing is free. The retries below are for an account whose session is still
+  // restoring; the invite edition is what a digest that never found the session falls back to.
+  const [bsDigest, setBsDigest] = useStateBSM(null);
   useEffectBSM(() => {
     if (style !== 'classified') return undefined;
-    if (signedOut) { setBsDigest({ signedIn: false, name: null }); return undefined; }
     let alive = true;
     let tries = 0;
     // The session restores asynchronously during the splash, so the first build
@@ -544,7 +543,7 @@ function BSSplash({ onDone, style = 'wire-beat', signedOut = false }) {
     };
     run();
     return () => { alive = false; };
-  }, [style, signedOut]);
+  }, [style]);
 
   // The telegram self-advances 5s AFTER the member's digest resolves — a slow
   // fetch never burns reading time (the loading state carries no timer). Under
@@ -730,7 +729,7 @@ function _bsNormalizePhone(raw) {
   return '+' + digits;
 }
 
-function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMode }) {
+function BSLogin({ onLogin, onApply, onBack, role, setRole, initialMode }) {
   const t = useBS();
   const { tr } = useTr('onboarding');
   const [mode, setMode] = useStateBSM(initialMode || 'signin'); // 'signin' | 'create'
@@ -856,13 +855,9 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
       if (result?.needsEmailConfirmation) { setVerifyEmail(result.email || trimmedEmail); return; }
       const nextRole = result?.profile?.role;
       if (nextRole && nextRole !== role) setRole(nextRole);
-      // New accounts must take the $5/mo membership — go straight to Stripe
-      // checkout. On a successful redirect we never return here; if checkout
-      // can't start, fall through into the app (the gate shows the paywall so
-      // they can still Activate). Coaches are members by role — skip checkout.
-      if (isCreate && role !== 'trainer' && role !== 'nutritionist') {
-        await bsmStartCheckout();
-      }
+      // ⚠ A NEW ACCOUNT IS A FREE ACCOUNT (owner, 2026-11-10): it goes into the app, not to the
+      // $5 checkout. Joining is offered where the membership adds something (Nora, Shape Radio,
+      // the AI helpers), and in Settings' plan card.
       onLogin(result);
     } catch (error) {
       if (captchaOn) resetCaptcha();
@@ -1283,31 +1278,15 @@ function BSLogin({ onLogin, onBrowse, onApply, onBack, role, setRole, initialMod
   );
 }
 
-// Start the $5/mo membership checkout through the backend's one door
-// (ShapeMembershipApi.startCheckout): the API base and the live token, the system
-// browser on native, and a membership re-check when it closes. A member who is
-// already one is re-checked instead of being sold a second membership; a signed-out
-// caller goes to create an account.
-async function bsmStartCheckout() {
-  const fail = () => window.__bsToast?.(window.ShapeI18n?.t?.('settings:toast.upgradeUnavailable') || 'Could not start checkout — try again.', 'err');
-  const api = window.ShapeMembershipApi;
-  if (!api || !api.startCheckout) { fail(); return; }
-  const r = await api.startCheckout();
-  if (r.ok || r.code === 'already_member') return;
-  if (r.status === 401) { window.__bsGoAuth?.('create'); return; }
-  // ⚠ THE SERVER'S WORDS ARE ENGLISH (client-onboarding review, L4): a refusal it names is said in
-  // the member's language; anything else is the translated "could not start".
-  const t = window.ShapeI18n?.t;
-  if (r.code === 'age_restricted') window.__bsToast?.(t?.('onboarding:login.err.under18') || 'You must be 18 or older to use Shape.', 'err');
-  else if (r.code === 'checkout_in_progress') window.__bsToast?.(t?.('onboarding:paywall.err.inProgress') || 'Checkout is already opening. Try again in a moment.', 'info');
-  else fail();
-}
+// The shell starts no checkout of its own any more (owner, 2026-11-10): an account gets into the app
+// free, and Join lives on each locked paid feature and in Settings' plan card (BSPaidLock.jsx's
+// bsPaidJoin and the client's bsStartPlatformCheckout, both through the backend's one door).
 
 // The membership-resolving hold — the wire ground, no "Checking membership…"
 // copy (the check rides the launch, never gets its own labelled screen). Used
 // as the stage-'app'/'gate' safety-net loading state.
 // "Questions? Ask Nora", top right on sign-in and the coach application, where each screen's
-// back button is top left. Not on the paywall (owner, 2026-10-18: "remove the nora bubble in top
+// back button is top left. Not on the welcome, as not on the paywall it replaced (owner, 2026-10-18: "remove the nora bubble in top
 // right").
 function BSAskNoraDoor({ onAsk }) {
   const { tr } = useTr('onboarding');
@@ -1342,14 +1321,6 @@ function BSWireHold() {
   );
 }
 
-// Full-screen membership wall for non-members. Offers Join (checkout / create
-// account), Sign in, and a "Preview the app" path so prospects can look around.
-// The members wall — the app's only conversion gate. Logic verbatim (Join /
-// Preview / Sign in / Sign out + the paywall_viewed analytics), re-set in the
-// launch's wire grammar: the drifting ticker behind it (the wire is live, you're
-// just not on it yet), the feature list as one dot-separated wire line, and a
-// flat solid-teal JOIN as the one commerce action, in the app's own face (Saira). Fixed-dark (a launch
-// surface), so it does NOT follow the paper theme — matching the beat/telegram.
 // The Terms of Service and the Privacy Policy, opened on the website (the system browser in the
 // installed app). Client-onboarding review, M4: the app's sign-up and paywall named neither. The
 // create step that makes the account carries them (BSLogin); the paywall's line and links went at
@@ -1369,47 +1340,45 @@ function BSLegalLinks({ color, mono }) {
   );
 }
 
-function BSPaywall({ signedIn, onJoin, onSignIn, onPreview, onLogout }) {
+// The welcome, for a session with no account: the app's only door now (owner, 2026-11-10: "An
+// account is REQUIRED to use the app. The signed-out Preview mode and Browse mode are REMOVED").
+// Create account or Sign in; what a free account gets as one dot-separated wire line; and one line
+// that the $5 membership adds Nora and Shape Radio. A signed-in account never sees it, paid or not:
+// a free account is in the app. Fixed-dark (a launch surface), so it does NOT follow the paper
+// theme, matching the beat and the telegram. `paywall_viewed` stays its analytics name: it is the
+// funnel's whitelisted event for this screen (src/lib/funnel.mjs).
+function BSWelcome({ onCreate, onSignIn }) {
   const { tr } = useTr('onboarding');
   ensureWireStyles();
-  const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', RULEF = 'rgba(242,237,228,0.2)', teal = '#34d6c5';
+  const INKF = '#f2ede4', INKF70 = 'rgba(242,237,228,0.7)', INKF50 = 'rgba(242,237,228,0.55)', teal = '#34d6c5';
   const mono = `'JetBrains Mono', 'Cascadia Code', Consolas, monospace`;
   React.useEffect(() => { try { window.ShapeAnalytics?.track?.('paywall_viewed'); } catch (e) {} }, []);
-  // Owner call: no STOP/END tokens — house middle-dot separators carry the line.
-  // Rendered joined by ' · ', so each feature is its own key — a locale that
-  // needs a different order or a longer word doesn't have to re-punctuate one
-  // baked-in sentence.
-  const feat = ['training', 'nutrition', 'coaches', 'radio', 'score', 'byo'].map((k) => tr('paywall.feat.' + k));
+  // What a free account gets, each its own key joined by ' · ' (a locale that needs another order
+  // or a longer word does not re-punctuate one baked-in sentence): community channels among them
+  // (owner, 2026-11-10: channels are free). Radio is the membership's, so it is on the line below.
+  const feat = ['training', 'nutrition', 'coaches', 'channels', 'score', 'byo'].map((k) => tr('paywall.feat.' + k));
   const cta = { width: '100%', minHeight: 48, padding: '13px', borderRadius: 4, border: 0, background: teal, color: '#05080c', fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', cursor: 'pointer' };
-  const ghost = { width: '100%', minHeight: 44, padding: '11px', borderRadius: 4, border: `1px solid ${RULEF}`, background: 'transparent', color: INKF70, fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   const textAction = { minHeight: 44, padding: '9px 24px', border: 0, background: 'transparent', color: teal, fontFamily: mono, fontSize: 10, fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' };
   return (
-    <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
+    <div data-bs-welcome="" style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'radial-gradient(135% 90% at 50% -8%, rgba(52,214,197,0.13), transparent 52%), linear-gradient(176deg, #0b161c 0%, #070b11 48%, #03050b 100%)', color: INKF }}>
       <BSWireGround dim />
       <div style={{ position: 'relative', zIndex: 1, minHeight: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', padding: '52px 26px 34px' }}>
         <img src={`${import.meta.env.BASE_URL}shape-logo.svg`} alt="Shape" style={{ width: 90, height: 'auto', aspectRatio: '932 / 439', alignSelf: 'flex-start', marginLeft: 6, marginTop: 10, filter: 'brightness(1.25) contrast(1.1) drop-shadow(0 0 10px rgba(46,224,196,0.32))' }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: 8 }}>
-          <h1 style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 36, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '4px 0 0' }}>{tr('paywall.titlePre')} <span style={{ fontWeight: 400, color: teal }}>{tr('paywall.titleAccent')}</span></h1>
+          <h1 style={{ fontFamily: BS_LAUNCH_HEAD, fontSize: 36, fontWeight: 300, letterSpacing: '-0.03em', lineHeight: 1.04, margin: '4px 0 0' }}>{tr('welcome.titlePre')} <span style={{ fontWeight: 400, color: teal }}>{tr('welcome.titleAccent')}</span></h1>
           <div style={{ margin: '18px 0 0', fontFamily: mono, fontSize: 9.5, fontWeight: 500, lineHeight: 2.15, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF }}>
             {feat.join(' · ')}
           </div>
-          {/* No renewal line or Terms links under Join (owner, 2026-10-18). Joining still accepts the
-              Terms on the create step that makes the account, and Stripe's checkout states the
-              monthly price and the renewal before anyone pays. */}
-          <button onClick={onJoin} style={{ ...cta, marginTop: 26 }}>{signedIn ? tr('paywall.join', { price: BS_PRICE }) : tr('paywall.createJoin', { price: BS_PRICE })}</button>
-          <button onClick={onPreview} style={{ ...ghost, marginTop: 12 }}>{tr('paywall.preview')}</button>
-          {signedIn ? (
-            <div style={{ marginTop: 26, display: 'flex', justifyContent: 'center' }}>
-              <button onClick={onLogout} style={textAction}>{tr('settings:action.signOut')}</button>
+          <div data-bs-welcome-membership="" style={{ marginTop: 12, paddingLeft: 10, borderLeft: `2px solid ${teal}`, fontFamily: mono, fontSize: 9, fontWeight: 700, lineHeight: 1.7, letterSpacing: '0.1em', textTransform: 'uppercase', color: INKF70 }}>
+            {tr('welcome.membership', { price: BS_PRICE })}
+          </div>
+          <button type="button" onClick={onCreate} style={{ ...cta, marginTop: 26 }}>{tr('login.createAccount')}</button>
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50 }}>{tr('paywall.haveAccount')}</div>
+            <div style={{ marginTop: 6, display: 'flex', justifyContent: 'center' }}>
+              <button type="button" onClick={onSignIn} style={textAction}>{tr('paywall.signIn')}</button>
             </div>
-          ) : (
-            <div style={{ marginTop: 24, textAlign: 'center' }}>
-              <div style={{ fontFamily: mono, fontSize: 9, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: INKF50 }}>{tr('paywall.haveAccount')}</div>
-              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'center' }}>
-                <button onClick={onSignIn} style={textAction}>{tr('paywall.signIn')}</button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
@@ -1462,36 +1431,6 @@ function BSPushAsk({ coach = false }) {
   return host ? createPortal(sheet, host) : sheet;
 }
 
-// Persistent "you're previewing" banner shown over the app for non-members who
-// chose to look around — keeps the Join CTA present without blocking the view.
-function BSPreviewBanner({ t, onJoin }) {
-  const { tr } = useTr('onboarding');
-  const teal = t.isLight ? '#0a8f87' : '#34d6c5';
-  const [dismissed, setDismissed] = useStateBSM(false);
-  if (dismissed) return null;
-  return (
-    <div style={{ position: 'absolute', left: 12, right: 12, bottom: 78, zIndex: 150, display: 'flex', alignItems: 'center', gap: 8, padding: '10px 10px 10px 14px', borderRadius: 14, background: t.INK, color: t.PAPER, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontFamily: t.MONO, fontSize: 8, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', color: teal }}>{tr('preview.title')}</div>
-        <div style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 600, marginTop: 1, lineHeight: 1.3 }}>{tr('preview.body')}</div>
-      </div>
-      <button onClick={onJoin} style={{ flexShrink: 0, padding: '9px 14px', borderRadius: 999, border: 0, background: t.PAPER, color: t.INK, fontFamily: t.MONO, fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', cursor: 'pointer' }}>{tr('preview.join', { price: BS_PRICE })}</button>
-      <button onClick={() => setDismissed(true)} aria-label={tr('preview.dismiss')} style={{ flexShrink: 0, width: 26, height: 26, borderRadius: 999, border: 0, background: 'transparent', color: t.PAPER, opacity: 0.7, cursor: 'pointer', fontFamily: t.MONO, fontSize: 13, fontWeight: 800, lineHeight: 1 }}>✕</button>
-    </div>
-  );
-}
-
-// The preview banner shouldn't sit on top of the full-screen Radio prompt (the
-// `radio:prompt.*` overlay — named by key, not by its wording, which has already
-// been retired once) — hold it until that's answered and the
-// user is actually in the app. Reads the radio context, so it must render inside
-// BSRadioProvider (it does — it's rendered alongside <App>).
-function BSPreviewBannerGated({ t, onJoin }) {
-  const r = useBSRadio();
-  if (r?.showPrompt) return null;
-  return <BSPreviewBanner t={t} onJoin={onJoin} />;
-}
-
 // How long the shell keeps asking after the checkout's browser closes: every 3 seconds for a
 // minute, the website's own patience on its "Confirming your membership" panel.
 const BSM_MEMBERSHIP_POLL_MS = 3000;
@@ -1528,21 +1467,22 @@ function BSAppShell({ tweaks, setTweak }) {
     // already awaited it, and CacheStorage is shared across tabs.
     try { window.location.reload(); } catch (e) {}
   }), []);
-  // Boot decision (synchronous): a known member who already saw today's briefing
-  // skips straight to the app (warm relaunch — the briefing is a morning ritual,
-  // not a toll). Everyone else opens on the wire beat, which holds until the
-  // membership check resolves behind it, then routes (lang / daily / gate). The
+  // Boot decision (synchronous): a signed-in account that already saw today's
+  // briefing skips straight to the app (warm relaunch — the briefing is a morning
+  // ritual, not a toll), paid or not: a free account is in the app (owner,
+  // 2026-11-10). Everyone else opens on the wire beat, which holds until the
+  // account check resolves behind it, then routes (lang / daily / gate). The
   // stage-'app' gate stays the safety net if the restore later disagrees.
   const [stage, setStage] = useStateBSM(() => {
     try {
       // The auth `state` is empty until getCurrentSession() hydrates it (async),
-      // so the live uid isn't available synchronously at boot. Use the persisted
-      // 'shape.lastUid' (written when membership resolves, cleared on logout) so
-      // the uid-scoped warm-skip still works on a fresh JS context.
-      const uid = localStorage.getItem('shape.lastUid');
+      // so the live uid may not be available synchronously at boot. The cached
+      // session's uid, else the persisted 'shape.lastUid' (written when the
+      // account's lookup runs, cleared on logout), so the uid-scoped warm-skip
+      // still works on a fresh JS context.
+      const uid = window.ShapeAuth?.getCachedState?.()?.user?.id || localStorage.getItem('shape.lastUid');
       const stamp = localStorage.getItem('shape.dailySeen');
-      const memberCached = (window.ShapeMembership && window.ShapeMembership.active === true) || localStorage.getItem('shape.member') === '1';
-      return bsLaunchRoute({ stamp, uid, todayLocal: bsLocalDay(), memberCached });
+      return bsLaunchRoute({ stamp, uid, todayLocal: bsLocalDay(), signedIn: !!uid });
     } catch (e) { return 'beat'; }
   });
   // Seed from the signed-in profile's role first (so a trainer/nutritionist lands
@@ -1552,20 +1492,17 @@ function BSAppShell({ tweaks, setTweak }) {
     return cachedRole || tweaks.role || 'client';
   });
   const [authState, setAuthState] = useStateBSM(() => window.ShapeAuth?.getCachedState?.() || {});
-  const [browseMode, setBrowseMode] = useStateBSM(false);
-  const [bannerDismissed, setBannerDismissed] = useStateBSM(false);
-  const [noticeDismissed, setNoticeDismissed] = useStateBSM(false);
   const [loginMode, setLoginMode] = useStateBSM('signin'); // initial tab on next login mount
   const [applyRole, setApplyRole] = useStateBSM(null); // pro role applying for → opens the application screen
   const [bundleLoading, setBundleLoading] = useStateBSM(false);
   const [bundleError, setBundleError] = useStateBSM('');
-  // App-wide membership gate. Shape is members-only: full access requires an
-  // active $5/mo subscription OR an approved coach account (role from the
-  // profile). Seeded from window.ShapeMembership so members don't flash the
-  // paywall on reload.
+  // The account's membership: `active` is the paid features (the $5 membership, an approved
+  // coach or an admin), `pastDue` a membership whose renewal failed while Stripe retries, and
+  // `ageRestricted` a known minor. It no longer decides who is in the app: a signed-in adult
+  // account is (owner, 2026-11-10). Seeded from window.ShapeMembership so a returning account
+  // is not held on the launch hold, and a member never sees a paid feature locked, on reload.
   const [membership, setMembership] = useStateBSM(() => {
-    // Seed from the last-known status so a confirmed member never flashes the
-    // paywall on reload. window cache first, then a persisted localStorage hint.
+    // Seed from the last-known status: the window cache first, then a persisted localStorage hint.
     try {
       if (window.ShapeMembership && typeof window.ShapeMembership.active === 'boolean') return { loading: false, active: window.ShapeMembership.active };
       // Only an answer recorded FOR the last signed-in account; another account's is not this one's.
@@ -1576,13 +1513,10 @@ function BSAppShell({ tweaks, setTweak }) {
   });
   // Whether auth has resolved (session restore complete). Until it has, we hold
   // on the "Checking membership…" state instead of deciding — so a returning
-  // member OR coach never flashes the paywall before their session + role are
+  // account OR coach never flashes the welcome before their session + role are
   // restored. (getCurrentSession runs during the splash, so this is resolved by
   // the time we reach the app stage.)
   const [authReady, setAuthReady] = useStateBSM(() => !authConfigured);
-  // Non-members can choose "Preview the app" from the paywall to look around
-  // (see features + overall function) behind a persistent Join banner.
-  const [previewMode, setPreviewMode] = useStateBSM(false);
   const t = useBS();
 
   useEffectBSM(() => {
@@ -1709,22 +1643,34 @@ function BSAppShell({ tweaks, setTweak }) {
     let known = null;
     try { known = bsMembershipSeed({ stored: localStorage.getItem('shape.member'), storedUid: localStorage.getItem('shape.memberUid'), lastUid: uid }); } catch (e) {}
     if (known === null) setMembership({ loading: true, active: false });
-    // `ageRestricted` rides along: a known minor is shown the age message, not the membership offer
-    // the server would refuse them (#2353's moved item). Unknown keeps what was known.
+    // `ageRestricted` rides along: a known minor is shown the age message, not the app or a
+    // membership offer the server would refuse them (#2353's moved item). It is stored as 'a', which
+    // seeds nothing, so a known minor's next launch holds for the answer instead of opening the app.
+    // `pastDue` too: a membership whose renewal failed is asked to update the card. Unknown keeps
+    // what was known.
+    // `nora` and `noraPreview`: assistant Nora, a member's or a free week's (owner, 2026-11-10);
+    // `includedWithCoach`: a membership that comes with an active coaching subscription.
     let ageRestricted = false;
+    let pastDue = false;
+    let nora = false;
+    let noraPreview = null;
+    let includedWithCoach = false;
     const run = () => Promise.resolve(window.ShapeMembershipApi?.lookup?.() ?? null).catch(() => null).then((d) => {
       if (cancelled) return null;
       const answer = d ? d.member : null;
-      if (d) ageRestricted = d.ageRestricted === true;
+      if (d) {
+        ageRestricted = d.ageRestricted === true; pastDue = d.pastDue === true;
+        nora = d.nora === true; noraPreview = d.noraPreview || null; includedWithCoach = d.includedWithCoach === true;
+      }
       if (answer === true || answer === false) {
-        // A recheck that finds a new member says so, so a screen that was locked (the reviews,
-        // members only) reads again without being reopened (Codex P2 on #2492).
+        // A recheck that finds a new member says so, so a screen that was locked reads again
+        // without being reopened (Codex P2 on #2492).
         if (answer === true && known !== true) { try { window.dispatchEvent(new Event('shape:membership-active')); } catch (e) {} }
         known = answer;
-        try { window.ShapeMembership = { active: answer }; localStorage.setItem('shape.member', answer ? '1' : '0'); localStorage.setItem('shape.memberUid', uid); } catch (e) {}
+        try { window.ShapeMembership = { active: answer }; localStorage.setItem('shape.member', ageRestricted ? 'a' : answer ? '1' : '0'); localStorage.setItem('shape.memberUid', uid); } catch (e) {}
       }
       const active = bsMembershipAfter(known, answer);
-      setMembership({ loading: false, active, ageRestricted });
+      setMembership({ loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active || nora, noraPreview, includedWithCoach: active && includedWithCoach });
       return active;
     });
     run();
@@ -1749,12 +1695,11 @@ function BSAppShell({ tweaks, setTweak }) {
     };
   }, [authState?.user?.id, authReady]);
 
-  // Account gate for browse / no-account users. Deep screens call
-  // window.bsRequireAccount('book a session') before any committing action;
-  // if there's no signed-in user it nudges them to create an account.
+  // The account door for a session with no account (the Nora sheet over sign-in, a screen whose
+  // session ended). Deep screens call window.bsRequireAccount('book a session') before any
+  // committing action; with no signed-in user it sends them to create an account.
   useEffectBSM(() => {
     window.__bsGoAuth = (mode) => {
-      setBrowseMode(false); setNoticeDismissed(false); setBannerDismissed(false);
       setLoginMode(mode === 'signin' ? 'signin' : 'create'); setStage('login');
     };
     window.bsRequireAccount = (label) => {
@@ -1790,36 +1735,38 @@ function BSAppShell({ tweaks, setTweak }) {
   const App = appByRole[role] || (isCoachRole ? null : window.BSClientApp);
   const appProps = role === 'shape_radio' ? { initialTab: 'radio' } : {};
 
-  // ── App-wide member gate ──────────────────────────────────────────────────
-  // Approved coaches (authoritative profile role) get in free; everyone else
-  // needs an active subscription. Non-members can still "Preview the app" from
-  // the paywall to look around behind a persistent Join banner.
+  // ── App-wide account gate ─────────────────────────────────────────────────
+  // An account is the gate (owner, 2026-11-10): a signed-in adult account is in the app, paid or
+  // not, and approved coaches (authoritative profile role) are in at once. With no account the
+  // welcome is the only screen; there is no preview and no browse mode.
   const realRole = authState?.profile?.role;
   // computeMembership's rule: a coach role (dietitians are coaches too, roles.mjs COACH_ROLES) as
   // the primary role or among roles[]. Narrower, an approved coach met the paywall whenever the
   // membership lookup failed (Codex on #2353, twice).
   const realRoles = [realRole, ...(Array.isArray(authState?.profile?.roles) ? authState.profile.roles : [])];
   const isApprovedCoach = realRoles.some((r) => r === 'trainer' || r === 'nutritionist' || r === 'dietitian');
-  // ⚠ SIGNED IN IS NOT A MEMBER (client-onboarding review H1, 2026-10-14; memberGate.mjs
-  // says why). The membership itself decides; a returning member is seeded from this
-  // account's last answer, so the paywall does not flash.
+  // ⚠ SIGNED IN IS NOT A MEMBER (client-onboarding review H1, 2026-10-14), and since 2026-11-10 it
+  // does not have to be: the account gets in, and the membership decides the paid features only
+  // (window.ShapePaid, below). A returning account is seeded from its last answer, so the launch
+  // does not hold on the lookup.
   const signedIn = !!(authState?.user?.id);
-  const { allowed: memberAllowed, loading: memberGateLoading } = bsMemberGate({ isApprovedCoach, authReady, membership });
-  // A signed-in account the server knows to be under 18: told so, ahead of the paywall and the app.
+  const { allowed: accountAllowed, loading: gateLoading } = bsAccountGate({ isApprovedCoach, authReady, signedIn, membership });
+  // A signed-in account the server knows to be under 18: told so, ahead of the app.
   const ageBlocked = signedIn && !!(membership && membership.ageRestricted === true);
+  // In the app: a signed-in adult account (or an approved coach).
+  const admitted = accountAllowed && !ageBlocked;
 
-  // The membership wall ('gate') sits between the wire beat and the "Shape
-  // Daily" telegram: non-members see the paywall here; members auto-advance
-  // past it to the telegram, then the app.
+  // The door ('gate') sits between the wire beat and the "Shape Daily" telegram: a session with
+  // no account sees the welcome here; an account auto-advances past it to the telegram, then the app.
   useEffectBSM(() => {
-    if (stage === 'gate' && !memberGateLoading && memberAllowed) setStage('daily');
-  }, [stage, memberGateLoading, memberAllowed]);
+    if (stage === 'gate' && !gateLoading && admitted) setStage('daily');
+  }, [stage, gateLoading, admitted]);
 
   // ── Nora before there is an account (the Ask Nora plan, steps 2 and 5) ──
   // Sign-in and the coach application get a labelled "Questions? Ask Nora": an unlabelled ✦
   // means nothing to someone who has not met her. The tap loads the client bundle her sheet
   // lives in and opens it over the screen. On the sign-up and the application she can fill the
-  // form in with them (window.shapeNoraForm, set by each). The paywall had one too, until the
+  // form in with them (window.shapeNoraForm, set by each). The paywall (now the welcome) had one too, until the
   // owner's call (2026-10-18: "remove the nora bubble in top right").
   const noraDoor = stage === 'login' || stage === 'apply';
   const [noraSheet, setNoraSheet] = useStateBSM(false);
@@ -1836,10 +1783,10 @@ function BSAppShell({ tweaks, setTweak }) {
   const askNora = () => { loadClientBundle().then(() => setNoraSheet(true)).catch(() => {}); };
 
   // The wire beat holds for a minimum dwell (~3.5s — owner call 2026-07-10:
-  // let the overture breathe) while the membership check resolves BEHIND it
-  // (memberGateLoading false), then routes on — language picker on first run,
-  // else the telegram (members) or the gate/wall (non-members). No "Checking
-  // membership…" screen ever renders.
+  // let the overture breathe) while the account check resolves BEHIND it
+  // (gateLoading false), then routes on — language picker on first run,
+  // else the telegram (an account) or the gate (the welcome, or the age message).
+  // No "Checking membership…" screen ever renders.
   const [beatMinElapsed, setBeatMinElapsed] = useStateBSM(false);
   useEffectBSM(() => {
     if (stage !== 'beat') return undefined;
@@ -1847,23 +1794,33 @@ function BSAppShell({ tweaks, setTweak }) {
     return () => clearTimeout(id);
   }, [stage]);
   useEffectBSM(() => {
-    if (stage !== 'beat' || !beatMinElapsed || memberGateLoading) return;
+    if (stage !== 'beat' || !beatMinElapsed || gateLoading) return;
     let hasLocale = false; try { hasLocale = !!localStorage.getItem('shape.locale'); } catch (e) {}
-    setStage(bsAfterBeat({ allowed: memberAllowed, hasLocale }));
-  }, [stage, beatMinElapsed, memberGateLoading, memberAllowed]);
+    setStage(bsAfterBeat({ allowed: admitted, hasLocale }));
+  }, [stage, beatMinElapsed, gateLoading, admitted]);
 
-  // Expose "can this user actually send messages" (member access incl. coaches)
-  // so the chat composer can lock for non-members previewing the app.
+  // The flags every screen reads (memberGate.mjs, bsPaidFlags): window.ShapeCanChat is any
+  // signed-in account (messaging a coach is free); window.ShapePaid is the paid features (Shape
+  // Radio, the Store, the AI helpers, the full leaderboard), unknown (undefined) until this
+  // account's answer is in, so nothing locks a member on a cold launch; window.ShapeNora is
+  // assistant Nora (a member's, or a free week's: window.ShapeNoraPreview); window.ShapePastDue is
+  // a membership whose renewal failed; window.ShapeIncludedWithCoach a membership that comes with
+  // coaching. Each change is announced ('shape:canchat', 'shape:paid') for the screens mounted.
+  const paidFlags = bsPaidFlags({ signedIn, isApprovedCoach, membership });
+  const includedWithCoach = paidFlags.paid === true && !!(membership && membership.includedWithCoach === true);
+  const previewKey = paidFlags.noraPreview ? `${paidFlags.noraPreview.startedAt}|${paidFlags.noraPreview.endsAt}|${paidFlags.noraPreview.active}` : '';
   useEffectBSM(() => {
-    try { window.ShapeCanChat = memberAllowed; window.dispatchEvent(new Event('shape:canchat')); } catch (e) {}
-  }, [memberAllowed]);
-  // Let a deep "Join to send" CTA (e.g. the locked chat composer) exit preview
-  // back to the paywall.
-  useEffectBSM(() => {
-    const exit = () => setPreviewMode(false);
-    window.addEventListener('shape:exitPreview', exit);
-    return () => window.removeEventListener('shape:exitPreview', exit);
-  }, []);
+    try {
+      window.ShapeCanChat = paidFlags.canChat;
+      window.ShapePaid = paidFlags.paid;
+      window.ShapePastDue = paidFlags.pastDue;
+      window.ShapeNora = paidFlags.nora;
+      window.ShapeNoraPreview = paidFlags.noraPreview;
+      window.ShapeIncludedWithCoach = includedWithCoach;
+      window.dispatchEvent(new Event('shape:canchat'));
+      window.dispatchEvent(new Event('shape:paid'));
+    } catch (e) {}
+  }, [paidFlags.canChat, paidFlags.paid, paidFlags.pastDue, paidFlags.nora, previewKey, includedWithCoach]);
 
   useEffectBSM(() => {
     let cancelled = false;
@@ -1884,15 +1841,15 @@ function BSAppShell({ tweaks, setTweak }) {
   const authUserId = authState?.user?.id || null;
 
   // ── Date-of-birth completion ────────────────────────────────────────────
-  // Asked of REAL signed-in members only. A previewer or a browse-mode
-  // visitor has no account to attach a birthdate to, so asking them would be
-  // a form that cannot succeed. `needed` starts false: until the server has
-  // actually said otherwise, nobody is held.
+  // Asked of signed-in accounts only, paid or not: a session with no account
+  // has nothing to attach a birthdate to, so asking it would be a form that
+  // cannot succeed. `needed` starts false: until the server has actually said
+  // otherwise, nobody is held.
   const [dobState, setDobState] = useStateBSM({ needed: false, blocked: '' });
   // ⚠ WAIT FOR THE SESSION RESTORE, LIKE THE MEMBERSHIP PROBE ABOVE. `authState`
   // is seeded SYNCHRONOUSLY from the cached state, so `authUserId` — and with it
-  // `signedIn`, and so `memberAllowed` — are already truthy on the first render,
-  // deliberately (see memberGateLoading: the gate must resolve before auth
+  // `signedIn`, and so `accountAllowed` — are already truthy on the first render,
+  // deliberately (see gateLoading: the gate must resolve before auth
   // restores). This effect therefore fired with the CACHED access token, which on
   // a returning member's cold boot is the expired one. The 401 that came back is
   // correctly not treated as evidence — but nothing in the dependency array then
@@ -1903,7 +1860,7 @@ function BSAppShell({ tweaks, setTweak }) {
   // `authReady` flips false→true when the restore completes, which is the one
   // dependency that re-runs this at the moment a live token exists.
   useEffectBSM(() => {
-    if (!authReady || !authUserId || !memberAllowed || previewMode || browseMode) return undefined;
+    if (!authReady || !authUserId || !accountAllowed) return undefined;
     let cancelled = false;
     (async () => {
       try {
@@ -1922,7 +1879,7 @@ function BSAppShell({ tweaks, setTweak }) {
       } catch (e) { /* never block on a failed check */ }
     })();
     return () => { cancelled = true; };
-  }, [authReady, authUserId, memberAllowed, previewMode, browseMode]);
+  }, [authReady, authUserId, accountAllowed]);
   // A new notification's toast, by the reader's App switches as the list reads them
   // (/api/notifications): not for a row written for push or email only, nor one whose switch has its
   // App channel off (owner, 2026-10-26: "make sure users have the ability to customize/toggle which
@@ -1975,12 +1932,6 @@ function BSAppShell({ tweaks, setTweak }) {
     // override (e.g. a previous "client" pick) can't pull a coach back to client.
     const r = st?.profile?.role;
     if (r) { setRole(r); setTweak('role', r); }
-    setBrowseMode(false);
-    // A previewer who signs in is not previewing any more: left on, preview mode skipped
-    // the age check for the rest of the session (client-onboarding review L2).
-    setPreviewMode(false);
-    setBannerDismissed(false);
-    setNoticeDismissed(false);
     setLoginMode('signin');
     setStage('app');
   };
@@ -1996,8 +1947,6 @@ function BSAppShell({ tweaks, setTweak }) {
     try { signedOut = await window.ShapeAuth?.signOut?.(); } catch (e) {}
     const cookieCleared = Boolean(signedOut && signedOut.cookieCleared);
     setAuthState({});
-    setBrowseMode(false);
-    setPreviewMode(false);
     try { window.ShapeMembership = { active: false }; localStorage.removeItem('shape.member'); localStorage.removeItem('shape.lastUid'); localStorage.removeItem('shape.dailySeen'); } catch (e) {}
     // Shared-device hygiene: user CONTENT must not survive an explicit sign-out —
     // the next person on this device could read it. The inventory is the
@@ -2042,7 +1991,7 @@ function BSAppShell({ tweaks, setTweak }) {
     // has to be closed per-cache and reopens with the next cache someone adds
     // (e.g. shapeSignals' role-keyed triage promise, which would serve account
     // A's roster to account B). The reload retires the whole class: a fresh JS
-    // context boots signed-out onto the membership wall. localStorage survives
+    // context boots signed-out onto the welcome. localStorage survives
     // a reload, so the scrub above still does the at-rest work — but the
     // scrub's CACHE purge is async, and the reload would discard the document
     // before its caches.delete calls dispatch, so it is awaited here under a
@@ -2054,13 +2003,13 @@ function BSAppShell({ tweaks, setTweak }) {
   // The account's time zone (P9; BSTimezone.jsx), for EVERY role: learned and remembered as soon as
   // a signed-in session is restored, the device's zone set as the first default when there is none.
   // The question about a phone on another clock waits for the app itself: the branch below that
-  // renders <App> for a member or an approved coach, never over the splash, the paywall, the age
-  // check or a previewer's demo.
-  const timezoneAsk = stage === 'app' && !memberGateLoading && !ageBlocked && memberAllowed && !bundleError && !!App && !dobState.needed;
+  // renders <App> for a signed-in account or an approved coach, never over the splash, the welcome
+  // or the age check.
+  const timezoneAsk = stage === 'app' && !gateLoading && !ageBlocked && accountAllowed && !bundleError && !!App && !dobState.needed;
 
   // BSRadioProvider hoisted ABOVE the stage switch so radio state
-  // (paused, askedPrompt, fxMode) survives stage transitions (gate, browse,
-  // preview) without remounting — a remount re-fires its 600ms auto-prompt,
+  // (paused, askedPrompt, fxMode) survives stage transitions (gate, login,
+  // daily) without remounting — a remount re-fires its 600ms auto-prompt,
   // causing a brief Home flash before the overlay covers it. An explicit
   // sign-out hard-reloads (see handleLogout), so radio state resets there
   // by design; the hoisting covers every in-session transition.
@@ -2086,28 +2035,26 @@ function BSAppShell({ tweaks, setTweak }) {
         {stage === 'beat' && <BSSplash style="wire-beat" onDone={() => {}} />}
         {stage === 'lang' && <BSLanguagePicker onDone={() => setStage('gate')} />}
         {stage === 'gate' && (
-          // Membership wall — shown BEFORE the "Shape Daily" telegram. Members
-          // auto-advance (effect above); non-members see the paywall and choose
-          // Join / Sign in / Preview (preview → the daily invite edition → app).
-          memberGateLoading || memberAllowed ? (
+          // The door — shown BEFORE the "Shape Daily" telegram. An account
+          // auto-advances (effect above), paid or not; a known minor is told so;
+          // a session with no account sees the welcome: Create account / Sign in.
+          gateLoading ? (
             <BSWireHold />
           ) : ageBlocked ? (
             <BSDobGate blocked="age_restricted" onLogout={handleLogout} />
+          ) : accountAllowed ? (
+            <BSWireHold />
           ) : (
-            <BSPaywall
-              signedIn={!!authUserId}
-              onJoin={() => { if (authUserId) bsmStartCheckout(); else { setBrowseMode(false); setLoginMode('create'); setStage('login'); } }}
-              onSignIn={() => { setBrowseMode(false); setLoginMode('signin'); setStage('login'); }}
-              onPreview={() => { setPreviewMode(true); setStage('daily'); }}
-              onLogout={handleLogout}
+            <BSWelcome
+              onCreate={() => { setLoginMode('create'); setStage('login'); }}
+              onSignIn={() => { setLoginMode('signin'); setStage('login'); }}
             />
           )
         )}
-        {stage === 'daily' && <BSSplash style="classified" signedOut={previewMode && authReady && !authUserId} onDone={() => {
-          // A real signed-in member entering their telegram stamps today's
-          // seen-marker (warm relaunch skips the rest of the day). The signed-out
-          // preview/invite path never stamps.
-          if (authUserId && !previewMode) { try { localStorage.setItem('shape.dailySeen', bsDailyStamp(authUserId, bsLocalDay())); } catch (e) {} }
+        {stage === 'daily' && <BSSplash style="classified" onDone={() => {
+          // A signed-in account entering its telegram stamps today's seen-marker
+          // (warm relaunch skips the rest of the day).
+          if (authUserId) { try { localStorage.setItem('shape.dailySeen', bsDailyStamp(authUserId, bsLocalDay())); } catch (e) {} }
           setStage('app');
         }} />}
         {stage === 'login'  && <BSLogin
@@ -2117,27 +2064,23 @@ function BSAppShell({ tweaks, setTweak }) {
           setRole={(r) => { setRole(r); setTweak('role', r); }}
           onLogin={handleLogin}
           onBack={() => setStage('gate')}
-          onBrowse={() => { setBrowseMode(true); setBannerDismissed(false); setNoticeDismissed(false); setLoginMode('signin'); setStage('app'); }}
           onApply={(r) => { setApplyRole(r); loadClientBundle().then(() => setStage('apply')); }}
         />}
         {stage === 'apply' && (window.BSProviderApplicationScreen
           ? <window.BSProviderApplicationScreen initialRole={applyRole || 'trainer'} onBack={() => setStage('login')} />
           : <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>{tr('shell.loading')}</div>)}
         {stage === 'app' && (
-          // Gate order matters: show the paywall to non-members FIRST (it doesn't
-          // need the role bundle), so the membership page lands right after the
-          // splash. Members + previewers fall through to the real app.
-          memberGateLoading ? (
+          // Gate order matters: a session with no account meets the welcome FIRST
+          // (it doesn't need the role bundle). Every signed-in adult account, paid
+          // or not, falls through to the real app; the paid features lock inside it.
+          gateLoading ? (
             <BSWireHold />
           ) : ageBlocked ? (
             <BSDobGate blocked="age_restricted" onLogout={handleLogout} />
-          ) : (!memberAllowed && !previewMode) ? (
-            <BSPaywall
-              signedIn={!!authUserId}
-              onJoin={() => { if (authUserId) bsmStartCheckout(); else { setBrowseMode(false); setLoginMode('create'); setStage('login'); } }}
-              onSignIn={() => { setBrowseMode(false); setLoginMode('signin'); setStage('login'); }}
-              onPreview={() => setPreviewMode(true)}
-              onLogout={handleLogout}
+          ) : !accountAllowed ? (
+            <BSWelcome
+              onCreate={() => { setLoginMode('create'); setStage('login'); }}
+              onSignIn={() => { setLoginMode('signin'); setStage('login'); }}
             />
           ) : bundleError ? (
             <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
@@ -2152,18 +2095,9 @@ function BSAppShell({ tweaks, setTweak }) {
             <div style={{ margin: 18, padding: 14, border: `1px solid ${t.RULE}`, background: t.PAPER2, color: t.INK, fontFamily: t.MONO, fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase' }}>
               {tr('shell.loadingApp')}
             </div>
-          ) : !memberAllowed ? (
-            // Preview mode renders the real app behind a dismissible banner that
-            // says the numbers are DEMO data — an example of a live account —
-            // so a browsing prospect never mistakes them for real tracking.
-            <>
-              <App onLogout={handleLogout} authState={authState} tweaks={tweaks} setTweak={setTweak} {...appProps} />
-              <BSPreviewBannerGated t={t} onJoin={() => { if (authUserId) bsmStartCheckout(); else { setPreviewMode(false); setLoginMode('create'); setStage('login'); } }} />
-            </>
           ) : dobState.needed ? (
-            // Last gate before the app, and members-only by construction: the
-            // preview branch above already returned, so a previewer never
-            // reaches this line.
+            // Last gate before the app, for a signed-in account by construction:
+            // the welcome branch above already returned for a session with none.
             <BSDobGate
               blocked={dobState.blocked}
               onSaved={() => setDobState({ needed: false, blocked: '' })}
@@ -2178,6 +2112,8 @@ function BSAppShell({ tweaks, setTweak }) {
         )}
         {noraDoor && !noraSheet && <BSAskNoraDoor onAsk={askNora} />}
         {noraDoor && noraSheet && window.BSNoraSheet ? <window.BSNoraSheet onClose={() => setNoraSheet(false)} /> : null}
+        {/* Join's Monthly / Annual picker (owner, 2026-11-10), for every Join in the app (BSPaidLock.jsx). */}
+        <BSPlanPickerHost />
         <BSTimezoneCheck uid={authUserId} ready={authReady} coach={isCoachRole} canAsk={timezoneAsk} />
         {/* Over every stage, signed in or not: an app too old for the server can't sign in either. */}
         <BSUpdateGate />
