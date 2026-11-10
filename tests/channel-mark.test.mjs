@@ -135,7 +135,8 @@ test('the two sample channels the owner removed stay removed', () => {
 // from the stored path, Shape HQ reads as read-only, and only a system-owned channel is Shape's.
 // `members` answer like the API: sorted, offset by `range`, at most 1,000 rows (PostgREST's max-rows);
 // `ignoreRange`, a server that answers every page with the first one. `log` counts the member reads.
-function liftAppRead(rows, uid = 'u1', { members = [], ignoreRange = false, log = [] } = {}) {
+// `failPage`: the member page that starts at that index fails; `failOwn`: the member's own rows fail.
+function liftAppRead(rows, uid = 'u1', { members = [], ignoreRange = false, log = [], failPage = -1, failOwn = false } = {}) {
   const src = read('mobile-app/src/services/shapeBackend.js');
   const from = src.indexOf('async function listChannels()');
   const to = src.indexOf('async function setChannelPicture(');
@@ -156,7 +157,11 @@ function liftAppRead(rows, uid = 'u1', { members = [], ignoreRange = false, log 
       select: () => b, order: () => b, in: () => b,
       eq: (col, v) => { if (col === 'user_id') st.user = v; return b; },
       range: (a, z) => { st.range = [a, z]; return b; },
-      then: (ok, ko) => Promise.resolve({ data: answer(), error: null }).then(ok, ko),
+      then: (ok, ko) => {
+        const fails = table === 'channel_members' && (st.user ? failOwn : (st.range && st.range[0] === failPage * 1000));
+        if (fails) { log.push(st.user ? 'own-failed' : 'page-failed'); return Promise.resolve({ data: null, error: { message: 'down' } }).then(ok, ko); }
+        return Promise.resolve({ data: answer(), error: null }).then(ok, ko);
+      },
     };
     return b;
   };
@@ -207,6 +212,12 @@ test('the app reads every membership a page at a time; a stuck server stops, and
   assert.equal(stuckLog.filter((x) => x === 'page').length, 100, 'the read does not stop at its last page');
   assert.equal(stuckLog.filter((x) => x === 'own').length, 1, 'your own rows are not read on their own past the last page');
   assert.ok(stuck.joined && stuck.isHost && stuck.pinned, 'past the last page, the member reads as not in the channel');
+  // A later page fails: the paging stops there, and the member's own rows still count (Codex P2 on #2676).
+  const cut = (await liftAppRead(ch, 'u1', { members, failPage: 1 })).data[0];
+  assert.ok(cut.joined && cut.isHost && cut.pinned, 'a failed later page shows the member as not in their channel');
+  // A failed first page, or a failed read of the member's own rows, fails the read: never a partial set.
+  await assert.rejects(liftAppRead(ch, 'u1', { members, failPage: 0 }), 'a failed first page is passed off as no members');
+  await assert.rejects(liftAppRead(ch, 'u1', { members, failPage: 1, failOwn: true }), 'a partial set is passed off as whole');
 });
 
 test('a picture that failed to load is that address, not the circle: a new one gets its own try', () => {

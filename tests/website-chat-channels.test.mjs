@@ -37,7 +37,7 @@ const settle = async (n = 8) => { for (let i = 0; i < n; i++) await React.act(as
 // server that answers every page with the first one.
 // `failConversations`: the coach inbox read is refused; `gate`: a promise the account read waits on,
 // so a test can type before the reads land.
-function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows = 1000, ignoreRange = false, failConversations = false, gate = null }) {
+function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows = 1000, ignoreRange = false, failConversations = false, gate = null, rpcError = null }) {
   const answer = (state) => {
     const ops = state.ops;
     const has = (k) => ops.find((o) => o[0] === k);
@@ -94,6 +94,7 @@ function fakeDb({ tables, log, failChannels = false, insertError = null, maxRows
   };
   const rpc = (name, args) => {
     log.push(['rpc', name, args || null]);
+    if (rpcError && rpcError[name]) return Promise.resolve({ data: null, error: rpcError[name] });
     if (name === 'channel_unread') return Promise.resolve({ data: tables.unread || [], error: null });
     if (name === 'create_channel') {
       const id = 'ch-new';
@@ -513,5 +514,20 @@ test('typed before the reads land: the sample channels go, the one you wrote in 
     const open = [...m.doc.querySelectorAll('.chw-row')].filter((x) => !/transparent/.test(x.style.borderLeft));
     assert.equal(open.length, 1, 'not one open thread');
     assert.match(open[0].textContent, /sample-two/, 'the open channel is no longer the one the member wrote in: ' + open[0].textContent);
+  } finally { await m.done(); }
+});
+
+// Codex P2 on #2676: the pin is drawn before the account answers, and a refusal was ignored, so an
+// unjoined channel read as joined (a composer that could not post) and pinned until a reload.
+test('a pin the account refuses puts the row back as it was', async () => {
+  const log = [];
+  const m = await mount({ db: fakeDb({ tables: world(), log, rpcError: { set_channel_pinned: { message: 'refused' } } }) });
+  try {
+    assert.match(m.row('sunday-run-club').textContent, /JOIN/);
+    await m.click(m.row('sunday-run-club').querySelector('.chw-pin'));
+    assert.ok(log.some((x) => x[0] === 'rpc' && x[1] === 'set_channel_pinned'), 'the pin was not sent');
+    const row = m.row('sunday-run-club');
+    assert.match(row.textContent, /JOIN/, 'a refused pin left the channel reading as joined');
+    assert.doesNotMatch(row.textContent, /PINNED/, 'a refused pin is still drawn');
   } finally { await m.done(); }
 });

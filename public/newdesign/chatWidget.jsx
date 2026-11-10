@@ -2586,9 +2586,12 @@ function ChatWidget(props) {
     // A real channel keeps the pin on your account (the app's `set_channel_pinned`), joined or not: the
     // function joins a public channel before it stores the pin (Codex P2 on #2676; the app calls it
     // either way).
+    // ⚠ A REFUSED OR FAILED PIN PUTS THE ROW BACK (Codex P2 on #2676): left as drawn, an unjoined
+    // channel read as joined and offered a composer that could not post.
     const db = window.shapeDb && window.shapeDb.client;
     if (real && db) {
-      try { db.rpc("set_channel_pinned", { p_channel_id: th.channelId, p_pinned: next }).then(() => {}, () => {}); } catch (err) {}
+      const undo = () => setThreadsByTab(prev => prev.map((ts, ti) => ti !== tabIdx ? ts : ts.map((t) => (t && t.channelId === th.channelId ? { ...t, pinned: !!th.pinned, joined: !!th.joined } : t))));
+      try { db.rpc("set_channel_pinned", { p_channel_id: th.channelId, p_pinned: next }).then((r) => { if (r && r.error) undo(); }, undo); } catch (err) { undo(); }
     }
   };
 

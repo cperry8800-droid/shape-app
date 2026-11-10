@@ -8420,9 +8420,10 @@ async function listChannels() {
 }
 // Every membership row of these channels, a page at a time. The API answers at most 1,000 rows a
 // request, so one read cut the counts short past that and could drop the member's own row, showing
-// a member Join (Codex P2 on #2676). Past the last page read, the counts stop there and the
-// member's own rows are read on their own, so joined, host and pin stay exact. A failed page keeps
-// what was read, as the single read kept nothing.
+// a member Join (Codex P2 on #2676). Past the last page read, or at a later page that failed, the
+// counts stop there and the member's own rows are read on their own, so joined, host and pin stay
+// exact. ⚠ A PARTIAL SET IS NEVER PASSED OFF AS WHOLE (Codex P2 on #2676): a failed first page, or a
+// failed read of the member's own rows, fails the read, and the list stays as it was.
 const CHANNEL_MEMBER_PAGE = 1000, CHANNEL_MEMBER_PAGES = 100;
 async function readChannelMembers(ids, uid) {
   const cols = 'channel_id, user_id, role, pinned';
@@ -8431,16 +8432,15 @@ async function readChannelMembers(ids, uid) {
     const { data, error } = await supabase.from('channel_members').select(cols).in('channel_id', ids)
       .order('channel_id', { ascending: true }).order('user_id', { ascending: true })
       .range(p * CHANNEL_MEMBER_PAGE, (p + 1) * CHANNEL_MEMBER_PAGE - 1);
-    if (error) return all;
+    if (error) { if (p === 0) throw error; break; }
     const rows = data || [];
     for (const x of rows) all.push(x);
     if (rows.length < CHANNEL_MEMBER_PAGE) return all;
   }
   const { data: own, error } = await supabase.from('channel_members').select(cols).in('channel_id', ids).eq('user_id', uid);
-  if (!error) {
-    const mine = new Set(all.filter(x => x.user_id === uid).map(x => x.channel_id));
-    for (const x of own || []) if (!mine.has(x.channel_id)) all.push(x);
-  }
+  if (error) throw error;
+  const mine = new Set(all.filter(x => x.user_id === uid).map(x => x.channel_id));
+  for (const x of own || []) if (!mine.has(x.channel_id)) all.push(x);
   return all;
 }
 // A channel's picture: its storage path in the public channel-pictures bucket, under the channel's
