@@ -742,6 +742,8 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
   const scoreProfile = SHAPE_SCORE_PROFILES.client;
   // ── Nav history (spec 2026-07-09): replay targets for popped descriptors ──
   const [eatStart, setEatStart] = useStateBSC('');
+  const [homeStart, setHomeStart] = useStateBSC('');
+  const [homeStartViaNav, setHomeStartViaNav] = useStateBSC(false);
   const [meStart, setMeStart] = useStateBSC('');
   // THE CYCLE (spec 2026-07-19) — the calendar rides the takeover pattern so
   // back returns to wherever the member opened it from.
@@ -778,6 +780,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     // otherwise open again.
     if (loc.tab === 'chat') setChatRequest(loc.detail ? { ...loc.detail, nonce: Date.now() } : null);
     if (loc.tab === 'eat') setEatStart(loc.sub || '');
+    if (loc.tab === 'home') { setHomeStart(loc.sub || ''); setHomeStartViaNav(loc.back === 'nav'); }
     if (loc.tab === 'me') setMeStart(loc.sub || '');
     if (loc.tab) setTab(loc.tab);
   };
@@ -1386,7 +1389,7 @@ function BSClientAppInner({ onLogout, tweaks, setTweak, initialTab = 'home' }) {
     );
   }
   const screens = {
-    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} />,
+    home:    <BSClientHome     onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goTrain={goTrain} goEat={(view) => { navPush(); if (typeof view === 'string') setEatStart(view); setTab('eat'); }} goMarket={goMarket} goScore={goScore} goChat={goChat} goIntegrations={goIntegrations} tweaks={tweaks} setTweak={setTweak} checkinOpen={checkinOpen} onCheckinOpenConsumed={() => setCheckinOpen(null)} initialPage={homeStart} initialViaNav={homeStartViaNav} onStartConsumed={() => { setHomeStart(''); setHomeStartViaNav(false); }} />,
     train:   <BSClientTrain    onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} autoStart={pendingTrainStart} onAutoStartConsumed={() => setPendingTrainStart(false)} />,
     eat:     <BSClientEat      onProfile={goSettings} sheet={sheet} goCalendar={goCalendar} goRadio={goRadio} goMarket={goMarket} initialView={eatStart} onStartConsumed={() => setEatStart('')} cookWith={cookWith} onCookWithConsumed={() => setCookWith(null)} prepTonight={prepTonight} onPrepTonightConsumed={() => setPrepTonight(null)} />,
     chat:    <BSClientFeed     onProfile={goSettings} role={tweaks.role || 'client'} openRequest={chatRequest} />,
@@ -3452,7 +3455,7 @@ function BSMemberSetupStation({ onGoal, onTrain, onCheckin, onFindCoach }) {
   );
 }
 
-function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {} }) {
+function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = () => {}, goMarket, goScore, goChat = () => {}, goIntegrations, tweaks = {}, setTweak = () => {}, checkinOpen = null, onCheckinOpenConsumed = () => {}, initialPage = '', initialViaNav = false, onStartConsumed = () => {} }) {
   // The coach Today's clean type (owner, 2026-10-28: "Member/client home page font needs to match
   // coaches"): Geist heads and Inter Tight words below the top bars, as the coach's (bsCleanType.jsx).
   const t = useBSClean();
@@ -3546,9 +3549,10 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // the tier's progress lives on the profile). The signed-out preview reads the sample's.
   const homeScore = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const [showLogMeal, setShowLogMeal] = useStateBSC(false);
-  const [habitsPage, setHabitsPage] = useStateBSC(false);
-  const [goalsPage, setGoalsPage] = useStateBSC(false);
-  const [morningsPage, setMorningsPage] = useStateBSC(false); // Your mornings (BSYourMornings.jsx): the morning check-in over time
+  // Home's own pages open on a Back to them (initialPage, the shell's homeStart; announced below).
+  const [habitsPage, setHabitsPage] = useStateBSC(initialPage === 'habits');
+  const [goalsPage, setGoalsPage] = useStateBSC(initialPage === 'goals');
+  const [morningsPage, setMorningsPage] = useStateBSC(initialPage === 'mornings'); // Your mornings (BSYourMornings.jsx): the morning check-in over time
   // Engine-driven top move — the signal engine's single highest-value action for
   // the signed-in client today (check-in overdue · streak at risk · food gap ·
   // goal slip · score drop). Honest: only a real flag from the live self record;
@@ -3575,7 +3579,27 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     })();
     return () => { on = false; };
   }, []);
-  const [homeProgressPage, setHomeProgressPage] = useStateBSC(false);
+  const [homeProgressPage, setHomeProgressPage] = useStateBSC(initialPage === 'progress');
+  // Home's pages ride on the nav history (owner, 2026-11-10: "Make sure back buttons are going back to
+  // previous page and location user was on"): a jump from Goals (Find a coach) or Your mornings (the cycle,
+  // Connect) comes back to that page, not to Home's own. A Back that lands while Home is mounted opens it too.
+  // Your mornings opened by a check-in reminder (the shell pushed where the member was) goes back there, and
+  // keeps that way back through a jump from it and the Back that returns (Codex P2 on #2683).
+  const [morningsViaNav, setMorningsViaNav] = useStateBSC(initialPage === 'mornings' && !!initialViaNav);
+  const homeSub = goalsPage ? 'goals' : morningsPage ? 'mornings' : habitsPage ? 'habits' : homeProgressPage ? 'progress' : '';
+  const homeBackViaNav = homeSub === 'mornings' && morningsViaNav;
+  React.useEffect(() => {
+    window.ShapeNav?.announce?.(homeBackViaNav ? { sub: homeSub, back: 'nav' } : { sub: homeSub }, 'home');
+    return () => window.ShapeNav?.announce?.(null, 'home');
+  }, [homeSub, homeBackViaNav]);
+  React.useEffect(() => {
+    if (!initialPage) return;
+    if (initialPage === 'goals') setGoalsPage(true);
+    else if (initialPage === 'mornings') { setMorningsPage(true); setMorningsViaNav(!!initialViaNav); }
+    else if (initialPage === 'habits') setHabitsPage(true);
+    else if (initialPage === 'progress') setHomeProgressPage(true);
+    onStartConsumed();
+  }, [initialPage]); // eslint-disable-line react-hooks/exhaustive-deps
   const [checkinPage, setCheckinPage] = useStateBSC(false);
   const [checkinDue, setCheckinDue] = useStateBSC(false);
   // ⚠ THE PREF GOVERNS EVERY CHECK-IN SURFACE, NOT JUST THE DAILY PROMPT (owner ruling
@@ -3606,6 +3630,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
     if (!checkinOpenReq || !checkinPrefSettled || checkinPrefOn) return;
     setCheckinOpenReq(null);
     setMorningsPage(true);
+    setMorningsViaNav(true);
   }, [checkinOpenReq, checkinPrefSettled, checkinPrefOn]);
   // Weekly check-in nudge — due when a signed-in client has no row this week.
   React.useEffect(() => {
@@ -3873,7 +3898,7 @@ function BSClientHome({ onProfile, sheet, goCalendar, goRadio, goTrain, goEat = 
   // Your mornings (part 2): the card's done line and summary, the energy lead, and with Check-ins off
   // the quiet row and a reminder open it. The cycle chip rides on it, never on Home (doctrine).
   if (morningsPage) {
-    return <BSYourMornings onBack={() => setMorningsPage(false)} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
+    return <BSYourMornings onBack={() => { const v = morningsViaNav; setMorningsPage(false); setMorningsViaNav(false); if (v && window.ShapeNav?.canPop?.()) window.ShapeNav.back(); }} cycleChip={<BSCycleTodayChip />} checkinsOn={checkinPrefOn} />;
   }
 
   // ⚠ DRAWN AS THE MORNING PANEL'S "YOUR MOVE" ROW, AND ONLY WHEN THE ENGINE LEADS (owner, 2026-11-04: "ok
@@ -5185,7 +5210,16 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   const [drafts, setDrafts] = useStateBSC(() => bsWorkoutDrafts(window.localStorage, draftUser));
   const [resumeDraft, setResumeDraft] = useStateBSC(null);
   const [openSession, setOpenSession] = useStateBSC(false);
-  const leaveSession = () => { setSession(false); setLaunchWorkout(null); setResumeDraft(null); setOpenSession(false); setDrafts(bsWorkoutDrafts(window.localStorage, draftUser)); };
+  // A session another page started (Calendar's, Home's or Search's Start: autoStart, after the jump pushed
+  // where the member was) goes back there when it is left (owner, 2026-11-10: "Make sure back buttons are
+  // going back to previous page and location user was on"); one started here returns to Train.
+  const [sessionViaNav, setSessionViaNav] = useStateBSC(false);
+  const leaveSession = () => {
+    const viaNav = sessionViaNav;
+    setSession(false); setLaunchWorkout(null); setResumeDraft(null); setOpenSession(false); setDrafts(bsWorkoutDrafts(window.localStorage, draftUser));
+    setSessionViaNav(false);
+    if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back();
+  };
   const resumeBanner = drafts.length > 0 ? <div style={{ margin: `14px ${t.padX}px`, padding: 14, border: `1px solid ${t.ACCENT}`, borderRadius: 5 }}>
     <div style={{ fontFamily: t.DISPLAY, color: t.INK, fontSize: 16, fontWeight: 700 }}>{tr('session:player.unfinished')}</div>
     {drafts.map(d => <button key={d.sessionId} onClick={() => { setResumeDraft(d); setSession(true); }} style={{ display: 'block', minHeight: 44, width: '100%', textAlign: 'left', background: 'transparent', border: 0, color: t.ACCENT, cursor: 'pointer', padding: '10px 0' }}>{tr('session:player.resume')} · {d.title || tr('session:player.liveSession')}</button>)}
@@ -5198,7 +5232,7 @@ function BSClientTrain({ onProfile, goCalendar = () => {}, goRadio = () => {}, g
   // Auto-launch the live session ONLY when arriving from the calendar's "Start
   // session" (a one-shot pending flag), then clear it so returning to Train from
   // the calendar overlay — which remounts this screen — never re-launches.
-  React.useEffect(() => { if (autoStart) { setLaunchWorkout(autoStart.workout || null); setDay(bsWeekdayIdx()); setSession(true); onAutoStartConsumed(); } }, [autoStart]);
+  React.useEffect(() => { if (autoStart) { setLaunchWorkout(autoStart.workout || null); setDay(bsWeekdayIdx()); setSession(true); setSessionViaNav(true); onAutoStartConsumed(); } }, [autoStart]);
   const [swapIdx, setSwapIdx] = useStateBSC(null);          // move to swap: number | 'pick' | null
   const [moveOverrides, setMoveOverrides] = useStateBSC({}); // `${day}:${i}` → { m, s }
   React.useEffect(() => {
@@ -11282,6 +11316,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   // and finding last night's dish already ticked is the kind of stale state that
   // reads as the app having its own plans for you.
   const openPrep = React.useCallback((s = null) => { setPrepSeed(s); setPrepOpen(true); }, []);
+  // A cook screen another page opened (Home's cook-with, a prep reminder: the shell pushed where the
+  // member was) goes back there when it closes (2026-11-10); one opened here returns to Eat. Each flag is
+  // false whenever no such screen is up (its close resets it), so Eat's own doors leave it alone.
+  const [prepViaNav, setPrepViaNav] = useStateBSC(false);
+  const [cookViaNav, setCookViaNav] = useStateBSC(false);
+  const leaveViaNav = (viaNav) => { if (viaNav && window.ShapeNav?.canPop?.()) window.ShapeNav.back(); };
   // Tonight's prep on the cook screen: from the card below, or handed over by the shell when a
   // prep reminder is tapped ({ slug, nonce }, keyed on the nonce like cookWith). `group` is what
   // the card already knows is owed; a reminder's is read when the cook screen opens.
@@ -11289,6 +11329,7 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   React.useEffect(() => {
     if (!prepTonight || !prepTonight.slug) return;
     setPrepCook({ slug: prepTonight.slug, group: null });
+    setCookViaNav(true);
     onPrepTonightConsumed();
   }, [prepTonight && prepTonight.nonce]);
   React.useEffect(() => { if (initialView) onStartConsumed(); }, []);
@@ -11297,11 +11338,12 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
   React.useEffect(() => {
     if (!cookWith || !cookWith.cookable) return;
     openPrep({ cookable: cookWith.cookable, mine: !!cookWith.mine });
+    setPrepViaNav(true);
     onCookWithConsumed();
   }, [cookWith && cookWith.nonce]);
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: view });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.({ sub: view }, 'eat');
+    return () => window.ShapeNav?.announce?.(null, 'eat');
   }, [view]);
   const [skRecipe, setSkRecipe] = useStateBSC(null); // selected Shape Kitchen recipe
   const [previewMealId, setPreviewMealId] = useStateBSC(null);
@@ -12810,8 +12852,8 @@ function BSClientEat({ onProfile, goRadio = () => {}, goMarket = () => {}, goCal
 
   // The Prep Session overlays EVERY eat view (its door lives on the menu AND
   // the grocery page) — entirely optional, a door never a gate.
-  if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;
-  if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { setPrepOpen(false); setPrepSeed(null); }} />;
+  if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => { const v = cookViaNav; setPrepCook(null); setCookViaNav(false); leaveViaNav(v); }} />;
+  if (prepOpen) return <BSPrepSession program={PROGRAM} seed={prepSeed} onClose={() => { const v = prepViaNav; setPrepOpen(false); setPrepSeed(null); setPrepViaNav(false); leaveViaNav(v); }} />;
   if (view === 'grocery') return <>{newListSheet}{saveSheet}<BSGrocery list={activeGroceryList} planList={planGrocery} mealWhen={groceryMealWhen} onBack={() => setView('eat')} onLibrary={() => setView('library')} recipeLists={recipeLists} onChangeView={setView} editable={!!activeGroceryList.editable} onUpdate={persistGroceryList} onCreate={createGroceryList} onSaveToLibrary={openSaveToLibrary} onPickList={(l) => { if (!l) setSelectedGroceryList(null); else loadGroceryList(l); }} onProfile={onProfile} onPrep={() => openPrep()} /></>;
   if (view === 'library') return <>{newListSheet}<BSGroceryLibrary onLoad={loadGroceryList} recipeLists={recipeLists} onCreate={createGroceryList} onEdit={editGroceryList} onDuplicate={duplicateGroceryList} onDelete={deleteGroceryList} deletedIds={deletedGroceryIds} onChangeView={setView} onProfile={onProfile} /></>;
   if (view === 'build') return <BSGroceryBuilder onCancel={() => setView('grocery')} onCreate={createListFromBuilder} />;
@@ -22673,8 +22715,8 @@ function BSClientFeed({ onProfile, role: roleProp, openRequest }) {
     : openChat && openChat.channelId != null && !String(openChat.channelId).startsWith('sample') ? { channel: { id: openChat.channelId, name: openChat.n, memberCount: openChat.memberCount, isHost: openChat.isHost }, ...(backViaNav ? { back: 'nav' } : null) }
     : null;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null);
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(chatNavDetail ? { detail: chatNavDetail } : null, 'chat');
+    return () => window.ShapeNav?.announce?.(null, 'chat');
   }, [JSON.stringify(chatNavDetail)]);
   const loadCoachThreads = React.useCallback(() => {
     if (!window.ShapeMessages?.listDirectCoachThreads) return;
@@ -29481,8 +29523,8 @@ function BSClientMe(props) {
   React.useEffect(() => { if (initialPage) onStartConsumed(); }, []);
   const meNavSub = showScore ? 'score' : showStore ? 'store' : '';
   React.useEffect(() => {
-    window.ShapeNav?.announce?.({ sub: meNavSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.({ sub: meNavSub }, 'me');
+    return () => window.ShapeNav?.announce?.(null, 'me');
   }, [meNavSub]);
   const scoreProfile = _bsUseLiveScore(SHAPE_SCORE_PROFILES.client);
   const auth = (typeof window !== 'undefined' && window.ShapeAuth && window.ShapeAuth.getCachedState && window.ShapeAuth.getCachedState()) || {};
@@ -32711,7 +32753,8 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
     const tm = setTimeout(() => setFxPreview(null), 6000);
     return () => clearTimeout(tm);
   }, [fxPreview]);
-  const [detail, setDetail] = useStateBSC(initialPage === 'practice' ? 'practice' : ''); // '' = settings page; else a drill-in card pane
+  // Library sits in More and Your hours in Your practice, so a Back to either reopens it over its own pane.
+  const [detail, setDetail] = useStateBSC(initialPage === 'practice' || initialPage === 'hours' ? 'practice' : initialPage === 'library' ? 'more' : ''); // '' = settings page; else a drill-in card pane
   // ⚠ A READ NEVER OVERWRITES A SAVE (Codex, #2371). The rows can be picked while the pane's read
   // is still out, and a save's answer is the newer document. So the read is dropped if a save was
   // in flight when it started, or one started before it answered.
@@ -32790,12 +32833,12 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // from window at call time.
   const [showRates, setShowRates] = useStateBSC(false);
   // Your hours (Availability): the coach's weekly hours, booking rules and time off (BSCoachHours.jsx).
-  const [showHours, setShowHours] = useStateBSC(false);
+  const [showHours, setShowHours] = useStateBSC(initialPage === 'hours');
   const [listingSheet, setListingSheet] = useStateBSC(null);
   const [showGoals, setShowGoals] = useStateBSC(false);
   // Also → Coach on Shape: the application screen, full screen over Settings (and so over the nav).
   const [showApply, setShowApply] = useStateBSC(false);
-  const [showLibrary, setShowLibrary] = useStateBSC(false);
+  const [showLibrary, setShowLibrary] = useStateBSC(initialPage === 'library');
   const [showHabits, setShowHabits] = useStateBSC(initialPage === 'habits');
   const [showCheckin, setShowCheckin] = useStateBSC(false);
   const [showHealth, setShowHealth] = useStateBSC(false);
@@ -33617,11 +33660,14 @@ function BSSettings({ onBack, onLogout, tweaks = {}, setTweak = () => {}, initia
   // whether it was landed on, so its ← still leaves Settings after that Back (2026-11-10).
   const navSub = editing ? 'edit-profile' : showIntegrations ? 'integrations' : showPricing ? 'pricing'
     : showNotifications ? 'notifications' : showSessions ? 'sessions' : showHabits ? 'habits'
-    : showBusiness ? 'business' : detail === 'practice' ? 'practice' : '';
+    // Library (Browse coaches) and Your hours (Open calendar) jump out too, and come back to themselves. A
+    // page is named before the pane it sits in: Your hours is open over Your practice (Codex P2 on #2683).
+    : showBusiness ? 'business' : showLibrary ? 'library' : showHours ? 'hours'
+    : detail === 'practice' ? 'practice' : '';
   const navLanded = !!navSub && navSub === landedOn;
   React.useEffect(() => {
-    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub });
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(navLanded ? { sub: navSub, landed: true } : { sub: navSub }, 'settings');
+    return () => window.ShapeNav?.announce?.(null, 'settings');
   }, [navSub, navLanded]);
   // Persist the profile identity across sessions/devices via user_goals. Read again when Nora's
   // account setup (or its Undo) changes the name from her sheet; a key typed into stays theirs.

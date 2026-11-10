@@ -362,7 +362,8 @@ test('"Prep the week" cannot inherit a seed left by "Cook with something else"',
   const opens = SRC_BARE.match(/setPrepOpen\(true\)/g) || [];
   assert.equal(opens.length, 1, `exactly one setPrepOpen(true), inside openPrep — found ${opens.length}`);
   assert.ok(opener[0].includes('setPrepOpen(true)'), 'and that one is the opener\'s');
-  assert.match(SRC_BARE, /onClose=\{\(\) => \{ setPrepOpen\(false\); setPrepSeed\(null\); \}\}/,
+  // (A session a jump opened then steps back where the member was: prepViaNav, 2026-11-10.)
+  assert.match(SRC_BARE, /onClose=\{\(\) => \{ const v = prepViaNav; setPrepOpen\(false\); setPrepSeed\(null\); setPrepViaNav\(false\); leaveViaNav\(v\); \}\}/,
     'closing the session clears the seed too');
 });
 

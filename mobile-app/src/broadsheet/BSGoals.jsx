@@ -1197,11 +1197,12 @@ export function BSClientGoals({ onBack, onOpenProgress = () => {} }) {
   //       open-time settingsStart and composed sub:'edit-profile' — a value the
   //       member had already left. Opening a station composed sub:'training',
   //       which matches no Settings pane at all.
-  // Making it real requires the PARENT to own the announcement (a one-slot
-  // register cannot host a child rendered under two parents), i.e. teaching
-  // navLoc/navResolve about Home's overlays and giving BSClientHome the
-  // initialPage/onStartConsumed pair BSClientEat and BSClientMe already have.
-  // That is its own change — registered on the War Room, not half-built here.
+  // Making it real requires the PARENT to own the announcement. Since #2683 the
+  // parents do: BSClientHome announces this page as its 'goals' sub (replayed
+  // through the shell's homeStart) and Settings its own, and the register is
+  // keyed per surface, so neither clobbers the other. What is still not built is
+  // the STATION: an initialView on this page for the parent to replay, which is
+  // why this page still announces nothing of its own (War Room).
   const loggedIn = !!(typeof window !== 'undefined' && window.ShapeAuth?.getCachedState?.().user);
   // Live "Your plans" + "This week targets" for the Contract (null →
   // BSGoalsContract keeps its demo content). Built from the assigned plan + the

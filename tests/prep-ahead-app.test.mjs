@@ -280,7 +280,8 @@ test('the shell, the notification list and Eat are wired to the same pieces', ()
   // The list passes each row's data too, so a message notification can open its thread (fix 3a).
   assert.ok(CLIENT.includes('if (bsRouteNotification(route, data)) setShowNotifications(false);'));
   // Eat: the cook screen, the card and the row marks.
-  assert.ok(CLIENT.includes('if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => setPrepCook(null)} />;'));
+  // Its close steps back where the member was when a reminder opened it (cookViaNav, 2026-11-10).
+  assert.ok(CLIENT.includes('if (prepCook) return <BSPrepTonightCook slug={prepCook.slug} group={prepCook.group} onClose={() => { const v = cookViaNav; setPrepCook(null); setCookViaNav(false); leaveViaNav(v); }} />;'));
   // A dish the nutritionist ticked has no catalog method, so no Start (Phase 2).
   assert.ok(CLIENT.includes('<BSPrepTonightCard group={g} onStart={g.catalog === false ? null : () => setPrepCook({ slug: g.slug, group: g })} onDone={() => markPrepped(g)} />'));
   assert.ok(CLIENT.includes('const { prepped, notPrepped } = bsMenuPrepState({ meal: m, logged, entries: prepEntries, ahead: aheadOn.get(m.id), viewYmd, todayYmd, now: prepNow });'));

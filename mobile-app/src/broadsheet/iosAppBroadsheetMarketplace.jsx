@@ -1073,8 +1073,8 @@ function BSMarketplaceScreen({ onBack = null, onProfile, initialRole, goChat, in
   const openCoachLoc = open && open.provider_id != null && (open.provider_role === 'trainer' || open.provider_role === 'nutritionist')
     ? { role: open.provider_role, providerId: open.provider_id, ...(openListing ? { listing: true } : null), ...(openViaNav ? { back: 'nav' } : null) } : null;
   useEffectBSM2(() => {
-    window.ShapeNav?.announce?.(openCoachLoc ? { detail: { ...(initialRole ? { role: initialRole } : null), coach: openCoachLoc } } : null);
-    return () => window.ShapeNav?.announce?.(null);
+    window.ShapeNav?.announce?.(openCoachLoc ? { detail: { ...(initialRole ? { role: initialRole } : null), coach: openCoachLoc } } : null, 'coaches');
+    return () => window.ShapeNav?.announce?.(null, 'coaches');
   }, [JSON.stringify(openCoachLoc), initialRole]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Demo fallback: the "YOUR COACH"/"YOUR NUTRITIONIST" relationship badges are
