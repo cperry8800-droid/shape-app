@@ -201,11 +201,49 @@ const cwCardDoneKeep = (token, status, auditId) => {
     localStorage.setItem(CW_CARD_DONE_KEY, JSON.stringify(m));
   } catch (e) {}
 };
+// The prompt at a paid feature in the chat (owner, 2026-11-10: an account is free; assistant Nora
+// is the membership's). pageShell.jsx's ShapePaidLock where the page has it; the same words and a
+// way in otherwise, so a page without the shell never draws nothing. Kinds: "join", "pastdue".
+const CW_PAST_DUE_LINE = "Your payment didn’t go through. Update your card to get Shape Radio and Nora back.";
+function CwPaidLock(props) {
+  if (typeof window !== "undefined" && typeof window.ShapePaidLock === "function") return React.createElement(window.ShapePaidLock, { compact: true, ...props });
+  const pastDue = props.kind === "pastdue";
+  const line = pastDue ? CW_PAST_DUE_LINE : (props.feature || "This") + " is part of Shape membership, $5 a month.";
+  const link = { color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" };
+  return (
+    <div data-shape-lock={props.kind} style={{ fontFamily: sans, fontSize: 12, lineHeight: 1.45, color: "var(--sh-ink2, #a09b94)" }}>
+      {line} <button type="button" onClick={() => cwMembershipDoor(pastDue)} style={link}>{pastDue ? "Update your card" : "Join"} &rarr;</button>
+    </div>
+  );
+}
+// The way in from a paid feature in the chat: the membership checkout, or for a renewal that failed
+// Shape's billing portal, both pageShell.jsx's; without the shell, the portal request itself and
+// the Pricing page.
+async function cwMembershipDoor(pastDue) {
+  const M = typeof window !== "undefined" ? window.ShapeMembership : null;
+  if (M && M.start && M.portal) {
+    const r = pastDue ? await M.portal() : await M.start();
+    if (r && r.code === "already_member") { window.location.reload(); return; }
+    if (r && r.error) window.alert(r.error);
+    return;
+  }
+  if (!pastDue) { window.location.href = "/newdesign/Pricing.html"; return; }
+  try {
+    const r = await fetch("/api/stripe/billing-portal", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnPath: window.location.pathname + window.location.search + window.location.hash }) });
+    const d = r.ok ? await r.json() : null;
+    if (d && d.url) { window.location.href = d.url; return; }
+  } catch (e) {}
+  window.alert("Could not open billing. Try again.");
+}
 function CwProposalCard({ a }) {
   const token = a && a.token;
   const isSetup = !!a && a.action === "set_up_account";
   const [phase, setPhase] = React.useState(null); // null | busy | undoing | error: what is in flight here
   const [err, setErr] = React.useState("");
+  // A 402 from Confirm or Undo (owner, 2026-11-10: Nora's changes are part of the membership):
+  // "join" for a free account, "pastdue" for a renewal that failed. The card says so, with the way
+  // in, instead of the route's raw refusal and a Try again that can't work.
+  const [lock, setLock] = React.useState(null);
   const [, setSeen] = React.useState(0); // moved on when the kept outcome may have changed
   const kept = cwCardDoneRead(token);
   const status = phase === "busy" || phase === "undoing" ? phase : kept ? kept.status : phase === "error" ? "error" : "idle";
@@ -237,12 +275,16 @@ function CwProposalCard({ a }) {
   const post = async (url, payload) => {
     const res = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || data.error || "Something went wrong.");
+    if (!res.ok) {
+      const failed = new Error(data.message || data.error || "Something went wrong.");
+      failed.lock = res.status === 402 ? (data.code === "payment_past_due" ? "pastdue" : "join") : null;
+      throw failed;
+    }
     return data;
   };
   const confirm = async () => {
     if (status === "busy" || status === "done") return;
-    setPhase("busy"); setErr("");
+    setPhase("busy"); setErr(""); setLock(null);
     try {
       const r = await post("/api/ai/proposals/confirm", { token });
       cwCardDoneKeep(token, "done", r && r.auditId);
@@ -252,12 +294,13 @@ function CwProposalCard({ a }) {
       setPhase("error");
       // Lost to the same card confirmed in another tab: its kept outcome is this card's, Undo and all.
       if (adopt()) { setPhase(null); return; }
+      if (e && e.lock) { setLock(e.lock); return; }
       setErr(String(e && e.message || "Could not apply that change."));
     }
   };
   const undo = async () => {
     if (!auditId || status === "undoing" || status === "undone") return;
-    setPhase("undoing"); setErr("");
+    setPhase("undoing"); setErr(""); setLock(null);
     try {
       await post("/api/ai/audit/undo", { auditId });
       cwCardDoneKeep(token, "undone", auditId);
@@ -265,6 +308,7 @@ function CwProposalCard({ a }) {
       adopt();
     } catch (e) {
       setPhase(null);
+      if (e && e.lock) { setLock(e.lock); return; }
       setErr(String(e && e.message || "Could not undo."));
     }
   };
@@ -299,8 +343,9 @@ function CwProposalCard({ a }) {
         </div>
       )}
       {err && <div style={{ marginTop: 7, fontFamily: mono, fontSize: 10, color: "#e0463c", lineHeight: 1.4 }}>{err}</div>}
+      {lock && <div data-nora-card-locked={lock} style={{ marginTop: 8 }}><CwPaidLock kind={lock} feature="Nora making changes for you" /></div>}
       <div style={{ marginTop: 10, display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap" }}>
-        {(status === "idle" || status === "error") && (
+        {(status === "idle" || status === "error") && !lock && (
           <button onClick={confirm} style={{ border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>{status === "error" ? "Try again" : "Confirm"}</button>
         )}
         {status === "busy" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Applying…</span>}
@@ -310,7 +355,7 @@ function CwProposalCard({ a }) {
         {status === "done" && openUrl && (
           <a href={openUrl} style={{ textDecoration: "none", border: 0, background: TEAL, color: PAPER, borderRadius: 999, padding: "7px 15px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>Open in builder →</a>
         )}
-        {status === "done" && auditId && (
+        {status === "done" && auditId && !lock && (
           <button onClick={undo} style={{ border: `1px solid ${hair}`, background: "transparent", color: muted, borderRadius: 999, padding: "7px 13px", fontFamily: mono, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer" }}>Undo</button>
         )}
         {status === "undoing" && <span style={{ fontFamily: mono, fontSize: 9.5, color: muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Undoing…</span>}
@@ -1057,11 +1102,14 @@ function ChatWidget(props) {
         }
       } else {
         reason = res.status === 401 ? "signed_out" : (res.status === 402 || res.status === 403) ? "members" : "unavailable";
+        // A renewal that failed (402 payment_past_due) is said as that, with what fixes it.
+        if (res.status === 402) { const why = await res.json().catch(() => null); if (why && why.code === "payment_past_due") reason = "past_due"; }
       }
     } catch (e) { reason = "unavailable"; }
     if (gen === noraGenRef.current) setNoraPlaying(null);
     if (explicit) {
       flashSpeakNotice(reason === "playback_blocked" ? "Tap Listen again to hear Nora."
+        : reason === "past_due" ? CW_PAST_DUE_LINE
         : reason === "signed_out" ? "Sign in to hear Nora's voice."
         : reason === "members" ? "Nora's voice is a member feature."
         : "Voice is unavailable right now.");
@@ -2354,10 +2402,16 @@ function ChatWidget(props) {
     return () => { cancelled = true; };
   }, [active]);
 
-  // Shape is members-only — the chat bubble is where messages actually send, so
-  // gate the composer: approved coaches + active subscribers can type; everyone
-  // else (signed-out or free) sees a Join prompt. null = still resolving.
+  // Who is writing, for the composer, and what they have, for Nora's voice (owner, 2026-11-10: an
+  // account is free, and messaging coaches comes with it; voice is the membership's). `account`:
+  // null while it is read, "in", "out" (/api/me said nobody is signed in), or "unknown" (it did not
+  // answer: the composer stays open, and a send that fails says so). `member`: assistant Nora now,
+  // from /api/me/membership's `nora` (the membership, an approved coach's or an admin's, coaching on
+  // Shape; an answer without `nora` reads the paid features), null while read; `pastDue`: a renewal
+  // that failed, which is free until the card is updated.
+  const [account, setAccount] = React.useState(null);
   const [member, setMember] = React.useState(null);
+  const [pastDue, setPastDue] = React.useState(false);
   React.useEffect(() => {
     let cancelled = false;
     shapeReadPortalMe()
@@ -2370,17 +2424,23 @@ function ChatWidget(props) {
             if (pr && pr.full_name && !cancelled) setMyName(pr.full_name);
           } catch (e) {}
         }
-        if (!u) { if (!cancelled) setMember(false); return; }
-        const roles = Array.isArray(u.roles) ? u.roles : [];
-        const isCoach = u.role === "trainer" || u.role === "nutritionist" || roles.includes("trainer") || roles.includes("nutritionist");
-        if (isCoach) { if (!cancelled) setMember(true); return; }
+        if (!u) {
+          if (!cancelled) { setAccount(d && Object.prototype.hasOwnProperty.call(d, "user") ? "out" : "unknown"); setMember(false); }
+          return;
+        }
+        if (!cancelled) setAccount("in");
         try {
-          const sres = await fetch("/api/stripe/subscription", { credentials: "same-origin", cache: "no-store" });
-          const sd = sres.ok ? await sres.json() : null;
-          if (!cancelled) setMember(!!(sd && sd.active === true));
+          const md = window.ShapeMembership && window.ShapeMembership.read
+            ? await window.ShapeMembership.read()
+            : await fetch("/api/me/membership", { credentials: "same-origin", cache: "no-store" }).then((r) => (r.ok ? r.json() : null));
+          if (!cancelled) {
+            const paid = !!(md && (md.member === true || md.coach === true || md.includedWithCoach === true));
+            setMember(!!(md && md.signedIn === true && (typeof md.nora === "boolean" ? md.nora : paid)));
+            setPastDue(!!(md && md.signedIn === true && md.pastDue === true));
+          }
         } catch { if (!cancelled) setMember(false); }
       })
-      .catch(() => { if (!cancelled) setMember(false); });
+      .catch(() => { if (!cancelled) { setAccount("unknown"); setMember(false); } });
     return () => { cancelled = true; };
   }, []);
   // ⚠ VOICE ONLY WHERE IT WORKS. Speech (/api/ai/speak) and transcription
@@ -2388,15 +2448,22 @@ function ChatWidget(props) {
   // non-member was shown a mic and a read-aloud that could only fail (the Ask Nora
   // review, 2026-10-07). The controls show once this answers yes; typing to Nora is
   // open to everyone. A ref too, for the reply path that reads it after an await.
-  // ⚠ AND THE SERVER DECIDES THE REST. `member` knows coaches and subscribers only;
-  // the gate also admits a dietitian or an admin (Codex, #2241). So a signed-in
-  // account the member check says no to asks the gate itself (GET /api/ai/speak).
+  // ⚠ AND THE SERVER DECIDES THE REST. The gate may admit someone the membership answer did not
+  // (a dietitian, an admin: Codex, #2241), so a signed-in account it says no to asks the gate
+  // itself (GET /api/ai/speak), whose 402 also says whether the renewal failed.
   const [voiceGate, setVoiceGate] = React.useState(null);
   React.useEffect(() => {
     if (member !== false || !myUserIdRef.current) return undefined;
     let cancelled = false;
     fetch("/api/ai/speak", { method: "GET", credentials: "same-origin", cache: "no-store" })
-      .then((r) => { if (!cancelled) setVoiceGate(r.ok); })
+      .then(async (r) => {
+        if (cancelled) return;
+        setVoiceGate(r.ok);
+        if (r.status === 402 && r.json) {
+          const why = await r.json().catch(() => null);
+          if (!cancelled && why && why.code === "payment_past_due") setPastDue(true);
+        }
+      })
       .catch(() => { if (!cancelled) setVoiceGate(false); });
     return () => { cancelled = true; };
   }, [member]);
@@ -3461,27 +3528,36 @@ function ChatWidget(props) {
               )}
             </div>
 
-            {(member === false && !isSupport) ? (
-              <div style={{ margin: "0 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {/* Messaging comes with a free account (owner, 2026-11-10): only someone signed out is
+                asked to sign in. Nora's tab is open to everyone. */}
+            {(account === "out" && !isSupport) ? (
+              <div data-chat-signin style={{ margin: "0 14px 14px", padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(var(--sh-accent2-rgb, 10,197,168),0.28)", background: "rgba(var(--sh-accent2-rgb, 10,197,168),0.06)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <svg aria-hidden width="16" height="18" viewBox="0 0 16 18" fill="none" style={{ flex: "none", color: TEAL_BRIGHT }}>
                   <rect x="2" y="8" width="12" height="9" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
                   <path d="M5 8V5.5a3 3 0 0 1 6 0V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
-                <div style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.4 }}>Become a Shape member to send messages.</div>
-                <a href="/pricing" style={{ fontFamily: sans, fontSize: 12.5, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "9px 16px", textDecoration: "none", whiteSpace: "nowrap" }}>Join · $5/mo</a>
+                <div style={{ flex: 1, minWidth: 150, fontFamily: sans, fontSize: 13, color: "rgba(var(--sh-ink-rgb, 242,237,228),0.78)", lineHeight: 1.4 }}>Sign in to send messages. A Shape account is free.</div>
+                <a href={"/newdesign/Login.html?next=" + encodeURIComponent(typeof window !== "undefined" ? window.location.pathname + window.location.search + window.location.hash : "/")} style={{ fontFamily: sans, fontSize: 12.5, fontWeight: 600, background: TEAL, color: PAPER, borderRadius: 999, padding: "9px 16px", textDecoration: "none", whiteSpace: "nowrap" }}>Sign in</a>
               </div>
             ) : (
             <React.Fragment>
             {isSupport && (
               <div style={{ padding: "10px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {/* A free account and a visitor: voice is part of the membership, and Join (the
+                    checkout for a signed-in account, Pricing for a visitor). A renewal that failed:
+                    the owner's past-due line and Update your card (the billing portal). */}
                 {voiceLocked && (
-                  <div data-nora-voice-locked style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", fontFamily: sans, fontSize: 12, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
+                  <div data-nora-voice-locked={pastDue ? "pastdue" : account === "in" ? "join" : "signin"} style={{ flex: "1 1 100%", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "8px 12px", borderRadius: 10, background: "rgba(var(--sh-ink-rgb, 242,237,228),0.04)", fontFamily: sans, fontSize: 12, lineHeight: 1.4, color: "var(--sh-ink2, #a09b94)" }}>
                     <svg aria-hidden width="12" height="14" viewBox="0 0 12 14" style={{ flex: "none", color: TEAL_BRIGHT }}>
                       <rect x="3.5" y="0.75" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
                       <path d="M1.5 6.5a4.5 4.5 0 0 0 9 0M6 11v2.25" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                     </svg>
-                    <span style={{ flex: 1 }}>Voice chat with Nora unlocks with membership.</span>
-                    <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>
+                    <span style={{ flex: 1 }}>{pastDue ? CW_PAST_DUE_LINE : "Voice chat with Nora unlocks with membership."}</span>
+                    {pastDue
+                      ? <button type="button" onClick={() => cwMembershipDoor(true)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}>Update your card &rarr;</button>
+                      : account === "in"
+                        ? <button type="button" onClick={() => cwMembershipDoor(false)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}>Join &rarr;</button>
+                        : <a href="/pricing" style={{ color: "var(--sh-accent-ink, #2ee0c4)", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>Join &rarr;</a>}
                   </div>
                 )}
                 {!noraScreenOff && typeof window !== "undefined" && window.__shapeNoraPageName && (

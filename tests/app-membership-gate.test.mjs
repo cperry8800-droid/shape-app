@@ -1,7 +1,9 @@
-// The app's paywall decides on the membership, not on being signed in (client-onboarding
-// review H1, 2026-10-14), and every membership checkout in the app goes through one door that
-// comes back to the app and re-checks (M1). The rules are pure (memberGate.mjs); the wiring is
-// checked in the shipping source.
+// An account is the app's gate, and the membership decides the paid features only (owner,
+// 2026-11-10: a signed-in adult account that has not paid is a free account and gets in; the
+// signed-out Preview and Browse are gone). Signed in is still not a member (client-onboarding
+// review H1, 2026-10-14): the membership answer is read for the paid features, and every
+// membership checkout in the app goes through one door that comes back to the app and re-checks
+// (M1). The rules are pure (memberGate.mjs); the wiring is checked in the shipping source.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -12,16 +14,34 @@ import { loadRealModule } from './helpers/load-real-module.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
-const { bsMemberGate, bsMembershipAfter, bsMembershipSeed, bsPollMembership } = await import(pathToFileURL(join(ROOT, 'mobile-app/src/services/memberGate.mjs')).href);
+const { bsAccountGate, bsPaidFlags, bsMembershipAfter, bsMembershipSeed, bsPollMembership } = await import(pathToFileURL(join(ROOT, 'mobile-app/src/services/memberGate.mjs')).href);
 
-test('the gate: signed in is not enough; a member, or an approved coach, is in', () => {
-  const ready = { isApprovedCoach: false, authReady: true };
-  assert.deepEqual(bsMemberGate({ ...ready, membership: { loading: false, active: false } }), { allowed: false, loading: false }, 'a signed-in non-member meets the paywall');
-  assert.deepEqual(bsMemberGate({ ...ready, membership: { loading: false, active: true } }), { allowed: true, loading: false });
-  assert.deepEqual(bsMemberGate({ ...ready, membership: { loading: true, active: false } }), { allowed: false, loading: true }, 'held while the lookup runs, never decided early');
-  assert.deepEqual(bsMemberGate({ isApprovedCoach: false, authReady: false, membership: { loading: false, active: true } }).loading, true, 'held until the session restores');
-  assert.deepEqual(bsMemberGate({ isApprovedCoach: true, authReady: false, membership: { loading: true, active: false } }), { allowed: true, loading: false }, 'an approved coach is a member by role');
-  assert.equal(bsMemberGate({ ...ready, membership: { loading: false, active: 'yes' } }).allowed, false, 'only a real true admits');
+test('the gate: an account is in, paid or not; a session with no account is not', () => {
+  const ready = { isApprovedCoach: false, authReady: true, signedIn: true };
+  assert.deepEqual(bsAccountGate({ ...ready, membership: { loading: false, active: false } }), { allowed: true, loading: false }, 'a free account is in the app');
+  assert.deepEqual(bsAccountGate({ ...ready, membership: { loading: false, active: true } }), { allowed: true, loading: false });
+  assert.deepEqual(bsAccountGate({ ...ready, membership: { loading: false, active: false, pastDue: true } }), { allowed: true, loading: false }, 'past due is free: still in');
+  assert.deepEqual(bsAccountGate({ ...ready, signedIn: false, membership: { loading: false, active: false } }), { allowed: false, loading: false }, 'no account: the welcome');
+  assert.deepEqual(bsAccountGate({ ...ready, membership: { loading: true, active: false } }), { allowed: true, loading: true }, 'held while a first answer is on its way (it also says whether this is a minor)');
+  assert.equal(bsAccountGate({ isApprovedCoach: false, authReady: false, signedIn: true, membership: { loading: false, active: true } }).loading, true, 'held until the session restores');
+  assert.deepEqual(bsAccountGate({ isApprovedCoach: true, authReady: false, signedIn: true, membership: { loading: true, active: false } }), { allowed: true, loading: false }, 'an approved coach is in at once');
+});
+
+test('the flags: ShapeCanChat is any account, ShapePaid the paid features, ShapeNora assistant Nora, unknown until answered', () => {
+  const m = (o) => ({ loading: false, ...o });
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: false }) }), { canChat: true, paid: false, pastDue: false, nora: false }, 'a free account messages its coaches');
+  // ⚠ A seeded answer with no lookup heard yet (a cold launch whose lookup failed): Nora is unknown,
+  // which never locks (Codex P2 on #2675). The paid features still read the seed.
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: undefined, pastDue: undefined }) }), { canChat: true, paid: false, pastDue: false, nora: undefined }, 'unheard: Nora unknown, never false');
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true }) }), { canChat: true, paid: true, pastDue: false, nora: true });
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, pastDue: true, nora: false }) }), { canChat: true, paid: false, pastDue: true, nora: false });
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: true, pastDue: true }) }).pastDue, false, 'a member is never past due on screen');
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: { loading: true, active: false } }), { canChat: true, paid: undefined, pastDue: false, nora: undefined }, 'unknown: nothing locks a member on a cold launch');
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: true, membership: { loading: true } }), { canChat: true, paid: true, pastDue: false, nora: true }, 'an approved coach has the paid features');
+  assert.deepEqual(bsPaidFlags({ signedIn: false, isApprovedCoach: false, membership: m({ active: false }) }), { canChat: false, paid: undefined, pastDue: false, nora: undefined }, 'no account: no composer');
+  // Assistant Nora is paid only (owner, 2026-11-10): no free week, and no flag for one.
+  const week = { startedAt: '2026-11-08T00:00:00Z', endsAt: '2026-11-15T00:00:00Z', active: true };
+  assert.deepEqual(bsPaidFlags({ signedIn: true, isApprovedCoach: false, membership: m({ active: false, nora: false, noraPreview: week }) }), { canChat: true, paid: false, pastDue: false, nora: false }, 'a free account has no Nora, whatever a stray field says');
 });
 
 test('a lookup: a real answer replaces what was known; a failed one keeps it, and admits nobody new', () => {
@@ -38,20 +58,41 @@ test('the boot seed is this account\'s own answer or nothing', () => {
   assert.equal(bsMembershipSeed({ stored: '1', storedUid: 'u1', lastUid: 'u2' }), null, 'another account on this device is not this one');
   assert.equal(bsMembershipSeed({ stored: '1', storedUid: null, lastUid: 'u1' }), null, 'an answer from before it was recorded per account counts for nobody');
   assert.equal(bsMembershipSeed({ stored: 'x', storedUid: 'u1', lastUid: 'u1' }), null);
+  assert.equal(bsMembershipSeed({ stored: 'a', storedUid: 'u1', lastUid: 'u1' }), null, 'a known minor seeds nothing: the launch holds for the answer');
 });
 
 test('the shell uses those rules, asks /api/me/membership, and re-checks when it matters', () => {
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
-  assert.match(main, /const \{ allowed: memberAllowed, loading: memberGateLoading \} = bsMemberGate\(\{ isApprovedCoach, authReady, membership \}\);/);
-  assert.doesNotMatch(main, /isApprovedCoach \|\| signedIn \|\|/, 'the old gate let every signed-in account in');
+  assert.match(main, /const \{ allowed: accountAllowed, loading: gateLoading \} = bsAccountGate\(\{ isApprovedCoach, authReady, signedIn, membership \}\);/);
+  assert.match(main, /const admitted = accountAllowed && !ageBlocked;/, 'a known minor is not admitted');
   assert.match(main, /window\.ShapeMembershipApi\?\.lookup\?\.\(\)/);
-  assert.match(main, /const active = bsMembershipAfter\(known, answer\);\n\s+setMembership\(\{ loading: false, active, ageRestricted \}\);/);
+  assert.match(main, /const active = bsMembershipAfter\(known, answer\);\n\s+setMembership\(heard\n\s+\? \{ loading: false, active, ageRestricted, pastDue: !active && pastDue, nora: active \|\| nora, includedWithCoach: active && includedWithCoach \}/);
+  assert.match(main, /localStorage\.setItem\('shape\.member', ageRestricted \? 'a' : answer \? '1' : '0'\)/);
   assert.match(main, /window\.addEventListener\('shape:membership-recheck', onRecheck\);/);
   assert.match(main, /document\.addEventListener\('visibilitychange', onVisible\);/);
   assert.match(main, /localStorage\.removeItem\('shape\.memberUid'\)/, 'signing out forgets whose answer it was');
   assert.match(main, /localStorage\.setItem\('shape\.memberUid', uid\)/);
   assert.doesNotMatch(main, /fetch\(\s*['"`]\/api\/stripe\/subscription/, 'that read calls coaches and admins inactive and a failure "inactive"');
-  assert.match(main, /setPreviewMode\(false\);/, 'a previewer who signs in is not previewing (L2)');
+  // The flags every screen reads, from the same answer.
+  assert.match(main, /const paidFlags = bsPaidFlags\(\{ signedIn, isApprovedCoach, membership \}\);/);
+  // Until a lookup answers on this account, Nora and past due are unknown, not false: a failed
+  // lookup on a cold launch neither locks Nora nor sends a past-due account to Join.
+  assert.match(main, /let heard = false;/);
+  // A saved workout asks nothing of the membership: nothing a workout does opens Nora (owner,
+  // 2026-11-10: no free week). The shell's recheck listener stays for the checkout and a 402.
+  const backend = read('mobile-app/src/services/shapeBackend.js');
+  const save = backend.slice(backend.indexOf("supabase.rpc('save_workout_session'"), backend.indexOf('async function listWorkoutSessions()'));
+  assert.ok(save.includes("throw new Error('The workout save was not confirmed."), 'the save path is the one read');
+  assert.doesNotMatch(save, /shape:membership-recheck|ShapeNora/, 'a saved workout asks for no membership recheck');
+  assert.match(main, /window\.addEventListener\('shape:membership-recheck', onRecheck\);/);
+  assert.match(main, /if \(d\) \{\n\s+heard = true;/);
+  assert.match(main, /: \{ loading: false, active, ageRestricted, pastDue: undefined, nora: active \? true : undefined, includedWithCoach: false \}\);/);
+  assert.doesNotMatch(main, /noraPreview|ShapeNoraPreview/, 'the shell carries no free week');
+  assert.match(main, /window\.ShapeCanChat = paidFlags\.canChat;\n\s+window\.ShapePaid = paidFlags\.paid;\n\s+window\.ShapePastDue = paidFlags\.pastDue;\n\s+window\.ShapeNora = paidFlags\.nora;\n\s+window\.ShapeIncludedWithCoach = includedWithCoach;\n\s+window\.dispatchEvent\(new Event\('shape:canchat'\)\);\n\s+window\.dispatchEvent\(new Event\('shape:paid'\)\);/);
+  // The signed-out Preview and Browse are gone, and every way back to them.
+  for (const gone of [/previewMode|setPreviewMode/, /browseMode|setBrowseMode/, /BSPreviewBanner/, /shape:exitPreview/, /bannerDismissed|noticeDismissed/, /onBrowse/, /onPreview/, /paywall\.preview/]) {
+    assert.doesNotMatch(main, gone, `the shell still carries ${gone}`);
+  }
   // Codex on #2353: computeMembership's rule, a coach role (dietitians included) as the primary
   // role or among roles[], passes as a coach.
   assert.match(main, /const realRoles = \[realRole, \.\.\.\(Array\.isArray\(authState\?\.profile\?\.roles\) \? authState\.profile\.roles : \[\]\)\];/);
@@ -65,18 +106,21 @@ test('one checkout door: the backend posts returnTo, opens the system browser na
   assert.match(check, /if \(!res\.ok\) return null;/, 'a refused lookup is unknown, not a non-member');
   const start = be.slice(be.indexOf('async function startMembershipCheckout('), be.indexOf('// Open Stripe Checkout so Apple Pay'));
   assert.match(start, /const back = _isNative \? '\/membership\/done' : '\/m\/';/);
-  assert.match(start, /body: JSON\.stringify\(\{ returnTo: back, cancelPath: back \}\)/);
+  assert.match(start, /body: JSON\.stringify\(\{ returnTo: back, cancelPath: back, plan: plan === 'annual' \? 'annual' : 'monthly' \}\)/, 'the plan the member picked (monthly by default)');
   assert.match(start, /const opened = await openCheckoutUrl\(data\.url, \{ onClose: \(\) => \{ try \{ window\.dispatchEvent\(new CustomEvent\('shape:membership-recheck', \{ detail: \{ poll: true \} \}\)\); \} catch \(e\) \{\} \} \}\);\n\s+return opened \? \{ ok: true \} : \{ ok: false, status: 0, code: 'browser_failed', error: null \};/);
   assert.match(start, /if \(data && data\.code === 'already_member'\) \{\n\s+try \{ window\.dispatchEvent\(new Event\('shape:membership-recheck'\)\); \} catch \(e\) \{\}/);
-  assert.match(be, /window\.ShapeMembershipApi = \{ check: checkMembership, lookup: lookupMembership, startCheckout: startMembershipCheckout \};/);
+  assert.match(be, /window\.ShapeMembershipApi = \{ check: checkMembership, lookup: lookupMembership, startCheckout: startMembershipCheckout, plans: membershipPlans \};/);
   assert.match(be, /if \(payload\.url && !\(await openCheckoutUrl\(payload\.url\)\)\) \{\n\s+throw new Error\('Unable to open Stripe checkout\.'\);/, 'the coach checkout says so too');
-  // every app entry to the membership checkout uses the door
+  // every app entry to the membership checkout uses the door; the shell starts none of its own now
+  // (a new account is a free account: no checkout on create).
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
-  assert.match(main, /async function bsmStartCheckout\(\) \{[\s\S]*?const r = await api\.startCheckout\(\);/);
+  assert.doesNotMatch(main, /bsmStartCheckout|startCheckout\(/, 'the shell sends nobody to the checkout');
   const client = read('mobile-app/src/broadsheet/iosAppBroadsheetClient.jsx');
   assert.match(client, /const openUpgradeCheckout = async \(\) => \{\n\s+if \(window\.bsRequireAccount && !window\.bsRequireAccount\('become a Shape member'\)\) return;\n\s+await bsStartPlatformCheckout\(\);/);
-  assert.match(client, /async function bsStartPlatformCheckout\(\) \{[\s\S]*?const r = await api\.startCheckout\(\);/);
-  for (const [name, src] of [['main', main], ['client', client]]) {
+  assert.match(client, /async function bsStartPlatformCheckout\(\) \{[\s\S]*?const r = await api\.startCheckout\(\{ plan \}\);\n\s+if \(r\.ok \|\| r\.code === 'already_member'\) return;[\s\S]{0,200}if \(r\.code === 'payment_past_due'\) \{ if \(!\(await bsOpenBillingPortal\(\)\)\) fail\(\); return; \}/, 'a past-due account is sent to update its card, not sold a second membership');
+  const lock = read('mobile-app/src/broadsheet/BSPaidLock.jsx');
+  assert.match(lock, /export async function bsPaidJoin\(\) \{[\s\S]*?const r = await api\.startCheckout\(\{ plan \}\);[\s\S]*?if \(r && r\.code === 'payment_past_due'\) return \{ ok: await bsOpenBillingPortal\(\) \};/);
+  for (const [name, src] of [['main', main], ['client', client], ['the lock', lock]]) {
     assert.doesNotMatch(src, /\/api\/stripe\/platform-checkout/, `${name}: no second door`);
   }
 });
@@ -145,17 +189,16 @@ test('opening the checkout: the system browser natively, a close re-checks once,
   assert.deepEqual(web.assigned, ['https://checkout.stripe.test/c'], 'the website build navigates');
 });
 
-test('coach checkout in the app: the error carries the route\'s flags, and the marketplace offers the membership', () => {
+test('coach checkout in the app: the error carries the route\'s flags, and hiring a coach needs no membership', () => {
   const be = read('mobile-app/src/services/shapeBackend.js');
   assert.match(be, /err\.code = payload\.code \|\| null;\n\s+err\.reason = payload\.reason \|\| null;\n\s+throw err;/);
   const mk = read('mobile-app/src/broadsheet/iosAppBroadsheetMarketplace.jsx');
-  assert.match(mk, /if \(error\?\.code === 'membership_required'\) \{\n\s+setAction\(\{\n\s+\.\.\.current,\n\s+join: true,/);
-  // Codex on #2353: a failed membership checkout says so on the panel; a member goes back to the coach.
-  assert.match(mk, /try \{ r = await window\.ShapeMembershipApi\?\.startCheckout\?\.\(\); \} finally \{ setCheckoutBusy\(false\); \}\n\s+if \(r && r\.ok\) return;/);
-  assert.match(mk, /if \(r && r\.code === 'already_member' && current\.back\) \{ setAction\(current\.back\); return; \}/);
-  assert.match(mk, /setAction\(\{ \.\.\.current, body: message, cta: tr\('marketplace:listing\.tryAgain'[^)]*\), problem: \{ kind: 'payment', message \} \}\);/);
-  assert.match(mk, /join: true,\n\s+back: current,/);
-  assert.match(mk, /cta: tr\('onboarding:paywall\.join', \{ price: '\$5' \}\),/, 'the paywall\'s own translated words');
+  // Owner, 2026-11-10: browsing, booking and hiring coaches are free; /api/stripe/checkout-session
+  // takes any signed-in adult account, so the membership-first panel and its $5 door are gone.
+  assert.doesNotMatch(mk, /error\?\.code === 'membership_required'/, 'the coach checkout still meets a membership-first panel');
+  assert.doesNotMatch(mk, /current\.join|join: true|ShapeMembershipApi/, 'the marketplace still sells the membership in a coach checkout');
+  // The coach's own refusals are still said on the panel.
+  assert.match(mk, /problem: \{ kind: 'payment', message: error\?\.message \|\| tr\('marketplace:listing\.checkoutErrorBody'/);
 });
 
 test('the installed app\'s checkout lands on a page that says what happened', async () => {
@@ -173,15 +216,25 @@ test('the installed app\'s checkout lands on a page that says what happened', as
 
 test('#2353\'s moved item: a known minor is told so before the membership offer, in the app', async () => {
   const minor = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: false, ageRestricted: true }) }) });
-  assert.deepEqual(await minor.fn(), { member: false, ageRestricted: true });
+  const rest = { nora: false, includedWithCoach: false };
+  assert.deepEqual(await minor.fn(), { member: false, ageRestricted: true, pastDue: false, ...rest });
   const adult = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: true }) }) });
-  assert.deepEqual(await adult.fn(), { member: true, ageRestricted: false });
+  assert.deepEqual(await adult.fn(), { member: true, ageRestricted: false, pastDue: false, ...rest, nora: true });
+  const due = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: false, pastDue: true }) }) });
+  assert.deepEqual(await due.fn(), { member: false, ageRestricted: false, pastDue: true, ...rest }, 'a failed renewal is past due');
+  const week = { startedAt: '2026-11-08T00:00:00Z', endsAt: '2026-11-15T00:00:00Z', active: true };
+  const preview = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: false, nora: false, noraPreview: week }) }) });
+  assert.deepEqual(await preview.fn(), { member: false, ageRestricted: false, pastDue: false, nora: false, includedWithCoach: false }, 'a free account has no Nora, and a stray free week is dropped');
+  const coached = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: true, includedWithCoach: true }) }) });
+  assert.equal((await coached.fn()).includedWithCoach, true, 'membership with coaching');
+  const paidDue = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: true, pastDue: true }) }) });
+  assert.equal((await paidDue.fn()).pastDue, false, 'a member is never past due');
   const failed = liftCheckMembership({ name: 'lookupMembership', respond: async () => ({ ok: false }) });
   assert.equal(await failed.fn(), null, 'unknown, not an adult and not a minor');
   const check = liftCheckMembership({ respond: async () => ({ ok: true, json: async () => ({ signedIn: true, member: false, ageRestricted: true }) }) });
   assert.equal(await check.fn(), false, 'check still answers the membership alone');
 
-  // The shell: the age message comes before the paywall, at both places the paywall is drawn.
+  // The shell: the age message comes before the welcome and the app, at both places they are drawn.
   const main = read('mobile-app/src/broadsheet/iosAppBroadsheetMain.jsx');
   assert.match(main, /const ageBlocked = signedIn && !!\(membership && membership\.ageRestricted === true\);/);
   const gate = main.slice(main.indexOf("{stage === 'gate' && ("), main.indexOf("{stage === 'daily' &&"));
@@ -189,8 +242,9 @@ test('#2353\'s moved item: a known minor is told so before the membership offer,
   for (const [where, part] of [['the gate', gate], ['the app', app]]) {
     const age = part.indexOf('<BSDobGate blocked="age_restricted" onLogout={handleLogout} />');
     assert.ok(age > 0, `${where}: the age message is drawn`);
-    assert.ok(age < part.indexOf('<BSPaywall'), `${where}: before the paywall`);
+    assert.ok(age < part.indexOf('<BSWelcome'), `${where}: before the welcome`);
   }
+  assert.ok(app.indexOf('<BSDobGate blocked="age_restricted"') < app.indexOf('<App onLogout'), 'a known minor never reaches the app');
   const dob = read('mobile-app/src/broadsheet/BSDobGate.jsx');
   assert.match(dob, /if \(blocked === 'age_restricted'\) \{[\s\S]*?tr\('dob\.errUnder18', \{ defaultValue: 'Shape is for adults 18 and over\.' \}\)[\s\S]*?onClick=\{onLogout\}/);
   assert.ok(dob.indexOf("if (blocked === 'age_restricted')") < dob.indexOf('if (blocked) {'), 'checked before the generic blocked screen');

@@ -191,7 +191,7 @@ export function checkoutReturnCopy(r: CheckoutReturn): { title: string; body: st
     case 'membership':
       return {
         title: 'Your membership is active',
-        body: 'Your plan, your log and the community are open to you now.',
+        body: 'Nora as your assistant, Shape Radio and the AI helpers are yours now.',
         cta: { href: HOME, label: 'Open Shape' },
       };
     default:

@@ -78,7 +78,7 @@ const PROGRESS = await loadRealModule(join(ROOT, 'src/app/api/client/progress/ro
   registry: new Map([
     ['next/server', nextServer], ['@/lib/time', time], ['@/lib/set-load', setLoad], ['@/lib/e1rm', e1rm],
     ['@/lib/local-day', localDay], ['@/lib/recovery-readiness', recovery],
-    ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
     ['@/lib/supabase/server', { createClient: async () => stubClient }],
     ['@/lib/request-auth', { clientForRequest: async () => stubClient, currentUser: async () => ({ id: 'u-1' }) }],
   ]),

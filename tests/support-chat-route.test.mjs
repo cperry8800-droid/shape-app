@@ -58,7 +58,7 @@ function calls(...items) { return { output: [{ type: 'reasoning', id: 'rs_1', su
 // `isCoach`/`isAdmin` default the way membership-core derives them (from the
 // role), so a test can also model a DUAL-ROLE account: primary role 'client',
 // coach by roles[] — which is what the route must read membership for.
-async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
+async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', roles = null, isMember = true, isCoach = ['trainer', 'nutritionist', 'dietitian'].includes(role), isAdmin = false, membershipFails = false, hasKey = true, answers = [say('ok')], tables = {}, rpcs = {}, fail = [], rate = null, turnstile = null, adminDb = null } = {}) {
   const sb = fakeSupabase({ tables, rpcs, fail });
   const calls_ = { ai: [], proposals: [], rate: [], turnstile: [] };
   // Nora's limits run for real over a stubbed counter and bot check, so a test reads
@@ -97,7 +97,7 @@ async function loadRoute({ user = { id: U, email: 'm@x' }, role = 'client', role
     ['@/lib/ai/adminLookup.mjs', adminLookup],
     // The help desk's service-role client: the test's own (adminDb), else one that refuses.
     ['@/lib/supabase/admin', { createAdminClient: () => { if (!adminDb) throw new Error('no service role'); return adminDb; } }],
-    ['@/lib/membership-core', { computeMembership: async () => ({ isMember, isCoach, isAdmin, isKnownMinor: false }) }],
+    ['@/lib/membership-core', { computeMembership: async (_c, _u, _e, opts) => { if (membershipFails) { calls_.membershipOpts = opts; throw new Error('fake failure on platform_subscriptions'); } return { isMember, isCoach, isAdmin, isKnownMinor: false }; } }],
     ['@/lib/food-search-server', { searchFoodsServer: async () => ({ results: [], unavailable: true }) }],
     ['@/lib/ai', {
       hasOpenAIKey: () => hasKey,
@@ -396,9 +396,13 @@ test('shape_help is offered to everyone and answers from the knowledge base; wit
   const priced = await (await fb.mod.POST(post(ask('how much does shape cost')))).json();
   assert.equal(priced.source, 'fallback');
   assert.match(priced.reply, /\$5 a month/);
-  // "free" is a body word of two entries and a tag of none: a stray body
-  // word must not make the rule-based path answer with the wrong entry.
-  const shrug = await (await fb.mod.POST(post(ask('is it free')))).json();
+  // "free" is the membership entry's own tag since the free account (2026-11-10): "is it free" is
+  // answered that the account is, and what the membership adds.
+  const free = await (await fb.mod.POST(post(ask('is it free')))).json();
+  assert.match(free.reply, /A Shape account is free/);
+  assert.match(free.reply, /no free trial/);
+  // A question no entry answers still gets the catch-all.
+  const shrug = await (await fb.mod.POST(post(ask('what colour is the logo')))).json();
   assert.match(shrug.reply, /I can't answer that one from here. The Shape team answers at info@theshapecommunity.com/, 'the catch-all, not a knowledge entry');
 });
 
@@ -735,6 +739,12 @@ test('GET answers the greeting for the account the server sees, never the page\'
   const plain = await (await trainer.mod.GET(get('?plain=1'))).json();
   assert.ok(full.quick.some((q) => /^Draft/.test(q)));
   assert.ok(!plain.quick.some((q) => /^Draft/.test(q)), 'a panel that cannot confirm is offered no draft');
+  // A plan that could not be read is the visitor's greeting, never "no membership on it yet".
+  const lost = await loadRoute({ isMember: false, membershipFails: true });
+  const unread = await (await lost.mod.GET(get())).json();
+  assert.equal(unread.kind, 'visitor', 'an unread plan promises the least');
+  assert.doesNotMatch(unread.text, /no membership/);
+  assert.equal(lost.calls.membershipOpts?.strictPaid, true, 'the greeting reads what pays with strictPaid');
 });
 
 // ── Where they are (the Ask Nora plan, step 4) ───────────────────────────────────
@@ -1483,4 +1493,40 @@ test('STREAM: no status for a round that answers, and a plain request is never h
   const json = await (await plain.mod.POST(post(ask('habits?')))).json();
   assert.equal(json.reply, 'None yet.');
   assert.equal(json.status, undefined);
+});
+
+test('no free week (owner, 2026-11-10): a free account gets the help desk, never her lookups, and is told assistant Nora is the membership', async () => {
+  const free = await loadRoute({ isMember: false });
+  await free.mod.POST(post(ask('what is on today')));
+  const f = free.calls.ai[0];
+  for (const n of READ_NAMES) assert.ok(!toolNames(f.body).includes(n), `${n} for a free account`);
+  const sys = String(f.body.input?.[0]?.content ?? JSON.stringify(f.body));
+  assert.match(sys, /FREE ACCOUNT:[^]*There is no free trial\. When they ask for a paid feature/);
+  assert.doesNotMatch(sys, /free week|NORA FREE WEEK|three workouts/i, 'a free week is still promised');
+  const route = (await import('node:fs')).readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/app/api/support/chat/route.ts'), 'utf8');
+  assert.doesNotMatch(route, /readNoraPreview|noraWeek|nora_previews/);
+});
+
+// ⚠ A MEMBERSHIP THAT COULD NOT BE READ IS NEITHER (Codex P2 on #2675): a paying member asking during a
+// database fault was told they had no membership and to join. The paid reads throw (strictPaid) and
+// Nora is told the plan is unknown.
+test('an unread membership is unknown to Nora: no free-account note, no Join, and the paid reads throw', async () => {
+  const lost = await loadRoute({ isMember: false, membershipFails: true });
+  await lost.mod.POST(post(ask('do I have the membership?')));
+  const sys = String(lost.calls.ai[0].body.input?.[0]?.content ?? JSON.stringify(lost.calls.ai[0].body));
+  assert.match(sys, /PLAN UNKNOWN: You couldn't check this account's membership just now/);
+  assert.doesNotMatch(sys, /FREE ACCOUNT:|PAYMENT DIDN'T GO THROUGH/, 'an unread membership was said as a confirmed one');
+  assert.equal(lost.calls.membershipOpts?.strictPaid, true, 'a failed paid read reads as "not a member"');
+  // Read, a free account is still told so.
+  const free = await loadRoute({ isMember: false });
+  await free.mod.POST(post(ask('do I have the membership?')));
+  assert.doesNotMatch(String(free.calls.ai[0].body.input?.[0]?.content ?? ''), /PLAN UNKNOWN/);
+});
+
+// The yearly price only when it is set up (Codex P2 on #2675), as her membership entry.
+test('the free-account note names the yearly price only when STRIPE_PLATFORM_ANNUAL_PRICE_ID is set', async () => {
+  const route = (await import('node:fs')).readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/app/api/support/chat/route.ts'), 'utf8');
+  assert.match(route, /The membership \(\$5 a month" \+ YEARLY_PRICE \+ "; included while they pay a coach on Shape\)/);
+  assert.doesNotMatch(route, /\$48 a year/, 'the note promises a year that may not exist');
+  assert.equal(shapeKnowledge.YEARLY_PRICE, process.env.STRIPE_PLATFORM_ANNUAL_PRICE_ID ? ' or $48 a year' : '');
 });

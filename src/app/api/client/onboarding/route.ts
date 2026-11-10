@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { ACTIVE_SUB } from '@/lib/membership-core';
 import { OPEN_SUB_STATUSES } from '../../../../lib/coach-trajectory.mjs';
 import { PROVIDERS } from '@/lib/integrations/providers';
@@ -48,7 +48,10 @@ const dataOf = <T,>(r: Res<T>): T | undefined => (r.error ? undefined : (r.data 
 // stays, so a member who left in April and came back yesterday read as joined in February and got no
 // board, while the coach board ran from the new subscription. undefined when the read failed.
 // capped-read-ok: the OLDEST live row is the one asked for: the day this membership began.
-async function joinedAtOf(supabase: SupabaseClient, userId: string): Promise<string | null | undefined> {
+// ⚠ A FREE ACCOUNT HAS A BOARD TOO (owner, 2026-11-10: an account is free). With no live
+// membership, the board runs from the day the account was made; before, it needed a subscription,
+// so an account that had not paid never got one.
+async function joinedAtOf(supabase: SupabaseClient, userId: string, accountCreatedAt: string | null | undefined): Promise<string | null | undefined> {
   const { data, error } = await supabase
     .from('platform_subscriptions')
     .select('created_at')
@@ -57,7 +60,7 @@ async function joinedAtOf(supabase: SupabaseClient, userId: string): Promise<str
     .order('created_at', { ascending: true })
     .limit(1);
   if (error) return undefined;
-  return ((data ?? []) as Array<{ created_at: string | null }>)[0]?.created_at ?? null;
+  return ((data ?? []) as Array<{ created_at: string | null }>)[0]?.created_at ?? accountCreatedAt ?? null;
 }
 
 // Every coach of a role they pay, the earliest first, one row per listing (its earliest live
@@ -83,13 +86,13 @@ async function liveSubs(supabase: SupabaseClient, userId: string): Promise<SubRo
 }
 
 export async function GET(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
   const supabase = await clientForRequest(request);
 
-  const joinedAt = await joinedAtOf(supabase, user.id);
+  const joinedAt = await joinedAtOf(supabase, user.id, user.created_at);
   if (joinedAt === undefined) {
     console.error('[client/onboarding] membership read failed');
     return NextResponse.json({ ok: false, error: "Couldn't read your membership." }, { status: 500 });
@@ -181,7 +184,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return denied;
   const user = await currentUser(request);
   if (!user) return NextResponse.json({ error: 'Authentication required.' }, { status: 401 });
@@ -199,7 +202,7 @@ export async function POST(request: Request) {
   const startsOn = rawStart as string | null;
   const supabase = await clientForRequest(request);
 
-  const joinedAt = await joinedAtOf(supabase, user.id);
+  const joinedAt = await joinedAtOf(supabase, user.id, user.created_at);
   if (joinedAt === undefined) return NextResponse.json({ ok: false, error: "Couldn't read your membership. Try again." }, { status: 500 });
   const win = joinedAt ? memberSetupWindow(joinedAt) : null;
   const joined = joinedAt ? Date.parse(joinedAt) : NaN;

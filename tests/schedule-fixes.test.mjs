@@ -92,7 +92,7 @@ async function routes() {
     ['@/lib/member-menus', memberMenus],
     // No paid sessions in these worlds (fix 3c; tests/schedule-step2.test.mjs runs the real one).
     ['@/lib/paid-sessions', { openPaidSessions: async () => ({ ok: true, rows: [] }), linkPaidSession: async () => true }],
-    ['@/lib/require-membership', { requireMembership: async () => null }],
+    ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
     ['@/lib/request-auth', { clientForRequest: async () => client, currentUser: async () => ({ id: userId }) }],
     ['@/lib/supabase/admin', { createAdminClient: () => ({}) }],
     ['@/lib/video', { videoRoomUrl: () => null }],

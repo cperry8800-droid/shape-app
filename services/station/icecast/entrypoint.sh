@@ -15,6 +15,7 @@
 #   ICECAST_PORT             optional, default 8000
 #   ICECAST_CONFIG           optional, where to write the config (default /tmp/icecast.xml)
 #   ICECAST_LOG_DIR          optional, default /var/log/icecast2
+#   STATION_BOOT_FILE        optional: where to write this start's name for the door service
 set -eu
 
 here=$(dirname "$0")
@@ -48,6 +49,12 @@ sleep 1
 BOOT="$(date -u +%s).$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s' "$BOOT" | grep -Eq '^[0-9]{9,11}\.[0-9a-f]{16}$' || fail 'could not name this start of the station'
 LISTENER_AUTH_URL="$SHAPE_URL/api/radio/pass?boot=$BOOT"
+# The station's door (services/station/door) drops the listeners Shape names for this start, so it
+# reads which start this is from here.
+if [ -n "${STATION_BOOT_FILE:-}" ]; then
+  printf '%s' "$STATION_BOOT_FILE" | grep -Eq '^/[A-Za-z0-9._/-]+$' || fail 'STATION_BOOT_FILE must be an absolute path'
+  printf '%s' "$BOOT" > "$STATION_BOOT_FILE"
+fi
 ICECAST_ADMIN_EMAIL=${ICECAST_ADMIN_EMAIL:-radio@theshapecommunity.com}
 printf '%s' "$ICECAST_ADMIN_EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$' || fail 'ICECAST_ADMIN_EMAIL is not an email address'
 ICECAST_MAX_LISTENERS=${ICECAST_MAX_LISTENERS:-2000}

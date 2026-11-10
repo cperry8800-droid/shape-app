@@ -98,7 +98,8 @@ test('her desk: a band on the sheet\'s own paper that stays put, with Talk to No
   // The page's own teal, since the desk is the page's own colours.
   assert.match(SHEET, /const deskTeal = t\.isLight \? '#0a7a72' : '#34d6c5';/);
   // Talk to Nora is the filled key (ink on the paper), 44px, its bars in the other theme's teal.
-  assert.match(desk, /data-nora-talk-button onClick=\{\(\) => talk\.start\(\)\} style=\{\{ flex: 1, minWidth: 0, minHeight: 44, [^}]*background: t\.INK, color: t\.PAPER,/);
+  // Talk starts in the tap; for an account without assistant Nora it opens the lock under it (owner, 2026-11-10).
+  assert.match(desk, /data-nora-talk-button aria-expanded=\{voiceLock \? talkLock : undefined\} onClick=\{\(\) => \{ if \(voiceLock\) setTalkLock\(\(v\) => !v\); else talk\.start\(\); \}\} style=\{\{ flex: 1, minWidth: 0, minHeight: 44, [^}]*background: t\.INK, color: t\.PAPER,/);
   assert.match(desk, /borderRadius: 2, background: t\.isLight \? '#34d6c5' : '#0a7a72' \}\} \/>\)\}/);
   // Her portrait and name open her profile, a button of its own (Talk and × are not inside it).
   assert.match(desk, /<button type="button" onClick=\{\(\) => setShowNora\(true\)\}/);

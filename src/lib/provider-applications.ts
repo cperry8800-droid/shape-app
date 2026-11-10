@@ -151,6 +151,9 @@ export function withAdminBackgroundCheck(
 export const REVIEW_HIDDEN_DETAIL_KEYS: readonly string[] = [
   'documents',
   'approved_provider',
+  // The signed-in sender /api/apply stamped: the card says what it means instead of showing ids.
+  'account_id',
+  'account_source',
   ...BACKGROUND_CHECK_DETAIL_KEYS,
   // The experience answers have their own panel on the review card.
   'experience_history',

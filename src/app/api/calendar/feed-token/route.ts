@@ -18,7 +18,7 @@
 import { NextResponse } from 'next/server';
 import { clientForRequest, currentUser } from '@/lib/request-auth';
 import { readJson } from '@/lib/request-utils';
-import { requireMembership } from '@/lib/require-membership';
+import { requireAccount } from '@/lib/require-membership';
 import { feedUrls, isMissingTable, newFeedToken } from '@/lib/calendar-feed';
 
 export const runtime = 'nodejs';
@@ -48,7 +48,7 @@ function answer(request: Request, row: LinkRow, extra: Record<string, unknown> =
 
 // The caller, if they are a coach; otherwise the response to send.
 async function coach(request: Request): Promise<{ userId: string; supabase: Supa } | { response: NextResponse }> {
-  const denied = await requireMembership(request);
+  const denied = await requireAccount(request);
   if (denied) return { response: denied };
   const user = await currentUser(request);
   if (!user) return { response: json({ error: 'Authentication required.' }, 401) };

@@ -19,6 +19,10 @@ services:
       # (src/lib/radio/listens.mjs); the station signs in with the engine's token
       SHAPE_URL: ${SHAPE_URL:-https://www.theshapecommunity.com}
       NORA_ENGINE_TOKEN: ${NORA_ENGINE_TOKEN:?set it in .env}
+      # This start's name, for the door below
+      STATION_BOOT_FILE: /run/station/boot
+    volumes:
+      - station_run:/run/station
     # Reachable from this machine only (for a look at Icecast's status page over an SSH tunnel);
     # the public reach it through Caddy.
     ports:
@@ -46,6 +50,21 @@ services:
       NORA_STREAM_URL: icecast://source:${ICECAST_SOURCE_PASSWORD:?set it in .env}@icecast:8000/live
       NORA_BITRATE: ${NORA_BITRATE:-192k}
 
+  # The door: drops the listeners Shape names (a second device on one account, or a membership that
+  # ended or went past due), with Icecast's own admin command, inside this machine only.
+  door:
+    build: ./door
+    restart: always
+    depends_on: [icecast]
+    environment:
+      SHAPE_URL: ${SHAPE_URL:-https://www.theshapecommunity.com}
+      NORA_ENGINE_TOKEN: ${NORA_ENGINE_TOKEN:?set it in .env}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:?set it in .env}
+      ICECAST_URL: http://icecast:8000
+      STATION_BOOT_FILE: /run/station/boot
+    volumes:
+      - station_run:/run/station:ro
+
   caddy:
     image: caddy:2.8.4
     restart: always
@@ -63,3 +82,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  station_run:

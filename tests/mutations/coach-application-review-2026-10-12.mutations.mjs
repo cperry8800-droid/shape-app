@@ -13,7 +13,11 @@ const ERASURE = 'src/lib/account-erasure.ts';
 const CONFIRM = 'src/app/auth/confirm/route.ts';
 const VERIFY = 'src/lib/coach-verification.ts';
 
-export default {
+const APPROVAL = 'src/lib/coach-approval.ts';
+const CONFIRM_ACTION = 'src/app/coach/confirm/actions.ts';
+const CONFIRM_PAGE = 'src/app/coach/confirm/page.tsx';
+
+const spec = {
   test: 'node --test tests/coach-application-review.test.mjs',
   timeoutMs: 120_000,
   mutations: [
@@ -154,3 +158,81 @@ export default {
       replace: "  if (years === null) return '7+ years';" },
   ],
 };
+
+// ── 2026-11-10: approval's provisioning moved to src/lib/coach-approval.ts (shared with the account's Confirm, src/app/coach/confirm/actions.ts); an approval goes to the account that applied ──
+const RETARGET = {
+  "approval sends no email": { file: APPROVAL, find: "  const sent = await sendEmail({ to: binding.mailTo, ...mail });\n  await recordDecisionEmail(admin, application.id, nextReview, 'approval', sent);", replace: "  const sent = { ok: true } as { ok: boolean; error?: string };\n  await recordDecisionEmail(admin, application.id, nextReview, 'approval', sent);" },
+  "approval goes back to Supabase's own invite email": { file: APPROVAL, find: "  const { data, error } = await admin.auth.admin.generateLink({\n    type: 'invite',\n    email: application.email,\n    options: {", replace: "  await admin.auth.admin.inviteUserByEmail(application.email);\n  const { data, error } = await admin.auth.admin.generateLink({\n    type: 'invite',\n    email: application.email,\n    options: {" },
+  "a never-signed-in account is told to sign in as usual": { file: APPROVAL, find: "    if (!existing.last_sign_in_at) {", replace: "    if (false) {" },
+  "an approved application can be approved again": { file: ACTIONS, find: "  if (typed.status === 'approved') backToReview({ notice: 'already_approved' });\n  // The type,", replace: "  // The type," },
+  "an existing listing is overwritten": { file: APPROVAL, find: "      if (isEmptyValue(existing[column]) && !isEmptyValue(value)) fill[column] = value;", replace: "      if (!isEmptyValue(value)) fill[column] = value;" },
+  "\"Mark in review\" reopens an approved application": { file: ACTIONS, find: "  if (application?.status === 'approved') backToReview({ notice: 'locked_approved' });\n\n  // ⚠ REOPENING", replace: "\n  // ⚠ REOPENING" },
+  "the monthly price is copied into session_price": { file: APPROVAL, find: "      ? { session_price: oneTimePrice }", replace: "      ? { session_price: oneTimePrice ?? price }" },
+  "two Approve clicks both provision": { file: ACTIONS, find: "  if (claim === 'conflict') backToReview({ notice: 'approval_conflict' });", replace: "" },
+  "a live claim does not stop a later click": { file: APPROVAL, find: "  if (Number.isFinite(liveClaimAt) && Date.now() - liveClaimAt < APPROVAL_CLAIM_MS) return 'in_progress';", replace: "  if (false) return 'in_progress';" },
+  "a claim never expires": { file: APPROVAL, find: "  if (Number.isFinite(liveClaimAt) && Date.now() - liveClaimAt < APPROVAL_CLAIM_MS) return 'in_progress';", replace: "  if (Number.isFinite(liveClaimAt)) return 'in_progress';" },
+  "a failed provisioning keeps the claim": { file: APPROVAL, find: "      .update({ admin_review: { ...asRecord(application.admin_review), approval_claim: null } })", replace: "      .update({ admin_review: { ...asRecord(application.admin_review) } })" },
+  "the tick is not recorded": { file: ACTIONS, find: "    experienceException: experienceExceptionRecord(typed, belowStandard, now, adminUser.id),", replace: "    experienceException: experienceExceptionRecord(typed, false, now, adminUser.id)," },
+  "no answer publishes a made-up experience line": { file: APPROVAL, find: "  if (years === null) return null;", replace: "  if (years === null) return '7+ years';" },
+};
+const DROP = [];
+const ADDED = [
+  { name: "binding: ⚠ an account in use is made a coach on the form's word", file: APPROVAL,
+    find: "    return { kind: 'confirm', user: existing, mailTo: existing.email || application.email };",
+    replace: "    return { kind: 'provision', user: existing, setPasswordUrl: null, existingAccount: true, mailTo: application.email, source: 'unused_account' };" },
+  { name: "binding: ⚠ an account_id without the session marker is a stamp", file: APPROVAL,
+    find: "  if (d.account_source !== ACCOUNT_SOURCE_SESSION) return null;\n",
+    replace: "" },
+  { name: "binding: the stamped sender is emailed at the form's address", file: APPROVAL,
+    find: "      mailTo: user.email || application.email,",
+    replace: "      mailTo: application.email," },
+  { name: "binding: a deleted sender's application goes to the form's address instead", file: APPROVAL,
+    find: "    if (!user) return { kind: 'account_gone' };",
+    replace: "    if (!user) return resolveApprovalBinding(admin, { ...application, details: {} });" },
+  { name: "binding: the confirm path is never taken", file: ACTIONS,
+    find: "  if (binding.kind === 'confirm') {",
+    replace: "  if (false) {" },
+  { name: "binding: an empty roles list loses the member's own role", file: APPROVAL,
+    find: "  const existingRoles = listed.length ? listed : profile?.role ? [String(profile.role)] : [];",
+    replace: "  const existingRoles = listed;" },
+  { name: "binding: a rejection goes to the form's address, not the sender's", file: ACTIONS,
+    find: "(await stampedAccountEmail(admin, typed.details)) || typed.email",
+    replace: "typed.email" },
+  { name: "confirm: ⚠ another account confirms the approval", file: CONFIRM_ACTION,
+    find: "  if (pending.userId !== user.id) backToConfirm(applicationId, 'wrong_account');\n",
+    replace: "" },
+  { name: "confirm: a review changed since the approval is confirmed anyway", file: CONFIRM_ACTION,
+    find: "  if (approvalBlocker(typed)) backToConfirm(applicationId, 'unavailable');\n",
+    replace: "" },
+  { name: "confirm: a Confirm takes no claim", file: CONFIRM_ACTION,
+    find: "  if (claim !== 'claimed') backToConfirm(applicationId, 'busy');\n",
+    replace: "" },
+  { name: "confirm: a signed-out Confirm is not sent to sign in", file: CONFIRM_ACTION,
+    find: "  if (!user) redirect(`/login?next=${encodeURIComponent(`${CONFIRM_PATH}?application=${applicationId}`)}`);\n",
+    replace: "" },
+  { name: "confirm: a rejection leaves the waiting approval", file: ACTIONS,
+    find: "    pending_confirmation: null,\n    decision: { decision: 'rejected'",
+    replace: "    decision: { decision: 'rejected'" },
+  { name: "confirm: reopening leaves the waiting approval", file: ACTIONS,
+    find: "      ...(pendingConfirmation({ admin_review: review }) ? { admin_review: { ...review, pending_confirmation: null } } : {}),\n",
+    replace: "" },
+  // Codex P2 on #2675: the email's record goes into the row as it is then.
+  { name: "r8: the email record writes the decision's snapshot back", file: APPROVAL,
+    find: "        .update({ admin_review: { ...asRecord(current.admin_review), decision_email: decisionEmail } })",
+    replace: "        .update({ admin_review: { ...review, decision_email: decisionEmail } })" },
+  { name: "r8: the email record overwrites a newer write", file: APPROVAL,
+    find: "        .eq('id', applicationId)\n        .eq('updated_at', current.updated_at)\n",
+    replace: "        .eq('id', applicationId)\n" },
+  // Codex P1 on #2675: Mark in review never writes over a live approval claim.
+  { name: "r10: Mark in review writes under a live claim", file: ACTIONS,
+    find: "  if (Number.isFinite(claimAt) && Date.now() - claimAt < APPROVAL_CLAIM_MS) backToReview({ notice: 'reopen_approval_in_progress' });\n",
+    replace: "" },
+  { name: "r10: Mark in review writes over a version it did not read", file: ACTIONS,
+    find: "    .eq('updated_at', readAt)\n    .neq('status', 'approved')\n    .select('id');",
+    replace: "    .neq('status', 'approved')\n    .select('id');" },
+  { name: "confirm: the page sets the coach up on GET", file: CONFIRM_PAGE,
+    find: "import { confirmCoachApproval } from './actions';",
+    replace: "import { confirmCoachApproval } from './actions';\nimport { provisionApproval } from '@/lib/coach-approval';" },
+];
+spec.mutations = [...spec.mutations.filter((m) => !DROP.includes(m.name)).map((m) => (RETARGET[m.name] ? { ...m, ...RETARGET[m.name] } : m)), ...ADDED];
+export default spec;

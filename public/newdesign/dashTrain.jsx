@@ -412,7 +412,15 @@ function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
   const [draftWeeks, setDraftWeeks] = React.useState(8);
   const [draftDays, setDraftDays] = React.useState(4);
   const [draft, setDraft] = React.useState(null); // the reviewed program
-  const [draftState, setDraftState] = React.useState("idle"); // idle | drafting | unavailable
+  // idle | drafting | unavailable | membership_required | payment_past_due. The AI draft is part of
+  // the membership (owner, 2026-11-10); the programs built by hand above stay free. An account the
+  // shell already knows has no paid features opens on the locked state, and a 402 from the route
+  // lands there too, with the route's own code: never "unavailable, try again", which can't help.
+  const [draftState, setDraftState] = React.useState(() => {
+    const kind = window.ShapeMembership ? window.ShapeMembership.lockKind(window.__shapeClientMembership) : null;
+    return kind === "pastdue" ? "payment_past_due" : kind === "join" ? "membership_required" : "idle";
+  });
+  const draftLock = draftState === "payment_past_due" ? "pastdue" : draftState === "membership_required" ? "join" : null;
 
   const post = async (payload, savedMsg) => {
     setBusy(true); setErr(null); setNotice(null);
@@ -460,6 +468,7 @@ function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
       const res = await fetch("/api/ai/draft-program", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: draftGoal.trim(), weeks: draftWeeks, daysPerWeek: draftDays }) });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data && data.program && Array.isArray(data.program.weeks) && data.program.weeks.length) { setDraft(data.program); setDraftState("idle"); }
+      else if (res.status === 402) setDraftState(data && data.code === "payment_past_due" ? "payment_past_due" : "membership_required");
       else setDraftState("unavailable");
     } catch (e) { setDraftState("unavailable"); }
   };
@@ -610,7 +619,13 @@ function DtrBuilder({ self, onChanged, coaching, findCoach = true }) {
         </div>
       )}
 
-      {mode === "draft" && (
+      {mode === "draft" && draftLock && (
+        <div data-draft-locked={draftLock} style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 560 }}>
+          <div style={{ fontSize: 12.5, color: DTR_INK50, lineHeight: 1.55 }}>Describe the goal and Nora drafts the weeks, for you to approve before anything lands. Building your own session or program stays free.</div>
+          {window.ShapePaidLock ? <window.ShapePaidLock kind={draftLock} feature="The AI program draft" more={draftLock === "join" ? <a href="#membership" style={{ fontFamily: DTR_MONO, fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: DTR_TEAL, textDecoration: "none" }}>What's included</a> : null} /> : null}
+        </div>
+      )}
+      {mode === "draft" && !draftLock && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <input value={draftGoal} onChange={(e) => setDraftGoal(e.target.value)} placeholder={"The goal · e.g. \"first half-marathon in 12 weeks, 4 days a week\""} style={{ ...DTR_FIELD, maxWidth: 480 }} />
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

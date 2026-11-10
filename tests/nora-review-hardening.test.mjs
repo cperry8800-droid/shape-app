@@ -93,7 +93,7 @@ async function speak({ allowed = true } = {}) {
       ['@/lib/ai/server', { resolveActor: async () => ({ user: { id: 'member-1' }, role: 'client', roles: ['client'], supabase: SB }) }],
       ['@/lib/ai', { hasOpenAIKey: () => true, synthesizeSpeech: async (text) => { spoken.push(text); return { ok: true, audio: new Uint8Array([1]).buffer, contentType: 'audio/mpeg' }; } }],
       ['@/lib/ai/tone.mjs', tone],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ['@/lib/ai/noraLimits', mod],
     ]),
   });
@@ -110,7 +110,7 @@ async function transcribe({ allowed = true } = {}) {
     registry: new Map([
       ['next/server', nextServer],
       ['@/lib/request-auth', { currentUser: async () => ({ id: 'member-1' }), clientForRequest: async () => SB }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ['@/lib/ai/voiceLang.mjs', voiceLang],
       ['@/lib/ai', { hasOpenAIKey: () => true, transcribeAudio: async (file) => { heard.push(file.name); return { ok: true, text: 'hi', model: 'm', fellBack: false }; } }],
       ['@/lib/ai/noraLimits', mod],
@@ -131,7 +131,7 @@ async function draft({ allowed = true } = {}) {
       ['next/server', nextServer],
       ['@/lib/request-utils', requestUtils],
       ['@/lib/request-auth', { currentUser: async () => ({ id: 'member-1' }), clientForRequest: async () => SB }],
-      ['@/lib/require-membership', { requireMembership: async () => null }],
+      ['@/lib/require-membership', { requireMembership: async () => null, requireAccount: async () => null, requireNora: async () => null }],
       ['@/lib/ai', { hasOpenAIKey: () => true, callAI: async () => { asked.push(1); return { ok: false }; } }],
       ['@/lib/ai/noraLimits', mod],
     ]),

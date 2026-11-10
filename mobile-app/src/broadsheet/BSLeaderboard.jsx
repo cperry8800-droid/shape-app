@@ -1,4 +1,5 @@
 import React from 'react';
+import { BSPaidLock, bsPaidLockRead } from './BSPaidLock.jsx';
 // ─── LEADERBOARDS (Settings → More → Leaderboard) ────────────────────────────
 // Owner, 2026-10-15: "we should have a members and coaches leaderboard", then "looks good,
 // build it" on the preview, whose app view is this screen: short labels, one strip for your
@@ -19,6 +20,16 @@ import React from 'react';
 //
 // ⚠ EVERY STATE SAYS WHAT IT IS. Signed out, not a coach, not switched on yet and could not read
 // are four sentences, and none of them is drawn as an empty board.
+//
+// ⚠ EVERY ACCOUNT IS RANKED; THE FULL BOARD IS PAID (owner, 2026-11-10, "like Strava"). A free or
+// past-due account is on the boards for everyone, and its privacy switches apply as a member's do.
+// What membership adds is the full board, your exact rank and the rank history: /api/leaderboard
+// answers `fullBoard: false` and `locked` 'free_account' | 'past_due' for them, `entries` holds the
+// top 10 only, every row's movement is null, and `me` is still their own row with its points but
+// `me.rank` null when they are outside the top 10 (`me.inTop`). Such a board draws the top 10 with no
+// movement arrows and, where the caller's row would be, their points and the paid lock: free, "See
+// your exact rank and the full board with membership." and Join; past due, the card line and
+// Update your card.
 
 const { useState } = React;
 
@@ -228,6 +239,16 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
   const d = state.data;
   const entries = d.entries || [];
   const me = d.me;
+  // The top 10 only, with no history, for a free or past-due account (a board from before the field
+  // reads as full). Its lock is the read's reason, else the shell's own flags.
+  const fullBoard = coach || d.fullBoard !== false;
+  // 'unknown' (the membership could not be read): the shell's own answer, else no lock at all, so a
+  // paying member is never told to join (Codex P2 on #2675).
+  const boardLock = fullBoard ? null
+    : d.locked === 'past_due' ? 'pastDue'
+      : d.locked === 'free_account' ? 'free'
+        : d.locked === 'unknown' ? bsPaidLockRead()
+          : (bsPaidLockRead() || 'free');
   const climb = coach && view === 'climb';
   const value = (e) => (climb ? Number(e.gained) || 0 : Number(e.points) || 0);
   const shown = (e) => (climb ? ((e.gained || 0) < 0 ? '−' : '+') + fmt(Math.abs(e.gained || 0)) : fmt(e.points));
@@ -266,8 +287,20 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
         ? tr('score:board.climbEmpty', { defaultValue: 'Climbers needs a reading to compare against. Shape records every coach’s score each night; the first comparison appears the day after the first reading.' })
         : null;
 
-  // Your place.
-  if (!emptyText) {
+  // Your place. A free or past-due account outside the top 10 sees its points, not its rank: the
+  // exact rank is the full board's, and the lock stands where it would be.
+  const outsideTop = !fullBoard && !!me && (me.rank === null || me.rank === undefined) && me.inTop !== true && (Number(me.points) || 0) > 0;
+  if (!emptyText && outsideTop) {
+    blocks.push(
+      <div key="you" data-board-outside-top={boardLock} style={{ ...pad, marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, padding: '10px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.ACCENT}66`, background: `${t.ACCENT}12` }}>
+          <span style={{ fontFamily: t.DISPLAY, fontSize: 13, fontWeight: 700, color: t.INK }}>{tr('score:board.you', { defaultValue: 'You' })}</span>
+          <span style={{ fontFamily: t.DISPLAY, fontWeight: 700, fontSize: 18, color: t.INK, fontVariantNumeric: 'tabular-nums' }}>{shown(me)} <span style={mono(8.5, t.INK50)}>{tr('score:board.pts', { defaultValue: 'pts' })}</span></span>
+        </div>
+        <BSPaidLock lock={boardLock} feature="leaderboard" compact style={{ marginTop: 8 }} />
+      </div>
+    );
+  } else if (!emptyText) {
     if (coach && !me) {
       blocks.push(note(role === 'trainer'
         ? tr('score:board.noListingTrainer', { defaultValue: 'You don’t have a trainer listing, so you aren’t on this board.' })
@@ -279,7 +312,8 @@ export function BSLeaderboard({ onBack, mode = 'member', role: initialRole = 'tr
       // Behind someone who has gained nothing (Climbers can go negative), the bar is at its floor (Fable, #2371).
       const pct = !above ? 100 : value(above) > 0 ? Math.max(6, Math.min(96, Math.round((value(me) / value(above)) * 100))) : 6;
       const of = tr('score:board.of', { defaultValue: 'of {total, number}', total: d.total });
-      const moved = !climb && me.moved ? (me.moved > 0 ? ' · ▲' + me.moved : ' · ▼' + -me.moved) : '';
+      // Movement is rank history, the full board's: none on the top-10 board.
+      const moved = fullBoard && !climb && me.moved ? (me.moved > 0 ? ' · ▲' + me.moved : ' · ▼' + -me.moved) : '';
       blocks.push(
         <div key="you" style={{ ...pad, marginBottom: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: '2px 12px', alignItems: 'center', padding: '10px 12px', borderRadius: t.RADIUS_SM, border: `1px solid ${t.ACCENT}66`, background: `${t.ACCENT}12` }}>

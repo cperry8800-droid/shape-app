@@ -82,18 +82,14 @@ export async function POST(request: Request) {
   if (!auth) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   const { user, supabase: caller } = auth;
 
-  // ⚠ COACHING NEEDS AN ACTIVE SHAPE MEMBERSHIP (owner, 2026-10-14: "need to be an active member
-  // to access platform"). This route never asked, so a signed-in non-member could pay a coach and
-  // then be refused messages, the plan and the dashboard by the membership gate. The refusal
-  // carries the same code the gate uses, so a caller sends the member to the $5 checkout first.
-  // Fail closed: no payment starts on a membership we could not read.
+  // ⚠ HIRING A COACH IS FREE WITH AN ACCOUNT (owner, 2026-11-10). It used to need the $5
+  // membership (owner, 2026-10-14), because the messages, the plan and the dashboard a coach
+  // works through were paid; an account now has all of them. What still holds is Shape's 18+:
+  // fail closed, no payment starts on an age we could not read.
   try {
     const m = await computeMembership(caller, user.id, user.email ?? null, { emailConfirmed: user.emailConfirmed === true, strict: true });
     if (m.isKnownMinor) {
       return NextResponse.json({ error: 'Shape is for adults 18 and over.', code: 'age_restricted' }, { status: 403 });
-    }
-    if (!m.isMember) {
-      return NextResponse.json({ error: 'Shape membership required.', code: 'membership_required' }, { status: 402 });
     }
   } catch (err) {
     console.error('[shape-app] checkout membership read failed', err);

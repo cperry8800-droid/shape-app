@@ -61,7 +61,7 @@ function loadRoute({ user = { id: 'u1' }, denied = null, hasKey = true, aiResult
       ['@/lib/recipe-draft', recipeDraft],
       ['@/lib/request-auth', { currentUser: async () => user }],
       ['@/lib/request-utils', requestUtils],
-      ['@/lib/require-membership', { requireMembership: async () => denied }],
+      ['@/lib/require-membership', { requireMembership: async () => denied, requireAccount: async () => denied, requireNora: async () => denied }],
       ['@/lib/ai', {
         parseModelJson: ai.parseModelJson,
         hasOpenAIKey: () => hasKey,
